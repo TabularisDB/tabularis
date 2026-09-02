@@ -21,6 +21,7 @@ import {
 import { AiActivityPanel } from "../components/settings/AiActivityPanel";
 import { McpSafetySection } from "../components/modals/mcp/McpSafetySection";
 import { useAlert } from "../hooks/useAlert";
+import { useCopyFeedback } from "../hooks/useCopyFeedback";
 import { useEditorTheme } from "../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../themes/themeUtils";
 
@@ -130,8 +131,8 @@ function McpSetupPanel() {
   const { showAlert } = useAlert();
   const [clients, setClients] = useState<McpClientStatus[]>([]);
   const [loading, setLoading] = useState(true);
-  const [copiedJson, setCopiedJson] = useState(false);
-  const [copiedCmd, setCopiedCmd] = useState(false);
+  const { copied: copiedJson, copy: copyJson } = useCopyFeedback();
+  const { copied: copiedCmd, copy: copyCmd } = useCopyFeedback();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   const selectedClient = useMemo(
@@ -279,11 +280,7 @@ function McpSetupPanel() {
                   {cliCommand}
                 </div>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(cliCommand);
-                    setCopiedCmd(true);
-                    setTimeout(() => setCopiedCmd(false), 2000);
-                  }}
+                  onClick={() => copyCmd(cliCommand)}
                   className="absolute right-2 top-2 rounded bg-surface-secondary p-1.5 text-secondary opacity-0 transition-all hover:text-primary group-hover:opacity-100"
                 >
                   {copiedCmd ? (
@@ -315,11 +312,7 @@ function McpSetupPanel() {
                   }}
                 />
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(jsonValue);
-                    setCopiedJson(true);
-                    setTimeout(() => setCopiedJson(false), 2000);
-                  }}
+                  onClick={() => copyJson(jsonValue)}
                   className="absolute right-2 top-2 z-10 rounded bg-surface-secondary p-2 text-secondary opacity-0 transition-all hover:text-primary group-hover:opacity-100"
                 >
                   {copiedJson ? (

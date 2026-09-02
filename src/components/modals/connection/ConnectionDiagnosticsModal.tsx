@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCopyFeedback } from "../../../hooks/useCopyFeedback";
 import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
@@ -48,7 +48,7 @@ export const ConnectionDiagnosticsModal = ({
   log,
 }: ConnectionDiagnosticsModalProps) => {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyFeedback();
 
   if (!isOpen) return null;
 
@@ -61,19 +61,12 @@ export const ConnectionDiagnosticsModal = ({
   );
 
   const copyReport = async () => {
-    const report = formatDiagnosticsReport({
+    await copy(formatDiagnosticsReport({
       summary: title,
       recovery: error?.recoveryKey ? t(error.recoveryKey) : null,
       logLines,
       detail: error?.detail || null,
-    });
-    try {
-      await navigator.clipboard.writeText(report);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy diagnostics:", err);
-    }
+    }));
   };
 
   return (

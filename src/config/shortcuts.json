@@ -100,6 +100,56 @@
     "overridable": true
   },
   {
+    "id": "extend_cell_range",
+    "category": "data_grid",
+    "defaultMac": "Shift+↑↓←→",
+    "defaultWin": "Shift+↑↓←→",
+    "macMatch": { "shiftKey": true, "key": "ArrowDown" },
+    "winMatch": { "shiftKey": true, "key": "ArrowDown" },
+    "i18nKey": "settings.shortcuts.extendCellRange",
+    "overridable": false
+  },
+  {
+    "id": "jump_to_edge",
+    "category": "data_grid",
+    "defaultMac": "⌘+↑↓←→",
+    "defaultWin": "Ctrl+↑↓←→",
+    "macMatch": { "metaKey": true, "key": "ArrowDown" },
+    "winMatch": { "ctrlKey": true, "key": "ArrowDown" },
+    "i18nKey": "settings.shortcuts.jumpToEdge",
+    "overridable": false
+  },
+  {
+    "id": "extend_cell_range_to_edge",
+    "category": "data_grid",
+    "defaultMac": "⌘+Shift+↑↓←→",
+    "defaultWin": "Ctrl+Shift+↑↓←→",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "ArrowDown" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "ArrowDown" },
+    "i18nKey": "settings.shortcuts.extendCellRangeToEdge",
+    "overridable": false
+  },
+  {
+    "id": "select_row",
+    "category": "data_grid",
+    "defaultMac": "Shift+Space",
+    "defaultWin": "Shift+Space",
+    "macMatch": { "shiftKey": true, "key": " " },
+    "winMatch": { "shiftKey": true, "key": " " },
+    "i18nKey": "settings.shortcuts.selectRow",
+    "overridable": false
+  },
+  {
+    "id": "select_column",
+    "category": "data_grid",
+    "defaultMac": "⌘+Space / ⌘+Shift+Space",
+    "defaultWin": "Ctrl+Space / Ctrl+Shift+Space",
+    "macMatch": { "metaKey": true, "key": " " },
+    "winMatch": { "ctrlKey": true, "key": " " },
+    "i18nKey": "settings.shortcuts.selectColumn",
+    "overridable": false
+  },
+  {
     "id": "tab_switcher",
     "category": "editor",
     "defaultMac": "Ctrl+Tab",

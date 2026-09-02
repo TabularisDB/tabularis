@@ -13,6 +13,10 @@ import {
   parsePasteMatrix,
   stripHeaderRow,
   computePasteTargets,
+  getRangeCursor,
+  buildCellRange,
+  extendCellRange,
+  moveCellPosition,
   type ColumnDisplayInfo,
   type CellClassParams,
 } from '../../src/utils/dataGrid';
@@ -909,6 +913,126 @@ describe('dataGrid utils', () => {
       expect(
         computePasteTargets([], { rowIndex: 0, colIndex: 0 }, 10, 10),
       ).toEqual([]);
+    });
+  });
+
+  describe('getRangeCursor', () => {
+    it('should return the anchor when there is no range', () => {
+      expect(getRangeCursor({ rowIndex: 2, colIndex: 3 }, null)).toEqual({
+        rowIndex: 2,
+        colIndex: 3,
+      });
+    });
+
+    it('should return the corner opposite to the anchor', () => {
+      const range = { minRow: 1, maxRow: 4, minCol: 2, maxCol: 5 };
+      expect(getRangeCursor({ rowIndex: 1, colIndex: 2 }, range)).toEqual({ rowIndex: 4, colIndex: 5 });
+      expect(getRangeCursor({ rowIndex: 4, colIndex: 5 }, range)).toEqual({ rowIndex: 1, colIndex: 2 });
+      expect(getRangeCursor({ rowIndex: 1, colIndex: 5 }, range)).toEqual({ rowIndex: 4, colIndex: 2 });
+      expect(getRangeCursor({ rowIndex: 4, colIndex: 2 }, range)).toEqual({ rowIndex: 1, colIndex: 5 });
+    });
+
+    it('should return the anchor for a single-cell range', () => {
+      const range = { minRow: 3, maxRow: 3, minCol: 3, maxCol: 3 };
+      expect(getRangeCursor({ rowIndex: 3, colIndex: 3 }, range)).toEqual({ rowIndex: 3, colIndex: 3 });
+    });
+  });
+
+  describe('buildCellRange', () => {
+    it('should normalize the two corners regardless of order', () => {
+      const expected = { minRow: 1, maxRow: 5, minCol: 0, maxCol: 2 };
+      expect(buildCellRange({ rowIndex: 1, colIndex: 2 }, { rowIndex: 5, colIndex: 0 })).toEqual(expected);
+      expect(buildCellRange({ rowIndex: 5, colIndex: 0 }, { rowIndex: 1, colIndex: 2 })).toEqual(expected);
+    });
+
+    it('should build a single-cell range when both corners match', () => {
+      expect(buildCellRange({ rowIndex: 2, colIndex: 2 }, { rowIndex: 2, colIndex: 2 })).toEqual({
+        minRow: 2,
+        maxRow: 2,
+        minCol: 2,
+        maxCol: 2,
+      });
+    });
+  });
+
+  describe('extendCellRange', () => {
+    const anchor = { rowIndex: 2, colIndex: 2 };
+
+    it('should start a range from the anchor when none exists', () => {
+      expect(extendCellRange(anchor, null, 'ArrowDown', 10, 10)).toEqual({
+        range: { minRow: 2, maxRow: 3, minCol: 2, maxCol: 2 },
+        cursor: { rowIndex: 3, colIndex: 2 },
+      });
+      expect(extendCellRange(anchor, null, 'ArrowLeft', 10, 10)).toEqual({
+        range: { minRow: 2, maxRow: 2, minCol: 1, maxCol: 2 },
+        cursor: { rowIndex: 2, colIndex: 1 },
+      });
+    });
+
+    it('should grow an existing range from its moving corner and keep the anchor fixed', () => {
+      const range = { minRow: 2, maxRow: 3, minCol: 2, maxCol: 2 };
+      const result = extendCellRange(anchor, range, 'ArrowRight', 10, 10);
+      expect(result).toEqual({
+        range: { minRow: 2, maxRow: 3, minCol: 2, maxCol: 3 },
+        cursor: { rowIndex: 3, colIndex: 3 },
+      });
+    });
+
+    it('should shrink the range when moving back towards the anchor', () => {
+      const range = { minRow: 2, maxRow: 4, minCol: 2, maxCol: 2 };
+      expect(extendCellRange(anchor, range, 'ArrowUp', 10, 10)).toEqual({
+        range: { minRow: 2, maxRow: 3, minCol: 2, maxCol: 2 },
+        cursor: { rowIndex: 3, colIndex: 2 },
+      });
+    });
+
+    it('should cross over the anchor to the other side', () => {
+      const range = { minRow: 2, maxRow: 3, minCol: 2, maxCol: 2 };
+      const step1 = extendCellRange(anchor, range, 'ArrowUp', 10, 10);
+      expect(step1?.range).toEqual({ minRow: 2, maxRow: 2, minCol: 2, maxCol: 2 });
+      const step2 = extendCellRange(anchor, step1!.range, 'ArrowUp', 10, 10);
+      expect(step2?.range).toEqual({ minRow: 1, maxRow: 2, minCol: 2, maxCol: 2 });
+    });
+
+    it('should return null at the grid edges', () => {
+      expect(extendCellRange({ rowIndex: 0, colIndex: 0 }, null, 'ArrowUp', 10, 10)).toBeNull();
+      expect(extendCellRange({ rowIndex: 0, colIndex: 0 }, null, 'ArrowLeft', 10, 10)).toBeNull();
+      expect(extendCellRange({ rowIndex: 9, colIndex: 9 }, null, 'ArrowDown', 10, 10)).toBeNull();
+      expect(extendCellRange({ rowIndex: 9, colIndex: 9 }, null, 'ArrowRight', 10, 10)).toBeNull();
+    });
+
+    it('should clamp when the cursor is at the edge but the anchor is not', () => {
+      const range = { minRow: 2, maxRow: 9, minCol: 2, maxCol: 2 };
+      expect(extendCellRange(anchor, range, 'ArrowDown', 10, 10)).toBeNull();
+    });
+
+    it('should extend straight to the grid edge with toEdge', () => {
+      expect(extendCellRange(anchor, null, 'ArrowDown', 10, 10, true)).toEqual({
+        range: { minRow: 2, maxRow: 9, minCol: 2, maxCol: 2 },
+        cursor: { rowIndex: 9, colIndex: 2 },
+      });
+      expect(extendCellRange(anchor, null, 'ArrowLeft', 10, 10, true)).toEqual({
+        range: { minRow: 2, maxRow: 2, minCol: 0, maxCol: 2 },
+        cursor: { rowIndex: 2, colIndex: 0 },
+      });
+    });
+  });
+
+  describe('moveCellPosition', () => {
+    const pos = { rowIndex: 3, colIndex: 3 };
+
+    it('should move one step and clamp at the edges', () => {
+      expect(moveCellPosition(pos, 'ArrowUp', 10, 10)).toEqual({ rowIndex: 2, colIndex: 3 });
+      expect(moveCellPosition(pos, 'ArrowRight', 10, 10)).toEqual({ rowIndex: 3, colIndex: 4 });
+      expect(moveCellPosition({ rowIndex: 0, colIndex: 0 }, 'ArrowUp', 10, 10)).toEqual({ rowIndex: 0, colIndex: 0 });
+      expect(moveCellPosition({ rowIndex: 9, colIndex: 9 }, 'ArrowDown', 10, 10)).toEqual({ rowIndex: 9, colIndex: 9 });
+    });
+
+    it('should jump to the edge with toEdge', () => {
+      expect(moveCellPosition(pos, 'ArrowUp', 10, 10, true)).toEqual({ rowIndex: 0, colIndex: 3 });
+      expect(moveCellPosition(pos, 'ArrowDown', 10, 10, true)).toEqual({ rowIndex: 9, colIndex: 3 });
+      expect(moveCellPosition(pos, 'ArrowLeft', 10, 10, true)).toEqual({ rowIndex: 3, colIndex: 0 });
+      expect(moveCellPosition(pos, 'ArrowRight', 10, 10, true)).toEqual({ rowIndex: 3, colIndex: 9 });
     });
   });
 });

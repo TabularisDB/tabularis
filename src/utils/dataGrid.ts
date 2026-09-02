@@ -194,6 +194,107 @@ export function calculateSelectionRange(
   return range;
 }
 
+/** Normalized rectangular cell range (inclusive bounds). */
+export interface CellRangeRect {
+  minRow: number;
+  maxRow: number;
+  minCol: number;
+  maxCol: number;
+}
+
+export interface CellPosition {
+  rowIndex: number;
+  colIndex: number;
+}
+
+/** Arrow keys that extend a cell range when pressed with Shift. */
+export type RangeExtendKey =
+  | "ArrowUp"
+  | "ArrowDown"
+  | "ArrowLeft"
+  | "ArrowRight";
+
+/**
+ * Returns the corner of a range opposite to the anchor — the cell that moves
+ * when the range is extended with Shift+Arrow (Google Sheets semantics: the
+ * anchor stays put, the active corner walks).
+ */
+export function getRangeCursor(
+  anchor: CellPosition,
+  range: CellRangeRect | null,
+): CellPosition {
+  if (!range) return anchor;
+  return {
+    rowIndex: anchor.rowIndex === range.minRow ? range.maxRow : range.minRow,
+    colIndex: anchor.colIndex === range.minCol ? range.maxCol : range.minCol,
+  };
+}
+
+/** Builds the normalized rectangle spanning two cells. */
+export function buildCellRange(
+  a: CellPosition,
+  b: CellPosition,
+): CellRangeRect {
+  return {
+    minRow: Math.min(a.rowIndex, b.rowIndex),
+    maxRow: Math.max(a.rowIndex, b.rowIndex),
+    minCol: Math.min(a.colIndex, b.colIndex),
+    maxCol: Math.max(a.colIndex, b.colIndex),
+  };
+}
+
+/**
+ * Moves a cell position in the direction of an arrow key, clamped to the grid.
+ * With `toEdge` the position jumps straight to the first/last row or column
+ * (spreadsheet Ctrl+Arrow); otherwise it moves a single step.
+ */
+export function moveCellPosition(
+  pos: CellPosition,
+  key: RangeExtendKey,
+  totalRows: number,
+  totalCols: number,
+  toEdge = false,
+): CellPosition {
+  let { rowIndex, colIndex } = pos;
+  switch (key) {
+    case "ArrowUp":
+      rowIndex = toEdge ? 0 : Math.max(0, rowIndex - 1);
+      break;
+    case "ArrowDown":
+      rowIndex = toEdge ? totalRows - 1 : Math.min(totalRows - 1, rowIndex + 1);
+      break;
+    case "ArrowLeft":
+      colIndex = toEdge ? 0 : Math.max(0, colIndex - 1);
+      break;
+    case "ArrowRight":
+      colIndex = toEdge ? totalCols - 1 : Math.min(totalCols - 1, colIndex + 1);
+      break;
+  }
+  return { rowIndex, colIndex };
+}
+
+/**
+ * Extends (or shrinks) a cell range from its moving corner while keeping the
+ * anchor fixed — one step by default, straight to the grid edge with `toEdge`
+ * (Shift+Arrow vs Ctrl+Shift+Arrow). Returns the new range and cursor, or
+ * null when the cursor is already at the grid edge in that direction.
+ */
+export function extendCellRange(
+  anchor: CellPosition,
+  range: CellRangeRect | null,
+  key: RangeExtendKey,
+  totalRows: number,
+  totalCols: number,
+  toEdge = false,
+): { range: CellRangeRect; cursor: CellPosition } | null {
+  const cursor = getRangeCursor(anchor, range);
+  const next = moveCellPosition(cursor, key, totalRows, totalCols, toEdge);
+  if (next.rowIndex === cursor.rowIndex && next.colIndex === cursor.colIndex) {
+    return null;
+  }
+  return { range: buildCellRange(anchor, next), cursor: next };
+}
+
 /**
  * Toggles a value in a Set (adds if not present, removes if present)
  * @param set - The Set to modify

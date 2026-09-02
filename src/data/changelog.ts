@@ -67,5 +67,7 @@ export const versionLinks: Record<string, string> = {
   "0.20.0":
     "https://tabularis.dev/blog/v0200-command-palette-grid-paste-postgres-plugin",
   "0.21.0":
-    "https://tabularis.dev/blog/v0210-sql-folding-per-tab-page-size-postgres-mtls"
+    "https://tabularis.dev/blog/v0210-sql-folding-per-tab-page-size-postgres-mtls",
+  "0.22.0":
+    "https://tabularis.dev/blog/v0220-follow-system-theme-grid-selection-shortcuts-tiling-decorations"
 };

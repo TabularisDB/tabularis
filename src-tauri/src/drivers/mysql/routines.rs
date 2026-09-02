@@ -135,6 +135,22 @@ pub(super) fn drop_routine_sql(routine_name: &str, routine_type: &str) -> String
     format!("DROP {} {}", drop_keyword(routine_type), quoted(routine_name))
 }
 
+/// `SHOW CREATE PROCEDURE|FUNCTION` qualified with the target schema: the
+/// pool's session database is the connection default, so an unqualified
+/// lookup would raise error 1305 for routines in any other schema.
+pub(super) fn show_create_routine_sql(
+    schema: &str,
+    routine_name: &str,
+    routine_type: &str,
+) -> String {
+    format!(
+        "SHOW CREATE {} {}.{}",
+        drop_keyword(routine_type),
+        quoted(schema),
+        quoted(routine_name)
+    )
+}
+
 fn drop_keyword(routine_type: &str) -> &'static str {
     if routine_type.eq_ignore_ascii_case("FUNCTION") {
         "FUNCTION"

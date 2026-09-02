@@ -1,3 +1,41 @@
+## [Unreleased]
+
+### Added
+
+- Open, edit, and save `.sql`, `.psql`, and `.pgsql` files in SQL editor tabs without executing them. The toolbar Save split button and the tab context menu expose Save, Save As, and Add to Saved Queries; unsaved files are flagged on the tab.
+
+# [0.22.0](https://github.com/TabularisDB/tabularis/compare/v0.21.0...v0.22.0) (2026-09-01)
+
+
+### Bug Fixes
+
+* add test case for useCopyFeedback.test.ts hook and error handling ([3ffc973](https://github.com/TabularisDB/tabularis/commit/3ffc973ff3d11a5771b3809f4630878835cb202a))
+* comments raised by klio ([0814a3a](https://github.com/TabularisDB/tabularis/commit/0814a3a46f9ecd69d466467e87df738a83adcccb))
+* edge case reported by Kilo bot ([5c244e1](https://github.com/TabularisDB/tabularis/commit/5c244e1a958e6c0c5ecc0ae4bb21232a10365a33))
+* **layout:** keep pages inside main when the production banner is shown ([ad44b6d](https://github.com/TabularisDB/tabularis/commit/ad44b6dcc24b815ac0909755111676fb4d5ce5b1))
+* **mysql:** qualify SHOW CREATE routine with target schema ([dff8a4a](https://github.com/TabularisDB/tabularis/commit/dff8a4a8378f5ac1c70bb6879d7b7def4f2150d7)), closes [#699](https://github.com/TabularisDB/tabularis/issues/699)
+* nitpicks raised during review ([5e25f98](https://github.com/TabularisDB/tabularis/commit/5e25f98382f8bdd043f9225e8489e6ae6d5bb5ca))
+* notebook cell scroll into view UX ([2bd51eb](https://github.com/TabularisDB/tabularis/commit/2bd51ebc0f7d5a02d524d8913c6cbd8b36768f95))
+* **notebook:** address bugs in the frontend part of notebook feature ([f94f714](https://github.com/TabularisDB/tabularis/commit/f94f714e5951943a6c4a5d6f6ccc93a2501f1c03))
+* **postgres:** use rustls connector in test_connection to support client certs and custom CA ([98247e1](https://github.com/TabularisDB/tabularis/commit/98247e15f11f341161ad101b33b489be95d03e1b))
+* refine code a bit ([50a3de0](https://github.com/TabularisDB/tabularis/commit/50a3de0af2cd7b4d461777b2b1de9a38d5cbaaaa))
+* SQL cell in editor to be in full size by default ([66cdfdb](https://github.com/TabularisDB/tabularis/commit/66cdfdbe2761cddfc3de3bbc695358ff077db38c))
+* **sqlite:** display text blobs as UTF-8 ([b90292c](https://github.com/TabularisDB/tabularis/commit/b90292c66de37b93c1437f60ae25357f5cff25b3))
+* **theme:** add final fallback for delete-active replacement ([d0ca886](https://github.com/TabularisDB/tabularis/commit/d0ca886d69a71b82bf29e608b43707aa48858cec))
+* **theme:** mode-correct load fallback, pure setState updater ([f838204](https://github.com/TabularisDB/tabularis/commit/f838204192ec7e4fcbc5acd3ee2d6ca602b86c10))
+* **theme:** replace active theme with OS-mode preset on delete in follow-system mode ([c721476](https://github.com/TabularisDB/tabularis/commit/c72147685d6bd7494550d040d62a2e7afefba9f3)), closes [#650](https://github.com/TabularisDB/tabularis/issues/650)
+* **ui:** stable keys, useCopyFeedback hook, sanitize HTML, eliminate render-time setState ([730213a](https://github.com/TabularisDB/tabularis/commit/730213a11f8d7c7239cda322e113864dfa33b946))
+
+
+### Features
+
+* **config:** add follow-system theme fields to AppConfig ([cdc1418](https://github.com/TabularisDB/tabularis/commit/cdc1418bd79350ca31b2e9a99273d705b4898b31))
+* configure window decorations for tiling managers ([0495121](https://github.com/TabularisDB/tabularis/commit/049512167e9655e58b0888eaf75549da707f8710))
+* **grid:** spreadsheet-style keyboard selection and header column select ([fca23d3](https://github.com/TabularisDB/tabularis/commit/fca23d397d539d4a2935b1cad674008d05c8be6f)), closes [#673](https://github.com/TabularisDB/tabularis/issues/673)
+* **settings:** add static/follow-system theme mode UI ([b9809a7](https://github.com/TabularisDB/tabularis/commit/b9809a71972abafa508370043563eaee56f516c8))
+* **theme:** add resolveActiveThemeId helper ([e629803](https://github.com/TabularisDB/tabularis/commit/e629803468332300b2c19f1bac0e375a9497ff48))
+* **theme:** follow system appearance with per-mode themes ([fec0c97](https://github.com/TabularisDB/tabularis/commit/fec0c97381e67cd799c263eb3914b36ff4ec50d6))
+
 # [0.21.0](https://github.com/TabularisDB/tabularis/compare/v0.20.0...v0.21.0) (2026-08-25)
 
 

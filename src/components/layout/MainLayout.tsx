@@ -33,11 +33,17 @@ const MainLayoutContent = () => {
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {location.pathname === "/editor" && <ProductionBanner />}
-        {renderedSplit ? (
-          <SplitPaneLayout {...renderedSplit} />
-        ) : (
-          <Outlet />
-        )}
+        {/* Routed pages size themselves with h-full, which resolves against
+            this wrapper — not against <main>. Without it the production banner
+            would push the page down without shrinking it, clipping the bottom
+            row of the results grid. */}
+        <div className="flex-1 min-h-0 min-w-0">
+          {renderedSplit ? (
+            <SplitPaneLayout {...renderedSplit} />
+          ) : (
+            <Outlet />
+          )}
+        </div>
       </main>
       <RightSidebar />
       <CommandPaletteModal />

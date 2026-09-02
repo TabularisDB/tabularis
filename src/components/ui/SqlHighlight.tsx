@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import { useColorizedSql, formatSqlPreview } from "../../utils/sqlHighlight";
 
 interface SqlHighlightProps {
@@ -18,7 +19,7 @@ export function SqlHighlight({ sql, maxLines = 3 }: SqlHighlightProps) {
           WebkitLineClamp: maxLines,
           WebkitBoxOrient: "vertical",
         }}
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}
       />
     );
   }

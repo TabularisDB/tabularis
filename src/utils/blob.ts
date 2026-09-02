@@ -387,6 +387,45 @@ export function blobHexToWireFormat(
   return `BLOB:${bytes.length}:${mimeType}:${btoa(binary)}`;
 }
 
+function formatBlobTextPreview(
+  value: unknown,
+  metadata: BlobMetadata,
+): string | null {
+  if (
+    metadata.mimeType !== "application/octet-stream" ||
+    !metadata.isBase64 ||
+    metadata.isTruncated ||
+    metadata.size > BLOB_INLINE_HEX_LIMIT_BYTES
+  ) {
+    return null;
+  }
+
+  try {
+    const payload = extractBase64Payload(value);
+    const bytes = blobPayloadToBytes(payload, true);
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+
+    // Valid UTF-8 alone is not enough to classify binary data as text.
+    const hasBinaryControlCharacter = Array.from(text).some((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return (
+        codePoint <= 0x08 ||
+        codePoint === 0x0b ||
+        codePoint === 0x0c ||
+        (codePoint >= 0x0e && codePoint <= 0x1f) ||
+        (codePoint >= 0x7f && codePoint <= 0x9f)
+      );
+    });
+    if (hasBinaryControlCharacter) {
+      return null;
+    }
+
+    return text;
+  } catch {
+    return null;
+  }
+}
+
 function formatBlobHexPreview(
   value: unknown,
   metadata: BlobMetadata,
@@ -414,7 +453,8 @@ function formatBlobHexPreview(
 
 /**
  * Formats a BLOB value for display in the DataGrid.
- * Small generic binary values use a compact hex preview. Recognized file types
+ * Complete generic BLOBs containing printable UTF-8 are displayed as text.
+ * Other small binary values use a compact hex preview. Recognized file types
  * and blobs that require fetching retain their MIME type and size metadata.
  */
 export function formatBlobValue(value: unknown, dataType: string): string {
@@ -429,6 +469,7 @@ export function formatBlobValue(value: unknown, dataType: string): string {
   }
 
   return (
+    formatBlobTextPreview(value, metadata) ??
     formatBlobHexPreview(value, metadata) ??
     `${metadata.mimeType} (${metadata.formattedSize})`
   );

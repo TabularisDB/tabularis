@@ -57,7 +57,10 @@ function OutlineAiButton({
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={(e) => {
-        if (e.key === "Enter") handleClick(e as unknown as React.MouseEvent);
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleClick(e as unknown as React.MouseEvent);
+        }
       }}
       className="p-0.5 text-muted hover:text-purple-300 transition-colors rounded"
       title={t("editor.notebook.aiGenerateOutlineNames")}

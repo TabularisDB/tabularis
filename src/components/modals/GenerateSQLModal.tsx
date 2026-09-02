@@ -5,6 +5,7 @@ import {X, Loader2, Copy, Check, FileCode, List, Table2, PenLine, Trash2, Play} 
 import { invoke } from "@tauri-apps/api/core";
 import { useNavigate } from "react-router-dom";
 import { useDatabase } from "../../hooks/useDatabase";
+import { useCopyFeedback } from "../../hooks/useCopyFeedback";
 import { Modal } from "../ui/Modal";
 import { SqlPreview } from "../ui/SqlPreview";
 import { useAlert } from "../../hooks/useAlert";
@@ -53,7 +54,7 @@ export const GenerateSQLModal = ({
   const [sql, setSql] = useState<string>("");
   const [columns, setColumns] = useState<TableColumn[]>([]);
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { copied, copy: copyText } = useCopyFeedback();
 
   useEffect(() => {
     if (!isOpen || !connectionId || !tableName) return;
@@ -158,11 +159,7 @@ export const GenerateSQLModal = ({
     onClose();
   };
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(displayedSql);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const handleCopy = () => copyText(displayedSql);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>

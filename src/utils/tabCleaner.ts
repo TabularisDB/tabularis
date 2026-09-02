@@ -22,6 +22,9 @@ export interface CleanedTab {
   notebookId?: string;
   schema?: string;
   readOnly?: boolean;
+  sourceFilePath?: string;
+  sourceFileContent?: string;
+  sourceFileDirty?: boolean;
 }
 
 /**
@@ -52,6 +55,9 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
     notebookId: tab.notebookId,
     schema: tab.schema,
     readOnly: tab.readOnly,
+    sourceFilePath: tab.sourceFilePath,
+    sourceFileContent: tab.sourceFileContent,
+    sourceFileDirty: tab.sourceFileDirty,
   };
 }
 

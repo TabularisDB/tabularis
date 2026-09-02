@@ -488,6 +488,7 @@ mod multi_result_collector {
 mod routine_management {
     use super::super::routines::{
         drop_routine_sql, routine_call_sql, routine_create_template, routine_edit_script,
+        show_create_routine_sql,
     };
     use crate::models::RoutineCallArg;
 
@@ -595,6 +596,26 @@ mod routine_management {
         assert_eq!(
             drop_routine_sql("weird`name", "FUNCTION"),
             "DROP FUNCTION `weird``name`"
+        );
+    }
+
+    #[test]
+    fn show_create_qualifies_routine_with_schema() {
+        assert_eq!(
+            show_create_routine_sql("ppi", "laporanTertusukJarum", "PROCEDURE"),
+            "SHOW CREATE PROCEDURE `ppi`.`laporanTertusukJarum`"
+        );
+        assert_eq!(
+            show_create_routine_sql("aplikasi", "fn_add", "FUNCTION"),
+            "SHOW CREATE FUNCTION `aplikasi`.`fn_add`"
+        );
+    }
+
+    #[test]
+    fn show_create_escapes_schema_and_name() {
+        assert_eq!(
+            show_create_routine_sql("weird`db", "weird`name", "procedure"),
+            "SHOW CREATE PROCEDURE `weird``db`.`weird``name`"
         );
     }
 }

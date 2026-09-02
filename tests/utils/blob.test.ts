@@ -160,14 +160,31 @@ describe("blob utilities", () => {
       expect(formatBlobValue(123, "INTEGER")).toBe("123");
     });
 
-    it("should format small generic binary values as compact hex", () => {
-      const b64 = btoa("test");
-      const wire = `BLOB:4:application/octet-stream:${b64}`;
+    it("should display printable UTF-8 BLOBs as text", () => {
+      const path = "/Users/test/Music/cafè.mp3";
+      const bytes = new TextEncoder().encode(path);
+      const b64 = btoa(String.fromCharCode(...bytes));
+      const wire = `BLOB:${bytes.length}:application/octet-stream:${b64}`;
 
-      expect(formatBlobValue(wire, "BLOB")).toBe("0x74657374");
-      expect(formatBlobValue(wire, "TINYBLOB")).toBe("0x74657374");
-      expect(formatBlobValue(wire, "MEDIUMBLOB")).toBe("0x74657374");
-      expect(formatBlobValue(wire, "LONGBLOB")).toBe("0x74657374");
+      expect(formatBlobValue(wire, "BLOB")).toBe(path);
+      expect(formatBlobValue(wire, "TINYBLOB")).toBe(path);
+      expect(formatBlobValue(wire, "MEDIUMBLOB")).toBe(path);
+      expect(formatBlobValue(wire, "LONGBLOB")).toBe(path);
+    });
+
+    it("should format invalid UTF-8 BLOBs as compact hex", () => {
+      const bytes = [0xff, 0xfe, 0xfd];
+      const b64 = btoa(String.fromCharCode(...bytes));
+      const wire = `BLOB:3:application/octet-stream:${b64}`;
+
+      expect(formatBlobValue(wire, "BLOB")).toBe("0xfffefd");
+    });
+
+    it("should keep UTF-8 BLOBs with binary control bytes in hex", () => {
+      const b64 = btoa("text\0value");
+      const wire = `BLOB:10:application/octet-stream:${b64}`;
+
+      expect(formatBlobValue(wire, "BLOB")).toBe("0x746578740076616c7565");
     });
 
     it("should show all 16 bytes of a binary identifier", () => {

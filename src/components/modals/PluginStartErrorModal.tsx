@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, X, Copy, Check, Settings } from "lucide-react";
 import { Modal } from "../ui/Modal";
+import { useCopyFeedback } from "../../hooks/useCopyFeedback";
 
 interface PluginStartErrorModalProps {
   isOpen: boolean;
@@ -19,13 +19,9 @@ export const PluginStartErrorModal = ({
   onConfigureInterpreter,
 }: PluginStartErrorModalProps) => {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyFeedback();
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(error);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const handleCopy = () => copy(error);
 
   const handleConfigure = () => {
     onClose();

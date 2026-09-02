@@ -1259,14 +1259,12 @@ pub async fn get_routine_definition(
     params: &ConnectionParams,
     routine_name: &str,
     routine_type: &str,
+    schema: Option<&str>,
 ) -> Result<String, String> {
+    let db_name = schema.unwrap_or_else(|| params.database.primary());
     let pool = get_mysql_pool(params).await?;
     let text = resolve_text_proto(&pool, params).await?;
-    let query = format!(
-        "SHOW CREATE {} `{}`",
-        routine_type,
-        escape_identifier(routine_name)
-    );
+    let query = routines::show_create_routine_sql(db_name, routine_name, routine_type);
 
     let row = fetch_one_row(&pool, text, &query, &[]).await?;
 
@@ -2114,9 +2112,9 @@ impl DatabaseDriver for MysqlDriver {
         params: &crate::models::ConnectionParams,
         routine_name: &str,
         routine_type: &str,
-        _schema: Option<&str>,
+        schema: Option<&str>,
     ) -> Result<String, String> {
-        get_routine_definition(params, routine_name, routine_type).await
+        get_routine_definition(params, routine_name, routine_type, schema).await
     }
 
     async fn get_db_privilege_catalog(
@@ -2234,9 +2232,9 @@ impl DatabaseDriver for MysqlDriver {
         params: &crate::models::ConnectionParams,
         routine_name: &str,
         routine_type: &str,
-        _schema: Option<&str>,
+        schema: Option<&str>,
     ) -> Result<String, String> {
-        let definition = get_routine_definition(params, routine_name, routine_type).await?;
+        let definition = get_routine_definition(params, routine_name, routine_type, schema).await?;
         Ok(routines::routine_edit_script(
             routine_name,
             routine_type,

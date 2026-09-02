@@ -135,7 +135,10 @@ jobs:
 
       - name: Override tauri-cli with custom AppImage format (Linux, experimental only)
         if: matrix.platform == 'ubuntu-24.04' && inputs.experimental_appimage
-        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --branch feat/truly-portable-appimage --force
+        # Pinned rev + --locked: an unpinned branch install resolves fresh
+        # dependency versions and broke when value-bag 1.14 dropped APIs that
+        # log 0.4.34 still uses.
+        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --rev 503bdbc1eade37d50a64ea7f81dbe853338b7fda --locked --force
 
       # The official tauri-cli AppImage bundler (linuxdeploy) bundles the build
       # container's libwayland-*; on hosts with a newer Mesa the host libEGL

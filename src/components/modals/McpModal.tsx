@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { X, Check, Copy, Cpu, Terminal } from "lucide-react";
 import { useAlert } from "../../hooks/useAlert";
+import { useCopyFeedback } from "../../hooks/useCopyFeedback";
 import Editor from "@monaco-editor/react";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
@@ -61,8 +62,8 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
   const { showAlert } = useAlert();
   const [clients, setClients] = useState<McpClientStatus[]>([]);
   const [loading, setLoading] = useState(true);
-  const [copiedJson, setCopiedJson] = useState(false);
-  const [copiedCmd, setCopiedCmd] = useState(false);
+  const { copied: copiedJson, copy: copyJson } = useCopyFeedback();
+  const { copied: copiedCmd, copy: copyCmd } = useCopyFeedback();
   const [selectedClient, setSelectedClient] = useState<McpClientStatus | null>(null);
 
   const jsonValue = useMemo(
@@ -226,11 +227,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
                         {cliCommand}
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(cliCommand);
-                          setCopiedCmd(true);
-                          setTimeout(() => setCopiedCmd(false), 2000);
-                        }}
+                        onClick={() => copyCmd(cliCommand)}
                         className="absolute top-2 right-2 p-1.5 bg-surface-secondary text-secondary hover:text-primary rounded opacity-0 group-hover:opacity-100 transition-all"
                       >
                         {copiedCmd ? (
@@ -265,11 +262,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
                         />
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(jsonValue);
-                          setCopiedJson(true);
-                          setTimeout(() => setCopiedJson(false), 2000);
-                        }}
+                        onClick={() => copyJson(jsonValue)}
                         className="absolute top-2 right-2 p-2 bg-surface-secondary text-secondary hover:text-primary rounded opacity-0 group-hover:opacity-100 transition-all z-10"
                       >
                         {copiedJson ? (

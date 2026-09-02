@@ -193,13 +193,90 @@ describe("DataGrid keyboard navigation", () => {
     expect(cellAt(container, 1, 0)).toHaveClass("ring-2");
   });
 
-  it("ignores navigation keys while a modifier is held", () => {
+  it("ignores navigation keys while Alt is held", () => {
+    const { container } = renderGrid();
+
+    fireEvent.click(cellAt(container, 0, 0));
+    fireEvent.keyDown(gridOf(container), { key: "ArrowDown", altKey: true });
+
+    expect(cellAt(container, 0, 0)).toHaveClass("ring-2");
+  });
+
+  it("Cmd/Ctrl+Arrow jumps the focused cell to the grid edge", () => {
     const { container } = renderGrid();
 
     fireEvent.click(cellAt(container, 0, 0));
     fireEvent.keyDown(gridOf(container), { key: "ArrowDown", metaKey: true });
+    expect(cellAt(container, 2, 0)).toHaveClass("ring-2");
 
+    fireEvent.keyDown(gridOf(container), { key: "ArrowRight", ctrlKey: true });
+    expect(cellAt(container, 2, 1)).toHaveClass("ring-2");
+
+    fireEvent.keyDown(gridOf(container), { key: "Home", ctrlKey: true });
     expect(cellAt(container, 0, 0)).toHaveClass("ring-2");
+  });
+
+  it("Cmd/Ctrl+Arrow without a focused cell is left to the page-level shortcuts", () => {
+    const { container } = renderGrid();
+
+    fireEvent.keyDown(gridOf(container), { key: "ArrowRight", ctrlKey: true });
+
+    expect(container.querySelector("td.ring-2")).toBeNull();
+  });
+
+  it("Shift+Arrow extends a cell range from the focused anchor", () => {
+    const { container } = renderGrid();
+
+    fireEvent.click(cellAt(container, 0, 0));
+    fireEvent.keyDown(gridOf(container), { key: "ArrowDown", shiftKey: true });
+    fireEvent.keyDown(gridOf(container), { key: "ArrowRight", shiftKey: true });
+
+    expect(cellAt(container, 0, 0)).toHaveClass("bg-blue-500/15");
+    expect(cellAt(container, 1, 1)).toHaveClass("bg-blue-500/15");
+    expect(cellAt(container, 2, 0)).not.toHaveClass("bg-blue-500/15");
+
+    // Ctrl+Shift+Arrow extends to the edge.
+    fireEvent.keyDown(gridOf(container), {
+      key: "ArrowDown",
+      shiftKey: true,
+      ctrlKey: true,
+    });
+    expect(cellAt(container, 2, 1)).toHaveClass("bg-blue-500/15");
+  });
+
+  it("Shift+Space selects the row(s) and Cmd/Ctrl+Space the column(s) of the focused cell", () => {
+    const onSelectionChange = vi.fn();
+    const { container } = render(
+      <DataGrid
+        columns={["id", "name"]}
+        data={[
+          [1, "Alice"],
+          [2, "Bob"],
+        ]}
+        selectedRows={new Set()}
+        onSelectionChange={onSelectionChange}
+        readonly
+      />,
+    );
+
+    fireEvent.click(cellAt(container, 1, 0));
+    fireEvent.keyDown(gridOf(container), { key: " ", shiftKey: true });
+    expect(onSelectionChange).toHaveBeenLastCalledWith(new Set([1]));
+
+    fireEvent.keyDown(gridOf(container), { key: " ", ctrlKey: true });
+    expect(container.querySelectorAll("th")[1]).toHaveClass("bg-blue-500/20");
+    expect(container.querySelectorAll("th")[2]).not.toHaveClass(
+      "bg-blue-500/20",
+    );
+
+    // Ctrl+Shift+Space is the IME-safe alternative for column selection.
+    fireEvent.click(cellAt(container, 1, 1));
+    fireEvent.keyDown(gridOf(container), {
+      key: " ",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+    expect(container.querySelectorAll("th")[2]).toHaveClass("bg-blue-500/20");
   });
 
   it("leaves keys to focusable controls inside the grid", () => {
@@ -588,7 +665,7 @@ describe("DataGrid column selection", () => {
     return { ...utils, onSort };
   };
 
-  it("Cmd/Ctrl+click selects a column without sorting; plain click still sorts", () => {
+  it("Cmd/Ctrl+click toggles a column without sorting", () => {
     const { container, onSort } = renderGrid();
 
     fireEvent.click(screen.getByText("id"), { metaKey: true });
@@ -596,8 +673,28 @@ describe("DataGrid column selection", () => {
     expect(onSort).not.toHaveBeenCalled();
     expect(container.querySelectorAll("th")[1]).toHaveClass("bg-blue-500/20");
 
+    fireEvent.click(screen.getByText("id"), { metaKey: true });
+    expect(container.querySelectorAll("th")[1]).not.toHaveClass(
+      "bg-blue-500/20",
+    );
+  });
+
+  it("plain header click selects a single column; sorting is on the sort button", () => {
+    const { container, onSort } = renderGrid();
+
+    fireEvent.click(screen.getByText("id"));
+    expect(onSort).not.toHaveBeenCalled();
+    expect(container.querySelectorAll("th")[1]).toHaveClass("bg-blue-500/20");
+
+    // Plain click replaces the selection instead of adding to it.
     fireEvent.click(screen.getByText("name"));
-    expect(onSort).toHaveBeenCalledWith("name");
+    expect(container.querySelectorAll("th")[1]).not.toHaveClass(
+      "bg-blue-500/20",
+    );
+    expect(container.querySelectorAll("th")[2]).toHaveClass("bg-blue-500/20");
+
+    fireEvent.click(screen.getAllByLabelText("dataGrid.sortByAsc")[0]);
+    expect(onSort).toHaveBeenCalledWith("id");
   });
 
   it("copies only the selected columns with Cmd/Ctrl+C", async () => {

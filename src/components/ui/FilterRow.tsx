@@ -6,6 +6,8 @@ import { getOperatorsForType } from "../../utils/filterBar";
 import type { StructuredFilter, FilterOperator } from "../../utils/filterBar";
 import { StyledSelect } from "./StyledSelect";
 
+const NO_VALUE_OPS: FilterOperator[] = ["IS NULL", "IS NOT NULL"];
+
 export interface FilterRowProps {
   filter: StructuredFilter;
   columns: TableColumn[];
@@ -34,9 +36,8 @@ export const FilterRow = ({
   const operators = getOperatorsForType(selectedCol?.data_type ?? "");
   const enabled = filter.enabled !== false;
 
-  const noValueOps: FilterOperator[] = ["IS NULL", "IS NOT NULL"];
   const isBetween = filter.operator === "BETWEEN";
-  const noValue = noValueOps.includes(filter.operator);
+  const noValue = NO_VALUE_OPS.includes(filter.operator);
 
   const handleColumnChange = (col: string) => {
     const colMeta = columns.find((c) => c.name === col);

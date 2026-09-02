@@ -1,8 +1,7 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Info, AlertCircle, X, Copy, Check } from "lucide-react";
 import { Modal } from "../ui/Modal";
-import { copyTextToClipboard } from "../../utils/clipboard";
+import { useCopyFeedback } from "../../hooks/useCopyFeedback";
 import type { AlertKind } from "../../contexts/AlertContext";
 
 interface AlertModalProps {
@@ -22,18 +21,14 @@ const iconConfig: Record<AlertKind, { Icon: typeof Info; bgClass: string; textCl
 export const AlertModal = ({ isOpen, onClose, title, message, kind }: AlertModalProps) => {
   const { t } = useTranslation();
   const { Icon, bgClass, textClass } = iconConfig[kind];
-  const [copied, setCopied] = useState(false);
+  const { copied, copy, reset } = useCopyFeedback(1500);
 
   const handleClose = () => {
-    setCopied(false);
+    reset();
     onClose();
   };
 
-  const handleCopy = async () => {
-    await copyTextToClipboard(message);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
+  const handleCopy = () => copy(message);
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose}>

@@ -78,6 +78,7 @@ import { QueryHistorySection } from "./sidebar/QueryHistorySection";
 import { NotebooksSection } from "./sidebar/NotebooksSection";
 import { renameNotebook, deleteNotebook, listNotebooks, NOTEBOOKS_CHANGED_EVENT } from "../../utils/notebookStore";
 import { useConnectionLayoutContext } from "../../hooks/useConnectionLayoutContext";
+import { useCopyFeedback } from "../../hooks/useCopyFeedback";
 import { useDrivers } from "../../hooks/useDrivers";
 import { useDatabaseObjectNavigation } from "../../hooks/useDatabaseObjectNavigation";
 import { getConnectionAccent } from "../../utils/driverUI";
@@ -200,7 +201,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [schemaVersion, setSchemaVersion] = useState(0);
   const sidebarBodyRef = useRef<HTMLDivElement>(null);
   const [schemaErrorExpanded, setSchemaErrorExpanded] = useState(false);
-  const [schemaErrorCopied, setSchemaErrorCopied] = useState(false);
+  const { copied: schemaErrorCopied, copy: copySchemaError } = useCopyFeedback(1500);
 
   const { splitView, isSplitVisible, explorerConnectionId, setExplorerConnectionId } = useConnectionLayoutContext();
 
@@ -907,11 +908,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         {schemaLoadError}
                       </pre>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(schemaLoadError);
-                          setSchemaErrorCopied(true);
-                          setTimeout(() => setSchemaErrorCopied(false), 1500);
-                        }}
+                        onClick={() => copySchemaError(schemaLoadError)}
                         title={t("sidebar.copyError")}
                         className="absolute top-1.5 right-1.5 p-1 rounded hover:bg-surface-tertiary text-muted hover:text-secondary transition-colors"
                       >
