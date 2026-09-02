@@ -2217,7 +2217,9 @@
       "connectionFailure": "Couldn't connect to {{name}} using the plugin: {{error}}",
       "processFailureWithError": "The PostgreSQL plugin didn't start: {{error}}. This isn't specific to {{name}} — no connection was attempted.",
       "processFailure": "The PostgreSQL plugin didn't start. This isn't specific to {{name}} — no connection was attempted.",
+      "failed": "Couldn't switch {{name}} to the plugin: {{error}}",
       "undo": "Undo",
+      "undoFailed": "Couldn't switch {{name}} back to the built-in driver: {{error}}",
       "reportIssue": "Report an issue"
     },
     "checklist": {

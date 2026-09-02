@@ -222,6 +222,42 @@ describe("useBuiltinDriverMigration", () => {
       expect(outcome.error).toContain("connection refused");
     });
 
+    it("resolves a failed outcome instead of rejecting when update_connection itself throws", async () => {
+      // e.g. the connection was deleted concurrently and the backend's
+      // update_connection returns Err("Connection not found"). migrateConnection
+      // must never reject — a caller looping over many connections would abort
+      // the batch and never reach setMigrating(false) otherwise.
+      setPluginReady(true);
+      databaseMock.connections = [builtinConn("c1")];
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === "update_connection") return Promise.reject(new Error("Connection not found"));
+        return mockInvokeDefault(cmd);
+      });
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      let outcome;
+      await act(async () => {
+        outcome = await result.current.migrateConnection("c1");
+      });
+      expect(outcome.status).toBe("failed");
+      expect(outcome.error).toContain("Connection not found");
+    });
+
+    it("resolves a failed outcome when get_registered_drivers itself throws", async () => {
+      setPluginReady(true);
+      databaseMock.connections = [builtinConn("c1")];
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === "get_registered_drivers") return Promise.reject(new Error("IPC error"));
+        return mockInvokeDefault(cmd);
+      });
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      let outcome;
+      await act(async () => {
+        outcome = await result.current.migrateConnection("c1");
+      });
+      expect(outcome.status).toBe("failed");
+      expect(outcome.error).toContain("IPC error");
+    });
+
     it("records a process-level failure when the plugin isn't registered after the flip", async () => {
       // The registry never picked up the driver — a plugin startup failure,
       // not a connection problem. test_connection must not be attempted.
@@ -249,17 +285,37 @@ describe("useBuiltinDriverMigration", () => {
   });
 
   describe("undoMigration", () => {
-    it("flips the driver back to the built-in", async () => {
+    it("flips the driver back to the built-in and resolves ok: true", async () => {
       // After a migration, the connection's driver is the plugin; undo reverts.
       databaseMock.connections = [{ id: "c1", name: "c1", params: { driver: "postgresql" } }];
       const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      let outcome;
       await act(async () => {
-        await result.current.undoMigration("c1");
+        outcome = await result.current.undoMigration("c1");
       });
       expect(invoke).toHaveBeenCalledWith(
         "update_connection",
         expect.objectContaining({ id: "c1", params: expect.objectContaining({ driver: "postgres" }) }),
       );
+      expect(outcome).toEqual({ ok: true });
+    });
+
+    it("resolves ok: false with the error instead of rejecting when update_connection throws", async () => {
+      // Same never-reject contract as migrateConnection: the caller (a toast
+      // action button, no surrounding try/catch) needs a value to check, not
+      // an unhandled rejection.
+      databaseMock.connections = [{ id: "c1", name: "c1", params: { driver: "postgresql" } }];
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === "update_connection") return Promise.reject(new Error("Connection not found"));
+        return mockInvokeDefault(cmd);
+      });
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      let outcome;
+      await act(async () => {
+        outcome = await result.current.undoMigration("c1");
+      });
+      expect(outcome.ok).toBe(false);
+      expect(outcome.error).toContain("Connection not found");
     });
   });
 });

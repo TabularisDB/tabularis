@@ -2065,7 +2065,9 @@
       "connectionFailure": "无法使用插件连接到 {{name}}：{{error}}",
       "processFailureWithError": "PostgreSQL 插件未启动：{{error}}。这与 {{name}} 无关 —未尝试连接。",
       "processFailure": "PostgreSQL 插件未启动。这与 {{name}} 无关 —未尝试连接。",
+      "failed": "无法将 {{name}} 切换到插件：{{error}}",
       "undo": "撤销",
+      "undoFailed": "无法将 {{name}} 切换回内置驱动程序：{{error}}",
       "reportIssue": "报告问题"
     },
     "checklist": {

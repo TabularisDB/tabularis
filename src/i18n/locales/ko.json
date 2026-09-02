@@ -2171,7 +2171,9 @@
       "connectionFailure": "플러그인을 사용하여 {{name}}에 연결할 수 없습니다: {{error}}",
       "processFailureWithError": "PostgreSQL 플러그인이 시작되지 않았습니다: {{error}}. {{name}}에 국한된 문제가 아닙니다 —연결이 시도되지 않았습니다.",
       "processFailure": "PostgreSQL 플러그인이 시작되지 않았습니다. {{name}}에 국한된 문제가 아닙니다 —연결이 시도되지 않았습니다.",
+      "failed": "{{name}}을(를) 플러그인으로 전환할 수 없습니다: {{error}}",
       "undo": "실행 취소",
+      "undoFailed": "{{name}}을(를) 내장 드라이버로 다시 전환할 수 없습니다: {{error}}",
       "reportIssue": "문제 신고"
     },
     "checklist": {

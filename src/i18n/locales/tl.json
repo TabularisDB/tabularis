@@ -2237,7 +2237,9 @@
       "connectionFailure": "Hindi makakonekta sa {{name}} gamit ang plugin: {{error}}",
       "processFailureWithError": "Hindi nag-start ang PostgreSQL plugin: {{error}}. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
       "processFailure": "Hindi nag-start ang PostgreSQL plugin. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
+      "failed": "Hindi ma-switch ang {{name}} sa plugin: {{error}}",
       "undo": "I-undo",
+      "undoFailed": "Hindi maibalik ang {{name}} sa built-in driver: {{error}}",
       "reportIssue": "I-report ang isyu"
     },
     "checklist": {

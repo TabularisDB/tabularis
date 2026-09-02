@@ -2127,7 +2127,9 @@
       "connectionFailure": "Impossibile connettersi a {{name}} usando il plugin: {{error}}",
       "processFailureWithError": "Il plugin PostgreSQL non si è avviato: {{error}}. Non riguarda specificamente {{name}} — non è stata tentata alcuna connessione.",
       "processFailure": "Il plugin PostgreSQL non si è avviato. Non riguarda specificamente {{name}} — non è stata tentata alcuna connessione.",
+      "failed": "Impossibile passare {{name}} al plugin: {{error}}",
       "undo": "Annulla",
+      "undoFailed": "Impossibile riportare {{name}} al driver integrato: {{error}}",
       "reportIssue": "Segnala un problema"
     },
     "checklist": {

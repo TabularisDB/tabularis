@@ -2125,7 +2125,9 @@
       "connectionFailure": "Verbindung zu {{name}} über das Plugin fehlgeschlagen: {{error}}",
       "processFailureWithError": "Das PostgreSQL-Plugin konnte nicht gestartet werden: {{error}}. Das betrifft nicht speziell {{name}} — es wurde keine Verbindung versucht.",
       "processFailure": "Das PostgreSQL-Plugin konnte nicht gestartet werden. Das betrifft nicht speziell {{name}} — es wurde keine Verbindung versucht.",
+      "failed": "{{name}} konnte nicht zum Plugin gewechselt werden: {{error}}",
       "undo": "Rückgängig",
+      "undoFailed": "{{name}} konnte nicht zurück zum integrierten Treiber gewechselt werden: {{error}}",
       "reportIssue": "Problem melden"
     },
     "checklist": {

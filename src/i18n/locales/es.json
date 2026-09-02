@@ -2047,7 +2047,9 @@
       "connectionFailure": "No se pudo conectar a {{name}} usando el complemento: {{error}}",
       "processFailureWithError": "El complemento de PostgreSQL no se inició: {{error}}. No es específico de {{name}} — no se intentó ninguna conexión.",
       "processFailure": "El complemento de PostgreSQL no se inició. No es específico de {{name}} — no se intentó ninguna conexión.",
+      "failed": "No se pudo cambiar {{name}} al complemento: {{error}}",
       "undo": "Deshacer",
+      "undoFailed": "No se pudo devolver {{name}} al controlador integrado: {{error}}",
       "reportIssue": "Reportar un problema"
     },
     "checklist": {

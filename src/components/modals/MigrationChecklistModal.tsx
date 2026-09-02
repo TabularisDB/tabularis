@@ -26,7 +26,7 @@ interface MigrationChecklistModalProps {
   migrateConnection: (connectionId: string) => Promise<MigrationOutcome>;
 }
 
-type RowStatus = "pending" | "running" | "ok" | "connection" | "process";
+type RowStatus = "pending" | "running" | "ok" | "connection" | "process" | "failed";
 
 /** One label per `UnsupportedFeature.feature` key, translated. The util
  * itself returns hardcoded English `label` text (it has no i18n access, by
@@ -121,14 +121,25 @@ export const MigrationChecklistModal = ({
 
   const handleMigrateSelected = async () => {
     setMigrating(true);
-    // Sequential, not Promise.all: each call writes connections.json via
-    // update_connection — concurrent writes would race on the same file.
-    for (const id of checked) {
-      setRowStatus((prev) => ({ ...prev, [id]: "running" }));
-      const outcome = await migrateConnection(id);
-      setRowStatus((prev) => ({ ...prev, [id]: outcome.status }));
+    try {
+      // Sequential, not Promise.all: each call writes connections.json via
+      // update_connection — concurrent writes would race on the same file.
+      // migrateConnection never rejects (it resolves to a "failed" outcome on
+      // unexpected errors), but this still guards per-iteration so one
+      // connection's failure can't abort the batch or leave `migrating` stuck
+      // true if something outside migrateConnection's own contract throws.
+      for (const id of checked) {
+        setRowStatus((prev) => ({ ...prev, [id]: "running" }));
+        try {
+          const outcome = await migrateConnection(id);
+          setRowStatus((prev) => ({ ...prev, [id]: outcome.status }));
+        } catch {
+          setRowStatus((prev) => ({ ...prev, [id]: "failed" }));
+        }
+      }
+    } finally {
+      setMigrating(false);
     }
-    setMigrating(false);
   };
 
   const handleClose = () => {
@@ -192,7 +203,7 @@ export const MigrationChecklistModal = ({
                       {status === "ok" && (
                         <Check size={13} className="text-green-400 shrink-0" />
                       )}
-                      {(status === "connection" || status === "process") && (
+                      {(status === "connection" || status === "process" || status === "failed") && (
                         <AlertTriangle size={13} className="text-red-400 shrink-0" />
                       )}
                     </div>

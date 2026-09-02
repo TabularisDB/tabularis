@@ -221,6 +221,37 @@ describe("MigrationChecklistModal", () => {
       expect(migrateConnection).toHaveBeenCalledWith("c2");
     });
 
+    it("continues the batch and re-enables the button when one migration rejects unexpectedly", async () => {
+      // migrateConnection's real implementation never rejects (it resolves a
+      // "failed" outcome instead), but this guards the modal's own loop
+      // defensively: if it ever did throw, one bad connection must not abort
+      // the remaining batch or leave the button permanently disabled.
+      const manifest = makeManifest({ supports_ssl: true, connection_uri: true });
+      const conns = [makeConn("c1", "Conn 1"), makeConn("c2", "Conn 2")];
+      migrateConnection = vi.fn(async (id: string) => {
+        if (id === "c1") throw new Error("unexpected");
+        return outcomeFor(id);
+      });
+      render(
+        <MigrationChecklistModal
+          isOpen
+          onClose={onClose}
+          connections={conns}
+          manifest={manifest}
+          repoUrl="https://github.com/TabularisDB/tabularis-postgresql-plugin"
+          pluginVersion="1.0.0"
+          migrateConnection={migrateConnection}
+        />,
+      );
+      const migrateButton = screen.getByText(/migration\.checklist\.migrateSelected/).closest("button");
+      fireEvent.click(migrateButton!);
+
+      await waitFor(() => expect(migrateConnection).toHaveBeenCalledTimes(2));
+      expect(migrateConnection).toHaveBeenCalledWith("c1");
+      expect(migrateConnection).toHaveBeenCalledWith("c2");
+      await waitFor(() => expect(migrateButton).not.toBeDisabled());
+    });
+
     it("does not migrate an unchecked (gapped) connection", async () => {
       const manifest = makeManifest({ supports_ssl: false });
       const conns = [

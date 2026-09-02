@@ -167,7 +167,17 @@ export const Connections = () => {
     const outcome = lastOutcome;
 
     const handleUndo = () => {
-      void undoMigration(outcome.connectionId);
+      void undoMigration(outcome.connectionId).then((result) => {
+        if (!result.ok) {
+          showToast(
+            t("migration.toast.undoFailed", {
+              name: outcome.connectionName,
+              error: result.error ?? "unknown error",
+            }),
+            { kind: "error", duration: 0 },
+          );
+        }
+      });
     };
 
     const handleReportIssue = (failureMode: "connection" | "process") => {
@@ -221,7 +231,7 @@ export const Connections = () => {
           ],
         },
       );
-    } else {
+    } else if (outcome.status === "process") {
       showToast(
         outcome.startupError
           ? t("migration.toast.processFailureWithError", {
@@ -239,6 +249,22 @@ export const Connections = () => {
               onClick: () => handleReportIssue("process"),
             },
           ],
+        },
+      );
+    } else {
+      // status === "failed": something unexpected happened before the driver
+      // flip could even be confirmed (e.g. the connection vanished
+      // concurrently, or the write itself errored) — Undo is still offered
+      // since flipping back to the built-in driver is safe either way.
+      showToast(
+        t("migration.toast.failed", {
+          name: outcome.connectionName,
+          error: outcome.error ?? "unknown error",
+        }),
+        {
+          kind: "error",
+          duration: 0,
+          actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
         },
       );
     }
@@ -670,7 +696,17 @@ export const Connections = () => {
         variant: "info",
         onConfirm: () => {
           setConfirmModal(null);
-          void migration.undoMigration(conn.id);
+          void migration.undoMigration(conn.id).then((result) => {
+            if (!result.ok) {
+              showToast(
+                t("migration.toast.undoFailed", {
+                  name: conn.name,
+                  error: result.error ?? "unknown error",
+                }),
+                { kind: "error", duration: 0 },
+              );
+            }
+          });
         },
       });
     }

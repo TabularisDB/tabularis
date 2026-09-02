@@ -32,14 +32,27 @@ export interface MigrationOutcome {
   /** Connection that was migrated. */
   connectionId: string;
   connectionName: string;
-  /** "ok" the post-migration test succeeded; "connection" / "process" on failure. */
-  status: "ok" | "connection" | "process";
-  /** Error message when status === "connection". */
+  /** "ok" the post-migration test succeeded; "connection" / "process" on an
+   * expected failure. "failed" is the catch-all for anything unexpected
+   * before that point (e.g. the connection was deleted concurrently, or
+   * `update_connection` itself rejected) — `migrateConnection` never throws,
+   * it resolves to this instead, so a bulk-migration loop can't abort or
+   * wedge on one connection's failure. */
+  status: "ok" | "connection" | "process" | "failed";
+  /** Error message when status === "connection" or "failed". */
   error?: string;
   /** Startup error text when status === "process", if the plugin reported one. */
   startupError?: string;
   /** Plugin id, needed to word/build the process-level failure and issue report. */
   pluginId?: string;
+}
+
+/** Result of an undo attempt. `undoMigration` never throws either — callers
+ * check `ok` and surface `error` themselves (there's no outcome-toast
+ * plumbing for undo the way there is for `migrateConnection`). */
+export interface UndoOutcome {
+  ok: boolean;
+  error?: string;
 }
 
 /** Snapshot of the migration state the banner (and per-connection actions) consume. */
@@ -56,10 +69,12 @@ export interface BuiltinDriverMigrationState {
   banner: { visible: boolean; variant: MigrationBannerVariant } | null;
   /** Dismiss the banner (persists). */
   dismissBanner: () => void;
-  /** Migrate one connection to the plugin. Resolves with the outcome. */
+  /** Migrate one connection to the plugin. Never rejects — resolves with the
+   * outcome (including unexpected failures, as `status: "failed"`). */
   migrateConnection: (connectionId: string) => Promise<MigrationOutcome>;
-  /** Undo a migration: flip the driver back. */
-  undoMigration: (connectionId: string) => Promise<void>;
+  /** Undo a migration: flip the driver back. Never rejects — resolves with
+   * `{ ok: false, error }` on failure so the caller can surface it. */
+  undoMigration: (connectionId: string) => Promise<UndoOutcome>;
   /** Most recent migration outcome, for the toast / undo surface. */
   lastOutcome: MigrationOutcome | null;
   /** Clear the last outcome (toast dismissed). */
@@ -164,36 +179,53 @@ export function useBuiltinDriverMigration(
 
   // Migrate one connection: auto-disconnect if open, flip the driver, run a
   // post-migration test, and record the outcome. The undo path flips back.
+  // Never rejects: every awaited call up through the driver-flip is wrapped,
+  // so a bulk caller looping over many connections can't have one failure
+  // abort the batch or leave its own loop state (e.g. a "migrating" flag)
+  // stuck permanently on.
   const migrateConnection = useCallback(
     async (connectionId: string): Promise<MigrationOutcome> => {
       const conn = connections.find((c) => c.id === connectionId);
       const name = conn?.name ?? connectionId;
       const fromDriver = builtinId;
 
-      // Disconnect first if the connection is currently open — reuses the
-      // same helper the plugin-uninstall flow uses.
-      const openForBuiltin = findConnectionsForDrivers(
-        openConnectionIds,
-        connectionDataMap,
-        [builtinId],
-      );
-      if (openForBuiltin.includes(connectionId)) {
-        await disconnect(connectionId);
-      }
+      try {
+        // Disconnect first if the connection is currently open — reuses the
+        // same helper the plugin-uninstall flow uses.
+        const openForBuiltin = findConnectionsForDrivers(
+          openConnectionIds,
+          connectionDataMap,
+          [builtinId],
+        );
+        if (openForBuiltin.includes(connectionId)) {
+          await disconnect(connectionId);
+        }
 
-      // Flip the driver. `update_connection` handles the persistence; for a
-      // connection-URI connection it drops the stored URI on the driver
-      // change (by design), which the pre-flight warning (Chunk 4) surfaces
-      // before the user ever gets here.
-      await invoke("update_connection", {
-        id: connectionId,
-        name: conn?.name ?? connectionId,
-        params: { ...conn?.params, driver: pluginId },
-        detectJsonInTextColumns: conn?.detect_json_in_text_columns ? true : null,
-        environment: conn?.environment ?? null,
-      });
-      await loadConnections();
-      await recordMigration(connectionId, fromDriver, pluginId);
+        // Flip the driver. `update_connection` handles the persistence; for a
+        // connection-URI connection it drops the stored URI on the driver
+        // change (by design), which the pre-flight warning (Chunk 4) surfaces
+        // before the user ever gets here.
+        await invoke("update_connection", {
+          id: connectionId,
+          name: conn?.name ?? connectionId,
+          params: { ...conn?.params, driver: pluginId },
+          detectJsonInTextColumns: conn?.detect_json_in_text_columns ? true : null,
+          environment: conn?.environment ?? null,
+        });
+        await loadConnections();
+        await recordMigration(connectionId, fromDriver, pluginId);
+      } catch (e) {
+        const error = e instanceof Error ? e.message : String(e);
+        const outcome: MigrationOutcome = {
+          connectionId,
+          connectionName: name,
+          status: "failed",
+          error,
+          pluginId,
+        };
+        setLastOutcome(outcome);
+        return outcome;
+      }
 
       // The plugin process never starting is a different failure than the
       // connection itself failing — detectable because the registry never
@@ -203,7 +235,21 @@ export function useBuiltinDriverMigration(
       // to detect the failure. Skipping the connection test in this case
       // avoids attributing a plugin-startup failure to the connection's own
       // credentials.
-      const registeredDrivers = await invoke<Array<{ id: string }>>("get_registered_drivers");
+      let registeredDrivers: Array<{ id: string }>;
+      try {
+        registeredDrivers = await invoke<Array<{ id: string }>>("get_registered_drivers");
+      } catch (e) {
+        const error = e instanceof Error ? e.message : String(e);
+        const outcome: MigrationOutcome = {
+          connectionId,
+          connectionName: name,
+          status: "failed",
+          error,
+          pluginId,
+        };
+        setLastOutcome(outcome);
+        return outcome;
+      }
       const pluginRegistered = registeredDrivers.some((d) => d.id === pluginId);
       if (!pluginRegistered) {
         // Best-effort: if the drain still has this plugin's error (nobody
@@ -269,19 +315,27 @@ export function useBuiltinDriverMigration(
     ],
   );
 
-  // Undo: flip the driver back to the built-in and refresh.
+  // Undo: flip the driver back to the built-in and refresh. Never rejects —
+  // resolves to `{ ok: false, error }` so the caller (there's no
+  // outcome-toast plumbing for undo, unlike migrateConnection) can surface it.
   const undoMigration = useCallback(
-    async (connectionId: string) => {
+    async (connectionId: string): Promise<UndoOutcome> => {
       const conn = connections.find((c) => c.id === connectionId);
-      await invoke("update_connection", {
-        id: connectionId,
-        name: conn?.name ?? connectionId,
-        params: { ...conn?.params, driver: builtinId },
-        detectJsonInTextColumns: conn?.detect_json_in_text_columns ? true : null,
-        environment: conn?.environment ?? null,
-      });
-      await loadConnections();
-      setLastOutcome(null);
+      try {
+        await invoke("update_connection", {
+          id: connectionId,
+          name: conn?.name ?? connectionId,
+          params: { ...conn?.params, driver: builtinId },
+          detectJsonInTextColumns: conn?.detect_json_in_text_columns ? true : null,
+          environment: conn?.environment ?? null,
+        });
+        await loadConnections();
+        setLastOutcome(null);
+        return { ok: true };
+      } catch (e) {
+        const error = e instanceof Error ? e.message : String(e);
+        return { ok: false, error };
+      }
     },
     [connections, builtinId, loadConnections],
   );

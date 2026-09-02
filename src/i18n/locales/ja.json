@@ -2143,7 +2143,9 @@
       "connectionFailure": "プラグインを使用して {{name}} に接続できませんでした: {{error}}",
       "processFailureWithError": "PostgreSQL プラグインが起動しませんでした: {{error}}。これは {{name}} 固有の問題ではありません —接続は試行されませんでした。",
       "processFailure": "PostgreSQL プラグインが起動しませんでした。これは {{name}} 固有の問題ではありません —接続は試行されませんでした。",
+      "failed": "{{name}} をプラグインに切り替えられませんでした: {{error}}",
       "undo": "元に戻す",
+      "undoFailed": "{{name}} を組み込みドライバーに戻せませんでした: {{error}}",
       "reportIssue": "問題を報告"
     },
     "checklist": {

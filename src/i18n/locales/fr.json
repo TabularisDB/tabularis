@@ -2203,7 +2203,9 @@
       "connectionFailure": "Impossible de se connecter à {{name}} avec le plugin : {{error}}",
       "processFailureWithError": "Le plugin PostgreSQL n'a pas démarré : {{error}}. Cela ne concerne pas spécifiquement {{name}} — aucune connexion n'a été tentée.",
       "processFailure": "Le plugin PostgreSQL n'a pas démarré. Cela ne concerne pas spécifiquement {{name}} — aucune connexion n'a été tentée.",
+      "failed": "Impossible de basculer {{name}} vers le plugin : {{error}}",
       "undo": "Annuler",
+      "undoFailed": "Impossible de rebasculer {{name}} vers le pilote intégré : {{error}}",
       "reportIssue": "Signaler un problème"
     },
     "checklist": {
