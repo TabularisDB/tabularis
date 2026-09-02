@@ -1,0 +1,102 @@
+name: Preview Comment
+
+# Second half of preview.yml: once a preview build finishes, post (or update)
+# a single sticky comment on the PR linking the artifacts of that run.
+#
+# Split off via workflow_run because the build runs in the PR's context,
+# where a fork PR only gets a read-only token. This workflow runs on the
+# default branch with its own token and never executes PR code, so granting
+# it `pull-requests: write` is safe.
+on:
+  workflow_run:
+    workflows: ["Preview Build"]
+    types: [completed]
+
+jobs:
+  comment:
+    # Cancelled runs were superseded by a newer push; that one will comment.
+    # Skipped builds (label event for another label) conclude "success" with
+    # no artifacts and are filtered out below.
+    if: github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read # list artifacts
+      pull-requests: write
+    steps:
+      - name: Upsert the preview comment on the PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          # workflow_run.pull_requests is empty for fork PRs, so the PR is
+          # looked up from the commit instead; this tells signed from unsigned.
+          IS_FORK: ${{ github.event.workflow_run.head_repository.full_name != github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          artifacts=$(gh api --paginate "repos/$GH_REPO/actions/runs/$RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.name | startswith("tabularis-preview-")) | [.name, .id, .size_in_bytes, .expires_at] | @tsv' | sort)
+          if [ -z "$artifacts" ] && [ "$CONCLUSION" = "success" ]; then
+            echo "Run $RUN_ID built nothing (not a preview request) — no comment to post."
+            exit 0
+          fi
+
+          pr=$(gh api "repos/$GH_REPO/commits/$SHA/pulls" \
+            --jq '[.[] | select(.state == "open")] | .[0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "No open PR for $SHA — nothing to comment on."
+            exit 0
+          fi
+          short=${SHA:0:7}
+          marker="<!-- tabularis-preview-build -->"
+
+          {
+            echo "$marker"
+            echo "### Preview build"
+            echo
+            if [ "$CONCLUSION" = "success" ]; then
+              echo "Test builds of commit \`$short\` ([workflow run]($RUN_URL))."
+              echo
+              echo "| Platform | Download | Size |"
+              echo "|---|---|---|"
+              expires=""
+              while IFS=$'\t' read -r name id size exp; do
+                case "$name" in
+                  *macos-arm64) platform="macOS (Apple Silicon)" ;;
+                  *macos-x64)   platform="macOS (Intel)" ;;
+                  *linux-x64)   platform="Linux (.deb / .rpm / AppImage)" ;;
+                  *windows-x64) platform="Windows (.msi / setup / portable)" ;;
+                  *)            platform="$name" ;;
+                esac
+                printf '| %s | [%s](https://github.com/%s/actions/runs/%s/artifacts/%s) | %d MB |\n' \
+                  "$platform" "$name" "$GH_REPO" "$RUN_ID" "$id" "$(( (size + 524287) / 1048576 ))"
+                expires=${exp:0:10}
+              done <<< "$artifacts"
+              echo
+              echo "> **Note:** you need to be logged in to GitHub to download the archives; they expire on ${expires:-14 days from now}."
+              echo ">"
+              if [ "$IS_FORK" = "true" ]; then
+                echo "> This PR comes from a fork, so these builds are **not signed**. macOS will say the app is damaged: run \`xattr -cr /Applications/tabularis.app\` after copying it, or right-click → Open. Windows SmartScreen: *More info → Run anyway*."
+              else
+                echo "> Windows SmartScreen may warn about an unrecognised app: *More info → Run anyway*."
+              fi
+              echo ">"
+              echo "> Rebuilt on every push while the \`preview\` label is on this PR."
+            else
+              echo "The preview build of commit \`$short\` **failed** ($CONCLUSION). See the [workflow run]($RUN_URL) for logs."
+            fi
+          } > body.md
+
+          existing=$(gh api --paginate "repos/$GH_REPO/issues/$pr/comments" \
+            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$GH_REPO/issues/comments/$existing" -F body=@body.md --silent
+            echo "Updated comment $existing on PR #$pr."
+          else
+            gh pr comment "$pr" --body-file body.md
+            echo "Posted new comment on PR #$pr."
+          fi
