@@ -95,6 +95,8 @@ vi.mock("../../src/hooks/useCreateSqliteDatabase", () => ({
 // no-op so the tests stay focused on the SQLite action.
 vi.mock("../../src/hooks/useBuiltinDriverMigration", () => ({
   useBuiltinPostgresMigration: () => ({
+    builtinId: "postgres",
+    pluginId: "postgresql",
     builtinConnections: [],
     needsMigration: false,
     pluginReady: false,

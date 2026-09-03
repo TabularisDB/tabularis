@@ -80,6 +80,18 @@ describe("useBuiltinDriverMigration", () => {
     vi.mocked(invoke).mockImplementation(mockInvokeDefault);
   });
 
+  describe("builtinId/pluginId", () => {
+    it("exposes the driver pair it was parameterized with", () => {
+      // A caller holding only the hook's return value (not the arguments
+      // used to create it) still needs the pair — e.g. Connections.tsx
+      // builds a driver-specific issue-report URL from it instead of
+      // re-hardcoding "postgres"/"postgresql".
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      expect(result.current.builtinId).toBe("postgres");
+      expect(result.current.pluginId).toBe("postgresql");
+    });
+  });
+
   describe("banner gating", () => {
     it("stays hidden when no connection is on the built-in driver", () => {
       setPluginReady(true);

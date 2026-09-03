@@ -61,6 +61,15 @@ export interface UndoOutcome {
 
 /** Snapshot of the migration state the banner (and per-connection actions) consume. */
 export interface BuiltinDriverMigrationState {
+  /** The built-in driver id this instance was parameterized with (e.g.
+   * `"postgres"`). Exposed so a caller that only holds the hook's return
+   * value — not the `(builtinId, pluginId)` arguments used to create it —
+   * can still build driver-specific UI (e.g. an issue-report URL) without
+   * re-hardcoding the pair the hook itself is already parameterized by. */
+  builtinId: string;
+  /** The replacement plugin id this instance was parameterized with (e.g.
+   * `"postgresql"`). See `builtinId`. */
+  pluginId: string;
   /** Saved connections still on the built-in driver (the trigger set). */
   builtinConnections: SavedConnection[];
   /** True when at least one saved connection is on the built-in driver. */
@@ -405,6 +414,8 @@ export function useBuiltinDriverMigration(
   );
 
   return {
+    builtinId,
+    pluginId,
     builtinConnections,
     needsMigration,
     pluginReady,

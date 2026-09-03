@@ -174,7 +174,7 @@ export const Connections = () => {
   // including MigrationChecklistModal's bulk "Migrate N selected" loop,
   // which has its own per-row status UI — set that same shared state and
   // fired this toast a second time on top of the checklist's own feedback.
-  const { undoMigration } = migration;
+  const { builtinId, pluginId: defaultPluginId, undoMigration } = migration;
   const showMigrationOutcomeToast = useCallback(
     (outcome: MigrationOutcome) => {
       const handleUndo = () => {
@@ -192,7 +192,7 @@ export const Connections = () => {
       };
 
       const handleReportIssue = (failureMode: "connection" | "process") => {
-        const pluginId = outcome.pluginId ?? "postgresql";
+        const pluginId = outcome.pluginId ?? defaultPluginId;
         const registryEntry = catalogueRegistry.find((p) => p.id === pluginId);
         const repoUrl = resolvePluginRepoUrl(pluginId, registryEntry?.repo_url);
         if (!repoUrl) {
@@ -210,7 +210,7 @@ export const Connections = () => {
           template: "migration-failure",
           failureMode,
           error: outcome.error ?? outcome.startupError ?? "unknown error",
-          migratedFromDriver: "postgres",
+          migratedFromDriver: builtinId,
         });
         void openUrl(url);
       };
@@ -280,7 +280,7 @@ export const Connections = () => {
         );
       }
     },
-    [undoMigration, catalogueRegistry, installedPlugins, showToast, t],
+    [builtinId, defaultPluginId, undoMigration, catalogueRegistry, installedPlugins, showToast, t],
   );
 
   useEffect(() => {
@@ -1183,7 +1183,7 @@ export const Connections = () => {
       {migration.banner?.visible && (
         <PostgresPluginMigrationBanner
           variant={migration.banner.variant}
-          removalDate={allDrivers.find((d) => d.id === "postgres")?.deprecated?.removal_date}
+          removalDate={allDrivers.find((d) => d.id === migration.builtinId)?.deprecated?.removal_date}
           onDismiss={migration.dismissBanner}
           onReview={() => setIsMigrationChecklistOpen(true)}
         />
@@ -1518,14 +1518,14 @@ export const Connections = () => {
         isOpen={isMigrationChecklistOpen}
         onClose={() => setIsMigrationChecklistOpen(false)}
         connections={migration.builtinConnections}
-        manifest={allDrivers.find((d) => d.id === "postgresql")}
+        manifest={allDrivers.find((d) => d.id === migration.pluginId)}
         repoUrl={resolvePluginRepoUrl(
-          "postgresql",
-          catalogueRegistry.find((p) => p.id === "postgresql")?.repo_url,
+          migration.pluginId,
+          catalogueRegistry.find((p) => p.id === migration.pluginId)?.repo_url,
         )}
         pluginVersion={
-          installedPlugins.find((p) => p.id === "postgresql")?.version ??
-          catalogueRegistry.find((p) => p.id === "postgresql")?.installed_version ??
+          installedPlugins.find((p) => p.id === migration.pluginId)?.version ??
+          catalogueRegistry.find((p) => p.id === migration.pluginId)?.installed_version ??
           "unknown"
         }
         migrateConnection={migration.migrateConnection}
