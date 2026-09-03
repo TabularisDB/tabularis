@@ -82,9 +82,19 @@ pub async fn ensure_plugin_installed(app: &AppHandle, plugin_id: &str) {
 /// Persist `plugin_id` into `active_external_drivers` via the `save_config`
 /// merge, leaving every other config field untouched. Idempotent: a no-op if
 /// the id is already active.
+///
+/// Reads the currently-installed plugin ids first: `merge_active_driver` needs
+/// them to seed the list correctly when no preference has been saved yet (see
+/// its doc comment). Bails without writing if that read fails — narrowing to
+/// just `plugin_id` on a guess would be worse than not activating it this
+/// launch, since it could silently deactivate every other installed plugin.
 fn persist_activation(app: &AppHandle, plugin_id: &str) -> Result<(), String> {
     let config = config::load_config_internal(app);
-    let updated = merge_active_driver(&config, plugin_id);
+    let installed_ids: Vec<String> = installer::list_installed()?
+        .into_iter()
+        .map(|p| p.id)
+        .collect();
+    let updated = merge_active_driver(&config, plugin_id, &installed_ids);
     // Only write when something actually changed — avoids a pointless
     // config.json rewrite (and cache invalidation) on every launch.
     if updated.active_external_drivers == config.active_external_drivers {
@@ -94,11 +104,30 @@ fn persist_activation(app: &AppHandle, plugin_id: &str) -> Result<(), String> {
 }
 
 /// Pure helper: return a copy of `config` with `plugin_id` added to
-/// `active_external_drivers` if it isn't already present. Every other field is
-/// carried through unchanged. Extracted so the merge/dedup logic is testable
-/// without a Tauri `AppHandle`.
-pub(crate) fn merge_active_driver(config: &AppConfig, plugin_id: &str) -> AppConfig {
-    let mut active = config.active_external_drivers.clone().unwrap_or_default();
+/// `active_external_drivers`. Every other field is carried through unchanged.
+/// Extracted so the merge/dedup logic is testable without a Tauri
+/// `AppHandle`.
+///
+/// `None` in `active_external_drivers` is not "nothing is active" — every
+/// other reader (`load_plugins`, `PluginsTab`) treats it as "no preference
+/// saved yet, so every installed plugin is active." Starting the merge from
+/// an empty list in that case would turn that implicit "all installed" into
+/// an explicit list containing only `plugin_id`, silently deactivating every
+/// other plugin the user already had installed and running (e.g. installing
+/// the postgres-migration plugin would turn off an unrelated dynamodb plugin
+/// on the next launch). So when the config value is `None`, this seeds the
+/// explicit list from `installed_ids` — the caller's current
+/// `installer::list_installed()` snapshot — before appending, making the
+/// existing "all installed" set explicit rather than narrowing it.
+pub(crate) fn merge_active_driver(
+    config: &AppConfig,
+    plugin_id: &str,
+    installed_ids: &[String],
+) -> AppConfig {
+    let mut active = config
+        .active_external_drivers
+        .clone()
+        .unwrap_or_else(|| installed_ids.to_vec());
     if !active.iter().any(|id| id == plugin_id) {
         active.push(plugin_id.to_string());
     }
@@ -213,7 +242,7 @@ mod tests {
             active_external_drivers: Some(vec!["mysql".to_string()]),
             ..AppConfig::default()
         };
-        let merged = merge_active_driver(&config, "postgresql");
+        let merged = merge_active_driver(&config, "postgresql", &[]);
         assert_eq!(
             merged.active_external_drivers,
             Some(vec!["mysql".to_string(), "postgresql".to_string()])
@@ -228,7 +257,7 @@ mod tests {
             active_external_drivers: Some(vec!["postgresql".to_string()]),
             ..AppConfig::default()
         };
-        let merged = merge_active_driver(&config, "postgresql");
+        let merged = merge_active_driver(&config, "postgresql", &[]);
         assert_eq!(
             merged.active_external_drivers,
             Some(vec!["postgresql".to_string()])
@@ -241,13 +270,13 @@ mod tests {
         // active_external_drivers may change. A settings wipe here would
         // silently reset the user's entire config on every launch.
         let config = AppConfig {
-            active_external_drivers: None,
+            active_external_drivers: Some(vec![]),
             theme: Some("dark".to_string()),
             result_page_size: Some(250),
             language: Some("en".to_string()),
             ..AppConfig::default()
         };
-        let merged = merge_active_driver(&config, "postgresql");
+        let merged = merge_active_driver(&config, "postgresql", &[]);
         assert_eq!(
             merged.active_external_drivers,
             Some(vec!["postgresql".to_string()])
@@ -261,8 +290,11 @@ mod tests {
     fn merge_active_driver_collapses_empty_back_to_none() {
         // Adding the only id to an empty list yields a single-entry list, not
         // an empty one — but this guards the symmetric case for future edits.
-        let config = AppConfig::default();
-        let merged = merge_active_driver(&config, "postgresql");
+        let config = AppConfig {
+            active_external_drivers: Some(vec![]),
+            ..AppConfig::default()
+        };
+        let merged = merge_active_driver(&config, "postgresql", &[]);
         assert_eq!(
             merged.active_external_drivers,
             Some(vec!["postgresql".to_string()])
@@ -270,6 +302,50 @@ mod tests {
     }
 
     #[test]
+    fn merge_active_driver_seeds_from_installed_ids_when_no_preference_saved() {
+        // The activation-can-disable-everything-else regression: `None` means
+        // "no preference saved, every installed plugin is active" everywhere
+        // else in the app (`load_plugins`, `PluginsTab`). A user who already
+        // has `dynamodb` and `sqlserver` installed, with no preference saved
+        // yet, must still have both active after `postgresql` force-installs
+        // — not just `postgresql` alone, which would silently turn the other
+        // two off on the next launch.
+        let config = AppConfig {
+            active_external_drivers: None,
+            ..AppConfig::default()
+        };
+        let installed = ["dynamodb".to_string(), "sqlserver".to_string()];
+        let merged = merge_active_driver(&config, "postgresql", &installed);
+        assert_eq!(
+            merged.active_external_drivers,
+            Some(vec![
+                "dynamodb".to_string(),
+                "sqlserver".to_string(),
+                "postgresql".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn merge_active_driver_does_not_reseed_from_installed_ids_once_a_preference_exists() {
+        // Seeding from `installed_ids` must only fill the implicit-None gap,
+        // never override an explicit (even empty) preference the user already
+        // set — e.g. a user who explicitly deactivated everything via
+        // `PluginsTab` must stay deactivated except for the id being added.
+        let config = AppConfig {
+            active_external_drivers: Some(vec![]),
+            ..AppConfig::default()
+        };
+        let installed = ["dynamodb".to_string(), "sqlserver".to_string()];
+        let merged = merge_active_driver(&config, "postgresql", &installed);
+        assert_eq!(
+            merged.active_external_drivers,
+            Some(vec!["postgresql".to_string()])
+        );
+    }
+
+    #[test]
+
     fn is_version_compatible_when_app_meets_minimum() {
         assert!(is_version_compatible("1.0.0", "1.2.0"));
         assert!(is_version_compatible("1.2.0", "1.2.0")); // exact match is compatible
