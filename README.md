@@ -233,6 +233,7 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 - **Monaco Editor** with syntax highlighting and auto-completion, in a tabbed interface with isolated connections per tab and resizable **split view**.
 - **Multi-Statement Execution:** Run All, Run Selected, or pick individual queries. Results appear in separate tabs with independent pagination.
 - **Smart Query Splitting:** Correctly handles stored procedures, functions, and `$$`-delimited blocks.
+- **SQL Files:** Open, edit, and save `.sql`, `.psql`, and `.pgsql` files in editor tabs without executing them.
 - **Saved Queries** and an **AI assist overlay** directly in the editor.
 
 ### SQL Notebooks

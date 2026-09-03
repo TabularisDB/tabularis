@@ -711,6 +711,9 @@
         "title": "Falha na desinstalação",
         "subtitle": "Ocorreu um erro ao desinstalar o plugin. Veja os detalhes abaixo."
       },
+      "devRuntimeWarning": {
+        "title": "Build de desenvolvimento: o plugin \"{{plugin}}\" ignorou a verificação de versão do Tabularis"
+      },
       "startError": {
         "title": "Falha ao Iniciar o Plugin",
         "subtitle": "Não foi possível iniciar o processo do plugin. Verifique os detalhes do erro abaixo.",
@@ -1226,6 +1229,21 @@
     "statementNotExplainable": "Este tipo de instrução não pode ser explicado.",
     "fieldRequired": "Este campo é obrigatório",
     "newNotebook": "Novo Notebook",
+    "openSqlFile": "Abrir arquivo SQL…",
+    "openSqlFileError": "Não foi possível abrir o arquivo SQL",
+    "sqlFileFilter": "Arquivos SQL",
+    "saveSqlFile": "Salvar arquivo SQL",
+    "saveSqlFileAs": "Salvar arquivo SQL como…",
+    "saveSqlFileError": "Não foi possível salvar o arquivo SQL",
+    "sqlFileSaved": "Arquivo SQL salvo",
+    "unsavedSqlFileTitle": "Descartar alterações não salvas?",
+    "unsavedSqlFileMessage": "Um ou mais arquivos SQL têm alterações não salvas. Fechar essas abas descartará as alterações.",
+    "discardSqlFileChanges": "Descartar alterações",
+    "saveFile": "Salvar",
+    "saveFileAs": "Salvar como…",
+    "saveOptions": "Opções de salvamento",
+    "addToSavedQueries": "Adicionar às consultas salvas…",
+    "sqlFileNotSaved": "Ainda não salvo em um arquivo",
     "visualExplain": {
       "title": "Explicação Visual",
       "buttonShort": "Plano de Explicação",

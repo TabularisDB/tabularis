@@ -123,6 +123,10 @@ export interface Tab {
   activeResultId?: string;
   notebookId?: string; // Reference to notebook file in config dir
   notebookState?: NotebookState; // Deprecated: kept for migration of old tabs
+  sourceFilePath?: string;
+  /** Content last read from / written to `sourceFilePath`; dirty = query differs from it. */
+  sourceFileContent?: string;
+  sourceFileDirty?: boolean;
 }
 
 export interface EditorPreferences {

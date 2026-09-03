@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::config::PluginConfig;
-use crate::drivers::driver_trait::{DriverCapabilities, PluginManifest, PluginSettingDefinition};
+use crate::drivers::driver_trait::{
+    DriverCapabilities, ExplainParserManifestEntry, PluginManifest, PluginSettingDefinition,
+};
 use crate::models::DataTypeInfo;
 use crate::plugins::driver::RpcDriver;
 
@@ -36,6 +38,9 @@ pub struct ConfigManifest {
     /// The registry guarantees `version` in the manifest (`.tabularium`).
     pub version: String,
     pub description: String,
+    /// First Tabularis release this plugin can run on, if it declares one.
+    #[serde(default)]
+    pub min_runtime_version: Option<String>,
     #[serde(default)]
     pub default_port: Option<u16>,
     #[serde(default)]
@@ -64,6 +69,8 @@ pub struct ConfigManifest {
     pub settings: Vec<PluginSettingDefinition>,
     #[serde(default)]
     pub ui_extensions: Option<Vec<crate::drivers::driver_trait::UIExtensionEntry>>,
+    #[serde(default)]
+    pub explain_parsers: Option<Vec<ExplainParserManifestEntry>>,
     /// Static type mappings for `map_inferred_type`. Keys are generic inferred
     /// types (e.g. `"DATETIME"`), values are driver-specific types (e.g. `"TIMESTAMP"`).
     #[serde(default)]
@@ -171,6 +178,14 @@ pub async fn load_plugin_from_dir(
         ));
     }
 
+    // Refuse plugins that need host features this build does not have, so the
+    // user sees one clear message instead of a runtime failure later.
+    // Development builds load them anyway and queue a warning toast.
+    crate::plugins::runtime_version::enforce_min_runtime_version(
+        &plugin_id,
+        config.min_runtime_version.as_deref(),
+    )?;
+
     let manifest = PluginManifest {
         id: plugin_id,
         name: config.name,
@@ -186,6 +201,7 @@ pub async fn load_plugin_from_dir(
         icon: config.icon,
         settings: config.settings,
         ui_extensions: config.ui_extensions,
+        explain_parsers: config.explain_parsers,
         type_mappings: config.type_mappings,
     };
 

@@ -713,6 +713,9 @@
         "title": "アンインストール失敗",
         "subtitle": "プラグインのアンインストール中にエラーが発生しました。詳細は下記を参照してください。"
       },
+      "devRuntimeWarning": {
+        "title": "開発ビルド: プラグイン \"{{plugin}}\" は Tabularis のバージョンチェックをスキップしました"
+      },
       "startError": {
         "title": "プラグインの起動に失敗",
         "subtitle": "プラグインプロセスを起動できませんでした。下記のエラー詳細を確認してください。",
@@ -1222,6 +1225,21 @@
     "failedProcessInsertions": "挿入の処理に失敗しました: ",
     "fieldRequired": "この項目は必須です",
     "newNotebook": "新規ノートブック",
+    "openSqlFile": "SQLファイルを開く…",
+    "openSqlFileError": "SQLファイルを開けませんでした",
+    "sqlFileFilter": "SQLファイル",
+    "saveSqlFile": "SQLファイルを保存",
+    "saveSqlFileAs": "SQLファイルに名前を付けて保存…",
+    "saveSqlFileError": "SQLファイルを保存できませんでした",
+    "sqlFileSaved": "SQLファイルを保存しました",
+    "unsavedSqlFileTitle": "未保存の変更を破棄しますか？",
+    "unsavedSqlFileMessage": "1つ以上のSQLファイルに未保存の変更があります。タブを閉じると変更は失われます。",
+    "discardSqlFileChanges": "変更を破棄",
+    "saveFile": "保存",
+    "saveFileAs": "名前を付けて保存…",
+    "saveOptions": "保存オプション",
+    "addToSavedQueries": "保存済みクエリに追加…",
+    "sqlFileNotSaved": "まだファイルに保存されていません",
     "visualExplain": {
       "title": "ビジュアル Explain",
       "buttonShort": "実行計画",

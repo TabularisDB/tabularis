@@ -8,6 +8,7 @@ pub mod integrity;
 pub mod manager;
 pub mod registry;
 pub mod rpc;
+pub mod runtime_version;
 pub mod tabularium;
 
 #[cfg(test)]

@@ -390,6 +390,38 @@ describe('SqlEditorWrapper', () => {
     expect(trigger).not.toHaveBeenCalled();
   });
 
+  it('does not intercept composing editor key events as palette shortcuts', () => {
+    matchesShortcutMock.mockImplementation(
+      (_event, id) => id === 'command_palette_actions',
+    );
+    render(
+      <SqlEditorWrapper
+        initialValue=""
+        onChange={mockOnChange}
+        onRun={mockOnRun}
+        editorKey="palette-composition"
+      />,
+      { wrapper }
+    );
+    const { keyDownHandlers } = mountCapturedEditor();
+    const event = {
+      browserEvent: new KeyboardEvent('keydown', {
+        key: 'a',
+        ctrlKey: true,
+        shiftKey: true,
+        isComposing: true,
+      }),
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    };
+
+    keyDownHandlers[0](event);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(event.stopPropagation).not.toHaveBeenCalled();
+    expect(togglePaletteMock).not.toHaveBeenCalled();
+  });
+
   it('renders without a command palette provider and leaves its shortcut to Monaco', () => {
     matchesShortcutMock.mockImplementation(
       (_event, id) => id === 'command_palette_actions',

@@ -205,6 +205,37 @@
         }
       }
     },
+    "explain_parsers": {
+      "type": "array",
+      "description": "Optional EXPLAIN parser bundles supplied by the plugin.",
+      "items": {
+        "type": "object",
+        "required": ["engine", "format", "module"],
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Canonical database engine identifier handled by this parser."
+          },
+          "format": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Globally unique raw EXPLAIN wire-format tag."
+          },
+          "module": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to the parser IIFE relative to the installed plugin directory."
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional human-readable label for format pickers."
+          }
+        }
+      }
+    },
     "type_mappings": {
       "type": "object",
       "description": "Optional map of generic inferred type names to driver-specific types. Used by the host to resolve map_inferred_type() locally without an RPC call. Keys are uppercase generic names (e.g. DATETIME, JSON), values are the driver-native equivalents (e.g. TIMESTAMP, JSONB).",

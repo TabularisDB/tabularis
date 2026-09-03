@@ -188,6 +188,20 @@ pub struct UIExtensionEntry {
     pub driver: Option<String>,
 }
 
+/// An EXPLAIN parser bundle declared in a plugin's manifest.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ExplainParserManifestEntry {
+    /// Canonical database engine identifier handled by this parser.
+    pub engine: String,
+    /// Globally unique raw EXPLAIN wire-format tag.
+    pub format: String,
+    /// Parser IIFE path relative to the installed plugin directory.
+    pub module: String,
+    /// Optional human-readable label for format pickers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
 /// A single user-configurable setting declared in a plugin's manifest.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PluginSettingDefinition {
@@ -250,6 +264,9 @@ pub struct PluginManifest {
     /// UI extension slot declarations. Absent for built-in drivers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ui_extensions: Option<Vec<UIExtensionEntry>>,
+    /// Plugin-owned EXPLAIN parser bundles. Absent for built-in drivers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub explain_parsers: Option<Vec<ExplainParserManifestEntry>>,
     /// Static type mappings applied by `map_inferred_type`. Keys are generic
     /// inferred types (uppercase, e.g. `"DATETIME"`), values are driver-specific
     /// types (e.g. `"TIMESTAMP"`). Empty for built-in drivers which override the

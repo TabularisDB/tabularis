@@ -663,6 +663,9 @@
         "title": "卸载失败",
         "subtitle": "卸载插件时发生错误。请参阅下面的详细信息。"
       },
+      "devRuntimeWarning": {
+        "title": "开发版本：插件 \"{{plugin}}\" 跳过了 Tabularis 版本检查"
+      },
       "startError": {
         "title": "插件启动失败",
         "subtitle": "无法启动插件进程。请参阅下面的错误详细信息。",
@@ -1177,6 +1180,21 @@
     "failedProcessInsertions": "处理插入失败：",
     "fieldRequired": "此字段是必需的",
     "newNotebook": "新建笔记本",
+    "openSqlFile": "打开 SQL 文件…",
+    "openSqlFileError": "无法打开 SQL 文件",
+    "sqlFileFilter": "SQL 文件",
+    "saveSqlFile": "保存 SQL 文件",
+    "saveSqlFileAs": "SQL 文件另存为…",
+    "saveSqlFileError": "无法保存 SQL 文件",
+    "sqlFileSaved": "SQL 文件已保存",
+    "unsavedSqlFileTitle": "放弃未保存的更改？",
+    "unsavedSqlFileMessage": "一个或多个 SQL 文件包含未保存的更改。关闭这些标签页将放弃更改。",
+    "discardSqlFileChanges": "放弃更改",
+    "saveFile": "保存",
+    "saveFileAs": "另存为…",
+    "saveOptions": "保存选项",
+    "addToSavedQueries": "添加到已保存查询…",
+    "sqlFileNotSaved": "尚未保存到文件",
     "visualExplain": {
       "title": "可视化执行计划",
       "buttonShort": "执行计划",

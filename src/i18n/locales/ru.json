@@ -694,6 +694,9 @@
         "title": "Ошибка удаления",
         "subtitle": "При удалении плагина произошла ошибка. Подробности ниже."
       },
+      "devRuntimeWarning": {
+        "title": "Сборка для разработки: плагин \"{{plugin}}\" пропустил проверку версии Tabularis"
+      },
       "startError": {
         "title": "Плагин не запустился",
         "subtitle": "Процесс плагина не удалось запустить. Подробности ниже.",
@@ -1207,6 +1210,21 @@
     "failedProcessInsertions": "Не удалось обработать вставки: ",
     "fieldRequired": "Это поле обязательно",
     "newNotebook": "Новый ноутбук",
+    "openSqlFile": "Открыть SQL-файл…",
+    "openSqlFileError": "Не удалось открыть SQL-файл",
+    "sqlFileFilter": "SQL-файлы",
+    "saveSqlFile": "Сохранить SQL-файл",
+    "saveSqlFileAs": "Сохранить SQL-файл как…",
+    "saveSqlFileError": "Не удалось сохранить SQL-файл",
+    "sqlFileSaved": "SQL-файл сохранён",
+    "unsavedSqlFileTitle": "Отменить несохранённые изменения?",
+    "unsavedSqlFileMessage": "В одном или нескольких SQL-файлах есть несохранённые изменения. При закрытии вкладок они будут потеряны.",
+    "discardSqlFileChanges": "Отменить изменения",
+    "saveFile": "Сохранить",
+    "saveFileAs": "Сохранить как…",
+    "saveOptions": "Параметры сохранения",
+    "addToSavedQueries": "Добавить в сохранённые запросы…",
+    "sqlFileNotSaved": "Ещё не сохранено в файл",
     "visualExplain": {
       "title": "Визуальный Explain",
       "buttonShort": "План выполнения",

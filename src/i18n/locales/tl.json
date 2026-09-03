@@ -732,6 +732,9 @@
         "title": "Nabigo ang Pag-uninstall",
         "subtitle": "May error habang ina-uninstall ang plugin. Tingnan ang mga detalye sa ibaba."
       },
+      "devRuntimeWarning": {
+        "title": "Development build: nilaktawan ng plugin na \"{{plugin}}\" ang pagsuri ng bersyon ng Tabularis"
+      },
       "startError": {
         "title": "Nabigo ang Pagsisimula ng Plugin",
         "subtitle": "Hindi ma-launch ang plugin process. Tingnan ang mga detalye ng error sa ibaba.",
@@ -1242,6 +1245,21 @@
     "failedProcessInsertions": "Nabigong iproseso ang mga insertion: ",
     "fieldRequired": "Kailangan ang field na ito",
     "newNotebook": "Bagong Notebook",
+    "openSqlFile": "Buksan ang SQL File…",
+    "openSqlFileError": "Hindi mabuksan ang SQL file",
+    "sqlFileFilter": "Mga SQL File",
+    "saveSqlFile": "I-save ang SQL File",
+    "saveSqlFileAs": "I-save ang SQL File Bilang…",
+    "saveSqlFileError": "Hindi ma-save ang SQL file",
+    "sqlFileSaved": "Na-save ang SQL file",
+    "unsavedSqlFileTitle": "Itapon ang mga hindi na-save na pagbabago?",
+    "unsavedSqlFileMessage": "May hindi na-save na pagbabago ang isa o higit pang SQL file. Mawawala ang mga ito kapag isinara ang mga tab.",
+    "discardSqlFileChanges": "Itapon ang mga pagbabago",
+    "saveFile": "I-save",
+    "saveFileAs": "I-save bilang…",
+    "saveOptions": "Mga opsyon sa pag-save",
+    "addToSavedQueries": "Idagdag sa mga naka-save na query…",
+    "sqlFileNotSaved": "Hindi pa naka-save sa file",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Explain Plan",

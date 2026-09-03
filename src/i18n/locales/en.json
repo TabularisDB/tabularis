@@ -741,6 +741,9 @@
         "title": "Uninstallation failed",
         "subtitle": "An error occurred while uninstalling the plugin. See the details below."
       },
+      "devRuntimeWarning": {
+        "title": "Development build: plugin \"{{plugin}}\" skipped the Tabularis version check"
+      },
       "startError": {
         "title": "Plugin Failed to Start",
         "subtitle": "The plugin process could not be launched. Check the error details below.",
@@ -1260,6 +1263,21 @@
     "statementNotExplainable": "This statement type can't be explained.",
     "fieldRequired": "This field is required",
     "newNotebook": "New Notebook",
+    "openSqlFile": "Open SQL File…",
+    "openSqlFileError": "Could not open the SQL file",
+    "sqlFileFilter": "SQL Files",
+    "saveSqlFile": "Save SQL File",
+    "saveSqlFileAs": "Save SQL File As…",
+    "saveSqlFileError": "Could not save the SQL file",
+    "sqlFileSaved": "SQL file saved",
+    "unsavedSqlFileTitle": "Discard unsaved file changes?",
+    "unsavedSqlFileMessage": "One or more SQL files have unsaved changes. Closing these tabs will discard those changes.",
+    "discardSqlFileChanges": "Discard Changes",
+    "saveFile": "Save",
+    "saveFileAs": "Save As…",
+    "saveOptions": "Save options",
+    "addToSavedQueries": "Add to Saved Queries…",
+    "sqlFileNotSaved": "Not saved to a file yet",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Explain Plan",

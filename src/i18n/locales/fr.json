@@ -732,6 +732,9 @@
         "title": "Échec de la désinstallation",
         "subtitle": "Une erreur s’est produite lors de la désinstallation du plugin. Voir les détails ci-dessous."
       },
+      "devRuntimeWarning": {
+        "title": "Build de développement : le plugin \"{{plugin}}\" a ignoré la vérification de version de Tabularis"
+      },
       "startError": {
         "title": "Échec de démarrage du plugin",
         "subtitle": "Le processus du plugin n’a pas pu être lancé. Vérifiez les détails de l’erreur ci-dessous.",
@@ -1249,6 +1252,21 @@
     "failedProcessInsertions": "Échec du traitement des insertions : ",
     "fieldRequired": "Ce champ est requis",
     "newNotebook": "Nouveau notebook",
+    "openSqlFile": "Ouvrir un fichier SQL…",
+    "openSqlFileError": "Impossible d’ouvrir le fichier SQL",
+    "sqlFileFilter": "Fichiers SQL",
+    "saveSqlFile": "Enregistrer le fichier SQL",
+    "saveSqlFileAs": "Enregistrer le fichier SQL sous…",
+    "saveSqlFileError": "Impossible d’enregistrer le fichier SQL",
+    "sqlFileSaved": "Fichier SQL enregistré",
+    "unsavedSqlFileTitle": "Ignorer les modifications non enregistrées ?",
+    "unsavedSqlFileMessage": "Un ou plusieurs fichiers SQL ont des modifications non enregistrées. La fermeture de ces onglets les supprimera.",
+    "discardSqlFileChanges": "Ignorer les modifications",
+    "saveFile": "Enregistrer",
+    "saveFileAs": "Enregistrer sous…",
+    "saveOptions": "Options d'enregistrement",
+    "addToSavedQueries": "Ajouter aux requêtes enregistrées…",
+    "sqlFileNotSaved": "Pas encore enregistré dans un fichier",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Expliquer le plan",

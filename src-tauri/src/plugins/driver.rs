@@ -13,8 +13,9 @@ use tokio::sync::{mpsc, oneshot};
 use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, PluginManifest};
 use crate::models::{
     AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
-    DbPrivilegeCatalog, DbUserInfo, ExplainQueryOutput, ForeignKey, Index, QueryResult, RoutineInfo,
-    RoutineParameter, TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
+    DbPrivilegeCatalog, DbUserInfo, ExplainQueryOutput, ForeignKey, Index, QueryResult,
+    RawExplainOutput, RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema,
+    TriggerInfo, ViewInfo,
 };
 use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse};
 
@@ -811,8 +812,40 @@ impl DatabaseDriver for RpcDriver {
                 json!({ "params": params, "query": query, "analyze": analyze, "schema": schema }),
             )
             .await?;
-        // A plugin knows engines the core parsers do not, so its already
-        // parsed plan passes through to the frontend untouched.
+        // Permanently support both historical parsed plans and raw payloads
+        // for runtime-registered parsers. Only the complete raw wire shape is
+        // recognized; every other plugin result passes through unchanged.
+        if let Some((engine, format, payload, original_query)) =
+            res.as_object().and_then(|object| {
+                Some((
+                    object.get("engine")?.as_str()?,
+                    object.get("format")?.as_str()?,
+                    object.get("payload")?.as_str()?,
+                    object.get("original_query"),
+                ))
+            })
+        {
+            let original_query = match original_query {
+                None | Some(Value::Null) => query.to_string(),
+                Some(Value::String(original_query)) => original_query.clone(),
+                Some(_) => {
+                    return Err(
+                        "Plugin raw EXPLAIN field 'original_query' must be a string or null"
+                            .to_string(),
+                    );
+                }
+            };
+
+            return Ok(ExplainQueryOutput::Raw {
+                raw: RawExplainOutput {
+                    engine: engine.to_string(),
+                    format: format.to_string(),
+                    payload: payload.to_string(),
+                    original_query,
+                },
+            });
+        }
+
         Ok(ExplainQueryOutput::Plan { plan: res })
     }
 
@@ -1315,6 +1348,7 @@ mod tests {
             icon: String::new(),
             settings: Vec::new(),
             ui_extensions: None,
+            explain_parsers: None,
             type_mappings: HashMap::new(),
         }
     }
@@ -1396,6 +1430,168 @@ mod tests {
                 pid: None,
             }),
             data_types: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_returns_structurally_detected_raw_explain_output() {
+        let request_query = "SELECT * FROM users";
+
+        for (plugin_original_query, expected_original_query) in [
+            (None, request_query),
+            (Some(Value::Null), request_query),
+            (Some(json!("SELECT id FROM users")), "SELECT id FROM users"),
+        ] {
+            let driver = test_driver(move |request| {
+                assert_eq!(request.method, "explain_query");
+                assert_eq!(request.params["query"], request_query);
+                assert_eq!(request.params["analyze"], true);
+                assert_eq!(request.params["schema"], "public");
+
+                let mut result = json!({
+                    "engine": "third-party-db",
+                    "format": "third-party-plan-text",
+                    "payload": "raw plan payload",
+                    "ignored": "additional fields are allowed"
+                });
+                if let Some(original_query) = plugin_original_query.clone() {
+                    result["original_query"] = original_query;
+                }
+                result
+            });
+
+            let output = driver
+                .explain_query(
+                    &test_connection_params(),
+                    request_query,
+                    true,
+                    Some("public"),
+                )
+                .await
+                .expect("raw explain output");
+
+            let ExplainQueryOutput::Raw { raw } = output else {
+                panic!("complete raw output must use the raw variant");
+            };
+            assert_eq!(raw.engine, "third-party-db");
+            assert_eq!(raw.format, "third-party-plan-text");
+            assert_eq!(raw.payload, "raw plan payload");
+            assert_eq!(raw.original_query, expected_original_query);
+        }
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_rejects_invalid_raw_explain_original_query() {
+        let driver = test_driver(|_| {
+            json!({
+                "engine": "third-party-db",
+                "format": "third-party-plan-text",
+                "payload": "raw plan payload",
+                "original_query": 42
+            })
+        });
+
+        let error = driver
+            .explain_query(
+                &test_connection_params(),
+                "SELECT * FROM users",
+                false,
+                None,
+            )
+            .await
+            .expect_err("invalid original_query must fail");
+
+        assert_eq!(
+            error,
+            "Plugin raw EXPLAIN field 'original_query' must be a string or null"
+        );
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_preserves_realistic_parsed_explain_plan() {
+        let parsed_plan = json!({
+            "engine": "third-party-db",
+            "root": {
+                "id": "node-0",
+                "node_type": "Index Scan",
+                "relation": "users",
+                "startup_cost": 0.15,
+                "total_cost": 8.17,
+                "plan_rows": 1,
+                "actual_rows": null,
+                "actual_time_ms": null,
+                "actual_loops": null,
+                "buffers_hit": null,
+                "buffers_read": null,
+                "filter": "email = 'alice@example.com'",
+                "index_condition": null,
+                "join_type": null,
+                "hash_condition": null,
+                "extra": {},
+                "children": []
+            },
+            "planning_time_ms": 0.12,
+            "execution_time_ms": null,
+            "original_query": "SELECT * FROM users WHERE email = 'alice@example.com'",
+            "driver": "third-party-db",
+            "has_analyze_data": false,
+            "raw_output": null
+        });
+        let expected_plan = parsed_plan.clone();
+        let driver = test_driver(move |_| parsed_plan.clone());
+
+        let output = driver
+            .explain_query(
+                &test_connection_params(),
+                "SELECT * FROM users WHERE email = 'alice@example.com'",
+                false,
+                None,
+            )
+            .await
+            .expect("parsed explain plan");
+
+        let ExplainQueryOutput::Plan { plan } = output else {
+            panic!("historical parsed plans must keep using the plan variant");
+        };
+        assert_eq!(plan, expected_plan);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_falls_back_to_plan_for_malformed_raw_explain_objects() {
+        let malformed_results = [
+            json!({
+                "engine": "third-party-db",
+                "format": "third-party-plan-text"
+            }),
+            json!({
+                "engine": "third-party-db",
+                "format": 42,
+                "payload": "raw plan payload"
+            }),
+            json!({
+                "format": "third-party-plan-text",
+                "payload": "raw plan payload"
+            }),
+        ];
+
+        for malformed in malformed_results {
+            let expected_plan = malformed.clone();
+            let driver = test_driver(move |_| malformed.clone());
+
+            let output = driver
+                .explain_query(
+                    &test_connection_params(),
+                    "SELECT * FROM users",
+                    false,
+                    None,
+                )
+                .await
+                .expect("malformed raw object must remain a plan");
+
+            let ExplainQueryOutput::Plan { plan } = output else {
+                panic!("incomplete raw output must use the plan variant");
+            };
+            assert_eq!(plan, expected_plan);
         }
     }
 

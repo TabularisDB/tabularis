@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import * as React from "react";
 import * as ReactJSXRuntime from "react/jsx-runtime";
 import { invoke } from "@tauri-apps/api/core";
+import * as explainApi from "@tabularis/explain";
 import i18n from "i18next";
 
 import { PluginSlotContext } from "./PluginSlotContext";
@@ -11,6 +12,7 @@ import { VALID_SLOTS } from "../types/pluginSlots";
 import type { PluginManifest } from "../types/plugins";
 import * as pluginApi from "../pluginApi";
 import { useSettings } from "../hooks/useSettings";
+import { loadPluginExplainParsers } from "../utils/pluginExplainLoader";
 
 interface PluginSlotProviderProps {
   children: React.ReactNode;
@@ -34,6 +36,7 @@ function exposePluginGlobals() {
   (window as unknown as Record<string, unknown>).ReactJSXRuntime = ReactJSXRuntime;
   (window as unknown as Record<string, unknown>).__TABULARIS_API__ = pluginApi;
   (window as unknown as Record<string, unknown>).__TABULARIS_API_VERSION__ = HOST_API_VERSION;
+  (window as unknown as Record<string, unknown>).__TABULARIS_EXPLAIN__ = explainApi;
 }
 
 /**
@@ -143,10 +146,7 @@ export const PluginSlotProvider = ({ children }: PluginSlotProviderProps) => {
   const activeExternalDrivers = settings.activeExternalDrivers ?? [];
   // Stable serialized key so the effect re-runs only when the enabled set changes.
   const enabledKey = [...activeExternalDrivers].sort().join(",");
-  const enabledKeyRef = useRef(enabledKey);
-  useEffect(() => {
-    enabledKeyRef.current = enabledKey;
-  }, [enabledKey]);
+  const loadedExplainFormatsRef = useRef<string[]>([]);
 
   const register = useCallback((contribution: SlotContribution) => {
     setContributions((prev) => [...prev, contribution]);
@@ -165,34 +165,58 @@ export const PluginSlotProvider = ({ children }: PluginSlotProviderProps) => {
     [contributions],
   );
 
-  // Reload UI extensions whenever the set of enabled external plugins changes.
+  // Reload plugin-owned UI and EXPLAIN extensions whenever the enabled set changes.
   useEffect(() => {
     let cancelled = false;
-    const loaded: SlotContribution[] = [];
+    const loadedContributions: SlotContribution[] = [];
+    const loadedExplainFormats: string[] = [];
 
-    (async () => {
-      const enabledIds = new Set(enabledKeyRef.current.split(",").filter(Boolean));
-      if (enabledIds.size === 0) return;
+    for (const format of new Set(loadedExplainFormatsRef.current)) {
+      explainApi.unregisterExplainParser(format);
+    }
+    loadedExplainFormatsRef.current = [];
+
+    void (async () => {
+      const enabledIds = enabledKey.split(",").filter(Boolean).sort();
+      // Keep the contribution update asynchronous when no plugins are enabled.
+      await Promise.resolve();
 
       for (const pluginId of enabledIds) {
         if (cancelled) break;
         try {
           const manifest = await invoke<PluginManifest>("get_plugin_manifest", { pluginId });
+          exposePluginGlobals();
           await loadPluginTranslations(pluginId);
+          const parserFormats = await loadPluginExplainParsers(manifest, () => !cancelled);
+          if (cancelled) {
+            for (const format of new Set(parserFormats)) {
+              explainApi.unregisterExplainParser(format);
+            }
+            break;
+          }
+          loadedExplainFormats.push(...parserFormats);
+          loadedExplainFormatsRef.current = loadedExplainFormats;
+
           const pluginContributions = await loadExternalPluginContributions(manifest);
-          loaded.push(...pluginContributions);
+          loadedContributions.push(...pluginContributions);
         } catch (err) {
-          console.error(`[PluginSlot] Failed to load UI extensions for plugin "${pluginId}":`, err);
+          console.error(`[PluginSlot] Failed to load extensions for plugin "${pluginId}":`, err);
         }
       }
 
       if (!cancelled) {
-        setContributions(loaded);
+        setContributions(loadedContributions);
       }
     })();
 
     return () => {
       cancelled = true;
+      for (const format of new Set(loadedExplainFormats)) {
+        explainApi.unregisterExplainParser(format);
+      }
+      if (loadedExplainFormatsRef.current === loadedExplainFormats) {
+        loadedExplainFormatsRef.current = [];
+      }
     };
   }, [enabledKey]);
 

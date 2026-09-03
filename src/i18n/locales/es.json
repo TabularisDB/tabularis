@@ -724,6 +724,9 @@
         "title": "Desinstalación fallida",
         "subtitle": "Ocurrió un error al desinstalar el plugin. Consulta los detalles a continuación."
       },
+      "devRuntimeWarning": {
+        "title": "Compilación de desarrollo: el plugin \"{{plugin}}\" omitió la comprobación de versión de Tabularis"
+      },
       "startError": {
         "title": "El Plugin no se pudo iniciar",
         "subtitle": "No se pudo lanzar el proceso del plugin. Revisa los detalles del error.",
@@ -1226,6 +1229,21 @@
     "parameters": "Parámetros",
     "paramValuePlaceholder": "Valor (ej. 'texto' o 123)",
     "newNotebook": "Nuevo Notebook",
+    "openSqlFile": "Abrir archivo SQL…",
+    "openSqlFileError": "No se pudo abrir el archivo SQL",
+    "sqlFileFilter": "Archivos SQL",
+    "saveSqlFile": "Guardar archivo SQL",
+    "saveSqlFileAs": "Guardar archivo SQL como…",
+    "saveSqlFileError": "No se pudo guardar el archivo SQL",
+    "sqlFileSaved": "Archivo SQL guardado",
+    "unsavedSqlFileTitle": "¿Descartar los cambios sin guardar?",
+    "unsavedSqlFileMessage": "Uno o más archivos SQL tienen cambios sin guardar. Al cerrar estas pestañas se descartarán.",
+    "discardSqlFileChanges": "Descartar cambios",
+    "saveFile": "Guardar",
+    "saveFileAs": "Guardar como…",
+    "saveOptions": "Opciones de guardado",
+    "addToSavedQueries": "Añadir a consultas guardadas…",
+    "sqlFileNotSaved": "Aún no guardado en un archivo",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Plan de Query",

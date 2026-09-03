@@ -525,6 +525,70 @@ For the full specification, see [`plugin-ui-extensions-spec.md`](https://tabular
 
 ---
 
+## 3c. Plugin-owned EXPLAIN parsers
+
+A plugin that returns the raw `explain_query` shape can ship the matching
+TypeScript parser as an IIFE bundle. Declare each parser in the optional
+`explain_parsers` manifest array:
+
+```json
+{
+  "explain_parsers": [
+    {
+      "engine": "example-db",
+      "format": "example-db-plan-text",
+      "label": "Example DB plan",
+      "module": "explain/dist/index.iife.js"
+    }
+  ]
+}
+```
+
+`engine`, `format`, and `module` are required non-empty strings. `label` is
+optional. The module path is relative to the installed plugin directory and
+must not be absolute or contain `..`.
+
+Build the module as an IIFE named `__tabularis_explain_parser__`, externalize
+`@tabularis/explain` to `__TABULARIS_EXPLAIN__`, and default-export either one
+`RegisteredExplainParser` or an array. The host reads each declared module
+once, matches exports by exact `engine` and `format`, applies the manifest
+label, and calls `registerExplainParser`. For example:
+
+```ts
+import type { RegisteredExplainParser } from "@tabularis/explain";
+import { parseExamplePlan } from "./parser";
+
+const parser: RegisteredExplainParser = {
+  engine: "example-db",
+  format: "example-db-plan-text",
+  label: "Example DB plan",
+  parse: parseExamplePlan,
+  sniff: (payload) => payload.startsWith("EXAMPLE PLAN"),
+};
+
+export default parser;
+```
+
+Use a separate IIFE entry that only exports the descriptor. Do not
+self-register in that entry because the desktop loader performs registration.
+A package entry intended for npm may register itself when imported. Bundle
+read, evaluation, and descriptor failures are isolated per plugin; parser
+exceptions during actual parsing propagate to Visual EXPLAIN's normal error
+handling.
+
+When enabled plugins change, Tabularis removes the formats loaded by the
+previous pass and reloads enabled plugin manifests in sorted plugin-id order.
+This makes disable and re-enable cycles deterministic. The plugin's minimum
+runtime version must be the first Tabularis release that supports both raw
+plugin EXPLAIN output and parser bundles. The host enforces
+`min_runtime_version` at install and load time: an older Tabularis refuses the
+plugin with a message naming both versions instead of failing later in Visual
+EXPLAIN. Development builds of Tabularis load the plugin anyway and show the
+mismatch as a warning toast, so a plugin can be tested against unreleased host
+features.
+
+---
+
 ## 4. Implementing the JSON-RPC Interface
 
 Your plugin must run an event loop that:
@@ -952,6 +1016,76 @@ Execute a SQL query and return results.
   "execution_time_ms": 12
 }
 ```
+
+---
+
+#### `explain_query`
+
+Run EXPLAIN or EXPLAIN ANALYZE for a query. Plugins may return either the
+historical parsed plan shape or a raw payload for a parser registered with the
+host.
+
+**Params:**
+
+```json
+{
+  "params": "ConnectionParams",
+  "query": "SELECT * FROM users WHERE id = 42",
+  "analyze": false,
+  "schema": "public"
+}
+```
+
+**Parsed plan result:**
+
+```json
+{
+  "root": {
+    "id": "node-0",
+    "node_type": "Index Scan",
+    "relation": "users",
+    "startup_cost": 0.15,
+    "total_cost": 8.17,
+    "plan_rows": 1,
+    "actual_rows": null,
+    "actual_time_ms": null,
+    "actual_loops": null,
+    "buffers_hit": null,
+    "buffers_read": null,
+    "filter": null,
+    "index_condition": "id = 42",
+    "join_type": null,
+    "hash_condition": null,
+    "extra": {},
+    "children": []
+  },
+  "planning_time_ms": 0.12,
+  "execution_time_ms": null,
+  "original_query": "SELECT * FROM users WHERE id = 42",
+  "driver": "example-db",
+  "has_analyze_data": false,
+  "raw_output": null
+}
+```
+
+**Raw result:**
+
+```json
+{
+  "engine": "example-db",
+  "format": "example-db-plan-text",
+  "payload": "raw plan payload",
+  "original_query": "SELECT * FROM users WHERE id = 42"
+}
+```
+
+The raw shape is detected only when `engine`, `format`, and `payload` are all
+strings. `original_query` may be omitted or `null`; the host then fills it from
+the request. Use a `format` registered by the plugin's EXPLAIN parser bundle.
+A plugin returning the raw shape requires a Tabularis host new enough to
+understand raw plugin output and load that bundle, so set `min_runtime_version`
+to the first compatible host release. Older parsed-plan plugins remain
+supported permanently.
 
 ---
 

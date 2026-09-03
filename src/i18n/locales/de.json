@@ -699,6 +699,9 @@
         "title": "Deinstallation fehlgeschlagen",
         "subtitle": "Bei der Deinstallation des Plugins ist ein Fehler aufgetreten. Siehe Details unten."
       },
+      "devRuntimeWarning": {
+        "title": "Entwicklungsbuild: Plugin \"{{plugin}}\" hat die Tabularis-Versionsprüfung übersprungen"
+      },
       "startError": {
         "title": "Plugin konnte nicht gestartet werden",
         "subtitle": "Der Plugin-Prozess konnte nicht gestartet werden. Prüfe die Fehlerdetails unten.",
@@ -1211,6 +1214,21 @@
     "failedProcessInsertions": "Verarbeitung von Einfügungen fehlgeschlagen: ",
     "fieldRequired": "Dieses Feld ist erforderlich",
     "newNotebook": "Neues Notebook",
+    "openSqlFile": "SQL-Datei öffnen…",
+    "openSqlFileError": "Die SQL-Datei konnte nicht geöffnet werden",
+    "sqlFileFilter": "SQL-Dateien",
+    "saveSqlFile": "SQL-Datei speichern",
+    "saveSqlFileAs": "SQL-Datei speichern unter…",
+    "saveSqlFileError": "Die SQL-Datei konnte nicht gespeichert werden",
+    "sqlFileSaved": "SQL-Datei gespeichert",
+    "unsavedSqlFileTitle": "Ungespeicherte Änderungen verwerfen?",
+    "unsavedSqlFileMessage": "Eine oder mehrere SQL-Dateien enthalten ungespeicherte Änderungen. Beim Schließen dieser Tabs gehen sie verloren.",
+    "discardSqlFileChanges": "Änderungen verwerfen",
+    "saveFile": "Speichern",
+    "saveFileAs": "Speichern unter…",
+    "saveOptions": "Speicheroptionen",
+    "addToSavedQueries": "Zu gespeicherten Abfragen hinzufügen…",
+    "sqlFileNotSaved": "Noch nicht als Datei gespeichert",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Plan erklären",

@@ -239,6 +239,42 @@
           }
         }
       }
+    },
+    "explain_parsers": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "Plugin-owned raw EXPLAIN parser IIFE bundles loaded by Tabularis when the plugin is enabled.",
+      "items": {
+        "type": "object",
+        "required": ["engine", "format", "module"],
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Canonical database engine identifier handled by this parser."
+          },
+          "format": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Globally unique raw EXPLAIN wire-format tag."
+          },
+          "module": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Path to the parser IIFE relative to the installed plugin directory."
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Optional human-readable label for format pickers."
+          }
+        }
+      }
     }
   }
 }

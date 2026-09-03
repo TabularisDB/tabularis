@@ -1793,6 +1793,7 @@ impl PostgresDriver {
                 icon: "postgres".to_string(),
                 settings: vec![],
                 ui_extensions: None,
+                explain_parsers: None,
                 type_mappings: std::collections::HashMap::new(),
             },
         }

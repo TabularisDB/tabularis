@@ -62,6 +62,7 @@ describe("useCommandPaletteObjectItems", () => {
           driver: "postgres",
           capabilities: { schemas: true },
           schemas,
+          selectedSchemas: schemas,
           schemaDataMap,
           databaseDataMap,
           tables: [],
@@ -126,6 +127,42 @@ describe("useCommandPaletteObjectItems", () => {
     expect(replacementLoadSchemaData).toHaveBeenCalledOnce();
   });
 
+  it("should only load the schemas selected in the explorer", () => {
+    const loadSchemaData = vi.fn();
+    vi.mocked(useDatabase).mockImplementation(
+      () =>
+        ({
+          activeConnectionId: "connection-1",
+          connectionDataMap: {
+            "connection-1": {
+              driver: "postgres",
+              capabilities: { schemas: true },
+              schemas: ["public", "topology", "tiger"],
+              selectedSchemas: ["public"],
+              schemaDataMap: {},
+              databaseDataMap: {},
+              tables: [],
+              views: [],
+              routines: [],
+              triggers: [],
+              activeSchema: "public",
+            },
+          },
+          connections: [
+            { id: "connection-1", params: { database: "app" } },
+          ],
+          loadDatabaseData: vi.fn(),
+          loadSchemaData,
+          setActiveTable: vi.fn(),
+        }) as unknown as ReturnType<typeof useDatabase>,
+    );
+
+    renderHook(() => useCommandPaletteObjectItems(vi.fn(), vi.fn()));
+
+    expect(loadSchemaData).toHaveBeenCalledTimes(1);
+    expect(loadSchemaData).toHaveBeenCalledWith("public", "connection-1");
+  });
+
   it("should report the schemas it gave up on instead of dropping them silently", () => {
     const failingSchema = {
       tables: [],
@@ -144,6 +181,7 @@ describe("useCommandPaletteObjectItems", () => {
               driver: "postgres",
               capabilities: { schemas: true },
               schemas: ["billing"],
+              selectedSchemas: ["billing"],
               // A failed load resets the entry to neither loading nor loaded.
               schemaDataMap: { billing: { ...failingSchema } },
               databaseDataMap: {},
@@ -197,6 +235,7 @@ describe("useCommandPaletteObjectItems", () => {
               driver: "postgres",
               capabilities: { schemas: true },
               schemas: ["billing"],
+              selectedSchemas: ["billing"],
               schemaDataMap,
               databaseDataMap: {},
               tables: [],

@@ -42,10 +42,13 @@ import {
   ChevronDown,
   ChevronUp,
   Save,
+  SaveAll,
+  Bookmark,
   X,
   Database,
   Table as TableIcon,
   FileCode,
+  FolderOpen,
   Network,
   ChevronLeft,
   ChevronRight,
@@ -73,6 +76,10 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
+import {
+  open as openFileDialog,
+  save as saveFileDialog,
+} from "@tauri-apps/plugin-dialog";
 import { TableToolbar } from "../components/ui/TableToolbar";
 import { DataGrid } from "../components/ui/DataGrid";
 import { MultiResultPanel } from "../components/ui/MultiResultPanel";
@@ -127,7 +134,6 @@ import { UserManagementView } from "../components/users/UserManagementView";
 import { useSqlAutocompleteRegistration } from "../hooks/useSqlAutocompleteRegistration";
 import { createNotebook, renameNotebook } from "../utils/notebookStore";
 import { type OnMount, type Monaco } from "@monaco-editor/react";
-import { save } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../hooks/useAlert";
 import { useToast } from "../hooks/useToast";
 import { useDatabase } from "../hooks/useDatabase";
@@ -156,6 +162,13 @@ import {
 import { CommandPaletteScopeBridge } from "../components/layout/CommandPaletteScopeBridge";
 import { buildForeignKeyFilterClause } from "../utils/foreignKeys";
 import { formatSqlIdentifier } from "../utils/identifiers";
+import {
+  createSqlFileTab,
+  getSqlFileName,
+  hasUnsavedSqlFileTabs,
+  isSqlFileDirty,
+  savedSqlFileTab,
+} from "../utils/sqlFile";
 import { RelatedRecordsPanel } from "../components/ui/RelatedRecordsPanel";
 import {
   getTabScrollState,
@@ -375,6 +388,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const [showNewRowModal, setShowNewRowModal] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
   const [editorHeight, setEditorHeight] = useState(300);
   const editorHeightRef = useRef(300);
   // Root of this editor instance: the resize logic must stay scoped to it,
@@ -428,12 +442,18 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   // the toolbar is a CSS size container (@container), which would scope a
   // `fixed inset-0` backdrop to the toolbar itself.
   const runDropdownRef = useRef<HTMLDivElement>(null);
+  const saveMenuRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const dbDropdownRef = useRef<HTMLDivElement>(null);
   useClickOutside(
     runDropdownRef,
     () => setIsRunDropdownOpen(false),
     isRunDropdownOpen,
+  );
+  useClickOutside(
+    saveMenuRef,
+    () => setIsSaveMenuOpen(false),
+    isSaveMenuOpen,
   );
   useClickOutside(
     exportMenuRef,
@@ -472,6 +492,78 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   // Users tabs render full-height like notebooks: no SQL toolbar, no results panel.
   const isUsersTab = activeTab?.type === "users";
   const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
+
+  const handleOpenSqlFile = useCallback(async () => {
+    try {
+      const filePath = await openFileDialog({
+        multiple: false,
+        filters: [
+          {
+            name: t("editor.sqlFileFilter"),
+            extensions: ["sql", "psql", "pgsql"],
+          },
+        ],
+      });
+      if (typeof filePath !== "string") return;
+
+      const query = await invoke<string>("read_sql_file", { path: filePath });
+      addTab(
+        createSqlFileTab(
+          filePath,
+          query,
+          isMultiDb ? selectedDatabases[0] : undefined,
+        ),
+      );
+    } catch (error) {
+      showAlert(`${t("editor.openSqlFileError")}: ${String(error)}`, {
+        title: t("common.error"),
+        kind: "error",
+      });
+    }
+  }, [addTab, isMultiDb, selectedDatabases, showAlert, t]);
+
+  // Save is a no-op on a clean file and on an empty console (which would
+  // otherwise open a Save As dialog for nothing).
+  const canSaveSqlFile = useCallback(
+    (tab: Tab) =>
+      tab.sourceFilePath ? tab.sourceFileDirty === true : !!tab.query?.trim(),
+    [],
+  );
+
+  const handleSaveSqlFile = useCallback(
+    async (tab: Tab, saveAs = false) => {
+      try {
+        let filePath = tab.sourceFilePath;
+        if (saveAs || !filePath) {
+          const selectedPath = await saveFileDialog({
+            defaultPath: filePath ?? tab.title,
+            filters: [
+              {
+                name: t("editor.sqlFileFilter"),
+                extensions: ["sql", "psql", "pgsql"],
+              },
+            ],
+          });
+          if (typeof selectedPath !== "string") return;
+          filePath = selectedPath;
+        }
+
+        const savedQuery = tab.query;
+        await invoke("write_sql_file", { path: filePath, content: savedQuery });
+        updateTab(tab.id, (currentTab) =>
+          savedSqlFileTab(filePath, savedQuery, currentTab.query),
+        );
+        showToast(t("editor.sqlFileSaved"), { kind: "success" });
+      } catch (error) {
+        showAlert(`${t("editor.saveSqlFileError")}: ${String(error)}`, {
+          title: t("common.error"),
+          kind: "error",
+        });
+      }
+    },
+    [showAlert, showToast, t, updateTab],
+  );
+
   const isEditorOpen =
     !isTableTab && (activeTab?.isEditorOpen ?? activeTab?.type !== "table");
   const activeResultEntry = useMemo(
@@ -484,14 +576,6 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const activeExportResult = activeResultEntry?.result ?? activeTab?.result;
   const canExportActiveResult =
     !!activeExportResult && activeExportResult.rows.length > 0;
-
-  const handleCloseTab = useCallback(
-    (tabId: string) => {
-      delete editorsRef.current[tabId];
-      closeTab(tabId);
-    },
-    [closeTab],
-  );
 
   // Update window title when the active tab changes
   useEffect(() => {
@@ -556,6 +640,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const tabsRef = useRef<Tab[]>([]);
   const activeTabIdRef = useRef<string | null>(null);
+  const pendingTabCloseActionRef = useRef<(() => void) | null>(null);
+  const [hasPendingSqlFileClose, setHasPendingSqlFileClose] = useState(false);
   // Last executed SQL per tab — used to preserve the loaded row count across
   // pagination of the SAME query while resetting it when the query changes.
   const lastRunQueryRef = useRef<Record<string, string>>({});
@@ -803,6 +889,79 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     activeTabIdRef.current = activeTabId;
     detachedTabIdsRef.current = detachedTabIds;
   }, [tabs, activeTabId, detachedTabIds]);
+
+  const requestTabClosure = useCallback(
+    (tabIds: string[], action: () => void) => {
+      if (!hasUnsavedSqlFileTabs(tabsRef.current, tabIds)) {
+        action();
+        return;
+      }
+      pendingTabCloseActionRef.current = action;
+      setHasPendingSqlFileClose(true);
+    },
+    [],
+  );
+
+  const handleCloseTab = useCallback(
+    (tabId: string) => {
+      requestTabClosure([tabId], () => {
+        delete editorsRef.current[tabId];
+        closeTab(tabId);
+      });
+    },
+    [closeTab, requestTabClosure],
+  );
+
+  const handleCloseOtherTabs = useCallback(
+    (tabId: string) => {
+      const tabIds = tabsRef.current
+        .filter((tab) => tab.id !== tabId)
+        .map((tab) => tab.id);
+      requestTabClosure(tabIds, () => closeOtherTabs(tabId));
+    },
+    [closeOtherTabs, requestTabClosure],
+  );
+
+  const handleCloseTabsToRight = useCallback(
+    (tabId: string) => {
+      const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
+      const tabIds = index < 0
+        ? []
+        : tabsRef.current.slice(index + 1).map((tab) => tab.id);
+      requestTabClosure(tabIds, () => closeTabsToRight(tabId));
+    },
+    [closeTabsToRight, requestTabClosure],
+  );
+
+  const handleCloseTabsToLeft = useCallback(
+    (tabId: string) => {
+      const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
+      const tabIds = index < 0
+        ? []
+        : tabsRef.current.slice(0, index).map((tab) => tab.id);
+      requestTabClosure(tabIds, () => closeTabsToLeft(tabId));
+    },
+    [closeTabsToLeft, requestTabClosure],
+  );
+
+  const handleCloseAllTabs = useCallback(() => {
+    requestTabClosure(
+      tabsRef.current.map((tab) => tab.id),
+      closeAllTabs,
+    );
+  }, [closeAllTabs, requestTabClosure]);
+
+  const cancelPendingTabClosure = useCallback(() => {
+    pendingTabCloseActionRef.current = null;
+    setHasPendingSqlFileClose(false);
+  }, []);
+
+  const confirmPendingTabClosure = useCallback(() => {
+    const action = pendingTabCloseActionRef.current;
+    pendingTabCloseActionRef.current = null;
+    setHasPendingSqlFileClose(false);
+    action?.();
+  }, []);
 
   useEffect(() => {
     updateScrollArrows();
@@ -2997,6 +3156,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       if (!focused) return;
       if (matchesShortcut(e, "save_grid_changes")) {
         e.preventDefault();
+        const tab = tabsRef.current.find(
+          (candidate) => candidate.id === activeTabIdRef.current,
+        );
+        if (tab?.sourceFilePath) {
+          handleSaveSqlFile(tab);
+          return;
+        }
         if (hasPendingChanges) handleSubmitChanges();
       }
     };
@@ -3007,6 +3173,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     activeConnectionId,
     matchesShortcut,
     hasPendingChanges,
+    handleSaveSqlFile,
     handleSubmitChanges,
   ]);
 
@@ -3357,7 +3524,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             })
           : undefined;
 
-        const filePath = await save({
+        const filePath = await saveFileDialog({
           filters: [
             {
               name: format === "markdown" ? "Markdown" : format.toUpperCase(),
@@ -3409,7 +3576,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     if (!query || !query.trim()) return;
 
     try {
-      const filePath = await save({
+      const filePath = await saveFileDialog({
         filters: [
           {
             name: format === "markdown" ? "Markdown" : format.toUpperCase(),
@@ -3725,7 +3892,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       : undefined
                   }
                 >
-                  <span className="truncate">{tab.title}</span>
+                  <span className="truncate" title={tab.sourceFilePath}>
+                    {tab.title}
+                    {tab.sourceFileDirty ? " •" : ""}
+                  </span>
                   {tab.type === "console" && isMultiDb && (
                     <span className="text-muted shrink-0">
                       ({tab.schema || selectedDatabases[0]})
@@ -3776,6 +3946,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           title={t("editor.newConsole")}
         >
           <Plus size={16} />
+        </button>
+        <button
+          onClick={handleOpenSqlFile}
+          className="flex items-center justify-center w-9 h-full text-cyan-500 hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+          title={t("editor.openSqlFile")}
+        >
+          <FolderOpen size={16} />
         </button>
         <button
           onClick={() => addTab({ type: "query_builder" })}
@@ -3934,6 +4111,115 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               {t("editor.formatSql")}
             </span>
           </button>
+        )}
+
+        {/* Save split button: main action saves the SQL file (or asks for a
+            path on a console that has none), the chevron opens the other
+            save destinations. */}
+        {!isTableTab && activeTab.type === "console" && (
+          <div ref={saveMenuRef} className="relative shrink-0">
+            <div
+              className="flex items-center rounded border border-strong bg-surface-secondary text-sm font-medium"
+            >
+              <button
+                onClick={() => handleSaveSqlFile(activeTab)}
+                disabled={!canSaveSqlFile(activeTab)}
+                title={
+                  activeTab.sourceFilePath
+                    ? `${t("editor.saveSqlFile")} (${isMac ? "⌘S" : "Ctrl+S"})\n${activeTab.sourceFilePath}`
+                    : t("editor.saveSqlFileAs")
+                }
+                className="flex items-center gap-2 px-2 @[640px]:px-3 py-1.5 rounded-l text-primary enabled:hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Save size={16} />
+                <span className="hidden @[640px]:inline whitespace-nowrap">
+                  {t("editor.saveFile")}
+                </span>
+                {activeTab.sourceFileDirty && (
+                  <span
+                    className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"
+                    aria-hidden
+                  />
+                )}
+              </button>
+              <div className="h-5 w-px bg-strong" />
+              <button
+                onClick={() => setIsSaveMenuOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={isSaveMenuOpen}
+                aria-label={t("editor.saveOptions")}
+                title={t("editor.saveOptions")}
+                className={clsx(
+                  "px-1.5 py-1.5 rounded-r text-primary hover:bg-surface transition-colors",
+                  isSaveMenuOpen && "bg-surface",
+                )}
+              >
+                <ChevronDown
+                  size={14}
+                  className={clsx(
+                    "transition-transform opacity-70",
+                    isSaveMenuOpen && "rotate-180",
+                  )}
+                />
+              </button>
+            </div>
+            {isSaveMenuOpen && (
+              <div
+                role="menu"
+                className="absolute top-full left-0 mt-1 w-64 max-w-[calc(100cqw-1rem)] bg-surface-secondary border border-strong rounded shadow-xl z-50 flex flex-col py-1 overflow-hidden"
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setIsSaveMenuOpen(false);
+                    handleSaveSqlFile(activeTab);
+                  }}
+                  disabled={!canSaveSqlFile(activeTab)}
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-surface-tertiary/50 enabled:hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Save size={14} className="shrink-0 opacity-80" />
+                  <span className="flex-1 min-w-0 flex flex-col">
+                    <span>{t("editor.saveFile")}</span>
+                    <span className="text-xs text-muted truncate">
+                      {activeTab.sourceFilePath
+                        ? getSqlFileName(activeTab.sourceFilePath)
+                        : t("editor.sqlFileNotSaved")}
+                    </span>
+                  </span>
+                  {activeTab.sourceFilePath && (
+                    <span className="text-xs text-muted">
+                      {isMac ? "⌘S" : "Ctrl+S"}
+                    </span>
+                  )}
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setIsSaveMenuOpen(false);
+                    handleSaveSqlFile(activeTab, true);
+                  }}
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-surface-tertiary/50 hover:text-primary transition-colors"
+                >
+                  <SaveAll size={14} className="shrink-0 opacity-80" />
+                  <span className="flex-1">{t("editor.saveFileAs")}</span>
+                  <span className="text-xs text-muted">.sql</span>
+                </button>
+                <div className="h-px bg-default my-1" />
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setIsSaveMenuOpen(false);
+                    setSaveQueryModal({ isOpen: true, sql: activeTab.query ?? "" });
+                  }}
+                  disabled={!activeTab.query?.trim()}
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-surface-tertiary/50 enabled:hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Bookmark size={14} className="shrink-0 opacity-80" />
+                  <span className="flex-1">{t("editor.addToSavedQueries")}</span>
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         <div ref={exportMenuRef} className="relative ml-auto shrink-0">
@@ -4100,7 +4386,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 dialect={activeDialect}
                 foldPreview
                 onChange={(val) => {
-                  if (isActive) updateTab(tab.id, { query: val });
+                  if (!isActive) return;
+                  updateTab(tab.id, {
+                    query: val,
+                    ...(tab.sourceFilePath
+                      ? { sourceFileDirty: isSqlFileDirty(tab, val) }
+                      : {}),
+                  });
                 }}
                 onRun={handleRunButton}
                 onRunAll={handleRunAll}
@@ -4883,14 +5175,31 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         }}
         onClose={() => setIsExplainSelectionOpen(false)}
       />
-      {tabContextMenu && (
+      {tabContextMenu && (() => {
+        const contextTab = tabs.find((t) => t.id === tabContextMenu.tabId);
+        return (
         <ContextMenu
           x={tabContextMenu.x}
           y={tabContextMenu.y}
           onClose={() => setTabContextMenu(null)}
           items={[
-            ...(tabs.find((t) => t.id === tabContextMenu.tabId)?.type ===
-            "notebook"
+            ...(contextTab?.type === "console"
+              ? [
+                  {
+                    label: t("editor.saveFile"),
+                    icon: Save,
+                    disabled: !canSaveSqlFile(contextTab),
+                    action: () => handleSaveSqlFile(contextTab),
+                  },
+                  {
+                    label: t("editor.saveFileAs"),
+                    icon: SaveAll,
+                    action: () => handleSaveSqlFile(contextTab, true),
+                  },
+                  { separator: true },
+                ]
+              : []),
+            ...(contextTab?.type === "notebook"
               ? [
                   {
                     label: t("sidebar.notebooks.rename"),
@@ -4900,7 +5209,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 ]
               : []),
             ...(!["console", "notebook", "query_builder", "users"].includes(
-              tabs.find((t) => t.id === tabContextMenu.tabId)?.type ?? "",
+              contextTab?.type ?? "",
             )
               ? [
                   {
@@ -4918,27 +5227,37 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             {
               label: t("editor.closeOthers"),
               icon: XCircle,
-              action: () => closeOtherTabs(tabContextMenu.tabId),
+              action: () => handleCloseOtherTabs(tabContextMenu.tabId),
             },
             {
               label: t("editor.closeRight"),
               icon: ArrowRightToLine,
-              action: () => closeTabsToRight(tabContextMenu.tabId),
+              action: () => handleCloseTabsToRight(tabContextMenu.tabId),
             },
             {
               label: t("editor.closeLeft"),
               icon: ArrowLeftToLine,
-              action: () => closeTabsToLeft(tabContextMenu.tabId),
+              action: () => handleCloseTabsToLeft(tabContextMenu.tabId),
             },
             {
               label: t("editor.closeAll"),
               icon: Trash2,
               danger: true,
-              action: () => closeAllTabs(),
+              action: handleCloseAllTabs,
             },
           ]}
         />
-      )}
+        );
+      })()}
+      <ConfirmModal
+        isOpen={hasPendingSqlFileClose}
+        onClose={cancelPendingTabClosure}
+        title={t("editor.unsavedSqlFileTitle")}
+        message={t("editor.unsavedSqlFileMessage")}
+        confirmLabel={t("editor.discardSqlFileChanges")}
+        onConfirm={confirmPendingTabClosure}
+        variant="warning"
+      />
       <ErrorModal
         isOpen={errorModal.isOpen}
         onClose={() => setErrorModal({ isOpen: false, message: "" })}

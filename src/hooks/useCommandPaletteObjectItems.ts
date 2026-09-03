@@ -101,7 +101,11 @@ export function useCommandPaletteObjectItems(
     if (!connectionId) return;
 
     if (hasSchemas) {
-      connectionData?.schemas.forEach((schema) => {
+      // Only the schemas selected in the explorer: a Postgres database with
+      // extensions installed carries thousands of functions in schemas the
+      // user has hidden, and loading them would also refill the list behind
+      // a search that had already ranked well.
+      connectionData?.selectedSchemas.forEach((schema) => {
         const schemaData = connectionData.schemaDataMap[schema];
         const requestKey = `schema:${connectionId}:${schema}`;
         if (schemaData?.isLoaded) {
@@ -145,7 +149,7 @@ export function useCommandPaletteObjectItems(
   }, [
     connectionData?.databaseDataMap,
     connectionData?.schemaDataMap,
-    connectionData?.schemas,
+    connectionData?.selectedSchemas,
     connectionId,
     hasSchemas,
     isMultiDatabase,
@@ -158,7 +162,7 @@ export function useCommandPaletteObjectItems(
         activeConnectionId: connectionId,
         hasSchemas,
         isMultiDb: isMultiDatabase,
-        schemas: connectionData?.schemas ?? [],
+        schemas: connectionData?.selectedSchemas ?? [],
         schemaDataMap: connectionData?.schemaDataMap ?? {},
         selectedDatabases,
         databaseDataMap: connectionData?.databaseDataMap ?? {},
@@ -173,7 +177,7 @@ export function useCommandPaletteObjectItems(
       connectionData?.databaseDataMap,
       connectionData?.routines,
       connectionData?.schemaDataMap,
-      connectionData?.schemas,
+      connectionData?.selectedSchemas,
       connectionData?.tables,
       connectionData?.triggers,
       connectionData?.views,

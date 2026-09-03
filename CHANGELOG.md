@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Added
+
+- Open, edit, and save `.sql`, `.psql`, and `.pgsql` files in SQL editor tabs without executing them. The toolbar Save split button and the tab context menu expose Save, Save As, and Add to Saved Queries; unsaved files are flagged on the tab.
+
 # [0.22.0](https://github.com/TabularisDB/tabularis/compare/v0.21.0...v0.22.0) (2026-09-01)
 
 

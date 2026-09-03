@@ -724,6 +724,9 @@
         "title": "Disinstallazione fallita",
         "subtitle": "Si è verificato un errore durante la disinstallazione del plugin. Vedi i dettagli qui sotto."
       },
+      "devRuntimeWarning": {
+        "title": "Build di sviluppo: il plugin \"{{plugin}}\" ha saltato il controllo di versione di Tabularis"
+      },
       "startError": {
         "title": "Plugin non avviato",
         "subtitle": "Impossibile avviare il processo del plugin. Controlla i dettagli dell'errore.",
@@ -1233,6 +1236,21 @@
     "failedProcessInsertions": "Impossibile processare gli inserimenti: ",
     "fieldRequired": "Questo campo è obbligatorio",
     "newNotebook": "Nuovo Notebook",
+    "openSqlFile": "Apri file SQL…",
+    "openSqlFileError": "Impossibile aprire il file SQL",
+    "sqlFileFilter": "File SQL",
+    "saveSqlFile": "Salva file SQL",
+    "saveSqlFileAs": "Salva file SQL con nome…",
+    "saveSqlFileError": "Impossibile salvare il file SQL",
+    "sqlFileSaved": "File SQL salvato",
+    "unsavedSqlFileTitle": "Scartare le modifiche non salvate?",
+    "unsavedSqlFileMessage": "Uno o più file SQL contengono modifiche non salvate. Chiudendo queste schede, le modifiche verranno perse.",
+    "discardSqlFileChanges": "Scarta modifiche",
+    "saveFile": "Salva",
+    "saveFileAs": "Salva con nome…",
+    "saveOptions": "Opzioni di salvataggio",
+    "addToSavedQueries": "Aggiungi alle query salvate…",
+    "sqlFileNotSaved": "Non ancora salvato su file",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Piano Query",

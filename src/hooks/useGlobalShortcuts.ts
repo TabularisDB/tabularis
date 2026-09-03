@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useCommandPaletteDispatch } from "./useCommandPalette";
 import { useConnectionManager } from "./useConnectionManager";
 import { useKeybindings } from "./useKeybindings";
+import { isTextCompositionKeyEvent } from "../utils/keyboardEvents";
 
 /** Shortcuts that must still fire while the user is typing in a field. */
 const TYPING_SAFE_SHORTCUTS = [
@@ -24,6 +25,8 @@ export function useGlobalShortcuts() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isTextCompositionKeyEvent(e)) return;
+
       const target = e.target as HTMLElement;
       const isTypingTarget =
         target.tagName === "INPUT" ||

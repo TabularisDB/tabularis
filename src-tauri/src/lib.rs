@@ -76,6 +76,9 @@ pub mod query_history;
 #[cfg(test)]
 pub mod query_history_tests;
 pub mod sql_database_statements;
+pub mod sql_file;
+#[cfg(test)]
+pub mod sql_file_tests;
 pub mod saved_queries;
 #[cfg(test)]
 pub mod saved_queries_tests;
@@ -489,6 +492,8 @@ pub fn run() {
             explain_import::open_visual_explain_window,
             export::export_query_to_file,
             export::cancel_export,
+            sql_file::read_sql_file,
+            sql_file::write_sql_file,
             saved_queries::get_saved_queries,
             saved_queries::save_query,
             saved_queries::update_saved_query,
@@ -639,6 +644,7 @@ pub fn run() {
             plugins::commands::fetch_plugin_readme,
             plugins::deep_link::consume_pending_deep_link_install,
             plugins::manager::get_plugin_startup_errors,
+            plugins::runtime_version::get_plugin_runtime_warnings,
             // JSON Viewer
             json_viewer::open_json_viewer_window,
             json_viewer::get_json_viewer_session,

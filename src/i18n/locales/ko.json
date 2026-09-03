@@ -677,6 +677,9 @@
         "title": "제거 실패",
         "subtitle": "플러그인을 제거하는 중 오류가 발생했습니다. 아래 세부 정보를 확인하세요."
       },
+      "devRuntimeWarning": {
+        "title": "개발 빌드: 플러그인 \"{{plugin}}\"이(가) Tabularis 버전 검사를 건너뛰었습니다"
+      },
       "startError": {
         "title": "플러그인 실행 실패",
         "subtitle": "플러그인 프로세스를 실행할 수 없습니다. 아래 오류 세부 정보를 확인하세요.",
@@ -1186,6 +1189,21 @@
     "failedProcessInsertions": "삽입 처리에 실패했습니다: ",
     "fieldRequired": "이 필드는 필수입니다",
     "newNotebook": "새 노트북",
+    "openSqlFile": "SQL 파일 열기…",
+    "openSqlFileError": "SQL 파일을 열지 못했습니다",
+    "sqlFileFilter": "SQL 파일",
+    "saveSqlFile": "SQL 파일 저장",
+    "saveSqlFileAs": "SQL 파일을 다른 이름으로 저장…",
+    "saveSqlFileError": "SQL 파일을 저장하지 못했습니다",
+    "sqlFileSaved": "SQL 파일을 저장했습니다",
+    "unsavedSqlFileTitle": "저장하지 않은 변경 사항을 버리시겠습니까?",
+    "unsavedSqlFileMessage": "하나 이상의 SQL 파일에 저장하지 않은 변경 사항이 있습니다. 탭을 닫으면 변경 사항이 삭제됩니다.",
+    "discardSqlFileChanges": "변경 사항 버리기",
+    "saveFile": "저장",
+    "saveFileAs": "다른 이름으로 저장…",
+    "saveOptions": "저장 옵션",
+    "addToSavedQueries": "저장된 쿼리에 추가…",
+    "sqlFileNotSaved": "아직 파일로 저장되지 않음",
     "visualExplain": {
       "title": "비주얼 익스플레인",
       "buttonShort": "실행 계획",

@@ -15,6 +15,7 @@ import {
   type Statement,
 } from "../../utils/sqlSplitter";
 import { formatSql } from "../../utils/sqlFormat";
+import { isTextCompositionKeyEvent } from "../../utils/keyboardEvents";
 import type { SqlDialect } from "../../utils/sql";
 import type { RunContext } from "../../utils/runTarget";
 import {
@@ -403,6 +404,8 @@ const SqlEditorInternal = ({
       // Monaco binds Ctrl+Shift+A to block comments on Linux. Handle the
       // user-configurable palette shortcut before Monaco consumes it.
       editor.onKeyDown((e) => {
+        if (isTextCompositionKeyEvent(e.browserEvent)) return;
+
         const togglePalette = togglePaletteRef.current;
         if (
           togglePalette &&

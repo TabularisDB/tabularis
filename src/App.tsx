@@ -6,6 +6,7 @@ import { ConnectionLayoutProvider } from "./contexts/ConnectionLayoutProvider";
 import { RightSidebarProvider } from "./contexts/RightSidebarProvider";
 import { KeybindingsProvider } from "./contexts/KeybindingsProvider";
 import { PluginSlotProvider } from "./contexts/PluginSlotProvider";
+import { PluginRuntimeWarningToasts } from "./components/plugins/PluginRuntimeWarningToasts";
 import { PluginModalProvider } from "./contexts/PluginModalProvider";
 import { AlertProvider } from "./contexts/AlertProvider";
 import { Connections } from "./pages/Connections";
@@ -115,6 +116,7 @@ export function App() {
       <AlertProvider>
         <BrowserRouter>
           <ConnectionHealthMonitor />
+          <PluginRuntimeWarningToasts />
           <KeybindingsProvider>
             <PluginSlotProvider>
               <PluginModalProvider>

@@ -303,6 +303,7 @@ fn plugin_manifest() -> PluginManifest {
         icon: "postgres".to_string(),
         settings: vec![],
         ui_extensions: None,
+        explain_parsers: None,
         type_mappings: {
             let mut m = HashMap::new();
             m.insert("DATETIME".to_string(), "TIMESTAMP".to_string());

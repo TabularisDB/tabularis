@@ -21,6 +21,10 @@ import {
 } from "@tabularis/explain/react";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
+import {
+  detectRawExplainLanguage,
+  formatRawExplainOutput,
+} from "../../utils/explainRaw";
 import { ExplainAiAnalysis } from "../modals/visual-explain/ExplainAiAnalysis";
 
 export interface VisualExplainViewProps {
@@ -68,13 +72,15 @@ export const VisualExplainView = ({
     [plan, selectedNodeId],
   );
 
-  const rawLanguage = useMemo(() => {
-    if (!plan?.raw_output) return "plaintext";
-    const trimmed = plan.raw_output.trim();
-    return trimmed.startsWith("{") || trimmed.startsWith("[")
-      ? "json"
-      : "plaintext";
-  }, [plan]);
+  const rawLanguage = useMemo(
+    () => (plan?.raw_output ? detectRawExplainLanguage(plan.raw_output) : "plaintext"),
+    [plan],
+  );
+
+  const rawValue = useMemo(
+    () => (plan?.raw_output ? formatRawExplainOutput(plan.raw_output) : ""),
+    [plan],
+  );
 
   const handleBeforeMount = useCallback(
     (monacoInstance: typeof monaco) => {
@@ -119,7 +125,7 @@ export const VisualExplainView = ({
               height="100%"
               language={rawLanguage}
               theme={editorTheme.id}
-              value={plan.raw_output}
+              value={rawValue}
               beforeMount={handleBeforeMount}
               options={{
                 readOnly: true,

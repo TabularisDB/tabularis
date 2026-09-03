@@ -107,6 +107,16 @@ export interface PluginManifest {
   type_mappings?: Record<string, string>;
   /** UI extension declarations for slot-based rendering (Phase 2). */
   ui_extensions?: UIExtensionManifestEntry[];
+  /** Raw EXPLAIN parser bundles loaded when this plugin is enabled. */
+  explain_parsers?: ExplainParserManifestEntry[];
+}
+
+/** Manifest-level declaration for a plugin-owned EXPLAIN parser bundle. */
+export interface ExplainParserManifestEntry {
+  engine: string;
+  format: string;
+  module: string;
+  label?: string;
 }
 
 /** Manifest-level entry for a UI extension slot. */
