@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   SettingsContext,
   DEFAULT_SETTINGS,
@@ -265,6 +266,48 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     loadSettings();
   }, [isLanguageApplied, queueLanguageApplication]);
+
+  // The backend's force-install flow (`ensure_plugin_installed`) can persist
+  // `activeExternalDrivers` from a spawned background task, well after this
+  // provider already loaded its settings snapshot. Without this listener,
+  // `updateSetting` would resend that now-stale in-memory snapshot on the
+  // next unrelated call (it always forwards the whole settings object) and
+  // silently overwrite the backend's write. Re-reading only this one field
+  // from the backend and merging it into local state — rather than trusting
+  // the event payload — keeps this correct even if the write raced with
+  // something else and ended up different from what was requested.
+  useEffect(() => {
+    let mounted = true;
+    let cleanup: (() => void) | null = null;
+    listen("tabularis://plugin-activated", () => {
+      if (!mounted) return;
+      invoke<Partial<Settings>>("get_config")
+        .then((config) => {
+          if (!mounted) return;
+          setSettings((prev) => ({
+            ...prev,
+            activeExternalDrivers: config.activeExternalDrivers,
+          }));
+        })
+        .catch((err) => {
+          console.error("Failed to refresh settings after plugin activation:", err);
+        });
+    })
+      .then((unlisten) => {
+        if (mounted) {
+          cleanup = unlisten;
+        } else {
+          unlisten();
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to subscribe to tabularis://plugin-activated:", err);
+      });
+    return () => {
+      mounted = false;
+      cleanup?.();
+    };
+  }, []);
 
   // Update i18n when language changes
   useEffect(() => {

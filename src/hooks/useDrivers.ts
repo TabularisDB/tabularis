@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 
 import type { InstalledPluginInfo, PluginManifest } from "../types/plugins";
@@ -160,6 +161,34 @@ export function useDrivers(): {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  // The backend's force-install flow installs and registers a plugin from a
+  // spawned background task, independent of any component's own refresh
+  // trigger. Without this listener, a `useDrivers` instance that mounted
+  // before that finished would keep reporting the plugin as absent — e.g.
+  // the migration banner staying stuck on its "couldn't be downloaded"
+  // variant — until the app restarts and re-runs `load` on mount.
+  useEffect(() => {
+    let mounted = true;
+    let cleanup: (() => void) | null = null;
+    listen("tabularis://plugin-activated", () => {
+      if (mounted) load();
+    })
+      .then((unlisten) => {
+        if (mounted) {
+          cleanup = unlisten;
+        } else {
+          unlisten();
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to subscribe to tabularis://plugin-activated:", err);
+      });
+    return () => {
+      mounted = false;
+      cleanup?.();
+    };
   }, [load]);
 
   const activeExt = settings.activeExternalDrivers || [];

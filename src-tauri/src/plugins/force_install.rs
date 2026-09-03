@@ -14,7 +14,8 @@
 //! postgres, so future built-in deprecations add an entry to
 //! [`MIGRATABLE_DRIVERS`] and a call site, not a new function.
 
-use tauri::AppHandle;
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
 
 use crate::config::{self, AppConfig};
 use crate::plugins::{commands, installer, registry, tabularium};
@@ -27,6 +28,23 @@ pub const MIGRATABLE_DRIVERS: &[(&str, &str)] = &[("postgres", "postgresql")];
 /// Log prefix shared by every message this module emits, so the force-install
 /// flow is greppable in logs at a glance.
 const LOG_PREFIX: &str = "[force-install]";
+
+/// Emitted after a background force-install persists activation for
+/// `plugin_id`. This runs in a spawned task well after the frontend has
+/// already loaded its own settings/drivers snapshot, so without this event
+/// the frontend has no way to learn the write happened — leaving it either
+/// stuck showing a stale "plugin not ready" banner until restart, or, worse,
+/// exposed to clobbering the write the next time it saves an unrelated
+/// setting from that stale snapshot (`SettingsProvider.updateSetting` sends
+/// its whole in-memory settings object on every save). `useDrivers` and
+/// `SettingsProvider` both listen and refresh the affected slice of state.
+pub const PLUGIN_ACTIVATED_EVENT: &str = "tabularis://plugin-activated";
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PluginActivatedPayload<'a> {
+    plugin_id: &'a str,
+}
 
 /// Ensure the plugin for `builtin_id` is installed, but only when at least one
 /// saved connection is still on the built-in driver. A user with no such
@@ -76,6 +94,16 @@ pub async fn ensure_plugin_installed(app: &AppHandle, plugin_id: &str) {
     // written from the backend because this runs in a spawned task.
     if let Err(e) = persist_activation(app, plugin_id) {
         log::warn!("{LOG_PREFIX} could not activate {plugin_id}: {e}");
+    }
+    // Tell the already-running frontend the plugin is installed and
+    // (activation errors aside) registered — see `PLUGIN_ACTIVATED_EVENT`'s
+    // doc comment for why this can't wait for the next launch. Emitted even
+    // if `persist_activation` above failed: `install_plugin` still
+    // hot-registered the driver for this session, so `useDrivers`'
+    // `get_registered_drivers`/`get_installed_plugins` refetch has something
+    // new to report regardless of whether the config write landed.
+    if let Err(e) = app.emit(PLUGIN_ACTIVATED_EVENT, PluginActivatedPayload { plugin_id }) {
+        log::warn!("{LOG_PREFIX} could not emit {PLUGIN_ACTIVATED_EVENT}: {e}");
     }
 }
 
