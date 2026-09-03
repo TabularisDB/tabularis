@@ -94,6 +94,8 @@ pub mod window_decorations;
 pub mod drivers {
     pub mod common;
     pub mod driver_trait;
+    #[cfg(test)]
+    pub mod driver_trait_tests;
     pub mod mysql;
     pub mod postgres;
     pub mod registry;
