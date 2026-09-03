@@ -261,6 +261,9 @@
   "connections": {
     "title": "Conexões",
     "addConnection": "Adicionar Conexão",
+    "deprecated": "Descontinuado",
+    "deprecatedTooltip": "Este driver integrado está sendo substituído pelo plugin {{replacement}}.",
+    "deprecatedTooltipDate": "Este driver integrado está sendo substituído pelo plugin {{replacement}}, provisoriamente em {{date}}.",
     "noConnections": "Nenhuma conexão ativa",
     "createFirst": "Crie sua primeira conexão",
     "active": "Ativa",

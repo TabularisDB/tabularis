@@ -270,6 +270,9 @@
   "connections": {
     "title": "连接",
     "addConnection": "添加连接",
+    "deprecated": "已弃用",
+    "deprecatedTooltip": "此内置驱动正由 {{replacement}} 插件取代。",
+    "deprecatedTooltipDate": "此内置驱动正由 {{replacement}} 插件取代（暂定 {{date}}）。",
     "newSqliteDatabase": {
       "menuLabel": "新建 SQLite 数据库…",
       "dialogTitle": "新建 SQLite 数据库",

@@ -291,6 +291,9 @@
   "connections": {
     "title": "Connessioni",
     "addConnection": "Aggiungi Connessione",
+    "deprecated": "Deprecato",
+    "deprecatedTooltip": "Questo driver integrato viene sostituito dal plugin {{replacement}}.",
+    "deprecatedTooltipDate": "Questo driver integrato viene sostituito dal plugin {{replacement}}, provvisoriamente entro {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Nuovo database SQLite…",
       "dialogTitle": "Nuovo database SQLite",

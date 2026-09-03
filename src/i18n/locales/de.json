@@ -271,6 +271,9 @@
   "connections": {
     "title": "Verbindungen",
     "addConnection": "Verbindung hinzufügen",
+    "deprecated": "Veraltet",
+    "deprecatedTooltip": "Dieser integrierte Treiber wird durch das {{replacement}}-Plugin ersetzt.",
+    "deprecatedTooltipDate": "Dieser integrierte Treiber wird durch das {{replacement}}-Plugin ersetzt, vorläufig bis {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Neue SQLite-Datenbank…",
       "dialogTitle": "Neue SQLite-Datenbank",

@@ -44,7 +44,8 @@
     "copied": "복사됨!",
     "showDetails": "세부 정보 표시",
     "hideDetails": "세부 정보 숨기기",
-    "beta": "베타"
+    "beta": "베타",
+    "dismiss": "닫기"
   },
   "sidebar": {
     "connections": "연결",
@@ -260,6 +261,9 @@
   "connections": {
     "title": "연결",
     "addConnection": "연결 추가",
+    "deprecated": "사용 중단",
+    "deprecatedTooltip": "이 내장 드라이버는 {{replacement}} 플러그인으로 대체됩니다.",
+    "deprecatedTooltipDate": "이 내장 드라이버는 {{replacement}} 플러그인으로 대체됩니다(잠정 {{date}}).",
     "newSqliteDatabase": {
       "menuLabel": "새 SQLite 데이터베이스…",
       "dialogTitle": "새 SQLite 데이터베이스",
@@ -2111,6 +2115,10 @@
     "databasePlaceholder": "데이터베이스",
     "tablePlaceholder": "테이블 (선택 사항)",
     "initialPrivilegesHint": "선택 사항: 생성 직후 부여할 초기 권한입니다. 데이터베이스를 선택하거나, 비워두면 전역으로 부여됩니다."
+  },
+  "connectionCatalogue": {
+    "deprecated": "사용 중단",
+    "deprecatedTooltip": "이 내장 드라이버는 플러그인으로 대체됩니다"
   },
   "connectionErrors": {
     "ssh-auth": {

@@ -291,6 +291,9 @@
   "connections": {
     "title": "Conexiones",
     "addConnection": "Agregar Conexión",
+    "deprecated": "Obsoleto",
+    "deprecatedTooltip": "Este controlador integrado está siendo reemplazado por el complemento {{replacement}}.",
+    "deprecatedTooltipDate": "Este controlador integrado está siendo reemplazado por el complemento {{replacement}}, provisionalmente el {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Nueva base de datos SQLite…",
       "dialogTitle": "Nueva base de datos SQLite",

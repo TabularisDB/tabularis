@@ -285,8 +285,8 @@
     "title": "Connections",
     "addConnection": "Add Connection",
     "deprecated": "Deprecated",
-    "deprecatedTooltip": "This built-in driver is being replaced by the {{replacement}} plugin. [Switch to plugin]",
-    "deprecatedTooltipDate": "This built-in driver is being replaced by the {{replacement}} plugin, tentatively by {{date}}. [Switch to plugin]",
+    "deprecatedTooltip": "This built-in driver is being replaced by the {{replacement}} plugin.",
+    "deprecatedTooltipDate": "This built-in driver is being replaced by the {{replacement}} plugin, tentatively by {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "New SQLite Database…",
       "dialogTitle": "New SQLite Database",

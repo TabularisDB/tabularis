@@ -67,7 +67,8 @@
     "copied": "Скопировано!",
     "showDetails": "Показать подробности",
     "hideDetails": "Скрыть подробности",
-    "beta": "Бета"
+    "beta": "Бета",
+    "dismiss": "Закрыть"
   },
   "sidebar": {
     "connections": "Подключения",
@@ -283,6 +284,9 @@
   "connections": {
     "title": "Подключения",
     "addConnection": "Добавить подключение",
+    "deprecated": "Устарел",
+    "deprecatedTooltip": "Этот встроенный драйвер заменяется плагином {{replacement}}.",
+    "deprecatedTooltipDate": "Этот встроенный драйвер заменяется плагином {{replacement}}, предварительно до {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Новая база данных SQLite…",
       "dialogTitle": "Новая база данных SQLite",
@@ -2178,6 +2182,10 @@
     "databasePlaceholder": "база данных",
     "tablePlaceholder": "таблица (необязательно)",
     "initialPrivilegesHint": "Необязательно: начальные привилегии, выдаваемые сразу после создания. Выберите базу данных или оставьте поле пустым, чтобы выдать их глобально."
+  },
+  "connectionCatalogue": {
+    "deprecated": "Устарел",
+    "deprecatedTooltip": "Этот встроенный драйвер заменяется плагином"
   },
   "connectionErrors": {
     "ssh-auth": {

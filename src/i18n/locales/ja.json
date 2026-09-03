@@ -284,6 +284,9 @@
   "connections": {
     "title": "接続",
     "addConnection": "接続を追加",
+    "deprecated": "非推奨",
+    "deprecatedTooltip": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます。",
+    "deprecatedTooltipDate": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます（暫定 {{date}}）。",
     "newSqliteDatabase": {
       "menuLabel": "新しい SQLite データベース…",
       "dialogTitle": "新しい SQLite データベース",

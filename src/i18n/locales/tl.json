@@ -67,7 +67,8 @@
     "copied": "Nakopya!",
     "showDetails": "Ipakita ang detalye",
     "hideDetails": "Itago ang detalye",
-    "beta": "Beta"
+    "beta": "Beta",
+    "dismiss": "Isara"
   },
   "sidebar": {
     "connections": "Mga Koneksyon",
@@ -283,6 +284,9 @@
   "connections": {
     "title": "Mga Koneksyon",
     "addConnection": "Magdagdag ng Koneksyon",
+    "deprecated": "Deprecated",
+    "deprecatedTooltip": "This built-in driver is being replaced by the {{replacement}} plugin.",
+    "deprecatedTooltipDate": "This built-in driver is being replaced by the {{replacement}} plugin, tentatively by {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Bagong SQLite Database…",
       "dialogTitle": "Bagong SQLite Database",
@@ -2177,6 +2181,10 @@
     "databasePlaceholder": "database",
     "tablePlaceholder": "talahanayan (opsyonal)",
     "initialPrivilegesHint": "Opsyonal: mga paunang pribilehiyong ibibigay agad pagkatapos gumawa. Pumili ng database, o iwanang walang laman para ibigay ito nang global."
+  },
+  "connectionCatalogue": {
+    "deprecated": "Deprecated",
+    "deprecatedTooltip": "Ang built-in driver na ito ay papalitan ng isang plugin"
   },
   "connectionErrors": {
     "ssh-auth": {
