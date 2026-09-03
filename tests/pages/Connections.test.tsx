@@ -103,8 +103,6 @@ vi.mock("../../src/hooks/useBuiltinDriverMigration", () => ({
     dismissBanner: vi.fn(),
     migrateConnection: vi.fn(),
     undoMigration: vi.fn(),
-    lastOutcome: null,
-    clearOutcome: vi.fn(),
   }),
 }));
 

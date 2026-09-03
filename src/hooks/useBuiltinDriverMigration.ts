@@ -10,12 +10,15 @@
  * and the migration action itself — auto-disconnect, flip the driver via
  * `update_connection`, run a post-migration `test_connection`, reopen if it
  * was open before, expose undo (the same disconnect/flip/reopen in reverse),
- * record the migration, and surface a toast.
+ * and record the migration. Deliberately does NOT own toast display —
+ * `migrateConnection`/`undoMigration` resolve with an outcome and leave it to
+ * the caller (a toast in `Connections.tsx`; per-row status in
+ * `MigrationChecklistModal`) to decide what to do with it.
  *
  * Fast Refresh: this file exports only hooks. Pure helpers live in `utils/`.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 import { useDatabase } from "./useDatabase";
@@ -71,15 +74,14 @@ export interface BuiltinDriverMigrationState {
   /** Dismiss the banner (persists). */
   dismissBanner: () => void;
   /** Migrate one connection to the plugin. Never rejects — resolves with the
-   * outcome (including unexpected failures, as `status: "failed"`). */
+   * outcome (including unexpected failures, as `status: "failed"`), so the
+   * caller decides what to do with it (e.g. Connections.tsx shows a toast;
+   * MigrationChecklistModal's bulk loop drives its own per-row status UI
+   * instead — deliberately not both, see the resolver's own comments). */
   migrateConnection: (connectionId: string) => Promise<MigrationOutcome>;
   /** Undo a migration: flip the driver back. Never rejects — resolves with
    * `{ ok: false, error }` on failure so the caller can surface it. */
   undoMigration: (connectionId: string) => Promise<UndoOutcome>;
-  /** Most recent migration outcome, for the toast / undo surface. */
-  lastOutcome: MigrationOutcome | null;
-  /** Clear the last outcome (toast dismissed). */
-  clearOutcome: () => void;
 }
 
 /**
@@ -95,8 +97,6 @@ export function useBuiltinDriverMigration(
   const { allDrivers, installedPlugins } = useDrivers();
   const { registryOffline } = useConnectionCatalogue();
   const { settings, updateSetting } = useSettings();
-
-  const [lastOutcome, setLastOutcome] = useState<MigrationOutcome | null>(null);
 
   // Connections still on the built-in driver — the trigger condition and the
   // set eligible to migrate.
@@ -157,8 +157,6 @@ export function useBuiltinDriverMigration(
       );
     })();
   }, [updateSetting, builtinConnections]);
-
-  const clearOutcome = useCallback(() => setLastOutcome(null), []);
 
   const recordMigration = useCallback(
     async (connectionId: string, fromDriver: string, toDriver: string) => {
@@ -237,7 +235,6 @@ export function useBuiltinDriverMigration(
             error,
             pluginId,
           };
-          setLastOutcome(outcome);
           return outcome;
         }
 
@@ -261,7 +258,6 @@ export function useBuiltinDriverMigration(
             error,
             pluginId,
           };
-          setLastOutcome(outcome);
           return outcome;
         }
         const pluginRegistered = registeredDrivers.some((d) => d.id === pluginId);
@@ -285,7 +281,6 @@ export function useBuiltinDriverMigration(
             pluginId,
             startupError,
           };
-          setLastOutcome(outcome);
           return outcome;
         }
 
@@ -302,7 +297,6 @@ export function useBuiltinDriverMigration(
             connectionName: name,
             status: "ok",
           };
-          setLastOutcome(outcome);
           return outcome;
         } catch (e) {
           const error = e instanceof Error ? e.message : String(e);
@@ -313,7 +307,6 @@ export function useBuiltinDriverMigration(
             error,
             pluginId,
           };
-          setLastOutcome(outcome);
           return outcome;
         }
       };
@@ -387,7 +380,6 @@ export function useBuiltinDriverMigration(
           environment: conn?.environment ?? null,
         });
         await loadConnections();
-        setLastOutcome(null);
         outcome = { ok: true };
       } catch (e) {
         const error = e instanceof Error ? e.message : String(e);
@@ -421,8 +413,6 @@ export function useBuiltinDriverMigration(
     dismissBanner,
     migrateConnection,
     undoMigration,
-    lastOutcome,
-    clearOutcome,
   };
 }
 

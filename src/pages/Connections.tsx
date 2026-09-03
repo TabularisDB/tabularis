@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -51,7 +51,10 @@ import { ConnectionErrorBanner } from "../components/ConnectionErrorBanner";
 import { PostgresPluginMigrationBanner } from "../components/banners/PostgresPluginMigrationBanner";
 import { BetaBadge } from "../components/ui/BetaBadge";
 import { useCreateSqliteDatabase } from "../hooks/useCreateSqliteDatabase";
-import { useBuiltinPostgresMigration } from "../hooks/useBuiltinDriverMigration";
+import {
+  useBuiltinPostgresMigration,
+  type MigrationOutcome,
+} from "../hooks/useBuiltinDriverMigration";
 import { useConnectionCatalogue } from "../hooks/useConnectionCatalogue";
 import { useToast } from "../hooks/useToast";
 import { buildPluginIssueUrl, resolvePluginRepoUrl } from "../utils/pluginIssueReport";
@@ -161,123 +164,124 @@ export const Connections = () => {
   // get both Undo and Report an issue. The toast is the courtesy nudge, not
   // the only way back — the per-connection action stays bidirectional even
   // after this toast is dismissed.
-  const { lastOutcome, clearOutcome, undoMigration } = migration;
-  useEffect(() => {
-    if (!lastOutcome) return;
-    const outcome = lastOutcome;
+  //
+  // Called directly where migrateConnection resolves (in handleMigrate's
+  // onConfirm below), not from a useEffect watching a "lastOutcome" piece of
+  // hook state — `migrateConnection` already resolves with the outcome, so
+  // routing it through state just to re-derive a toast from it on the next
+  // render violated .rules/react.md #2 (no synchronous setState-in-effect)
+  // for no benefit. It also meant every migrateConnection call anywhere —
+  // including MigrationChecklistModal's bulk "Migrate N selected" loop,
+  // which has its own per-row status UI — set that same shared state and
+  // fired this toast a second time on top of the checklist's own feedback.
+  const { undoMigration } = migration;
+  const showMigrationOutcomeToast = useCallback(
+    (outcome: MigrationOutcome) => {
+      const handleUndo = () => {
+        void undoMigration(outcome.connectionId).then((result) => {
+          if (!result.ok) {
+            showToast(
+              t("migration.toast.undoFailed", {
+                name: outcome.connectionName,
+                error: result.error ?? "unknown error",
+              }),
+              { kind: "error", duration: 0 },
+            );
+          }
+        });
+      };
 
-    const handleUndo = () => {
-      void undoMigration(outcome.connectionId).then((result) => {
-        if (!result.ok) {
-          showToast(
-            t("migration.toast.undoFailed", {
-              name: outcome.connectionName,
-              error: result.error ?? "unknown error",
-            }),
-            { kind: "error", duration: 0 },
-          );
+      const handleReportIssue = (failureMode: "connection" | "process") => {
+        const pluginId = outcome.pluginId ?? "postgresql";
+        const registryEntry = catalogueRegistry.find((p) => p.id === pluginId);
+        const repoUrl = resolvePluginRepoUrl(pluginId, registryEntry?.repo_url);
+        if (!repoUrl) {
+          // No registry entry and no known fallback — nothing to link to; the
+          // toast action simply has nowhere to send the user.
+          return;
         }
-      });
-    };
+        const installed = installedPlugins.find((p) => p.id === pluginId);
+        const url = buildPluginIssueUrl({
+          pluginId,
+          pluginVersion: installed?.version ?? registryEntry?.installed_version ?? "unknown",
+          repoUrl,
+          appVersion: APP_VERSION,
+          os: navigator.platform,
+          template: "migration-failure",
+          failureMode,
+          error: outcome.error ?? outcome.startupError ?? "unknown error",
+          migratedFromDriver: "postgres",
+        });
+        void openUrl(url);
+      };
 
-    const handleReportIssue = (failureMode: "connection" | "process") => {
-      const pluginId = outcome.pluginId ?? "postgresql";
-      const registryEntry = catalogueRegistry.find((p) => p.id === pluginId);
-      const repoUrl = resolvePluginRepoUrl(pluginId, registryEntry?.repo_url);
-      if (!repoUrl) {
-        // No registry entry and no known fallback — nothing to link to; the
-        // toast action simply has nowhere to send the user.
-        return;
+      if (outcome.status === "ok") {
+        showToast(
+          t("migration.toast.success", { name: outcome.connectionName }),
+          {
+            kind: "success",
+            duration: 0,
+            actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
+          },
+        );
+      } else if (outcome.status === "connection") {
+        showToast(
+          t("migration.toast.connectionFailure", {
+            name: outcome.connectionName,
+            error: outcome.error,
+          }),
+          {
+            kind: "error",
+            duration: 0,
+            actions: [
+              { label: t("migration.toast.undo"), onClick: handleUndo },
+              {
+                label: t("migration.toast.reportIssue"),
+                onClick: () => handleReportIssue("connection"),
+              },
+            ],
+          },
+        );
+      } else if (outcome.status === "process") {
+        showToast(
+          outcome.startupError
+            ? t("migration.toast.processFailureWithError", {
+                name: outcome.connectionName,
+                error: outcome.startupError,
+              })
+            : t("migration.toast.processFailure", { name: outcome.connectionName }),
+          {
+            kind: "error",
+            duration: 0,
+            actions: [
+              { label: t("migration.toast.undo"), onClick: handleUndo },
+              {
+                label: t("migration.toast.reportIssue"),
+                onClick: () => handleReportIssue("process"),
+              },
+            ],
+          },
+        );
+      } else {
+        // status === "failed": something unexpected happened before the driver
+        // flip could even be confirmed (e.g. the connection vanished
+        // concurrently, or the write itself errored) — Undo is still offered
+        // since flipping back to the built-in driver is safe either way.
+        showToast(
+          t("migration.toast.failed", {
+            name: outcome.connectionName,
+            error: outcome.error ?? "unknown error",
+          }),
+          {
+            kind: "error",
+            duration: 0,
+            actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
+          },
+        );
       }
-      const installed = installedPlugins.find((p) => p.id === pluginId);
-      const url = buildPluginIssueUrl({
-        pluginId,
-        pluginVersion: installed?.version ?? registryEntry?.installed_version ?? "unknown",
-        repoUrl,
-        appVersion: APP_VERSION,
-        os: navigator.platform,
-        template: "migration-failure",
-        failureMode,
-        error: outcome.error ?? outcome.startupError ?? "unknown error",
-        migratedFromDriver: "postgres",
-      });
-      void openUrl(url);
-    };
-
-    if (outcome.status === "ok") {
-      showToast(
-        t("migration.toast.success", { name: outcome.connectionName }),
-        {
-          kind: "success",
-          duration: 0,
-          actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
-        },
-      );
-    } else if (outcome.status === "connection") {
-      showToast(
-        t("migration.toast.connectionFailure", {
-          name: outcome.connectionName,
-          error: outcome.error,
-        }),
-        {
-          kind: "error",
-          duration: 0,
-          actions: [
-            { label: t("migration.toast.undo"), onClick: handleUndo },
-            {
-              label: t("migration.toast.reportIssue"),
-              onClick: () => handleReportIssue("connection"),
-            },
-          ],
-        },
-      );
-    } else if (outcome.status === "process") {
-      showToast(
-        outcome.startupError
-          ? t("migration.toast.processFailureWithError", {
-              name: outcome.connectionName,
-              error: outcome.startupError,
-            })
-          : t("migration.toast.processFailure", { name: outcome.connectionName }),
-        {
-          kind: "error",
-          duration: 0,
-          actions: [
-            { label: t("migration.toast.undo"), onClick: handleUndo },
-            {
-              label: t("migration.toast.reportIssue"),
-              onClick: () => handleReportIssue("process"),
-            },
-          ],
-        },
-      );
-    } else {
-      // status === "failed": something unexpected happened before the driver
-      // flip could even be confirmed (e.g. the connection vanished
-      // concurrently, or the write itself errored) — Undo is still offered
-      // since flipping back to the built-in driver is safe either way.
-      showToast(
-        t("migration.toast.failed", {
-          name: outcome.connectionName,
-          error: outcome.error ?? "unknown error",
-        }),
-        {
-          kind: "error",
-          duration: 0,
-          actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
-        },
-      );
-    }
-    clearOutcome();
-  }, [
-    lastOutcome,
-    clearOutcome,
-    undoMigration,
-    catalogueRegistry,
-    installedPlugins,
-    showToast,
-    t,
-  ]);
+    },
+    [undoMigration, catalogueRegistry, installedPlugins, showToast, t],
+  );
 
   useEffect(() => {
     if (autoConnectAttempted) return;
@@ -685,7 +689,7 @@ export const Connections = () => {
         variant: isUriBased ? "warning" : "info",
         onConfirm: () => {
           setConfirmModal(null);
-          void migration.migrateConnection(conn.id);
+          void migration.migrateConnection(conn.id).then(showMigrationOutcomeToast);
         },
       });
     } else {
