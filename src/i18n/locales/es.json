@@ -729,6 +729,9 @@
         "title": "Desinstalación fallida",
         "subtitle": "Ocurrió un error al desinstalar el plugin. Consulta los detalles a continuación."
       },
+      "devRuntimeWarning": {
+        "title": "Compilación de desarrollo: el plugin \"{{plugin}}\" omitió la comprobación de versión de Tabularis"
+      },
       "startError": {
         "title": "El Plugin no se pudo iniciar",
         "subtitle": "No se pudo lanzar el proceso del plugin. Revisa los detalles del error.",

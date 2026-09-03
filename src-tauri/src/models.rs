@@ -535,10 +535,9 @@ pub struct RawExplainOutput {
     pub original_query: String,
 }
 
-/// What `explain_query` hands to the frontend: a raw payload from a built-in
-/// driver, or a plan a plugin driver already parsed. Plugins know engines the
-/// core parsers do not, so their JSON-RPC `explain_query` result passes
-/// through untouched.
+/// What `explain_query` hands to the frontend: a raw payload for a registered
+/// parser, or a plan a plugin driver already parsed. Both plugin result shapes
+/// remain supported for backwards compatibility.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ExplainQueryOutput {

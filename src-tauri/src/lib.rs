@@ -664,6 +664,7 @@ pub fn run() {
             plugins::commands::fetch_plugin_readme,
             plugins::deep_link::consume_pending_deep_link_install,
             plugins::manager::get_plugin_startup_errors,
+            plugins::runtime_version::get_plugin_runtime_warnings,
             // JSON Viewer
             json_viewer::open_json_viewer_window,
             json_viewer::get_json_viewer_session,

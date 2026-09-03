@@ -704,6 +704,9 @@
         "title": "Deinstallation fehlgeschlagen",
         "subtitle": "Bei der Deinstallation des Plugins ist ein Fehler aufgetreten. Siehe Details unten."
       },
+      "devRuntimeWarning": {
+        "title": "Entwicklungsbuild: Plugin \"{{plugin}}\" hat die Tabularis-Versionsprüfung übersprungen"
+      },
       "startError": {
         "title": "Plugin konnte nicht gestartet werden",
         "subtitle": "Der Plugin-Prozess konnte nicht gestartet werden. Prüfe die Fehlerdetails unten.",

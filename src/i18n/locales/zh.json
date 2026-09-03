@@ -668,6 +668,9 @@
         "title": "卸载失败",
         "subtitle": "卸载插件时发生错误。请参阅下面的详细信息。"
       },
+      "devRuntimeWarning": {
+        "title": "开发版本：插件 \"{{plugin}}\" 跳过了 Tabularis 版本检查"
+      },
       "startError": {
         "title": "插件启动失败",
         "subtitle": "无法启动插件进程。请参阅下面的错误详细信息。",

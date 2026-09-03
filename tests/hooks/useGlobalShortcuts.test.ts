@@ -58,6 +58,39 @@ describe("useGlobalShortcuts", () => {
     input.remove();
   });
 
+  it("ignores composing key events while focus is inside an input", () => {
+    renderHook(() => useGlobalShortcuts());
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+
+    fireEvent.keyDown(input, {
+      key: "a",
+      metaKey: true,
+      shiftKey: true,
+      isComposing: true,
+    });
+
+    expect(togglePaletteMock).not.toHaveBeenCalled();
+    input.remove();
+  });
+
+  it("ignores dead-key events while focus is inside an input", () => {
+    renderHook(() => useGlobalShortcuts());
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+
+    fireEvent.keyDown(input, {
+      key: "Dead",
+      metaKey: true,
+      shiftKey: true,
+    });
+
+    expect(togglePaletteMock).not.toHaveBeenCalled();
+    input.remove();
+  });
+
   it("should open object search through the shared palette controller", () => {
     activeShortcutId = "quick_navigator";
     renderHook(() => useGlobalShortcuts());

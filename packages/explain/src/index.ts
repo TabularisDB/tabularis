@@ -12,6 +12,8 @@
 export type { ExplainNode, ExplainPlan } from "./types";
 
 export type {
+  BuiltinExplainEngine,
+  BuiltinExplainSourceFormat,
   ExplainEngine,
   ExplainSourceFormat,
   ExplainSourceParser,
@@ -37,11 +39,20 @@ export { buildSqliteTree, parseSqliteEqpRows } from "./parsers/sqlite";
 export { NodeIdAllocator, hasAnalyzeDataRecursive } from "./parsers/node";
 
 export type {
+  BuiltinRawExplainFormat,
   ExplainQueryOutput,
   RawExplainFormat,
   RawExplainOutput,
 } from "./raw";
 export { parseRawExplain, resolveExplainOutput } from "./raw";
+
+export type { RegisteredExplainParser } from "./registry";
+export {
+  getExplainParser,
+  listExplainParsers,
+  registerExplainParser,
+  unregisterExplainParser,
+} from "./registry";
 
 export type {
   ExplainMetrics,

@@ -67,6 +67,28 @@ uploaded file — and hands them over untouched. Drivers for engines these
 parsers do not know (plugin drivers) supply a fully-parsed `ExplainPlan`
 instead; both shapes flow through `resolveExplainOutput`.
 
+## Adding a parser
+
+Parser packages register one descriptor for each engine-specific wire format.
+The optional `sniff` function enables source detection; callers with a known
+engine can pass it to `parseExplainFor`.
+
+```ts
+import { registerExplainParser } from "@tabularis/explain";
+
+registerExplainParser({
+  engine: "acme-db",
+  format: "acme-plan-json",
+  label: "Acme DB JSON",
+  parse: parseAcmePlan,
+  sniff: (payload) => payload.trimStart().startsWith('{"acme_plan":'),
+});
+```
+
+Import the parser package before calling `parseRawExplain` or source detection.
+Registering the same format again replaces it, which supports plugin upgrades;
+call `unregisterExplainParser(format)` when unloading it.
+
 ## Host requirements for the React entry point
 
 The views are presentational but not self-contained. A host must provide:

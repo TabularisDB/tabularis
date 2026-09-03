@@ -749,6 +749,9 @@
         "title": "Uninstallation failed",
         "subtitle": "An error occurred while uninstalling the plugin. See the details below."
       },
+      "devRuntimeWarning": {
+        "title": "Development build: plugin \"{{plugin}}\" skipped the Tabularis version check"
+      },
       "startError": {
         "title": "Plugin Failed to Start",
         "subtitle": "The plugin process could not be launched. Check the error details below.",

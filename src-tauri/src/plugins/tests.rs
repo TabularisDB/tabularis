@@ -5,6 +5,10 @@ use tempfile::tempdir;
 use super::install_cancellation::{begin, cancel, INSTALL_CANCELLED_ERROR};
 use super::installer::{has_manifest, migrate_plugins_between, read_plugin_info_from_dir};
 use super::manager::ConfigManifest;
+use super::runtime_version::{
+    check_min_runtime_version, evaluate_min_runtime_version, push_runtime_warning,
+    take_runtime_warnings, RuntimeVersionVerdict,
+};
 
 #[test]
 fn cancellation_marks_an_active_install() {
@@ -133,6 +137,34 @@ fn preserves_ui_extension_driver_filter_from_manifest() {
 }
 
 #[test]
+fn preserves_explain_parser_declarations_from_manifest() {
+    let manifest: ConfigManifest = serde_json::from_str(
+        r#"{
+  "id": "explain-plugin",
+  "name": "EXPLAIN Plugin",
+  "version": "1.0.0",
+  "description": "Plugin-owned parser",
+  "explain_parsers": [
+    {
+      "engine": "example-db",
+      "format": "example-db-plan-text",
+      "label": "Example DB plan",
+      "module": "explain/dist/index.iife.js"
+    }
+  ]
+}"#,
+    )
+    .expect("parse manifest");
+
+    let entries = manifest.explain_parsers.expect("explain_parsers present");
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].engine, "example-db");
+    assert_eq!(entries[0].format, "example-db-plan-text");
+    assert_eq!(entries[0].label.as_deref(), Some("Example DB plan"));
+    assert_eq!(entries[0].module, "explain/dist/index.iife.js");
+}
+
+#[test]
 fn returns_error_for_invalid_manifest() {
     let dir = tempdir().expect("temp dir");
     fs::write(dir.path().join(".tabularium"), "{ invalid json").expect("write manifest");
@@ -195,4 +227,150 @@ fn migration_is_a_no_op_when_legacy_missing() {
         !target.exists(),
         "target not created when nothing to migrate"
     );
+}
+
+#[test]
+fn preserves_min_runtime_version_from_manifest() {
+    let manifest: ConfigManifest = serde_json::from_str(
+        r#"{
+  "name": "sqlserver",
+  "version": "1.0.0-beta.1",
+  "description": "SQL Server driver",
+  "min_runtime_version": "0.23.0"
+}"#,
+    )
+    .expect("parse manifest");
+
+    assert_eq!(manifest.min_runtime_version.as_deref(), Some("0.23.0"));
+}
+
+#[test]
+fn min_runtime_version_is_optional_in_manifest() {
+    let manifest: ConfigManifest = serde_json::from_str(
+        r#"{
+  "name": "firestore",
+  "version": "0.3.8",
+  "description": "Firestore driver"
+}"#,
+    )
+    .expect("parse manifest");
+
+    assert_eq!(manifest.min_runtime_version, None);
+}
+
+#[test]
+fn runtime_check_accepts_plugins_without_a_floor() {
+    assert_eq!(check_min_runtime_version("p", None, "0.22.0"), Ok(()));
+    assert_eq!(check_min_runtime_version("p", Some(""), "0.22.0"), Ok(()));
+    assert_eq!(
+        check_min_runtime_version("p", Some("   "), "0.22.0"),
+        Ok(())
+    );
+}
+
+#[test]
+fn runtime_check_accepts_equal_or_newer_hosts() {
+    assert_eq!(
+        check_min_runtime_version("p", Some("0.23.0"), "0.23.0"),
+        Ok(())
+    );
+    assert_eq!(
+        check_min_runtime_version("p", Some("0.23.0"), "0.23.1"),
+        Ok(())
+    );
+    assert_eq!(
+        check_min_runtime_version("p", Some("0.23.0"), "1.0.0"),
+        Ok(())
+    );
+    // A nightly built after the release carries the next patch as prerelease.
+    assert_eq!(
+        check_min_runtime_version("p", Some("0.23.0"), "0.23.1-3"),
+        Ok(())
+    );
+    assert_eq!(
+        check_min_runtime_version("p", Some("v0.23.0"), "v0.23.0"),
+        Ok(())
+    );
+}
+
+#[test]
+fn runtime_check_refuses_older_hosts_with_both_versions_named() {
+    let error = check_min_runtime_version("sqlserver", Some("0.23.0"), "0.22.0")
+        .expect_err("older host must be refused");
+
+    assert_eq!(
+        error,
+        "Plugin 'sqlserver' requires Tabularis 0.23.0 or newer, but this is Tabularis 0.22.0. Update Tabularis to use this plugin."
+    );
+}
+
+#[test]
+fn runtime_check_treats_prerelease_hosts_as_below_the_release() {
+    assert!(check_min_runtime_version("p", Some("0.23.0"), "0.23.0-nightly.1").is_err());
+    assert!(check_min_runtime_version("p", Some("0.23.0"), "0.22.1-4").is_err());
+}
+
+#[test]
+fn runtime_check_ignores_non_semver_values() {
+    assert_eq!(
+        check_min_runtime_version("p", Some("latest"), "0.22.0"),
+        Ok(())
+    );
+    assert_eq!(
+        check_min_runtime_version("p", Some("0.23"), "0.22.0"),
+        Ok(())
+    );
+    assert_eq!(
+        check_min_runtime_version("p", Some("0.23.0"), "dev"),
+        Ok(())
+    );
+}
+
+#[test]
+fn runtime_verdict_is_compatible_when_the_floor_is_met() {
+    assert_eq!(
+        evaluate_min_runtime_version("p", Some("0.23.0"), "0.23.0", false),
+        RuntimeVersionVerdict::Compatible
+    );
+    assert_eq!(
+        evaluate_min_runtime_version("p", None, "0.1.0", true),
+        RuntimeVersionVerdict::Compatible
+    );
+}
+
+#[test]
+fn runtime_verdict_refuses_older_release_hosts() {
+    assert_eq!(
+        evaluate_min_runtime_version("sqlserver", Some("0.23.0"), "0.22.0", false),
+        RuntimeVersionVerdict::Incompatible(
+            "Plugin 'sqlserver' requires Tabularis 0.23.0 or newer, but this is Tabularis 0.22.0. Update Tabularis to use this plugin.".to_string()
+        )
+    );
+}
+
+#[test]
+fn runtime_verdict_overrides_in_development_builds_and_says_so() {
+    let verdict = evaluate_min_runtime_version("sqlserver", Some("0.23.0"), "0.22.0", true);
+
+    let RuntimeVersionVerdict::DevOverride(message) = verdict else {
+        panic!("development builds must override, got {verdict:?}");
+    };
+    assert!(message.starts_with("Plugin 'sqlserver' requires Tabularis 0.23.0 or newer"));
+    assert!(message.ends_with("Loaded anyway because this is a development build."));
+}
+
+#[test]
+fn runtime_warnings_are_returned_exactly_once() {
+    push_runtime_warning("queue-test-plugin", "first");
+    push_runtime_warning("queue-test-plugin", "second");
+
+    let drained: Vec<String> = take_runtime_warnings()
+        .into_iter()
+        .filter(|w| w.plugin_id == "queue-test-plugin")
+        .map(|w| w.message)
+        .collect();
+    assert_eq!(drained, vec!["first".to_string(), "second".to_string()]);
+
+    let again = take_runtime_warnings();
+    assert!(again.iter().all(|w| w.plugin_id != "queue-test-plugin"));
 }

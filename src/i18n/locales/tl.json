@@ -736,6 +736,9 @@
         "title": "Nabigo ang Pag-uninstall",
         "subtitle": "May error habang ina-uninstall ang plugin. Tingnan ang mga detalye sa ibaba."
       },
+      "devRuntimeWarning": {
+        "title": "Development build: nilaktawan ng plugin na \"{{plugin}}\" ang pagsuri ng bersyon ng Tabularis"
+      },
       "startError": {
         "title": "Nabigo ang Pagsisimula ng Plugin",
         "subtitle": "Hindi ma-launch ang plugin process. Tingnan ang mga detalye ng error sa ibaba.",
