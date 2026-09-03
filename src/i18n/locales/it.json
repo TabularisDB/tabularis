@@ -2132,7 +2132,8 @@
   },
   "migration": {
     "banner": {
-      "nudge": "Prova il nuovo plugin PostgreSQL — il driver integrato PostgreSQL è in fase di ritiro (provvisoriamente il 5 ott. 2026). Il plugin ha le stesse funzionalità e si aggiorna più velocemente.",
+      "nudge": "Prova il nuovo plugin PostgreSQL — il driver integrato PostgreSQL è in fase di ritiro. Il plugin ha le stesse funzionalità e si aggiorna più velocemente.",
+      "nudgeWithDate": "Prova il nuovo plugin PostgreSQL — il driver integrato PostgreSQL è in fase di ritiro (provvisoriamente il {{date}}). Il plugin ha le stesse funzionalità e si aggiorna più velocemente.",
       "offline": "Il plugin PostgreSQL non è stato scaricato — riproveremo al prossimo avvio. Controlla la connessione o la rete se il problema persiste.",
       "reviewConnections": "Rivedi connessioni"
     },

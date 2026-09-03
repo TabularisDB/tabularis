@@ -2130,7 +2130,8 @@
   },
   "migration": {
     "banner": {
-      "nudge": "Probieren Sie das neue PostgreSQL-Plugin — der integrierte PostgreSQL-Treiber wird ausgemustert (vorläufig 5. Okt. 2026). Das Plugin hat dieselben Funktionen und erhält schneller Updates.",
+      "nudge": "Probieren Sie das neue PostgreSQL-Plugin — der integrierte PostgreSQL-Treiber wird ausgemustert. Das Plugin hat dieselben Funktionen und erhält schneller Updates.",
+      "nudgeWithDate": "Probieren Sie das neue PostgreSQL-Plugin — der integrierte PostgreSQL-Treiber wird ausgemustert (vorläufig {{date}}). Das Plugin hat dieselben Funktionen und erhält schneller Updates.",
       "offline": "Das PostgreSQL-Plugin konnte nicht heruntergeladen werden — wir versuchen es beim nächsten Start erneut. Prüfen Sie Ihre Verbindung oder Ihr Netzwerk, falls dies weiterhin auftritt.",
       "reviewConnections": "Verbindungen prüfen"
     },

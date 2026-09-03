@@ -2208,7 +2208,8 @@
   },
   "migration": {
     "banner": {
-      "nudge": "Essayez le nouveau plugin PostgreSQL — le pilote intégré PostgreSQL est en cours de retrait (provisoirement le 5 oct. 2026). Le plugin a les mêmes fonctionnalités et se met à jour plus rapidement.",
+      "nudge": "Essayez le nouveau plugin PostgreSQL — le pilote intégré PostgreSQL est en cours de retrait. Le plugin a les mêmes fonctionnalités et se met à jour plus rapidement.",
+      "nudgeWithDate": "Essayez le nouveau plugin PostgreSQL — le pilote intégré PostgreSQL est en cours de retrait (provisoirement le {{date}}). Le plugin a les mêmes fonctionnalités et se met à jour plus rapidement.",
       "offline": "Le plugin PostgreSQL n'a pas pu être téléchargé — une nouvelle tentative aura lieu au prochain lancement. Vérifiez votre connexion ou votre réseau si cela persiste.",
       "reviewConnections": "Examiner les connexions"
     },

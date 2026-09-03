@@ -6,6 +6,13 @@ interface PostgresPluginMigrationBannerProps {
   /** "nudge" → the "try the plugin" message; "offline" → the "couldn't be
    * downloaded" message. Driven by the connectivity gate in the hook. */
   variant: MigrationBannerVariant;
+  /** Tentative removal date for the built-in driver (e.g. `"2026-10-05"`),
+   * read from `PluginManifest.deprecated.removal_date` — the same manifest
+   * field the deprecated-driver badge/tooltip use — so the two surfaces
+   * can't drift out of sync the way a second hardcoded date in this
+   * component's translation string would. `undefined` renders the
+   * no-date variant of the nudge message. */
+  removalDate: string | undefined;
   /** Called when the user dismisses the banner (persists the dismissal). */
   onDismiss: () => void;
   /** Called when the user clicks "Review connections" (nudge variant only). */
@@ -24,6 +31,7 @@ interface PostgresPluginMigrationBannerProps {
  */
 export const PostgresPluginMigrationBanner = ({
   variant,
+  removalDate,
   onDismiss,
   onReview,
 }: PostgresPluginMigrationBannerProps) => {
@@ -35,7 +43,9 @@ export const PostgresPluginMigrationBanner = ({
       <div className="flex-1 min-w-0">
         {variant === "nudge" ? (
           <span className="text-sm whitespace-pre-wrap leading-relaxed block">
-            {t("migration.banner.nudge")}
+            {removalDate
+              ? t("migration.banner.nudgeWithDate", { date: removalDate })
+              : t("migration.banner.nudge")}
           </span>
         ) : (
           <span className="text-sm whitespace-pre-wrap leading-relaxed block">

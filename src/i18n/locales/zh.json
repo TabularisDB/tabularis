@@ -2070,7 +2070,8 @@
   },
   "migration": {
     "banner": {
-      "nudge": "试试新的 PostgreSQL 插件 —内置 PostgreSQL 驱动正在退役（暂定 2026 年 10 月 5 日）。插件功能相同且更新更快。",
+      "nudge": "试试新的 PostgreSQL 插件 —内置 PostgreSQL 驱动正在退役。插件功能相同且更新更快。",
+      "nudgeWithDate": "试试新的 PostgreSQL 插件 —内置 PostgreSQL 驱动正在退役（暂定 {{date}}）。插件功能相同且更新更快。",
       "offline": "PostgreSQL 插件无法下载 —下次启动时会重试。如果持续出现，请检查您的连接或网络。",
       "reviewConnections": "查看连接"
     },

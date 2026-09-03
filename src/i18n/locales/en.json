@@ -2219,7 +2219,8 @@
   },
   "migration": {
     "banner": {
-      "nudge": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired (tentatively Oct 5, 2026). The plugin has the same features and gets updates faster.",
+      "nudge": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired. The plugin has the same features and gets updates faster.",
+      "nudgeWithDate": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired (tentatively {{date}}). The plugin has the same features and gets updates faster.",
       "offline": "The PostgreSQL plugin couldn't be downloaded — we'll retry on the next launch. Check your connection or network if this keeps happening.",
       "reviewConnections": "Review connections"
     },

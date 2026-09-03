@@ -1183,6 +1183,7 @@ export const Connections = () => {
       {migration.banner?.visible && (
         <PostgresPluginMigrationBanner
           variant={migration.banner.variant}
+          removalDate={allDrivers.find((d) => d.id === "postgres")?.deprecated?.removal_date}
           onDismiss={migration.dismissBanner}
           onReview={() => setIsMigrationChecklistOpen(true)}
         />

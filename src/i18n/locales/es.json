@@ -2052,7 +2052,8 @@
   },
   "migration": {
     "banner": {
-      "nudge": "Prueba el nuevo complemento de PostgreSQL — el controlador integrado de PostgreSQL se está retirando (provisionalmente 5 oct. 2026). El complemento tiene las mismas funciones y se actualiza más rápido.",
+      "nudge": "Prueba el nuevo complemento de PostgreSQL — el controlador integrado de PostgreSQL se está retirando. El complemento tiene las mismas funciones y se actualiza más rápido.",
+      "nudgeWithDate": "Prueba el nuevo complemento de PostgreSQL — el controlador integrado de PostgreSQL se está retirando (provisionalmente {{date}}). El complemento tiene las mismas funciones y se actualiza más rápido.",
       "offline": "No se pudo descargar el complemento de PostgreSQL — lo reintentaremos en el próximo inicio. Revisa tu conexión o red si esto sigue ocurriendo.",
       "reviewConnections": "Revisar conexiones"
     },

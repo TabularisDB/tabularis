@@ -2181,7 +2181,8 @@
   },
   "migration": {
     "banner": {
-      "nudge": "새 PostgreSQL 플러그인을 사용해 보세요 —내장 PostgreSQL 드라이버가 폐지 예정입니다(2026년 10월 5일 잠정). 플러그인은 동일한 기능을 가지며 더 빠르게 업데이트됩니다.",
+      "nudge": "새 PostgreSQL 플러그인을 사용해 보세요 —내장 PostgreSQL 드라이버가 폐지 예정입니다. 플러그인은 동일한 기능을 가지며 더 빠르게 업데이트됩니다.",
+      "nudgeWithDate": "새 PostgreSQL 플러그인을 사용해 보세요 —내장 PostgreSQL 드라이버가 폐지 예정입니다({{date}} 잠정). 플러그인은 동일한 기능을 가지며 더 빠르게 업데이트됩니다.",
       "offline": "PostgreSQL 플러그인을 다운로드할 수 없습니다 —다음 실행 시 다시 시도합니다. 계속되면 연결이나 네트워크를 확인하세요.",
       "reviewConnections": "연결 검토"
     },
