@@ -72,6 +72,132 @@ describe("MigrationChecklistModal", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  describe("cold start: data arrives after the modal first opens", () => {
+    // Connections.tsx always renders this component (isOpen just toggles
+    // visibility, it never conditionally mounts/unmounts it), so on a cold
+    // start `isOpen` can flip true before loadConnections()/useDrivers()
+    // have resolved. The default-selection logic must key off the rising
+    // edge of `isOpen` and re-derive once fresh `rows` land, not freeze on
+    // whatever (nothing) was true when the component first mounted.
+    it("checks a clean connection once data arrives, instead of staying stuck unchecked", () => {
+      const manifest = makeManifest({ supports_ssl: true, connection_uri: true });
+      const cleanConn = makeConn("c1", "Clean Connection");
+
+      const { rerender } = render(
+        <MigrationChecklistModal
+          isOpen={false}
+          onClose={onClose}
+          connections={[]}
+          manifest={undefined}
+          repoUrl={undefined}
+          pluginVersion="1.0.0"
+          migrateConnection={migrateConnection}
+        />,
+      );
+
+      rerender(
+        <MigrationChecklistModal
+          isOpen
+          onClose={onClose}
+          connections={[cleanConn]}
+          manifest={manifest}
+          repoUrl="https://github.com/TabularisDB/tabularis-postgresql-plugin"
+          pluginVersion="1.0.0"
+          migrateConnection={migrateConnection}
+        />,
+      );
+
+      expect(screen.getByRole("checkbox")).toBeChecked();
+      expect(screen.getByText(/migration\.checklist\.migrateSelected/).closest("button")).not.toBeDisabled();
+    });
+
+    it("does not re-derive the default selection on later prop churn while the modal stays open", async () => {
+      // A connection dropping out of `connections` as it migrates (during a
+      // bulk run) must not reset the checked set for the remaining rows.
+      const manifest = makeManifest({ supports_ssl: true, connection_uri: true });
+      const conns = [makeConn("c1", "Conn 1"), makeConn("c2", "Conn 2")];
+
+      const { rerender } = render(
+        <MigrationChecklistModal
+          isOpen
+          onClose={onClose}
+          connections={conns}
+          manifest={manifest}
+          repoUrl="https://github.com/TabularisDB/tabularis-postgresql-plugin"
+          pluginVersion="1.0.0"
+          migrateConnection={migrateConnection}
+        />,
+      );
+      const checkboxes = screen.getAllByRole("checkbox");
+      // Manually uncheck c2 — a user override that must survive prop churn.
+      fireEvent.click(checkboxes[1]);
+      expect(checkboxes[1]).not.toBeChecked();
+
+      // c1 migrates and drops out of the `connections` prop, as
+      // Connections.tsx's `migration.builtinConnections` would do mid-batch.
+      rerender(
+        <MigrationChecklistModal
+          isOpen
+          onClose={onClose}
+          connections={[conns[1]]}
+          manifest={manifest}
+          repoUrl="https://github.com/TabularisDB/tabularis-postgresql-plugin"
+          pluginVersion="1.0.0"
+          migrateConnection={migrateConnection}
+        />,
+      );
+
+      // c2's manual uncheck must still hold — not reset back to "checked by
+      // default" just because `rows` changed while open.
+      expect(screen.getByRole("checkbox")).not.toBeChecked();
+    });
+
+    it("re-derives a fresh default selection on the next open after closing", () => {
+      const manifest = makeManifest({ supports_ssl: true, connection_uri: true });
+      const conn = makeConn("c1", "Conn 1");
+
+      const { rerender } = render(
+        <MigrationChecklistModal
+          isOpen
+          onClose={onClose}
+          connections={[conn]}
+          manifest={manifest}
+          repoUrl="https://github.com/TabularisDB/tabularis-postgresql-plugin"
+          pluginVersion="1.0.0"
+          migrateConnection={migrateConnection}
+        />,
+      );
+      fireEvent.click(screen.getByRole("checkbox")); // user unchecks it
+      expect(screen.getByRole("checkbox")).not.toBeChecked();
+
+      rerender(
+        <MigrationChecklistModal
+          isOpen={false}
+          onClose={onClose}
+          connections={[conn]}
+          manifest={manifest}
+          repoUrl="https://github.com/TabularisDB/tabularis-postgresql-plugin"
+          pluginVersion="1.0.0"
+          migrateConnection={migrateConnection}
+        />,
+      );
+      rerender(
+        <MigrationChecklistModal
+          isOpen
+          onClose={onClose}
+          connections={[conn]}
+          manifest={manifest}
+          repoUrl="https://github.com/TabularisDB/tabularis-postgresql-plugin"
+          pluginVersion="1.0.0"
+          migrateConnection={migrateConnection}
+        />,
+      );
+
+      // Back to the default: checked, since it's still gap-free.
+      expect(screen.getByRole("checkbox")).toBeChecked();
+    });
+  });
+
   describe("default checked/unchecked state", () => {
     it("checks a connection with no capability gap by default", () => {
       const manifest = makeManifest({ supports_ssl: true, connection_uri: true });

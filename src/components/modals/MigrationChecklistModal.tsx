@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { X, ArrowLeftRight, Check, Loader2, AlertTriangle, ExternalLink } from "lucide-react";
@@ -70,19 +70,36 @@ export const MigrationChecklistModal = ({
     [connections, manifest],
   );
 
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [rowStatus, setRowStatus] = useState<Record<string, RowStatus>>({});
+  const [migrating, setMigrating] = useState(false);
+
   // Unchecked by default when the connection has any capability gap, or when
   // it's connection-URI-based (its stored secret won't carry over — the same
   // safety property, since the user needs to notice and act before/after
-  // migrating either way). Computed once per modal open; this component
-  // unmounts/remounts with the parent's conditional render — see onClose.
-  const [checked, setChecked] = useState<Set<string>>(
-    () =>
-      new Set(
-        rows.filter((r) => r.gaps.length === 0 && !r.isUriBased).map((r) => r.conn.id),
-      ),
-  );
-  const [rowStatus, setRowStatus] = useState<Record<string, RowStatus>>({});
-  const [migrating, setMigrating] = useState(false);
+  // migrating either way). Recomputed on the rising edge of `isOpen` (not
+  // "on every `rows` change while open") for two reasons: the parent
+  // (`Connections.tsx`) always renders this component rather than
+  // conditionally mounting it, so `connections`/`manifest` can still be
+  // loading — undefined manifest, empty connections — at the moment `isOpen`
+  // first turns true; re-deriving from the latest `rows` right as it flips
+  // picks up that data once it lands instead of freezing on whatever was
+  // true at mount. And gating strictly on the edge (not just "isOpen &&
+  // deps changed") avoids wiping a user's manual checkbox toggles mid-session
+  // if `rows` shifts for an unrelated reason while the modal stays open —
+  // e.g. a connection dropping out of `connections` as soon as it migrates,
+  // partway through a bulk "Migrate N selected" run.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      setChecked(
+        new Set(rows.filter((r) => r.gaps.length === 0 && !r.isUriBased).map((r) => r.conn.id)),
+      );
+      setRowStatus({});
+      setMigrating(false);
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen, rows]);
 
   if (!isOpen) return null;
 
