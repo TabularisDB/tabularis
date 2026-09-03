@@ -7,6 +7,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 const databaseMock = {
   connections: [] as Array<{ id: string; name: string; params: { driver: string } }>,
   loadConnections: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  connect: vi.fn<(id: string) => Promise<void>>().mockResolvedValue(undefined),
   disconnect: vi.fn<(id: string) => Promise<void>>().mockResolvedValue(undefined),
   openConnectionIds: [] as string[],
   connectionDataMap: {} as Record<string, { driver: string } | undefined>,
@@ -71,6 +72,8 @@ describe("useBuiltinDriverMigration", () => {
     settingsMock.updateSetting.mockClear();
     settingsMock.updateSetting.mockResolvedValue(undefined);
     databaseMock.loadConnections.mockClear();
+    databaseMock.connect.mockClear();
+    databaseMock.connect.mockResolvedValue(undefined);
     databaseMock.disconnect.mockClear();
     // Reset invoke to a permissive default; individual tests override.
     vi.mocked(invoke).mockReset();
@@ -204,6 +207,73 @@ describe("useBuiltinDriverMigration", () => {
       expect(databaseMock.disconnect).toHaveBeenCalledWith("c1");
     });
 
+    it("reopens a connection that was open before migrating, on a successful outcome", async () => {
+      // The confirm dialog promises "it'll be disconnected and reopened" —
+      // disconnect alone doesn't fulfill that, connect must actually run.
+      setPluginReady(true);
+      databaseMock.connections = [builtinConn("c1")];
+      databaseMock.openConnectionIds = ["c1"];
+      databaseMock.connectionDataMap = { c1: { driver: "postgres" } };
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      await act(async () => {
+        await result.current.migrateConnection("c1");
+      });
+      expect(databaseMock.disconnect).toHaveBeenCalledWith("c1");
+      expect(databaseMock.connect).toHaveBeenCalledWith("c1");
+    });
+
+    it("still reopens the connection when the post-migration test fails", async () => {
+      // A failed test_connection means the outcome status is "connection", not
+      // "ok" — but the connection was still disconnected to run the flip, so
+      // it must still be reopened (reopening surfaces its own error via
+      // connectionDataMap, independent of the migration outcome).
+      setPluginReady(true);
+      databaseMock.connections = [builtinConn("c1")];
+      databaseMock.openConnectionIds = ["c1"];
+      databaseMock.connectionDataMap = { c1: { driver: "postgres" } };
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === "test_connection") return Promise.reject("connection refused");
+        return mockInvokeDefault(cmd);
+      });
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      let outcome;
+      await act(async () => {
+        outcome = await result.current.migrateConnection("c1");
+      });
+      expect(outcome.status).toBe("connection");
+      expect(databaseMock.connect).toHaveBeenCalledWith("c1");
+    });
+
+    it("does not reconnect a connection that was already closed", async () => {
+      setPluginReady(true);
+      databaseMock.connections = [builtinConn("c1")];
+      // Not in openConnectionIds — the connection was already closed.
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      await act(async () => {
+        await result.current.migrateConnection("c1");
+      });
+      expect(databaseMock.disconnect).not.toHaveBeenCalled();
+      expect(databaseMock.connect).not.toHaveBeenCalled();
+    });
+
+    it("resolves the migration outcome even when the reconnect itself fails", async () => {
+      // A reconnect failure surfaces through connectionDataMap[id].error (the
+      // existing UI path for a failed connection), not by corrupting the
+      // migration outcome — the migration itself still succeeded.
+      setPluginReady(true);
+      databaseMock.connections = [builtinConn("c1")];
+      databaseMock.openConnectionIds = ["c1"];
+      databaseMock.connectionDataMap = { c1: { driver: "postgres" } };
+      databaseMock.connect.mockRejectedValueOnce(new Error("host unreachable"));
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      let outcome;
+      await act(async () => {
+        outcome = await result.current.migrateConnection("c1");
+      });
+      expect(outcome.status).toBe("ok");
+      expect(databaseMock.connect).toHaveBeenCalledWith("c1");
+    });
+
     it("records a connection-level failure when the post-migration test throws", async () => {
       setPluginReady(true);
       databaseMock.connections = [builtinConn("c1")];
@@ -316,6 +386,45 @@ describe("useBuiltinDriverMigration", () => {
       });
       expect(outcome.ok).toBe(false);
       expect(outcome.error).toContain("Connection not found");
+    });
+
+    it("disconnects and reopens a connection that was open (on the plugin id) before undoing", async () => {
+      databaseMock.connections = [{ id: "c1", name: "c1", params: { driver: "postgresql" } }];
+      // Undo runs after a completed migration, so the connection is open
+      // under the plugin id, not the builtin id — the lookup must reflect
+      // that (the inverse of migrateConnection's [builtinId] lookup).
+      databaseMock.openConnectionIds = ["c1"];
+      databaseMock.connectionDataMap = { c1: { driver: "postgresql" } };
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      await act(async () => {
+        await result.current.undoMigration("c1");
+      });
+      expect(databaseMock.disconnect).toHaveBeenCalledWith("c1");
+      expect(databaseMock.connect).toHaveBeenCalledWith("c1");
+    });
+
+    it("does not disconnect/reconnect a connection that was already closed", async () => {
+      databaseMock.connections = [{ id: "c1", name: "c1", params: { driver: "postgresql" } }];
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      await act(async () => {
+        await result.current.undoMigration("c1");
+      });
+      expect(databaseMock.disconnect).not.toHaveBeenCalled();
+      expect(databaseMock.connect).not.toHaveBeenCalled();
+    });
+
+    it("resolves ok: true even when the reconnect itself fails", async () => {
+      databaseMock.connections = [{ id: "c1", name: "c1", params: { driver: "postgresql" } }];
+      databaseMock.openConnectionIds = ["c1"];
+      databaseMock.connectionDataMap = { c1: { driver: "postgresql" } };
+      databaseMock.connect.mockRejectedValueOnce(new Error("host unreachable"));
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      let outcome;
+      await act(async () => {
+        outcome = await result.current.undoMigration("c1");
+      });
+      expect(outcome).toEqual({ ok: true });
+      expect(databaseMock.connect).toHaveBeenCalledWith("c1");
     });
   });
 });
