@@ -1,6 +1,39 @@
 use keyring::Entry;
 
+use crate::sandbox::{self, Sandbox};
+
 const SERVICE_NAME: &str = "tabularis";
+
+/// Advice appended to keychain failures inside the Snap package.
+///
+/// `password-manager-service` is declared as a plug but is not auto-connected
+/// by default, so every Secret Service call is refused by AppArmor until the
+/// user (or the Snap Store, once auto-connection is granted) connects it.
+pub const SNAP_KEYCHAIN_HINT: &str = "The snap sandbox is blocking access to the system keychain. \
+Run `sudo snap connect tabularis:password-manager-service` and restart Tabularis.";
+
+/// Converts a keyring failure into the message surfaced to the frontend.
+///
+/// Delegates to [`describe_error`] with the sandbox of the running process.
+pub fn keychain_error(err: keyring::Error) -> String {
+    describe_error(&err, sandbox::current())
+}
+
+/// Pure formatter behind [`keychain_error`].
+///
+/// A platform failure inside a snap is almost always the missing
+/// `password-manager-service` connection, so the message tells the user how
+/// to fix it instead of leaving them with a raw D-Bus/AppArmor error. Every
+/// other error keeps the keyring crate's own description.
+pub fn describe_error(err: &keyring::Error, sandbox: Option<Sandbox>) -> String {
+    let message = err.to_string();
+    match (err, sandbox) {
+        (keyring::Error::PlatformFailure(_), Some(Sandbox::Snap)) => {
+            format!("{message}. {SNAP_KEYCHAIN_HINT}")
+        }
+        _ => message,
+    }
+}
 
 pub fn set_db_password(connection_id: &str, password: &str) -> Result<(), String> {
     eprintln!("[Keychain] Setting DB password for {}", connection_id);
@@ -8,7 +41,7 @@ pub fn set_db_password(connection_id: &str, password: &str) -> Result<(), String
         Entry::new(SERVICE_NAME, &format!("{}:db", connection_id)).map_err(|e| e.to_string())?;
     entry.set_password(password).map_err(|e| {
         eprintln!("[Keychain] Error setting password: {}", e);
-        e.to_string()
+        keychain_error(e)
     })
 }
 
@@ -33,7 +66,7 @@ pub fn get_db_password(connection_id: &str, connection_name: &str) -> Result<Str
                 "[Keychain] Error getting password for {}: {}",
                 connection_id, e
             );
-            Err(e.to_string())
+            Err(keychain_error(e))
         }
     }
 }
@@ -44,20 +77,20 @@ pub fn delete_db_password(connection_id: &str) -> Result<(), String> {
     match entry.delete_credential() {
         Ok(_) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(keychain_error(e)),
     }
 }
 
 pub fn set_connection_uri(connection_id: &str, connection_uri: &str) -> Result<(), String> {
     let entry = Entry::new(SERVICE_NAME, &format!("{}:connection_uri", connection_id))
         .map_err(|e| e.to_string())?;
-    entry.set_password(connection_uri).map_err(|e| e.to_string())
+    entry.set_password(connection_uri).map_err(keychain_error)
 }
 
 pub fn get_connection_uri(connection_id: &str) -> Result<String, String> {
     let entry = Entry::new(SERVICE_NAME, &format!("{}:connection_uri", connection_id))
         .map_err(|e| e.to_string())?;
-    entry.get_password().map_err(|e| e.to_string())
+    entry.get_password().map_err(keychain_error)
 }
 
 pub fn delete_connection_uri(connection_id: &str) -> Result<(), String> {
@@ -65,7 +98,7 @@ pub fn delete_connection_uri(connection_id: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     match entry.delete_credential() {
         Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(keychain_error(e)),
     }
 }
 
@@ -75,7 +108,7 @@ pub fn set_ssh_password(connection_id: &str, password: &str) -> Result<(), Strin
         Entry::new(SERVICE_NAME, &format!("{}:ssh", connection_id)).map_err(|e| e.to_string())?;
     entry.set_password(password).map_err(|e| {
         eprintln!("[Keychain] Error setting SSH password: {}", e);
-        e.to_string()
+        keychain_error(e)
     })
 }
 
@@ -100,7 +133,7 @@ pub fn get_ssh_password(connection_id: &str, connection_name: &str) -> Result<St
                 "[Keychain] Error getting SSH password for {}: {}",
                 connection_id, e
             );
-            Err(e.to_string())
+            Err(keychain_error(e))
         }
     }
 }
@@ -111,7 +144,7 @@ pub fn delete_ssh_password(connection_id: &str) -> Result<(), String> {
     match entry.delete_credential() {
         Ok(_) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(keychain_error(e)),
     }
 }
 
@@ -124,7 +157,7 @@ pub fn set_ssh_key_passphrase(connection_id: &str, passphrase: &str) -> Result<(
         .map_err(|e| e.to_string())?;
     entry.set_password(passphrase).map_err(|e| {
         eprintln!("[Keychain] Error setting SSH key passphrase: {}", e);
-        e.to_string()
+        keychain_error(e)
     })
 }
 
@@ -155,7 +188,7 @@ pub fn get_ssh_key_passphrase(
                 "[Keychain] Error getting SSH key passphrase for {}: {}",
                 connection_id, e
             );
-            Err(e.to_string())
+            Err(keychain_error(e))
         }
     }
 }
@@ -166,7 +199,7 @@ pub fn delete_ssh_key_passphrase(connection_id: &str) -> Result<(), String> {
     match entry.delete_credential() {
         Ok(_) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(keychain_error(e)),
     }
 }
 
@@ -176,7 +209,7 @@ pub fn set_ai_key(provider: &str, key: &str) -> Result<(), String> {
         Entry::new(SERVICE_NAME, &format!("ai_key:{}", provider)).map_err(|e| e.to_string())?;
     entry.set_password(key).map_err(|e| {
         eprintln!("[Keychain] Error setting AI key: {}", e);
-        e.to_string()
+        keychain_error(e)
     })
 }
 
@@ -198,7 +231,7 @@ pub fn get_ai_key(provider: &str) -> Result<Option<String>, String> {
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => {
             eprintln!("[Keychain] Error getting AI key for {}: {}", provider, e);
-            Err(e.to_string())
+            Err(keychain_error(e))
         }
     }
 }
@@ -209,6 +242,6 @@ pub fn delete_ai_key(provider: &str) -> Result<(), String> {
     match entry.delete_credential() {
         Ok(_) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(keychain_error(e)),
     }
 }

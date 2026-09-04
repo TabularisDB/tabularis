@@ -168,7 +168,10 @@ The notes below only apply to **older releases (before v0.13.1)** downloaded dir
 
 ```bash
 sudo snap install tabularis
+sudo snap connect tabularis:password-manager-service   # allow keychain access for saved credentials
 ```
+
+The `password-manager-service` interface is not auto-connected by the Snap Store yet. Without it, saving a connection fails with a `Platform secure storage failure` error.
 
 [![Snap Store](https://img.shields.io/badge/snap-tabularis-blue?logo=snapcraft)](https://snapcraft.io/tabularis)
 
