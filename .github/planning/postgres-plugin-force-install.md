@@ -747,6 +747,33 @@ redesign:
 Shipping the next one becomes: add one list entry, one banner trigger
 condition, and new copy — not another design pass.
 
+**Correction (2026-09-04, post-review):** "additive, not a redesign" holds
+for the backend and for `useBuiltinDriverMigration` itself, but the
+frontend still carries more postgres-specific surface than the summary
+above suggests. Confirmed still true as of this note — the next
+deprecation's frontend work is a small, known list of edits, not zero:
+
+- `src/utils/connections.ts`'s `MIGRATABLE_DRIVER_PAIRS` is a second,
+  frontend-side allow-list separate from `force_install.rs`'s
+  `MIGRATABLE_DRIVERS` — both need the new pair, not just the backend one.
+- `src/utils/pluginIssueReport.ts`'s `KNOWN_PLUGIN_REPOS` needs the new
+  plugin's fallback repo URL (only exercised when the registry API is
+  unreachable, but still a hardcoded per-plugin entry).
+- `src/contexts/SettingsContext.ts`'s dismissal-tracking fields
+  (`postgresPluginMigrationBannerDismissed`,
+  `postgresPluginMigrationBannerDismissedFor`) are postgres-named, not
+  keyed by driver pair — the next deprecation needs its own pair of
+  fields (or a refactor to a keyed map before then).
+- Every `migration.*` i18n string has "PostgreSQL plugin" baked into the
+  English text (and all 10 translations) rather than interpolating a
+  driver/plugin name — the next deprecation needs its own key set, in
+  every locale, not a parameter change to the existing keys.
+
+None of this blocks postgres shipping now, and none of it needs solving
+in this PR — flagging it here (rather than leaving "additive, not a
+redesign" as the last word) so whoever picks up the mysql/sqlite
+deprecation knows the real starting scope before this doc is deleted.
+
 ### Measuring adoption
 
 No new telemetry is added — this repo has none today, and introducing
