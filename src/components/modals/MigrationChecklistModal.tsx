@@ -28,6 +28,16 @@ interface MigrationChecklistModalProps {
 
 type RowStatus = "pending" | "running" | "ok" | "connection" | "process" | "failed";
 
+/** One row's precomputed display data: the connection, its capability gaps,
+ * and whether it's URI-based — snapshotted once per open (see
+ * `candidateRows` below) rather than recomputed from the live `connections`
+ * prop on every render. */
+interface Row {
+  conn: SavedConnection;
+  gaps: UnsupportedFeature[];
+  isUriBased: boolean;
+}
+
 /** One label per `UnsupportedFeature.feature` key, translated. The util
  * itself returns hardcoded English `label` text (it has no i18n access, by
  * design — it's a pure function with no framework dependency), so the modal
@@ -73,11 +83,21 @@ export const MigrationChecklistModal = ({
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [rowStatus, setRowStatus] = useState<Record<string, RowStatus>>({});
   const [migrating, setMigrating] = useState(false);
+  // The rows actually rendered: a snapshot taken once per open (see the
+  // effect below), not the live `rows` derived from the `connections` prop.
+  // `Connections.tsx` passes `migration.builtinConnections`, which shrinks as
+  // each row's own `migrateConnection` call flips its driver — rendering
+  // straight from `rows` mid-run made a migrating/migrated row disappear
+  // from the list entirely (so its own "running"/"ok" status was never
+  // visible), shrank the visible count out from under the still-live
+  // "Migrate N selected" button, and — because `checked` kept referencing
+  // ids no longer present in `rows` — left the button enabled with a stale
+  // count that, if clicked again, would re-run `migrateConnection` (and
+  // re-append history) for connections already migrated.
+  const [candidateRows, setCandidateRows] = useState<Row[]>([]);
 
-  // Unchecked by default when the connection has any capability gap, or when
-  // it's connection-URI-based (its stored secret won't carry over — the same
-  // safety property, since the user needs to notice and act before/after
-  // migrating either way). Recomputed on the rising edge of `isOpen` (not
+  // Default-checked derivation, and the `candidateRows` snapshot the render
+  // below actually uses, both recompute on the rising edge of `isOpen` (not
   // "on every `rows` change while open") for two reasons: the parent
   // (`Connections.tsx`) always renders this component rather than
   // conditionally mounting it, so `connections`/`manifest` can still be
@@ -92,6 +112,7 @@ export const MigrationChecklistModal = ({
   const wasOpenRef = useRef(false);
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
+      setCandidateRows(rows);
       setChecked(
         new Set(rows.filter((r) => r.gaps.length === 0 && !r.isUriBased).map((r) => r.conn.id)),
       );
@@ -145,13 +166,30 @@ export const MigrationChecklistModal = ({
       // unexpected errors), but this still guards per-iteration so one
       // connection's failure can't abort the batch or leave `migrating` stuck
       // true if something outside migrateConnection's own contract throws.
-      for (const id of checked) {
+      //
+      // Iterates a copy of `checked` taken before the loop starts, not
+      // `checked` itself: the loop body below removes each id from `checked`
+      // as it completes (so the footer's live count/disabled state reflects
+      // what's actually still pending), and mutating the very collection a
+      // `for...of` is iterating is exactly the kind of thing that silently
+      // skips or repeats entries depending on the runtime.
+      for (const id of [...checked]) {
         setRowStatus((prev) => ({ ...prev, [id]: "running" }));
         try {
           const outcome = await migrateConnection(id);
           setRowStatus((prev) => ({ ...prev, [id]: outcome.status }));
         } catch {
           setRowStatus((prev) => ({ ...prev, [id]: "failed" }));
+        } finally {
+          // Drop it from `checked` once its own migration attempt is done —
+          // successful or not, it was addressed, so re-clicking "Migrate N
+          // selected" (still possible if some other row is still checked)
+          // must not attempt it again.
+          setChecked((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
         }
       }
     } finally {
@@ -178,7 +216,7 @@ export const MigrationChecklistModal = ({
                 {t("migration.checklist.title")}
               </h2>
               <p className="text-xs text-secondary">
-                {t("migration.checklist.subtitle", { count: rows.length })}
+                {t("migration.checklist.subtitle", { count: candidateRows.length })}
               </p>
             </div>
           </div>
@@ -192,10 +230,10 @@ export const MigrationChecklistModal = ({
 
         {/* Content */}
         <div className="p-6 space-y-3 overflow-y-auto">
-          {rows.length === 0 ? (
+          {candidateRows.length === 0 ? (
             <p className="text-sm text-secondary">{t("migration.checklist.noGaps")}</p>
           ) : (
-            rows.map(({ conn, gaps, isUriBased }) => {
+            candidateRows.map(({ conn, gaps, isUriBased }) => {
               const status = rowStatus[conn.id];
               return (
                 <div
