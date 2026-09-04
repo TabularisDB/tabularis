@@ -49,6 +49,10 @@ export interface MigrationOutcome {
   startupError?: string;
   /** Plugin id, needed to word/build the process-level failure and issue report. */
   pluginId?: string;
+  /** Only meaningful when status === "connection": true when a same-connection
+   * re-test against the built-in driver also failed, meaning the plugin isn't
+   * to blame — the target was never reachable in the first place. */
+  preexisting?: boolean;
 }
 
 /** Result of an undo attempt. `undoMigration` never throws either — callers
@@ -341,12 +345,32 @@ export function useBuiltinDriverMigration(
           return outcome;
         } catch (e) {
           const error = e instanceof Error ? e.message : String(e);
+
+          // The plugin test failing isn't necessarily the plugin's fault —
+          // re-test with the built-in driver, same connection_id, before
+          // blaming the plugin. `test_connection` resolves the keychain
+          // password from connection_id regardless of which driver the
+          // request claims, so this works even though the connection is
+          // already persisted on `pluginId` at this point.
+          let preexisting = false;
+          try {
+            await invoke<string>("test_connection", {
+              request: {
+                params: { ...conn?.params, driver: builtinId },
+                connection_id: connectionId,
+              },
+            });
+          } catch {
+            preexisting = true;
+          }
+
           const outcome: MigrationOutcome = {
             connectionId,
             connectionName: name,
             status: "connection",
             error,
             pluginId,
+            preexisting,
           };
           return outcome;
         }

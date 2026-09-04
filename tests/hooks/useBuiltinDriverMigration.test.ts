@@ -302,7 +302,8 @@ describe("useBuiltinDriverMigration", () => {
       setPluginReady(true);
       databaseMock.connections = [builtinConn("c1")];
       // update_connection succeeds, the plugin is registered; only the
-      // post-migration test_connection fails.
+      // post-migration test_connection fails — for both the plugin and the
+      // built-in fallback re-test, so this is the "preexisting" case.
       vi.mocked(invoke).mockImplementation((cmd: string) => {
         if (cmd === "test_connection") return Promise.reject("connection refused");
         return mockInvokeDefault(cmd);
@@ -314,6 +315,46 @@ describe("useBuiltinDriverMigration", () => {
       });
       expect(outcome.status).toBe("connection");
       expect(outcome.error).toContain("connection refused");
+      expect(outcome.preexisting).toBe(true);
+      // Re-tested with the built-in driver, same connection_id, once the
+      // plugin test failed.
+      expect(invoke).toHaveBeenCalledWith(
+        "test_connection",
+        expect.objectContaining({
+          request: expect.objectContaining({
+            connection_id: "c1",
+            params: expect.objectContaining({ driver: "postgres" }),
+          }),
+        }),
+      );
+    });
+
+    it("sets preexisting: false when the built-in driver still connects — a real plugin regression", async () => {
+      // The plugin test fails but the built-in fallback re-test (same
+      // connection_id, same host) succeeds — this is a genuine plugin
+      // problem, not a pre-existing connectivity issue, so the fallback
+      // must not paper over it.
+      setPluginReady(true);
+      databaseMock.connections = [builtinConn("c1")];
+      vi.mocked(invoke).mockImplementation(
+        (cmd: string, args?: { request?: { params?: { driver?: string } } }) => {
+          if (cmd === "test_connection") {
+            const driver = args?.request?.params?.driver;
+            return driver === "postgres"
+              ? Promise.resolve("ok")
+              : Promise.reject("connection refused");
+          }
+          return mockInvokeDefault(cmd);
+        },
+      );
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      let outcome;
+      await act(async () => {
+        outcome = await result.current.migrateConnection("c1");
+      });
+      expect(outcome.status).toBe("connection");
+      expect(outcome.error).toContain("connection refused");
+      expect(outcome.preexisting).toBe(false);
     });
 
     it("resolves a failed outcome instead of rejecting when update_connection itself throws", async () => {

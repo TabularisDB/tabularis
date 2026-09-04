@@ -224,6 +224,20 @@ export const Connections = () => {
             actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
           },
         );
+      } else if (outcome.status === "connection" && outcome.preexisting) {
+        // The built-in driver couldn't reach this host either — not a
+        // plugin regression, so no "Report an issue" action.
+        showToast(
+          t("migration.toast.connectionFailurePreexisting", {
+            name: outcome.connectionName,
+            error: outcome.error,
+          }),
+          {
+            kind: "warning",
+            duration: 0,
+            actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
+          },
+        );
       } else if (outcome.status === "connection") {
         showToast(
           t("migration.toast.connectionFailure", {
