@@ -57,6 +57,12 @@ export interface SqlContextInfo {
    * like `WHERE (...)` are not statement scopes and do not narrow it.
    */
   statementStart: number;
+  /**
+   * Most relevant table name or alias referenced before the cursor in the
+   * current statement scope: the table being joined in an ON clause, or the
+   * primary FROM table in a WHERE / other clause.
+   */
+  lastTableRef?: string | null;
 }
 
 export interface SuggestionKinds {
@@ -173,7 +179,7 @@ const KEYWORDS = new Set([
   'VALUES', 'VALUE', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'UNION',
   'INTERSECT', 'EXCEPT', 'MINUS', 'CREATE', 'DROP', 'ALTER', 'TRUNCATE',
   'TABLE', 'VIEW', 'INDEX', 'IF', 'RETURNING', 'WITH', 'OVER', 'WINDOW',
-  'ASC', 'DESC', 'RECURSIVE',
+  'ASC', 'DESC', 'RECURSIVE', 'REPLACE', 'STRAIGHT_JOIN',
 ]);
 
 interface Frame {
@@ -185,7 +191,27 @@ interface Frame {
   // True once the frame is known to hold its own statement (a SELECT/INSERT/
   // UPDATE/DELETE was seen directly in it) rather than a plain expression.
   isStatement: boolean;
+  fromTableRef: string | null;
+  currentJoinTableRef: string | null;
+  lastTableRef: string | null;
+  awaitingAlias: boolean;
 }
+
+const createFrame = (
+  clause: SqlClause,
+  contentStart: number,
+  isStatement: boolean,
+  parentFrame?: Frame,
+): Frame => ({
+  clause,
+  caseSaved: [],
+  contentStart,
+  isStatement,
+  fromTableRef: isStatement ? null : (parentFrame?.fromTableRef ?? null),
+  currentJoinTableRef: isStatement ? null : (parentFrame?.currentJoinTableRef ?? null),
+  lastTableRef: isStatement ? null : (parentFrame?.lastTableRef ?? null),
+  awaitingAlias: false,
+});
 
 interface WordToken {
   upper: string;
@@ -194,6 +220,50 @@ interface WordToken {
 
 const isWordChar = (ch: string): boolean => /[A-Za-z0-9_$]/.test(ch);
 
+const recordIdentifier = (frame: Frame, ident: string, isQualifier: boolean): void => {
+  if (frame.clause === 'from') {
+    if (!frame.fromTableRef || isQualifier) {
+      frame.fromTableRef = ident;
+      frame.lastTableRef = ident;
+      frame.awaitingAlias = true;
+    } else if (frame.awaitingAlias) {
+      frame.fromTableRef = ident;
+      frame.lastTableRef = ident;
+      frame.awaitingAlias = false;
+    } else {
+      frame.lastTableRef = ident;
+      frame.awaitingAlias = true;
+    }
+  } else if (frame.clause === 'join') {
+    if (!frame.currentJoinTableRef || isQualifier) {
+      frame.currentJoinTableRef = ident;
+      frame.lastTableRef = ident;
+      frame.awaitingAlias = true;
+    } else if (frame.awaitingAlias) {
+      frame.currentJoinTableRef = ident;
+      frame.lastTableRef = ident;
+      frame.awaitingAlias = false;
+    } else {
+      frame.lastTableRef = ident;
+    }
+  } else if (frame.clause === 'update') {
+    if (!frame.fromTableRef || isQualifier) {
+      frame.fromTableRef = ident;
+      frame.lastTableRef = ident;
+      frame.awaitingAlias = true;
+    } else if (frame.awaitingAlias) {
+      frame.fromTableRef = ident;
+      frame.lastTableRef = ident;
+      frame.awaitingAlias = false;
+    }
+  } else if (frame.clause === 'insert-into') {
+    if (!frame.fromTableRef || isQualifier) {
+      frame.fromTableRef = ident;
+      frame.lastTableRef = ident;
+    }
+  }
+};
+
 // Applies one keyword to the innermost frame. Words that are not clause
 // keywords (identifiers, no-op keywords like AND/NOT) leave the clause as-is.
 const applyWord = (frame: Frame, upper: string, prev: WordToken | null): void => {
@@ -201,59 +271,117 @@ const applyWord = (frame: Frame, upper: string, prev: WordToken | null): void =>
     case 'SELECT':
       frame.clause = 'select';
       frame.isStatement = true;
+      frame.fromTableRef = null;
+      frame.currentJoinTableRef = null;
+      frame.lastTableRef = null;
+      frame.awaitingAlias = false;
       break;
-    case 'FROM': frame.clause = 'from'; break;
+    case 'FROM':
+      frame.clause = 'from';
+      frame.awaitingAlias = false;
+      break;
     case 'JOIN':
-    case 'STRAIGHT_JOIN': frame.clause = 'join'; break;
-    case 'ON': frame.clause = 'on'; break;
-    case 'USING': frame.clause = 'using'; break;
-    case 'WHERE': frame.clause = 'where'; break;
-    case 'BY':
-      if (prev?.upper === 'GROUP') frame.clause = 'group-by';
-      else if (prev?.upper === 'ORDER') frame.clause = 'order-by';
-      else if (prev?.upper === 'PARTITION') frame.clause = 'window';
+    case 'STRAIGHT_JOIN':
+      frame.clause = 'join';
+      frame.currentJoinTableRef = null;
+      frame.awaitingAlias = false;
       break;
-    case 'HAVING': frame.clause = 'having'; break;
+    case 'ON':
+      frame.clause = 'on';
+      frame.awaitingAlias = false;
+      break;
+    case 'USING':
+      frame.clause = 'using';
+      frame.awaitingAlias = false;
+      break;
+    case 'WHERE':
+      frame.clause = 'where';
+      frame.awaitingAlias = false;
+      break;
+    case 'BY':
+      if (prev?.upper === 'GROUP') { frame.clause = 'group-by'; frame.awaitingAlias = false; }
+      else if (prev?.upper === 'ORDER') { frame.clause = 'order-by'; frame.awaitingAlias = false; }
+      else if (prev?.upper === 'PARTITION') { frame.clause = 'window'; frame.awaitingAlias = false; }
+      break;
+    case 'HAVING':
+      frame.clause = 'having';
+      frame.awaitingAlias = false;
+      break;
     case 'LIMIT':
     case 'OFFSET':
-    case 'FETCH': frame.clause = 'limit'; break;
+    case 'FETCH':
+      frame.clause = 'limit';
+      frame.awaitingAlias = false;
+      break;
     case 'UPDATE':
       // FOR UPDATE (locking) and ON DUPLICATE KEY UPDATE are not statements.
       if (prev?.upper === 'FOR' || prev?.upper === 'KEY') break;
       frame.clause = 'update';
       frame.isStatement = true;
+      frame.fromTableRef = null;
+      frame.currentJoinTableRef = null;
+      frame.lastTableRef = null;
+      frame.awaitingAlias = false;
       break;
-    case 'SET': frame.clause = 'set'; break;
+    case 'SET':
+      frame.clause = 'set';
+      frame.awaitingAlias = false;
+      break;
     case 'DELETE':
       frame.clause = 'delete';
       frame.isStatement = true;
+      frame.fromTableRef = null;
+      frame.currentJoinTableRef = null;
+      frame.lastTableRef = null;
+      frame.awaitingAlias = false;
       break;
     case 'INSERT':
     case 'REPLACE':
       frame.clause = 'insert-into';
       frame.isStatement = true;
+      frame.fromTableRef = null;
+      frame.currentJoinTableRef = null;
+      frame.lastTableRef = null;
+      frame.awaitingAlias = false;
       break;
-    case 'INTO': frame.clause = 'insert-into'; break;
+    case 'INTO':
+      frame.clause = 'insert-into';
+      frame.awaitingAlias = false;
+      break;
     case 'VALUES':
-    case 'VALUE': frame.clause = 'values'; break;
+    case 'VALUE':
+      frame.clause = 'values';
+      frame.awaitingAlias = false;
+      break;
+    case 'AS':
+      if (frame.clause === 'from' || frame.clause === 'join' || frame.clause === 'update') {
+        frame.awaitingAlias = true;
+      }
+      break;
     case 'CASE':
       frame.caseSaved.push(frame.clause);
       frame.clause = 'case';
+      frame.awaitingAlias = false;
       break;
     case 'END':
       frame.clause = frame.caseSaved.pop() ?? frame.clause;
+      frame.awaitingAlias = false;
       break;
     case 'UNION':
     case 'INTERSECT':
     case 'EXCEPT':
-    case 'MINUS': frame.clause = 'union'; break;
-    case 'CREATE': frame.clause = 'create'; break;
-    case 'DROP': frame.clause = 'drop'; break;
-    case 'ALTER': frame.clause = 'alter'; break;
-    case 'TRUNCATE': frame.clause = 'truncate'; break;
-    case 'RETURNING': frame.clause = 'returning'; break;
-    case 'WITH': frame.clause = 'with'; break;
-    default: break;
+    case 'MINUS':
+      frame.clause = 'union';
+      frame.awaitingAlias = false;
+      break;
+    case 'CREATE': frame.clause = 'create'; frame.awaitingAlias = false; break;
+    case 'DROP': frame.clause = 'drop'; frame.awaitingAlias = false; break;
+    case 'ALTER': frame.clause = 'alter'; frame.awaitingAlias = false; break;
+    case 'TRUNCATE': frame.clause = 'truncate'; frame.awaitingAlias = false; break;
+    case 'RETURNING': frame.clause = 'returning'; frame.awaitingAlias = false; break;
+    case 'WITH': frame.clause = 'with'; frame.awaitingAlias = false; break;
+    default:
+      break;
   }
 };
 
@@ -286,11 +414,12 @@ const openFrameClause = (outer: Frame, prev: WordToken | null): SqlClause => {
  */
 export const analyzeSqlContext = (textBeforeCursor: string): SqlContextInfo => {
   // The root frame is always a statement scope.
-  let stack: Frame[] = [{ clause: 'start', caseSaved: [], contentStart: 0, isStatement: true }];
+  let stack: Frame[] = [createFrame('start', 0, true)];
   let stringDelim: '\'' | null = null;
   let inLineComment = false;
   let inBlockComment = false;
   let prev: WordToken | null = null;
+  let isAfterDot = false;
 
   const s = textBeforeCursor;
   const n = s.length;
@@ -301,10 +430,17 @@ export const analyzeSqlContext = (textBeforeCursor: string): SqlContextInfo => {
 
   const flushWord = (end: number): void => {
     if (wordStart < 0) return;
-    const upper = s.slice(wordStart, end).toUpperCase();
+    const raw = s.slice(wordStart, end);
+    const upper = raw.toUpperCase();
     wordStart = -1;
-    applyWord(top(), upper, prev);
-    prev = { upper, isKeyword: KEYWORDS.has(upper) };
+    const isKeyword = KEYWORDS.has(upper);
+    if (isKeyword) {
+      applyWord(top(), upper, prev);
+    } else {
+      recordIdentifier(top(), raw, isAfterDot);
+    }
+    isAfterDot = false;
+    prev = { upper, isKeyword };
   };
 
   while (i < n) {
@@ -335,16 +471,20 @@ export const analyzeSqlContext = (textBeforeCursor: string): SqlContextInfo => {
     if (ch === '"' || ch === '`' || ch === '[') {
       flushWord(i);
       const close = ch === '[' ? ']' : ch;
+      const start = i + 1;
       i++;
       while (i < n && s[i] !== close) i++;
+      const raw = s.slice(start, i);
       if (i < n) i++; // skip the closing delimiter when present
-      prev = { upper: '', isKeyword: false };
+      recordIdentifier(top(), raw, isAfterDot);
+      isAfterDot = false;
+      prev = { upper: raw.toUpperCase(), isKeyword: false };
       continue;
     }
 
-    if (ch === '\'') { flushWord(i); stringDelim = '\''; prev = null; i++; continue; }
-    if (ch === '-' && s[i + 1] === '-') { flushWord(i); inLineComment = true; i += 2; continue; }
-    if (ch === '/' && s[i + 1] === '*') { flushWord(i); inBlockComment = true; i += 2; continue; }
+    if (ch === '\'') { flushWord(i); stringDelim = '\''; prev = null; isAfterDot = false; i++; continue; }
+    if (ch === '-' && s[i + 1] === '-') { flushWord(i); inLineComment = true; isAfterDot = false; i += 2; continue; }
+    if (ch === '/' && s[i + 1] === '*') { flushWord(i); inBlockComment = true; isAfterDot = false; i += 2; continue; }
 
     if (isWordChar(ch)) {
       if (wordStart < 0) wordStart = i;
@@ -355,25 +495,28 @@ export const analyzeSqlContext = (textBeforeCursor: string): SqlContextInfo => {
     flushWord(i);
 
     if (ch === '(') {
-      stack.push({
-        clause: openFrameClause(top(), prev),
-        caseSaved: [],
-        contentStart: i + 1,
-        isStatement: false,
-      });
+      const nextClause = openFrameClause(top(), prev);
+      const isSubStatement = nextClause === 'start';
+      stack.push(createFrame(nextClause, i + 1, isSubStatement, top()));
       prev = null;
+      isAfterDot = false;
     } else if (ch === ')') {
       if (stack.length > 1) stack.pop();
       prev = null;
+      isAfterDot = false;
     } else if (ch === ';') {
-      stack = [{ clause: 'start', caseSaved: [], contentStart: i + 1, isStatement: true }];
+      stack = [createFrame('start', i + 1, true)];
       prev = null;
-    } else if (ch === '.' || /\s/.test(ch)) {
-      // Whitespace and the qualifier dot keep the previous word visible so
+      isAfterDot = false;
+    } else if (ch === '.') {
+      isAfterDot = true;
+    } else if (/\s/.test(ch)) {
+      // Whitespace keeps the previous word visible so
       // two-word keywords (GROUP BY) and `name (` detection keep working.
     } else {
       // Operators, commas, etc. end any identifier context.
       prev = null;
+      isAfterDot = false;
     }
     i++;
   }
@@ -389,12 +532,22 @@ export const analyzeSqlContext = (textBeforeCursor: string): SqlContextInfo => {
     }
   }
 
+  const currentFrame = top();
+  let resolvedLastTableRef: string | null = null;
+  if (currentFrame.clause === 'on' || currentFrame.clause === 'using') {
+    resolvedLastTableRef =
+      currentFrame.currentJoinTableRef ?? currentFrame.lastTableRef ?? currentFrame.fromTableRef ?? null;
+  } else {
+    resolvedLastTableRef = currentFrame.fromTableRef ?? currentFrame.lastTableRef ?? null;
+  }
+
   return {
-    clause: top().clause,
+    clause: currentFrame.clause,
     inString: stringDelim !== null,
     inComment: inLineComment || inBlockComment,
     nestingLevel: stack.length - 1,
     statementStart,
+    lastTableRef: resolvedLastTableRef,
   };
 };
 
