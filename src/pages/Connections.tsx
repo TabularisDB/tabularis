@@ -1514,22 +1514,24 @@ export const Connections = () => {
         onClose={() => setIsImportAppModalOpen(false)}
         onImported={() => void loadConnections()}
       />
-      <MigrationChecklistModal
-        isOpen={isMigrationChecklistOpen}
-        onClose={() => setIsMigrationChecklistOpen(false)}
-        connections={migration.builtinConnections}
-        manifest={allDrivers.find((d) => d.id === migration.pluginId)}
-        repoUrl={resolvePluginRepoUrl(
-          migration.pluginId,
-          catalogueRegistry.find((p) => p.id === migration.pluginId)?.repo_url,
-        )}
-        pluginVersion={
-          installedPlugins.find((p) => p.id === migration.pluginId)?.version ??
-          catalogueRegistry.find((p) => p.id === migration.pluginId)?.installed_version ??
-          "unknown"
-        }
-        migrateConnection={migration.migrateConnection}
-      />
+      {isMigrationChecklistOpen && (
+        <MigrationChecklistModal
+          isOpen={isMigrationChecklistOpen}
+          onClose={() => setIsMigrationChecklistOpen(false)}
+          connections={migration.builtinConnections}
+          manifest={allDrivers.find((d) => d.id === migration.pluginId)}
+          repoUrl={resolvePluginRepoUrl(
+            migration.pluginId,
+            catalogueRegistry.find((p) => p.id === migration.pluginId)?.repo_url,
+          )}
+          pluginVersion={
+            installedPlugins.find((p) => p.id === migration.pluginId)?.version ??
+            catalogueRegistry.find((p) => p.id === migration.pluginId)?.installed_version ??
+            "unknown"
+          }
+          migrateConnection={migration.migrateConnection}
+        />
+      )}
       <ConfirmModal
         isOpen={confirmModal !== null}
         onClose={() => setConfirmModal(null)}

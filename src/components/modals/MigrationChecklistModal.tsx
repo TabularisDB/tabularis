@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { X, ArrowLeftRight, Check, Loader2, AlertTriangle, ExternalLink } from "lucide-react";
@@ -29,13 +29,26 @@ interface MigrationChecklistModalProps {
 type RowStatus = "pending" | "running" | "ok" | "connection" | "process" | "failed";
 
 /** One row's precomputed display data: the connection, its capability gaps,
- * and whether it's URI-based — snapshotted once per open (see
- * `candidateRows` below) rather than recomputed from the live `connections`
- * prop on every render. */
+ * and whether it's URI-based. */
 interface Row {
   conn: SavedConnection;
   gaps: UnsupportedFeature[];
   isUriBased: boolean;
+}
+
+function deriveRows(connections: SavedConnection[], manifest: PluginManifest | undefined): Row[] {
+  return connections.map((conn) => ({
+    conn,
+    gaps: manifest ? findUnsupportedFeatures(conn.params, manifest) : [],
+    isUriBased: conn.params.connection_uri_in_keychain === true,
+  }));
+}
+
+/** Ids unchecked by default: any capability gap, or connection-URI-based
+ * (its stored secret won't carry over — the same safety property, since the
+ * user needs to notice and act before/after migrating either way). */
+function defaultChecked(rows: Row[]): Set<string> {
+  return new Set(rows.filter((r) => r.gaps.length === 0 && !r.isUriBased).map((r) => r.conn.id));
 }
 
 /** One label per `UnsupportedFeature.feature` key, translated. The util
@@ -70,57 +83,26 @@ export const MigrationChecklistModal = ({
   const gapLabel = useGapLabel();
   const { settings, updateSetting } = useSettings();
 
-  const rows = useMemo(
-    () =>
-      connections.map((conn) => ({
-        conn,
-        gaps: manifest ? findUnsupportedFeatures(conn.params, manifest) : [],
-        isUriBased: conn.params.connection_uri_in_keychain === true,
-      })),
-    [connections, manifest],
-  );
-
-  const [checked, setChecked] = useState<Set<string>>(new Set());
+  // `Connections.tsx` conditionally mounts this component
+  // ({isMigrationChecklistOpen && <MigrationChecklistModal ... />}), so every
+  // one of these initializers genuinely runs once per open — no rising-edge
+  // effect needed to re-derive them, and no risk of freezing on stale
+  // `connections`/`manifest` from before the modal existed: the "Review
+  // connections" link that opens it only ever renders once the banner has
+  // resolved to the "nudge" variant, which itself requires `needsMigration`
+  // (`connections` loaded) and `pluginReady` (manifest loaded) to be true —
+  // so there's no route to `isOpen` turning true before this data exists.
+  //
+  // `candidateRows` is still snapshotted independently of the live
+  // `connections` prop (not derived with useMemo on every render): a
+  // migration in progress calls loadConnections() internally, which shrinks
+  // `connections` mid-run — deriving rows straight from that prop would make
+  // a migrating/migrated row disappear from the list before its own
+  // "running"/"ok" status was ever visible.
+  const [candidateRows] = useState<Row[]>(() => deriveRows(connections, manifest));
+  const [checked, setChecked] = useState<Set<string>>(() => defaultChecked(candidateRows));
   const [rowStatus, setRowStatus] = useState<Record<string, RowStatus>>({});
   const [migrating, setMigrating] = useState(false);
-  // The rows actually rendered: a snapshot taken once per open (see the
-  // effect below), not the live `rows` derived from the `connections` prop.
-  // `Connections.tsx` passes `migration.builtinConnections`, which shrinks as
-  // each row's own `migrateConnection` call flips its driver — rendering
-  // straight from `rows` mid-run made a migrating/migrated row disappear
-  // from the list entirely (so its own "running"/"ok" status was never
-  // visible), shrank the visible count out from under the still-live
-  // "Migrate N selected" button, and — because `checked` kept referencing
-  // ids no longer present in `rows` — left the button enabled with a stale
-  // count that, if clicked again, would re-run `migrateConnection` (and
-  // re-append history) for connections already migrated.
-  const [candidateRows, setCandidateRows] = useState<Row[]>([]);
-
-  // Default-checked derivation, and the `candidateRows` snapshot the render
-  // below actually uses, both recompute on the rising edge of `isOpen` (not
-  // "on every `rows` change while open") for two reasons: the parent
-  // (`Connections.tsx`) always renders this component rather than
-  // conditionally mounting it, so `connections`/`manifest` can still be
-  // loading — undefined manifest, empty connections — at the moment `isOpen`
-  // first turns true; re-deriving from the latest `rows` right as it flips
-  // picks up that data once it lands instead of freezing on whatever was
-  // true at mount. And gating strictly on the edge (not just "isOpen &&
-  // deps changed") avoids wiping a user's manual checkbox toggles mid-session
-  // if `rows` shifts for an unrelated reason while the modal stays open —
-  // e.g. a connection dropping out of `connections` as soon as it migrates,
-  // partway through a bulk "Migrate N selected" run.
-  const wasOpenRef = useRef(false);
-  useEffect(() => {
-    if (isOpen && !wasOpenRef.current) {
-      setCandidateRows(rows);
-      setChecked(
-        new Set(rows.filter((r) => r.gaps.length === 0 && !r.isUriBased).map((r) => r.conn.id)),
-      );
-      setRowStatus({});
-      setMigrating(false);
-    }
-    wasOpenRef.current = isOpen;
-  }, [isOpen, rows]);
 
   if (!isOpen) return null;
 

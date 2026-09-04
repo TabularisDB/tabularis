@@ -72,30 +72,21 @@ describe("MigrationChecklistModal", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  describe("cold start: data arrives after the modal first opens", () => {
-    // Connections.tsx always renders this component (isOpen just toggles
-    // visibility, it never conditionally mounts/unmounts it), so on a cold
-    // start `isOpen` can flip true before loadConnections()/useDrivers()
-    // have resolved. The default-selection logic must key off the rising
-    // edge of `isOpen` and re-derive once fresh `rows` land, not freeze on
-    // whatever (nothing) was true when the component first mounted.
-    it("checks a clean connection once data arrives, instead of staying stuck unchecked", () => {
+  describe("mounts fresh with whatever data it's given", () => {
+    // Connections.tsx conditionally mounts this component
+    // ({isMigrationChecklistOpen && <MigrationChecklistModal ... />}), so
+    // every mount is a genuine cold start with real props already in hand —
+    // the "Review connections" link that mounts it only renders once the
+    // banner has resolved to "nudge", which itself requires connections and
+    // the plugin manifest to have already loaded. A plain useState
+    // initializer is enough; there's no route to mounting before that data
+    // exists, so no rising-edge-of-isOpen effect is needed to re-derive
+    // anything after the fact.
+    it("checks a clean connection immediately on mount", () => {
       const manifest = makeManifest({ supports_ssl: true, connection_uri: true });
       const cleanConn = makeConn("c1", "Clean Connection");
 
-      const { rerender } = render(
-        <MigrationChecklistModal
-          isOpen={false}
-          onClose={onClose}
-          connections={[]}
-          manifest={undefined}
-          repoUrl={undefined}
-          pluginVersion="1.0.0"
-          migrateConnection={migrateConnection}
-        />,
-      );
-
-      rerender(
+      render(
         <MigrationChecklistModal
           isOpen
           onClose={onClose}
@@ -115,7 +106,7 @@ describe("MigrationChecklistModal", () => {
       // A connection dropping out of `connections` as it migrates (during a
       // bulk run) must not make its row disappear, and must not reset the
       // checked state for the remaining rows — candidateRows is a snapshot
-      // taken once at open, independent of later `connections` prop churn.
+      // taken once at mount, independent of later `connections` prop churn.
       const manifest = makeManifest({ supports_ssl: true, connection_uri: true });
       const conns = [makeConn("c1", "Conn 1"), makeConn("c2", "Conn 2")];
 
@@ -158,11 +149,11 @@ describe("MigrationChecklistModal", () => {
       expect(checkboxesAfter[1]).not.toBeChecked();
     });
 
-    it("re-derives a fresh default selection on the next open after closing", () => {
+    it("derives a fresh default selection on each new mount", () => {
       const manifest = makeManifest({ supports_ssl: true, connection_uri: true });
       const conn = makeConn("c1", "Conn 1");
 
-      const { rerender } = render(
+      const { unmount } = render(
         <MigrationChecklistModal
           isOpen
           onClose={onClose}
@@ -176,18 +167,11 @@ describe("MigrationChecklistModal", () => {
       fireEvent.click(screen.getByRole("checkbox")); // user unchecks it
       expect(screen.getByRole("checkbox")).not.toBeChecked();
 
-      rerender(
-        <MigrationChecklistModal
-          isOpen={false}
-          onClose={onClose}
-          connections={[conn]}
-          manifest={manifest}
-          repoUrl="https://github.com/TabularisDB/tabularis-postgresql-plugin"
-          pluginVersion="1.0.0"
-          migrateConnection={migrateConnection}
-        />,
-      );
-      rerender(
+      // Closing unmounts the component (Connections.tsx's conditional
+      // render), and reopening mounts a brand-new instance — the same
+      // lifecycle transition `{isMigrationChecklistOpen && <... />}` performs.
+      unmount();
+      render(
         <MigrationChecklistModal
           isOpen
           onClose={onClose}
