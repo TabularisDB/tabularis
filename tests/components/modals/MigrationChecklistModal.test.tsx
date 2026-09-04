@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { MigrationChecklistModal } from "../../../src/components/modals/MigrationChecklistModal";
 import type { SavedConnection } from "../../../src/contexts/DatabaseContext";
 import type { PluginManifest } from "../../../src/types/plugins";
@@ -475,6 +475,91 @@ describe("MigrationChecklistModal", () => {
         />,
       );
       expect(screen.getByText(/migration\.checklist\.migrateSelected/).closest("button")).toBeDisabled();
+    });
+  });
+
+  describe("in-progress feedback", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("shows a testing-connection label only once a running row has been pending a few seconds", async () => {
+      vi.useFakeTimers();
+      const manifest = makeManifest({ supports_ssl: true, connection_uri: true });
+      const conn = makeConn("c1", "Conn 1");
+      let resolveMigration: (outcome: MigrationOutcome) => void = () => {};
+      migrateConnection = vi.fn(
+        () =>
+          new Promise<MigrationOutcome>((resolve) => {
+            resolveMigration = resolve;
+          }),
+      );
+      render(
+        <MigrationChecklistModal
+          isOpen
+          onClose={onClose}
+          connections={[conn]}
+          manifest={manifest}
+          repoUrl="https://github.com/TabularisDB/tabularis-postgresql-plugin"
+          pluginVersion="1.0.0"
+          migrateConnection={migrateConnection}
+        />,
+      );
+
+      fireEvent.click(screen.getByText(/migration\.checklist\.migrateSelected/));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(migrateConnection).toHaveBeenCalledTimes(1);
+
+      // Not yet — the row only just started running.
+      expect(screen.queryByText("migration.checklist.testing")).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(screen.getByText("migration.checklist.testing")).toBeInTheDocument();
+
+      await act(async () => {
+        resolveMigration(outcomeFor("c1"));
+        await Promise.resolve();
+      });
+    });
+
+    it("shows the migrating notice in the footer only while the batch is running", async () => {
+      const manifest = makeManifest({ supports_ssl: true, connection_uri: true });
+      const conn = makeConn("c1", "Conn 1");
+      let resolveMigration: (outcome: MigrationOutcome) => void = () => {};
+      migrateConnection = vi.fn(
+        () =>
+          new Promise<MigrationOutcome>((resolve) => {
+            resolveMigration = resolve;
+          }),
+      );
+      render(
+        <MigrationChecklistModal
+          isOpen
+          onClose={onClose}
+          connections={[conn]}
+          manifest={manifest}
+          repoUrl="https://github.com/TabularisDB/tabularis-postgresql-plugin"
+          pluginVersion="1.0.0"
+          migrateConnection={migrateConnection}
+        />,
+      );
+      expect(screen.queryByText("migration.checklist.migratingNotice")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByText(/migration\.checklist\.migrateSelected/));
+      await waitFor(() => expect(migrateConnection).toHaveBeenCalledTimes(1));
+      expect(screen.getByText("migration.checklist.migratingNotice")).toBeInTheDocument();
+
+      await act(async () => {
+        resolveMigration(outcomeFor("c1"));
+        await Promise.resolve();
+      });
+      await waitFor(() =>
+        expect(screen.queryByText("migration.checklist.migratingNotice")).not.toBeInTheDocument(),
+      );
     });
   });
 

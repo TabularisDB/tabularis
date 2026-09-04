@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { X, ArrowLeftRight, Check, Loader2, AlertTriangle, ExternalLink } from "lucide-react";
@@ -27,6 +27,11 @@ interface MigrationChecklistModalProps {
 }
 
 type RowStatus = "pending" | "running" | "ok" | "connection" | "process" | "failed";
+
+/** How long a row stays "running" before the checklist admits it's actually
+ * waiting on a connection test — a hung test can take up to the plugin call
+ * timeout (120s), so the bare spinner alone reads as stuck long before then. */
+const TESTING_INDICATOR_DELAY_MS = 3000;
 
 /** One row's precomputed display data: the connection, its capability gaps,
  * and whether it's URI-based. */
@@ -103,6 +108,18 @@ export const MigrationChecklistModal = ({
   const [checked, setChecked] = useState<Set<string>>(() => defaultChecked(candidateRows));
   const [rowStatus, setRowStatus] = useState<Record<string, RowStatus>>({});
   const [migrating, setMigrating] = useState(false);
+  // Ids currently past TESTING_INDICATOR_DELAY_MS into their "running" state
+  // — drives the "Testing connection…" label so a long test doesn't read as
+  // a stuck spinner.
+  const [testingIds, setTestingIds] = useState<Set<string>>(new Set());
+  const testingTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(() => {
+    const timers = testingTimers.current;
+    return () => {
+      Object.values(timers).forEach(clearTimeout);
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -157,12 +174,22 @@ export const MigrationChecklistModal = ({
       // skips or repeats entries depending on the runtime.
       for (const id of [...checked]) {
         setRowStatus((prev) => ({ ...prev, [id]: "running" }));
+        testingTimers.current[id] = setTimeout(() => {
+          setTestingIds((prev) => new Set(prev).add(id));
+        }, TESTING_INDICATOR_DELAY_MS);
         try {
           const outcome = await migrateConnection(id);
           setRowStatus((prev) => ({ ...prev, [id]: outcome.status }));
         } catch {
           setRowStatus((prev) => ({ ...prev, [id]: "failed" }));
         } finally {
+          clearTimeout(testingTimers.current[id]);
+          delete testingTimers.current[id];
+          setTestingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
           // Drop it from `checked` once its own migration attempt is done —
           // successful or not, it was addressed, so re-clicking "Migrate N
           // selected" (still possible if some other row is still checked)
@@ -235,7 +262,14 @@ export const MigrationChecklistModal = ({
                         {conn.name}
                       </span>
                       {status === "running" && (
-                        <Loader2 size={13} className="text-blue-400 animate-spin shrink-0" />
+                        <span className="flex items-center gap-1.5 shrink-0">
+                          <Loader2 size={13} className="text-blue-400 animate-spin" />
+                          {testingIds.has(conn.id) && (
+                            <span className="text-xs text-muted">
+                              {t("migration.checklist.testing")}
+                            </span>
+                          )}
+                        </span>
                       )}
                       {status === "ok" && (
                         <Check size={13} className="text-green-400 shrink-0" />
@@ -286,21 +320,30 @@ export const MigrationChecklistModal = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-default bg-base/50 flex justify-end gap-3">
-          <button
-            onClick={handleClose}
-            className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
-          >
-            {t("migration.checklist.close")}
-          </button>
-          <button
-            onClick={() => void handleMigrateSelected()}
-            disabled={checked.size === 0 || migrating}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-          >
-            {migrating && <Loader2 size={16} className="animate-spin" />}
-            {t("migration.checklist.migrateSelected", { count: checked.size })}
-          </button>
+        <div
+          className={`p-4 border-t border-default bg-base/50 flex items-center gap-3 ${
+            migrating ? "justify-between" : "justify-end"
+          }`}
+        >
+          {migrating && (
+            <p className="text-xs text-muted">{t("migration.checklist.migratingNotice")}</p>
+          )}
+          <div className="flex gap-3">
+            <button
+              onClick={handleClose}
+              className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
+            >
+              {t("migration.checklist.close")}
+            </button>
+            <button
+              onClick={() => void handleMigrateSelected()}
+              disabled={checked.size === 0 || migrating}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            >
+              {migrating && <Loader2 size={16} className="animate-spin" />}
+              {t("migration.checklist.migrateSelected", { count: checked.size })}
+            </button>
+          </div>
         </div>
       </div>
     </div>
