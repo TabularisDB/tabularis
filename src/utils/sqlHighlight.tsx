@@ -3,12 +3,19 @@ import { loader } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 
 let monacoInstance: typeof Monaco | null = null;
+let monacoReady: Promise<typeof Monaco> | null = null;
 
-// Initialize Monaco instance once
-const monacoReady = loader.init().then((monaco: typeof Monaco) => {
-  monacoInstance = monaco;
-  return monaco;
-});
+// Initialize Monaco once, on first use rather than at import time, so the
+// loader is guaranteed to be configured (see `src/monaco.ts`) before init runs.
+function ensureMonaco(): Promise<typeof Monaco> {
+  if (!monacoReady) {
+    monacoReady = loader.init().then((monaco: typeof Monaco) => {
+      monacoInstance = monaco;
+      return monaco;
+    });
+  }
+  return monacoReady;
+}
 
 /**
  * Uses Monaco's own colorize API to produce syntax-highlighted HTML
@@ -20,7 +27,7 @@ export function useColorizedSql(sql: string): string | null {
   useEffect(() => {
     let cancelled = false;
 
-    monacoReady.then((monaco: typeof Monaco) => {
+    ensureMonaco().then((monaco: typeof Monaco) => {
       if (cancelled) return;
       monaco.editor.colorize(sql, "sql", { tabSize: 2 }).then((result: string) => {
         if (!cancelled) setHtml(result);

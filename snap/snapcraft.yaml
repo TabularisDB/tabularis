@@ -50,8 +50,14 @@ parts:
     plugin: dump
     source: tabularis.deb
     source-type: deb
+    # WebKitGTK deliberately comes from the gnome-46-2404 platform snap, not
+    # from stage-packages. The gnome extension bind-mounts the platform's
+    # /usr/lib/<arch>/webkit2gtk-4.1 (helper processes, injected bundle)
+    # into the snap, so staging a second libwebkit2gtk-4.1 here pairs a
+    # library from one WebKitGTK release with helper processes from another.
+    # Relying on the platform keeps the whole stack version-coherent and
+    # security updates arrive through the platform snap without a rebuild.
     stage-packages:
-      - libwebkit2gtk-4.1-0
       - libayatana-appindicator3-1
 
 apps:
@@ -64,5 +70,14 @@ apps:
     plugs:
       - home
       - network
+      # Lets xdg-desktop-portal report HasNetworkStatus=true for this snap.
+      # The gnome extension sets GTK_USE_PORTAL=1, so WebKit's network
+      # process resolves proxies through the portal; without this plug the
+      # portal refuses with "This call is not available inside the sandbox"
+      # and every request made by the WebView itself fails.
+      - network-status
       - opengl
+      # Not auto-connected by default: saving connection credentials needs
+      # `sudo snap connect tabularis:password-manager-service` until the
+      # Snap Store grants auto-connection for this snap.
       - password-manager-service
