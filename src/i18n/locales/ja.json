@@ -2201,6 +2201,7 @@
     "toast": {
       "success": "{{name}} を PostgreSQL プラグインに切り替えました。",
       "connectionFailure": "プラグインを使用して {{name}} に接続できませんでした: {{error}}",
+      "connectionFailurePreexisting": "{{name}} はどちらのドライバでも接続できませんでした: {{error}}。プラグインの問題ではありません — プラグインへの切り替えはそのまま維持されます。",
       "processFailureWithError": "PostgreSQL プラグインが起動しませんでした: {{error}}。これは {{name}} 固有の問題ではありません —接続は試行されませんでした。",
       "processFailure": "PostgreSQL プラグインが起動しませんでした。これは {{name}} 固有の問題ではありません —接続は試行されませんでした。",
       "failed": "{{name}} をプラグインに切り替えられませんでした: {{error}}",
@@ -2216,9 +2217,11 @@
       "migrateSelected_other": "選択した {{count}} 件を移行",
       "reportThisGap": "この問題を報告",
       "alreadyReported": "報告済み",
+      "testing": "接続をテスト中…",
       "uriWarning": "キーチェーンに保存されている接続文字列は引き継がれません —移行後に再入力が必要です。",
       "noGaps": "確認する接続はありません。",
       "close": "閉じる",
+      "migratingNotice": "このウィンドウを閉じても、移行はバックグラウンドで続行されます。",
       "gap": {
         "ssl": "SSL/TLS を使用しています。プラグインはまだ未対応です",
         "connection_uri": "接続文字列を使用しています。プラグインはまだ未対応です"

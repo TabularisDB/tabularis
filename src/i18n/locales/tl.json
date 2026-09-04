@@ -2300,6 +2300,7 @@
     "toast": {
       "success": "Na-switch ang {{name}} sa PostgreSQL plugin.",
       "connectionFailure": "Hindi makakonekta sa {{name}} gamit ang plugin: {{error}}",
+      "connectionFailurePreexisting": "Hindi makakonekta sa {{name}} gamit ang alinman sa dalawang driver: {{error}}. Hindi ito problema ng plugin — nanatili ang paglipat sa plugin.",
       "processFailureWithError": "Hindi nag-start ang PostgreSQL plugin: {{error}}. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
       "processFailure": "Hindi nag-start ang PostgreSQL plugin. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
       "failed": "Hindi ma-switch ang {{name}} sa plugin: {{error}}",
@@ -2315,9 +2316,11 @@
       "migrateSelected_other": "Ilipat ang {{count}} napili",
       "reportThisGap": "I-report ang isyung ito",
       "alreadyReported": "Na-report",
+      "testing": "Sinusubukan ang koneksyon…",
       "uriWarning": "Ang connection string na naka-imbak sa keychain ay hindi madadala — kakailanganin mong ilagay ulit ito pagkatapos lumipat.",
       "noGaps": "Walang koneksyon na susuriin.",
       "close": "Isara",
+      "migratingNotice": "Magpapatuloy ang migration kahit isara mo ang window na ito.",
       "gap": {
         "ssl": "Gumagamit ng SSL/TLS, hindi pa suportado ng plugin",
         "connection_uri": "Gumagamit ng connection string, hindi pa suportado ng plugin"

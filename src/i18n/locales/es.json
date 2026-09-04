@@ -2105,6 +2105,7 @@
     "toast": {
       "success": "Se cambió {{name}} al complemento de PostgreSQL.",
       "connectionFailure": "No se pudo conectar a {{name}} usando el complemento: {{error}}",
+      "connectionFailurePreexisting": "No se pudo conectar a {{name}} con ninguno de los dos controladores: {{error}}. No es un problema del complemento — el cambio al complemento se mantuvo.",
       "processFailureWithError": "El complemento de PostgreSQL no se inició: {{error}}. No es específico de {{name}} — no se intentó ninguna conexión.",
       "processFailure": "El complemento de PostgreSQL no se inició. No es específico de {{name}} — no se intentó ninguna conexión.",
       "failed": "No se pudo cambiar {{name}} al complemento: {{error}}",
@@ -2120,9 +2121,11 @@
       "migrateSelected_other": "Migrar {{count}} seleccionadas",
       "reportThisGap": "Reportar este problema",
       "alreadyReported": "Reportado",
+      "testing": "Probando conexión…",
       "uriWarning": "La cadena de conexión almacenada en el llavero no se transferirá — deberá volver a ingresarla después de migrar.",
       "noGaps": "No hay conexiones para revisar.",
       "close": "Cerrar",
+      "migratingNotice": "La migración continúa incluso si cierras esta ventana.",
       "gap": {
         "ssl": "Usa SSL/TLS, aún no admitido por el complemento",
         "connection_uri": "Usa una cadena de conexión, aún no admitida por el complemento"

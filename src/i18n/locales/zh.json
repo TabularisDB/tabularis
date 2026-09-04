@@ -2123,6 +2123,7 @@
     "toast": {
       "success": "已将 {{name}} 切换到 PostgreSQL 插件。",
       "connectionFailure": "无法使用插件连接到 {{name}}：{{error}}",
+      "connectionFailurePreexisting": "无法使用任一驱动程序连接到 {{name}}：{{error}}。这不是插件的问题——切换到插件的操作已保留。",
       "processFailureWithError": "PostgreSQL 插件未启动：{{error}}。这与 {{name}} 无关 —未尝试连接。",
       "processFailure": "PostgreSQL 插件未启动。这与 {{name}} 无关 —未尝试连接。",
       "failed": "无法将 {{name}} 切换到插件：{{error}}",
@@ -2138,9 +2139,11 @@
       "migrateSelected_other": "迁移已选的 {{count}} 个",
       "reportThisGap": "报告此问题",
       "alreadyReported": "已报告",
+      "testing": "正在测试连接…",
       "uriWarning": "存储在密钥链中的连接字符串不会被带过来 —迁移后需要重新输入。",
       "noGaps": "没有需要查看的连接。",
       "close": "关闭",
+      "migratingNotice": "即使关闭此窗口，迁移仍会继续。",
       "gap": {
         "ssl": "使用 SSL/TLS，插件尚不支持",
         "connection_uri": "使用连接字符串，插件尚不支持"

@@ -2234,6 +2234,7 @@
     "toast": {
       "success": "{{name}} foi alterado para o plugin do PostgreSQL.",
       "connectionFailure": "Não foi possível conectar a {{name}} usando o plugin: {{error}}",
+      "connectionFailurePreexisting": "Não foi possível conectar a {{name}} com nenhum dos drivers: {{error}}. Não é um problema do plugin — a troca para o plugin foi mantida.",
       "processFailureWithError": "O plugin do PostgreSQL não iniciou: {{error}}. Isso não é específico de {{name}} — nenhuma conexão foi tentada.",
       "processFailure": "O plugin do PostgreSQL não iniciou. Isso não é específico de {{name}} — nenhuma conexão foi tentada.",
       "failed": "Não foi possível alterar {{name}} para o plugin: {{error}}",
@@ -2249,9 +2250,11 @@
       "migrateSelected_other": "Migrar {{count}} selecionadas",
       "reportThisGap": "Reportar este problema",
       "alreadyReported": "Reportado",
+      "testing": "Testando conexão…",
       "uriWarning": "A string de conexão armazenada no chaveiro não será transferida — você precisará digitá-la novamente após a migração.",
       "noGaps": "Nenhuma conexão para revisar.",
       "close": "Fechar",
+      "migratingNotice": "A migração continua mesmo se você fechar esta janela.",
       "gap": {
         "ssl": "Usa SSL/TLS, ainda não suportado pelo plugin",
         "connection_uri": "Usa uma string de conexão, ainda não suportada pelo plugin"

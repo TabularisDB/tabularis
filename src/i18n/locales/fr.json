@@ -2261,6 +2261,7 @@
     "toast": {
       "success": "{{name}} a été basculé vers le plugin PostgreSQL.",
       "connectionFailure": "Impossible de se connecter à {{name}} avec le plugin : {{error}}",
+      "connectionFailurePreexisting": "Impossible de se connecter à {{name}} avec l'un ou l'autre pilote : {{error}}. Ce n'est pas un problème du plugin — le passage au plugin a été conservé.",
       "processFailureWithError": "Le plugin PostgreSQL n'a pas démarré : {{error}}. Cela ne concerne pas spécifiquement {{name}} — aucune connexion n'a été tentée.",
       "processFailure": "Le plugin PostgreSQL n'a pas démarré. Cela ne concerne pas spécifiquement {{name}} — aucune connexion n'a été tentée.",
       "failed": "Impossible de basculer {{name}} vers le plugin : {{error}}",
@@ -2276,9 +2277,11 @@
       "migrateSelected_other": "Migrer {{count}} sélectionnées",
       "reportThisGap": "Signaler ce problème",
       "alreadyReported": "Signalé",
+      "testing": "Test de connexion…",
       "uriWarning": "La chaîne de connexion stockée dans le trousseau ne sera pas transférée — vous devrez la ressaisir après la migration.",
       "noGaps": "Aucune connexion à examiner.",
       "close": "Fermer",
+      "migratingNotice": "La migration se poursuit même si vous fermez cette fenêtre.",
       "gap": {
         "ssl": "Utilise SSL/TLS, pas encore prise en charge par le plugin",
         "connection_uri": "Utilise une chaîne de connexion, pas encore prise en charge par le plugin"

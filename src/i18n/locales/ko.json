@@ -2234,6 +2234,7 @@
     "toast": {
       "success": "{{name}}을(를) PostgreSQL 플러그인으로 전환했습니다.",
       "connectionFailure": "플러그인을 사용하여 {{name}}에 연결할 수 없습니다: {{error}}",
+      "connectionFailurePreexisting": "{{name}}은(는) 두 드라이버 모두로 연결할 수 없습니다: {{error}}. 플러그인 문제가 아닙니다 — 플러그인으로의 전환은 유지됩니다.",
       "processFailureWithError": "PostgreSQL 플러그인이 시작되지 않았습니다: {{error}}. {{name}}에 국한된 문제가 아닙니다 —연결이 시도되지 않았습니다.",
       "processFailure": "PostgreSQL 플러그인이 시작되지 않았습니다. {{name}}에 국한된 문제가 아닙니다 —연결이 시도되지 않았습니다.",
       "failed": "{{name}}을(를) 플러그인으로 전환할 수 없습니다: {{error}}",
@@ -2249,9 +2250,11 @@
       "migrateSelected_other": "선택한 {{count}}개 마이그레이션",
       "reportThisGap": "이 문제 신고",
       "alreadyReported": "신고됨",
+      "testing": "연결 테스트 중…",
       "uriWarning": "키체인에 저장된 연결 문자열은 유지되지 않습니다 —마이그레이션 후 다시 입력해야 합니다.",
       "noGaps": "검토할 연결이 없습니다.",
       "close": "닫기",
+      "migratingNotice": "이 창을 닫아도 마이그레이션은 계속 진행됩니다.",
       "gap": {
         "ssl": "SSL/TLS를 사용하며, 플러그인에서 아직 지원되지 않음",
         "connection_uri": "연결 문자열을 사용하며, 플러그인에서 아직 지원되지 않음"

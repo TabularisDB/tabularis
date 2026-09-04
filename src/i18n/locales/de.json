@@ -2183,6 +2183,7 @@
     "toast": {
       "success": "Wechselte {{name}} zum PostgreSQL-Plugin.",
       "connectionFailure": "Verbindung zu {{name}} über das Plugin fehlgeschlagen: {{error}}",
+      "connectionFailurePreexisting": "Verbindung zu {{name}} ist mit beiden Treibern fehlgeschlagen: {{error}}. Kein Plugin-Problem — der Wechsel zum Plugin wurde trotzdem beibehalten.",
       "processFailureWithError": "Das PostgreSQL-Plugin konnte nicht gestartet werden: {{error}}. Das betrifft nicht speziell {{name}} — es wurde keine Verbindung versucht.",
       "processFailure": "Das PostgreSQL-Plugin konnte nicht gestartet werden. Das betrifft nicht speziell {{name}} — es wurde keine Verbindung versucht.",
       "failed": "{{name}} konnte nicht zum Plugin gewechselt werden: {{error}}",
@@ -2198,9 +2199,11 @@
       "migrateSelected_other": "{{count}} ausgewählte migrieren",
       "reportThisGap": "Problem melden",
       "alreadyReported": "Gemeldet",
+      "testing": "Verbindung wird getestet…",
       "uriWarning": "Die im Schlüsselbund gespeicherte Verbindungszeichenfolge wird nicht übernommen — Sie müssen sie nach der Migration erneut eingeben.",
       "noGaps": "Keine Verbindungen zu prüfen.",
       "close": "Schließen",
+      "migratingNotice": "Die Migration läuft auch nach dem Schließen dieses Fensters weiter.",
       "gap": {
         "ssl": "Verwendet SSL/TLS, vom Plugin noch nicht unterstützt",
         "connection_uri": "Verwendet eine Verbindungszeichenfolge, vom Plugin noch nicht unterstützt"
