@@ -3,10 +3,14 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { SettingsProvider } from "../../src/contexts/SettingsProvider";
 import { useSettings } from "../../src/hooks/useSettings";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type EventCallback } from "@tauri-apps/api/event";
 import React from "react";
 import type { Settings } from "../../src/contexts/SettingsContext";
 
 vi.mock("@tauri-apps/api/core");
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(),
+}));
 
 // Mock react-i18next
 const mockChangeLanguage = vi.fn();
@@ -23,10 +27,18 @@ vi.mock("react-i18next", () => ({
 }));
 
 describe("SettingsProvider", () => {
+  let eventHandlers: Record<string, EventCallback<unknown>>;
+
   beforeEach(() => {
     vi.resetAllMocks();
     mockI18n.language = "en";
     localStorage.clear();
+
+    eventHandlers = {};
+    vi.mocked(listen).mockImplementation((event, handler) => {
+      eventHandlers[event as string] = handler as EventCallback<unknown>;
+      return Promise.resolve(() => {});
+    });
 
     // Default mock for invoke
     vi.mocked(invoke).mockImplementation((cmd: string) => {
@@ -373,6 +385,45 @@ describe("SettingsProvider", () => {
     });
   });
 
+  it("resolves an updater-function value against the current setting, not a stale render's snapshot", async () => {
+    // The bug this guards: a caller that reads `settings.foo` once and
+    // reuses that snapshot across several `updateSetting` calls made in a
+    // tight sequence (e.g. useBuiltinDriverMigration's bulk-migration loop
+    // appending one history record per connection) would have every write
+    // but the last silently discard the ones before it. The updater form
+    // must resolve against `prev` inside setSettings's own functional
+    // update, so each call sees the result of the one immediately before it.
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(SettingsProvider, null, children);
+
+    const { result } = renderHook(() => useSettings(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.updateSetting("driverMigrationHistory", (prev) => [
+        ...(prev ?? []),
+        { connectionId: "a" },
+      ]);
+      await result.current.updateSetting("driverMigrationHistory", (prev) => [
+        ...(prev ?? []),
+        { connectionId: "b" },
+      ]);
+      await result.current.updateSetting("driverMigrationHistory", (prev) => [
+        ...(prev ?? []),
+        { connectionId: "c" },
+      ]);
+    });
+
+    expect(result.current.settings.driverMigrationHistory).toEqual([
+      { connectionId: "a" },
+      { connectionId: "b" },
+      { connectionId: "c" },
+    ]);
+  });
+
   it("should change language when language setting is updated", async () => {
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       React.createElement(SettingsProvider, null, children);
@@ -471,5 +522,97 @@ describe("SettingsProvider", () => {
     expect(consoleErrorSpy).toHaveBeenCalled();
 
     consoleErrorSpy.mockRestore();
+  });
+
+  describe("tabularis://plugin-activated", () => {
+    it("re-reads activeExternalDrivers from the backend without resending the stale settings snapshot", async () => {
+      // The initial load captures a snapshot with no active external
+      // drivers — matching a user who hasn't installed anything yet.
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === "get_config") return Promise.resolve({});
+        if (cmd === "check_ai_key") return Promise.resolve(false);
+        if (cmd === "get_ai_models") return Promise.resolve({});
+        return Promise.reject(new Error(`Unexpected command: ${cmd}`));
+      });
+
+      const wrapper = ({ children }: { children: React.ReactNode }) =>
+        React.createElement(SettingsProvider, null, children);
+      const { result } = renderHook(() => useSettings(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+      expect(result.current.settings.activeExternalDrivers).toBeUndefined();
+      expect(eventHandlers["tabularis://plugin-activated"]).toBeDefined();
+
+      // The backend's force-install background task persisted activation
+      // for postgresql (and seeded any previously-installed plugins), then
+      // emitted the event. Simulate `get_config` now reflecting that write.
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === "get_config") {
+          return Promise.resolve({ activeExternalDrivers: ["postgresql"] });
+        }
+        return Promise.reject(new Error(`Unexpected command: ${cmd}`));
+      });
+
+      act(() => {
+        eventHandlers["tabularis://plugin-activated"]({
+          event: "tabularis://plugin-activated",
+          id: 1,
+          payload: { pluginId: "postgresql" },
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.settings.activeExternalDrivers).toEqual(["postgresql"]);
+      });
+
+      // Critically, no save_config call should have fired as a result of
+      // this refresh — it must only re-read, never write back the merged
+      // local state, or a second background write could get clobbered the
+      // same way updateSetting's stale-snapshot resend does.
+      expect(invoke).not.toHaveBeenCalledWith(
+        "save_config",
+        expect.anything(),
+      );
+    });
+
+    it("preserves every other setting when merging the refreshed field", async () => {
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === "get_config") return Promise.resolve({ fontFamily: "Hack" });
+        if (cmd === "check_ai_key") return Promise.resolve(false);
+        if (cmd === "get_ai_models") return Promise.resolve({});
+        return Promise.reject(new Error(`Unexpected command: ${cmd}`));
+      });
+
+      const wrapper = ({ children }: { children: React.ReactNode }) =>
+        React.createElement(SettingsProvider, null, children);
+      const { result } = renderHook(() => useSettings(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+      expect(result.current.settings.fontFamily).toBe("Hack");
+
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === "get_config") {
+          return Promise.resolve({ fontFamily: "Hack", activeExternalDrivers: ["postgresql"] });
+        }
+        return Promise.reject(new Error(`Unexpected command: ${cmd}`));
+      });
+
+      act(() => {
+        eventHandlers["tabularis://plugin-activated"]({
+          event: "tabularis://plugin-activated",
+          id: 1,
+          payload: { pluginId: "postgresql" },
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.settings.activeExternalDrivers).toEqual(["postgresql"]);
+      });
+      expect(result.current.settings.fontFamily).toBe("Hack");
+    });
   });
 });

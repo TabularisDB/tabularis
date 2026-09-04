@@ -67,7 +67,8 @@
     "copied": "¡Copiado!",
     "showDetails": "Mostrar detalles",
     "hideDetails": "Ocultar detalles",
-    "beta": "Beta"
+    "beta": "Beta",
+    "dismiss": "Cerrar"
   },
   "sidebar": {
     "connections": "Conexiones",
@@ -290,6 +291,9 @@
   "connections": {
     "title": "Conexiones",
     "addConnection": "Agregar Conexión",
+    "deprecated": "Obsoleto",
+    "deprecatedTooltip": "Este controlador integrado está siendo reemplazado por el complemento {{replacement}}.",
+    "deprecatedTooltipDate": "Este controlador integrado está siendo reemplazado por el complemento {{replacement}}, provisionalmente el {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Nueva base de datos SQLite…",
       "dialogTitle": "Nueva base de datos SQLite",
@@ -695,6 +699,10 @@
       "install": "Instalar",
       "upToDate": "Actualizado",
       "downgrade": "Degradar a",
+      "deprecated": "Obsoleto",
+      "deprecatedTooltip": "Este controlador integrado está siendo reemplazado por el complemento {{replacement}}.",
+      "deprecatedTooltipDate": "Este controlador integrado está siendo reemplazado por el complemento {{replacement}}, provisionalmente el {{date}}.",
+      "migrationProgress": "{{migrated}} de {{total}} migradas",
       "olderVersions": "Versiones anteriores",
       "noPlugins": "No hay plugins disponibles en el registro.",
       "searchPlaceholder": "Buscar plugins…",
@@ -745,6 +753,7 @@
         "fieldRequired": "{{label}} es obligatorio",
         "saved": "Guardado",
         "resetToDefault": "Restablecer predeterminado",
+        "reportIssue": "Reportar un problema del complemento",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2074,6 +2083,55 @@
     "updateConfirm": "Actualizar a v{{version}}",
     "alreadyInstalled": "La versión {{version}} ya está instalada."
   },
+  "migration": {
+    "banner": {
+      "nudge": "Prueba el nuevo complemento de PostgreSQL — el controlador integrado de PostgreSQL se está retirando. El complemento tiene las mismas funciones y se actualiza más rápido.",
+      "nudgeWithDate": "Prueba el nuevo complemento de PostgreSQL — el controlador integrado de PostgreSQL se está retirando (provisionalmente {{date}}). El complemento tiene las mismas funciones y se actualiza más rápido.",
+      "offline": "No se pudo descargar el complemento de PostgreSQL — lo reintentaremos en el próximo inicio. Revisa tu conexión o red si esto sigue ocurriendo.",
+      "reviewConnections": "Revisar conexiones"
+    },
+    "switchToPlugin": "Cambiar al complemento",
+    "switchToBuiltin": "Volver al integrado",
+    "confirm": {
+      "title": "¿Cambiar al complemento?",
+      "message": "¿Cambiar {{name}} al complemento de PostgreSQL? Si está conectado actualmente, se desconectará y se volverá a abrir usando el complemento.",
+      "uriMessage": "¿Cambiar {{name}} al complemento de PostgreSQL? Su cadena de conexión almacenada en el llavero no se transferirá — deberá volver a ingresarla para reconectarse.",
+      "confirmLabel": "Cambiar",
+      "confirmLabelUri": "Cambiar y volver a ingresar después",
+      "undoTitle": "¿Volver al controlador integrado?",
+      "undoMessage": "¿Volver {{name}} al controlador integrado de PostgreSQL? Si está conectado actualmente, se desconectará y se volverá a abrir usando el controlador integrado.",
+      "undoConfirmLabel": "Volver"
+    },
+    "toast": {
+      "success": "Se cambió {{name}} al complemento de PostgreSQL.",
+      "connectionFailure": "No se pudo conectar a {{name}} usando el complemento: {{error}}",
+      "connectionFailurePreexisting": "No se pudo conectar a {{name}} con ninguno de los dos controladores: {{error}}. No es un problema del complemento — el cambio al complemento se mantuvo.",
+      "processFailureWithError": "El complemento de PostgreSQL no se inició: {{error}}. No es específico de {{name}} — no se intentó ninguna conexión.",
+      "processFailure": "El complemento de PostgreSQL no se inició. No es específico de {{name}} — no se intentó ninguna conexión.",
+      "failed": "No se pudo cambiar {{name}} al complemento: {{error}}",
+      "undo": "Deshacer",
+      "undoFailed": "No se pudo devolver {{name}} al controlador integrado: {{error}}",
+      "reportIssue": "Reportar un problema"
+    },
+    "checklist": {
+      "title": "Revisar conexiones",
+      "subtitle_one": "{{count}} conexión aún en el controlador integrado",
+      "subtitle_other": "{{count}} conexiones aún en el controlador integrado",
+      "migrateSelected_one": "Migrar {{count}} seleccionada",
+      "migrateSelected_other": "Migrar {{count}} seleccionadas",
+      "reportThisGap": "Reportar este problema",
+      "alreadyReported": "Reportado",
+      "testing": "Probando conexión…",
+      "uriWarning": "La cadena de conexión almacenada en el llavero no se transferirá — deberá volver a ingresarla después de migrar.",
+      "noGaps": "No hay conexiones para revisar.",
+      "close": "Cerrar",
+      "migratingNotice": "La migración continúa incluso si cierras esta ventana.",
+      "gap": {
+        "ssl": "Usa SSL/TLS, aún no admitido por el complemento",
+        "connection_uri": "Usa una cadena de conexión, aún no admitida por el complemento"
+      }
+    }
+  },
   "connectionCatalogue": {
     "searchPlaceholder": "Buscar bases de datos…",
     "clearSearch": "Borrar búsqueda",
@@ -2089,6 +2147,8 @@
     "connectTo": "Conectar a {{name}}",
     "unavailableOnPlatform": "No disponible en tu plataforma",
     "unavailable": "No disponible",
+    "deprecated": "Obsoleto",
+    "deprecatedTooltip": "Este controlador integrado está siendo reemplazado por un complemento",
     "backToCatalogue": "Volver al catálogo",
     "pickDriver": "Varios controladores se conectan a {{name}}. Elige uno:",
     "latestVersion": "Última v{{version}}",

@@ -99,6 +99,8 @@ pub mod window_decorations;
 pub mod drivers {
     pub mod common;
     pub mod driver_trait;
+    #[cfg(test)]
+    pub mod driver_trait_tests;
     pub mod mysql;
     pub mod postgres;
     pub mod registry;
@@ -299,6 +301,26 @@ pub fn run() {
                 crate::plugins::manager::load_plugins(&app.handle(), active_ext_drivers.as_deref())
                     .await;
             });
+
+            // Ensure replacement plugins are installed for any built-in
+            // driver a saved connection still depends on (e.g. install the
+            // `postgresql` plugin when a `postgres` connection exists). Spawned,
+            // not `block_on`, so a slow or failed registry fetch never delays
+            // window creation — same pattern as the health-check spawn below.
+            // See `.github/planning/postgres-plugin-force-install.md`.
+            for (builtin_id, plugin_id) in crate::plugins::force_install::MIGRATABLE_DRIVERS {
+                let handle = app.handle().clone();
+                let builtin_id = builtin_id.to_string();
+                let plugin_id = plugin_id.to_string();
+                tauri::async_runtime::spawn(async move {
+                    crate::plugins::force_install::ensure_plugin_installed_if_needed(
+                        &handle,
+                        &builtin_id,
+                        &plugin_id,
+                    )
+                    .await;
+                });
+            }
 
             // Start connection health-check ping loop.
             {

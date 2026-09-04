@@ -67,7 +67,8 @@
     "copied": "Copié !",
     "showDetails": "Afficher les détails",
     "hideDetails": "Masquer les détails",
-    "beta": "Bêta"
+    "beta": "Bêta",
+    "dismiss": "Fermer"
   },
   "sidebar": {
     "connections": "Connexions",
@@ -283,6 +284,9 @@
   "connections": {
     "title": "Connexions",
     "addConnection": "Ajouter une connexion",
+    "deprecated": "Obsolète",
+    "deprecatedTooltip": "Ce pilote intégré est remplacé par le plugin {{replacement}}.",
+    "deprecatedTooltipDate": "Ce pilote intégré est remplacé par le plugin {{replacement}}, provisoirement le {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Nouvelle base de données SQLite…",
       "dialogTitle": "Nouvelle base de données SQLite",
@@ -703,6 +707,10 @@
       "install": "Installer",
       "upToDate": "À jour",
       "downgrade": "Rétrograder vers",
+      "deprecated": "Obsolète",
+      "deprecatedTooltip": "Ce pilote intégré est remplacé par le plugin {{replacement}}.",
+      "deprecatedTooltipDate": "Ce pilote intégré est remplacé par le plugin {{replacement}}, provisoirement le {{date}}.",
+      "migrationProgress": "{{migrated}} sur {{total}} migrées",
       "olderVersions": "Anciennes versions",
       "noPlugins": "Aucun plugin disponible dans le registre.",
       "searchPlaceholder": "Rechercher des plugins…",
@@ -753,6 +761,7 @@
         "fieldRequired": "{{label}} est requis",
         "saved": "Enregistré",
         "resetToDefault": "Réinitialiser par défaut",
+        "reportIssue": "Signaler un problème de plugin",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2230,6 +2239,55 @@
     "updateConfirm": "Mettre à jour vers v{{version}}",
     "alreadyInstalled": "La version {{version}} est déjà installée."
   },
+  "migration": {
+    "banner": {
+      "nudge": "Essayez le nouveau plugin PostgreSQL — le pilote intégré PostgreSQL est en cours de retrait. Le plugin a les mêmes fonctionnalités et se met à jour plus rapidement.",
+      "nudgeWithDate": "Essayez le nouveau plugin PostgreSQL — le pilote intégré PostgreSQL est en cours de retrait (provisoirement le {{date}}). Le plugin a les mêmes fonctionnalités et se met à jour plus rapidement.",
+      "offline": "Le plugin PostgreSQL n'a pas pu être téléchargé — une nouvelle tentative aura lieu au prochain lancement. Vérifiez votre connexion ou votre réseau si cela persiste.",
+      "reviewConnections": "Examiner les connexions"
+    },
+    "switchToPlugin": "Passer au plugin",
+    "switchToBuiltin": "Revenir au pilote intégré",
+    "confirm": {
+      "title": "Passer au plugin ?",
+      "message": "Faire passer {{name}} au plugin PostgreSQL ? Si la connexion est active, elle sera fermée et rouverte avec le plugin.",
+      "uriMessage": "Faire passer {{name}} au plugin PostgreSQL ? Sa chaîne de connexion stockée dans le trousseau ne sera pas transférée — vous devrez la ressaisir pour vous reconnecter.",
+      "confirmLabel": "Basculer",
+      "confirmLabelUri": "Basculer et ressaisir plus tard",
+      "undoTitle": "Revenir au pilote intégré ?",
+      "undoMessage": "Faire revenir {{name}} au pilote PostgreSQL intégré ? Si la connexion est active, elle sera fermée et rouverte avec le pilote intégré.",
+      "undoConfirmLabel": "Revenir"
+    },
+    "toast": {
+      "success": "{{name}} a été basculé vers le plugin PostgreSQL.",
+      "connectionFailure": "Impossible de se connecter à {{name}} avec le plugin : {{error}}",
+      "connectionFailurePreexisting": "Impossible de se connecter à {{name}} avec l'un ou l'autre pilote : {{error}}. Ce n'est pas un problème du plugin — le passage au plugin a été conservé.",
+      "processFailureWithError": "Le plugin PostgreSQL n'a pas démarré : {{error}}. Cela ne concerne pas spécifiquement {{name}} — aucune connexion n'a été tentée.",
+      "processFailure": "Le plugin PostgreSQL n'a pas démarré. Cela ne concerne pas spécifiquement {{name}} — aucune connexion n'a été tentée.",
+      "failed": "Impossible de basculer {{name}} vers le plugin : {{error}}",
+      "undo": "Annuler",
+      "undoFailed": "Impossible de rebasculer {{name}} vers le pilote intégré : {{error}}",
+      "reportIssue": "Signaler un problème"
+    },
+    "checklist": {
+      "title": "Examiner les connexions",
+      "subtitle_one": "{{count}} connexion encore sur le pilote intégré",
+      "subtitle_other": "{{count}} connexions encore sur le pilote intégré",
+      "migrateSelected_one": "Migrer {{count}} sélectionnée",
+      "migrateSelected_other": "Migrer {{count}} sélectionnées",
+      "reportThisGap": "Signaler ce problème",
+      "alreadyReported": "Signalé",
+      "testing": "Test de connexion…",
+      "uriWarning": "La chaîne de connexion stockée dans le trousseau ne sera pas transférée — vous devrez la ressaisir après la migration.",
+      "noGaps": "Aucune connexion à examiner.",
+      "close": "Fermer",
+      "migratingNotice": "La migration se poursuit même si vous fermez cette fenêtre.",
+      "gap": {
+        "ssl": "Utilise SSL/TLS, pas encore prise en charge par le plugin",
+        "connection_uri": "Utilise une chaîne de connexion, pas encore prise en charge par le plugin"
+      }
+    }
+  },
   "connectionCatalogue": {
     "searchPlaceholder": "Rechercher des bases de données…",
     "clearSearch": "Effacer la recherche",
@@ -2245,6 +2303,8 @@
     "connectTo": "Se connecter à {{name}}",
     "unavailableOnPlatform": "Indisponible sur votre plateforme",
     "unavailable": "Indisponible",
+    "deprecated": "Obsolète",
+    "deprecatedTooltip": "Ce pilote intégré est remplacé par un plugin",
     "backToCatalogue": "Retour au catalogue",
     "pickDriver": "Plusieurs pilotes se connectent à {{name}}. Choisissez-en un :",
     "latestVersion": "Dernière v{{version}}",

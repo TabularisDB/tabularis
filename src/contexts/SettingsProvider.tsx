@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   SettingsContext,
   DEFAULT_SETTINGS,
@@ -266,6 +267,48 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     loadSettings();
   }, [isLanguageApplied, queueLanguageApplication]);
 
+  // The backend's force-install flow (`ensure_plugin_installed`) can persist
+  // `activeExternalDrivers` from a spawned background task, well after this
+  // provider already loaded its settings snapshot. Without this listener,
+  // `updateSetting` would resend that now-stale in-memory snapshot on the
+  // next unrelated call (it always forwards the whole settings object) and
+  // silently overwrite the backend's write. Re-reading only this one field
+  // from the backend and merging it into local state — rather than trusting
+  // the event payload — keeps this correct even if the write raced with
+  // something else and ended up different from what was requested.
+  useEffect(() => {
+    let mounted = true;
+    let cleanup: (() => void) | null = null;
+    listen("tabularis://plugin-activated", () => {
+      if (!mounted) return;
+      invoke<Partial<Settings>>("get_config")
+        .then((config) => {
+          if (!mounted) return;
+          setSettings((prev) => ({
+            ...prev,
+            activeExternalDrivers: config.activeExternalDrivers,
+          }));
+        })
+        .catch((err) => {
+          console.error("Failed to refresh settings after plugin activation:", err);
+        });
+    })
+      .then((unlisten) => {
+        if (mounted) {
+          cleanup = unlisten;
+        } else {
+          unlisten();
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to subscribe to tabularis://plugin-activated:", err);
+      });
+    return () => {
+      mounted = false;
+      cleanup?.();
+    };
+  }, []);
+
   // Update i18n when language changes
   useEffect(() => {
     if (isLoading || currentLanguageApplied || trackedLanguageState?.settled) {
@@ -346,28 +389,42 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   const updateSetting = <K extends keyof Settings>(
     key: K,
-    value: Settings[K],
+    valueOrUpdater: Settings[K] | ((prev: Settings[K]) => Settings[K]),
   ): Promise<void> => {
     let persistPromise = Promise.resolve();
 
-    if (key === "language") {
-      const nextLanguage = value as Settings["language"];
-      const languageAlreadyApplied = isLanguageApplied(nextLanguage);
+    setSettings((prev) => {
+      // No `Settings` field is itself function-typed (checked at the
+      // `updateSetting` type definition), so this is an unambiguous way to
+      // tell the two overloads apart at runtime. Resolving against `prev`
+      // here — inside the functional setState updater — rather than against
+      // the `settings` from this closure's render is what makes the updater
+      // form actually see the latest value: a caller invoking
+      // `updateSetting` several times in a row (e.g. a bulk-migration loop
+      // appending one history record per iteration) gets each call's own
+      // fresh `prev`, not the same pre-loop snapshot every time.
+      const nextValue =
+        typeof valueOrUpdater === "function"
+          ? (valueOrUpdater as (prev: Settings[K]) => Settings[K])(prev[key])
+          : valueOrUpdater;
 
-      if (languageAlreadyApplied) {
-        appliedLanguageRef.current = nextLanguage;
-        requestedLanguageRef.current = nextLanguage;
+      if (key === "language") {
+        const nextLanguage = nextValue as Settings["language"];
+        const languageAlreadyApplied = isLanguageApplied(nextLanguage);
+
+        if (languageAlreadyApplied) {
+          appliedLanguageRef.current = nextLanguage;
+          requestedLanguageRef.current = nextLanguage;
+        }
+
+        setLanguageState({
+          language: nextLanguage,
+          ready: languageAlreadyApplied,
+          settled: languageAlreadyApplied,
+        });
       }
 
-      setLanguageState({
-        language: nextLanguage,
-        ready: languageAlreadyApplied,
-        settled: languageAlreadyApplied,
-      });
-    }
-
-    setSettings((prev) => {
-      const newSettings = { ...prev, [key]: value };
+      const newSettings = { ...prev, [key]: nextValue };
 
       // Persist to backend. Strip session-persistence fields — they are
       // managed by DatabaseProvider through dedicated backend commands

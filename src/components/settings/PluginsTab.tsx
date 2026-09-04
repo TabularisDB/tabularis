@@ -574,7 +574,7 @@ export function PluginsTab({
     error: registryError,
     refresh: refreshRegistry,
   } = usePluginRegistry();
-  const { openConnectionIds, connectionDataMap, disconnect } = useDatabase();
+  const { openConnectionIds, connectionDataMap, disconnect, connections } = useDatabase();
 
   const [installingPluginId, setInstallingPluginId] = useState<string | null>(
     null,
@@ -1074,8 +1074,47 @@ export function PluginsTab({
                           ? "blue"
                           : null;
                       const statusNode = isBuiltin ? (
-                        <span className="text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-px rounded-md">
-                          Built-in
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-px rounded-md">
+                            Built-in
+                          </span>
+                          {driver.deprecated && (
+                            <span
+                              className="text-[10px] font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-px rounded-md"
+                              title={driver.deprecated.removal_date
+                                ? t("settings.plugins.deprecatedTooltipDate", {
+                                    replacement: driver.deprecated.replacement_id ?? "",
+                                    date: driver.deprecated.removal_date,
+                                  })
+                                : t("settings.plugins.deprecatedTooltip", {
+                                    replacement: driver.deprecated.replacement_id ?? "",
+                                  })}
+                            >
+                              {t("settings.plugins.deprecated", { defaultValue: "Deprecated" })}
+                            </span>
+                          )}
+                          {driver.deprecated?.replacement_id && (() => {
+                            // "N of M connections migrated" — derived from the
+                            // connections on this builtin vs its replacement.
+                            const repl = driver.deprecated.replacement_id;
+                            const onBuiltin = connections.filter(
+                              (c) => c.params.driver === driver.id,
+                            ).length;
+                            const onPlugin = connections.filter(
+                              (c) => c.params.driver === repl,
+                            ).length;
+                            const total = onBuiltin + onPlugin;
+                            if (total === 0) return null;
+                            return (
+                              <span className="text-[10px] font-medium text-muted">
+                                {t("settings.plugins.migrationProgress", {
+                                  migrated: onPlugin,
+                                  total,
+                                  defaultValue: "{{migrated}} of {{total}} migrated",
+                                })}
+                              </span>
+                            );
+                          })()}
                         </span>
                       ) : (
                         <PluginToggle

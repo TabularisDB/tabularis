@@ -1350,6 +1350,7 @@ mod tests {
             ui_extensions: None,
             explain_parsers: None,
             type_mappings: HashMap::new(),
+            deprecated: None,
         }
     }
 

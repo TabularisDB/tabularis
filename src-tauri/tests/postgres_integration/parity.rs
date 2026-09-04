@@ -310,6 +310,7 @@ fn plugin_manifest() -> PluginManifest {
             m.insert("JSON".to_string(), "JSONB".to_string());
             m
         },
+        deprecated: None,
     }
 }
 
