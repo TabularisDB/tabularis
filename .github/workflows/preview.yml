@@ -1,0 +1,45 @@
+name: Preview Build
+
+# Preview builds of a pull request, so the person who reported a bug can test
+# the fix before it ships in a nightly. Modelled on Zed's `run-bundling`
+# label (zed-industries/zed, .github/workflows/run_bundling.yml).
+#
+# A maintainer adds the `preview` label to the PR: that builds the PR head
+# right away, and every later push rebuilds it for as long as the label stays.
+# Remove the label to stop. Adding a label needs triage permission on the
+# repo, which is the whole access control, as in Zed.
+#
+# Signing follows GitHub's own rule for `pull_request` events: PRs from
+# branches of this repository get the secrets and come out signed +
+# notarized like a release; PRs from forks get no secrets and come out
+# unsigned (build.yml warns in the log). Nothing here decides that.
+#
+# The bundles end up as artifacts of this run, never in the Releases page;
+# preview-comment.yml then links them from a sticky comment on the PR (it
+# needs a separate workflow_run workflow because a fork PR's token can't
+# write comments).
+on:
+  pull_request:
+    types: [labeled, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: |-
+      (github.event.action == 'labeled' && github.event.label.name == 'preview') ||
+      (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'preview'))
+    permissions:
+      contents: read # artifacts only, the token can't touch releases
+    uses: ./.github/workflows/build.yml
+    # Inherited from the caller's context: full set for in-repo PRs, empty for
+    # fork PRs. build.yml picks signed/unsigned accordingly.
+    secrets: inherit
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+      preview: true
