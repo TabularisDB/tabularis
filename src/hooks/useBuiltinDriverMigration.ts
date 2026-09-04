@@ -18,7 +18,7 @@
  * Fast Refresh: this file exports only hooks. Pure helpers live in `utils/`.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 import { useDatabase } from "./useDatabase";
@@ -106,6 +106,31 @@ export function useBuiltinDriverMigration(
   const { allDrivers, installedPlugins } = useDrivers();
   const { registryOffline } = useConnectionCatalogue();
   const { settings, updateSetting } = useSettings();
+
+  // `undoMigration` is handed to callers that invoke it later, from a
+  // closure captured well before the click that actually triggers it — the
+  // outcome toast in Connections.tsx builds its "Undo" action at the moment
+  // migrateConnection is *called*, then the user clicks it seconds later, by
+  // which point the connection has already flipped drivers and
+  // `connectionDataMap`/`openConnectionIds` have moved on. A `useCallback`
+  // dependency array only produces a fresh closure on the *next render*, not
+  // retroactively for a reference some other component is still holding, so
+  // undoMigration reads these through refs — always the render's latest
+  // value — instead of through its useCallback's own closure. Synced in a
+  // `useEffect`, not assigned directly during render (the more common
+  // version of this idiom, e.g. `PluginsTab.tsx`'s `settingsRef`): the
+  // `react-hooks/refs` rule flags a ref write during render as unsafe for
+  // the React Compiler to reorder around, and an effect still runs before
+  // any event handler (including this closure's eventual invocation) could
+  // observe a stale value.
+  const connectionsRef = useRef(connections);
+  const openConnectionIdsRef = useRef(openConnectionIds);
+  const connectionDataMapRef = useRef(connectionDataMap);
+  useEffect(() => {
+    connectionsRef.current = connections;
+    openConnectionIdsRef.current = openConnectionIds;
+    connectionDataMapRef.current = connectionDataMap;
+  }, [connections, openConnectionIds, connectionDataMap]);
 
   // Connections still on the built-in driver — the trigger condition and the
   // set eligible to migrate.
@@ -368,8 +393,26 @@ export function useBuiltinDriverMigration(
   // symmetry as migrateConnection, since undo is exactly its inverse. Never
   // rejects — resolves to `{ ok: false, error }` so the caller (there's no
   // outcome-toast plumbing for undo, unlike migrateConnection) can surface it.
+  //
+  // Reads connections/openConnectionIds/connectionDataMap through the refs
+  // above, not the values this useCallback closed over: Connections.tsx's
+  // outcome toast captures this exact function reference at the moment
+  // migrateConnection is called (well before the migration — and any
+  // subsequent disconnect/reconnect — actually completes), then invokes it
+  // later when the user clicks "Undo". By then connectionDataMap has moved
+  // on to the connection's *plugin* driver, but this closure was fixed at
+  // creation time to whatever connectionDataMap looked like beforehand — so
+  // the `[pluginId]` lookup below found nothing, `wasOpen` came out `false`,
+  // and undo silently skipped the disconnect/reconnect pair even though the
+  // connection was live and open on the plugin the whole time. The refs are
+  // updated on every render regardless of whether this particular
+  // useCallback instance was recreated, so even a stale-looking closure
+  // still reads current state when it's finally invoked.
   const undoMigration = useCallback(
     async (connectionId: string): Promise<UndoOutcome> => {
+      const connections = connectionsRef.current;
+      const openConnectionIds = openConnectionIdsRef.current;
+      const connectionDataMap = connectionDataMapRef.current;
       const conn = connections.find((c) => c.id === connectionId);
       // The connection is on `pluginId` at this point (undo runs after a
       // completed migration), so look for it open under that id, mirroring
@@ -417,7 +460,7 @@ export function useBuiltinDriverMigration(
 
       return outcome;
     },
-    [connections, builtinId, pluginId, openConnectionIds, connectionDataMap, connect, disconnect, loadConnections],
+    [builtinId, pluginId, connect, disconnect, loadConnections],
   );
 
   return {

@@ -462,6 +462,42 @@ describe("useBuiltinDriverMigration", () => {
       expect(databaseMock.connect).toHaveBeenCalledWith("c1");
     });
 
+    it("still disconnects/reconnects when called from a closure captured before the connection was open", async () => {
+      // Regression: Connections.tsx's outcome toast builds its "Undo" action
+      // (which closes over whichever undoMigration reference the hook
+      // returned) at the moment migrateConnection is *called* — before the
+      // driver flip, disconnect, and reconnect that migrateConnection itself
+      // performs have run. If undoMigration read connectionDataMap through
+      // its own useCallback closure, that closure would be permanently fixed
+      // to "connection not open under the plugin id yet" from that early
+      // render, so undo's own [pluginId] lookup would always find nothing —
+      // wasOpen always false — even though the connection is live and open
+      // on the plugin by the time the user actually clicks Undo.
+      databaseMock.connections = [{ id: "c1", name: "c1", params: { driver: "postgres" } }];
+      databaseMock.openConnectionIds = [];
+      databaseMock.connectionDataMap = {};
+      const { result, rerender } = renderHook(() =>
+        useBuiltinDriverMigration("postgres", "postgresql"),
+      );
+      const staleUndoMigration = result.current.undoMigration;
+
+      // Simulate the migration completing: driver flips, connection reopens
+      // under the plugin id, and the provider re-renders with fresh state —
+      // exactly what happens between the toast being built and the user
+      // clicking its Undo action.
+      databaseMock.connections = [{ id: "c1", name: "c1", params: { driver: "postgresql" } }];
+      databaseMock.openConnectionIds = ["c1"];
+      databaseMock.connectionDataMap = { c1: { driver: "postgresql" } };
+      rerender();
+
+      await act(async () => {
+        await staleUndoMigration("c1");
+      });
+
+      expect(databaseMock.disconnect).toHaveBeenCalledWith("c1");
+      expect(databaseMock.connect).toHaveBeenCalledWith("c1");
+    });
+
     it("does not disconnect/reconnect a connection that was already closed", async () => {
       databaseMock.connections = [{ id: "c1", name: "c1", params: { driver: "postgresql" } }];
       const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
