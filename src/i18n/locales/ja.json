@@ -761,6 +761,12 @@
               "label": "タイムゾーン",
               "description": "接続後に MySQL に送信するセッションタイムゾーンです。"
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "プール最大サイズ",
+              "description": "プールに保持する PostgreSQL 接続の最大数です。"
+            }
           }
         }
       },
@@ -808,6 +814,33 @@
       "selectColumn": "列を選択"
     },
     "aiActivity": "AI アクティビティ",
+    "storage": {
+      "title": "ストレージ",
+      "locations": "保存場所",
+      "dataFolder": "データフォルダー",
+      "dataFolderDesc": "接続、設定、保存済みクエリ、テーマ、ノートブック、クエリ履歴はここに保存されます。同期フォルダー(iCloud Drive、Dropbox など)を指定すると、複数のマシン間で共有できます。インストール済みプラグインは常にローカルに残ります。",
+      "sourceDefault": "デフォルトの場所",
+      "sourceCustom": "カスタムの場所",
+      "sourceEnv": "TABULARIS_DATA_DIR で設定",
+      "envHint": "このフォルダーは環境変数 TABULARIS_DATA_DIR で制御されています。ここから変更するには、その変数を解除してください。",
+      "envVar": "環境変数",
+      "envVarDesc": "TABULARIS_DATA_DIR に絶対パスを設定すると、起動時またはインストール単位でデータフォルダーを上書きできます。上で選択したフォルダーより優先され、MCP サーバーにも適用されます。ポータブル運用、スクリプト、開発に便利です。",
+      "envVarExample": "TABULARIS_DATA_DIR=/path/to/folder tabularis",
+      "changeFolder": "フォルダーを変更…",
+      "openFolder": "フォルダーを開く",
+      "resetToDefault": "デフォルトの場所を使用",
+      "concurrencyWarning": "Tabularis は起動時にこのフォルダーを読み込みます。同期中の 2 台のマシンなど、同じフォルダーで 2 つのインスタンスを同時に実行しないでください。",
+      "newFolder": "新しいフォルダー",
+      "modeExisting": "このフォルダーにあるデータをそのまま使用",
+      "modeExistingDesc": "このフォルダーには既に Tabularis のデータ(別のマシンから同期されたものなど)が含まれています。",
+      "modeCopy": "現在のデータをこのフォルダーにコピー",
+      "modeCopyDesc": "フォルダー内の既存ファイルは保持されます。インストール済みプラグインはコピーされません。",
+      "modeEmpty": "空のフォルダーから始める",
+      "apply": "適用",
+      "restartRequired": "再起動が必要です",
+      "restartRequiredDesc": "再起動後、Tabularis は {{path}} を使用します。",
+      "restartNow": "今すぐ再起動"
+    },
     "backup": {
       "title": "バックアップ",
       "directory": "バックアップフォルダー",

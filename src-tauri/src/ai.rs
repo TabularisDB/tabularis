@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 // --- Data Structures ---
 
@@ -131,11 +131,8 @@ fn load_default_models() -> HashMap<String, Vec<String>> {
     })
 }
 
-fn get_cache_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path()
-        .app_config_dir()
-        .ok()
-        .map(|p| p.join("ai_models_cache.json"))
+fn get_cache_path(_app: &AppHandle) -> Option<std::path::PathBuf> {
+    Some(crate::paths::get_app_config_dir().join("ai_models_cache.json"))
 }
 
 fn load_cache(app: &AppHandle) -> Option<AiModelsCache> {

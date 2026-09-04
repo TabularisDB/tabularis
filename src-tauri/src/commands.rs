@@ -453,16 +453,16 @@ pub fn resolve_connection_params_with_id(
     Ok(resolved)
 }
 
-pub fn get_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+pub fn get_config_path<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let config_dir = crate::paths::get_app_config_dir();
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     }
     Ok(crate::paths::resolve_connections_path(&config_dir))
 }
 
-pub fn get_ssh_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+pub fn get_ssh_config_path<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let config_dir = crate::paths::get_app_config_dir();
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     }
@@ -1098,7 +1098,8 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
     credential_cache::invalidate_all_for_connection(&cache, &id);
 
     // Cascade-delete the custom icon file if the connection used one.
-    if let Ok(app_data) = app.path().app_data_dir() {
+    {
+        let app_data = crate::paths::get_app_data_dir();
         let _ = crate::connection_appearance::cascade_delete_if_image(
             &app_data,
             appearance_to_delete.as_ref(),
@@ -1372,24 +1373,17 @@ pub async fn duplicate_connection<R: Runtime>(
         let mut app_earance = original.appearance.clone();
         if let Some(ref mut a) = app_earance {
             if let Some(crate::models::IconOverride::Image { ref path }) = a.icon.clone() {
-                if let Ok(app_data) = app.path().app_data_dir() {
-                    match crate::connection_appearance::copy_icon_for_duplicate(&app_data, path, &new_id) {
-                        Ok(new_path) => {
-                            a.icon = Some(crate::models::IconOverride::Image { path: new_path });
-                        }
-                        Err(_) => {
-                            // Couldn't copy — drop the icon to avoid sharing
-                            a.icon = None;
-                            if a.accent_color.is_none() {
-                                app_earance = None;
-                            }
-                        }
+                let app_data = crate::paths::get_app_data_dir();
+                match crate::connection_appearance::copy_icon_for_duplicate(&app_data, path, &new_id) {
+                    Ok(new_path) => {
+                        a.icon = Some(crate::models::IconOverride::Image { path: new_path });
                     }
-                } else {
-                    // Can't determine app_data_dir — drop icon to avoid sharing
-                    a.icon = None;
-                    if a.accent_color.is_none() {
-                        app_earance = None;
+                    Err(_) => {
+                        // Couldn't copy — drop the icon to avoid sharing
+                        a.icon = None;
+                        if a.accent_color.is_none() {
+                            app_earance = None;
+                        }
                     }
                 }
             }
@@ -5459,8 +5453,8 @@ pub async fn get_registered_drivers() -> Vec<crate::drivers::driver_trait::Plugi
 }
 
 #[tauri::command]
-pub async fn get_keybindings<R: Runtime>(app: AppHandle<R>) -> Result<serde_json::Value, String> {
-    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+pub async fn get_keybindings<R: Runtime>(_app: AppHandle<R>) -> Result<serde_json::Value, String> {
+    let config_dir = crate::paths::get_app_config_dir();
     let path = config_dir.join("keybindings.json");
     if !path.exists() {
         return Ok(serde_json::Value::Object(serde_json::Map::new()));
@@ -5471,10 +5465,10 @@ pub async fn get_keybindings<R: Runtime>(app: AppHandle<R>) -> Result<serde_json
 
 #[tauri::command]
 pub async fn save_keybindings<R: Runtime>(
-    app: AppHandle<R>,
+    _app: AppHandle<R>,
     keybindings: serde_json::Value,
 ) -> Result<(), String> {
-    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let config_dir = crate::paths::get_app_config_dir();
     fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     let path = config_dir.join("keybindings.json");
     let content = serde_json::to_string_pretty(&keybindings).map_err(|e| e.to_string())?;

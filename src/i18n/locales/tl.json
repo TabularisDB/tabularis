@@ -780,6 +780,12 @@
               "label": "Timezone",
               "description": "Session timezone na ipinapadala sa MySQL pagkatapos kumonekta."
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "Pool Max Size",
+              "description": "Maximum na bilang ng PostgreSQL connections na pinapanatili sa pool."
+            }
           }
         }
       }
@@ -824,6 +830,33 @@
       "commandPaletteActions": "Maghanap ng mga aksyon"
     },
     "aiActivity": "AI Activity",
+    "storage": {
+      "title": "Storage",
+      "locations": "Mga lokasyon",
+      "dataFolder": "Folder ng data",
+      "dataFolderDesc": "Dito nakaimbak ang mga koneksyon, setting, naka-save na query, tema, notebook at kasaysayan ng query. Ituro ito sa isang naka-sync na folder (iCloud Drive, Dropbox, …) para maibahagi sa iba't ibang makina. Laging nananatiling lokal ang mga naka-install na plugin.",
+      "sourceDefault": "Default na lokasyon",
+      "sourceCustom": "Custom na lokasyon",
+      "sourceEnv": "Itinakda ng TABULARIS_DATA_DIR",
+      "envHint": "Kinokontrol ang folder ng environment variable na TABULARIS_DATA_DIR. Alisin ito para mabago ang lokasyon mula rito.",
+      "envVar": "Environment variable",
+      "envVarDesc": "Itakda ang TABULARIS_DATA_DIR sa isang absolute path para palitan ang folder ng data sa isang paglulunsad o installation. Mas inuuna ito kaysa sa folder na pinili sa itaas, umiiral din sa MCP server, at kapaki-pakinabang para sa portable install, script at development.",
+      "envVarExample": "TABULARIS_DATA_DIR=/path/sa/folder tabularis",
+      "changeFolder": "Palitan ang folder…",
+      "openFolder": "Buksan ang folder",
+      "resetToDefault": "Gamitin ang default na lokasyon",
+      "concurrencyWarning": "Binabasa ng Tabularis ang folder na ito sa pagsisimula. Iwasang magpatakbo ng dalawang instance sa parehong folder nang sabay, halimbawa sa dalawang makina habang nag-sync.",
+      "newFolder": "Bagong folder",
+      "modeExisting": "Gamitin ang data na nasa folder na ito",
+      "modeExistingDesc": "May laman na itong Tabularis data, halimbawa na-sync mula sa ibang makina.",
+      "modeCopy": "Kopyahin ang kasalukuyang data ko sa folder na ito",
+      "modeCopyDesc": "Pinapanatili ang mga file na nasa folder na. Hindi kinokopya ang mga naka-install na plugin.",
+      "modeEmpty": "Magsimula sa walang lamang folder",
+      "apply": "Ilapat",
+      "restartRequired": "Kailangan i-restart",
+      "restartRequiredDesc": "Gagamitin ng Tabularis ang {{path}} pagkatapos ng restart.",
+      "restartNow": "I-restart ngayon"
+    },
     "backup": {
       "title": "Backup",
       "directory": "Folder ng backup",

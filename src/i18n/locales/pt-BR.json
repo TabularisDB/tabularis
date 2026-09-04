@@ -759,6 +759,12 @@
               "label": "Fuso Horário",
               "description": "Fuso horário de sessão enviado ao MySQL após a conexão."
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "Tamanho Máximo do Pool",
+              "description": "Número máximo de conexões PostgreSQL mantidas no pool."
+            }
           }
         }
       },
@@ -807,6 +813,33 @@
       "selectColumn": "Selecionar coluna"
     },
     "aiActivity": "Atividade de IA",
+    "storage": {
+      "title": "Armazenamento",
+      "locations": "Locais",
+      "dataFolder": "Pasta de dados",
+      "dataFolderDesc": "Conexões, configurações, consultas salvas, temas, notebooks e histórico de consultas ficam aqui. Aponte para uma pasta sincronizada (iCloud Drive, Dropbox, …) para compartilhá-los entre máquinas. Os plugins instalados sempre permanecem locais.",
+      "sourceDefault": "Local padrão",
+      "sourceCustom": "Local personalizado",
+      "sourceEnv": "Definido por TABULARIS_DATA_DIR",
+      "envHint": "A pasta é controlada pela variável de ambiente TABULARIS_DATA_DIR. Remova-a para alterar o local por aqui.",
+      "envVar": "Variável de ambiente",
+      "envVarDesc": "Defina TABULARIS_DATA_DIR com um caminho absoluto para substituir a pasta de dados em uma execução ou instalação. Ela tem prioridade sobre a pasta escolhida acima, vale também para o servidor MCP e é útil para instalações portáteis, scripts e desenvolvimento.",
+      "envVarExample": "TABULARIS_DATA_DIR=/caminho/da/pasta tabularis",
+      "changeFolder": "Alterar pasta…",
+      "openFolder": "Abrir pasta",
+      "resetToDefault": "Usar local padrão",
+      "concurrencyWarning": "O Tabularis lê esta pasta ao iniciar. Evite executar duas instâncias na mesma pasta ao mesmo tempo, por exemplo em duas máquinas durante a sincronização.",
+      "newFolder": "Nova pasta",
+      "modeExisting": "Usar os dados que já estão nesta pasta",
+      "modeExistingDesc": "Esta pasta já contém dados do Tabularis, por exemplo sincronizados de outra máquina.",
+      "modeCopy": "Copiar meus dados atuais para esta pasta",
+      "modeCopyDesc": "Os arquivos que já estão na pasta são mantidos. Os plugins instalados não são copiados.",
+      "modeEmpty": "Começar com uma pasta vazia",
+      "apply": "Aplicar",
+      "restartRequired": "Reinicialização necessária",
+      "restartRequiredDesc": "O Tabularis usará {{path}} após reiniciar.",
+      "restartNow": "Reiniciar agora"
+    },
     "backup": {
       "title": "Backup",
       "directory": "Pasta de backup",

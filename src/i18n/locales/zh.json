@@ -711,6 +711,12 @@
               "label": "时区",
               "description": "连接建立后发送给 MySQL 的会话时区。"
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "连接池最大大小",
+              "description": "连接池中保留的 PostgreSQL 连接最大数量。"
+            }
           }
         }
       },
@@ -757,6 +763,33 @@
       "selectColumn": "选择列"
     },
     "aiActivity": "AI 活动",
+    "storage": {
+      "title": "存储",
+      "locations": "位置",
+      "dataFolder": "数据文件夹",
+      "dataFolderDesc": "连接、设置、已保存的查询、主题、笔记本和查询历史都存储在这里。将其指向同步文件夹(iCloud Drive、Dropbox 等)即可在多台电脑间共享。已安装的插件始终保留在本地。",
+      "sourceDefault": "默认位置",
+      "sourceCustom": "自定义位置",
+      "sourceEnv": "由 TABULARIS_DATA_DIR 设置",
+      "envHint": "该文件夹由环境变量 TABULARIS_DATA_DIR 控制。请取消该变量后再在此处更改位置。",
+      "envVar": "环境变量",
+      "envVarDesc": "将 TABULARIS_DATA_DIR 设为绝对路径,即可在单次启动或某个安装中覆盖数据文件夹。它优先于上面选择的文件夹,同样作用于 MCP 服务器,适合便携安装、脚本和开发。",
+      "envVarExample": "TABULARIS_DATA_DIR=/path/to/folder tabularis",
+      "changeFolder": "更改文件夹…",
+      "openFolder": "打开文件夹",
+      "resetToDefault": "使用默认位置",
+      "concurrencyWarning": "Tabularis 在启动时读取此文件夹。请避免同时在同一文件夹上运行两个实例,例如在两台电脑上同步期间。",
+      "newFolder": "新文件夹",
+      "modeExisting": "使用此文件夹中已有的数据",
+      "modeExistingDesc": "此文件夹已包含 Tabularis 数据,例如从另一台电脑同步而来。",
+      "modeCopy": "将我当前的数据复制到此文件夹",
+      "modeCopyDesc": "文件夹中已有的文件会被保留。已安装的插件不会被复制。",
+      "modeEmpty": "从空文件夹开始",
+      "apply": "应用",
+      "restartRequired": "需要重启",
+      "restartRequiredDesc": "重启后 Tabularis 将使用 {{path}}。",
+      "restartNow": "立即重启"
+    },
     "backup": {
       "title": "备份",
       "directory": "备份文件夹",

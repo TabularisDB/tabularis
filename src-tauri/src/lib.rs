@@ -66,7 +66,12 @@ pub mod notebooks;
 pub mod paths; // Added
 #[cfg(test)]
 pub mod paths_tests;
+pub mod storage_location;
+#[cfg(test)]
+pub mod storage_location_tests;
 pub mod persistence;
+#[cfg(test)]
+pub mod persistence_tests;
 pub mod plugins;
 pub mod pool_manager;
 #[cfg(test)]
@@ -254,6 +259,21 @@ pub fn run() {
         .manage(results_window::ResultsWindowStore::default())
         .manage(query_history::QueryHistoryState::default())
         .setup(move |app| {
+            // The asset protocol scope in tauri.conf.json only covers the
+            // default data directory; when the user moved the storage folder
+            // the connection icons live there instead.
+            if crate::storage_location::active_override().is_some() {
+                let icons_dir = crate::paths::get_connection_icons_dir();
+                let _ = std::fs::create_dir_all(&icons_dir);
+                if let Err(e) = app.asset_protocol_scope().allow_directory(&icons_dir, true) {
+                    log::warn!("Failed to allow asset access to {:?}: {}", icons_dir, e);
+                }
+                log::info!(
+                    "Using custom storage location: {}",
+                    crate::paths::get_app_config_dir().display()
+                );
+            }
+
             // Apply the persisted decoration policy as early as possible. The
             // main window is created from tauri.conf.json before this hook.
             let startup_config = crate::config::load_config_internal(&app.handle());
@@ -538,6 +558,12 @@ pub fn run() {
             config::get_config_json,
             config::save_config_json,
             config::relaunch_app,
+            storage_location::get_storage_location,
+            storage_location::inspect_storage_location,
+            storage_location::set_storage_location,
+            storage_location::reset_storage_location,
+            storage_location::open_storage_location,
+            storage_location::get_app_data_dir,
             config::set_ai_key,
             config::delete_ai_key,
             config::check_ai_key,

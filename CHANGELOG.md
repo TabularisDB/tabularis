@@ -2,6 +2,7 @@
 
 ### Added
 
+- Custom storage location: a new Settings > Storage tab lets you move the data folder (connections, settings, saved queries, themes, notebooks, query history) to any folder, for example one synced by iCloud Drive or Dropbox, so connections follow you across machines. The choice is recorded in `storage-location.json` in the default config directory and can be overridden with the `TABULARIS_DATA_DIR` environment variable. Installed plugins always stay local. (#702)
 - Open, edit, and save `.sql`, `.psql`, and `.pgsql` files in SQL editor tabs without executing them. The toolbar Save split button and the tab context menu expose Save, Save As, and Add to Saved Queries; unsaved files are flagged on the tab.
 
 # [0.22.0](https://github.com/TabularisDB/tabularis/compare/v0.21.0...v0.22.0) (2026-09-01)

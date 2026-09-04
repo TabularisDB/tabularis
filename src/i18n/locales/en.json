@@ -789,6 +789,12 @@
               "label": "Timezone",
               "description": "Session timezone sent to MySQL after connect."
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "Pool Max Size",
+              "description": "Maximum number of PostgreSQL connections kept in the pool."
+            }
           }
         }
       },
@@ -837,6 +843,33 @@
       "selectColumn": "Select column"
     },
     "aiActivity": "AI Activity",
+    "storage": {
+      "title": "Storage",
+      "locations": "Locations",
+      "dataFolder": "Data folder",
+      "dataFolderDesc": "Connections, settings, saved queries, themes, notebooks and query history are stored here. Point it at a synced folder (iCloud Drive, Dropbox, …) to share them across machines. Installed plugins always stay local.",
+      "sourceDefault": "Default location",
+      "sourceCustom": "Custom location",
+      "sourceEnv": "Set by TABULARIS_DATA_DIR",
+      "envHint": "The folder is controlled by the TABULARIS_DATA_DIR environment variable. Unset it to change the location from here.",
+      "envVar": "Environment variable",
+      "envVarDesc": "Set TABULARIS_DATA_DIR to an absolute path to override the data folder for a launch or an installation. It takes precedence over the folder chosen above, applies to the MCP server too, and is handy for portable installs, scripts and development.",
+      "envVarExample": "TABULARIS_DATA_DIR=/path/to/folder tabularis",
+      "changeFolder": "Change folder…",
+      "openFolder": "Open folder",
+      "resetToDefault": "Use default location",
+      "concurrencyWarning": "Tabularis reads this folder when it starts. Avoid running two instances on the same folder at the same time, for example on two machines while it is still syncing.",
+      "newFolder": "New folder",
+      "modeExisting": "Use the data already in this folder",
+      "modeExistingDesc": "This folder already contains Tabularis data, for example synced from another machine.",
+      "modeCopy": "Copy my current data into this folder",
+      "modeCopyDesc": "Files already in the folder are kept. Installed plugins are not copied.",
+      "modeEmpty": "Start with an empty folder",
+      "apply": "Apply",
+      "restartRequired": "Restart required",
+      "restartRequiredDesc": "Tabularis will use {{path}} after a restart.",
+      "restartNow": "Restart now"
+    },
     "backup": {
       "title": "Backup",
       "directory": "Backup folder",

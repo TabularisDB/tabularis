@@ -780,6 +780,12 @@
               "label": "Fuseau horaire",
               "description": "Fuseau horaire de session envoyé à MySQL après connexion."
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "Taille maximale du pool",
+              "description": "Nombre maximal de connexions PostgreSQL conservées dans le pool."
+            }
           }
         }
       },
@@ -828,6 +834,33 @@
       "selectColumn": "Sélectionner la colonne"
     },
     "aiActivity": "Activité IA",
+    "storage": {
+      "title": "Stockage",
+      "locations": "Emplacements",
+      "dataFolder": "Dossier de données",
+      "dataFolderDesc": "Les connexions, réglages, requêtes enregistrées, thèmes, notebooks et l'historique des requêtes sont stockés ici. Choisissez un dossier synchronisé (iCloud Drive, Dropbox, …) pour les partager entre machines. Les plugins installés restent toujours en local.",
+      "sourceDefault": "Emplacement par défaut",
+      "sourceCustom": "Emplacement personnalisé",
+      "sourceEnv": "Défini par TABULARIS_DATA_DIR",
+      "envHint": "Le dossier est contrôlé par la variable d'environnement TABULARIS_DATA_DIR. Supprimez-la pour changer l'emplacement depuis cet écran.",
+      "envVar": "Variable d'environnement",
+      "envVarDesc": "Définissez TABULARIS_DATA_DIR sur un chemin absolu pour remplacer le dossier de données lors d'un lancement ou pour une installation. Elle a priorité sur le dossier choisi ci-dessus, s'applique aussi au serveur MCP et convient aux installations portables, aux scripts et au développement.",
+      "envVarExample": "TABULARIS_DATA_DIR=/chemin/vers/dossier tabularis",
+      "changeFolder": "Changer de dossier…",
+      "openFolder": "Ouvrir le dossier",
+      "resetToDefault": "Utiliser l'emplacement par défaut",
+      "concurrencyWarning": "Tabularis lit ce dossier au démarrage. Évitez d'exécuter deux instances sur le même dossier en même temps, par exemple sur deux machines pendant la synchronisation.",
+      "newFolder": "Nouveau dossier",
+      "modeExisting": "Utiliser les données déjà présentes dans ce dossier",
+      "modeExistingDesc": "Ce dossier contient déjà des données Tabularis, par exemple synchronisées depuis une autre machine.",
+      "modeCopy": "Copier mes données actuelles dans ce dossier",
+      "modeCopyDesc": "Les fichiers déjà présents dans le dossier sont conservés. Les plugins installés ne sont pas copiés.",
+      "modeEmpty": "Commencer avec un dossier vide",
+      "apply": "Appliquer",
+      "restartRequired": "Redémarrage requis",
+      "restartRequiredDesc": "Tabularis utilisera {{path}} après un redémarrage.",
+      "restartNow": "Redémarrer maintenant"
+    },
     "backup": {
       "title": "Backup",
       "directory": "Dossier de sauvegarde",

@@ -238,8 +238,8 @@ pub enum MigrationMode {
 
 static CONFIG_CACHE: Lazy<RwLock<AppConfig>> = Lazy::new(|| RwLock::new(AppConfig::default()));
 
-pub fn get_config_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
-    app.path().app_config_dir().ok()
+pub fn get_config_dir<R: tauri::Runtime>(_app: &AppHandle<R>) -> Option<PathBuf> {
+    Some(crate::paths::get_app_config_dir())
 }
 
 fn cache_config(config: &AppConfig) {

@@ -1,4 +1,6 @@
 use crate::models::{ConnectionGroup, ConnectionsFile, SavedConnection};
+use serde_json::{Map, Value};
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
@@ -67,8 +69,133 @@ pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), 
         tags: file.tags.clone(),
     };
 
-    let json = serde_json::to_string_pretty(&to_save).map_err(|e| e.to_string())?;
+    let mut json = serde_json::to_value(&to_save).map_err(|e| e.to_string())?;
+    preserve_unknown_fields(path, &mut json);
+    let json = serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?;
     fs::write(path, json).map_err(|e| e.to_string())
+}
+
+/// Fields of `raw` the current binary's structs do not know: anything present
+/// on disk but absent from the round-trip of the typed parse, which is exactly
+/// what a save would have dropped. Aliases resolve to their renamed spelling
+/// during the round-trip, so they never register as unknown.
+fn unknown_fields<'a>(
+    raw: &'a Map<String, Value>,
+    roundtripped: &Value,
+    aliases: &[&str],
+) -> Vec<(&'a str, &'a Value)> {
+    let Some(known) = roundtripped.as_object() else {
+        return Vec::new();
+    };
+    raw.iter()
+        .filter(|(key, _)| !known.contains_key(key.as_str()) && !aliases.contains(&key.as_str()))
+        .map(|(key, value)| (key.as_str(), value))
+        .collect()
+}
+
+/// Copies fields the current binary's structs do not know from the previous
+/// on-disk content into the value about to be written, so a save no longer
+/// silently drops them (#668: the GUI and an older `--mcp` binary are
+/// independent writers of the same file). Matching is by connection id and
+/// covers the top level, each connection, and each connection's params. Known
+/// fields keep their in-memory value: something this save deliberately
+/// dropped (an optional cleared, a connection deleted) is not resurrected.
+/// The previous content is re-read here, not passed in, so whichever process
+/// wrote last still wins for the fields it knows.
+fn preserve_unknown_fields(path: &Path, next: &mut Value) {
+    let Ok(content) = fs::read_to_string(path) else {
+        return;
+    };
+    let Ok(prev_raw) = serde_json::from_str::<Value>(&content) else {
+        return;
+    };
+    let Ok(prev_typed) = parse_connections_file(&content) else {
+        return;
+    };
+    let Ok(prev_roundtrip) = serde_json::to_value(&prev_typed) else {
+        return;
+    };
+
+    // Connections to compare against: the new format stores them under
+    // "connections", the old format is the bare array itself. The round-trip
+    // of a typed parse is always the new format.
+    let prev_conns_raw: &[Value] = match &prev_raw {
+        Value::Array(a) => a,
+        Value::Object(o) => o
+            .get("connections")
+            .and_then(Value::as_array)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]),
+        _ => &[],
+    };
+    let prev_rt_conns: &[Value] = prev_roundtrip
+        .get("connections")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+
+    let raw_conn_by_id: HashMap<&str, &Value> = prev_conns_raw
+        .iter()
+        .filter_map(|c| c.get("id").and_then(Value::as_str).map(|id| (id, c)))
+        .collect();
+    let rt_conn_by_id: HashMap<&str, &Value> = prev_rt_conns
+        .iter()
+        .filter_map(|c| c.get("id").and_then(Value::as_str).map(|id| (id, c)))
+        .collect();
+
+    let Some(next_root) = next.as_object_mut() else {
+        return;
+    };
+
+    if let Value::Object(prev_root) = &prev_raw {
+        for (key, val) in unknown_fields(prev_root, &prev_roundtrip, &[]) {
+            if !next_root.contains_key(key) {
+                next_root.insert(key.to_string(), val.clone());
+            }
+        }
+    }
+
+    let Some(next_conns) = next_root
+        .get_mut("connections")
+        .and_then(Value::as_array_mut)
+    else {
+        return;
+    };
+    for conn in next_conns.iter_mut() {
+        let Some(obj) = conn.as_object_mut() else {
+            continue;
+        };
+        let Some(id) = obj.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let (Some(raw_conn), Some(rt_conn)) = (raw_conn_by_id.get(id), rt_conn_by_id.get(id))
+        else {
+            continue;
+        };
+        let Some(raw_conn) = raw_conn.as_object() else {
+            continue;
+        };
+        for (key, val) in unknown_fields(raw_conn, rt_conn, &[]) {
+            if !obj.contains_key(key) {
+                obj.insert(key.to_string(), val.clone());
+            }
+        }
+        if let (Some(raw_params), Some(next_params), Some(rt_params)) = (
+            raw_conn.get("params").and_then(Value::as_object),
+            obj.get_mut("params").and_then(Value::as_object_mut),
+            rt_conn.get("params"),
+        ) {
+            for (key, val) in unknown_fields(
+                raw_params,
+                rt_params,
+                &["connectionUri", "connectionUriInKeychain"],
+            ) {
+                if !next_params.contains_key(key) {
+                    next_params.insert(key.to_string(), val.clone());
+                }
+            }
+        }
+    }
 }
 
 /// Legacy function for backward compatibility - saves using new format

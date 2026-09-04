@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { join } from "@tauri-apps/api/path";
+import { getAppDataDir } from "../utils/storageLocation";
 
 interface Props {
   path: string;       // relative path "connection-icons/foo-abcd.png"
@@ -28,7 +29,7 @@ function ConnectionIconImageInner({ path, size, fallback }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const abs = await join(await appDataDir(), path);
+        const abs = await join(await getAppDataDir(), path);
         if (!cancelled) setSrc(convertFileSrc(abs));
       } catch {
         if (!cancelled) setFailed(true);

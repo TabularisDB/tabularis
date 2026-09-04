@@ -2,7 +2,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Runtime};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -33,8 +33,8 @@ pub struct SavedQuery {
     pub updated_at: Option<String>,
 }
 
-fn get_queries_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+fn get_queries_dir<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let config_dir = crate::paths::get_app_config_dir();
     let queries_dir = config_dir.join("saved_queries");
     if !queries_dir.exists() {
         fs::create_dir_all(&queries_dir).map_err(|e| e.to_string())?;

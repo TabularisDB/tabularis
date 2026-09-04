@@ -1740,7 +1740,8 @@ pub async fn drop_trigger(
 // ============================================================
 
 use crate::drivers::driver_trait::{
-    deprecation_for_builtin, DatabaseDriver, DriverCapabilities, PluginManifest, SqlDialect,
+    deprecation_for_builtin, DatabaseDriver, DriverCapabilities, PluginManifest,
+    PluginSettingDefinition, SqlDialect,
 };
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -1793,7 +1794,17 @@ impl PostgresDriver {
                 default_username: "postgres".to_string(),
                 color: "#3b82f6".to_string(),
                 icon: "postgres".to_string(),
-                settings: vec![],
+                settings: vec![PluginSettingDefinition {
+                    key: "poolMaxSize".to_string(),
+                    label: "Pool Max Size".to_string(),
+                    setting_type: "number".to_string(),
+                    default: Some(serde_json::json!(crate::pool_manager::DEFAULT_POSTGRES_POOL_MAX_SIZE)),
+                    description: Some(
+                        "Maximum number of PostgreSQL connections kept in the pool.".to_string(),
+                    ),
+                    required: false,
+                    options: vec![],
+                }],
                 ui_extensions: None,
                 explain_parsers: None,
                 type_mappings: std::collections::HashMap::new(),

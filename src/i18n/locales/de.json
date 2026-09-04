@@ -747,6 +747,12 @@
               "label": "Zeitzone",
               "description": "Sitzungszeitzone, die nach dem Verbindungsaufbau an MySQL gesendet wird."
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "Maximale Pool-Größe",
+              "description": "Maximale Anzahl von PostgreSQL-Verbindungen, die im Pool gehalten werden."
+            }
           }
         }
       },
@@ -794,6 +800,33 @@
       "selectColumn": "Spalte auswählen"
     },
     "aiActivity": "KI-Aktivität",
+    "storage": {
+      "title": "Speicherort",
+      "locations": "Speicherorte",
+      "dataFolder": "Datenordner",
+      "dataFolderDesc": "Verbindungen, Einstellungen, gespeicherte Abfragen, Themes, Notebooks und Abfrageverlauf werden hier gespeichert. Wähle einen synchronisierten Ordner (iCloud Drive, Dropbox, …), um sie zwischen Rechnern zu teilen. Installierte Plugins bleiben immer lokal.",
+      "sourceDefault": "Standardspeicherort",
+      "sourceCustom": "Benutzerdefinierter Speicherort",
+      "sourceEnv": "Gesetzt durch TABULARIS_DATA_DIR",
+      "envHint": "Der Ordner wird durch die Umgebungsvariable TABULARIS_DATA_DIR bestimmt. Entferne sie, um den Speicherort hier zu ändern.",
+      "envVar": "Umgebungsvariable",
+      "envVarDesc": "Setze TABULARIS_DATA_DIR auf einen absoluten Pfad, um den Datenordner für einen Start oder eine Installation zu überschreiben. Sie hat Vorrang vor dem oben gewählten Ordner, gilt auch für den MCP-Server und eignet sich für portable Installationen, Skripte und Entwicklung.",
+      "envVarExample": "TABULARIS_DATA_DIR=/pfad/zum/ordner tabularis",
+      "changeFolder": "Ordner ändern…",
+      "openFolder": "Ordner öffnen",
+      "resetToDefault": "Standardspeicherort verwenden",
+      "concurrencyWarning": "Tabularis liest diesen Ordner beim Start. Vermeide es, zwei Instanzen gleichzeitig auf demselben Ordner laufen zu lassen, z. B. auf zwei Rechnern während der Synchronisierung.",
+      "newFolder": "Neuer Ordner",
+      "modeExisting": "Bereits vorhandene Daten in diesem Ordner verwenden",
+      "modeExistingDesc": "Dieser Ordner enthält bereits Tabularis-Daten, z. B. von einem anderen Rechner synchronisiert.",
+      "modeCopy": "Meine aktuellen Daten in diesen Ordner kopieren",
+      "modeCopyDesc": "Bereits vorhandene Dateien im Ordner bleiben erhalten. Installierte Plugins werden nicht kopiert.",
+      "modeEmpty": "Mit einem leeren Ordner beginnen",
+      "apply": "Anwenden",
+      "restartRequired": "Neustart erforderlich",
+      "restartRequiredDesc": "Tabularis verwendet {{path}} nach einem Neustart.",
+      "restartNow": "Jetzt neu starten"
+    },
     "backup": {
       "title": "Backup",
       "directory": "Sicherungsordner",

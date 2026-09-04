@@ -772,6 +772,12 @@
               "label": "Fuso Orario",
               "description": "Fuso orario della sessione inviato a MySQL dopo la connessione."
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "Dimensione Massima del Pool",
+              "description": "Numero massimo di connessioni PostgreSQL mantenute nel pool."
+            }
           }
         }
       },
@@ -819,6 +825,33 @@
       "selectColumn": "Seleziona colonna"
     },
     "aiActivity": "Attività AI",
+    "storage": {
+      "title": "Archiviazione",
+      "locations": "Percorsi",
+      "dataFolder": "Cartella dati",
+      "dataFolderDesc": "Connessioni, impostazioni, query salvate, temi, notebook e cronologia delle query vengono salvati qui. Scegli una cartella sincronizzata (iCloud Drive, Dropbox, …) per condividerli tra più computer. I plugin installati restano sempre in locale.",
+      "sourceDefault": "Percorso predefinito",
+      "sourceCustom": "Percorso personalizzato",
+      "sourceEnv": "Impostato da TABULARIS_DATA_DIR",
+      "envHint": "La cartella è controllata dalla variabile d'ambiente TABULARIS_DATA_DIR. Rimuovila per cambiare il percorso da qui.",
+      "envVar": "Variabile d'ambiente",
+      "envVarDesc": "Imposta TABULARIS_DATA_DIR su un percorso assoluto per sostituire la cartella dati per un avvio o un'installazione. Ha la precedenza sulla cartella scelta sopra, vale anche per il server MCP ed è utile per installazioni portabili, script e sviluppo.",
+      "envVarExample": "TABULARIS_DATA_DIR=/percorso/della/cartella tabularis",
+      "changeFolder": "Cambia cartella…",
+      "openFolder": "Apri cartella",
+      "resetToDefault": "Usa percorso predefinito",
+      "concurrencyWarning": "Tabularis legge questa cartella all'avvio. Evita di eseguire due istanze sulla stessa cartella contemporaneamente, ad esempio su due computer durante la sincronizzazione.",
+      "newFolder": "Nuova cartella",
+      "modeExisting": "Usa i dati già presenti in questa cartella",
+      "modeExistingDesc": "Questa cartella contiene già dati di Tabularis, ad esempio sincronizzati da un altro computer.",
+      "modeCopy": "Copia i miei dati attuali in questa cartella",
+      "modeCopyDesc": "I file già presenti nella cartella vengono mantenuti. I plugin installati non vengono copiati.",
+      "modeEmpty": "Inizia con una cartella vuota",
+      "apply": "Applica",
+      "restartRequired": "Riavvio necessario",
+      "restartRequiredDesc": "Tabularis userà {{path}} dopo il riavvio.",
+      "restartNow": "Riavvia ora"
+    },
     "backup": {
       "title": "Backup",
       "directory": "Cartella di backup",

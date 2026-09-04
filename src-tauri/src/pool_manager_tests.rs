@@ -3,7 +3,8 @@ mod tests {
     use crate::models::{ConnectionParams, DatabaseSelection};
     use crate::pool_manager::{
         build_connection_key, build_mysql_options, format_error_chain,
-        is_pipes_as_concat_unsupported,
+        is_pipes_as_concat_unsupported, postgres_pool_max_size_from_value,
+        DEFAULT_POSTGRES_POOL_MAX_SIZE,
     };
     use sqlx::mysql::MySqlSslMode;
 
@@ -127,6 +128,46 @@ mod tests {
         assert_ne!(
             build_connection_key(&with_cert, Some("conn-1")),
             build_connection_key(&with_key, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn postgres_pool_max_size_defaults_without_setting() {
+        assert_eq!(
+            postgres_pool_max_size_from_value(None),
+            DEFAULT_POSTGRES_POOL_MAX_SIZE
+        );
+    }
+
+    #[test]
+    fn postgres_pool_max_size_accepts_numeric_and_string_settings() {
+        assert_eq!(
+            postgres_pool_max_size_from_value(Some(&serde_json::json!(1))),
+            1
+        );
+        assert_eq!(
+            postgres_pool_max_size_from_value(Some(&serde_json::json!("3"))),
+            3
+        );
+    }
+
+    #[test]
+    fn postgres_pool_max_size_ignores_invalid_or_zero_settings() {
+        assert_eq!(
+            postgres_pool_max_size_from_value(Some(&serde_json::json!(0))),
+            DEFAULT_POSTGRES_POOL_MAX_SIZE
+        );
+        assert_eq!(
+            postgres_pool_max_size_from_value(Some(&serde_json::json!("not-a-number"))),
+            DEFAULT_POSTGRES_POOL_MAX_SIZE
+        );
+    }
+
+    #[test]
+    fn postgres_pool_max_size_caps_oversized_settings() {
+        assert_eq!(
+            postgres_pool_max_size_from_value(Some(&serde_json::json!(10_000))),
+            64
         );
     }
 

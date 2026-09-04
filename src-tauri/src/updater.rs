@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Emitter;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 mod installation_source;
 
@@ -68,11 +68,8 @@ pub fn get_installation_source() -> Option<String> {
 }
 
 // Helper functions
-fn get_cache_path(app: &AppHandle) -> Option<PathBuf> {
-    app.path()
-        .app_config_dir()
-        .ok()
-        .map(|p| p.join("update_check_cache.json"))
+fn get_cache_path(_app: &AppHandle) -> Option<PathBuf> {
+    Some(crate::paths::get_app_config_dir().join("update_check_cache.json"))
 }
 
 fn parse_version(version: &str) -> Option<(u32, u32, u32)> {

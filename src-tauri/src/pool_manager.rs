@@ -51,6 +51,8 @@ static SQLITE_POOLS: Lazy<PoolMap<Sqlite>> = Lazy::new(|| Arc::new(RwLock::new(H
 
 const DEFAULT_MYSQL_CONNECT_TIMEOUT_MS: u64 = 60_000;
 const DEFAULT_MYSQL_TIMEZONE: &str = "SYSTEM";
+pub(crate) const DEFAULT_POSTGRES_POOL_MAX_SIZE: usize = 10;
+const MAX_POSTGRES_POOL_MAX_SIZE: usize = 64;
 
 /// SQLite is file-based so the preflight is effectively local, but a custom
 /// VFS or a path on a stalled network mount could still hang it; bound it so a
@@ -85,6 +87,31 @@ fn mysql_numeric_setting(key: &str, default: u64) -> u64 {
                 .or_else(|| value.as_str().and_then(|item| item.parse::<u64>().ok()))
         })
         .unwrap_or(default)
+}
+
+fn postgres_setting_value(key: &str) -> Option<serde_json::Value> {
+    crate::config::get_cached_config()
+        .plugins
+        .and_then(|plugins| plugins.get("postgres").cloned())
+        .and_then(|plugin| plugin.settings.get(key).cloned())
+}
+
+pub(crate) fn postgres_pool_max_size_from_value(value: Option<&serde_json::Value>) -> usize {
+    value
+        .and_then(|value| {
+            value
+                .as_u64()
+                .or_else(|| value.as_i64().and_then(|item| u64::try_from(item).ok()))
+                .or_else(|| value.as_str().and_then(|item| item.parse::<u64>().ok()))
+        })
+        .and_then(|value| usize::try_from(value).ok())
+        .filter(|value| *value > 0)
+        .map(|value| value.min(MAX_POSTGRES_POOL_MAX_SIZE))
+        .unwrap_or(DEFAULT_POSTGRES_POOL_MAX_SIZE)
+}
+
+fn postgres_pool_max_size() -> usize {
+    postgres_pool_max_size_from_value(postgres_setting_value("poolMaxSize").as_ref())
 }
 
 /// Stable pool key: uses `connection_id` when present (saved connections),
@@ -975,7 +1002,8 @@ pub async fn get_postgres_pool_with_id(
         })??;
     }
 
-    let mut builder = PgPool::builder(PgPoolManager::new(cfg, tls_connector)).max_size(10);
+    let mut builder =
+        PgPool::builder(PgPoolManager::new(cfg, tls_connector)).max_size(postgres_pool_max_size());
     if let Some(script) = startup_script(params) {
         builder = builder.post_create(PgHook::async_fn(move |client, _metrics| {
             let script = script.clone();

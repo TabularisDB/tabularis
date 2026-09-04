@@ -34,7 +34,7 @@ struct InstalledPluginManifest {
 }
 
 pub fn get_plugins_dir() -> Result<PathBuf, String> {
-    let plugins_dir = crate::paths::get_app_data_dir().join("plugins");
+    let plugins_dir = crate::paths::get_plugins_dir();
     if !plugins_dir.exists() {
         fs::create_dir_all(&plugins_dir)
             .map_err(|e| format!("Failed to create plugins directory: {}", e))?;
@@ -104,7 +104,7 @@ pub fn migrate_legacy_plugins_dir() {
     let Some(legacy) = legacy_plugins_dir() else {
         return;
     };
-    let target = crate::paths::get_app_data_dir().join("plugins");
+    let target = crate::paths::get_plugins_dir();
     let moved = migrate_plugins_between(&legacy, &target);
     if moved > 0 {
         log::info!(

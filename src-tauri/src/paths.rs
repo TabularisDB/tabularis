@@ -19,8 +19,10 @@ pub(crate) fn unnested_app_dir(dir: &Path, strip_leaf: bool) -> PathBuf {
     }
 }
 
-/// Directory for app configuration (settings, themes, AI activity, ...).
-pub fn get_app_config_dir() -> PathBuf {
+/// Platform default for the configuration directory, ignoring any custom
+/// storage location. This is where the storage-location pointer file lives,
+/// so it must never be redirected itself.
+pub fn get_default_app_config_dir() -> PathBuf {
     match project_dirs() {
         Some(proj_dirs) => unnested_app_dir(proj_dirs.config_dir(), cfg!(target_os = "windows")),
         // Fallback for weird environments
@@ -28,15 +30,53 @@ pub fn get_app_config_dir() -> PathBuf {
     }
 }
 
-/// Directory for app data (installed plugins, ...). On Linux this resolves to
-/// `~/.local/share/tabularis`; on macOS/Windows it shares the same `tabularis`
-/// folder used by [`get_app_config_dir`].
-pub fn get_app_data_dir() -> PathBuf {
+/// Platform default for the data directory, ignoring any custom storage
+/// location. Installed plugins always live here: they are platform-specific
+/// binaries and must not be synced across machines.
+pub fn get_default_app_data_dir() -> PathBuf {
     match project_dirs() {
         Some(proj_dirs) => unnested_app_dir(proj_dirs.data_dir(), cfg!(target_os = "windows")),
         // Fallback for weird environments
         None => PathBuf::from(".local/share/tabularis"),
     }
+}
+
+/// Directory for app configuration (connections, settings, themes, saved
+/// queries, notebooks, AI activity, ...).
+///
+/// When the user picked a custom storage location (see
+/// [`crate::storage_location`]) this resolves to that folder instead of the
+/// platform default. The override is resolved once per process, so a change
+/// only takes effect after a restart.
+pub fn get_app_config_dir() -> PathBuf {
+    match crate::storage_location::active_override() {
+        Some(custom) => custom.to_path_buf(),
+        None => get_default_app_config_dir(),
+    }
+}
+
+/// Directory for user data that belongs to the connections (custom connection
+/// icons, ...). On Linux this resolves to `~/.local/share/tabularis`; on
+/// macOS/Windows it shares the same `tabularis` folder used by
+/// [`get_app_config_dir`]. A custom storage location redirects it too, so the
+/// icons referenced by `connections.json` travel with the connections.
+pub fn get_app_data_dir() -> PathBuf {
+    match crate::storage_location::active_override() {
+        Some(custom) => custom.to_path_buf(),
+        None => get_default_app_data_dir(),
+    }
+}
+
+/// Directory holding installed plugins. Never follows the custom storage
+/// location: plugin binaries are per-platform and must stay local.
+pub fn get_plugins_dir() -> PathBuf {
+    get_default_app_data_dir().join("plugins")
+}
+
+/// Directory holding custom connection icons, relative to which
+/// `connections.json` stores `connection-icons/<file>` paths.
+pub fn get_connection_icons_dir() -> PathBuf {
+    get_app_data_dir().join("connection-icons")
 }
 
 /// Resolve the connections file inside `config_dir`.

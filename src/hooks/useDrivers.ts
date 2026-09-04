@@ -16,6 +16,15 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
     default_username: "postgres",
     color: "#3b82f6",
     icon: "postgres",
+    settings: [
+      {
+        key: "poolMaxSize",
+        label: "Pool Max Size",
+        type: "number",
+        default: 10,
+        description: "Maximum number of PostgreSQL connections kept in the pool.",
+      },
+    ],
     capabilities: {
       schemas: true,
       views: true,

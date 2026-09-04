@@ -725,6 +725,12 @@
               "label": "시간대",
               "description": "연결 후 MySQL로 전송되는 세션 시간대입니다."
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "풀 최대 크기",
+              "description": "풀에 유지할 PostgreSQL 연결의 최대 개수입니다."
+            }
           }
         }
       }
@@ -769,6 +775,33 @@
       "commandPaletteActions": "작업 검색"
     },
     "aiActivity": "AI 활동",
+    "storage": {
+      "title": "저장소",
+      "locations": "위치",
+      "dataFolder": "데이터 폴더",
+      "dataFolderDesc": "연결, 설정, 저장된 쿼리, 테마, 노트북, 쿼리 기록이 여기에 저장됩니다. 동기화 폴더(iCloud Drive, Dropbox 등)를 지정하면 여러 컴퓨터 간에 공유할 수 있습니다. 설치된 플러그인은 항상 로컬에 유지됩니다.",
+      "sourceDefault": "기본 위치",
+      "sourceCustom": "사용자 지정 위치",
+      "sourceEnv": "TABULARIS_DATA_DIR로 설정됨",
+      "envHint": "이 폴더는 환경 변수 TABULARIS_DATA_DIR로 제어됩니다. 여기서 위치를 변경하려면 해당 변수를 해제하세요.",
+      "envVar": "환경 변수",
+      "envVarDesc": "TABULARIS_DATA_DIR에 절대 경로를 설정하면 실행 또는 설치 단위로 데이터 폴더를 재정의할 수 있습니다. 위에서 선택한 폴더보다 우선하며 MCP 서버에도 적용되고, 포터블 설치, 스크립트, 개발에 유용합니다.",
+      "envVarExample": "TABULARIS_DATA_DIR=/path/to/folder tabularis",
+      "changeFolder": "폴더 변경…",
+      "openFolder": "폴더 열기",
+      "resetToDefault": "기본 위치 사용",
+      "concurrencyWarning": "Tabularis는 시작할 때 이 폴더를 읽습니다. 동기화 중인 두 컴퓨터 등에서 같은 폴더로 두 인스턴스를 동시에 실행하지 마세요.",
+      "newFolder": "새 폴더",
+      "modeExisting": "이 폴더에 이미 있는 데이터 사용",
+      "modeExistingDesc": "이 폴더에는 이미 Tabularis 데이터가 있습니다(예: 다른 컴퓨터에서 동기화됨).",
+      "modeCopy": "현재 데이터를 이 폴더로 복사",
+      "modeCopyDesc": "폴더에 이미 있는 파일은 유지됩니다. 설치된 플러그인은 복사되지 않습니다.",
+      "modeEmpty": "빈 폴더로 시작",
+      "apply": "적용",
+      "restartRequired": "재시작 필요",
+      "restartRequiredDesc": "재시작 후 Tabularis는 {{path}}를 사용합니다.",
+      "restartNow": "지금 재시작"
+    },
     "backup": {
       "title": "백업",
       "directory": "백업 폴더",

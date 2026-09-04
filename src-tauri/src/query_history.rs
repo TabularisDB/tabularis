@@ -50,8 +50,8 @@ async fn acquire_lock(state: &QueryHistoryState, connection_id: &str) -> Arc<Mut
         .clone()
 }
 
-fn get_history_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+fn get_history_dir<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let config_dir = crate::paths::get_app_config_dir();
     let history_dir = config_dir.join("query_history");
     if !history_dir.exists() {
         fs::create_dir_all(&history_dir).map_err(|e| e.to_string())?;

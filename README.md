@@ -303,7 +303,7 @@ Tabularis is **hackable with an external plugin system**. Plugins are standalone
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/configuration)
 
-Configuration is stored in `~/.config/tabularis/` (Linux), `~/Library/Application Support/tabularis/` (macOS), or `%APPDATA%\tabularis\` (Windows): connection profiles, saved queries, app settings (`config.json`), custom themes, and per-connection editor preferences. Tabs and queries are restored when you reopen a connection. The wiki covers the full file layout and every `config.json` option, including custom AI model overrides.
+Configuration is stored in `~/.config/tabularis/` (Linux), `~/Library/Application Support/tabularis/` (macOS), or `%APPDATA%\tabularis\` (Windows): connection profiles, saved queries, app settings (`config.json`), custom themes, and per-connection editor preferences. You can move this folder from **Settings > Storage** (or with the `TABULARIS_DATA_DIR` environment variable), for example to an iCloud Drive or Dropbox folder to sync connections across machines; installed plugins always stay local. Tabs and queries are restored when you reopen a connection. The wiki covers the full file layout and every `config.json` option, including custom AI model overrides.
 
 ### AI Features (Optional)
 
