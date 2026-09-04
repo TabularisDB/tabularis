@@ -200,10 +200,22 @@ describe("useBuiltinDriverMigration", () => {
         "test_connection",
         expect.objectContaining({ request: expect.objectContaining({ connection_id: "c1" }) }),
       );
-      // history record persisted.
+      // history record persisted, via the updater-function form (see the
+      // "bulk migration" describe block below for why: a plain
+      // `[...settings.driverMigrationHistory, record]` read from a stale
+      // closure loses earlier records when this runs several times in a
+      // row against the same pre-loop snapshot).
       expect(settingsMock.updateSetting).toHaveBeenCalledWith(
         "driverMigrationHistory",
-        expect.arrayContaining([expect.objectContaining({ connectionId: "c1", fromDriver: "postgres", toDriver: "postgresql" })]),
+        expect.any(Function),
+      );
+      const updater = settingsMock.updateSetting.mock.calls[0][1] as (
+        prev: unknown[] | undefined,
+      ) => unknown[];
+      expect(updater(undefined)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ connectionId: "c1", fromDriver: "postgres", toDriver: "postgresql" }),
+        ]),
       );
     });
 
@@ -363,6 +375,41 @@ describe("useBuiltinDriverMigration", () => {
       expect(outcome.status).toBe("process");
       expect(outcome.startupError).toBe("no such interpreter");
       expect(outcome.pluginId).toBe("postgresql");
+    });
+
+    it("appends every record when migrateConnection runs several times in a row, like the checklist's bulk loop", async () => {
+      // Regression for the bulk-migration history-loss bug: MigrationChecklistModal
+      // calls migrateConnection once per checked connection, sequentially, all
+      // from the same render — so recordMigration must append onto whatever
+      // updateSetting's own functional update sees as current, not onto a
+      // `settings.driverMigrationHistory` value captured once before the loop
+      // started (that would make every write but the last silently overwrite
+      // the ones before it). Simulate updateSetting's real behavior — an
+      // updater function reads the *current* accumulated history — rather
+      // than the plain mock the other tests use.
+      setPluginReady(true);
+      databaseMock.connections = [builtinConn("c1"), builtinConn("c2"), builtinConn("c3")];
+      let history: unknown[] = [];
+      settingsMock.updateSetting.mockImplementation((key: string, valueOrUpdater: unknown) => {
+        if (key === "driverMigrationHistory" && typeof valueOrUpdater === "function") {
+          history = (valueOrUpdater as (prev: unknown[]) => unknown[])(history);
+        }
+        return Promise.resolve();
+      });
+
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      await act(async () => {
+        await result.current.migrateConnection("c1");
+        await result.current.migrateConnection("c2");
+        await result.current.migrateConnection("c3");
+      });
+
+      expect(history).toHaveLength(3);
+      expect(history).toEqual([
+        expect.objectContaining({ connectionId: "c1" }),
+        expect.objectContaining({ connectionId: "c2" }),
+        expect.objectContaining({ connectionId: "c3" }),
+      ]);
     });
   });
 

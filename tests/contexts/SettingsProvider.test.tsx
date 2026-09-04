@@ -385,6 +385,45 @@ describe("SettingsProvider", () => {
     });
   });
 
+  it("resolves an updater-function value against the current setting, not a stale render's snapshot", async () => {
+    // The bug this guards: a caller that reads `settings.foo` once and
+    // reuses that snapshot across several `updateSetting` calls made in a
+    // tight sequence (e.g. useBuiltinDriverMigration's bulk-migration loop
+    // appending one history record per connection) would have every write
+    // but the last silently discard the ones before it. The updater form
+    // must resolve against `prev` inside setSettings's own functional
+    // update, so each call sees the result of the one immediately before it.
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(SettingsProvider, null, children);
+
+    const { result } = renderHook(() => useSettings(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.updateSetting("driverMigrationHistory", (prev) => [
+        ...(prev ?? []),
+        { connectionId: "a" },
+      ]);
+      await result.current.updateSetting("driverMigrationHistory", (prev) => [
+        ...(prev ?? []),
+        { connectionId: "b" },
+      ]);
+      await result.current.updateSetting("driverMigrationHistory", (prev) => [
+        ...(prev ?? []),
+        { connectionId: "c" },
+      ]);
+    });
+
+    expect(result.current.settings.driverMigrationHistory).toEqual([
+      { connectionId: "a" },
+      { connectionId: "b" },
+      { connectionId: "c" },
+    ]);
+  });
+
   it("should change language when language setting is updated", async () => {
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       React.createElement(SettingsProvider, null, children);

@@ -167,10 +167,24 @@ export interface Settings {
 
 export interface SettingsContextType {
   settings: Settings;
-  updateSetting: <K extends keyof Settings>(
-    key: K,
-    value: Settings[K],
-  ) => Promise<void>;
+  /** Overloaded: pass a plain value, or an updater that receives the
+   * *current* value at the moment the state update actually runs (React's
+   * functional-setState pattern) rather than whatever was in scope when
+   * `updateSetting` was called. Needed for any read-then-append onto a
+   * setting — e.g. a migration-history array — from inside an async loop
+   * that calls `updateSetting` more than once: a caller that captures
+   * `settings.foo` once, before the loop starts, and reuses that same
+   * snapshot on every iteration only ever appends onto that first snapshot,
+   * so every write but the last is silently overwritten by the one after it.
+   * No `Settings` field is itself function-typed, so the two signatures
+   * don't collide at any call site. */
+  updateSetting: {
+    <K extends keyof Settings>(key: K, value: Settings[K]): Promise<void>;
+    <K extends keyof Settings>(
+      key: K,
+      updater: (prev: Settings[K]) => Settings[K],
+    ): Promise<void>;
+  };
   isLoading: boolean;
   isLanguageReady: boolean;
   isLanguageSettled: boolean;

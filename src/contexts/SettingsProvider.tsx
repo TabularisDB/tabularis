@@ -389,28 +389,42 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   const updateSetting = <K extends keyof Settings>(
     key: K,
-    value: Settings[K],
+    valueOrUpdater: Settings[K] | ((prev: Settings[K]) => Settings[K]),
   ): Promise<void> => {
     let persistPromise = Promise.resolve();
 
-    if (key === "language") {
-      const nextLanguage = value as Settings["language"];
-      const languageAlreadyApplied = isLanguageApplied(nextLanguage);
+    setSettings((prev) => {
+      // No `Settings` field is itself function-typed (checked at the
+      // `updateSetting` type definition), so this is an unambiguous way to
+      // tell the two overloads apart at runtime. Resolving against `prev`
+      // here — inside the functional setState updater — rather than against
+      // the `settings` from this closure's render is what makes the updater
+      // form actually see the latest value: a caller invoking
+      // `updateSetting` several times in a row (e.g. a bulk-migration loop
+      // appending one history record per iteration) gets each call's own
+      // fresh `prev`, not the same pre-loop snapshot every time.
+      const nextValue =
+        typeof valueOrUpdater === "function"
+          ? (valueOrUpdater as (prev: Settings[K]) => Settings[K])(prev[key])
+          : valueOrUpdater;
 
-      if (languageAlreadyApplied) {
-        appliedLanguageRef.current = nextLanguage;
-        requestedLanguageRef.current = nextLanguage;
+      if (key === "language") {
+        const nextLanguage = nextValue as Settings["language"];
+        const languageAlreadyApplied = isLanguageApplied(nextLanguage);
+
+        if (languageAlreadyApplied) {
+          appliedLanguageRef.current = nextLanguage;
+          requestedLanguageRef.current = nextLanguage;
+        }
+
+        setLanguageState({
+          language: nextLanguage,
+          ready: languageAlreadyApplied,
+          settled: languageAlreadyApplied,
+        });
       }
 
-      setLanguageState({
-        language: nextLanguage,
-        ready: languageAlreadyApplied,
-        settled: languageAlreadyApplied,
-      });
-    }
-
-    setSettings((prev) => {
-      const newSettings = { ...prev, [key]: value };
+      const newSettings = { ...prev, [key]: nextValue };
 
       // Persist to backend. Strip session-persistence fields — they are
       // managed by DatabaseProvider through dedicated backend commands

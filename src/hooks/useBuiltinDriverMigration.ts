@@ -169,9 +169,16 @@ export function useBuiltinDriverMigration(
 
   const recordMigration = useCallback(
     async (connectionId: string, fromDriver: string, toDriver: string) => {
-      const history = settings.driverMigrationHistory ?? [];
-      await updateSetting("driverMigrationHistory", [
-        ...history,
+      // Updater form, not `[...settings.driverMigrationHistory, record]`:
+      // MigrationChecklistModal's bulk loop calls `migrateConnection` (and
+      // therefore this) repeatedly in a tight sequence, all against the same
+      // `settings` snapshot from whichever render started the loop. Reading
+      // `prev` inside `updateSetting`'s own functional update means each
+      // call appends onto the result of the write immediately before it,
+      // not onto that one shared pre-loop snapshot — otherwise every write
+      // but the last silently discards the ones before it.
+      await updateSetting("driverMigrationHistory", (prev) => [
+        ...(prev ?? []),
         {
           connectionId,
           fromDriver,
@@ -182,7 +189,7 @@ export function useBuiltinDriverMigration(
         },
       ]);
     },
-    [settings.driverMigrationHistory, updateSetting],
+    [updateSetting],
   );
 
   // Migrate one connection: auto-disconnect if open, flip the driver, run a
