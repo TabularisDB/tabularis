@@ -1437,6 +1437,7 @@
       "invalidFile": "Invalid na format ng notebook file",
       "importSuccess": "Matagumpay na na-import ang notebook",
       "exportSuccess": "Matagumpay na na-export ang notebook",
+      "resultExportSuccess": "Matagumpay na na-export ang resulta",
       "convertToConsole": "I-convert sa Console",
       "runningAll": "Pinapatakbo ang lahat ng cell...",
       "cellResult": "{{count}} row · {{time}}ms",

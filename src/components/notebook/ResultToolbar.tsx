@@ -28,7 +28,7 @@ export function ResultToolbar({ result, executionTime }: ResultToolbarProps) {
       if (!filePath) return;
       const csv = resultToCsv(result);
       await writeTextFile(filePath, csv);
-      showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      showAlert(t("editor.notebook.resultExportSuccess"), { kind: "info" });
     } catch (e) {
       console.error("CSV export failed:", e);
       showAlert(t("editor.notebook.exportError"), { kind: "error" });
@@ -44,7 +44,7 @@ export function ResultToolbar({ result, executionTime }: ResultToolbarProps) {
       if (!filePath) return;
       const json = resultToJson(result);
       await writeTextFile(filePath, json);
-      showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      showAlert(t("editor.notebook.resultExportSuccess"), { kind: "info" });
     } catch (e) {
       console.error("JSON export failed:", e);
       showAlert(t("editor.notebook.exportError"), { kind: "error" });

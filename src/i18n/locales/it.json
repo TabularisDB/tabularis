@@ -1428,6 +1428,7 @@
       "invalidFile": "Formato file notebook non valido",
       "importSuccess": "Notebook importato con successo",
       "exportSuccess": "Notebook esportato con successo",
+      "resultExportSuccess": "Risultato esportato con successo",
       "convertToConsole": "Converti in Console",
       "runningAll": "Esecuzione di tutte le celle...",
       "cellResult": "{{count}} righe · {{time}}ms",

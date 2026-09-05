@@ -1455,6 +1455,7 @@
       "invalidFile": "Invalid notebook file format",
       "importSuccess": "Notebook imported successfully",
       "exportSuccess": "Notebook exported successfully",
+      "resultExportSuccess": "Result exported successfully",
       "convertToConsole": "Convert to Console",
       "runningAll": "Running all cells...",
       "cellResult": "{{count}} rows · {{time}}ms",

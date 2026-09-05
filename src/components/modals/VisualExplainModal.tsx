@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   X,
@@ -6,17 +6,14 @@ import {
   RefreshCw,
   AlertTriangle,
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useDrivers } from "../../hooks/useDrivers";
-import type { ExplainPlan, ExplainQueryOutput } from "@tabularis/explain";
-import { resolveExplainOutput } from "@tabularis/explain";
-import { isDataModifyingQuery, isExplainableQuery } from "../../utils/sql";
+import { useExplainPlan } from "../../hooks/useExplainPlan";
+import { isDataModifyingQuery } from "../../utils/sql";
 import { getConnectionIcon } from "../../utils/driverUI";
 import { Modal } from "../ui/Modal";
 import { VisualExplainView } from "../explain/VisualExplainView";
-import type { ExplainViewMode } from "@tabularis/explain/react";
 
 interface VisualExplainModalProps {
   isOpen: boolean;
@@ -42,11 +39,16 @@ export const VisualExplainModal = ({
   const { settings } = useSettings();
   const { getConnectionData, connections } = useDatabase();
   const { allDrivers } = useDrivers();
-  const [plan, setPlan] = useState<ExplainPlan | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ExplainViewMode>("graph");
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const {
+    plan,
+    isLoading,
+    error,
+    viewMode,
+    setViewMode,
+    selectedNodeId,
+    setSelectedNodeId,
+    runExplain,
+  } = useExplainPlan();
 
   const isDml = query ? isDataModifyingQuery(query) : false;
   const [analyze, setAnalyze] = useState(!isDml);
@@ -66,41 +68,12 @@ export const VisualExplainModal = ({
       ? `${databaseLabel} / ${schemaLabel}`
       : databaseLabel;
 
-  const handleExplain = useCallback(async () => {
-    if (!query?.trim() || !connectionId) return;
-
-    if (!isExplainableQuery(query)) {
-      setError(t("editor.visualExplain.notExplainable"));
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    setPlan(null);
-
-    try {
-      const result = await invoke<ExplainQueryOutput>("explain_query_plan", {
-        connectionId,
-        query,
-        analyze,
-        schema: schema || null,
-      });
-      const parsedPlan = resolveExplainOutput(result);
-      setPlan(parsedPlan);
-      setSelectedNodeId(parsedPlan.root.id);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [query, connectionId, analyze, schema, t]);
-
   useEffect(() => {
     if (isOpen && query?.trim() && connectionId) {
       setViewMode("graph");
-      handleExplain();
+      runExplain({ connectionId, query, analyze, schema });
     }
-  }, [isOpen, query, connectionId, handleExplain]);
+  }, [isOpen, query, connectionId, analyze, schema, runExplain, setViewMode]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -173,7 +146,7 @@ export const VisualExplainModal = ({
           <div className="flex-1" />
 
           <button
-            onClick={handleExplain}
+            onClick={() => runExplain({ connectionId, query, analyze, schema })}
             disabled={isLoading}
             className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
           >

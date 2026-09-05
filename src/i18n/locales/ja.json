@@ -1417,6 +1417,7 @@
       "invalidFile": "不正なノートブックファイル形式です",
       "importSuccess": "ノートブックを正常にインポートしました",
       "exportSuccess": "ノートブックを正常にエクスポートしました",
+      "resultExportSuccess": "結果を正常にエクスポートしました",
       "convertToConsole": "コンソールに変換",
       "runningAll": "すべてのセルを実行中...",
       "cellResult": "{{count}} 行 · {{time}}ms",

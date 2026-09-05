@@ -1402,6 +1402,7 @@
       "invalidFile": "Недопустимый формат файла ноутбука",
       "importSuccess": "Ноутбук импортирован",
       "exportSuccess": "Ноутбук экспортирован",
+      "resultExportSuccess": "Результат экспортирован",
       "convertToConsole": "Преобразовать в консоль",
       "runningAll": "Выполнение всех ячеек...",
       "cellResult_one": "{{count}} строка · {{time}}мс",

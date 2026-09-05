@@ -1421,6 +1421,7 @@
       "invalidFile": "Formato de arquivo de notebook inválido",
       "importSuccess": "Notebook importado com sucesso",
       "exportSuccess": "Notebook exportado com sucesso",
+      "resultExportSuccess": "Resultado exportado com sucesso",
       "convertToConsole": "Converter para Console",
       "runningAll": "Executando todas as células...",
       "cellResult": "{{count}} linhas · {{time}}ms",

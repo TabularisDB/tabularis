@@ -1371,6 +1371,7 @@
       "invalidFile": "无效的笔记本文件格式",
       "importSuccess": "笔记本导入成功",
       "exportSuccess": "笔记本导出成功",
+      "resultExportSuccess": "结果导出成功",
       "convertToConsole": "转换为控制台",
       "runningAll": "正在运行所有单元格...",
       "cellResult": "{{count}} 行 · {{time}}毫秒",
