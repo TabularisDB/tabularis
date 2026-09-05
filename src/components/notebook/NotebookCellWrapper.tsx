@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { NotebookCell } from "../../types/notebook";
 import type { CellChartConfig } from "../../types/notebook";
+import { useDatabase } from "../../hooks/useDatabase";
+import { supportsExplain } from "../../utils/driverCapabilities";
 import { restoreFromHistory, getHistorySize } from "../../utils/notebookHistory";
 import { NotebookCellHeader } from "./NotebookCellHeader";
 import { SqlCell } from "./SqlCell";
@@ -45,6 +47,10 @@ export function NotebookCellWrapper({
   dragHandleProps,
 }: NotebookCellWrapperProps) {
   const [showHistory, setShowHistory] = useState(false);
+  const { activeCapabilities } = useDatabase();
+  const canExplain = cell.type === "sql" && supportsExplain(activeCapabilities);
+  const toggleQueryPlan = () =>
+    onUpdate({ isQueryPlanVisible: !cell.isQueryPlanVisible });
 
   const handleChartConfigChange = (config: CellChartConfig | null) => {
     onUpdate({ chartConfig: config });
@@ -97,6 +103,8 @@ export function NotebookCellWrapper({
         onToggleHistory={
           cell.type === "sql" ? () => setShowHistory((v) => !v) : undefined
         }
+        isQueryPlanVisible={cell.isQueryPlanVisible}
+        onToggleQueryPlan={canExplain ? toggleQueryPlan : undefined}
         isCollapsed={cell.isCollapsed}
         onToggleCollapse={() => onUpdate({ isCollapsed: !cell.isCollapsed })}
         cellName={cell.name}
@@ -128,6 +136,7 @@ export function NotebookCellWrapper({
           onToggleChartVisible={(visible) =>
             onUpdate({ isChartVisible: visible })
           }
+          onToggleQueryPlanVisible={toggleQueryPlan}
           connectionId={connectionId}
           schema={activeSchema}
         />

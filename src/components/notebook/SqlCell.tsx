@@ -2,6 +2,7 @@ import type { NotebookCell } from "../../types/notebook";
 import type { CellChartConfig } from "../../types/notebook";
 import { SqlCellEditor } from "./SqlCellEditor";
 import { SqlCellResult } from "./SqlCellResult";
+import { SqlCellExplain } from "./SqlCellExplain";
 
 interface SqlCellProps {
   cell: NotebookCell;
@@ -12,6 +13,7 @@ interface SqlCellProps {
   onToggleQueryCollapse: () => void;
   onToggleResultCollapse: () => void;
   onToggleChartVisible: (visible: boolean) => void;
+  onToggleQueryPlanVisible: () => void;
   connectionId: string;
   schema?: string;
 }
@@ -25,6 +27,7 @@ export function SqlCell({
   onToggleQueryCollapse,
   onToggleResultCollapse,
   onToggleChartVisible,
+  onToggleQueryPlanVisible,
   connectionId,
   schema,
 }: SqlCellProps) {
@@ -53,6 +56,13 @@ export function SqlCell({
         onToggleResultCollapse={onToggleResultCollapse}
         isChartVisible={cell.isChartVisible}
         onToggleChartVisible={onToggleChartVisible}
+      />
+      <SqlCellExplain
+        query={cell.content}
+        connectionId={connectionId}
+        schema={schema}
+        visible={!!cell.isQueryPlanVisible}
+        onToggleVisible={onToggleQueryPlanVisible}
       />
     </div>
   );

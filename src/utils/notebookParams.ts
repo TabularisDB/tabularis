@@ -28,7 +28,10 @@ export function extractParamReferences(sql: string): ParamReference[] {
 }
 
 export function hasParamReferences(sql: string): boolean {
-  return PARAM_PATTERN.test(sql) || TEMPLATE_PARAM_PATTERN.test(sql);
+  return (
+    new RegExp(PARAM_PATTERN.source).test(sql) ||
+    new RegExp(TEMPLATE_PARAM_PATTERN.source).test(sql)
+  );
 }
 
 export function resolveParams(
@@ -42,7 +45,8 @@ export function resolveParams(
   const unresolvedParams: string[] = [];
   let resolvedSql = sql;
 
-  // Process refs in reverse order to avoid index shifting
+  // Replace each unique param by name; the global regex replaces every
+  // occurrence, so processing order doesn't matter.
   const uniqueNames = [...new Set(refs.map((r) => r.name))];
   for (const name of uniqueNames) {
     const value = paramMap.get(name);

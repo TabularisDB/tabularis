@@ -4,6 +4,7 @@ import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Download } from "lucide-react";
 import type { QueryResult } from "../../types/editor";
 import { resultToCsv, resultToJson } from "../../utils/notebookExport";
+import { useAlert } from "../../hooks/useAlert";
 
 interface ResultToolbarProps {
   result: QueryResult;
@@ -16,25 +17,38 @@ interface ResultToolbarProps {
  */
 export function ResultToolbar({ result, executionTime }: ResultToolbarProps) {
   const { t } = useTranslation();
+  const { showAlert } = useAlert();
 
   const handleExportCsv = async () => {
-    const filePath = await save({
-      defaultPath: "result.csv",
-      filters: [{ name: "CSV", extensions: ["csv"] }],
-    });
-    if (!filePath) return;
-    const csv = resultToCsv(result);
-    await writeTextFile(filePath, csv);
+    try {
+      const filePath = await save({
+        defaultPath: "result.csv",
+        filters: [{ name: "CSV", extensions: ["csv"] }],
+      });
+      if (!filePath) return;
+      const csv = resultToCsv(result);
+      await writeTextFile(filePath, csv);
+      showAlert(t("editor.notebook.resultExportSuccess"), { kind: "info" });
+    } catch (e) {
+      console.error("CSV export failed:", e);
+      showAlert(t("editor.notebook.exportError"), { kind: "error" });
+    }
   };
 
   const handleExportJson = async () => {
-    const filePath = await save({
-      defaultPath: "result.json",
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (!filePath) return;
-    const json = resultToJson(result);
-    await writeTextFile(filePath, json);
+    try {
+      const filePath = await save({
+        defaultPath: "result.json",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!filePath) return;
+      const json = resultToJson(result);
+      await writeTextFile(filePath, json);
+      showAlert(t("editor.notebook.resultExportSuccess"), { kind: "info" });
+    } catch (e) {
+      console.error("JSON export failed:", e);
+      showAlert(t("editor.notebook.exportError"), { kind: "error" });
+    }
   };
 
   return (
