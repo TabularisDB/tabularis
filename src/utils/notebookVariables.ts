@@ -19,7 +19,7 @@ export function extractCellReferences(sql: string): CellReference[] {
 }
 
 export function hasCellReferences(sql: string): boolean {
-  return CELL_REF_PATTERN.test(sql);
+  return new RegExp(CELL_REF_PATTERN.source).test(sql);
 }
 
 /** Quote a column name as a SQL identifier, doubling embedded quotes. */
@@ -118,8 +118,15 @@ export function resolveQueryVariables(
   const unresolvedRefs: CellReference[] = [];
   const ctes: string[] = [];
   let resolvedSql = sql;
+  // A cell may be referenced multiple times in one query; emit a single CTE
+  // per referenced cell (duplicate aliases are invalid SQL) and replace every
+  // occurrence of its placeholder.
+  const seen = new Set<number>();
 
   for (const ref of refs) {
+    if (seen.has(ref.cellIndex)) continue;
+    seen.add(ref.cellIndex);
+
     const targetCell = cells[ref.cellIndex];
     if (
       !targetCell ||
@@ -135,7 +142,7 @@ export function resolveQueryVariables(
     ctes.push(
       resultToCte(targetCell.result, alias, options?.escapeBackslashes ?? false),
     );
-    resolvedSql = resolvedSql.replace(ref.match, alias);
+    resolvedSql = resolvedSql.split(ref.match).join(alias);
   }
 
   if (ctes.length > 0) {
