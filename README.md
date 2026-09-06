@@ -190,6 +190,9 @@ chmod +x tabularis_x.x.x_amd64.AppImage
 ./tabularis_x.x.x_amd64.AppImage
 ```
 
+The `.deb` and AppImage desktop entry registers `tabularis://` links and forwards the
+URL when launching Tabularis, including on a cold start.
+
 ### Arch Linux (AUR)
 
 ```bash

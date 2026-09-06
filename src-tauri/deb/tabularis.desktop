@@ -1,0 +1,10 @@
+[Desktop Entry]
+Categories={{{categories}}}
+Comment={{{comment}}}
+Exec={{{exec}}} %u
+Icon={{{icon}}}
+Name=Tabularis
+StartupWMClass=tabularis
+Terminal=false
+Type=Application
+MimeType=x-scheme-handler/tabularis;
