@@ -8,8 +8,14 @@ import type { Theme } from "../../src/types/theme";
 
 vi.mock("@tauri-apps/api/core");
 
+const tauriWindow = vi.hoisted(() => ({
+  onThemeChanged: vi.fn(),
+  setTheme: vi.fn(),
+  theme: vi.fn(),
+}));
+
 vi.mock("@tauri-apps/api/window", () => ({
-  getCurrentWindow: () => ({ setTheme: vi.fn().mockResolvedValue(undefined) }),
+  getCurrentWindow: () => tauriWindow,
 }));
 
 vi.mock("../../src/themes/themeUtils", () => ({
@@ -129,11 +135,18 @@ vi.mock("../../src/themes/themeRegistry", () => ({
 }));
 
 let systemIsDark = false;
+let mediaSystemIsDark: boolean | undefined;
 let mediaListeners: Array<(e: { matches: boolean }) => void> = [];
+let nativeThemeListeners: Array<
+  (e: { payload: "dark" | "light" | null }) => void
+> = [];
 
 const fireSystemThemeChange = (isDark: boolean) => {
   systemIsDark = isDark;
   mediaListeners.forEach((l) => l({ matches: isDark }));
+  nativeThemeListeners.forEach((l) =>
+    l({ payload: isDark ? "dark" : "light" }),
+  );
 };
 
 describe("ThemeProvider", () => {
@@ -144,11 +157,28 @@ describe("ThemeProvider", () => {
 
     // Mock matchMedia globally
     mediaListeners = [];
+    nativeThemeListeners = [];
     systemIsDark = false;
+    mediaSystemIsDark = undefined;
+    tauriWindow.setTheme.mockResolvedValue(undefined);
+    tauriWindow.theme.mockImplementation(async () =>
+      systemIsDark ? "dark" : "light",
+    );
+    tauriWindow.onThemeChanged.mockImplementation(async (listener) => {
+      nativeThemeListeners.push(listener);
+      return () => {
+        nativeThemeListeners = nativeThemeListeners.filter(
+          (candidate) => candidate !== listener,
+        );
+      };
+    });
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: (query: string) => ({
-        matches: query === "(prefers-color-scheme: dark)" ? systemIsDark : false,
+        matches:
+          query === "(prefers-color-scheme: dark)"
+            ? (mediaSystemIsDark ?? systemIsDark)
+            : false,
         media: query,
         onchange: null,
         addListener: vi.fn(),
@@ -704,6 +734,47 @@ describe("ThemeProvider", () => {
       expect(result.current.currentTheme.id).toBe("tabularis-dark");
       expect(result.current.settings.followSystemTheme).toBe(true);
       expect(result.current.settings.lightThemeId).toBe("tabularis-light");
+    });
+
+    it("uses the native theme when the webview media query disagrees", async () => {
+      systemIsDark = true;
+      mediaSystemIsDark = false;
+      stubConfig({
+        theme: "tabularis-light",
+        followSystemTheme: true,
+        lightThemeId: "tabularis-light",
+        darkThemeId: "tabularis-dark",
+      });
+
+      const { result } = renderHook(() => useTheme(), { wrapper });
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(result.current.currentTheme.id).toBe("tabularis-dark");
+      expect(tauriWindow.setTheme).toHaveBeenLastCalledWith(null);
+    });
+
+    it("falls back to the media query outside the native window runtime", async () => {
+      mediaSystemIsDark = true;
+      tauriWindow.theme.mockRejectedValue(new Error("native API unavailable"));
+      tauriWindow.onThemeChanged.mockRejectedValue(
+        new Error("native API unavailable"),
+      );
+      stubConfig({
+        theme: "tabularis-light",
+        followSystemTheme: true,
+        lightThemeId: "tabularis-light",
+        darkThemeId: "tabularis-dark",
+      });
+
+      const { result } = renderHook(() => useTheme(), { wrapper });
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(result.current.currentTheme.id).toBe("tabularis-dark");
+
+      act(() => {
+        mediaListeners.forEach((listener) => listener({ matches: false }));
+      });
+      expect(result.current.currentTheme.id).toBe("tabularis-light");
     });
 
     it("persists settings when updateSettings is called", async () => {
