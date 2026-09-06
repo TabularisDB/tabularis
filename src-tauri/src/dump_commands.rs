@@ -171,6 +171,7 @@ async fn export_table_data(
         "mysql" => {
             use crate::drivers::mysql::extract::extract_value;
             use crate::pool_manager::get_mysql_pool; // Returns String (JSON value or "NULL")
+            use sqlx::{Column, TypeInfo};
 
             let pool = get_mysql_pool(params).await?;
             let mut rows = sqlx::query(&query).fetch(&pool);
@@ -180,7 +181,14 @@ async fn export_table_data(
                 let mut values = Vec::new();
                 for i in 0..row.columns().len() {
                     let val = extract_value(&row, i, None);
-                    values.push(escape_sql_value(val));
+                    // JSON columns are extracted as parsed values and must be
+                    // written back as JSON literals, not as their string content.
+                    let is_json_column = row.column(i).type_info().name() == "JSON";
+                    values.push(if is_json_column {
+                        escape_json_column_value(driver, val)
+                    } else {
+                        escape_sql_value(driver, val)
+                    });
                 }
                 batch.push(format!("({})", values.join(", ")));
 
@@ -221,7 +229,14 @@ async fn export_table_data(
                 let mut values = Vec::new();
                 for i in 0..row.columns().len() {
                     let val = extract_value(&row, i, None);
-                    values.push(escape_sql_value(val));
+                    let column_type = row.columns()[i].type_();
+                    let is_json_column = *column_type == tokio_postgres::types::Type::JSON
+                        || *column_type == tokio_postgres::types::Type::JSONB;
+                    values.push(if is_json_column {
+                        escape_json_column_value(driver, val)
+                    } else {
+                        escape_sql_value(driver, val)
+                    });
                 }
                 batch.push(format!("({})", values.join(", ")));
 
@@ -256,7 +271,7 @@ async fn export_table_data(
                 let mut values = Vec::new();
                 for i in 0..row.columns().len() {
                     let val = extract_value(&row, i, None);
-                    values.push(escape_sql_value(val));
+                    values.push(escape_sql_value(driver, val));
                 }
                 batch.push(format!("({})", values.join(", ")));
 
@@ -285,7 +300,29 @@ async fn export_table_data(
     Ok(())
 }
 
-fn escape_sql_value(val: serde_json::Value) -> String {
+/// Quotes `s` as a string literal for the target dialect.
+///
+/// MySQL treats backslashes inside string literals as escape sequences
+/// (unless `NO_BACKSLASH_ESCAPES` is set), so a literal backslash must be
+/// doubled and a NUL byte written as `\0` — otherwise a `\u4e2d` escape
+/// inside JSON silently re-imports as `u4e2d` and `\"` breaks the JSON
+/// altogether. PostgreSQL (with the default
+/// `standard_conforming_strings = on`) and SQLite take backslashes
+/// literally, so doubling them there would corrupt the data instead; only
+/// the single quote needs escaping.
+fn escape_sql_string(driver: &str, s: &str) -> String {
+    match driver {
+        "mysql" => format!(
+            "'{}'",
+            s.replace('\\', "\\\\")
+                .replace('\'', "''")
+                .replace('\0', "\\0")
+        ),
+        _ => format!("'{}'", s.replace('\'', "''")),
+    }
+}
+
+fn escape_sql_value(driver: &str, val: serde_json::Value) -> String {
     match val {
         serde_json::Value::Null => "NULL".to_string(),
         serde_json::Value::Number(n) => n.to_string(),
@@ -296,8 +333,26 @@ fn escape_sql_value(val: serde_json::Value) -> String {
                 "0".to_string()
             }
         } // Most SQL dialects
-        serde_json::Value::String(s) => format!("'{}'", s.replace("'", "''").replace("\\", "\\\\")), // Basic escaping
-        _ => format!("'{}'", val.to_string().replace("'", "''")), // Fallback
+        serde_json::Value::String(s) => escape_sql_string(driver, &s),
+        // Arrays/objects only reach here from non-JSON columns (e.g. hstore);
+        // serialize them and escape the text exactly like any other string.
+        other => escape_sql_string(driver, &other.to_string()),
+    }
+}
+
+/// Formats a value read from a JSON-typed column (`JSON` on MySQL,
+/// `json`/`jsonb` on PostgreSQL).
+///
+/// Such columns are extracted as parsed `serde_json::Value`s, so they must be
+/// written back as JSON *literals*: a JSON string keeps its surrounding
+/// quotes (`"\"[1, 2]\""`, not `[1, 2]`), booleans stay `true`/`false`, and
+/// the resulting text is escaped like any other string literal for the
+/// dialect. SQL `NULL` and a JSON `null` are indistinguishable at this
+/// point; both are written as `NULL`.
+fn escape_json_column_value(driver: &str, val: serde_json::Value) -> String {
+    match val {
+        serde_json::Value::Null => "NULL".to_string(),
+        other => escape_sql_string(driver, &other.to_string()),
     }
 }
 
@@ -650,14 +705,100 @@ mod tests {
 
     #[test]
     fn test_escape_sql_value() {
-        assert_eq!(escape_sql_value(json!(null)), "NULL");
-        assert_eq!(escape_sql_value(json!(123)), "123");
-        assert_eq!(escape_sql_value(json!(12.34)), "12.34");
-        assert_eq!(escape_sql_value(json!(true)), "1");
-        assert_eq!(escape_sql_value(json!(false)), "0");
-        assert_eq!(escape_sql_value(json!("hello")), "'hello'");
-        assert_eq!(escape_sql_value(json!("O'Reilly")), "'O''Reilly'");
-        assert_eq!(escape_sql_value(json!("Back\\slash")), "'Back\\\\slash'");
-        assert_eq!(escape_sql_value(json!("Multi\nLine")), "'Multi\nLine'");
+        for driver in ["mysql", "postgres", "sqlite"] {
+            assert_eq!(escape_sql_value(driver, json!(null)), "NULL");
+            assert_eq!(escape_sql_value(driver, json!(123)), "123");
+            assert_eq!(escape_sql_value(driver, json!(12.34)), "12.34");
+            assert_eq!(escape_sql_value(driver, json!(true)), "1");
+            assert_eq!(escape_sql_value(driver, json!(false)), "0");
+            assert_eq!(escape_sql_value(driver, json!("hello")), "'hello'");
+            assert_eq!(escape_sql_value(driver, json!("O'Reilly")), "'O''Reilly'");
+            assert_eq!(
+                escape_sql_value(driver, json!("Multi\nLine")),
+                "'Multi\nLine'"
+            );
+        }
+    }
+
+    #[test]
+    fn test_escape_sql_value_mysql_doubles_backslashes_and_escapes_nul() {
+        assert_eq!(
+            escape_sql_value("mysql", json!("Back\\slash")),
+            "'Back\\\\slash'"
+        );
+        assert_eq!(escape_sql_value("mysql", json!("a\u{0}b")), "'a\\0b'");
+        // A backslash followed by a quote must not collapse into `\'`.
+        assert_eq!(escape_sql_value("mysql", json!("\\'")), "'\\\\'''");
+    }
+
+    #[test]
+    fn test_escape_sql_value_postgres_and_sqlite_keep_backslashes_literal() {
+        // With standard_conforming_strings (PostgreSQL) and in SQLite a
+        // backslash is an ordinary character; doubling it would re-import
+        // as two backslashes.
+        assert_eq!(
+            escape_sql_value("postgres", json!("Back\\slash")),
+            "'Back\\slash'"
+        );
+        assert_eq!(
+            escape_sql_value("sqlite", json!("Back\\slash")),
+            "'Back\\slash'"
+        );
+    }
+
+    #[test]
+    fn test_escape_sql_value_nested_values_are_escaped_like_text() {
+        assert_eq!(
+            escape_sql_value("mysql", json!({"path": "a\\b"})),
+            r#"'{"path":"a\\\\b"}'"#
+        );
+        assert_eq!(
+            escape_sql_value("postgres", json!({"path": "a\\b"})),
+            r#"'{"path":"a\\b"}'"#
+        );
+    }
+
+    #[test]
+    fn test_escape_json_column_value_mysql() {
+        // JSON escape sequences must survive MySQL's string-literal parser.
+        assert_eq!(
+            escape_json_column_value("mysql", json!({"html": "<a target=\"_blank\">"})),
+            r#"'{"html":"<a target=\\"_blank\\">"}'"#
+        );
+        assert_eq!(
+            escape_json_column_value("mysql", json!({"class": "App\\Jobs\\Foo"})),
+            r#"'{"class":"App\\\\Jobs\\\\Foo"}'"#
+        );
+        // A JSON string value keeps its quotes instead of degrading to its content.
+        assert_eq!(
+            escape_json_column_value("mysql", json!("\"[151, 152, 153]\"")),
+            r#"'"\\"[151, 152, 153]\\""'"#
+        );
+        // Scalars stay JSON scalars rather than becoming SQL 1/0.
+        assert_eq!(escape_json_column_value("mysql", json!(true)), "'true'");
+        assert_eq!(escape_json_column_value("mysql", json!(42)), "'42'");
+        assert_eq!(escape_json_column_value("mysql", json!(null)), "NULL");
+        // Non-ASCII is written as UTF-8 rather than \uXXXX, so nothing is
+        // left for escape processing to mangle on re-import.
+        assert_eq!(
+            escape_json_column_value("mysql", json!({"name": "中文"})),
+            r#"'{"name":"中文"}'"#
+        );
+    }
+
+    #[test]
+    fn test_escape_json_column_value_postgres() {
+        assert_eq!(
+            escape_json_column_value("postgres", json!({"html": "<a target=\"_blank\">"})),
+            r#"'{"html":"<a target=\"_blank\">"}'"#
+        );
+        assert_eq!(
+            escape_json_column_value("postgres", json!("it's")),
+            r#"'"it''s"'"#
+        );
+        assert_eq!(
+            escape_json_column_value("postgres", json!(false)),
+            "'false'"
+        );
     }
 }
