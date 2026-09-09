@@ -1,5 +1,8 @@
 // Import polyfills first to make Buffer available globally
 import './polyfills';
+// Bundle Monaco locally and register the editor input workarounds before any
+// module calls loader.init().
+import './monacoLoader';
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
