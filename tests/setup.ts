@@ -1,7 +1,18 @@
+/// <reference types="vitest/jsdom" />
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { vi } from "vitest";
+
+// Node's native storage globals can prevent Vitest from installing jsdom's.
+// Bind both APIs before test modules load, using this worker's real DOM storage.
+for (const name of ["localStorage", "sessionStorage"] as const) {
+  Object.defineProperty(globalThis, name, {
+    configurable: true,
+    writable: true,
+    value: jsdom.window[name],
+  });
+}
 
 // Cleanup after each test
 afterEach(() => {
