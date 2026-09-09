@@ -161,3 +161,12 @@ Tests are configured in `vitest.config.ts`:
 - Test files are discovered in `tests/` directory
 - Setup file: `./tests/setup.ts`
 - Environment: `jsdom` for DOM-related tests
+
+### Browser storage in the test environment
+
+`tests/setup.ts` binds `localStorage` and `sessionStorage` to the current
+Vitest jsdom window before test modules load. Keep this shared setup: Node's
+native storage globals can otherwise shadow jsdom, yielding unavailable or
+non-browser storage. Do not work around it with per-test storage shims or a
+shared `--localstorage-file`. `tests/storageEnvironment.test.ts` verifies the
+real DOM storage identity, separate stores, and restoration after global stubs.
