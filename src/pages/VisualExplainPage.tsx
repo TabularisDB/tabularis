@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FileJson, FolderOpen, Loader2, RefreshCw } from "lucide-react";
@@ -35,47 +35,44 @@ export const VisualExplainPage = ({
   const isDeepLink = !!deepLink.query && !!deepLink.connectionId;
 
   const [filePath, setFilePath] = useState<string | null>(initialParamPath);
+  // Guards source discovery (CLI handoff and picker), before a plan load starts.
+  const sourceVersion = useRef(0);
+  const pickerVersion = useRef(0);
   const {
     plan,
-    setPlan,
     isLoading,
-    setIsLoading,
     error,
-    setError,
     viewMode,
     setViewMode,
     selectedNodeId,
     setSelectedNodeId,
     runExplain,
+    loadPlan,
+    invalidate,
   } = useExplainPlan(initialPlan);
 
-  const loadPlan = useCallback(async (path: string) => {
-    setIsLoading(true);
-    setError(null);
-    setPlan(null);
-    setSelectedNodeId(null);
-    try {
+  const loadFile = useCallback(
+    (path: string) => loadPlan(async () => {
       const file = await invoke<{ content: string; display_name: string }>(
         "load_explain_from_file",
         { path },
       );
-      const parsedPlan = withSourceLabel(parseExplain(file.content), file.display_name);
-      setPlan(parsedPlan);
-      setSelectedNodeId(parsedPlan.root.id);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [setIsLoading, setError, setPlan, setSelectedNodeId]);
+      return withSourceLabel(parseExplain(file.content), file.display_name);
+    }),
+    [loadPlan],
+  );
 
   // On mount: prefer initialPlan (embedded mode), then deep link, then file
   // path, then any pending CLI handoff.
   useEffect(() => {
-    if (initialPlan) return;
     let cancelled = false;
+    const source = sourceVersion;
+    const version = ++source.current;
 
     const bootstrap = async () => {
+      // StrictMode cleanup cancels the first setup before it can invoke.
+      await Promise.resolve();
+      if (cancelled || version !== sourceVersion.current || initialPlan) return;
       if (isDeepLink) {
         await runExplain({
           connectionId: deepLink.connectionId!,
@@ -86,23 +83,29 @@ export const VisualExplainPage = ({
         return;
       }
       if (initialParamPath) {
-        await loadPlan(initialParamPath);
+        await loadFile(initialParamPath);
         return;
       }
       try {
         const pending = await invoke<string | null>("get_pending_explain_file");
-        if (!cancelled && pending) {
+        if (!cancelled && version === sourceVersion.current && pending) {
           setFilePath(pending);
-          await loadPlan(pending);
+          await loadFile(pending);
         }
       } catch (err) {
-        if (!cancelled) setError(String(err));
+        if (!cancelled && version === sourceVersion.current) {
+          await loadPlan(async () => {
+            throw err;
+          });
+        }
       }
     };
 
-    bootstrap();
+    void bootstrap();
     return () => {
       cancelled = true;
+      ++source.current;
+      invalidate();
     };
   }, [
     initialPlan,
@@ -110,28 +113,45 @@ export const VisualExplainPage = ({
     isDeepLink,
     deepLink.connectionId,
     deepLink.query,
+    loadFile,
     loadPlan,
     runExplain,
-    setError,
+    invalidate,
   ]);
 
   const handlePickFile = useCallback(async () => {
-    const selected = await openDialog({
-      multiple: false,
-      filters: [
-        { name: "Explain", extensions: ["json", "txt"] },
-        { name: "All files", extensions: ["*"] },
-      ],
-    });
-    if (typeof selected === "string" && selected.trim().length > 0) {
-      setFilePath(selected);
-      await loadPlan(selected);
+    const version = sourceVersion.current;
+    const picker = ++pickerVersion.current;
+    try {
+      const selected = await openDialog({
+        multiple: false,
+        filters: [
+          { name: "Explain", extensions: ["json", "txt"] },
+          { name: "All files", extensions: ["*"] },
+        ],
+      });
+      if (version !== sourceVersion.current || picker !== pickerVersion.current) return;
+      if (typeof selected === "string" && selected.trim().length > 0) {
+        ++sourceVersion.current;
+        setFilePath(selected);
+        await loadFile(selected);
+      }
+    } catch (err) {
+      if (version === sourceVersion.current && picker === pickerVersion.current) {
+        ++sourceVersion.current;
+        await loadPlan(async () => {
+          throw err;
+        });
+      }
     }
-  }, [loadPlan]);
+  }, [loadFile, loadPlan]);
 
   const handleReload = useCallback(() => {
-    if (filePath) loadPlan(filePath);
-  }, [filePath, loadPlan]);
+    if (filePath) {
+      ++sourceVersion.current;
+      void loadFile(filePath);
+    }
+  }, [filePath, loadFile]);
 
   const fileLabel = filePath ? getExplainFileName(filePath) : null;
   const containerClass = compactMode
@@ -188,7 +208,7 @@ export const VisualExplainPage = ({
       )}
 
       <div className="flex-1 min-h-0">
-        {!compactMode && !filePath && !plan && !isLoading ? (
+        {!compactMode && !filePath && !plan && !isLoading && !error ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted">
             <FileJson size={32} className="opacity-30" />
             <p className="text-sm">{t("visualExplainPage.emptyHint")}</p>

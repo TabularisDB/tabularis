@@ -112,38 +112,32 @@ export function resolveQueryVariables(
   cells: NotebookCell[],
   options?: ResolveVariablesOptions,
 ): ResolvedQuery {
-  const refs = extractCellReferences(sql);
-  if (refs.length === 0) return { sql, unresolvedRefs: [] };
-
   const unresolvedRefs: CellReference[] = [];
   const ctes: string[] = [];
-  let resolvedSql = sql;
-  // A cell may be referenced multiple times in one query; emit a single CTE
-  // per referenced cell (duplicate aliases are invalid SQL) and replace every
-  // occurrence of its placeholder.
   const seen = new Set<number>();
-
-  for (const ref of refs) {
-    if (seen.has(ref.cellIndex)) continue;
-    seen.add(ref.cellIndex);
-
-    const targetCell = cells[ref.cellIndex];
+  // Replace every spelling/occurrence, but materialize each resolved cell once.
+  let resolvedSql = sql.replace(new RegExp(CELL_REF_PATTERN.source, "g"), (match: string, number: string) => {
+    const cellIndex = Number(number) - 1;
+    const targetCell = cells[cellIndex];
     if (
       !targetCell ||
       targetCell.type !== "sql" ||
       !targetCell.result ||
       targetCell.error
     ) {
-      unresolvedRefs.push(ref);
-      continue;
+      unresolvedRefs.push({ match, cellIndex });
+      return match;
     }
 
-    const alias = `cell_${ref.cellIndex + 1}`;
-    ctes.push(
-      resultToCte(targetCell.result, alias, options?.escapeBackslashes ?? false),
-    );
-    resolvedSql = resolvedSql.split(ref.match).join(alias);
-  }
+    const alias = `cell_${cellIndex + 1}`;
+    if (!seen.has(cellIndex)) {
+      seen.add(cellIndex);
+      ctes.push(
+        resultToCte(targetCell.result, alias, options?.escapeBackslashes ?? false),
+      );
+    }
+    return alias;
+  });
 
   if (ctes.length > 0) {
     resolvedSql = `WITH ${ctes.join(",\n")}\n${resolvedSql}`;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   X,
@@ -10,10 +10,10 @@ import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useDrivers } from "../../hooks/useDrivers";
 import { useExplainPlan } from "../../hooks/useExplainPlan";
-import { isDataModifyingQuery } from "../../utils/sql";
+import { useExplainAnalyze } from "../../hooks/useExplainAnalyze";
 import { getConnectionIcon } from "../../utils/driverUI";
 import { Modal } from "../ui/Modal";
-import { VisualExplainView } from "../explain/VisualExplainView";
+import { VisualExplainView, type VisualExplainViewProps } from "../explain/VisualExplainView";
 
 interface VisualExplainModalProps {
   isOpen: boolean;
@@ -25,6 +25,8 @@ interface VisualExplainModalProps {
   /// database context (e.g. opened from the AI Activity panel). Falls back
   /// to the live connection name if available, then to `connectionId`.
   connectionLabel?: string;
+  /** Display an existing plan without issuing another database request. */
+  viewState?: VisualExplainViewProps;
 }
 
 export const VisualExplainModal = ({
@@ -34,6 +36,7 @@ export const VisualExplainModal = ({
   connectionId,
   schema,
   connectionLabel,
+  viewState,
 }: VisualExplainModalProps) => {
   const { t } = useTranslation();
   const { settings } = useSettings();
@@ -48,13 +51,18 @@ export const VisualExplainModal = ({
     selectedNodeId,
     setSelectedNodeId,
     runExplain,
+    invalidate,
   } = useExplainPlan();
 
-  const isDml = query ? isDataModifyingQuery(query) : false;
-  const [analyze, setAnalyze] = useState(!isDml);
+  const { analyze, setAnalyze, isDml } = useExplainAnalyze({
+    connectionId,
+    query,
+    schema,
+    defaultEnabled: true,
+  });
   const connectionData = getConnectionData(connectionId);
   const effectiveDriver =
-    connectionData?.driver ?? plan?.driver ?? "sqlite";
+    connectionData?.driver ?? viewState?.plan?.driver ?? plan?.driver ?? "sqlite";
   const driverManifest =
     allDrivers.find((driver) => driver.id === effectiveDriver) ?? null;
   const savedConnection = connections.find(c => c.id === connectionId) ?? null;
@@ -69,11 +77,21 @@ export const VisualExplainModal = ({
       : databaseLabel;
 
   useEffect(() => {
-    if (isOpen && query?.trim() && connectionId) {
+    if (!isOpen || viewState) return;
+    let cancelled = false;
+    const explain = async () => {
+      // Defer the request so StrictMode's setup/cleanup probe cannot run it twice.
+      await Promise.resolve();
+      if (cancelled) return;
       setViewMode("graph");
-      runExplain({ connectionId, query, analyze, schema });
-    }
-  }, [isOpen, query, connectionId, analyze, schema, runExplain, setViewMode]);
+      await runExplain({ connectionId, query, analyze, schema });
+    };
+    void explain();
+    return () => {
+      cancelled = true;
+      invalidate();
+    };
+  }, [isOpen, viewState, query, connectionId, analyze, schema, runExplain, setViewMode, invalidate]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -115,18 +133,20 @@ export const VisualExplainModal = ({
         </div>
 
         <VisualExplainView
-          plan={plan}
-          isLoading={isLoading}
-          error={error}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          selectedNodeId={selectedNodeId}
-          onSelectNode={setSelectedNodeId}
-          aiEnabled={!!settings.aiEnabled}
+          {...(viewState ?? {
+            plan,
+            isLoading,
+            error,
+            viewMode,
+            onViewModeChange: setViewMode,
+            selectedNodeId,
+            onSelectNode: setSelectedNodeId,
+            aiEnabled: !!settings.aiEnabled,
+          })}
         />
 
         <div className="p-4 border-t border-default bg-base/50 flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
+          {!viewState && <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
             <input
               type="checkbox"
               checked={analyze}
@@ -134,9 +154,9 @@ export const VisualExplainModal = ({
               className="rounded border-strong"
             />
             {t("editor.visualExplain.analyze")}
-          </label>
+          </label>}
 
-          {isDml && (
+          {!viewState && isDml && (
             <div className="flex items-center gap-1.5 text-xs text-warning-text">
               <AlertTriangle size={12} />
               <span>{t("editor.visualExplain.analyzeWarning")}</span>
@@ -145,14 +165,14 @@ export const VisualExplainModal = ({
 
           <div className="flex-1" />
 
-          <button
+          {!viewState && <button
             onClick={() => runExplain({ connectionId, query, analyze, schema })}
-            disabled={isLoading}
+            disabled={isLoading || !query.trim() || !connectionId}
             className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
           >
             <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
             {t("editor.visualExplain.rerun")}
-          </button>
+          </button>}
 
           <button
             onClick={onClose}

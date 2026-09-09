@@ -127,6 +127,9 @@ export function NotebookCellHeader({
   const dbButtonRef = useRef<HTMLButtonElement>(null);
   const [dbDropdownPosition, setDbDropdownPosition] = useState({ top: 0, left: 0 });
   const showDbSelector = cellType === "sql" && selectedDatabases && selectedDatabases.length >= 1 && activeSchema && onSchemaChange;
+  const queryPlanToggleLabel = t(
+    isQueryPlanVisible ? "editor.notebook.hideQueryPlan" : "editor.notebook.toggleQueryPlan",
+  );
 
   const updateDbDropdownPosition = useCallback(() => {
     if (dbButtonRef.current) {
@@ -295,7 +298,9 @@ export function NotebookCellHeader({
           <button
             type="button"
             onClick={onToggleQueryPlan}
-            title={t("editor.notebook.toggleQueryPlan")}
+            title={queryPlanToggleLabel}
+            aria-label={queryPlanToggleLabel}
+            aria-pressed={!!isQueryPlanVisible}
             className={`p-1 rounded transition-colors ${
               isQueryPlanVisible
                 ? "text-blue-400 bg-blue-500/15"

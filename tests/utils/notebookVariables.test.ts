@@ -55,6 +55,17 @@ describe("notebookVariables", () => {
     it("should return false when no references", () => {
       expect(hasCellReferences("SELECT 1")).toBe(false);
     });
+
+    it("should stay consistent across repeated and interleaved calls", () => {
+      for (let i = 0; i < 3; i++) {
+        expect(hasCellReferences("SELECT * FROM {{cell_1}}")).toBe(true);
+        expect(hasCellReferences("SELECT * FROM {{cell_1}}")).toBe(true);
+        expect(hasCellReferences("SELECT 1")).toBe(false);
+        expect(hasCellReferences("SELECT * FROM {{cell_02}}")).toBe(true);
+        expect(hasCellReferences("")).toBe(false);
+        expect(hasCellReferences("SELECT * FROM {{cell_1}}")).toBe(true);
+      }
+    });
   });
 
   describe("resolveQueryVariables", () => {
@@ -141,6 +152,99 @@ describe("notebookVariables", () => {
       expect(result.sql).toContain("cell_1 AS");
       expect(result.sql).toContain("cell_2 AS");
       expect(result.unresolvedRefs).toEqual([]);
+    });
+
+    it("should replace every identical reference with a single CTE", () => {
+      const cells = [
+        makeCell({
+          result: { columns: ["id"], rows: [[1]], affected_rows: 0 },
+        }),
+      ];
+      const result = resolveQueryVariables(
+        "SELECT * FROM {{cell_1}} a JOIN {{cell_1}} b ON a.id = b.id " +
+          "JOIN {{cell_1}} c ON b.id = c.id",
+        cells,
+      );
+
+      expect(result.sql).toBe(
+        'WITH cell_1 AS (\n  SELECT 1 AS "id"\n)\n' +
+          "SELECT * FROM cell_1 a JOIN cell_1 b ON a.id = b.id " +
+          "JOIN cell_1 c ON b.id = c.id",
+      );
+      expect(result.unresolvedRefs).toEqual([]);
+    });
+
+    it.each([
+      "SELECT * FROM {{cell_01}} a JOIN {{cell_2}} b ON a.id = b.id " +
+        "JOIN {{cell_1}} c ON b.id = c.id JOIN {{cell_002}} d ON c.id = d.id",
+      "SELECT * FROM {{cell_1}} a JOIN {{cell_02}} b ON a.id = b.id " +
+        "JOIN {{cell_001}} c ON b.id = c.id JOIN {{cell_2}} d ON c.id = d.id",
+    ])("should replace mixed leading-zero references with one CTE per cell: %s", (sql) => {
+      const cells = [1, 2].map((id) => makeCell({
+        id: `c${id}`,
+        result: { columns: ["id"], rows: [[id]], affected_rows: 0 },
+      }));
+      const result = resolveQueryVariables(sql, cells);
+
+      expect(result.sql).toBe(
+        'WITH cell_1 AS (\n  SELECT 1 AS "id"\n),\n' +
+          'cell_2 AS (\n  SELECT 2 AS "id"\n)\n' +
+          "SELECT * FROM cell_1 a JOIN cell_2 b ON a.id = b.id " +
+          "JOIN cell_1 c ON b.id = c.id JOIN cell_2 d ON c.id = d.id",
+      );
+      expect(result.unresolvedRefs).toEqual([]);
+    });
+
+    it.each([
+      { reason: "missing result", cells: [makeCell()] },
+      { reason: "missing cell", cells: [] },
+      { reason: "markdown cell", cells: [makeCell({ type: "markdown" })] },
+      {
+        reason: "errored cell",
+        cells: [makeCell({
+          error: "query failed",
+          result: { columns: ["id"], rows: [[1]], affected_rows: 0 },
+        })],
+      },
+    ])("should preserve each unresolved occurrence for $reason", ({ cells }) => {
+      const sql = "SELECT * FROM {{cell_1}} UNION SELECT * FROM {{cell_01}} " +
+        "UNION SELECT * FROM {{cell_3}} UNION SELECT * FROM {{cell_1}}";
+      const result = resolveQueryVariables(sql, cells);
+
+      expect(result.sql).toBe(sql);
+      expect(result.unresolvedRefs).toEqual([
+        { match: "{{cell_1}}", cellIndex: 0 },
+        { match: "{{cell_01}}", cellIndex: 0 },
+        { match: "{{cell_3}}", cellIndex: 2 },
+        { match: "{{cell_1}}", cellIndex: 0 },
+      ]);
+    });
+
+    it("should replace resolved refs while preserving interleaved unresolved occurrences", () => {
+      const cells = [
+        makeCell({
+          result: { columns: ["id"], rows: [[1]], affected_rows: 0 },
+        }),
+        makeCell({ id: "c2" }),
+      ];
+      const result = resolveQueryVariables(
+        "SELECT * FROM {{cell_2}} UNION SELECT * FROM {{cell_01}} " +
+          "UNION SELECT * FROM {{cell_02}} UNION SELECT * FROM {{cell_1}} " +
+          "UNION SELECT * FROM {{cell_2}}",
+        cells,
+      );
+
+      expect(result.sql).toBe(
+        'WITH cell_1 AS (\n  SELECT 1 AS "id"\n)\n' +
+          "SELECT * FROM {{cell_2}} UNION SELECT * FROM cell_1 " +
+          "UNION SELECT * FROM {{cell_02}} UNION SELECT * FROM cell_1 " +
+          "UNION SELECT * FROM {{cell_2}}",
+      );
+      expect(result.unresolvedRefs).toEqual([
+        { match: "{{cell_2}}", cellIndex: 1 },
+        { match: "{{cell_02}}", cellIndex: 1 },
+        { match: "{{cell_2}}", cellIndex: 1 },
+      ]);
     });
 
     it("should escape single quotes in string values", () => {

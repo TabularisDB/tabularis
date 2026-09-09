@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "title": "Query Plan regression checks",
+  "createdAt": "2026-09-05T00:00:00.000Z",
+  "params": [{ "name": "min_id", "value": "1" }],
+  "cells": [
+    {
+      "type": "sql",
+      "name": "Source rows (run this cell first)",
+      "content": "SELECT 1 AS id, 'Alpha' AS name UNION ALL SELECT 2 AS id, 'O''Brien' AS name",
+      "isQueryPlanVisible": false
+    },
+    {
+      "type": "sql",
+      "name": "Parameters and repeated references",
+      "content": "SELECT a.id, a.name FROM {{cell_1}} a JOIN {{cell_01}} b ON a.id = b.id WHERE a.id >= @min_id ORDER BY a.id",
+      "isQueryPlanVisible": true
+    },
+    {
+      "type": "sql",
+      "name": "Missing reference (must not execute)",
+      "content": "SELECT * FROM {{cell_99}}",
+      "isQueryPlanVisible": true
+    },
+    {
+      "type": "sql",
+      "name": "Unsupported statement (must not execute)",
+      "content": "SELEC 1",
+      "isQueryPlanVisible": true
+    },
+    {
+      "type": "markdown",
+      "content": "## Manual checks\nRun the source cell, then inspect the dependent plan. Change min_id to 2: the old plan must disappear until Re-run is clicked. Analyze starts off and changing its checkbox must not execute SQL. Open the popout after a successful plan and switch views; this must not execute SQL again. Export the source results to CSV and JSON, including a cancelled save."
+    }
+  ]
+}

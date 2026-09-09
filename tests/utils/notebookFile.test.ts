@@ -368,6 +368,81 @@ describe('notebookFile utils', () => {
   });
 
   describe('round-trip', () => {
+    it.each([true, false, undefined])(
+      'should preserve isQueryPlanVisible=%s without persisting runtime data',
+      (isQueryPlanVisible) => {
+        const cells = makeCells();
+        cells[0].isQueryPlanVisible = isQueryPlanVisible;
+        cells[0].error = 'previous query failed';
+        cells[0].isLoading = true;
+        cells[0].history = [{
+          query: 'SELECT 1',
+          result: { columns: ['id'], rows: [[1]], affected_rows: 0 },
+          executionTime: 12,
+          timestamp: 1,
+        }];
+
+        const serialized = serializeNotebook('Query plan', cells);
+        expect(serialized.cells[0]).toEqual({
+          type: 'sql',
+          content: 'SELECT * FROM users',
+          ...(isQueryPlanVisible === undefined ? {} : { isQueryPlanVisible }),
+        });
+        if (isQueryPlanVisible === undefined) {
+          expect(serialized.cells[0]).not.toHaveProperty('isQueryPlanVisible');
+        }
+        const restored = deserializeNotebook(JSON.stringify(serialized));
+        expect(restored.cells[0].isQueryPlanVisible).toBe(isQueryPlanVisible);
+        expect(restored.cells[0].result).toBeNull();
+        expect(restored.cells[0].error).toBeUndefined();
+        expect(restored.cells[0].executionTime).toBeNull();
+        expect(restored.cells[0].isLoading).toBe(false);
+        expect(restored.cells[0].history).toBeUndefined();
+        expect(serializeNotebook(restored.title, restored.cells).cells)
+          .toEqual(serialized.cells);
+      },
+    );
+
+    it('should keep query plans unset when importing and re-exporting version 1', () => {
+      const restored = deserializeNotebook(JSON.stringify({
+        version: 1,
+        title: 'Legacy notebook',
+        createdAt: '2025-01-01',
+        cells: [{ type: 'sql', content: 'SELECT 1' }],
+      }));
+
+      expect(restored.cells[0].isQueryPlanVisible).toBeUndefined();
+      const serialized = serializeNotebook(restored.title, restored.cells);
+      expect(serialized.version).toBe(2);
+      expect(serialized.cells[0]).not.toHaveProperty('isQueryPlanVisible');
+      expect(deserializeNotebook(JSON.stringify(serialized)).cells[0]
+        .isQueryPlanVisible).toBeUndefined();
+    });
+
+    it.each([
+      { value: 'true' },
+      { value: 'false' },
+      { value: '' },
+      { value: 1 },
+      { value: 0 },
+      { value: null },
+      { value: {} },
+      { value: [] },
+    ])('should discard malformed isQueryPlanVisible=$value on import and re-export', ({ value }) => {
+      const restored = deserializeNotebook(JSON.stringify({
+        version: 2,
+        title: 'Untrusted notebook',
+        createdAt: '',
+        cells: [{ type: 'sql', content: 'SELECT 1', isQueryPlanVisible: value }],
+      }));
+
+      expect(restored.cells[0].isQueryPlanVisible).toBeUndefined();
+      const serialized = serializeNotebook(restored.title, restored.cells);
+      expect(serialized.cells[0]).not.toHaveProperty('isQueryPlanVisible');
+      expect(deserializeNotebook(JSON.stringify(serialized)).cells[0]
+        .isQueryPlanVisible).toBeUndefined();
+    });
+
     it('should preserve content through serialize → deserialize', () => {
       const cells = makeCells();
       const serialized = serializeNotebook('Round Trip', cells);

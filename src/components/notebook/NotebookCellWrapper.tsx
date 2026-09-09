@@ -3,6 +3,7 @@ import type { NotebookCell } from "../../types/notebook";
 import type { CellChartConfig } from "../../types/notebook";
 import { useDatabase } from "../../hooks/useDatabase";
 import { supportsExplain } from "../../utils/driverCapabilities";
+import type { ResolvedQuery } from "../../utils/notebookVariables";
 import { restoreFromHistory, getHistorySize } from "../../utils/notebookHistory";
 import { NotebookCellHeader } from "./NotebookCellHeader";
 import { SqlCell } from "./SqlCell";
@@ -19,6 +20,7 @@ interface NotebookCellWrapperProps {
   onMoveDown: () => void;
   onRun: () => void;
   connectionId: string;
+  explainQuery?: ResolvedQuery;
   activeSchema?: string;
   selectedDatabases?: string[];
   onSchemaChange?: (schema: string) => void;
@@ -40,6 +42,7 @@ export function NotebookCellWrapper({
   onMoveDown,
   onRun,
   connectionId,
+  explainQuery,
   activeSchema,
   selectedDatabases,
   onSchemaChange,
@@ -47,8 +50,8 @@ export function NotebookCellWrapper({
   dragHandleProps,
 }: NotebookCellWrapperProps) {
   const [showHistory, setShowHistory] = useState(false);
-  const { activeCapabilities } = useDatabase();
-  const canExplain = cell.type === "sql" && supportsExplain(activeCapabilities);
+  const { getConnectionData } = useDatabase();
+  const canExplain = cell.type === "sql" && supportsExplain(getConnectionData(connectionId)?.capabilities);
   const toggleQueryPlan = () =>
     onUpdate({ isQueryPlanVisible: !cell.isQueryPlanVisible });
 
@@ -138,6 +141,7 @@ export function NotebookCellWrapper({
           }
           onToggleQueryPlanVisible={toggleQueryPlan}
           connectionId={connectionId}
+          explainQuery={explainQuery}
           schema={activeSchema}
         />
       ) : !cell.isCollapsed ? (

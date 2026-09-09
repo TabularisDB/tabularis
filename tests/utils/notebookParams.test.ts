@@ -47,6 +47,28 @@ describe("notebookParams", () => {
     it("should return false when no params", () => {
       expect(hasParamReferences("SELECT 1")).toBe(false);
     });
+
+    it.each(["SELECT @foo", "SELECT ${foo}"])(
+      "should consistently detect repeated references in %s",
+      (sql) => {
+        for (let i = 0; i < 3; i++) {
+          expect(hasParamReferences(sql)).toBe(true);
+        }
+      },
+    );
+
+    it("should stay consistent when both syntaxes and no refs are interleaved", () => {
+      for (let i = 0; i < 3; i++) {
+        expect(hasParamReferences("SELECT @foo")).toBe(true);
+        expect(hasParamReferences("SELECT ${foo}")).toBe(true);
+        expect(hasParamReferences("SELECT 1")).toBe(false);
+        expect(hasParamReferences("SELECT @foo, ${bar}")).toBe(true);
+        expect(hasParamReferences("SELECT @foo, ${bar}")).toBe(true);
+        expect(hasParamReferences("")).toBe(false);
+        expect(hasParamReferences("SELECT ${foo}")).toBe(true);
+        expect(hasParamReferences("SELECT @foo")).toBe(true);
+      }
+    });
   });
 
   describe("resolveParams", () => {
@@ -96,6 +118,18 @@ describe("notebookParams", () => {
         { name: "p", value: "$' OR $` OR $$" },
       ]);
       expect(result.sql).toBe("SELECT $' OR $` OR $$ FROM t");
+    });
+
+    it.each([
+      "SELECT @p, @p",
+      "SELECT ${p}, ${p}",
+      "SELECT @p, ${p}",
+    ])("should keep replacement tokens literal for every occurrence in %s", (sql) => {
+      const value = "$& | $' | $` | $$ | $1";
+      const result = resolveParams(sql, [{ name: "p", value }]);
+
+      expect(result.sql).toBe(`SELECT ${value}, ${value}`);
+      expect(result.unresolvedParams).toEqual([]);
     });
 
     it("should resolve ${name} template syntax", () => {

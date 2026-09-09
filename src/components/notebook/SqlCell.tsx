@@ -1,5 +1,7 @@
+import { useTranslation } from "react-i18next";
 import type { NotebookCell } from "../../types/notebook";
 import type { CellChartConfig } from "../../types/notebook";
+import type { ResolvedQuery } from "../../utils/notebookVariables";
 import { SqlCellEditor } from "./SqlCellEditor";
 import { SqlCellResult } from "./SqlCellResult";
 import { SqlCellExplain } from "./SqlCellExplain";
@@ -15,6 +17,7 @@ interface SqlCellProps {
   onToggleChartVisible: (visible: boolean) => void;
   onToggleQueryPlanVisible: () => void;
   connectionId: string;
+  explainQuery?: ResolvedQuery;
   schema?: string;
 }
 
@@ -29,8 +32,11 @@ export function SqlCell({
   onToggleChartVisible,
   onToggleQueryPlanVisible,
   connectionId,
+  explainQuery,
   schema,
 }: SqlCellProps) {
+  const { t } = useTranslation();
+  const unresolvedRefs = explainQuery?.unresolvedRefs ?? [];
   return (
     <div>
       <SqlCellEditor
@@ -58,7 +64,12 @@ export function SqlCell({
         onToggleChartVisible={onToggleChartVisible}
       />
       <SqlCellExplain
-        query={cell.content}
+        query={explainQuery?.sql ?? cell.content}
+        queryError={unresolvedRefs.length > 0
+          ? t("editor.notebook.queryPlanUnresolved", {
+            refs: [...new Set(unresolvedRefs.map((ref) => ref.match))].join(", "),
+          })
+          : undefined}
         connectionId={connectionId}
         schema={schema}
         visible={!!cell.isQueryPlanVisible}

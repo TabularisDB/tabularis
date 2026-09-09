@@ -5,6 +5,7 @@ import type { ExplainPlan, ExplainQueryOutput } from "@tabularis/explain";
 import { resolveExplainOutput } from "@tabularis/explain";
 import type { ExplainViewMode } from "@tabularis/explain/react";
 import { isExplainableQuery } from "../utils/sql";
+import { useLatestAsync } from "./useLatestAsync";
 
 interface RunExplainArgs {
   connectionId: string;
@@ -28,35 +29,60 @@ export function useExplainPlan(initialPlan: ExplainPlan | null = null) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
     initialPlan?.root.id ?? null,
   );
+  const { run, invalidate: invalidateRequest } = useLatestAsync();
+
+  // Discard work without setting state: safe to call from effect cleanup.
+  const invalidate = useCallback(() => {
+    invalidateRequest("explain-plan");
+  }, [invalidateRequest]);
+
+  const reset = useCallback((loading = false) => {
+    setIsLoading(loading);
+    setError(null);
+    setPlan(null);
+    setSelectedNodeId(null);
+  }, []);
+
+  const loadPlan = useCallback(
+    async (operation: () => Promise<ExplainPlan>): Promise<void> => {
+      const result = await run("explain-plan", async () => {
+        reset(true);
+        const parsed = await operation();
+        return { plan: parsed, selectedNodeId: parsed.root.id };
+      });
+      if (result.status === "stale") return;
+      if (result.status === "success") {
+        setPlan(result.value.plan);
+        setSelectedNodeId(result.value.selectedNodeId);
+      } else {
+        setError(String(result.error));
+      }
+      setIsLoading(false);
+    },
+    [reset, run],
+  );
 
   const runExplain = useCallback(
     async ({ connectionId, query, analyze = false, schema = null }: RunExplainArgs) => {
-      if (!query?.trim() || !connectionId) return;
-      if (!isExplainableQuery(query)) {
-        setPlan(null);
-        setError(t("editor.visualExplain.notExplainable"));
+      if (!query?.trim() || !connectionId?.trim()) {
+        invalidate();
+        reset();
         return;
       }
-      setIsLoading(true);
-      setError(null);
-      setPlan(null);
-      try {
+      await loadPlan(async () => {
+        if (!isExplainableQuery(query)) {
+          throw t("editor.visualExplain.notExplainable");
+        }
         const result = await invoke<ExplainQueryOutput>("explain_query_plan", {
           connectionId,
           query,
           analyze,
           schema: schema || null,
         });
-        const parsed = resolveExplainOutput(result);
-        setPlan(parsed);
-        setSelectedNodeId(parsed.root.id);
-      } catch (err) {
-        setError(String(err));
-      } finally {
-        setIsLoading(false);
-      }
+        return resolveExplainOutput(result);
+      });
     },
-    [t],
+    [invalidate, loadPlan, reset, t],
   );
 
   return {
@@ -71,5 +97,7 @@ export function useExplainPlan(initialPlan: ExplainPlan | null = null) {
     selectedNodeId,
     setSelectedNodeId,
     runExplain,
+    loadPlan,
+    invalidate,
   };
 }
