@@ -54,7 +54,12 @@ pub mod heartbeat;
 pub mod heartbeat_tests;
 pub mod json_viewer;
 pub mod keychain_utils;
+#[cfg(test)]
+pub mod keychain_utils_tests;
 pub mod results_window;
+pub mod sandbox;
+#[cfg(test)]
+pub mod sandbox_tests;
 pub mod k8s_tunnel;
 pub mod log_commands;
 pub mod logger;
@@ -324,13 +329,26 @@ pub fn run() {
             // entry pointing at the current binary so Firefox & friends can
             // route `tabularis://...` to us. The call is a no-op on macOS
             // (handled by Info.plist) and idempotent across restarts.
+            //
+            // Inside Snap/Flatpak the exported `.desktop` entry already
+            // carries `MimeType=x-scheme-handler/tabularis`, and the sandbox
+            // has neither `xdg-mime` nor write access to the host's
+            // mimeapps.list — so skip the call instead of logging a failure.
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 let handle = app.handle().clone();
                 let deep_link = app.deep_link();
                 #[cfg(any(target_os = "linux", all(debug_assertions, target_os = "windows")))]
-                if let Err(e) = deep_link.register("tabularis") {
-                    log::warn!("Failed to register tabularis:// scheme: {}", e);
+                match crate::sandbox::current() {
+                    Some(sandbox) => log::info!(
+                        "Skipping tabularis:// scheme registration: handled by the {} desktop entry",
+                        sandbox.name()
+                    ),
+                    None => {
+                        if let Err(e) = deep_link.register("tabularis") {
+                            log::warn!("Failed to register tabularis:// scheme: {}", e);
+                        }
+                    }
                 }
                 deep_link.on_open_url({
                     let handle = handle.clone();
