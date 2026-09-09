@@ -39,7 +39,33 @@ function escapeStringLiteral(val: string, escapeBackslashes: boolean): string {
   return escaped.replace(/'/g, "''");
 }
 
+/**
+ * Serializing a result set is linear in its rows, and resolution runs on every
+ * render of the notebook. Results are replaced wholesale rather than mutated,
+ * so the rendered CTE stays valid for as long as the result object lives.
+ */
+const cteCache = new WeakMap<QueryResult, Map<string, string>>();
+
 function resultToCte(
+  result: QueryResult,
+  alias: string,
+  escapeBackslashes: boolean,
+): string {
+  const variantKey = `${escapeBackslashes ? 1 : 0}:${alias}`;
+  let variants = cteCache.get(result);
+  const cached = variants?.get(variantKey);
+  if (cached !== undefined) return cached;
+
+  const cte = buildResultCte(result, alias, escapeBackslashes);
+  if (!variants) {
+    variants = new Map();
+    cteCache.set(result, variants);
+  }
+  variants.set(variantKey, cte);
+  return cte;
+}
+
+function buildResultCte(
   result: QueryResult,
   alias: string,
   escapeBackslashes: boolean,

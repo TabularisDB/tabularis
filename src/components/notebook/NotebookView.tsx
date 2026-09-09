@@ -886,7 +886,7 @@ export function NotebookView({
         />
         {cells.map((cell, index) => (
           <div
-            key={`${cell.id}-${index}`}
+            key={cell.id}
             ref={(el) => {
               if (el) cellRefsMap.current.set(cell.id, el);
               else cellRefsMap.current.delete(cell.id);

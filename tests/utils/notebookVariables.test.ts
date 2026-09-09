@@ -363,6 +363,43 @@ describe("notebookVariables", () => {
       expect(result.sql).toContain("'Infinity'");
     });
 
+    it("should keep repeated resolutions of one result identical", () => {
+      const cells = [
+        makeCell({
+          result: { columns: ["id"], rows: [[1], [2]], affected_rows: 0 },
+        }),
+      ];
+      const first = resolveQueryVariables("SELECT * FROM {{cell_1}}", cells);
+      const second = resolveQueryVariables("SELECT * FROM {{cell_1}}", cells);
+      expect(second.sql).toBe(first.sql);
+    });
+
+    it("should re-serialize once a cell holds a new result", () => {
+      const cell = makeCell({
+        result: { columns: ["id"], rows: [[1]], affected_rows: 0 },
+      });
+      const before = resolveQueryVariables("SELECT * FROM {{cell_1}}", [cell]);
+      const after = resolveQueryVariables("SELECT * FROM {{cell_1}}", [
+        { ...cell, result: { columns: ["id"], rows: [[2]], affected_rows: 0 } },
+      ]);
+      expect(before.sql).toContain('SELECT 1 AS "id"');
+      expect(after.sql).toContain('SELECT 2 AS "id"');
+    });
+
+    it("should not reuse a resolution across escaping dialects", () => {
+      const cells = [
+        makeCell({
+          result: { columns: ["path"], rows: [["C:\\temp"]], affected_rows: 0 },
+        }),
+      ];
+      const plain = resolveQueryVariables("SELECT * FROM {{cell_1}}", cells);
+      const escaped = resolveQueryVariables("SELECT * FROM {{cell_1}}", cells, {
+        escapeBackslashes: true,
+      });
+      expect(plain.sql).toContain("'C:\\temp'");
+      expect(escaped.sql).toContain("'C:\\\\temp'");
+    });
+
     it("should handle empty result set", () => {
       const cells = [
         makeCell({

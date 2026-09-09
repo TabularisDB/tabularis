@@ -24,6 +24,7 @@ const fixtures = vi.hoisted(() => ({
   resolveGuard: vi.fn(),
   matchesShortcut: vi.fn(),
   showAlert: vi.fn(),
+  mounts: new Map<string, number>(),
 }));
 
 vi.mock("../../../src/hooks/useDatabase", () => ({
@@ -84,16 +85,26 @@ vi.mock("../../../src/components/notebook/NotebookToolbar", () => ({
 }));
 // Only the child boundary is replaced: NotebookView owns state and execution.
 // Do not read cell.result here, so the hidden-plan test can detect materialization.
-vi.mock("../../../src/components/notebook/NotebookCellWrapper", () => ({
-  NotebookCellWrapper: ({ cell, explainQuery, activeSchema, connectionId, onRun, onUpdate }: ComponentProps<typeof NotebookCellWrapper>) => (
-    <section data-testid={`cell-${cell.id}`} data-schema={activeSchema} data-connection={connectionId} data-loading={!!cell.isLoading}>
-      <output data-testid={`explain-${cell.id}`}>{JSON.stringify(explainQuery ?? null)}</output>
-      <textarea aria-label={`SQL ${cell.id}`} value={cell.content} onChange={(event) => onUpdate({ content: event.target.value })} />
-      <button onClick={() => onUpdate({ isQueryPlanVisible: !cell.isQueryPlanVisible })}>Toggle plan {cell.id}</button>
-      <button onClick={onRun}>Run {cell.id}</button>
-    </section>
-  ),
-}));
+vi.mock("../../../src/components/notebook/NotebookCellWrapper", async () => {
+  const { useEffect } = await import("react");
+  return {
+    NotebookCellWrapper: ({ cell, explainQuery, activeSchema, connectionId, onRun, onUpdate, onMoveDown }: ComponentProps<typeof NotebookCellWrapper>) => {
+      // A remount discards per-cell plan state, so mounts are observable here.
+      useEffect(() => {
+        fixtures.mounts.set(cell.id, (fixtures.mounts.get(cell.id) ?? 0) + 1);
+      }, [cell.id]);
+      return (
+        <section data-testid={`cell-${cell.id}`} data-schema={activeSchema} data-connection={connectionId} data-loading={!!cell.isLoading}>
+          <output data-testid={`explain-${cell.id}`}>{JSON.stringify(explainQuery ?? null)}</output>
+          <textarea aria-label={`SQL ${cell.id}`} value={cell.content} onChange={(event) => onUpdate({ content: event.target.value })} />
+          <button onClick={() => onUpdate({ isQueryPlanVisible: !cell.isQueryPlanVisible })}>Toggle plan {cell.id}</button>
+          <button onClick={onRun}>Run {cell.id}</button>
+          <button onClick={onMoveDown}>Move down {cell.id}</button>
+        </section>
+      );
+    },
+  };
+});
 
 const mockInvoke = vi.mocked(invoke);
 const mockResolveParams = vi.mocked(resolveParams);
@@ -144,6 +155,7 @@ describe("NotebookView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fixtures.notebooks.clear();
+    fixtures.mounts.clear();
     fixtures.database.activeDriver = "postgres";
     fixtures.database.activeSchema = "active_schema";
     fixtures.settings.resultPageSize = 37;
@@ -217,7 +229,9 @@ describe("NotebookView", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Toggle plan target" }));
       expect(explainFor("target")).toEqual({ sql: standardSql.replace("SELECT *", "SELECT label"), unresolvedRefs: [] });
-      expect(readRows).toHaveBeenCalled();
+      expect(mockResolveVariables).toHaveBeenCalled();
+      // The dependency still holds the same result, so its rows are reused.
+      expect(readRows).not.toHaveBeenCalled();
       expect(mockInvoke).not.toHaveBeenCalled();
     });
 
@@ -250,6 +264,31 @@ describe("NotebookView", () => {
       expect(savedCell("source").history).toBeUndefined();
       expect(fixtures.guardQuery).not.toHaveBeenCalled();
       expect(mockInvoke).not.toHaveBeenCalled();
+    });
+
+    it("keeps cells mounted across reordering and editing", async () => {
+      renderNotebook({
+        cells: [
+          sqlCell("first", "SELECT 1", { isQueryPlanVisible: true }),
+          sqlCell("second", "SELECT 2", { isQueryPlanVisible: true }),
+        ],
+      });
+      await settle();
+      expect(fixtures.mounts.get("first")).toBe(1);
+      expect(fixtures.mounts.get("second")).toBe(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "Move down first" }));
+      await settle();
+      fireEvent.change(screen.getByRole("textbox", { name: "SQL first" }), {
+        target: { value: "SELECT 11" },
+      });
+      await settle();
+
+      expect(savedCell("first").content).toBe("SELECT 11");
+      expect(fixtures.notebooks.get(notebookId)?.cells.map((cell) => cell.id))
+        .toEqual(["second", "first"]);
+      expect(fixtures.mounts.get("first")).toBe(1);
+      expect(fixtures.mounts.get("second")).toBe(1);
     });
   });
 
