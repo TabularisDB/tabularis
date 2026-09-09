@@ -1,8 +1,18 @@
 name: Build
 
-# Reusable build matrix used by nightly.yml (cron) and release.yml (tags).
-# Centralises the signing/notarization config in one place so callers can't
-# drift from it.
+# Reusable build matrix used by nightly.yml (cron), release.yml (tags) and
+# preview.yml (maintainer-requested PR builds). Centralises the
+# signing/notarization config in one place so callers can't drift from it.
+#
+# Two modes:
+#   * release (default): signed + notarized bundles uploaded as assets of the
+#     GitHub Release `tag`, created if missing.
+#   * preview: `preview: true`. Bundles uploaded as workflow-run artifacts
+#     only: no release, no tag, no updater artifacts. Signed + notarized when
+#     the signing secrets are available, unsigned (with a warning) when they
+#     are not. That is what makes the fork rule work: on a `pull_request`
+#     event GitHub hands secrets only to PRs from this repository, so preview
+#     builds of fork PRs come out unsigned without any extra logic here.
 on:
   workflow_call:
     inputs:
@@ -11,9 +21,15 @@ on:
         required: true
         type: string
       tag:
-        description: "Release tag to create/upload to."
-        required: true
+        description: "Release tag to create/upload to. Ignored (and may be empty) when `preview` is true."
+        required: false
+        default: ""
         type: string
+      preview:
+        description: "Upload the bundles as run artifacts instead of a GitHub Release."
+        required: false
+        default: false
+        type: boolean
       release_name:
         description: "Release title. Supports tauri-action's __VERSION__ placeholder."
         required: false
@@ -47,18 +63,23 @@ on:
 
 jobs:
   publish-tauri:
-    permissions:
-      contents: write
+    # Permissions are inherited from the caller: release/nightly grant
+    # `contents: write` (release upload), preview grants only `contents: read`.
+    # A called workflow can't request more than the caller grants, so they
+    # can't be declared here without breaking one of the two modes.
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: "macos-latest" # for Arm64
             args: "--target aarch64-apple-darwin"
+            artifact: macos-arm64
           - platform: "macos-15-intel" # for Intel
             args: "--target x86_64-apple-darwin"
+            artifact: macos-x64
           - platform: "ubuntu-24.04"
             args: ""
+            artifact: linux-x64
             # Build inside an ubuntu:22.04 container (glibc 2.35) rather than
             # on the bare ubuntu-24.04 runner (glibc 2.39), so the produced
             # .deb/.AppImage keep running on older LTS distros. Pinned to the
@@ -67,6 +88,7 @@ jobs:
             container: "ubuntu:22.04"
           - platform: "windows-latest"
             args: ""
+            artifact: windows-x64
 
     runs-on: ${{ matrix.platform }}
     container: ${{ matrix.container }}
@@ -163,14 +185,43 @@ jobs:
           EOF
           chmod +x ~/.cache/tauri/linuxdeploy-plugin-gtk.sh
 
+      # Signing/notarization needs the whole set; a partial set would make
+      # tauri fail half-way, and a set-but-empty APPLE_SIGNING_IDENTITY is
+      # taken by tauri as an identity to sign with. Hence the two build steps
+      # below: the signed one defines the variables, the unsigned one doesn't.
+      - name: Detect signing secrets
+        shell: bash
+        env:
+          HAS_SECRETS: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_API_KEY_CONTENT != '' && secrets.TAURI_PRIVATE_KEY != '' }}
+          PREVIEW: ${{ inputs.preview }}
+        run: |
+          echo "CAN_SIGN=$HAS_SECRETS" >> "$GITHUB_ENV"
+          if [ "$HAS_SECRETS" != "true" ]; then
+            if [ "$PREVIEW" = "true" ]; then
+              echo "::warning::Signing secrets unavailable (fork PR?) — this preview bundle will NOT be signed nor notarized."
+            else
+              echo "::error::Release builds require the signing secrets; refusing to publish unsigned bundles."
+              exit 1
+            fi
+          fi
+
       # Notarization needs the App Store Connect API key on disk. The .p8 is stored
       # base64-encoded in APPLE_API_KEY_CONTENT and decoded into a temp file (macOS only).
       - name: Prepare Apple API key (macOS only)
-        if: startsWith(matrix.platform, 'macos')
+        if: startsWith(matrix.platform, 'macos') && env.CAN_SIGN == 'true'
         shell: bash
         run: |
           echo "${{ secrets.APPLE_API_KEY_CONTENT }}" | base64 --decode > "$RUNNER_TEMP/apple_api_key.p8"
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/apple_api_key.p8" >> "$GITHUB_ENV"
+
+      # Preview builds are never served through latest.json, so the updater
+      # bundles + .sig files would only be noise; and `createUpdaterArtifacts`
+      # makes `tauri build` demand the updater key, which fork PRs don't have.
+      - name: Disable updater artifacts (preview)
+        if: inputs.preview
+        shell: bash
+        run: |
+          node -e "const f='src-tauri/tauri.conf.json';const c=require('./'+f);const fs=require('fs');c.bundle.createUpdaterArtifacts=false;fs.writeFileSync(f, JSON.stringify(c, null, 2)+'\n');"
 
       - name: Override app version (nightly channel)
         if: inputs.updater_version != ''
@@ -184,7 +235,9 @@ jobs:
           sed -i.bak "0,/^version = \".*\"/s//version = \"$v\"/" src-tauri/Cargo.toml && rm -f src-tauri/Cargo.toml.bak
           echo "Patched version to $v"
 
-      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+      - name: Build signed bundles (+ upload to GitHub Release unless preview)
+        if: env.CAN_SIGN == 'true'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: ${{ inputs.experimental_appimage && 'true' || '' }}
@@ -199,7 +252,9 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
         with:
-          tagName: ${{ inputs.tag }}
+          # Without a tagName tauri-action only builds and never touches
+          # releases, which is exactly what preview mode wants.
+          tagName: ${{ !inputs.preview && inputs.tag || '' }}
           releaseName: ${{ inputs.release_name }}
           releaseBody: ${{ inputs.release_body }}
           releaseDraft: ${{ inputs.draft }}
@@ -208,8 +263,19 @@ jobs:
           tauriScript: ${{ inputs.experimental_appimage && matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
           args: ${{ matrix.args }}
 
+      - name: Build unsigned bundles (preview without secrets)
+        if: env.CAN_SIGN != 'true'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: ${{ inputs.experimental_appimage && 'true' || '' }}
+        with:
+          # No tagName: tauri-action only builds, it never touches releases.
+          tauriScript: ${{ inputs.experimental_appimage && matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
+          args: ${{ matrix.args }}
+
       - name: Upload portable executable (Windows only)
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-latest' && !inputs.preview
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -219,3 +285,27 @@ jobs:
           $portable = "tabularis_${version}_x64-portable.exe"
           Copy-Item $src $portable
           gh release upload "${{ inputs.tag }}" $portable --clobber
+
+      - name: Stage portable executable (Windows only, preview mode)
+        if: matrix.platform == 'windows-latest' && inputs.preview
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri\tauri.conf.json -Raw | ConvertFrom-Json).version
+          Copy-Item "src-tauri\target\release\tabularis.exe" "src-tauri\target\release\bundle\tabularis_${version}_x64-portable.exe"
+
+      # Only the installable bundles: the raw .app directory, the deb/rpm
+      # staging trees and the binaries themselves are noise for a tester.
+      - name: Upload preview artifacts
+        if: inputs.preview
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tabularis-preview-${{ matrix.artifact }}
+          path: |
+            src-tauri/target/**/release/bundle/**/*.dmg
+            src-tauri/target/**/release/bundle/**/*.deb
+            src-tauri/target/**/release/bundle/**/*.rpm
+            src-tauri/target/**/release/bundle/**/*.AppImage
+            src-tauri/target/**/release/bundle/**/*.msi
+            src-tauri/target/**/release/bundle/**/*.exe
+          if-no-files-found: error
+          retention-days: 14
