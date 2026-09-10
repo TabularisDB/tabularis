@@ -45,11 +45,18 @@ fn normalise_platform_key(raw: &str) -> String {
 /// The client is cheap to construct (wraps a `reqwest::Client`), so callers
 /// don't need to cache it for one-shot fetches.
 ///
-/// Note: `tabularium-sdk` pins reqwest 0.12, while the rest of Tabularis uses
-/// 0.13 — so we cannot inject `proxy::app_http_client()` here. Plugin ZIP
-/// downloads still go through the proxied installer client.
+/// `tabularium-sdk` pins reqwest 0.12, so we inject [`crate::proxy::app_http_client_012`]
+/// (same `app_http` scope / proxy URL as the rest of the app). On builder
+/// failure we fall back to the SDK default client and log.
 fn make_client(base_url: &str) -> Client {
-    Client::new(normalise_base(base_url))
+    let base = normalise_base(base_url);
+    match crate::proxy::app_http_client_012() {
+        Ok(http) => Client::new_with_client(base, http),
+        Err(e) => {
+            log::warn!("Failed to build proxied Tabularium HTTP client: {e}");
+            Client::new(base)
+        }
+    }
 }
 
 /// Fetch the first page of plugins. The SDK exposes pagination via

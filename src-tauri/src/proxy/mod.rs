@@ -10,7 +10,8 @@ pub mod tcp_forward;
 pub mod types;
 
 pub use http::{
-    ai_http_client, app_http_client, build_reqwest_client, build_reqwest_client_with_timeout,
+    ai_http_client, app_http_client, app_http_client_012, build_reqwest_012_client,
+    build_reqwest_client, build_reqwest_client_with_timeout,
 };
 pub use registry::{
     PROXY_SCOPES, SCOPE_AI, SCOPE_APP_HTTP, SCOPE_DATABASE, SCOPE_SSH_TUNNEL,

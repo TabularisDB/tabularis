@@ -6482,6 +6482,7 @@ dependencies = [
  "once_cell",
  "openssl",
  "plist",
+ "reqwest 0.12.28",
  "reqwest 0.13.2",
  "roxmltree",
  "russh",
