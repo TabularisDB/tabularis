@@ -54,6 +54,9 @@ function isLinux(): boolean {
   return platform.toUpperCase().includes("LINUX");
 }
 
+/** Debounced onChange emissions remembered until the consumer echoes them back. */
+const MAX_PENDING_ECHOES = 50;
+
 // Internal component that resets when key changes
 const SqlEditorInternal = ({
   initialValue,
@@ -113,11 +116,34 @@ const SqlEditorInternal = ({
     };
   }, []);
 
-  // Sync editor value only when initialValue changes externally (e.g., tab switch)
-  // Preserve cursor position to avoid jumping to start during debounced updates
+  // Values handed to onChange that the consumer has not echoed back through
+  // initialValue yet. Bounded because a consumer may drop updates (Editor.tsx
+  // ignores onChange from inactive tabs).
+  const pendingEchoesRef = useRef<string[]>([]);
+
+  // Sync editor value only when initialValue changes externally (e.g., a saved
+  // query loaded into the tab). Preserve cursor position to avoid jumping to
+  // start.
+  //
+  // The debounced onChange flush re-renders the consumer asynchronously, so by
+  // the time initialValue comes back it can already be stale: keystrokes typed
+  // in between are in the editor but not in initialValue. Writing it back with
+  // setValue would drop them (#731), so an echo of our own emission is never
+  // applied. Anything else is an external change and wins over pending edits.
   useEffect(() => {
+    const pendingEchoes = pendingEchoesRef.current;
+    const echoIndex = pendingEchoes.indexOf(initialValue);
+    if (echoIndex !== -1) {
+      pendingEchoes.splice(0, echoIndex + 1);
+      return;
+    }
     const editor = editorRef.current;
     if (editor && initialValue !== editor.getValue()) {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+      pendingEchoes.length = 0;
       const position = editor.getPosition();
       const selections = editor.getSelections();
       editor.setValue(initialValue);
@@ -177,6 +203,10 @@ const SqlEditorInternal = ({
         }
 
         updateTimeoutRef.current = setTimeout(() => {
+          updateTimeoutRef.current = null;
+          const pendingEchoes = pendingEchoesRef.current;
+          pendingEchoes.push(newValue);
+          if (pendingEchoes.length > MAX_PENDING_ECHOES) pendingEchoes.shift();
           onChange(newValue);
         }, 300);
       },
