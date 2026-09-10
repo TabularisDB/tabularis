@@ -1497,9 +1497,9 @@ export const NewConnectionModal = ({
     [invalidateInlineK8sTest],
   );
 
-  const updateField = (
-    field: keyof ConnectionParams,
-    value: string | number | boolean | undefined,
+  const updateField = <K extends keyof ConnectionParams>(
+    field: K,
+    value: ConnectionParams[K],
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -1518,9 +1518,9 @@ export const NewConnectionModal = ({
     setSshTabError(false);
   }, []);
 
-  const updateSshField = (
-    field: keyof ConnectionParams,
-    value: string | number | boolean | undefined,
+  const updateSshField = <K extends keyof ConnectionParams>(
+    field: K,
+    value: ConnectionParams[K],
   ) => {
     invalidateSshTest();
     updateField(field, value);
