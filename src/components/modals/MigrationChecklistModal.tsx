@@ -121,6 +121,20 @@ export const MigrationChecklistModal = ({
     };
   }, []);
 
+  // Escape closes the modal, same as the X button — per .rules/modals.md #4.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setRowStatus({});
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const toggleChecked = (id: string) => {
