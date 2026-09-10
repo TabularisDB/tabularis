@@ -44,7 +44,8 @@
     "copied": "복사됨!",
     "showDetails": "세부 정보 표시",
     "hideDetails": "세부 정보 숨기기",
-    "beta": "베타"
+    "beta": "베타",
+    "dismiss": "닫기"
   },
   "sidebar": {
     "connections": "연결",
@@ -260,6 +261,9 @@
   "connections": {
     "title": "연결",
     "addConnection": "연결 추가",
+    "deprecated": "사용 중단",
+    "deprecatedTooltip": "이 내장 드라이버는 {{replacement}} 플러그인으로 대체됩니다.",
+    "deprecatedTooltipDate": "이 내장 드라이버는 {{replacement}} 플러그인으로 대체됩니다(잠정 {{date}}).",
     "newSqliteDatabase": {
       "menuLabel": "새 SQLite 데이터베이스…",
       "dialogTitle": "새 SQLite 데이터베이스",
@@ -648,6 +652,10 @@
       "install": "설치",
       "upToDate": "최신 버전",
       "downgrade": "다운그레이드:",
+      "deprecated": "사용 중단",
+      "deprecatedTooltip": "이 내장 드라이버는 {{replacement}} 플러그인으로 대체됩니다.",
+      "deprecatedTooltipDate": "이 내장 드라이버는 {{replacement}} 플러그인으로 대체됩니다(잠정 {{date}}).",
+      "migrationProgress": "{{total}}개 중 {{migrated}}개 마이그레이션됨",
       "olderVersions": "이전 버전",
       "noPlugins": "레지스트리에 사용 가능한 플러그인이 없습니다.",
       "searchPlaceholder": "플러그인 검색…",
@@ -698,6 +706,7 @@
         "fieldRequired": "{{label}}은(는) 필수 항목입니다",
         "saved": "저장됨",
         "resetToDefault": "기본값으로 재설정",
+        "reportIssue": "플러그인 문제 신고",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2140,6 +2149,10 @@
     "tablePlaceholder": "테이블 (선택 사항)",
     "initialPrivilegesHint": "선택 사항: 생성 직후 부여할 초기 권한입니다. 데이터베이스를 선택하거나, 비워두면 전역으로 부여됩니다."
   },
+  "connectionCatalogue": {
+    "deprecated": "사용 중단",
+    "deprecatedTooltip": "이 내장 드라이버는 플러그인으로 대체됩니다"
+  },
   "connectionErrors": {
     "ssh-auth": {
       "summary": "SSH 인증 실패",
@@ -2198,5 +2211,54 @@
     },
     "title": "연결 테스트 로그",
     "showLog": "로그 보기"
+  },
+  "migration": {
+    "banner": {
+      "nudge": "새 PostgreSQL 플러그인을 사용해 보세요 —내장 PostgreSQL 드라이버가 폐지 예정입니다. 플러그인은 동일한 기능을 가지며 더 빠르게 업데이트됩니다.",
+      "nudgeWithDate": "새 PostgreSQL 플러그인을 사용해 보세요 —내장 PostgreSQL 드라이버가 폐지 예정입니다({{date}} 잠정). 플러그인은 동일한 기능을 가지며 더 빠르게 업데이트됩니다.",
+      "offline": "PostgreSQL 플러그인을 다운로드할 수 없습니다 —다음 실행 시 다시 시도합니다. 계속되면 연결이나 네트워크를 확인하세요.",
+      "reviewConnections": "연결 검토"
+    },
+    "switchToPlugin": "플러그인으로 전환",
+    "switchToBuiltin": "내장 드라이버로 되돌리기",
+    "confirm": {
+      "title": "플러그인으로 전환하시겠습니까?",
+      "message": "{{name}}을(를) PostgreSQL 플러그인으로 전환하시겠습니까? 현재 연결되어 있다면 연결이 끊기고 플러그인으로 다시 열립니다.",
+      "uriMessage": "{{name}}을(를) PostgreSQL 플러그인으로 전환하시겠습니까? 키체인에 저장된 연결 문자열은 유지되지 않습니다 —다시 연결하려면 재입력해야 합니다.",
+      "confirmLabel": "전환",
+      "confirmLabelUri": "전환 후 나중에 재입력",
+      "undoTitle": "내장 드라이버로 되돌리시겠습니까?",
+      "undoMessage": "{{name}}을(를) 내장 PostgreSQL 드라이버로 되돌리시겠습니까? 현재 연결되어 있다면 연결이 끊기고 내장 드라이버로 다시 열립니다.",
+      "undoConfirmLabel": "되돌리기"
+    },
+    "toast": {
+      "success": "{{name}}을(를) PostgreSQL 플러그인으로 전환했습니다.",
+      "connectionFailure": "플러그인을 사용하여 {{name}}에 연결할 수 없습니다: {{error}}",
+      "connectionFailurePreexisting": "{{name}}은(는) 두 드라이버 모두로 연결할 수 없습니다: {{error}}. 플러그인 문제가 아닙니다 — 플러그인으로의 전환은 유지됩니다.",
+      "processFailureWithError": "PostgreSQL 플러그인이 시작되지 않았습니다: {{error}}. {{name}}에 국한된 문제가 아닙니다 —연결이 시도되지 않았습니다.",
+      "processFailure": "PostgreSQL 플러그인이 시작되지 않았습니다. {{name}}에 국한된 문제가 아닙니다 —연결이 시도되지 않았습니다.",
+      "failed": "{{name}}을(를) 플러그인으로 전환할 수 없습니다: {{error}}",
+      "undo": "실행 취소",
+      "undoFailed": "{{name}}을(를) 내장 드라이버로 다시 전환할 수 없습니다: {{error}}",
+      "reportIssue": "문제 신고"
+    },
+    "checklist": {
+      "title": "연결 검토",
+      "subtitle_one": "{{count}}개 연결이 아직 내장 드라이버를 사용 중",
+      "subtitle_other": "{{count}}개 연결이 아직 내장 드라이버를 사용 중",
+      "migrateSelected_one": "선택한 {{count}}개 마이그레이션",
+      "migrateSelected_other": "선택한 {{count}}개 마이그레이션",
+      "reportThisGap": "이 문제 신고",
+      "alreadyReported": "신고됨",
+      "testing": "연결 테스트 중…",
+      "uriWarning": "키체인에 저장된 연결 문자열은 유지되지 않습니다 —마이그레이션 후 다시 입력해야 합니다.",
+      "noGaps": "검토할 연결이 없습니다.",
+      "close": "닫기",
+      "migratingNotice": "이 창을 닫아도 마이그레이션은 계속 진행됩니다.",
+      "gap": {
+        "ssl": "SSL/TLS를 사용하며, 플러그인에서 아직 지원되지 않음",
+        "connection_uri": "연결 문자열을 사용하며, 플러그인에서 아직 지원되지 않음"
+      }
+    }
   }
 }

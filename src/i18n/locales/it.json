@@ -67,7 +67,8 @@
     "copied": "Copiato!",
     "showDetails": "Mostra dettagli",
     "hideDetails": "Nascondi dettagli",
-    "beta": "Beta"
+    "beta": "Beta",
+    "dismiss": "Chiudi"
   },
   "sidebar": {
     "connections": "Connessioni",
@@ -290,6 +291,9 @@
   "connections": {
     "title": "Connessioni",
     "addConnection": "Aggiungi Connessione",
+    "deprecated": "Deprecato",
+    "deprecatedTooltip": "Questo driver integrato viene sostituito dal plugin {{replacement}}.",
+    "deprecatedTooltipDate": "Questo driver integrato viene sostituito dal plugin {{replacement}}, provvisoriamente entro {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Nuovo database SQLite…",
       "dialogTitle": "Nuovo database SQLite",
@@ -695,6 +699,10 @@
       "install": "Installa",
       "upToDate": "Aggiornato",
       "downgrade": "Effettua downgrade a",
+      "deprecated": "Deprecato",
+      "deprecatedTooltip": "Questo driver integrato viene sostituito dal plugin {{replacement}}.",
+      "deprecatedTooltipDate": "Questo driver integrato viene sostituito dal plugin {{replacement}}, provvisoriamente entro {{date}}.",
+      "migrationProgress": "{{migrated}} di {{total}} migrate",
       "olderVersions": "Versioni precedenti",
       "noPlugins": "Nessun plugin disponibile nel registro.",
       "searchPlaceholder": "Cerca plugin…",
@@ -745,6 +753,7 @@
         "fieldRequired": "{{label}} è obbligatorio",
         "saved": "Salvato",
         "resetToDefault": "Ripristina predefinito",
+        "reportIssue": "Segnala un problema del plugin",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2154,6 +2163,55 @@
     "updateConfirm": "Aggiorna a v{{version}}",
     "alreadyInstalled": "La versione {{version}} è già installata."
   },
+  "migration": {
+    "banner": {
+      "nudge": "Prova il nuovo plugin PostgreSQL — il driver integrato PostgreSQL è in fase di ritiro. Il plugin ha le stesse funzionalità e si aggiorna più velocemente.",
+      "nudgeWithDate": "Prova il nuovo plugin PostgreSQL — il driver integrato PostgreSQL è in fase di ritiro (provvisoriamente il {{date}}). Il plugin ha le stesse funzionalità e si aggiorna più velocemente.",
+      "offline": "Il plugin PostgreSQL non è stato scaricato — riproveremo al prossimo avvio. Controlla la connessione o la rete se il problema persiste.",
+      "reviewConnections": "Rivedi connessioni"
+    },
+    "switchToPlugin": "Passa al plugin",
+    "switchToBuiltin": "Torna al driver integrato",
+    "confirm": {
+      "title": "Passare al plugin?",
+      "message": "Passare {{name}} al plugin PostgreSQL? Se è attualmente connesso, verrà disconnesso e riaperto usando il plugin.",
+      "uriMessage": "Passare {{name}} al plugin PostgreSQL? La stringa di connessione salvata nel portachiavi non verrà trasferita — dovrai reinserirla per riconnetterti.",
+      "confirmLabel": "Passa",
+      "confirmLabelUri": "Passa e reinserisci più tardi",
+      "undoTitle": "Tornare al driver integrato?",
+      "undoMessage": "Far tornare {{name}} al driver PostgreSQL integrato? Se è attualmente connesso, verrà disconnesso e riaperto usando il driver integrato.",
+      "undoConfirmLabel": "Torna"
+    },
+    "toast": {
+      "success": "{{name}} è stato passato al plugin PostgreSQL.",
+      "connectionFailure": "Impossibile connettersi a {{name}} usando il plugin: {{error}}",
+      "connectionFailurePreexisting": "Impossibile connettersi a {{name}} con entrambi i driver: {{error}}. Non è un problema del plugin — il passaggio al plugin è stato mantenuto.",
+      "processFailureWithError": "Il plugin PostgreSQL non si è avviato: {{error}}. Non riguarda specificamente {{name}} — non è stata tentata alcuna connessione.",
+      "processFailure": "Il plugin PostgreSQL non si è avviato. Non riguarda specificamente {{name}} — non è stata tentata alcuna connessione.",
+      "failed": "Impossibile passare {{name}} al plugin: {{error}}",
+      "undo": "Annulla",
+      "undoFailed": "Impossibile riportare {{name}} al driver integrato: {{error}}",
+      "reportIssue": "Segnala un problema"
+    },
+    "checklist": {
+      "title": "Rivedi connessioni",
+      "subtitle_one": "{{count}} connessione ancora sul driver integrato",
+      "subtitle_other": "{{count}} connessioni ancora sul driver integrato",
+      "migrateSelected_one": "Migra {{count}} selezionata",
+      "migrateSelected_other": "Migra {{count}} selezionate",
+      "reportThisGap": "Segnala questo problema",
+      "alreadyReported": "Segnalato",
+      "testing": "Test della connessione…",
+      "uriWarning": "La stringa di connessione salvata nel portachiavi non verrà trasferita — dovrai reinserirla dopo la migrazione.",
+      "noGaps": "Nessuna connessione da rivedere.",
+      "close": "Chiudi",
+      "migratingNotice": "La migrazione continua anche se chiudi questa finestra.",
+      "gap": {
+        "ssl": "Usa SSL/TLS, non ancora supportato dal plugin",
+        "connection_uri": "Usa una stringa di connessione, non ancora supportata dal plugin"
+      }
+    }
+  },
   "connectionCatalogue": {
     "searchPlaceholder": "Cerca database…",
     "clearSearch": "Cancella ricerca",
@@ -2169,6 +2227,8 @@
     "connectTo": "Connetti a {{name}}",
     "unavailableOnPlatform": "Non disponibile sulla tua piattaforma",
     "unavailable": "Non disponibile",
+    "deprecated": "Deprecato",
+    "deprecatedTooltip": "Questo driver integrato viene sostituito da un plugin",
     "backToCatalogue": "Torna al catalogo",
     "pickDriver": "Più driver si connettono a {{name}}. Scegline uno:",
     "latestVersion": "Ultima v{{version}}",

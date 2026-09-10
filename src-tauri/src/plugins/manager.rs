@@ -203,6 +203,9 @@ pub async fn load_plugin_from_dir(
         ui_extensions: config.ui_extensions,
         explain_parsers: config.explain_parsers,
         type_mappings: config.type_mappings,
+        // External plugins are not deprecated in favour of another plugin;
+        // `deprecated` is a built-in-only concept stamped at registration.
+        deprecated: None,
     };
 
     // UI-only plugins (no executable) register only their manifest.

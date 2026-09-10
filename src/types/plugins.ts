@@ -77,6 +77,18 @@ export interface PluginSettingDefinition {
   options?: string[]; // only when type === "select"
 }
 
+/** Deprecation notice for a built-in driver being retired in favour of a
+ * standalone plugin. Absent on manifests for drivers that are not deprecated.
+ * Stamped onto built-in manifests by the backend at registration time. */
+export interface DeprecationInfo {
+  /** Driver id of the replacement plugin (e.g. "postgresql"). */
+  replacement_id?: string;
+  /** Human-readable target removal date (tentative, e.g. "2026-10-05"). */
+  removal_date?: string;
+  /** App version targeted for removal, if decided. */
+  removal_version?: string;
+}
+
 export interface PluginManifest {
   id: string;
   name: string;
@@ -107,6 +119,9 @@ export interface PluginManifest {
   type_mappings?: Record<string, string>;
   /** UI extension declarations for slot-based rendering (Phase 2). */
   ui_extensions?: UIExtensionManifestEntry[];
+  /** Deprecation notice for a built-in driver being retired in favour of a
+   * plugin. Absent/undefined for non-deprecated drivers. */
+  deprecated?: DeprecationInfo;
   /** Raw EXPLAIN parser bundles loaded when this plugin is enabled. */
   explain_parsers?: ExplainParserManifestEntry[];
 }

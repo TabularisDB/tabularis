@@ -8,7 +8,7 @@ import type { ConnectionTag } from '../../types/tags';
 import { useDatabase } from '../../hooks/useDatabase';
 import { getConnectionAccent, getConnectionIcon } from '../../utils/driverUI';
 import { getCapabilitiesForDriver } from '../../utils/driverCapabilities';
-import { connectionSubtitle, getCardClass } from '../../utils/connections';
+import { connectionSubtitle, getCardClass, migrationDirectionForDriver } from '../../utils/connections';
 import { StatusBadge } from './StatusBadge';
 import { ActionButtons } from './ActionButtons';
 import { TagChips } from './TagChips';
@@ -34,6 +34,8 @@ export interface ConnectionListItemProps {
   selectionActive?: boolean;
   /** Toggles this connection's selection. Enables the checkbox when provided. */
   onToggleSelect?: () => void;
+  /** Called when the migration button is clicked; omitted outside the migration window. */
+  onMigrate?: () => void;
 }
 
 export const ConnectionListItem = ({
@@ -52,6 +54,7 @@ export const ConnectionListItem = ({
   selected = false,
   selectionActive = false,
   onToggleSelect,
+  onMigrate,
 }: ConnectionListItemProps) => {
   const { t } = useTranslation();
   const { activeConnectionId, isConnectionOpenAnywhere } = useDatabase();
@@ -68,6 +71,7 @@ export const ConnectionListItem = ({
       t("connections.databaseCount", { count, defaultValue: "{{count}} databases" }),
   });
   const driverColor = getConnectionAccent(conn, driverManifest);
+  const migrationDirection = migrationDirectionForDriver(conn.params.driver, allDrivers);
 
   return (
     <div
@@ -125,6 +129,21 @@ export const ConnectionListItem = ({
         <span className="text-[10px] font-semibold text-secondary bg-surface-secondary border border-strong/40 px-1.5 py-0.5 rounded-md capitalize">
           {conn.params.driver}
         </span>
+        {driverManifest?.deprecated && (
+          <span
+            className="text-[10px] font-semibold text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 px-1.5 py-0.5 rounded-md"
+            title={driverManifest.deprecated.removal_date
+              ? t("connections.deprecatedTooltipDate", {
+                  replacement: driverManifest.deprecated.replacement_id ?? "",
+                  date: driverManifest.deprecated.removal_date,
+                })
+              : t("connections.deprecatedTooltip", {
+                  replacement: driverManifest.deprecated.replacement_id ?? "",
+                })}
+          >
+            {t("connections.deprecated")}
+          </span>
+        )}
         {conn.params.ssh_enabled && (
           <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded-md">
             <Shield size={8} /> SSH
@@ -151,6 +170,8 @@ export const ConnectionListItem = ({
           onEdit={onEdit}
           onDuplicate={onDuplicate}
           onDelete={onDelete}
+          migrationDirection={migrationDirection}
+          onMigrate={onMigrate}
         />
       </div>
     </div>

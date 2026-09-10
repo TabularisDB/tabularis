@@ -62,7 +62,7 @@ vi.mock("../../src/hooks/useDatabase", () => ({
 }));
 
 vi.mock("../../src/hooks/useDrivers", () => ({
-  useDrivers: () => ({ drivers: mocks.drivers, allDrivers: mocks.drivers }),
+  useDrivers: () => ({ drivers: mocks.drivers, allDrivers: mocks.drivers, installedPlugins: [] }),
 }));
 
 vi.mock("../../src/hooks/useSettings", () => ({
@@ -87,6 +87,37 @@ vi.mock("../../src/hooks/useCreateSqliteDatabase", () => ({
   useCreateSqliteDatabase: () => ({
     createSqliteDatabase: mocks.createSqliteDatabase,
     isCreating: false,
+  }),
+}));
+
+// The migration banner hook pulls in useConnectionCatalogue and others the
+// SQLite-creation tests don't otherwise need. Mock it to a hidden-banner
+// no-op so the tests stay focused on the SQLite action.
+vi.mock("../../src/hooks/useBuiltinDriverMigration", () => ({
+  useBuiltinPostgresMigration: () => ({
+    builtinId: "postgres",
+    pluginId: "postgresql",
+    builtinConnections: [],
+    needsMigration: false,
+    pluginReady: false,
+    registryOffline: false,
+    banner: null,
+    dismissBanner: vi.fn(),
+    migrateConnection: vi.fn(),
+    undoMigration: vi.fn(),
+  }),
+}));
+
+// Connections.tsx also calls useConnectionCatalogue directly (for the
+// migration outcome toast's repo_url lookup) — mock it the same way.
+vi.mock("../../src/hooks/useConnectionCatalogue", () => ({
+  useConnectionCatalogue: () => ({
+    groups: [],
+    facets: [],
+    loading: false,
+    registryOffline: false,
+    registry: [],
+    refresh: vi.fn(),
   }),
 }));
 

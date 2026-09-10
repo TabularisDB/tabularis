@@ -67,7 +67,8 @@
     "copied": "Copied!",
     "showDetails": "Show details",
     "hideDetails": "Hide details",
-    "beta": "Beta"
+    "beta": "Beta",
+    "dismiss": "Dismiss"
   },
   "sidebar": {
     "connections": "Connections",
@@ -283,6 +284,9 @@
   "connections": {
     "title": "Connections",
     "addConnection": "Add Connection",
+    "deprecated": "Deprecated",
+    "deprecatedTooltip": "This built-in driver is being replaced by the {{replacement}} plugin.",
+    "deprecatedTooltipDate": "This built-in driver is being replaced by the {{replacement}} plugin, tentatively by {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "New SQLite Database…",
       "dialogTitle": "New SQLite Database",
@@ -712,6 +716,10 @@
       "install": "Install",
       "upToDate": "Up to date",
       "downgrade": "Downgrade to",
+      "deprecated": "Deprecated",
+      "deprecatedTooltip": "This built-in driver is being replaced by the {{replacement}} plugin.",
+      "deprecatedTooltipDate": "This built-in driver is being replaced by the {{replacement}} plugin, tentatively by {{date}}.",
+      "migrationProgress": "{{migrated}} of {{total}} migrated",
       "olderVersions": "Older versions",
       "noPlugins": "No plugins available in the registry.",
       "searchPlaceholder": "Search plugins…",
@@ -762,6 +770,7 @@
         "fieldRequired": "{{label}} is required",
         "saved": "Saved",
         "resetToDefault": "Reset to default",
+        "reportIssue": "Report a plugin issue",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2241,6 +2250,55 @@
     "updateConfirm": "Update to v{{version}}",
     "alreadyInstalled": "Version {{version}} is already installed."
   },
+  "migration": {
+    "banner": {
+      "nudge": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired. The plugin has the same features and gets updates faster.",
+      "nudgeWithDate": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired (tentatively {{date}}). The plugin has the same features and gets updates faster.",
+      "offline": "The PostgreSQL plugin couldn't be downloaded — we'll retry on the next launch. Check your connection or network if this keeps happening.",
+      "reviewConnections": "Review connections"
+    },
+    "switchToPlugin": "Switch to plugin",
+    "switchToBuiltin": "Switch back to built-in",
+    "confirm": {
+      "title": "Switch to plugin?",
+      "message": "Switch {{name}} to the PostgreSQL plugin? If it's currently connected, it'll be disconnected and reopened using the plugin.",
+      "uriMessage": "Switch {{name}} to the PostgreSQL plugin? Its connection string is stored in the keychain and won't carry over to the plugin — you'll need to re-enter it to reconnect.",
+      "confirmLabel": "Switch",
+      "confirmLabelUri": "Switch & re-enter later",
+      "undoTitle": "Switch back to built-in?",
+      "undoMessage": "Switch {{name}} back to the built-in PostgreSQL driver? If it's currently connected, it'll be disconnected and reopened using the built-in driver.",
+      "undoConfirmLabel": "Switch back"
+    },
+    "toast": {
+      "success": "Switched {{name}} to the PostgreSQL plugin.",
+      "connectionFailure": "Couldn't connect to {{name}} using the plugin: {{error}}",
+      "connectionFailurePreexisting": "Couldn't connect to {{name}} with either driver: {{error}}. Not a plugin problem — the switch to the plugin was kept.",
+      "processFailureWithError": "The PostgreSQL plugin didn't start: {{error}}. This isn't specific to {{name}} — no connection was attempted.",
+      "processFailure": "The PostgreSQL plugin didn't start. This isn't specific to {{name}} — no connection was attempted.",
+      "failed": "Couldn't switch {{name}} to the plugin: {{error}}",
+      "undo": "Undo",
+      "undoFailed": "Couldn't switch {{name}} back to the built-in driver: {{error}}",
+      "reportIssue": "Report an issue"
+    },
+    "checklist": {
+      "title": "Review connections",
+      "subtitle_one": "{{count}} connection still on the built-in driver",
+      "subtitle_other": "{{count}} connections still on the built-in driver",
+      "migrateSelected_one": "Migrate {{count}} selected",
+      "migrateSelected_other": "Migrate {{count}} selected",
+      "reportThisGap": "Report this gap",
+      "alreadyReported": "Reported",
+      "testing": "Testing connection…",
+      "uriWarning": "Connection string is stored in the keychain and won't carry over — you'll need to re-enter it after migrating.",
+      "noGaps": "No connections to review.",
+      "close": "Close",
+      "migratingNotice": "Migration continues even after you close this window.",
+      "gap": {
+        "ssl": "Uses SSL/TLS, not yet supported by the plugin",
+        "connection_uri": "Uses a connection string, not yet supported by the plugin"
+      }
+    }
+  },
   "connectionCatalogue": {
     "searchPlaceholder": "Search databases…",
     "clearSearch": "Clear search",
@@ -2256,6 +2314,8 @@
     "connectTo": "Connect to {{name}}",
     "unavailableOnPlatform": "Unavailable on your platform",
     "unavailable": "Unavailable",
+    "deprecated": "Deprecated",
+    "deprecatedTooltip": "This built-in driver is being replaced by a plugin",
     "backToCatalogue": "Back to catalogue",
     "pickDriver": "Multiple drivers connect to {{name}}. Pick one:",
     "latestVersion": "Latest v{{version}}",

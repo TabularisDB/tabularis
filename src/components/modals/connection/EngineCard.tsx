@@ -106,6 +106,14 @@ export function EngineCard({ group, onSelect }: EngineCardProps) {
               <span className="sr-only">{t("connectionCatalogue.verified", { defaultValue: "Verified" })}</span>
             </span>
           )}
+          {rep.deprecated && (
+            <span
+              className="ml-1.5 inline-flex items-center align-baseline text-[10px] font-semibold text-yellow-400"
+              title={t("connectionCatalogue.deprecatedTooltip", { defaultValue: "This built-in driver is being replaced by a plugin" })}
+            >
+              {t("connectionCatalogue.deprecated", { defaultValue: "Deprecated" })}
+            </span>
+          )}
         </span>
 
         {/* trailing status */}

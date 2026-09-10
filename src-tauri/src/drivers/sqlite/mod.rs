@@ -1018,6 +1018,7 @@ impl SqliteDriver {
                 ui_extensions: None,
                 explain_parsers: None,
                 type_mappings: std::collections::HashMap::new(),
+                deprecated: None,
             },
         }
     }

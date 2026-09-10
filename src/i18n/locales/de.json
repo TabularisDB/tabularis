@@ -67,7 +67,8 @@
     "copied": "Kopiert!",
     "showDetails": "Details anzeigen",
     "hideDetails": "Details ausblenden",
-    "beta": "Beta"
+    "beta": "Beta",
+    "dismiss": "Schließen"
   },
   "sidebar": {
     "connections": "Verbindungen",
@@ -270,6 +271,9 @@
   "connections": {
     "title": "Verbindungen",
     "addConnection": "Verbindung hinzufügen",
+    "deprecated": "Veraltet",
+    "deprecatedTooltip": "Dieser integrierte Treiber wird durch das {{replacement}}-Plugin ersetzt.",
+    "deprecatedTooltipDate": "Dieser integrierte Treiber wird durch das {{replacement}}-Plugin ersetzt, vorläufig bis {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Neue SQLite-Datenbank…",
       "dialogTitle": "Neue SQLite-Datenbank",
@@ -670,6 +674,10 @@
       "install": "Installieren",
       "upToDate": "Aktuell",
       "downgrade": "Herabstufen auf",
+      "deprecated": "Veraltet",
+      "deprecatedTooltip": "Dieser integrierte Treiber wird durch das {{replacement}}-Plugin ersetzt.",
+      "deprecatedTooltipDate": "Dieser integrierte Treiber wird durch das {{replacement}}-Plugin ersetzt, vorläufig bis {{date}}.",
+      "migrationProgress": "{{migrated}} von {{total}} migriert",
       "olderVersions": "Ältere Versionen",
       "noPlugins": "Keine Plugins im Registry verfügbar.",
       "searchPlaceholder": "Plugins suchen…",
@@ -720,6 +728,7 @@
         "fieldRequired": "{{label}} ist erforderlich",
         "saved": "Gespeichert",
         "resetToDefault": "Auf Standard zurücksetzen",
+        "reportIssue": "Plugin-Problem melden",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2152,6 +2161,55 @@
     "updateConfirm": "Auf v{{version}} aktualisieren",
     "alreadyInstalled": "Version {{version}} ist bereits installiert."
   },
+  "migration": {
+    "banner": {
+      "nudge": "Probieren Sie das neue PostgreSQL-Plugin — der integrierte PostgreSQL-Treiber wird ausgemustert. Das Plugin hat dieselben Funktionen und erhält schneller Updates.",
+      "nudgeWithDate": "Probieren Sie das neue PostgreSQL-Plugin — der integrierte PostgreSQL-Treiber wird ausgemustert (vorläufig {{date}}). Das Plugin hat dieselben Funktionen und erhält schneller Updates.",
+      "offline": "Das PostgreSQL-Plugin konnte nicht heruntergeladen werden — wir versuchen es beim nächsten Start erneut. Prüfen Sie Ihre Verbindung oder Ihr Netzwerk, falls dies weiterhin auftritt.",
+      "reviewConnections": "Verbindungen prüfen"
+    },
+    "switchToPlugin": "Zum Plugin wechseln",
+    "switchToBuiltin": "Zum integrierten Treiber zurück wechseln",
+    "confirm": {
+      "title": "Zum Plugin wechseln?",
+      "message": "{{name}} zum PostgreSQL-Plugin wechseln? Falls aktuell verbunden, wird die Verbindung getrennt und mit dem Plugin neu aufgebaut.",
+      "uriMessage": "{{name}} zum PostgreSQL-Plugin wechseln? Die im Schlüsselbund gespeicherte Verbindungszeichenfolge wird nicht übernommen — Sie müssen sie erneut eingeben, um sich wieder zu verbinden.",
+      "confirmLabel": "Wechseln",
+      "confirmLabelUri": "Wechseln & später neu eingeben",
+      "undoTitle": "Zurück zum integrierten Treiber wechseln?",
+      "undoMessage": "{{name}} zurück zum integrierten PostgreSQL-Treiber wechseln? Falls aktuell verbunden, wird die Verbindung getrennt und mit dem integrierten Treiber neu aufgebaut.",
+      "undoConfirmLabel": "Zurückwechseln"
+    },
+    "toast": {
+      "success": "Wechselte {{name}} zum PostgreSQL-Plugin.",
+      "connectionFailure": "Verbindung zu {{name}} über das Plugin fehlgeschlagen: {{error}}",
+      "connectionFailurePreexisting": "Verbindung zu {{name}} ist mit beiden Treibern fehlgeschlagen: {{error}}. Kein Plugin-Problem — der Wechsel zum Plugin wurde trotzdem beibehalten.",
+      "processFailureWithError": "Das PostgreSQL-Plugin konnte nicht gestartet werden: {{error}}. Das betrifft nicht speziell {{name}} — es wurde keine Verbindung versucht.",
+      "processFailure": "Das PostgreSQL-Plugin konnte nicht gestartet werden. Das betrifft nicht speziell {{name}} — es wurde keine Verbindung versucht.",
+      "failed": "{{name}} konnte nicht zum Plugin gewechselt werden: {{error}}",
+      "undo": "Rückgängig",
+      "undoFailed": "{{name}} konnte nicht zurück zum integrierten Treiber gewechselt werden: {{error}}",
+      "reportIssue": "Problem melden"
+    },
+    "checklist": {
+      "title": "Verbindungen prüfen",
+      "subtitle_one": "{{count}} Verbindung nutzt noch den integrierten Treiber",
+      "subtitle_other": "{{count}} Verbindungen nutzen noch den integrierten Treiber",
+      "migrateSelected_one": "{{count}} ausgewählte migrieren",
+      "migrateSelected_other": "{{count}} ausgewählte migrieren",
+      "reportThisGap": "Problem melden",
+      "alreadyReported": "Gemeldet",
+      "testing": "Verbindung wird getestet…",
+      "uriWarning": "Die im Schlüsselbund gespeicherte Verbindungszeichenfolge wird nicht übernommen — Sie müssen sie nach der Migration erneut eingeben.",
+      "noGaps": "Keine Verbindungen zu prüfen.",
+      "close": "Schließen",
+      "migratingNotice": "Die Migration läuft auch nach dem Schließen dieses Fensters weiter.",
+      "gap": {
+        "ssl": "Verwendet SSL/TLS, vom Plugin noch nicht unterstützt",
+        "connection_uri": "Verwendet eine Verbindungszeichenfolge, vom Plugin noch nicht unterstützt"
+      }
+    }
+  },
   "connectionCatalogue": {
     "searchPlaceholder": "Datenbanken suchen…",
     "clearSearch": "Suche löschen",
@@ -2167,6 +2225,8 @@
     "connectTo": "Mit {{name}} verbinden",
     "unavailableOnPlatform": "Auf deiner Plattform nicht verfügbar",
     "unavailable": "Nicht verfügbar",
+    "deprecated": "Veraltet",
+    "deprecatedTooltip": "Dieser integrierte Treiber wird durch ein Plugin ersetzt",
     "backToCatalogue": "Zurück zum Katalog",
     "pickDriver": "Mehrere Treiber verbinden sich mit {{name}}. Wähle einen:",
     "latestVersion": "Neueste v{{version}}",

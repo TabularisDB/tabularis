@@ -67,7 +67,8 @@
     "copied": "コピーしました！",
     "showDetails": "詳細を表示",
     "hideDetails": "詳細を非表示",
-    "beta": "ベータ"
+    "beta": "ベータ",
+    "dismiss": "閉じる"
   },
   "sidebar": {
     "connections": "接続",
@@ -283,6 +284,9 @@
   "connections": {
     "title": "接続",
     "addConnection": "接続を追加",
+    "deprecated": "非推奨",
+    "deprecatedTooltip": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます。",
+    "deprecatedTooltipDate": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます（暫定 {{date}}）。",
     "newSqliteDatabase": {
       "menuLabel": "新しい SQLite データベース…",
       "dialogTitle": "新しい SQLite データベース",
@@ -684,6 +688,10 @@
       "install": "インストール",
       "upToDate": "最新",
       "downgrade": "ダウングレード:",
+      "deprecated": "非推奨",
+      "deprecatedTooltip": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます。",
+      "deprecatedTooltipDate": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます（暫定 {{date}}）。",
+      "migrationProgress": "{{total}} 件中 {{migrated}} 件移行済み",
       "olderVersions": "以前のバージョン",
       "noPlugins": "レジストリに利用可能なプラグインがありません。",
       "searchPlaceholder": "プラグインを検索…",
@@ -734,6 +742,7 @@
         "fieldRequired": "{{label}} は必須です",
         "saved": "保存しました",
         "resetToDefault": "デフォルトに戻す",
+        "reportIssue": "プラグインの問題を報告",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2170,6 +2179,55 @@
     "updateConfirm": "v{{version}} に更新",
     "alreadyInstalled": "バージョン {{version}} は既にインストールされています。"
   },
+  "migration": {
+    "banner": {
+      "nudge": "新しい PostgreSQL プラグインをお試しください —組み込みの PostgreSQL ドライバーは廃止予定です。プラグインは同じ機能を持ち、より早く更新されます。",
+      "nudgeWithDate": "新しい PostgreSQL プラグインをお試しください —組み込みの PostgreSQL ドライバーは廃止予定です（{{date}}を予定）。プラグインは同じ機能を持ち、より早く更新されます。",
+      "offline": "PostgreSQL プラグインをダウンロードできませんでした —次回起動時に再試行します。続く場合は接続やネットワークを確認してください。",
+      "reviewConnections": "接続を確認"
+    },
+    "switchToPlugin": "プラグインに切り替え",
+    "switchToBuiltin": "組み込みドライバーに戻す",
+    "confirm": {
+      "title": "プラグインに切り替えますか？",
+      "message": "{{name}} を PostgreSQL プラグインに切り替えますか？現在接続中の場合は切断され、プラグインで再接続されます。",
+      "uriMessage": "{{name}} を PostgreSQL プラグインに切り替えますか？キーチェーンに保存されている接続文字列は引き継がれません —再接続するには再入力が必要です。",
+      "confirmLabel": "切り替え",
+      "confirmLabelUri": "切り替えて後で再入力",
+      "undoTitle": "組み込みドライバーに戻しますか？",
+      "undoMessage": "{{name}} を組み込みの PostgreSQL ドライバーに戻しますか？現在接続中の場合は切断され、組み込みドライバーで再接続されます。",
+      "undoConfirmLabel": "戻す"
+    },
+    "toast": {
+      "success": "{{name}} を PostgreSQL プラグインに切り替えました。",
+      "connectionFailure": "プラグインを使用して {{name}} に接続できませんでした: {{error}}",
+      "connectionFailurePreexisting": "{{name}} はどちらのドライバでも接続できませんでした: {{error}}。プラグインの問題ではありません — プラグインへの切り替えはそのまま維持されます。",
+      "processFailureWithError": "PostgreSQL プラグインが起動しませんでした: {{error}}。これは {{name}} 固有の問題ではありません —接続は試行されませんでした。",
+      "processFailure": "PostgreSQL プラグインが起動しませんでした。これは {{name}} 固有の問題ではありません —接続は試行されませんでした。",
+      "failed": "{{name}} をプラグインに切り替えられませんでした: {{error}}",
+      "undo": "元に戻す",
+      "undoFailed": "{{name}} を組み込みドライバーに戻せませんでした: {{error}}",
+      "reportIssue": "問題を報告"
+    },
+    "checklist": {
+      "title": "接続を確認",
+      "subtitle_one": "{{count}} 件の接続がまだ組み込みドライバーを使用しています",
+      "subtitle_other": "{{count}} 件の接続がまだ組み込みドライバーを使用しています",
+      "migrateSelected_one": "選択した {{count}} 件を移行",
+      "migrateSelected_other": "選択した {{count}} 件を移行",
+      "reportThisGap": "この問題を報告",
+      "alreadyReported": "報告済み",
+      "testing": "接続をテスト中…",
+      "uriWarning": "キーチェーンに保存されている接続文字列は引き継がれません —移行後に再入力が必要です。",
+      "noGaps": "確認する接続はありません。",
+      "close": "閉じる",
+      "migratingNotice": "このウィンドウを閉じても、移行はバックグラウンドで続行されます。",
+      "gap": {
+        "ssl": "SSL/TLS を使用しています。プラグインはまだ未対応です",
+        "connection_uri": "接続文字列を使用しています。プラグインはまだ未対応です"
+      }
+    }
+  },
   "connectionCatalogue": {
     "searchPlaceholder": "データベースを検索…",
     "clearSearch": "検索をクリア",
@@ -2185,6 +2243,8 @@
     "connectTo": "{{name}} に接続",
     "unavailableOnPlatform": "お使いのプラットフォームでは利用できません",
     "unavailable": "利用不可",
+    "deprecated": "非推奨",
+    "deprecatedTooltip": "この組み込みドライバーはプラグインに置き換えられます",
     "backToCatalogue": "カタログに戻る",
     "pickDriver": "複数のドライバーが {{name}} に接続します。1つ選択してください：",
     "latestVersion": "最新 v{{version}}",

@@ -13,6 +13,52 @@ export type DatabaseDriver = string;
 export const BUILTIN_DRIVER_IDS = ["postgres", "mysql", "sqlite"] as const;
 export type BuiltinDriverId = (typeof BUILTIN_DRIVER_IDS)[number];
 
+/** Which direction a per-connection migration action would go, or `null` if
+ * migration isn't applicable to this connection's current driver. */
+export type MigrationDirection = "to-plugin" | "to-builtin" | null;
+
+/**
+ * Built-in/plugin driver pairs with a wired `useBuiltinDriverMigration` hook
+ * instance today. A manifest can carry `deprecated` before its migration UI
+ * is wired up (e.g. the Rust `deprecation_for_builtin` table gaining a mysql
+ * entry ahead of a frontend hook call site) — gating on this list, not just
+ * on the manifest's `deprecated` field, keeps the button/badge from
+ * triggering an action for a driver nothing actually handles yet. Add a pair
+ * here in the same commit that wires its `useBuiltinDriverMigration` call.
+ */
+const MIGRATABLE_DRIVER_PAIRS: ReadonlySet<string> = new Set(["postgres:postgresql"]);
+
+/**
+ * Determine whether a connection's current driver is a deprecated built-in
+ * (offer "Switch to plugin") or the declared replacement of some deprecated
+ * built-in (offer "Switch back to built-in"). Returns `null` when neither
+ * applies, or when the pair has no wired migration hook yet — so the action
+ * stays hidden until both the manifest and the UI are ready together.
+ *
+ * Pure — no side effects, driven entirely by the driver id and the set of
+ * registered manifests.
+ */
+export function migrationDirectionForDriver(
+  driverId: string,
+  allDrivers: PluginManifest[],
+): MigrationDirection {
+  const currentManifest = allDrivers.find((d) => d.id === driverId);
+  if (currentManifest?.deprecated?.replacement_id) {
+    const pair = `${driverId}:${currentManifest.deprecated.replacement_id}`;
+    if (MIGRATABLE_DRIVER_PAIRS.has(pair)) return "to-plugin";
+    return null;
+  }
+  const deprecatedBuiltin = allDrivers.find(
+    (d) => d.deprecated?.replacement_id === driverId,
+  );
+  if (deprecatedBuiltin) {
+    const pair = `${deprecatedBuiltin.id}:${driverId}`;
+    if (MIGRATABLE_DRIVER_PAIRS.has(pair)) return "to-builtin";
+    return null;
+  }
+  return null;
+}
+
 export interface ConnectionParams {
   driver: DatabaseDriver;
   host?: string;

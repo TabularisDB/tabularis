@@ -66,7 +66,8 @@
     "copied": "已复制！",
     "showDetails": "显示详情",
     "hideDetails": "隐藏详情",
-    "beta": "测试版"
+    "beta": "测试版",
+    "dismiss": "关闭"
   },
   "sidebar": {
     "connections": "连接",
@@ -269,6 +270,9 @@
   "connections": {
     "title": "连接",
     "addConnection": "添加连接",
+    "deprecated": "已弃用",
+    "deprecatedTooltip": "此内置驱动正由 {{replacement}} 插件取代。",
+    "deprecatedTooltipDate": "此内置驱动正由 {{replacement}} 插件取代（暂定 {{date}}）。",
     "newSqliteDatabase": {
       "menuLabel": "新建 SQLite 数据库…",
       "dialogTitle": "新建 SQLite 数据库",
@@ -634,6 +638,10 @@
       "install": "安装",
       "upToDate": "已是最新",
       "downgrade": "降级到",
+      "deprecated": "已弃用",
+      "deprecatedTooltip": "此内置驱动正由 {{replacement}} 插件取代。",
+      "deprecatedTooltipDate": "此内置驱动正由 {{replacement}} 插件取代（暂定 {{date}}）。",
+      "migrationProgress": "已迁移 {{migrated}} / {{total}}",
       "olderVersions": "旧版本",
       "noPlugins": "注册表中无可用插件。",
       "searchPlaceholder": "搜索插件…",
@@ -684,6 +692,7 @@
         "fieldRequired": "{{label}} 是必需的",
         "saved": "已保存",
         "resetToDefault": "重置为默认",
+        "reportIssue": "报告插件问题",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2092,6 +2101,55 @@
     "updateConfirm": "更新到 v{{version}}",
     "alreadyInstalled": "版本 {{version}} 已安装。"
   },
+  "migration": {
+    "banner": {
+      "nudge": "试试新的 PostgreSQL 插件 —内置 PostgreSQL 驱动正在退役。插件功能相同且更新更快。",
+      "nudgeWithDate": "试试新的 PostgreSQL 插件 —内置 PostgreSQL 驱动正在退役（暂定 {{date}}）。插件功能相同且更新更快。",
+      "offline": "PostgreSQL 插件无法下载 —下次启动时会重试。如果持续出现，请检查您的连接或网络。",
+      "reviewConnections": "查看连接"
+    },
+    "switchToPlugin": "切换到插件",
+    "switchToBuiltin": "切回内置驱动",
+    "confirm": {
+      "title": "切换到插件？",
+      "message": "将 {{name}} 切换到 PostgreSQL 插件？如果当前已连接，将断开连接并使用插件重新打开。",
+      "uriMessage": "将 {{name}} 切换到 PostgreSQL 插件？存储在密钥链中的连接字符串不会被带过来 —您需要重新输入才能重新连接。",
+      "confirmLabel": "切换",
+      "confirmLabelUri": "切换并稍后重新输入",
+      "undoTitle": "切回内置驱动？",
+      "undoMessage": "将 {{name}} 切回内置 PostgreSQL 驱动？如果当前已连接，将断开连接并使用内置驱动重新打开。",
+      "undoConfirmLabel": "切回"
+    },
+    "toast": {
+      "success": "已将 {{name}} 切换到 PostgreSQL 插件。",
+      "connectionFailure": "无法使用插件连接到 {{name}}：{{error}}",
+      "connectionFailurePreexisting": "无法使用任一驱动程序连接到 {{name}}：{{error}}。这不是插件的问题——切换到插件的操作已保留。",
+      "processFailureWithError": "PostgreSQL 插件未启动：{{error}}。这与 {{name}} 无关 —未尝试连接。",
+      "processFailure": "PostgreSQL 插件未启动。这与 {{name}} 无关 —未尝试连接。",
+      "failed": "无法将 {{name}} 切换到插件：{{error}}",
+      "undo": "撤销",
+      "undoFailed": "无法将 {{name}} 切换回内置驱动程序：{{error}}",
+      "reportIssue": "报告问题"
+    },
+    "checklist": {
+      "title": "查看连接",
+      "subtitle_one": "还有 {{count}} 个连接使用内置驱动",
+      "subtitle_other": "还有 {{count}} 个连接使用内置驱动",
+      "migrateSelected_one": "迁移已选的 {{count}} 个",
+      "migrateSelected_other": "迁移已选的 {{count}} 个",
+      "reportThisGap": "报告此问题",
+      "alreadyReported": "已报告",
+      "testing": "正在测试连接…",
+      "uriWarning": "存储在密钥链中的连接字符串不会被带过来 —迁移后需要重新输入。",
+      "noGaps": "没有需要查看的连接。",
+      "close": "关闭",
+      "migratingNotice": "即使关闭此窗口，迁移仍会继续。",
+      "gap": {
+        "ssl": "使用 SSL/TLS，插件尚不支持",
+        "connection_uri": "使用连接字符串，插件尚不支持"
+      }
+    }
+  },
   "connectionCatalogue": {
     "searchPlaceholder": "搜索数据库…",
     "clearSearch": "清除搜索",
@@ -2107,6 +2165,8 @@
     "connectTo": "连接到 {{name}}",
     "unavailableOnPlatform": "在您的平台上不可用",
     "unavailable": "不可用",
+    "deprecated": "已弃用",
+    "deprecatedTooltip": "此内置驱动正由插件取代",
     "backToCatalogue": "返回目录",
     "pickDriver": "多个驱动程序可连接到 {{name}}。请选择一个：",
     "latestVersion": "最新 v{{version}}",

@@ -67,7 +67,8 @@
     "copied": "Nakopya!",
     "showDetails": "Ipakita ang detalye",
     "hideDetails": "Itago ang detalye",
-    "beta": "Beta"
+    "beta": "Beta",
+    "dismiss": "Isara"
   },
   "sidebar": {
     "connections": "Mga Koneksyon",
@@ -283,6 +284,9 @@
   "connections": {
     "title": "Mga Koneksyon",
     "addConnection": "Magdagdag ng Koneksyon",
+    "deprecated": "Deprecated",
+    "deprecatedTooltip": "This built-in driver is being replaced by the {{replacement}} plugin.",
+    "deprecatedTooltipDate": "This built-in driver is being replaced by the {{replacement}} plugin, tentatively by {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Bagong SQLite Database…",
       "dialogTitle": "Bagong SQLite Database",
@@ -703,6 +707,10 @@
       "install": "I-install",
       "upToDate": "Updated na",
       "downgrade": "I-downgrade sa",
+      "deprecated": "Deprecated",
+      "deprecatedTooltip": "This built-in driver is being replaced by the {{replacement}} plugin.",
+      "deprecatedTooltipDate": "This built-in driver is being replaced by the {{replacement}} plugin, tentatively by {{date}}.",
+      "migrationProgress": "{{migrated}} of {{total}} migrated",
       "olderVersions": "Mas lumang bersyon",
       "noPlugins": "Walang available na plugin sa registry.",
       "searchPlaceholder": "Maghanap ng plugin…",
@@ -753,6 +761,7 @@
         "fieldRequired": "Kailangan ang {{label}}",
         "saved": "Na-save",
         "resetToDefault": "I-reset sa default",
+        "reportIssue": "I-report ang isyu sa plugin",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2206,6 +2215,10 @@
     "tablePlaceholder": "talahanayan (opsyonal)",
     "initialPrivilegesHint": "Opsyonal: mga paunang pribilehiyong ibibigay agad pagkatapos gumawa. Pumili ng database, o iwanang walang laman para ibigay ito nang global."
   },
+  "connectionCatalogue": {
+    "deprecated": "Deprecated",
+    "deprecatedTooltip": "Ang built-in driver na ito ay papalitan ng isang plugin"
+  },
   "connectionErrors": {
     "ssh-auth": {
       "summary": "Nabigo ang SSH authentication",
@@ -2264,5 +2277,54 @@
     },
     "title": "Log ng pagsubok ng koneksyon",
     "showLog": "Ipakita ang log"
+  },
+  "migration": {
+    "banner": {
+      "nudge": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired. The plugin has the same features and gets updates faster.",
+      "nudgeWithDate": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired (tentatively {{date}}). The plugin has the same features and gets updates faster.",
+      "offline": "The PostgreSQL plugin couldn't be downloaded — we'll retry on the next launch. Check your connection or network if this keeps happening.",
+      "reviewConnections": "Review connections"
+    },
+    "switchToPlugin": "Switch to plugin",
+    "switchToBuiltin": "Switch back to built-in",
+    "confirm": {
+      "title": "Lumipat sa plugin?",
+      "message": "Lumipat ang {{name}} sa PostgreSQL plugin? Kung kasalukuyang konektado, ito ay magdiskonekta at mabubuksan muli gamit ang plugin.",
+      "uriMessage": "Lumipat ang {{name}} sa PostgreSQL plugin? Ang connection string na naka-imbak sa keychain ay hindi madadala — kakailanganin mong ilagay ulit ito para makakonekta.",
+      "confirmLabel": "Lumipat",
+      "confirmLabelUri": "Lumipat at ilagay ulit mamaya",
+      "undoTitle": "Bumalik sa built-in driver?",
+      "undoMessage": "Ibalik ang {{name}} sa built-in na PostgreSQL driver? Kung kasalukuyang konektado, ito ay magdiskonekta at mabubuksan muli gamit ang built-in driver.",
+      "undoConfirmLabel": "Ibalik"
+    },
+    "toast": {
+      "success": "Na-switch ang {{name}} sa PostgreSQL plugin.",
+      "connectionFailure": "Hindi makakonekta sa {{name}} gamit ang plugin: {{error}}",
+      "connectionFailurePreexisting": "Hindi makakonekta sa {{name}} gamit ang alinman sa dalawang driver: {{error}}. Hindi ito problema ng plugin — nanatili ang paglipat sa plugin.",
+      "processFailureWithError": "Hindi nag-start ang PostgreSQL plugin: {{error}}. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
+      "processFailure": "Hindi nag-start ang PostgreSQL plugin. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
+      "failed": "Hindi ma-switch ang {{name}} sa plugin: {{error}}",
+      "undo": "I-undo",
+      "undoFailed": "Hindi maibalik ang {{name}} sa built-in driver: {{error}}",
+      "reportIssue": "I-report ang isyu"
+    },
+    "checklist": {
+      "title": "Suriin ang mga koneksyon",
+      "subtitle_one": "{{count}} koneksyon na nasa built-in driver pa rin",
+      "subtitle_other": "{{count}} koneksyon na nasa built-in driver pa rin",
+      "migrateSelected_one": "Ilipat ang {{count}} napili",
+      "migrateSelected_other": "Ilipat ang {{count}} napili",
+      "reportThisGap": "I-report ang isyung ito",
+      "alreadyReported": "Na-report",
+      "testing": "Sinusubukan ang koneksyon…",
+      "uriWarning": "Ang connection string na naka-imbak sa keychain ay hindi madadala — kakailanganin mong ilagay ulit ito pagkatapos lumipat.",
+      "noGaps": "Walang koneksyon na susuriin.",
+      "close": "Isara",
+      "migratingNotice": "Magpapatuloy ang migration kahit isara mo ang window na ito.",
+      "gap": {
+        "ssl": "Gumagamit ng SSL/TLS, hindi pa suportado ng plugin",
+        "connection_uri": "Gumagamit ng connection string, hindi pa suportado ng plugin"
+      }
+    }
   }
 }

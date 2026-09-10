@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { Power, Edit, Copy, Trash2 } from 'lucide-react';
+import { Power, Edit, Copy, Trash2, ArrowLeftRight } from 'lucide-react';
 import type { SavedConnection } from '../../contexts/DatabaseContext';
+import type { MigrationDirection } from '../../utils/connections';
 
 export interface ActionButtonsProps {
   conn: SavedConnection;
@@ -11,14 +12,32 @@ export interface ActionButtonsProps {
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  /** "to-plugin" / "to-builtin" shows the migration button; `null` hides it —
+   * only relevant during a built-in driver's deprecation window. */
+  migrationDirection?: MigrationDirection;
+  onMigrate?: () => void;
 }
 
 export const ActionButtons = ({
   isOpen, isDriverEnabled, onConnect, onDisconnect, onEdit, onDuplicate, onDelete,
+  migrationDirection, onMigrate,
 }: ActionButtonsProps) => {
   const { t } = useTranslation();
   return (
     <>
+      {migrationDirection && onMigrate && (
+        <button
+          onClick={e => { e.stopPropagation(); onMigrate(); }}
+          className="p-1.5 rounded-lg text-muted hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
+          title={
+            migrationDirection === 'to-plugin'
+              ? t('migration.switchToPlugin')
+              : t('migration.switchToBuiltin')
+          }
+        >
+          <ArrowLeftRight size={13} />
+        </button>
+      )}
       {isOpen ? (
         <button
           onClick={e => { e.stopPropagation(); onDisconnect(); }}
