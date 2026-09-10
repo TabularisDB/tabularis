@@ -128,7 +128,19 @@ fn persist_activation(app: &AppHandle, plugin_id: &str) -> Result<(), String> {
     if updated.active_external_drivers == config.active_external_drivers {
         return Ok(());
     }
-    config::save_config(app.clone(), updated)
+    // Pass save_config a config with only `active_external_drivers` set,
+    // not the full `updated` snapshot: save_config re-reads disk and
+    // overwrites every `Some` field, so writing back the stale snapshot
+    // taken above would silently revert any other setting the user changed
+    // in the meantime — the inverse of the race the frontend's
+    // `plugin-activated` listener already guards against.
+    config::save_config(
+        app.clone(),
+        AppConfig {
+            active_external_drivers: updated.active_external_drivers,
+            ..AppConfig::default()
+        },
+    )
 }
 
 /// Pure helper: return a copy of `config` with `plugin_id` added to
