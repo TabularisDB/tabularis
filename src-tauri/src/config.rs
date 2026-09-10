@@ -83,6 +83,8 @@ pub struct AppConfig {
     pub release_channel: Option<String>,
     pub plugins: Option<HashMap<String, PluginConfig>>,
     pub editor_theme: Option<String>,
+    /// Font for query result cells ("inherit" follows the interface font). Default: JetBrains Mono.
+    pub result_font_family: Option<String>,
     pub editor_font_family: Option<String>,
     pub editor_font_size: Option<u32>,
     pub editor_line_height: Option<f32>,
@@ -433,6 +435,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.editor_theme.is_some() {
             existing_config.editor_theme = config.editor_theme;
+        }
+        if config.result_font_family.is_some() {
+            existing_config.result_font_family = config.result_font_family;
         }
         if config.editor_font_family.is_some() {
             existing_config.editor_font_family = config.editor_font_family;
@@ -1064,6 +1069,7 @@ mod tests {
         let config = AppConfig::default();
         assert!(config.safety_confirmation_delay_enabled.is_none());
         assert!(config.editor_theme.is_none());
+        assert!(config.result_font_family.is_none());
         assert!(config.editor_font_family.is_none());
         assert!(config.editor_font_size.is_none());
         assert!(config.editor_line_height.is_none());
@@ -1077,6 +1083,7 @@ mod tests {
     fn editor_fields_serialize_with_camel_case() {
         let mut config = AppConfig::default();
         config.editor_font_family = Some("JetBrains Mono".to_string());
+        config.result_font_family = Some("inherit".to_string());
         config.editor_font_size = Some(16);
         config.editor_line_height = Some(1.5);
         config.editor_tab_size = Some(4);
@@ -1088,6 +1095,7 @@ mod tests {
 
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("editorFontFamily"));
+        assert!(json.contains("resultFontFamily"));
         assert!(json.contains("editorFontSize"));
         assert!(json.contains("editorLineHeight"));
         assert!(json.contains("editorTabSize"));
@@ -1098,6 +1106,7 @@ mod tests {
         assert!(json.contains("safetyConfirmationDelayEnabled"));
         // snake_case must not appear
         assert!(!json.contains("editor_font_family"));
+        assert!(!json.contains("result_font_family"));
         assert!(!json.contains("editor_accept_suggestion_on_enter"));
         assert!(!json.contains("safety_confirmation_delay_enabled"));
     }
@@ -1106,6 +1115,7 @@ mod tests {
     fn editor_fields_round_trip() {
         let json = r#"{
             "editorFontFamily": "Hack",
+            "resultFontFamily": "Open Sans",
             "editorFontSize": 14,
             "editorLineHeight": 1.8,
             "editorTabSize": 2,
@@ -1118,6 +1128,7 @@ mod tests {
 
         let config: AppConfig = serde_json::from_str(json).unwrap();
         assert_eq!(config.editor_font_family.as_deref(), Some("Hack"));
+        assert_eq!(config.result_font_family.as_deref(), Some("Open Sans"));
         assert_eq!(config.editor_font_size, Some(14));
         assert_eq!(config.editor_tab_size, Some(2));
         assert_eq!(config.editor_word_wrap, Some(true));

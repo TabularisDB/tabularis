@@ -54,6 +54,8 @@ export interface Settings {
   resultTypeColors?: Record<string, string>;
   /** Keep the result grid's column headers pinned to the top while scrolling. Default: true. */
   stickyColumnHeaders?: boolean;
+  /** Font used for query result cells. A font name from AVAILABLE_FONTS, a custom family, or RESULT_FONT_INHERIT to follow the interface font. Default: "JetBrains Mono". */
+  resultFontFamily?: string;
   aiEnabled: boolean;
   aiProvider: AiProvider | null;
   aiModel: string | null;
@@ -203,6 +205,7 @@ export const DEFAULT_SETTINGS: Settings = {
   resultColorByType: false,
   resultTypeColors: {},
   stickyColumnHeaders: true,
+  resultFontFamily: "JetBrains Mono",
   aiEnabled: false,
   aiProvider: null,
   aiModel: null,
