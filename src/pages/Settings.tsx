@@ -15,6 +15,7 @@ import {
   Archive,
   EyeOff,
   FolderCog,
+  Network,
 } from "lucide-react";
 import clsx from "clsx";
 import { ConfigJsonModal } from "../components/modals/ConfigJsonModal";
@@ -29,6 +30,7 @@ import { PluginsTab } from "../components/settings/PluginsTab";
 import { SshTab } from "../components/settings/SshTab";
 import { BackupTab } from "../components/settings/BackupTab";
 import { StorageTab } from "../components/settings/StorageTab";
+import { NetworkTab } from "../components/settings/NetworkTab";
 import { AiActivityPanel } from "../components/settings/AiActivityPanel";
 import { InfoTab } from "../components/settings/InfoTab";
 import { PluginSettingsPage } from "../components/settings/PluginSettingsPage";
@@ -37,6 +39,7 @@ import { useSettings } from "../hooks/useSettings";
 
 type SettingsTab =
   | "general"
+  | "network"
   | "privacy"
   | "ssh"
   | "backup"
@@ -63,6 +66,7 @@ const TAB_ITEMS: Array<{
   labelKey: string;
 }> = [
   { id: "general", icon: SettingsIcon, labelKey: "settings.general" },
+  { id: "network", icon: Network, labelKey: "settings.network.tab" },
   { id: "ssh", icon: Cable, labelKey: "sshConnections.title" },
   { id: "storage", icon: FolderCog, labelKey: "settings.storage.title" },
   { id: "backup", icon: Archive, labelKey: "settings.backup.title" },
@@ -79,6 +83,7 @@ const TAB_ITEMS: Array<{
 
 const TAB_COMPONENTS: Partial<Record<SettingsTab, React.ComponentType>> = {
   general: GeneralTab,
+  network: NetworkTab,
   privacy: PrivacyTab,
   ssh: SshTab,
   backup: BackupTab,

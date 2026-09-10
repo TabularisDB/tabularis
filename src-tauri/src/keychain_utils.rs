@@ -212,3 +212,34 @@ pub fn delete_ai_key(provider: &str) -> Result<(), String> {
         Err(e) => Err(e.to_string()),
     }
 }
+
+/// Store a proxy password. `slot` is the full keychain account
+/// (`proxy:global`, `proxy:ai:{provider}`, `proxy:connection:{id}`).
+pub fn set_proxy_password(slot: &str, password: &str) -> Result<(), String> {
+    eprintln!("[Keychain] Setting proxy password for {}", slot);
+    let entry = Entry::new(SERVICE_NAME, slot).map_err(|e| e.to_string())?;
+    entry.set_password(password).map_err(|e| {
+        eprintln!("[Keychain] Error setting proxy password: {}", e);
+        e.to_string()
+    })
+}
+
+pub fn get_proxy_password(slot: &str) -> Result<Option<String>, String> {
+    let entry = Entry::new(SERVICE_NAME, slot).map_err(|e| e.to_string())?;
+    match entry.get_password() {
+        Ok(pwd) => Ok(Some(pwd)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => {
+            eprintln!("[Keychain] Error getting proxy password for {}: {}", slot, e);
+            Err(e.to_string())
+        }
+    }
+}
+
+pub fn delete_proxy_password(slot: &str) -> Result<(), String> {
+    let entry = Entry::new(SERVICE_NAME, slot).map_err(|e| e.to_string())?;
+    match entry.delete_credential() {
+        Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}

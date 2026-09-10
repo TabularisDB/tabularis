@@ -20,6 +20,13 @@ import type { AiProvider } from "../../contexts/SettingsContext";
 import { getProviderLabel } from "../../utils/settingsUI";
 import { Select } from "../ui/Select";
 import { SettingSection, SettingRow, SettingToggle } from "./SettingControls";
+import { ProxyOverrideEditor } from "./ProxyFields";
+import {
+  defaultProxyOverride,
+  normalizeProxyOverride,
+  proxyKeychainAi,
+  type ProxyOverride,
+} from "../../types/proxy";
 import {
   OpenAIIcon,
   AnthropicIcon,
@@ -511,6 +518,43 @@ export function AiTab() {
                   />
                   <p className="text-xs text-muted">(Default: 11434)</p>
                 </div>
+              </div>
+            )}
+
+            {settings.aiProvider && (
+              <div className="border-t border-default pt-4 space-y-2">
+                <label className="block text-sm font-medium text-secondary">
+                  {t("settings.network.providerProxy")}
+                </label>
+                <p className="text-xs text-muted">
+                  {t("settings.network.providerProxyDesc")}
+                </p>
+                <ProxyOverrideEditor
+                  value={
+                    settings.aiProviderProxies?.[settings.aiProvider] ??
+                    defaultProxyOverride("inherit")
+                  }
+                  onChange={(next) => {
+                    const provider = settings.aiProvider;
+                    if (!provider) return;
+                    const normalized = normalizeProxyOverride(next);
+                    const current = {
+                      ...(settings.aiProviderProxies ?? {}),
+                    } as Partial<Record<AiProvider, ProxyOverride>>;
+                    if (!normalized) {
+                      delete current[provider];
+                    } else {
+                      current[provider] = normalized;
+                    }
+                    void updateSetting(
+                      "aiProviderProxies",
+                      Object.keys(current).length > 0
+                        ? current
+                        : {},
+                    );
+                  }}
+                  passwordSlot={proxyKeychainAi(settings.aiProvider)}
+                />
               </div>
             )}
 

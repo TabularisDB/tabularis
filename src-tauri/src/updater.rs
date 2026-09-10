@@ -1,4 +1,3 @@
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -105,7 +104,7 @@ fn is_newer_version(current: &str, latest: &str) -> bool {
 }
 
 async fn fetch_latest_release() -> Result<GitHubRelease, String> {
-    let client = Client::new();
+    let client = crate::proxy::app_http_client()?;
     let url = format!(
         "https://api.github.com/repos/{}/releases/latest",
         GITHUB_REPO
@@ -148,7 +147,7 @@ fn nightly_latest_json_url(release: &GitHubRelease) -> Option<String> {
 
 /// Fetch the repository releases and return the newest nightly prerelease.
 async fn newest_nightly_release() -> Result<GitHubRelease, String> {
-    let client = Client::new();
+    let client = crate::proxy::app_http_client()?;
     let url = format!("https://api.github.com/repos/{}/releases?per_page=30", GITHUB_REPO);
     let res = client
         .get(&url)

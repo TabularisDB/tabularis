@@ -5,6 +5,7 @@
 
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import type { SavedConnection } from "../contexts/DatabaseContext";
+import type { ProxyOverride } from "../types/proxy";
 import { isLocalDriver } from "./driverCapabilities";
 import { isMultiDatabaseCapable } from "./database";
 
@@ -95,6 +96,8 @@ export interface ConnectionParams {
   /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB
    * plugin). Persisted as-is and forwarded verbatim to the driver/plugin. */
   extra?: Record<string, string>;
+  /** Optional proxy override for this connection. */
+  proxy?: ProxyOverride;
 }
 
 /**

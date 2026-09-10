@@ -1,0 +1,113 @@
+# FORK-LOCAL / DEV ONLY
+#
+# Windows x64 unsigned build for development testing. No release, no signing,
+# no macOS/Linux. Artifacts are uploaded to the workflow run only.
+#
+# Do NOT include this file in pull requests to TabularisDB/tabularis.
+# Before opening an upstream PR, run:
+#   bash scripts/dev-ci/strip-fork-local.sh
+#
+# Re-install after stripping (on your fork branch):
+#   bash scripts/dev-ci/install-fork-local.sh
+
+name: Dev Windows x64
+
+concurrency:
+  group: dev-windows-x64-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - "feat/**"
+      - "fix/**"
+    paths:
+      - "src/**"
+      - "src-tauri/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "tsconfig.json"
+      - ".node-version"
+      - ".github/workflows/dev-windows-x64.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    name: Build (windows-x64)
+    # Never run on the upstream org repo — this workflow is fork/dev tooling.
+    # If the file is accidentally merged upstream, jobs stay no-op.
+    if: github.repository_owner != 'TabularisDB'
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: "pnpm"
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      # Shared across feat/fix branches so cargo registry + sccache-like
+      # target reuse survives branch renames (prefix still isolates OS/toolchain).
+      - name: Cache Rust (registry + git + target)
+        uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri
+          shared-key: tabularis-dev-windows-x64
+          cache-all-crates: true
+          cache-targets: true
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Dev builds are never served through latest.json; createUpdaterArtifacts
+      # would also require the updater signing key which forks usually lack.
+      - name: Disable updater artifacts
+        shell: bash
+        run: |
+          node -e "const f='src-tauri/tauri.conf.json';const c=require('./'+f);const fs=require('fs');c.bundle.createUpdaterArtifacts=false;fs.writeFileSync(f, JSON.stringify(c, null, 2)+'\n');"
+
+      - name: Build unsigned Windows bundles
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_INCREMENTAL: "0"
+          CARGO_TERM_COLOR: always
+        with:
+          # No tagName → build only; never create/update a GitHub Release.
+          tauriScript: pnpm tauri
+          args: ""
+
+      - name: Stage portable executable
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri\tauri.conf.json -Raw | ConvertFrom-Json).version
+          $src = "src-tauri\target\release\tabularis.exe"
+          if (-not (Test-Path $src)) {
+            throw "Missing $src — tauri build did not produce the release binary"
+          }
+          $bundleDir = "src-tauri\target\release\bundle"
+          New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
+          Copy-Item $src "$bundleDir\tabularis_${version}_x64-portable.exe"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tabularis-dev-windows-x64
+          path: |
+            src-tauri/target/**/release/bundle/**/*.msi
+            src-tauri/target/**/release/bundle/**/*.exe
+          if-no-files-found: error
+          retention-days: 14

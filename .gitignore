@@ -40,3 +40,8 @@ AGENTS.override.md
 .claude/*
 !.claude/skills/
 !.claude/skills/**
+
+# Fork-local GitHub Actions (template lives in scripts/dev-ci/).
+# Install on a fork with: bash scripts/dev-ci/install-fork-local.sh && git add -f …
+# Strip before upstream PRs with: bash scripts/dev-ci/strip-fork-local.sh
+.github/workflows/dev-*.yml

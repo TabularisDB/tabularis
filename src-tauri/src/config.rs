@@ -206,6 +206,15 @@ pub struct AppConfig {
     /// gated on adoption signal — never enabled by this field's existence.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub migration_mode_by_driver: Option<HashMap<String, MigrationMode>>,
+
+    // ----- Network / Proxy -----
+    /// Global HTTP/SOCKS5 proxy and opt-in traffic scopes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<crate::proxy::GlobalProxySettings>,
+    /// Per AI-provider proxy overrides (`openai`, `anthropic`, …).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ai_provider_proxies:
+        Option<HashMap<String, crate::proxy::ProxyOverride>>,
 }
 
 /// One entry in the append-only driver-migration history.
@@ -573,6 +582,12 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.migration_mode_by_driver.is_some() {
             existing_config.migration_mode_by_driver = config.migration_mode_by_driver;
+        }
+        if config.proxy.is_some() {
+            existing_config.proxy = config.proxy;
+        }
+        if config.ai_provider_proxies.is_some() {
+            existing_config.ai_provider_proxies = config.ai_provider_proxies;
         }
 
         let content = serde_json::to_string_pretty(&existing_config).map_err(|e| e.to_string())?;
