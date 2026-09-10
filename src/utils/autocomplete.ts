@@ -359,8 +359,22 @@ export const registerSqlAutocomplete = (
 
         const seenColumns = new Set<string>();
 
+        const nearestRef = sqlContext.lastTableRef?.toLowerCase();
+
         matchingTables.forEach((table, idx) => {
           const columns = results[idx];
+          const isNearest = Boolean(
+            nearestRef &&
+              (table.name.toLowerCase() === nearestRef ||
+                Array.from(scopedAliases.entries()).some(
+                  ([alias, ref]) =>
+                    alias.toLowerCase() === nearestRef &&
+                    ref.name.toLowerCase() === table.name.toLowerCase() &&
+                    (!ref.schema || !table.schema || ref.schema.toLowerCase() === table.schema.toLowerCase()),
+                )),
+          );
+          const sortPrefix = matchingTables.length > 1 ? (isNearest ? "0_0_" : "0_1_") : "0_";
+
           columns.forEach(col => {
             if (!seenColumns.has(col.label)) {
               seenColumns.add(col.label);
@@ -379,7 +393,7 @@ export const registerSqlAutocomplete = (
                 kind: monaco.languages.CompletionItemKind.Field,
                 detail: `${col.detail} — ${table.name}${aliasHint}`,
                 ...buildIdentifierInsert(col.label, range),
-                sortText: `0_${col.label}`,
+                sortText: `${sortPrefix}${col.label}`,
               });
             }
           });
