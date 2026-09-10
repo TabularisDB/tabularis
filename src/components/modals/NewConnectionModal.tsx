@@ -2565,7 +2565,9 @@ export const NewConnectionModal = ({
               <FieldInput
                 label={t("newConnection.port")}
                 value={formData.port}
-                onChange={(v) => updateField("port", v)}
+                onChange={(v) =>
+                  updateField("port", v === "" ? undefined : Number(v))
+                }
                 type="number"
                 placeholder={driver === "mysql" ? "3306" : "5432"}
               />
