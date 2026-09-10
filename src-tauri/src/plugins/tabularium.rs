@@ -44,16 +44,19 @@ fn normalise_platform_key(raw: &str) -> String {
 /// Build a fresh SDK client against the operator-configured base URL.
 /// The client is cheap to construct (wraps a `reqwest::Client`), so callers
 /// don't need to cache it for one-shot fetches.
-fn make_client(base_url: &str) -> Result<Client, String> {
-    let http = crate::proxy::app_http_client()?;
-    Ok(Client::new_with_client(normalise_base(base_url), http))
+///
+/// Note: `tabularium-sdk` pins reqwest 0.12, while the rest of Tabularis uses
+/// 0.13 — so we cannot inject `proxy::app_http_client()` here. Plugin ZIP
+/// downloads still go through the proxied installer client.
+fn make_client(base_url: &str) -> Client {
+    Client::new(normalise_base(base_url))
 }
 
 /// Fetch the first page of plugins. The SDK exposes pagination via
 /// `limit(...).page(...)`; we ask for the maximum the registry serves
 /// (200 fits the typical Tabularis install in one round-trip).
 pub async fn fetch_plugin_list(base_url: &str) -> Result<Vec<RegistryPlugin>, String> {
-    let client = make_client(base_url)?;
+    let client = make_client(base_url);
     let resp = client
         .list_plugins()
         .limit("200")
@@ -69,7 +72,7 @@ pub async fn fetch_plugin_detail(
     base_url: &str,
     slug: &str,
 ) -> Result<RegistryPlugin, String> {
-    let client = make_client(base_url)?;
+    let client = make_client(base_url);
     let resp = client
         .get_plugin()
         .slug(slug)
@@ -88,7 +91,7 @@ pub async fn fetch_plugin_readme(
     slug: &str,
     locale: Option<&str>,
 ) -> Result<PluginReadme, String> {
-    let client = make_client(base_url)?;
+    let client = make_client(base_url);
     let mut request = client.get_plugin().slug(slug);
     if let Some(locale) = locale.filter(|l| !l.is_empty()) {
         request = request.locale(locale);
@@ -156,7 +159,7 @@ pub async fn resolve_asset(
     version: &str,
     platform: &str,
 ) -> Result<AssetResolution, String> {
-    let client = make_client(base_url)?;
+    let client = make_client(base_url);
     let raw = client
         .get_plugin()
         .slug(slug)
@@ -225,7 +228,7 @@ async fn resolve_expected_sha(
 ) -> Result<Option<String>, String> {
     use tabularium_sdk::types::GetReleaseIntegrityResponse as Integ;
 
-    let client = make_client(base_url)?;
+    let client = make_client(base_url);
     let integ = match client
         .get_release_integrity()
         .slug(slug)
@@ -292,7 +295,7 @@ pub async fn check_release_signature(
     use crate::plugins::registry::SignatureStatus;
     use tabularium_sdk::types::GetReleaseIntegrityResponse as Integ;
 
-    let client = make_client(base_url)?;
+    let client = make_client(base_url);
     let integ = match client
         .get_release_integrity()
         .slug(slug)

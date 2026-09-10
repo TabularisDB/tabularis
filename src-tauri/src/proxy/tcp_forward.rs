@@ -271,8 +271,7 @@ fn socks5_connect(
     }
 
     let mut resp = [0u8; 2];
-    stream
-        .read_exact(&mut resp)
+    Read::read_exact(&mut stream, &mut resp)
         .map_err(|e| format!("SOCKS5 greeting response: {e}"))?;
     if resp[0] != 0x05 {
         return Err("SOCKS5: invalid version in greeting response".into());
@@ -295,8 +294,7 @@ fn socks5_connect(
                 .write_all(&auth)
                 .map_err(|e| format!("SOCKS5 auth write: {e}"))?;
             let mut auth_resp = [0u8; 2];
-            stream
-                .read_exact(&mut auth_resp)
+            Read::read_exact(&mut stream, &mut auth_resp)
                 .map_err(|e| format!("SOCKS5 auth response: {e}"))?;
             if auth_resp[1] != 0x00 {
                 return Err("SOCKS5: authentication failed".into());
@@ -321,8 +319,7 @@ fn socks5_connect(
         .map_err(|e| format!("SOCKS5 connect write: {e}"))?;
 
     let mut hdr = [0u8; 4];
-    stream
-        .read_exact(&mut hdr)
+    Read::read_exact(&mut stream, &mut hdr)
         .map_err(|e| format!("SOCKS5 connect response: {e}"))?;
     if hdr[0] != 0x05 {
         return Err("SOCKS5: invalid version in connect response".into());
@@ -334,24 +331,20 @@ fn socks5_connect(
     match hdr[3] {
         0x01 => {
             let mut skip = [0u8; 6];
-            stream
-                .read_exact(&mut skip)
+            Read::read_exact(&mut stream, &mut skip)
                 .map_err(|e| format!("SOCKS5 skip IPv4: {e}"))?;
         }
         0x03 => {
             let mut len = [0u8; 1];
-            stream
-                .read_exact(&mut len)
+            Read::read_exact(&mut stream, &mut len)
                 .map_err(|e| format!("SOCKS5 skip domain len: {e}"))?;
             let mut skip = vec![0u8; len[0] as usize + 2];
-            stream
-                .read_exact(&mut skip)
+            Read::read_exact(&mut stream, &mut skip)
                 .map_err(|e| format!("SOCKS5 skip domain: {e}"))?;
         }
         0x04 => {
             let mut skip = [0u8; 18];
-            stream
-                .read_exact(&mut skip)
+            Read::read_exact(&mut stream, &mut skip)
                 .map_err(|e| format!("SOCKS5 skip IPv6: {e}"))?;
         }
         other => return Err(format!("SOCKS5: unknown ATYP {other}")),
@@ -393,22 +386,4 @@ fn base64_encode(input: &str) -> String {
         i += 3;
     }
     out
-}
-
-trait ReadExact {
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), String>;
-}
-
-impl ReadExact for TcpStream {
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), String> {
-        let mut read = 0;
-        while read < buf.len() {
-            match self.read(&mut buf[read..]) {
-                Ok(0) => return Err("unexpected EOF".into()),
-                Ok(n) => read += n,
-                Err(e) => return Err(e.to_string()),
-            }
-        }
-        Ok(())
-    }
 }
