@@ -1,12 +1,13 @@
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
-import type { ToastKind } from "../../contexts/ToastContext";
+import type { ToastAction, ToastKind } from "../../contexts/ToastContext";
 
 export interface ToastItem {
   id: number;
   message: string;
   title?: string;
   kind: ToastKind;
+  actions?: ToastAction[];
 }
 
 interface ToastContainerProps {
@@ -46,6 +47,22 @@ export const ToastContainer = ({ toasts, onDismiss }: ToastContainerProps) => {
               <div className="text-xs text-secondary leading-relaxed break-words">
                 {toast.message}
               </div>
+              {toast.actions && toast.actions.length > 0 && (
+                <div className="flex items-center gap-3 mt-1.5">
+                  {toast.actions.map((action, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        action.onClick();
+                        onDismiss(toast.id);
+                      }}
+                      className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <button
               onClick={() => onDismiss(toast.id)}

@@ -1,4 +1,52 @@
-## [Unreleased]
+# [0.23.0](https://github.com/TabularisDB/tabularis/compare/v0.22.0...v0.23.0) (2026-09-10)
+
+
+### Bug Fixes
+
+* add missing deprecated-driver translations and drop a leftover placeholder ([0bdbae1](https://github.com/TabularisDB/tabularis/commit/0bdbae1d078b108fb5c1aa23bfe5362e5c129019))
+* bugs found in manual dev-mode verification of Chunks 3-4 ([8c1745b](https://github.com/TabularisDB/tabularis/commit/8c1745bce0f8d9ec83aa351e4b3a2247475093aa))
+* bulk migration loses history records to a stale closure ([4a5626d](https://github.com/TabularisDB/tabularis/commit/4a5626d83ce43e301a5195aee7dbbaf0bbeb135a))
+* checklist rows vanish mid-run and the footer goes stale ([01c41ae](https://github.com/TabularisDB/tabularis/commit/01c41ae7fd9315aa5c872a9f6b4c8636742b3274))
+* correct connection-string capability check, default URI rows unchecked, add repo-URL fallback ([3339024](https://github.com/TabularisDB/tabularis/commit/3339024972078f20f16fb39bc7ddaf05b742cabb))
+* derive postgres/postgresql references in Connections.tsx from the hook, not hardcoded strings ([1c6035e](https://github.com/TabularisDB/tabularis/commit/1c6035eab3ed39f276f8d1eebd811b1dd79e184d))
+* derive the migration checklist's default selection once data has loaded ([16a3c75](https://github.com/TabularisDB/tabularis/commit/16a3c7536f61eaa2c45b06d2146d29025b09de12))
+* **dump:** escape JSON columns and backslashes per dialect ([05df3f9](https://github.com/TabularisDB/tabularis/commit/05df3f9979ac007096bd86eae2136607c365e66c)), closes [#717](https://github.com/TabularisDB/tabularis/issues/717)
+* **editor:** keep typed characters after a backward selection on WebKit ([f8f4d68](https://github.com/TabularisDB/tabularis/commit/f8f4d687dcec58a67244551abb6e460d6e44c484)), closes [#731](https://github.com/TabularisDB/tabularis/issues/731)
+* **editor:** stop the debounced query flush from dropping keystrokes ([fabea7f](https://github.com/TabularisDB/tabularis/commit/fabea7f5615c69b63e82a57773adf4ad3df017f8)), closes [#731](https://github.com/TabularisDB/tabularis/issues/731)
+* give the bulk checklist feedback during a long connection test ([7ae9186](https://github.com/TabularisDB/tabularis/commit/7ae918656ffdcf4e1ed23a6ddb98252c4d52359f))
+* migrateConnection/undoMigration never reject on unexpected errors ([c2c8b86](https://github.com/TabularisDB/tabularis/commit/c2c8b86de676d4cba79200cbabe77d23221a84ac))
+* misattribute a pre-existing connectivity failure to the plugin ([2c1e6c8](https://github.com/TabularisDB/tabularis/commit/2c1e6c857909b0ee53c3f9ea1691752320c8c58f))
+* **postgres:** make pool size configurable ([38aac16](https://github.com/TabularisDB/tabularis/commit/38aac16a351cce725956f1cd13967aaff295f702))
+* preserve unknown connection fields ([19a4f5e](https://github.com/TabularisDB/tabularis/commit/19a4f5eda7d438cd47d91e1ef0f21a9d13dee80f))
+* rank tables first and tighten search in the quick navigator ([e67e23b](https://github.com/TabularisDB/tabularis/commit/e67e23b3d6a2c57d8ee6220dac2d9dd689329aa3))
+* read the migration banner's removal date from the manifest, not a hardcoded string ([4cc2acf](https://github.com/TabularisDB/tabularis/commit/4cc2acff36d2ca16da9300f7c5f0e3508325fab6))
+* reconnect after migrating/undoing a connection that was open ([5ea965c](https://github.com/TabularisDB/tabularis/commit/5ea965c8346f4844c04fb194f92100da93b794c4))
+* scope the quick navigator to the selected schemas ([68b5e57](https://github.com/TabularisDB/tabularis/commit/68b5e57629bd9ebf1d7cc9a6b2cfa2fe638b71f6))
+* seed active_external_drivers from installed plugins before force-install ([aad99c7](https://github.com/TabularisDB/tabularis/commit/aad99c767edb3c961511798ce53213b3701dcb2a))
+* show the migration outcome toast at the resolve site, not via a lastOutcome effect ([58fa17f](https://github.com/TabularisDB/tabularis/commit/58fa17f7cc9d897a180d2316bc58cd6df0c638e1)), closes [#2](https://github.com/TabularisDB/tabularis/issues/2)
+* sync frontend state when the background force-install activates a plugin ([3583832](https://github.com/TabularisDB/tabularis/commit/3583832708cd8061b00bfd7d3ec4ab4c673db9c1))
+* **test:** bind storage globals to the jsdom environment ([ffb26b1](https://github.com/TabularisDB/tabularis/commit/ffb26b14326530e0092a5ad3157d5bc605d51fdd))
+* translate the new pre-existing-failure and checklist-progress copy ([bf01c05](https://github.com/TabularisDB/tabularis/commit/bf01c05e512823cbbdaf5cef118c717c8aa43ded))
+* undoMigration reads stale connection state from the toast's closure ([4e849f9](https://github.com/TabularisDB/tabularis/commit/4e849f9cab57e55e1f7ff7c0e55d8670cd5f3f09))
+
+
+### Features
+
+* card migration button, pre-migration confirm, and Chunk 5 issue link ([72f4dfc](https://github.com/TabularisDB/tabularis/commit/72f4dfc205b0d22476478a2d329c62b0bf9aafaa))
+* custom storage location for connections and app data ([81484b8](https://github.com/TabularisDB/tabularis/commit/81484b81dbc9ef3273d639af24500d7a98bad8a9)), closes [#702](https://github.com/TabularisDB/tabularis/issues/702)
+* **explain:** add parser registry ([f64db40](https://github.com/TabularisDB/tabularis/commit/f64db40e0109b87353cf81b2e6d606649d5f301f))
+* **explain:** render XML raw plans and cover loader cancellation ([6159ac7](https://github.com/TabularisDB/tabularis/commit/6159ac779059b2b6e18c7b38fd9ea75ee4e65ee4))
+* migration checklist modal, banner-link fix, commit-prefix correction ([8fef147](https://github.com/TabularisDB/tabularis/commit/8fef147b96eecd0e1cfaf206b505aac3a205ee4e))
+* migration hook, banner, and connectivity gate ([e552cad](https://github.com/TabularisDB/tabularis/commit/e552cad518b8e0f03be35a1f8c0346e8eb5aab88))
+* open, edit and save SQL files in editor tabs ([fba877c](https://github.com/TabularisDB/tabularis/commit/fba877c1f7a961134d55dbd01f4a30bb21f4fb00))
+* per-connection switch action, deprecated badges, catalogue ordering ([7f916c4](https://github.com/TabularisDB/tabularis/commit/7f916c4af98f7d6d60398cbf8a8a0a1606870cb5))
+* **plugins:** enforce min_runtime_version at install and load time ([ac87e73](https://github.com/TabularisDB/tabularis/commit/ac87e735c6da1190fb3fed5727b51dd44a4ebd83))
+* **plugins:** let development builds bypass min_runtime_version with a warning toast ([7cb24f3](https://github.com/TabularisDB/tabularis/commit/7cb24f3340c43c456205286961c094187763a9c3))
+* **plugins:** load explain parser bundles ([ba0463d](https://github.com/TabularisDB/tabularis/commit/ba0463d3b861ec8fad110126c67e3fc12bac9839))
+* **plugins:** support raw explain output ([5f0fa21](https://github.com/TabularisDB/tabularis/commit/5f0fa219f80e8b1706159569745fce7e199e87a1))
+* Rust backend foundation for builtin-to-plugin driver migration ([ec30d3a](https://github.com/TabularisDB/tabularis/commit/ec30d3a45f01955477ebf2bb5c51a5f3d7353c61))
+* TS types, settings, and pure utils for driver migration ([c904547](https://github.com/TabularisDB/tabularis/commit/c9045471708f1cacbbaaaffc2304a81c72b8dfdc))
+* wire up the post-migration outcome toast (Undo / Report an issue) ([2651e60](https://github.com/TabularisDB/tabularis/commit/2651e60345e30086376f4c5d7136a1d40703755c))
 
 ### Added
 

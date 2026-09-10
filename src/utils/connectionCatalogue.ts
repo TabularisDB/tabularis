@@ -16,6 +16,10 @@ export interface CatalogueDriver {
   updateAvailable: boolean;
   icon: string | null;
   color: string | null;
+  /** True when the built-in driver is deprecated in favour of a plugin.
+   * Promotes the non-deprecated (plugin) entry first within an engine group
+   * so the path of least resistance for a new connection is the plugin. */
+  deprecated?: boolean;
 }
 
 export function toCatalogueDriver(p: RegistryPluginWithStatus): CatalogueDriver {
@@ -84,6 +88,7 @@ export function builtinToCatalogueDriver(
     updateAvailable: false,
     icon: manifest.icon ?? null,
     color: manifest.color ?? null,
+    deprecated: manifest.deprecated != null,
   };
 }
 
@@ -169,6 +174,13 @@ export function groupByEngine(drivers: CatalogueDriver[]): EngineGroup[] {
       (acc, d) => (d.downloads == null ? acc : (acc ?? 0) + d.downloads),
       null,
     );
+    // Promote the non-deprecated entry first within the engine group, so the
+    // path of least resistance for a new connection is the plugin even for
+    // someone who never reads a tooltip. Stable: preserves insertion order
+    // among entries with the same deprecation status.
+    const orderedDrivers = [...list].sort(
+      (a, b) => Number(a.deprecated ?? false) - Number(b.deprecated ?? false),
+    );
     groups.push({
       engine,
       // The card represents the engine, not whichever plugin happens to be
@@ -176,7 +188,7 @@ export function groupByEngine(drivers: CatalogueDriver[]): EngineGroup[] {
       displayName: engineDisplayName(engine),
       primaryParadigm,
       secondaryParadigms: [...allParadigms],
-      drivers: list,
+      drivers: orderedDrivers,
       installed: list.some((d) => d.installed),
       verified: list.some((d) => d.verified),
       platformSupported: list.some((d) => d.platformSupported),

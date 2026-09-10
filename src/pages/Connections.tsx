@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,7 @@ import {
   type ExportMode,
 } from "../components/modals/ExportConnectionsModal";
 import { ImportFromAppModal } from "../components/modals/ImportFromAppModal";
+import { MigrationChecklistModal } from "../components/modals/MigrationChecklistModal";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -28,6 +29,7 @@ import {
   FolderTree,
   ChevronDown,
   AppWindow,
+  ArrowLeftRight,
   Loader2,
 } from "lucide-react";
 import { useDatabase } from "../hooks/useDatabase";
@@ -38,6 +40,7 @@ import { ContextMenu } from "../components/ui/ContextMenu";
 import type { SavedConnection } from "../contexts/DatabaseContext";
 import { flattenGroupTree } from "../utils/groupTree";
 import { toErrorMessage } from "../utils/errors";
+import { migrationDirectionForDriver } from "../utils/connections";
 import { fuzzyFilter } from "../utils/fuzzy";
 import { useOpenConnectionInNewWindow } from "../hooks/useOpenConnectionInNewWindow";
 import { useConnectionTags } from "../hooks/useConnectionTags";
@@ -45,8 +48,18 @@ import { GroupHeader } from "../components/connections/GroupHeader";
 import { ConnectionCard } from "../components/connections/ConnectionCard";
 import { ConnectionListItem } from "../components/connections/ConnectionListItem";
 import { ConnectionErrorBanner } from "../components/ConnectionErrorBanner";
+import { PostgresPluginMigrationBanner } from "../components/banners/PostgresPluginMigrationBanner";
 import { BetaBadge } from "../components/ui/BetaBadge";
 import { useCreateSqliteDatabase } from "../hooks/useCreateSqliteDatabase";
+import {
+  useBuiltinPostgresMigration,
+  type MigrationOutcome,
+} from "../hooks/useBuiltinDriverMigration";
+import { useConnectionCatalogue } from "../hooks/useConnectionCatalogue";
+import { useToast } from "../hooks/useToast";
+import { buildPluginIssueUrl, resolvePluginRepoUrl } from "../utils/pluginIssueReport";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { APP_VERSION } from "../version";
 
 let autoConnectAttempted = false;
 
@@ -72,14 +85,18 @@ export const Connections = () => {
     loadConnections,
     connections: contextConnections,
   } = useDatabase();
-  const { drivers, allDrivers } = useDrivers();
+  const { drivers, allDrivers, installedPlugins } = useDrivers();
   const { tags, refresh: refreshTags } = useConnectionTags();
   const openConnectionInNewWindow = useOpenConnectionInNewWindow();
   const { createSqliteDatabase, isCreating: isCreatingSqliteDatabase } =
     useCreateSqliteDatabase();
+  const migration = useBuiltinPostgresMigration();
+  const { registry: catalogueRegistry } = useConnectionCatalogue();
+  const { showToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportAppModalOpen, setIsImportAppModalOpen] = useState(false);
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
+  const [isMigrationChecklistOpen, setIsMigrationChecklistOpen] = useState(false);
   const importMenuBtnRef = useRef<HTMLButtonElement>(null);
   const [importMenuPos, setImportMenuPos] = useState({ top: 0, right: 0 });
 
@@ -141,6 +158,144 @@ export const Connections = () => {
   useEffect(() => {
     void loadConnections();
   }, [loadConnections]);
+
+  // Surface the migration outcome as a toast per the design's post-migration
+  // spec: success gets an Undo action; failures (connection- or process-level)
+  // get both Undo and Report an issue. The toast is the courtesy nudge, not
+  // the only way back — the per-connection action stays bidirectional even
+  // after this toast is dismissed.
+  //
+  // Called directly where migrateConnection resolves (in handleMigrate's
+  // onConfirm below), not from a useEffect watching a "lastOutcome" piece of
+  // hook state — `migrateConnection` already resolves with the outcome, so
+  // routing it through state just to re-derive a toast from it on the next
+  // render violated .rules/react.md #2 (no synchronous setState-in-effect)
+  // for no benefit. It also meant every migrateConnection call anywhere —
+  // including MigrationChecklistModal's bulk "Migrate N selected" loop,
+  // which has its own per-row status UI — set that same shared state and
+  // fired this toast a second time on top of the checklist's own feedback.
+  const { builtinId, pluginId: defaultPluginId, undoMigration } = migration;
+  const showMigrationOutcomeToast = useCallback(
+    (outcome: MigrationOutcome) => {
+      const handleUndo = () => {
+        void undoMigration(outcome.connectionId).then((result) => {
+          if (!result.ok) {
+            showToast(
+              t("migration.toast.undoFailed", {
+                name: outcome.connectionName,
+                error: result.error ?? "unknown error",
+              }),
+              { kind: "error", duration: 0 },
+            );
+          }
+        });
+      };
+
+      const handleReportIssue = (failureMode: "connection" | "process") => {
+        const pluginId = outcome.pluginId ?? defaultPluginId;
+        const registryEntry = catalogueRegistry.find((p) => p.id === pluginId);
+        const repoUrl = resolvePluginRepoUrl(pluginId, registryEntry?.repo_url);
+        if (!repoUrl) {
+          // No registry entry and no known fallback — nothing to link to; the
+          // toast action simply has nowhere to send the user.
+          return;
+        }
+        const installed = installedPlugins.find((p) => p.id === pluginId);
+        const url = buildPluginIssueUrl({
+          pluginId,
+          pluginVersion: installed?.version ?? registryEntry?.installed_version ?? "unknown",
+          repoUrl,
+          appVersion: APP_VERSION,
+          os: navigator.platform,
+          template: "migration-failure",
+          failureMode,
+          error: outcome.error ?? outcome.startupError ?? "unknown error",
+          migratedFromDriver: builtinId,
+        });
+        void openUrl(url);
+      };
+
+      if (outcome.status === "ok") {
+        showToast(
+          t("migration.toast.success", { name: outcome.connectionName }),
+          {
+            kind: "success",
+            duration: 0,
+            actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
+          },
+        );
+      } else if (outcome.status === "connection" && outcome.preexisting) {
+        // The built-in driver couldn't reach this host either — not a
+        // plugin regression, so no "Report an issue" action.
+        showToast(
+          t("migration.toast.connectionFailurePreexisting", {
+            name: outcome.connectionName,
+            error: outcome.error,
+          }),
+          {
+            kind: "warning",
+            duration: 0,
+            actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
+          },
+        );
+      } else if (outcome.status === "connection") {
+        showToast(
+          t("migration.toast.connectionFailure", {
+            name: outcome.connectionName,
+            error: outcome.error,
+          }),
+          {
+            kind: "error",
+            duration: 0,
+            actions: [
+              { label: t("migration.toast.undo"), onClick: handleUndo },
+              {
+                label: t("migration.toast.reportIssue"),
+                onClick: () => handleReportIssue("connection"),
+              },
+            ],
+          },
+        );
+      } else if (outcome.status === "process") {
+        showToast(
+          outcome.startupError
+            ? t("migration.toast.processFailureWithError", {
+                name: outcome.connectionName,
+                error: outcome.startupError,
+              })
+            : t("migration.toast.processFailure", { name: outcome.connectionName }),
+          {
+            kind: "error",
+            duration: 0,
+            actions: [
+              { label: t("migration.toast.undo"), onClick: handleUndo },
+              {
+                label: t("migration.toast.reportIssue"),
+                onClick: () => handleReportIssue("process"),
+              },
+            ],
+          },
+        );
+      } else {
+        // status === "failed": something unexpected happened before the driver
+        // flip could even be confirmed (e.g. the connection vanished
+        // concurrently, or the write itself errored) — Undo is still offered
+        // since flipping back to the built-in driver is safe either way.
+        showToast(
+          t("migration.toast.failed", {
+            name: outcome.connectionName,
+            error: outcome.error ?? "unknown error",
+          }),
+          {
+            kind: "error",
+            duration: 0,
+            actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
+          },
+        );
+      }
+    },
+    [builtinId, defaultPluginId, undoMigration, catalogueRegistry, installedPlugins, showToast, t],
+  );
 
   useEffect(() => {
     if (autoConnectAttempted) return;
@@ -530,6 +685,51 @@ export const Connections = () => {
     });
   };
 
+  // Bidirectional built-in <-> plugin migration confirm. A connection-URI
+  // connection gets an extra warning: the driver flip drops the stored URI
+  // (by design), so re-entering it after switching is the tradeoff being
+  // confirmed, not a surprise discovered after the fact.
+  const handleMigrate = (conn: SavedConnection, direction: "to-plugin" | "to-builtin") => {
+    const isUriBased = conn.params.connection_uri_in_keychain === true;
+    if (direction === "to-plugin") {
+      setConfirmModal({
+        title: t("migration.confirm.title"),
+        message: isUriBased
+          ? t("migration.confirm.uriMessage", { name: conn.name })
+          : t("migration.confirm.message", { name: conn.name }),
+        confirmLabel: isUriBased
+          ? t("migration.confirm.confirmLabelUri")
+          : t("migration.confirm.confirmLabel"),
+        variant: isUriBased ? "warning" : "info",
+        onConfirm: () => {
+          setConfirmModal(null);
+          void migration.migrateConnection(conn.id).then(showMigrationOutcomeToast);
+        },
+      });
+    } else {
+      setConfirmModal({
+        title: t("migration.confirm.undoTitle"),
+        message: t("migration.confirm.undoMessage", { name: conn.name }),
+        confirmLabel: t("migration.confirm.undoConfirmLabel"),
+        variant: "info",
+        onConfirm: () => {
+          setConfirmModal(null);
+          void migration.undoMigration(conn.id).then((result) => {
+            if (!result.ok) {
+              showToast(
+                t("migration.toast.undoFailed", {
+                  name: conn.name,
+                  error: result.error ?? "unknown error",
+                }),
+                { kind: "error", duration: 0 },
+              );
+            }
+          });
+        },
+      });
+    }
+  };
+
   const openEdit = async (conn: SavedConnection) => {
     if (isConnectionOpenAnywhere(conn.id)) {
       await disconnect(conn.id);
@@ -613,6 +813,10 @@ export const Connections = () => {
     selected: selectedIds.has(conn.id),
     selectionActive: selectedIds.size > 0,
     onToggleSelect: () => toggleSelect(conn.id),
+    onMigrate: () => {
+      const direction = migrationDirectionForDriver(conn.params.driver, allDrivers);
+      if (direction) handleMigrate(conn, direction);
+    },
   });
 
   const handleConnectionMouseDown = (e: React.MouseEvent, connId: string, currentGroupId: string | undefined) => {
@@ -989,6 +1193,16 @@ export const Connections = () => {
         />
       )}
 
+      {/* ── Built-in → plugin migration banner ────────────────────────────── */}
+      {migration.banner?.visible && (
+        <PostgresPluginMigrationBanner
+          variant={migration.banner.variant}
+          removalDate={allDrivers.find((d) => d.id === migration.builtinId)?.deprecated?.removal_date}
+          onDismiss={migration.dismissBanner}
+          onReview={() => setIsMigrationChecklistOpen(true)}
+        />
+      )}
+
       {/* ── Selection bar (bulk actions) ──────────────────────────────────── */}
       {selectedIds.size > 0 && (
         <div className="flex items-center gap-2.5 px-6 py-2.5 bg-elevated border-b border-blue-500/40 shadow-sm shrink-0">
@@ -1314,6 +1528,24 @@ export const Connections = () => {
         onClose={() => setIsImportAppModalOpen(false)}
         onImported={() => void loadConnections()}
       />
+      {isMigrationChecklistOpen && (
+        <MigrationChecklistModal
+          isOpen={isMigrationChecklistOpen}
+          onClose={() => setIsMigrationChecklistOpen(false)}
+          connections={migration.builtinConnections}
+          manifest={allDrivers.find((d) => d.id === migration.pluginId)}
+          repoUrl={resolvePluginRepoUrl(
+            migration.pluginId,
+            catalogueRegistry.find((p) => p.id === migration.pluginId)?.repo_url,
+          )}
+          pluginVersion={
+            installedPlugins.find((p) => p.id === migration.pluginId)?.version ??
+            catalogueRegistry.find((p) => p.id === migration.pluginId)?.installed_version ??
+            "unknown"
+          }
+          migrateConnection={migration.migrateConnection}
+        />
+      )}
       <ConfirmModal
         isOpen={confirmModal !== null}
         onClose={() => setConfirmModal(null)}
@@ -1395,6 +1627,26 @@ export const Connections = () => {
                     if (conn) void handleOpenInNewWindow(conn);
                   },
                 },
+                // Bidirectional "Switch to plugin" / "Switch back to builtin"
+                // per-connection action. Direction is driven by the current
+                // driver — always available, even after the banner is
+                // dismissed. Uses the same confirm flow as the card button.
+                ...(() => {
+                  if (!conn) return [];
+                  const direction = migrationDirectionForDriver(conn.params.driver, allDrivers);
+                  if (!direction) return [];
+                  return [
+                    { separator: true as const },
+                    {
+                      label:
+                        direction === "to-plugin"
+                          ? t("migration.switchToPlugin")
+                          : t("migration.switchToBuiltin"),
+                      icon: ArrowLeftRight,
+                      action: () => handleMigrate(conn, direction),
+                    },
+                  ];
+                })(),
                 ...(hasAvailableGroups
                   ? [
                       { separator: true as const },

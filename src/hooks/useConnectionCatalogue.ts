@@ -23,6 +23,8 @@ export interface ConnectionCatalogue {
   facets: ParadigmFacet[];
   loading: boolean;
   registryOffline: boolean;
+  /** Raw registry catalogue entries, e.g. for resolving a plugin's repo_url. */
+  registry: RegistryPluginWithStatus[];
   refresh: () => void;
 }
 
@@ -90,5 +92,5 @@ export function useConnectionCatalogue(): ConnectionCatalogue {
   const facets = useMemo(() => paradigmFacets(groups), [groups]);
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 
-  return { groups, facets, loading, registryOffline, refresh };
+  return { groups, facets, loading, registryOffline, registry, refresh };
 }
