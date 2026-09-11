@@ -26,7 +26,10 @@ export function ResultToolbar({ result, executionTime }: ResultToolbarProps) {
         filters: [{ name: format.toUpperCase(), extensions: [format] }],
       });
       if (!filePath) return;
-      const content = format === "csv" ? resultToCsv(result) : resultToJson(result);
+      const content = (() => {
+        if (format === "json") return resultToJson(result);
+        return resultToCsv(result);
+      })();
       await writeTextFile(filePath, content);
       showAlert(t("editor.notebook.resultExportSuccess"), { kind: "info" });
     } catch (e) {
