@@ -72,6 +72,24 @@ describe("MigrationChecklistModal", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("closes on Escape, same as the X button", () => {
+    render(
+      <MigrationChecklistModal
+        isOpen
+        onClose={onClose}
+        connections={[]}
+        manifest={undefined}
+        repoUrl={undefined}
+        pluginVersion="1.0.0"
+        migrateConnection={migrateConnection}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   describe("mounts fresh with whatever data it's given", () => {
     // Connections.tsx conditionally mounts this component
     // ({isMigrationChecklistOpen && <MigrationChecklistModal ... />}), so
