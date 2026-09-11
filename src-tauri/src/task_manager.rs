@@ -359,6 +359,8 @@ pub async fn restart_plugin_process(
         .await
         .map_err(|e| format!("Failed to restart plugin '{}': {}", plugin_id, e))?;
 
+    crate::plugins::connection_metadata::notify_plugin_reload(&app, &plugin_id).await;
+
     Ok(())
 }
 

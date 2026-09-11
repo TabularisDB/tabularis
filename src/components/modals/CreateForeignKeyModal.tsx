@@ -36,9 +36,9 @@ export const CreateForeignKeyModal = ({
   driver
 }: CreateForeignKeyModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema } = useDatabase();
+  const { activeSchema, connectionDataMap } = useDatabase();
   const { allDrivers } = useDrivers();
-  const canCreateFk = supportsCreateForeignKeys(getCapabilitiesForDriver(driver, allDrivers));
+  const canCreateFk = supportsCreateForeignKeys(connectionDataMap[connectionId]?.capabilities ?? getCapabilitiesForDriver(driver, allDrivers));
   const [fkName, setFkName] = useState('');
   const [localColumn, setLocalColumn] = useState('');
   const [refTable, setRefTable] = useState('');

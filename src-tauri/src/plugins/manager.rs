@@ -47,6 +47,9 @@ pub struct ConfigManifest {
     pub capabilities: DriverCapabilities,
     #[serde(default)]
     pub data_types: Vec<DataTypeInfo>,
+    /// Opt in to the get_connection_metadata RPC. Omitted by existing plugins.
+    #[serde(default)]
+    pub connection_metadata: bool,
     /// Absent for UI-only plugins that ship no driver executable.
     #[serde(default)]
     pub executable: Option<String>,
@@ -258,7 +261,8 @@ pub async fn load_plugin_from_dir(
         config.data_types,
         settings,
     )
-    .await?;
+    .await?
+    .with_connection_metadata(config.connection_metadata);
     crate::drivers::registry::register_driver(driver).await;
     Ok(())
 }

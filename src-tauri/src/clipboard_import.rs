@@ -55,14 +55,18 @@ fn row_to_values_clause(row: &[Option<String>]) -> String {
     format!("({})", values.join(", "))
 }
 
-fn quote_identifier(name: &str) -> String {
-    format!("\"{}\"", name.replace('"', "\"\""))
+fn quote_identifier(name: &str, quote: &str) -> String {
+    format!("{quote}{}{quote}", name.replace(quote, &quote.repeat(2)))
 }
 
-fn table_ref(table_name: &str, schema: Option<&str>) -> String {
+fn table_ref(table_name: &str, schema: Option<&str>, quote: &str) -> String {
     match schema {
-        Some(s) => format!("{}.{}", quote_identifier(s), quote_identifier(table_name)),
-        None => quote_identifier(table_name),
+        Some(s) => format!(
+            "{}.{}",
+            quote_identifier(s, quote),
+            quote_identifier(table_name, quote)
+        ),
+        None => quote_identifier(table_name, quote),
     }
 }
 
@@ -86,8 +90,16 @@ pub async fn execute_clipboard_import<R: Runtime>(
         .await
         .ok_or_else(|| format!("Unsupported driver: {}", saved_conn.params.driver))?;
 
+    let dynamic_metadata = drv.has_connection_metadata();
+    let drv = drv.for_connection(&params).await?.unwrap_or(drv);
+    // Preserve the legacy import quoting for static drivers.
+    let quote = if dynamic_metadata {
+        drv.manifest().capabilities.identifier_quote.as_str()
+    } else {
+        "\""
+    };
     let schema_ref = req.schema.as_deref();
-    let tbl_ref = table_ref(&req.table_name, schema_ref);
+    let tbl_ref = table_ref(&req.table_name, schema_ref, quote);
     let mut table_created = false;
 
     if req.create_table {
@@ -99,8 +111,17 @@ pub async fn execute_clipboard_import<R: Runtime>(
                     .map_err(|e| format!("Failed to drop existing table: {e}"))?;
             }
             IfExistsStrategy::Append => {
-                add_new_columns(drv.as_ref(), &params, &req, schema_ref, &tbl_ref).await?;
-                return insert_rows(drv.as_ref(), &params, &req, schema_ref, &tbl_ref, false).await;
+                add_new_columns(drv.as_ref(), &params, &req, schema_ref, &tbl_ref, quote).await?;
+                return insert_rows(
+                    drv.as_ref(),
+                    &params,
+                    &req,
+                    schema_ref,
+                    &tbl_ref,
+                    quote,
+                    false,
+                )
+                .await;
             }
             IfExistsStrategy::Fail => {}
         }
@@ -117,10 +138,19 @@ pub async fn execute_clipboard_import<R: Runtime>(
         }
         table_created = true;
     } else {
-        add_new_columns(drv.as_ref(), &params, &req, schema_ref, &tbl_ref).await?;
+        add_new_columns(drv.as_ref(), &params, &req, schema_ref, &tbl_ref, quote).await?;
     }
 
-    insert_rows(drv.as_ref(), &params, &req, schema_ref, &tbl_ref, table_created).await
+    insert_rows(
+        drv.as_ref(),
+        &params,
+        &req,
+        schema_ref,
+        &tbl_ref,
+        quote,
+        table_created,
+    )
+    .await
 }
 
 async fn add_new_columns(
@@ -129,13 +159,14 @@ async fn add_new_columns(
     req: &ClipboardImportRequest,
     schema_ref: Option<&str>,
     tbl_ref: &str,
+    quote: &str,
 ) -> Result<(), String> {
     for col in &req.add_columns {
         let null_clause = if col.is_nullable { "" } else { " NOT NULL" };
         let sql = format!(
             "ALTER TABLE {} ADD COLUMN {} {}{}",
             tbl_ref,
-            quote_identifier(&col.name),
+            quote_identifier(&col.name, quote),
             col.data_type,
             null_clause,
         );
@@ -152,6 +183,7 @@ async fn insert_rows(
     req: &ClipboardImportRequest,
     schema_ref: Option<&str>,
     tbl_ref: &str,
+    quote: &str,
     table_created: bool,
 ) -> Result<ClipboardImportResult, String> {
     if req.rows.is_empty() {
@@ -161,7 +193,7 @@ async fn insert_rows(
     let col_list = req
         .columns
         .iter()
-        .map(|c| quote_identifier(&c.name))
+        .map(|c| quote_identifier(&c.name, quote))
         .collect::<Vec<_>>()
         .join(", ");
 
@@ -187,3 +219,7 @@ async fn insert_rows(
     log::info!("Clipboard import complete: {} rows inserted into {}", rows_inserted, tbl_ref);
     Ok(ClipboardImportResult { rows_inserted, table_created })
 }
+
+#[cfg(test)]
+#[path = "clipboard_import_tests.rs"]
+mod tests;

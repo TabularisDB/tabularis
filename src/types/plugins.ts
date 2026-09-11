@@ -65,6 +65,13 @@ export interface DriverCapabilities {
   sql_dialect?: Dialect;
 }
 
+/** Effective metadata for one connection. The registered manifest stays static. */
+export interface ConnectionMetadata {
+  capabilities: DriverCapabilities;
+  data_types: import("./dataTypes").DataTypeInfo[];
+  type_mappings: Record<string, string>;
+}
+
 export type PluginSettingType = "string" | "boolean" | "number" | "select";
 
 export interface PluginSettingDefinition {
@@ -96,6 +103,8 @@ export interface PluginManifest {
   description: string;
   default_port: number | null;
   capabilities: DriverCapabilities;
+  /** Present on get_driver_manifest when the plugin opts in to discovery. */
+  connection_metadata?: boolean;
   /** true for built-in drivers (postgres, mysql, sqlite); false/absent for external plugins */
   is_builtin?: boolean;
   /** Concrete database engine (registry manifest `engine`). Lets the connection

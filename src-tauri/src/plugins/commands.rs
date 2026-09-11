@@ -222,6 +222,8 @@ pub async fn install_plugin(
         .await
         .map_err(|e| format!("Plugin installed but failed to load: {}", e))?;
 
+    crate::plugins::connection_metadata::notify_plugin_reload(&app, &plugin_id).await;
+
     Ok(())
 }
 
@@ -270,6 +272,7 @@ pub async fn enable_plugin(app: AppHandle, plugin_id: String) -> Result<(), Stri
     }
     crate::plugins::manager::load_plugin_from_dir(&plugin_dir, interpreter_override, settings)
         .await?;
+    crate::plugins::connection_metadata::notify_plugin_reload(&app, &plugin_id).await;
     Ok(())
 }
 
