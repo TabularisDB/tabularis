@@ -1061,9 +1061,10 @@ mod postgres_tls_connector_tests {
         use crate::pool_manager::load_client_auth_from_pem;
         use openssl::asn1::Asn1Time;
         use openssl::bn::BigNum;
+        use openssl::ec::{EcGroup, EcKey};
         use openssl::hash::MessageDigest;
+        use openssl::nid::Nid;
         use openssl::pkey::PKey;
-        use openssl::rsa::Rsa;
         use openssl::x509::{X509NameBuilder, X509};
         use std::io::Write;
 
@@ -1071,8 +1072,8 @@ mod postgres_tls_connector_tests {
         let cert_path = temp_dir.path().join("test_client_cert.pem");
         let key_path = temp_dir.path().join("test_client_key.pem");
 
-        let rsa = Rsa::generate(2048).unwrap();
-        let private_key = PKey::from_rsa(rsa).unwrap();
+        let curve = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
+        let private_key = PKey::from_ec_key(EcKey::generate(&curve).unwrap()).unwrap();
         let mut subject = X509NameBuilder::new().unwrap();
         subject.append_entry_by_text("CN", "test-client").unwrap();
         let subject = subject.build();
