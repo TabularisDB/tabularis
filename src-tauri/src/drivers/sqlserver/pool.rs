@@ -52,14 +52,17 @@ impl Manager for BridgeManager {
 
 /// Build a `mssql_tiberius_bridge::Config` from Tabularis `ConnectionParams`.
 ///
-/// Consumes: host, port, username, password, database, encrypt,
-/// trust_server_certificate.
-/// `auth_mode` is parsed but actual Windows/Azure AD
+/// Consumes: host, port, username, password, database, instance_name,
+/// encrypt, trust_server_certificate.
+/// `domain` and `auth_mode` are parsed but actual Windows/Azure AD
 /// authentication wiring is deferred to Phase 3.
 pub fn build_config(params: &ConnectionParams) -> Result<Config, String> {
     let mut cfg = Config::new();
     cfg.host(params.host.as_deref().unwrap_or("localhost"));
     cfg.port(params.port.unwrap_or(1433));
+    if let Some(instance_name) = params.instance_name.as_deref() {
+        cfg.instance_name(instance_name);
+    }
     cfg.database(params.database.primary());
     cfg.authentication(AuthMethod::sql_server(
         params.username.as_deref().unwrap_or(""),
@@ -213,8 +216,25 @@ mod tests {
     }
 
     #[test]
+    fn build_config_domain_parse_only() {
+        let mut params = base_params(Some("localhost"), Some(1433), "master");
+        params.domain = Some("CORP".into());
+        assert!(build_config(&params).is_ok());
+    }
+
+    #[test]
+    fn build_config_instance_name() {
+        let mut params = base_params(Some("db.internal"), None, "master");
+        params.instance_name = Some("SQLEXPRESS".into());
+        let cfg = build_config(&params).expect("config builds");
+        assert_eq!(cfg.datasource_string(), r"tcp:db.internal\SQLEXPRESS");
+    }
+
+    #[test]
     fn build_config_all_new_fields_together() {
         let mut params = base_params(Some("prod-sql"), Some(1444), "appdb");
+        params.domain = Some("CORP".into());
+        params.instance_name = Some("REPORTING".into());
         params.encrypt = Some("strict".into());
         params.trust_server_certificate = Some(false);
         params.auth_mode = Some("azure-ad".into());

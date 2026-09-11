@@ -36,6 +36,7 @@ mod tests {
                     ssh_key_passphrase: None,
                     save_in_keychain: Some(true),
                     connection_id: None,
+                    ..Default::default()
                 },
                 group_id: Some("group1".to_string()),
                 sort_order: Some(0),
