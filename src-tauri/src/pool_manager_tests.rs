@@ -64,6 +64,7 @@ mod postgres_ssl_config_tests {
             ssh_key_passphrase: None,
             save_in_keychain: None,
             connection_id: None,
+            ..Default::default()
         }
     }
 
@@ -89,6 +90,7 @@ mod postgres_ssl_config_tests {
             ssh_key_passphrase: None,
             save_in_keychain: None,
             connection_id: None,
+            ..Default::default()
         }
     }
 
@@ -192,6 +194,7 @@ mod postgres_tls_connector_tests {
             ssh_key_passphrase: None,
             save_in_keychain: None,
             connection_id: None,
+            ..Default::default()
         }
     }
 
@@ -273,6 +276,7 @@ mod postgres_tls_connector_tests {
             ssh_key_passphrase: None,
             save_in_keychain: None,
             connection_id: None,
+            ..Default::default()
         };
         let result = build_postgres_tls_connector(&params);
         assert!(result.is_ok());
