@@ -15,6 +15,29 @@ pub struct JsonRpcError {
     pub message: String,
 }
 
+/// Preserve remote error codes internally without changing legacy callers'
+/// error strings. Discovery falls back only on the remote -32601 code.
+#[derive(Debug)]
+pub enum PluginCallError {
+    Remote(JsonRpcError),
+    Transport(String),
+}
+
+impl std::fmt::Display for PluginCallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Remote(error) => f.write_str(&error.message),
+            Self::Transport(message) => f.write_str(message),
+        }
+    }
+}
+
+impl From<String> for PluginCallError {
+    fn from(message: String) -> Self {
+        Self::Transport(message)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum JsonRpcResponse {

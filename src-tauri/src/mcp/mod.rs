@@ -348,11 +348,11 @@ async fn resolve_db_driver(
     JsonRpcError,
 > {
     let (conn, db_params) = resolve_db_params(conn_id).await?;
-    let driver = driver_registry::get_driver(&conn.params.driver)
+    let driver = driver_registry::get_connection_driver(&db_params)
         .await
-        .ok_or_else(|| JsonRpcError {
+        .map_err(|message| JsonRpcError {
             code: -32000,
-            message: format!("Unsupported driver: {}", conn.params.driver),
+            message,
             data: None,
         })?;
     Ok((conn, db_params, driver))

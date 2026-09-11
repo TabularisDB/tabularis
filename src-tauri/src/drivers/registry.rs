@@ -31,6 +31,16 @@ pub async fn get_driver(id: &str) -> Option<Arc<dyn DatabaseDriver>> {
     reg.get(id).cloned()
 }
 
+/// Resolve an isolated metadata snapshot only for drivers that opt in.
+pub async fn get_connection_driver(
+    params: &crate::models::ConnectionParams,
+) -> Result<Arc<dyn DatabaseDriver>, String> {
+    let driver = get_driver(&params.driver)
+        .await
+        .ok_or_else(|| format!("Unsupported driver: {}", params.driver))?;
+    Ok(driver.for_connection(params).await?.unwrap_or(driver))
+}
+
 /// Unregister a driver by its id. Shuts down its background process (if any)
 /// and returns `true` if a driver was removed.
 pub async fn unregister_driver(id: &str) -> bool {

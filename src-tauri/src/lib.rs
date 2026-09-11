@@ -430,6 +430,7 @@ pub fn run() {
             close_devtools,
             commands::get_registered_drivers,
             commands::get_driver_manifest,
+            commands::get_connection_metadata,
             commands::get_keybindings,
             commands::save_keybindings,
             commands::test_connection,

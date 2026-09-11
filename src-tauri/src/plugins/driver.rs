@@ -17,7 +17,8 @@ use crate::models::{
     RawExplainOutput, RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema,
     TriggerInfo, ViewInfo,
 };
-use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse};
+use crate::plugins::connection_metadata::{ConnectionMetadataCache, ConnectionMetadataOverrides};
+use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse, PluginCallError};
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -46,7 +47,10 @@ fn is_method_not_found(err: &str) -> bool {
 /// Message sent to the management task that owns the plugin child process.
 enum PluginCommand {
     /// Dispatch a JSON-RPC request and route the response back via the sender.
-    Call(JsonRpcRequest, oneshot::Sender<Result<Value, String>>),
+    Call(
+        JsonRpcRequest,
+        oneshot::Sender<Result<Value, PluginCallError>>,
+    ),
     /// Drop the pending entry for `id` because the caller stopped waiting
     /// (timed out). Prevents an unbounded leak of orphaned response senders.
     Cancel(u64),
@@ -107,8 +111,10 @@ impl PluginProcess {
             let stdout = child.stdout.take().expect("Failed to open stdout");
             let mut reader = BufReader::new(stdout);
 
-            let mut pending_requests: HashMap<u64, oneshot::Sender<Result<Value, String>>> =
-                HashMap::new();
+            let mut pending_requests: HashMap<
+                u64,
+                oneshot::Sender<Result<Value, PluginCallError>>,
+            > = HashMap::new();
             let mut line_buf = String::new();
 
             loop {
@@ -130,7 +136,7 @@ impl PluginProcess {
                                 if let Err(e) = stdin.write_all(req_str.as_bytes()).await {
                                     log::error!("Failed to write to plugin stdin: {}", e);
                                     if let Some(tx) = pending_requests.remove(&id) {
-                                        let _ = tx.send(Err(format!("Plugin communication error: {}", e)));
+                                        let _ = tx.send(Err(format!("Plugin communication error: {}", e).into()));
                                     }
                                 }
                             }
@@ -162,7 +168,7 @@ impl PluginProcess {
                                     }
                                     Ok(JsonRpcResponse::Error { error, id, .. }) => {
                                         if let Some(tx) = pending_requests.remove(&id) {
-                                            let _ = tx.send(Err(error.message));
+                                            let _ = tx.send(Err(PluginCallError::Remote(error)));
                                         }
                                     }
                                     Err(e) => {
@@ -211,6 +217,17 @@ impl PluginProcess {
         params: Value,
         timeout: Duration,
     ) -> Result<Value, String> {
+        self.call_detailed(method, params, timeout)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    async fn call_detailed(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value, PluginCallError> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let req = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
@@ -227,7 +244,7 @@ impl PluginProcess {
 
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(result)) => result,
-            Ok(Err(_)) => Err("Plugin process did not respond".to_string()),
+            Ok(Err(_)) => Err("Plugin process did not respond".to_string().into()),
             Err(_) => {
                 // Tell the management task to drop the now-orphaned pending
                 // entry so it does not leak one slot per timeout.
@@ -236,7 +253,8 @@ impl PluginProcess {
                     "Plugin call '{}' timed out after {}s",
                     method,
                     timeout.as_secs()
-                ))
+                )
+                .into())
             }
         }
     }
@@ -246,6 +264,9 @@ pub struct RpcDriver {
     manifest: PluginManifest,
     process: Arc<PluginProcess>,
     data_types: Vec<DataTypeInfo>,
+    connection_metadata: bool,
+    metadata_cache: Arc<ConnectionMetadataCache>,
+    connection_params: Option<ConnectionParams>,
 }
 
 impl RpcDriver {
@@ -272,14 +293,81 @@ impl RpcDriver {
             manifest,
             process,
             data_types,
+            connection_metadata: false,
+            metadata_cache: Arc::new(ConnectionMetadataCache::default()),
+            connection_params: None,
         })
+    }
+
+    /// SQL-building methods historically had no connection parameters. Add
+    /// them only for opted-in snapshots; legacy plugin request shapes stay intact.
+    async fn call_with_connection(
+        &self,
+        method: &str,
+        mut arguments: Value,
+    ) -> Result<Value, String> {
+        if let Some(params) = &self.connection_params {
+            if let Some(object) = arguments.as_object_mut() {
+                object.entry("params").or_insert_with(|| json!(params));
+            }
+        }
+        self.process.call(method, arguments).await
+    }
+
+    pub fn with_connection_metadata(mut self, enabled: bool) -> Self {
+        self.connection_metadata = enabled;
+        self
     }
 }
 
 #[async_trait]
 impl DatabaseDriver for RpcDriver {
+    fn has_connection_metadata(&self) -> bool {
+        self.connection_metadata
+    }
+
     fn manifest(&self) -> &PluginManifest {
         &self.manifest
+    }
+
+    async fn for_connection(
+        &self,
+        params: &ConnectionParams,
+    ) -> Result<Option<Arc<dyn DatabaseDriver>>, String> {
+        if !self.connection_metadata {
+            return Ok(None);
+        }
+        let cell = self.metadata_cache.entry(params).await?;
+        let metadata = cell.get_or_try_init(|| async {
+            let overrides = match self.process.call_detailed(
+                "get_connection_metadata", json!({ "params": params }), PLUGIN_CALL_TIMEOUT,
+            ).await {
+                Ok(value) => serde_json::from_value::<ConnectionMetadataOverrides>(value)
+                    .map_err(|e| format!("Invalid connection metadata: {}", e))?,
+                Err(PluginCallError::Remote(error)) if error.code == -32601 => {
+                    log::warn!("Plugin '{}' declares connection metadata but does not implement the RPC; using its manifest", self.manifest.id);
+                    ConnectionMetadataOverrides::default()
+                }
+                Err(error) => return Err(format!("Connection metadata discovery failed: {}", error)),
+            };
+            overrides.resolve(&self.manifest, &self.data_types)
+        }).await?;
+        let mut manifest = self.manifest.clone();
+        manifest.capabilities = metadata.capabilities.clone();
+        manifest.type_mappings = metadata.type_mappings.clone();
+        Ok(Some(Arc::new(Self {
+            manifest,
+            process: self.process.clone(),
+            data_types: metadata.data_types.clone(),
+            // The returned snapshot is already resolved for this operation.
+            connection_metadata: false,
+            metadata_cache: self.metadata_cache.clone(),
+            connection_params: Some(params.clone()),
+        })))
+    }
+
+    async fn invalidate_connection_metadata(&self, connection_id: Option<&str>) {
+        self.metadata_cache.invalidate(connection_id).await;
     }
 
     async fn shutdown(&self) {
@@ -658,8 +746,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
     ) -> Result<String, String> {
         let res = self
-            .process
-            .call(
+            .call_with_connection(
                 "routine_create_template",
                 json!({ "routine_type": routine_type, "schema": schema }),
             )
@@ -963,8 +1050,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
         let res = self
-            .process
-            .call(
+            .call_with_connection(
                 "get_create_table_sql",
                 json!({ "table_name": table_name, "columns": columns, "schema": schema }),
             )
@@ -979,8 +1065,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
         let res = self
-            .process
-            .call(
+            .call_with_connection(
                 "get_add_column_sql",
                 json!({ "table": table, "column": column, "schema": schema }),
             )
@@ -995,7 +1080,7 @@ impl DatabaseDriver for RpcDriver {
         new_column: ColumnDefinition,
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
-        let res = self.process.call("get_alter_column_sql", json!({ "table": table, "old_column": old_column, "new_column": new_column, "schema": schema })).await?;
+        let res = self.call_with_connection("get_alter_column_sql", json!({ "table": table, "old_column": old_column, "new_column": new_column, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -1007,7 +1092,7 @@ impl DatabaseDriver for RpcDriver {
         is_unique: bool,
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
-        let res = self.process.call("get_create_index_sql", json!({ "table": table, "index_name": index_name, "columns": columns, "is_unique": is_unique, "schema": schema })).await?;
+        let res = self.call_with_connection("get_create_index_sql", json!({ "table": table, "index_name": index_name, "columns": columns, "is_unique": is_unique, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -1023,6 +1108,7 @@ impl DatabaseDriver for RpcDriver {
         on_update: Option<&str>,
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
+        let params = self.connection_params.as_ref().unwrap_or(params);
         let res = self.process.call("get_create_foreign_key_sql", json!({ "params": params, "table": table, "fk_name": fk_name, "column": column, "ref_table": ref_table, "ref_column": ref_column, "on_delete": on_delete, "on_update": on_update, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -1073,8 +1159,7 @@ impl DatabaseDriver for RpcDriver {
 
     async fn get_db_privilege_catalog(&self) -> Result<DbPrivilegeCatalog, String> {
         let res = self
-            .process
-            .call("get_db_privilege_catalog", json!({}))
+            .call_with_connection("get_db_privilege_catalog", json!({}))
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -1416,7 +1501,7 @@ mod tests {
                     }))
                     .map_err(|_| "request assertion failed".to_string())
                     .and_then(|outcome| outcome);
-                    let _ = response_tx.send(result);
+                    let _ = response_tx.send(result.map_err(PluginCallError::Transport));
                 }
             }
         });
@@ -1431,6 +1516,9 @@ mod tests {
                 pid: None,
             }),
             data_types: Vec::new(),
+            connection_metadata: false,
+            metadata_cache: Arc::new(ConnectionMetadataCache::default()),
+            connection_params: None,
         }
     }
 
@@ -2198,6 +2286,9 @@ mod tests {
                 pid: None,
             }),
             data_types: Vec::new(),
+            connection_metadata: false,
+            metadata_cache: Arc::new(ConnectionMetadataCache::default()),
+            connection_params: None,
         };
 
         // Mapped types
@@ -2224,6 +2315,9 @@ mod tests {
                 pid: None,
             }),
             data_types: Vec::new(),
+            connection_metadata: false,
+            metadata_cache: Arc::new(ConnectionMetadataCache::default()),
+            connection_params: None,
         };
 
         assert_eq!(driver.map_inferred_type("DATETIME"), "DATETIME");

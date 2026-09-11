@@ -89,6 +89,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
       try {
         const mapped = await invoke<string[]>('map_inferred_column_types', {
           driver: activeDriver,
+          connectionId: activeConnectionId,
           kinds: inferred.map((c) => c.sqlType),
         });
         return base.map((c, i) => ({ ...c, sqlType: mapped[i] ?? c.sqlType }));
@@ -96,7 +97,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
         return base;
       }
     },
-    [activeDriver],
+    [activeDriver, activeConnectionId],
   );
 
   const tableExists = existingTables.some(

@@ -41,11 +41,11 @@ export const ModifyColumnModal = ({
   column,
 }: ModifyColumnModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema } = useDatabase();
-  const { dataTypes } = useDataTypes(driver);
+  const { activeSchema, connectionDataMap } = useDatabase();
+  const { dataTypes } = useDataTypes(driver, connectionId);
   const { allDrivers } = useDrivers();
   const driverManifest = allDrivers.find((d) => d.id === driver);
-  const driverCapabilities = driverManifest?.capabilities ?? null;
+  const driverCapabilities = connectionDataMap[connectionId]?.capabilities ?? driverManifest?.capabilities ?? null;
   const canAlterPk = driverCapabilities?.alter_primary_key !== false;
   const canAlterColumn = supportsAlterColumn(driverCapabilities);
   const isEdit = !!column;

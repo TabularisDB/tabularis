@@ -329,6 +329,22 @@ pub trait DatabaseDriver: Send + Sync {
 
     fn manifest(&self) -> &PluginManifest;
 
+    fn has_connection_metadata(&self) -> bool {
+        false
+    }
+
+    /// Optionally bind connection-dependent metadata to an isolated driver
+    /// snapshot. Static drivers retain the registered instance and make no RPC.
+    async fn for_connection(
+        &self,
+        _params: &ConnectionParams,
+    ) -> Result<Option<std::sync::Arc<dyn DatabaseDriver>>, String> {
+        Ok(None)
+    }
+
+    /// Drop cached discovery results on reconnect. Static drivers do nothing.
+    async fn invalidate_connection_metadata(&self, _connection_id: Option<&str>) {}
+
     /// Returns the list of data types supported by this driver.
     fn get_data_types(&self) -> Vec<DataTypeInfo>;
 

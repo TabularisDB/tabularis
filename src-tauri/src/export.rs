@@ -215,6 +215,7 @@ where
     let driver = crate::drivers::registry::get_driver(driver_id)
         .await
         .ok_or_else(|| format!("Unsupported driver for export: {driver_id}"))?;
+    let driver = driver.for_connection(params).await?.unwrap_or(driver);
 
     let mut page: u32 = 1;
     loop {

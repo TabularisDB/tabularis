@@ -49,6 +49,11 @@
       "type": "string",
       "description": "Relative path to the plugin executable inside the plugin folder (without extension on Linux/macOS; Tabularis appends .exe on Windows automatically)."
     },
+    "connection_metadata": {
+      "type": "boolean",
+      "default": false,
+      "description": "Opt in to get_connection_metadata, which returns connection-specific capabilities, data_types and type_mappings. Static manifest values remain the fallback."
+    },
     "capabilities": {
       "type": "object",
       "description": "Feature flags that control which UI elements Tabularis renders for this driver.",
@@ -102,6 +107,16 @@
           "type": "boolean",
           "default": true,
           "description": "Optional capability for network drivers. Set false to hide connection string import in the UI."
+        },
+        "connection_uri": {
+          "type": "boolean",
+          "default": false,
+          "description": "Pass the connection URI verbatim to the driver instead of decomposing it into host, port and database fields."
+        },
+        "connection_uri_schemes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional URI schemes handled by this driver, such as jdbc."
         },
         "connectionString": {
           "type": "boolean",
