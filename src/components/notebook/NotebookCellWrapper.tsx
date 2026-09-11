@@ -51,7 +51,6 @@ export function NotebookCellWrapper({
 }: NotebookCellWrapperProps) {
   const [showHistory, setShowHistory] = useState(false);
   const { getConnectionData } = useDatabase();
-  const canExplain = cell.type === "sql" && supportsExplain(getConnectionData(connectionId)?.capabilities);
   const toggleQueryPlan = () =>
     onUpdate({ isQueryPlanVisible: !cell.isQueryPlanVisible });
 
@@ -107,7 +106,7 @@ export function NotebookCellWrapper({
           cell.type === "sql" ? () => setShowHistory((v) => !v) : undefined
         }
         isQueryPlanVisible={cell.isQueryPlanVisible}
-        onToggleQueryPlan={canExplain ? toggleQueryPlan : undefined}
+        onToggleQueryPlan={(cell.type === "sql" && supportsExplain(getConnectionData(connectionId)?.capabilities)) ? toggleQueryPlan : undefined}
         isCollapsed={cell.isCollapsed}
         onToggleCollapse={() => onUpdate({ isCollapsed: !cell.isCollapsed })}
         cellName={cell.name}
