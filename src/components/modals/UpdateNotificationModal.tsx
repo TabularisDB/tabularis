@@ -3,6 +3,7 @@ import { Modal } from "../ui/Modal";
 import { X, Download, ExternalLink, CheckCircle, Loader2, AlertCircle } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { SocialLinks } from "../SocialLinks";
+import Markdown from "react-markdown";
 
 interface UpdateNotificationModalProps {
   isOpen: boolean;
@@ -127,10 +128,36 @@ export const UpdateNotificationModal = ({
               {t("update.releaseNotes")}
             </label>
             <div className="bg-base border border-default rounded-lg p-4 max-h-[300px] overflow-y-auto">
-              <div className="prose prose-invert prose-sm max-w-none">
-                <pre className="text-sm text-secondary whitespace-pre-wrap font-sans">
+              <div
+                className={
+                  "text-sm text-secondary leading-relaxed " +
+                  "[&_h1]:text-xl [&_h1]:font-bold [&_h1]:mb-3 [&_h1]:text-primary " +
+                  "[&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mb-2 [&_h2]:text-primary " +
+                  "[&_h3]:text-base [&_h3]:font-medium [&_h3]:mb-1 [&_h3]:text-primary " +
+                  "[&_p]:mb-2 [&_code]:bg-surface-secondary [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono " +
+                  "[&_pre]:bg-surface-secondary [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:mb-2 [&_pre_code]:bg-transparent [&_pre_code]:p-0 " +
+                  "[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 [&_li]:mb-1 " +
+                  "[&_a]:text-blue-400 [&_a]:underline [&_a]:cursor-pointer [&_blockquote]:border-l-2 [&_blockquote]:border-muted [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted " +
+                  "[&_hr]:border-default [&_hr]:my-4 [&_strong]:font-semibold [&_strong]:text-primary [&_em]:italic"
+                }
+              >
+                <Markdown
+                  components={{
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          if (href) void openUrl(href);
+                        }}
+                      >
+                        {children}
+                      </a>
+                    ),
+                  }}
+                >
                   {updateInfo.releaseNotes}
-                </pre>
+                </Markdown>
               </div>
             </div>
           </div>
