@@ -92,6 +92,12 @@ export function NotebookView({
   const { t } = useTranslation();
   const { activeSchema, activeCapabilities, selectedDatabases, activeDriver } =
     useDatabase();
+  const variableOptions = useMemo(
+    () => ({
+      escapeBackslashes: activeDriver === "mysql" || activeDriver === "mariadb",
+    }),
+    [activeDriver],
+  );
   const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
   const effectiveSchema =
     tab.schema || activeSchema || (isMultiDb ? selectedDatabases[0] : null);
@@ -377,7 +383,7 @@ export function NotebookView({
       const { sql: resolvedSql, unresolvedRefs } = resolveQueryVariables(
         sql,
         cellsRef.current,
-        { escapeBackslashes: activeDriver === "mysql" },
+        variableOptions,
       );
 
       if (unresolvedRefs.length > 0) {
@@ -451,7 +457,7 @@ export function NotebookView({
       settings.resultPageSize,
       updateCell,
       params,
-      activeDriver,
+      variableOptions,
       guardQueryExecution,
     ],
   );
@@ -881,7 +887,7 @@ export function NotebookView({
         />
         {cells.map((cell, index) => (
           <div
-            key={`${cell.id}-${index}`}
+            key={cell.id}
             ref={(el) => {
               if (el) cellRefsMap.current.set(cell.id, el);
               else cellRefsMap.current.delete(cell.id);
@@ -911,6 +917,15 @@ export function NotebookView({
               }}
               onRun={() => runCell(cell.id)}
               connectionId={connectionId}
+              explainQuery={
+                cell.type === "sql" && cell.isQueryPlanVisible
+                  ? resolveQueryVariables(
+                      resolveParams(cell.content.trim(), params).sql,
+                      cells,
+                      variableOptions,
+                    )
+                  : undefined
+              }
               activeSchema={cell.schema || effectiveSchema || undefined}
               selectedDatabases={isMultiDb ? selectedDatabases : undefined}
               onSchemaChange={

@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next";
 import { List, ChevronDown, Sparkles, Loader2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import type { NotebookCell } from "../../types/notebook";
-import { extractOutline } from "../../utils/notebookOutline";
-import { getUnnamedCellsWithContent } from "../../utils/notebookOutline";
+import { extractOutline, getUnnamedCellsWithContent } from "../../utils/notebookOutline";
 import { useSettings } from "../../hooks/useSettings";
 
 interface NotebookOutlineProps {

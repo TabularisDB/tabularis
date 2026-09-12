@@ -14,6 +14,7 @@ import {
   GripVertical,
   Zap,
   History,
+  Network,
 } from "lucide-react";
 import type { NotebookCellType } from "../../types/notebook";
 import { CellNameAiButton } from "./CellNameAiButton";
@@ -41,6 +42,8 @@ interface NotebookCellHeaderProps {
   onToggleParallel?: () => void;
   historyCount?: number;
   onToggleHistory?: () => void;
+  isQueryPlanVisible?: boolean;
+  onToggleQueryPlan?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse: () => void;
   cellName?: string;
@@ -109,6 +112,8 @@ export function NotebookCellHeader({
   onToggleParallel,
   historyCount,
   onToggleHistory,
+  isQueryPlanVisible,
+  onToggleQueryPlan,
   isCollapsed,
   onToggleCollapse,
   cellName,
@@ -122,6 +127,9 @@ export function NotebookCellHeader({
   const dbButtonRef = useRef<HTMLButtonElement>(null);
   const [dbDropdownPosition, setDbDropdownPosition] = useState({ top: 0, left: 0 });
   const showDbSelector = cellType === "sql" && selectedDatabases && selectedDatabases.length >= 1 && activeSchema && onSchemaChange;
+  const queryPlanToggleLabel = t(
+    isQueryPlanVisible ? "editor.notebook.hideQueryPlan" : "editor.notebook.toggleQueryPlan",
+  );
 
   const updateDbDropdownPosition = useCallback(() => {
     if (dbButtonRef.current) {
@@ -283,6 +291,23 @@ export function NotebookCellHeader({
             }`}
           >
             <Zap size={14} />
+          </button>
+        )}
+
+        {cellType === "sql" && onToggleQueryPlan && (
+          <button
+            type="button"
+            onClick={onToggleQueryPlan}
+            title={queryPlanToggleLabel}
+            aria-label={queryPlanToggleLabel}
+            aria-pressed={!!isQueryPlanVisible}
+            className={`p-1 rounded transition-colors ${
+              isQueryPlanVisible
+                ? "text-blue-400 bg-blue-500/15"
+                : "text-muted hover:text-primary hover:bg-surface-secondary"
+            }`}
+          >
+            <Network size={14} />
           </button>
         )}
 

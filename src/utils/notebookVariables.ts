@@ -19,7 +19,7 @@ export function extractCellReferences(sql: string): CellReference[] {
 }
 
 export function hasCellReferences(sql: string): boolean {
-  return CELL_REF_PATTERN.test(sql);
+  return new RegExp(CELL_REF_PATTERN.source).test(sql);
 }
 
 /** Quote a column name as a SQL identifier, doubling embedded quotes. */
@@ -39,35 +39,54 @@ function escapeStringLiteral(val: string, escapeBackslashes: boolean): string {
   return escaped.replace(/'/g, "''");
 }
 
+/**
+ * Serializing a result set is linear in its rows, and resolution runs on every
+ * render of the notebook. Results are replaced wholesale rather than mutated,
+ * so the rendered CTE stays valid for as long as the result object lives.
+ */
+const cteCache = new WeakMap<QueryResult, Map<string, string>>();
+
 function resultToCte(
   result: QueryResult,
   alias: string,
   escapeBackslashes: boolean,
 ): string {
+  const variantKey = `${escapeBackslashes ? 1 : 0}:${alias}`;
+  let variants = cteCache.get(result);
+  const cached = variants?.get(variantKey);
+  if (cached !== undefined) return cached;
+
+  let cte: string;
   if (result.rows.length === 0) {
     const emptyCols = result.columns
       .map((col) => `NULL AS ${quoteIdentifier(col)}`)
       .join(", ");
-    return `${alias} AS (SELECT ${emptyCols} WHERE 1=0)`;
+    cte = `${alias} AS (SELECT ${emptyCols} WHERE 1=0)`;
+  } else {
+    const selects = result.rows.map((row) => {
+      const cols = result.columns
+        .map((col, i) => {
+          const val = row[i];
+          const ident = quoteIdentifier(col);
+          if (val === null || val === undefined) return `NULL AS ${ident}`;
+          if (typeof val === "number" && Number.isFinite(val)) {
+            return `${val} AS ${ident}`;
+          }
+          const escaped = escapeStringLiteral(String(val), escapeBackslashes);
+          return `'${escaped}' AS ${ident}`;
+        })
+        .join(", ");
+      return `SELECT ${cols}`;
+    });
+    cte = `${alias} AS (\n  ${selects.join("\n  UNION ALL\n  ")}\n)`;
   }
 
-  const selects = result.rows.map((row) => {
-    const cols = result.columns
-      .map((col, i) => {
-        const val = row[i];
-        const ident = quoteIdentifier(col);
-        if (val === null || val === undefined) return `NULL AS ${ident}`;
-        if (typeof val === "number" && Number.isFinite(val)) {
-          return `${val} AS ${ident}`;
-        }
-        const escaped = escapeStringLiteral(String(val), escapeBackslashes);
-        return `'${escaped}' AS ${ident}`;
-      })
-      .join(", ");
-    return `SELECT ${cols}`;
-  });
-
-  return `${alias} AS (\n  ${selects.join("\n  UNION ALL\n  ")}\n)`;
+  if (!variants) {
+    variants = new Map();
+    cteCache.set(result, variants);
+  }
+  variants.set(variantKey, cte);
+  return cte;
 }
 
 export interface ResolvedQuery {
@@ -112,31 +131,33 @@ export function resolveQueryVariables(
   cells: NotebookCell[],
   options?: ResolveVariablesOptions,
 ): ResolvedQuery {
-  const refs = extractCellReferences(sql);
-  if (refs.length === 0) return { sql, unresolvedRefs: [] };
+  if (!hasCellReferences(sql)) return { sql, unresolvedRefs: [] };
 
   const unresolvedRefs: CellReference[] = [];
   const ctes: string[] = [];
-  let resolvedSql = sql;
-
-  for (const ref of refs) {
-    const targetCell = cells[ref.cellIndex];
+  const seen = new Set<number>();
+  let resolvedSql = sql.replace(new RegExp(CELL_REF_PATTERN.source, "g"), (match: string, number: string) => {
+    const cellIndex = Number(number) - 1;
+    const targetCell = cells[cellIndex];
     if (
       !targetCell ||
       targetCell.type !== "sql" ||
       !targetCell.result ||
       targetCell.error
     ) {
-      unresolvedRefs.push(ref);
-      continue;
+      unresolvedRefs.push({ match, cellIndex });
+      return match;
     }
 
-    const alias = `cell_${ref.cellIndex + 1}`;
-    ctes.push(
-      resultToCte(targetCell.result, alias, options?.escapeBackslashes ?? false),
-    );
-    resolvedSql = resolvedSql.replace(ref.match, alias);
-  }
+    const alias = `cell_${cellIndex + 1}`;
+    if (!seen.has(cellIndex)) {
+      seen.add(cellIndex);
+      ctes.push(
+        resultToCte(targetCell.result, alias, options?.escapeBackslashes ?? false),
+      );
+    }
+    return alias;
+  });
 
   if (ctes.length > 0) {
     resolvedSql = `WITH ${ctes.join(",\n")}\n${resolvedSql}`;

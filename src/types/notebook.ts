@@ -50,6 +50,7 @@ export interface NotebookCell {
   isQueryCollapsed?: boolean; // SQL only: query editor section hidden when collapsed
   isResultCollapsed?: boolean; // SQL only: result grid section hidden when collapsed
   isChartVisible?: boolean; // SQL only: chart section visible (defaults to whether chartConfig is set)
+  isQueryPlanVisible?: boolean; // SQL only: query plan (EXPLAIN) section visible, off by default
   history?: CellExecutionEntry[]; // Last N executions
 }
 
@@ -76,6 +77,7 @@ export interface NotebookFile {
     isQueryCollapsed?: boolean;
     isResultCollapsed?: boolean;
     isChartVisible?: boolean;
+    isQueryPlanVisible?: boolean;
   }>;
   params?: NotebookParam[];
   stopOnError?: boolean;
