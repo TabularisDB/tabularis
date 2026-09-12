@@ -119,6 +119,7 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
       routines: false,
       file_based: true,
       folder_based: false,
+      file_extensions: ["db", "sqlite", "sqlite3"],
       connection_string: false,
       identifier_quote: '"',
       alter_primary_key: true,

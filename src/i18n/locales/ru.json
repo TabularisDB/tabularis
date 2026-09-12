@@ -39,7 +39,11 @@
     "development": "Разработка",
     "staging": "Staging",
     "production": "Продакшен",
-    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "short": {
+      "development": "DEV",
+      "staging": "STAGING",
+      "production": "PROD"
+    },
     "banner": "Продакшен — {{name}}",
     "warnTitle": "Продакшен-база данных",
     "warnMessage": "Вы собираетесь изменить продакшен-данные на «{{name}}». Продолжить?",
@@ -1014,7 +1018,10 @@
     "chooseDatabases": "Выбрать базы данных",
     "allDatabasesHint": "При подключении автоматически загружаются все базы данных сервера. Созданные или удалённые на сервере базы появляются сами — без изменения этого подключения.",
     "selectDatabasesHint": "Выберите базы данных для этого подключения.",
-    "loadDatabasesHint": "Нажмите «Загрузить базы данных», чтобы получить список доступных."
+    "loadDatabasesHint": "Нажмите «Загрузить базы данных», чтобы получить список доступных.",
+    "supportedFiles": "Supported files",
+    "allFiles": "All files",
+    "spreadsheetWorkbookHint": "You can also open Excel, WPS, or ODS workbooks. Each sheet becomes a table; the rusty-sheet extension is installed automatically."
   },
   "sshConnections": {
     "title": "SSH-подключения",
@@ -2218,7 +2225,8 @@
   },
   "connectionCatalogue": {
     "deprecated": "Устарел",
-    "deprecatedTooltip": "Этот встроенный драйвер заменяется плагином"
+    "deprecatedTooltip": "Этот встроенный драйвер заменяется плагином",
+    "spreadsheetExtensionHint": "Opening Excel, WPS, or ODS workbooks will automatically install the rusty-sheet DuckDB extension — no manual INSTALL/LOAD commands needed."
   },
   "connectionErrors": {
     "ssh-auth": {

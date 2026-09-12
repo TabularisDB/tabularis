@@ -1,5 +1,36 @@
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 
+const SPREADSHEET_FILE_EXTENSIONS = new Set([
+  "xls",
+  "xlsx",
+  "xlsm",
+  "xlsb",
+  "xla",
+  "xlam",
+  "et",
+  "ett",
+  "ods",
+]);
+
+export function filePickerExtensions(
+  capabilities?: DriverCapabilities | null,
+): string[] {
+  const raw =
+    capabilities?.file_extensions ?? capabilities?.fileExtensions ?? [];
+  return raw
+    .map((e) => e.replace(/^\./, "").toLowerCase())
+    .filter(Boolean);
+}
+
+/** True when the driver advertises spreadsheet workbook extensions. */
+export function supportsSpreadsheetFiles(
+  capabilities?: DriverCapabilities | null,
+): boolean {
+  return filePickerExtensions(capabilities).some((e) =>
+    SPREADSHEET_FILE_EXTENSIONS.has(e),
+  );
+}
+
 export function isLocalDriver(
   capabilities?: DriverCapabilities | null,
 ): boolean {

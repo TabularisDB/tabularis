@@ -988,6 +988,11 @@ impl SqliteDriver {
                     routine_management: false,
                     file_based: true,
                     folder_based: false,
+                    file_extensions: vec![
+                        "db".into(),
+                        "sqlite".into(),
+                        "sqlite3".into(),
+                    ],
                     connection_string: false,
                     connection_string_example: String::new(),
                     connection_uri: false,

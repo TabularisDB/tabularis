@@ -98,6 +98,16 @@
           "default": false,
           "description": "true for plugins that connect to a directory rather than a single file (e.g. CSV plugin). Replaces host/port fields with a folder picker."
         },
+        "file_extensions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional file extensions for the connection file picker (without dots), e.g. [\"duckdb\", \"xlsx\", \"ods\"]. When omitted, the picker accepts any file."
+        },
+        "fileExtensions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "CamelCase alias of file_extensions."
+        },
         "connection_string": {
           "type": "boolean",
           "default": true,

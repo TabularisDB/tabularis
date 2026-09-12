@@ -1768,6 +1768,7 @@ impl PostgresDriver {
                     routine_management: true,
                     file_based: false,
                     folder_based: false,
+                    file_extensions: Vec::new(),
                     connection_string: true,
                     connection_string_example: "postgres://user:pass@localhost:5432/db".into(),
                     connection_uri: false,

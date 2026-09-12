@@ -39,7 +39,11 @@
     "development": "Development",
     "staging": "Staging",
     "production": "Production",
-    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "short": {
+      "development": "DEV",
+      "staging": "STAGING",
+      "production": "PROD"
+    },
     "banner": "Production — {{name}}",
     "warnTitle": "Production na database",
     "warnMessage": "Malapit mo nang baguhin ang production data sa \"{{name}}\". Sigurado ka bang magpapatuloy?",
@@ -1053,7 +1057,10 @@
     "chooseDatabases": "Pumili ng mga database",
     "allDatabasesHint": "Sa pagkonekta, awtomatikong nilo-load ang lahat ng database sa server. Ang mga database na ginawa o tinanggal sa server ay lalabas nang kusa — hindi na kailangang i-edit ang koneksyong ito.",
     "selectDatabasesHint": "Piliin ang mga database na isasama sa koneksyong ito.",
-    "loadDatabasesHint": "I-click ang I-load ang mga database para kunin ang mga available."
+    "loadDatabasesHint": "I-click ang I-load ang mga database para kunin ang mga available.",
+    "supportedFiles": "Supported files",
+    "allFiles": "All files",
+    "spreadsheetWorkbookHint": "You can also open Excel, WPS, or ODS workbooks. Each sheet becomes a table; the rusty-sheet extension is installed automatically."
   },
   "sshConnections": {
     "title": "Mga SSH Connection",
@@ -2217,7 +2224,8 @@
   },
   "connectionCatalogue": {
     "deprecated": "Deprecated",
-    "deprecatedTooltip": "Ang built-in driver na ito ay papalitan ng isang plugin"
+    "deprecatedTooltip": "Ang built-in driver na ito ay papalitan ng isang plugin",
+    "spreadsheetExtensionHint": "Opening Excel, WPS, or ODS workbooks will automatically install the rusty-sheet DuckDB extension — no manual INSTALL/LOAD commands needed."
   },
   "connectionErrors": {
     "ssh-auth": {

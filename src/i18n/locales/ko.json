@@ -998,7 +998,10 @@
     "chooseDatabases": "데이터베이스 선택",
     "allDatabasesHint": "연결 시 서버의 모든 데이터베이스가 자동으로 로드됩니다. 서버에서 생성되거나 삭제된 데이터베이스는 이 연결을 수정하지 않아도 자동으로 반영됩니다.",
     "selectDatabasesHint": "이 연결에 포함할 데이터베이스를 선택하세요.",
-    "loadDatabasesHint": "데이터베이스 불러오기를 클릭하여 사용 가능한 데이터베이스를 가져오세요."
+    "loadDatabasesHint": "데이터베이스 불러오기를 클릭하여 사용 가능한 데이터베이스를 가져오세요.",
+    "supportedFiles": "Supported files",
+    "allFiles": "All files",
+    "spreadsheetWorkbookHint": "You can also open Excel, WPS, or ODS workbooks. Each sheet becomes a table; the rusty-sheet extension is installed automatically."
   },
   "sshConnections": {
     "title": "SSH 연결",
@@ -2151,7 +2154,8 @@
   },
   "connectionCatalogue": {
     "deprecated": "사용 중단",
-    "deprecatedTooltip": "이 내장 드라이버는 플러그인으로 대체됩니다"
+    "deprecatedTooltip": "이 내장 드라이버는 플러그인으로 대체됩니다",
+    "spreadsheetExtensionHint": "Opening Excel, WPS, or ODS workbooks will automatically install the rusty-sheet DuckDB extension — no manual INSTALL/LOAD commands needed."
   },
   "connectionErrors": {
     "ssh-auth": {

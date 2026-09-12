@@ -39,7 +39,11 @@
     "development": "Sviluppo",
     "staging": "Staging",
     "production": "Produzione",
-    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "short": {
+      "development": "DEV",
+      "staging": "STAGING",
+      "production": "PROD"
+    },
     "banner": "Produzione — {{name}}",
     "warnTitle": "Database di produzione",
     "warnMessage": "Stai per modificare dati di produzione su \"{{name}}\". Vuoi davvero continuare?",
@@ -1049,7 +1053,10 @@
     "chooseDatabases": "Scegli i database",
     "allDatabasesHint": "Alla connessione vengono caricati automaticamente tutti i database del server. I database creati o eliminati sul server compaiono da soli, senza modificare questa connessione.",
     "selectDatabasesHint": "Seleziona i database da includere in questa connessione.",
-    "loadDatabasesHint": "Premi Carica database per recuperare i database disponibili."
+    "loadDatabasesHint": "Premi Carica database per recuperare i database disponibili.",
+    "supportedFiles": "Supported files",
+    "allFiles": "All files",
+    "spreadsheetWorkbookHint": "You can also open Excel, WPS, or ODS workbooks. Each sheet becomes a table; the rusty-sheet extension is installed automatically."
   },
   "sshConnections": {
     "title": "Connessioni SSH",
@@ -2245,7 +2252,8 @@
     "readmeLoading": "Caricamento del README…",
     "readmeUnavailable": "Nessun README disponibile per questo plugin.",
     "readmeFallbackLocale": "Questo README non è ancora disponibile nella tua lingua — mostrato in “{{locale}}”.",
-    "openDocumentation": "Apri la documentazione completa"
+    "openDocumentation": "Apri la documentazione completa",
+    "spreadsheetExtensionHint": "Opening Excel, WPS, or ODS workbooks will automatically install the rusty-sheet DuckDB extension — no manual INSTALL/LOAD commands needed."
   },
   "connectionErrors": {
     "ssh-auth": {

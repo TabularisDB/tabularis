@@ -39,7 +39,11 @@
     "development": "開発",
     "staging": "ステージング",
     "production": "本番",
-    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "short": {
+      "development": "DEV",
+      "staging": "STAGING",
+      "production": "PROD"
+    },
     "banner": "本番 — {{name}}",
     "warnTitle": "本番データベース",
     "warnMessage": "「{{name}}」の本番データを変更しようとしています。続行しますか？",
@@ -1038,7 +1042,10 @@
     "chooseDatabases": "データベースを選択",
     "allDatabasesHint": "接続時にサーバー上のすべてのデータベースが自動的に読み込まれます。サーバーで作成・削除されたデータベースは、この接続を編集しなくても自動的に反映されます。",
     "selectDatabasesHint": "この接続に含めるデータベースを選択してください。",
-    "loadDatabasesHint": "「データベースを読み込む」をクリックすると利用可能なデータベースを取得します。"
+    "loadDatabasesHint": "「データベースを読み込む」をクリックすると利用可能なデータベースを取得します。",
+    "supportedFiles": "Supported files",
+    "allFiles": "All files",
+    "spreadsheetWorkbookHint": "You can also open Excel, WPS, or ODS workbooks. Each sheet becomes a table; the rusty-sheet extension is installed automatically."
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -2261,7 +2268,8 @@
     "readmeLoading": "READMEを読み込み中…",
     "readmeUnavailable": "このプラグインにはREADMEがありません。",
     "readmeFallbackLocale": "このREADMEはまだお使いの言語では利用できません — “{{locale}}”で表示しています。",
-    "openDocumentation": "完全なドキュメントを開く"
+    "openDocumentation": "完全なドキュメントを開く",
+    "spreadsheetExtensionHint": "Opening Excel, WPS, or ODS workbooks will automatically install the rusty-sheet DuckDB extension — no manual INSTALL/LOAD commands needed."
   },
   "connectionErrors": {
     "ssh-auth": {

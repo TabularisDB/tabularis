@@ -6,6 +6,8 @@ import {
   supportsExplain,
   findDriverManifest,
   getCapabilitiesForDriver,
+  supportsSpreadsheetFiles,
+  filePickerExtensions,
 } from '../../src/utils/driverCapabilities';
 import type { DriverCapabilities, PluginManifest } from '../../src/types/plugins';
 
@@ -27,6 +29,25 @@ const makeManifest = (id: string, caps: Partial<DriverCapabilities> = {}): Plugi
   description: '',
   default_port: null,
   capabilities: makeCapabilities(caps),
+});
+
+describe('supportsSpreadsheetFiles / filePickerExtensions', () => {
+  it('detects spreadsheet extensions from file_extensions', () => {
+    expect(
+      supportsSpreadsheetFiles(
+        makeCapabilities({ file_extensions: ['duckdb', 'xlsx', 'ods'] }),
+      ),
+    ).toBe(true);
+    expect(
+      supportsSpreadsheetFiles(makeCapabilities({ file_extensions: ['duckdb'] })),
+    ).toBe(false);
+  });
+
+  it('normalizes leading dots and camelCase alias', () => {
+    expect(filePickerExtensions(makeCapabilities({ fileExtensions: ['.XLSX'] }))).toEqual([
+      'xlsx',
+    ]);
+  });
 });
 
 describe('driverCapabilities', () => {

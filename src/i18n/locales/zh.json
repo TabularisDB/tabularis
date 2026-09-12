@@ -39,7 +39,11 @@
     "development": "开发",
     "staging": "预发布",
     "production": "生产",
-    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "short": {
+      "development": "DEV",
+      "staging": "STAGING",
+      "production": "PROD"
+    },
     "banner": "生产 — {{name}}",
     "warnTitle": "生产数据库",
     "warnMessage": "您即将修改“{{name}}”上的生产数据。确定要继续吗？",
@@ -901,6 +905,9 @@
     "usernamePlaceholder": "输入用户名",
     "filePath": "文件路径",
     "folderPath": "文件夹路径",
+    "supportedFiles": "支持的文件",
+    "allFiles": "所有文件",
+    "spreadsheetWorkbookHint": "也可打开 Excel、WPS 或 ODS 工作簿：每个工作表会成为一张表，rusty-sheet 扩展会自动安装。",
     "dbName": "数据库名称",
     "dbNamePlaceholder": "数据库名称",
     "loadDatabases": "加载数据库",
@@ -2174,6 +2181,7 @@
     "noReleaseTitle": "尚无适用于您平台的可安装版本。",
     "noReleaseBody": "此驱动程序没有适用于您的操作系统/架构的可下载构建。请查看注册表以获取更新版本。",
     "notInstalled": "此驱动程序尚未安装。请安装以配置连接。",
+    "spreadsheetExtensionHint": "打开 Excel、WPS 或 ODS 工作簿时将自动安装 rusty-sheet 扩展，无需手动执行 INSTALL/LOAD。",
     "installVersion": "安装 v{{version}}",
     "installingVersion": "正在安装 v{{version}}…",
     "retryInstall": "重试安装",
@@ -2183,7 +2191,8 @@
     "readmeLoading": "正在加载 README…",
     "readmeUnavailable": "此插件没有可用的 README。",
     "readmeFallbackLocale": "此 README 尚不支持您的语言 — 以“{{locale}}”显示。",
-    "openDocumentation": "打开完整文档"
+    "openDocumentation": "打开完整文档",
+    "spreadsheetExtensionHint": "打开 Excel、WPS 或 ODS 工作簿时将自动安装 rusty-sheet 扩展，无需手动执行 INSTALL/LOAD。"
   },
   "connectionErrors": {
     "ssh-auth": {

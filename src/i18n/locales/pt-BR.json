@@ -1036,7 +1036,10 @@
     "chooseDatabases": "Escolher bancos de dados",
     "allDatabasesHint": "Ao conectar, todos os bancos de dados do servidor são carregados automaticamente. Bancos criados ou removidos no servidor aparecem sozinhos — sem editar esta conexão.",
     "selectDatabasesHint": "Selecione os bancos de dados a incluir nesta conexão.",
-    "loadDatabasesHint": "Clique em Carregar bancos de dados para buscar os disponíveis."
+    "loadDatabasesHint": "Clique em Carregar bancos de dados para buscar os disponíveis.",
+    "supportedFiles": "Supported files",
+    "allFiles": "All files",
+    "spreadsheetWorkbookHint": "You can also open Excel, WPS, or ODS workbooks. Each sheet becomes a table; the rusty-sheet extension is installed automatically."
   },
   "sshConnections": {
     "title": "Conexões SSH",
@@ -2294,7 +2297,8 @@
     "readmeLoading": "Carregando README…",
     "readmeUnavailable": "Nenhum README disponível para este plugin.",
     "readmeFallbackLocale": "Este README ainda não está disponível no seu idioma — exibido em “{{locale}}”.",
-    "openDocumentation": "Abrir a documentação completa"
+    "openDocumentation": "Abrir a documentação completa",
+    "spreadsheetExtensionHint": "Opening Excel, WPS, or ODS workbooks will automatically install the rusty-sheet DuckDB extension — no manual INSTALL/LOAD commands needed."
   },
   "connectionErrors": {
     "ssh-auth": {

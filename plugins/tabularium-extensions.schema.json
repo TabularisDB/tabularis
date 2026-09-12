@@ -78,6 +78,12 @@
           "type": "boolean",
           "description": "Connection points at a directory (e.g. CSV folder). Replaces host/port with a folder picker."
         },
+        "file_extensions": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 16 },
+          "maxItems": 32,
+          "description": "Optional file extensions for the connection file picker (without dots), e.g. `[\"duckdb\", \"xlsx\"]`. When omitted, any file is accepted."
+        },
         "connection_string": {
           "type": "boolean",
           "description": "Show the connection-string import field on the connection modal. Default `true` for network drivers."

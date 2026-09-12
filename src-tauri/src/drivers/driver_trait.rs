@@ -59,6 +59,10 @@ pub struct DriverCapabilities {
     /// Folder-based database (e.g. CSV directory); connection points to a directory instead of a file.
     #[serde(default)]
     pub folder_based: bool,
+    /// Optional file extensions for the connection file picker (without dots),
+    /// e.g. `["duckdb", "xlsx", "ods"]`. When empty, the picker accepts any file.
+    #[serde(default, alias = "fileExtensions")]
+    pub file_extensions: Vec<String>,
     /// The driver exposes a single implicit database, so there is nothing to
     /// select or name (e.g. a flat search/document store like Meilisearch).
     /// Skips the database tab and the database-name field in the connection

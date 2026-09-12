@@ -56,6 +56,10 @@ import { useK8sPathOverrides } from "../../hooks/useK8sPathOverrides";
 import { useLatestAsync } from "../../hooks/useLatestAsync";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
 import { isMultiDatabaseCapable } from "../../utils/database";
+import {
+  filePickerExtensions,
+  supportsSpreadsheetFiles,
+} from "../../utils/driverCapabilities";
 import { updateExtraField } from "../../utils/connections";
 import { toErrorMessage } from "../../utils/errors";
 import {
@@ -2456,9 +2460,31 @@ export const NewConnectionModal = ({
             <button
               type="button"
               onClick={async () => {
+                const extensions = filePickerExtensions(
+                  activeDriver.capabilities,
+                );
                 const selected = await open({
                   multiple: false,
                   directory: activeDriver.capabilities.folder_based,
+                  ...(extensions.length > 0 &&
+                  !activeDriver.capabilities.folder_based
+                    ? {
+                        filters: [
+                          {
+                            name: t("newConnection.supportedFiles", {
+                              defaultValue: "Supported files",
+                            }),
+                            extensions,
+                          },
+                          {
+                            name: t("newConnection.allFiles", {
+                              defaultValue: "All files",
+                            }),
+                            extensions: ["*"],
+                          },
+                        ],
+                      }
+                    : {}),
                 });
                 if (selected) updateField("database", selected);
               }}
@@ -2489,6 +2515,14 @@ export const NewConnectionModal = ({
                 </button>
               )}
           </div>
+          {supportsSpreadsheetFiles(activeDriver.capabilities) && (
+            <p className="text-[11px] leading-relaxed text-muted">
+              {t("newConnection.spreadsheetWorkbookHint", {
+                defaultValue:
+                  "You can also open Excel, WPS, or ODS workbooks. Each sheet becomes a table; the rusty-sheet extension is installed automatically.",
+              })}
+            </p>
+          )}
         </div>
       ) : (
         <>

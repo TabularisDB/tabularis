@@ -6,6 +6,11 @@ export interface DriverCapabilities {
   routines: boolean;
   file_based: boolean;
   folder_based: boolean;
+  /** Optional file extensions for the connection file picker (no dots),
+   * e.g. ["duckdb", "xlsx", "ods"]. When absent/empty, any file is accepted. */
+  file_extensions?: string[];
+  /** CamelCase alias accepted for plugin compatibility. */
+  fileExtensions?: string[];
   /** The driver exposes a single implicit database (e.g. a flat search/document
    * store like Meilisearch). Skips the database tab + database-name field. */
   single_database?: boolean;
