@@ -305,6 +305,8 @@ Tabularis is **hackable with an external plugin system**. Plugins are standalone
 
 Configuration is stored in `~/.config/tabularis/` (Linux), `~/Library/Application Support/tabularis/` (macOS), or `%APPDATA%\tabularis\` (Windows): connection profiles, saved queries, app settings (`config.json`), custom themes, and per-connection editor preferences. You can move this folder from **Settings > Storage** (or with the `TABULARIS_DATA_DIR` environment variable), for example to an iCloud Drive or Dropbox folder to sync connections across machines; installed plugins always stay local. Tabs and queries are restored when you reopen a connection. The wiki covers the full file layout and every `config.json` option, including custom AI model overrides.
 
+On Linux, **Follow System** reads the XDG desktop settings portal's `org.freedesktop.appearance/color-scheme` preference and follows its live updates, including GNOME's dark-mode toggle with the standard Adwaita GTK theme. The resolved light/dark theme is applied explicitly to GTK window decorations and the webview. If the portal is unavailable or reports no preference, Tabularis falls back to the native window theme, then the browser media query. macOS and Windows use native theme notifications. See [the portal specification](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Settings.html).
+
 ### AI Features (Optional)
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/ai-assistant)

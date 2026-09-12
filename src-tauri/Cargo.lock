@@ -6518,6 +6518,7 @@ dependencies = [
  "urlencoding",
  "uuid",
  "which",
+ "zbus 5.14.0",
  "zip",
 ]
 
@@ -7232,6 +7233,7 @@ dependencies = [
  "signal-hook-registry",
  "socket2",
  "tokio-macros",
+ "tracing",
  "windows-sys 0.61.2",
 ]
 
@@ -9182,6 +9184,7 @@ dependencies = [
  "rustix",
  "serde",
  "serde_repr",
+ "tokio",
  "tracing",
  "uds_windows",
  "uuid",

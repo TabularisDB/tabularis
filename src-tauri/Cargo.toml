@@ -96,6 +96,7 @@ roxmltree = "0.20"
 # GTK dependencies for Wayland window title workaround (Linux only)
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
+zbus = { version = "5.14", default-features = false, features = ["tokio"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
