@@ -56,44 +56,37 @@ function resultToCte(
   const cached = variants?.get(variantKey);
   if (cached !== undefined) return cached;
 
-  const cte = buildResultCte(result, alias, escapeBackslashes);
+  let cte: string;
+  if (result.rows.length === 0) {
+    const emptyCols = result.columns
+      .map((col) => `NULL AS ${quoteIdentifier(col)}`)
+      .join(", ");
+    cte = `${alias} AS (SELECT ${emptyCols} WHERE 1=0)`;
+  } else {
+    const selects = result.rows.map((row) => {
+      const cols = result.columns
+        .map((col, i) => {
+          const val = row[i];
+          const ident = quoteIdentifier(col);
+          if (val === null || val === undefined) return `NULL AS ${ident}`;
+          if (typeof val === "number" && Number.isFinite(val)) {
+            return `${val} AS ${ident}`;
+          }
+          const escaped = escapeStringLiteral(String(val), escapeBackslashes);
+          return `'${escaped}' AS ${ident}`;
+        })
+        .join(", ");
+      return `SELECT ${cols}`;
+    });
+    cte = `${alias} AS (\n  ${selects.join("\n  UNION ALL\n  ")}\n)`;
+  }
+
   if (!variants) {
     variants = new Map();
     cteCache.set(result, variants);
   }
   variants.set(variantKey, cte);
   return cte;
-}
-
-function buildResultCte(
-  result: QueryResult,
-  alias: string,
-  escapeBackslashes: boolean,
-): string {
-  if (result.rows.length === 0) {
-    const emptyCols = result.columns
-      .map((col) => `NULL AS ${quoteIdentifier(col)}`)
-      .join(", ");
-    return `${alias} AS (SELECT ${emptyCols} WHERE 1=0)`;
-  }
-
-  const selects = result.rows.map((row) => {
-    const cols = result.columns
-      .map((col, i) => {
-        const val = row[i];
-        const ident = quoteIdentifier(col);
-        if (val === null || val === undefined) return `NULL AS ${ident}`;
-        if (typeof val === "number" && Number.isFinite(val)) {
-          return `${val} AS ${ident}`;
-        }
-        const escaped = escapeStringLiteral(String(val), escapeBackslashes);
-        return `'${escaped}' AS ${ident}`;
-      })
-      .join(", ");
-    return `SELECT ${cols}`;
-  });
-
-  return `${alias} AS (\n  ${selects.join("\n  UNION ALL\n  ")}\n)`;
 }
 
 export interface ResolvedQuery {
