@@ -6,11 +6,13 @@ import {
   type ReactNode,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ThemeContext } from "./ThemeContext";
 import { themeRegistry } from "../themes/themeRegistry";
 import { applyThemeToCSS } from "../themes/themeUtils";
 import { getSystemThemeId, resolveActiveThemeId } from "../utils/themeManagement";
+import { isLinuxDesktop } from "../utils/systemTheme";
 import type { Theme, ThemeSettings } from "../types/theme";
 
 const DEFAULT_THEME_SETTINGS: ThemeSettings = {
@@ -37,6 +39,16 @@ interface AppConfig {
 }
 
 const getSystemIsDark = async (): Promise<boolean> => {
+  if (isLinuxDesktop()) {
+    try {
+      const portalTheme = await invoke<"dark" | "light" | null>(
+        "get_linux_system_theme",
+      );
+      if (portalTheme) return portalTheme === "dark";
+    } catch {
+      // The desktop portal may be unavailable, including in browser previews.
+    }
+  }
   try {
     const nativeTheme = await getCurrentWindow().theme();
     if (nativeTheme) return nativeTheme === "dark";
@@ -50,10 +62,50 @@ const getSystemIsDark = async (): Promise<boolean> => {
 const listenForSystemThemeChanges = async (
   onChange: (isDark: boolean) => void,
 ): Promise<() => void> => {
+  if (isLinuxDesktop()) {
+    let disposed = false;
+    let revision = 0;
+    const refresh = async () => {
+      const request = ++revision;
+      const isDark = await getSystemIsDark();
+      if (!disposed && request === revision) onChange(isDark);
+    };
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+      void refresh();
+    };
+    mediaQuery.addEventListener("change", handleChange);
+    let stopPortal: (() => void) | undefined;
+    try {
+      stopPortal = await listen("linux-system-theme-changed", handleChange);
+    } catch {
+      // Keep the media-query fallback when native event delivery is unavailable.
+    }
+    // Subscribe before reading so changes during startup are not missed.
+    await refresh();
+    return () => {
+      disposed = true;
+      stopPortal?.();
+      mediaQuery.removeEventListener("change", handleChange);
+    };
+  }
   try {
-    return await getCurrentWindow().onThemeChanged(({ payload }) => {
-      onChange(payload === "dark");
+    let disposed = false;
+    let revision = 0;
+    const stopNative = await getCurrentWindow().onThemeChanged(({ payload }) => {
+      const request = ++revision;
+      if (payload === null) {
+        void getSystemIsDark().then((isDark) => {
+          if (!disposed && request === revision) onChange(isDark);
+        });
+      } else {
+        onChange(payload === "dark");
+      }
     });
+    return () => {
+      disposed = true;
+      stopNative();
+    };
   } catch {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = (event: MediaQueryListEvent) => {
@@ -190,7 +242,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         ? "dark"
         : "light";
       getCurrentWindow()
-        .setTheme(settings.followSystemTheme ? null : windowTheme)
+        .setTheme(
+          settings.followSystemTheme && !isLinuxDesktop() ? null : windowTheme,
+        )
         .catch((error) =>
           console.error("Failed to set window theme:", error),
         );
@@ -215,7 +269,8 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     let disposed = false;
     let stopListening: (() => void) | undefined;
     const handleChange = (isDark: boolean) => {
-      const newThemeId = getSystemThemeId(isDark, settings);
+      if (disposed) return;
+      const newThemeId = isDark ? settings.darkThemeId : settings.lightThemeId;
       const newTheme =
         allThemes.find((t) => t.id === newThemeId) ||
         themeRegistry.getPreset(
@@ -239,7 +294,12 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       disposed = true;
       stopListening?.();
     };
-  }, [settings, allThemes]);
+  }, [
+    settings.followSystemTheme,
+    settings.darkThemeId,
+    settings.lightThemeId,
+    allThemes,
+  ]);
 
   const setTheme = useCallback(
     async (themeId: string) => {
