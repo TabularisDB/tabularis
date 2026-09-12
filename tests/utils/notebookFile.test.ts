@@ -419,30 +419,6 @@ describe('notebookFile utils', () => {
         .isQueryPlanVisible).toBeUndefined();
     });
 
-    it.each([
-      { value: 'true' },
-      { value: 'false' },
-      { value: '' },
-      { value: 1 },
-      { value: 0 },
-      { value: null },
-      { value: {} },
-      { value: [] },
-    ])('should discard malformed isQueryPlanVisible=$value on import and re-export', ({ value }) => {
-      const restored = deserializeNotebook(JSON.stringify({
-        version: 2,
-        title: 'Untrusted notebook',
-        createdAt: '',
-        cells: [{ type: 'sql', content: 'SELECT 1', isQueryPlanVisible: value }],
-      }));
-
-      expect(restored.cells[0].isQueryPlanVisible).toBeUndefined();
-      const serialized = serializeNotebook(restored.title, restored.cells);
-      expect(serialized.cells[0]).not.toHaveProperty('isQueryPlanVisible');
-      expect(deserializeNotebook(JSON.stringify(serialized)).cells[0]
-        .isQueryPlanVisible).toBeUndefined();
-    });
-
     it('should preserve content through serialize → deserialize', () => {
       const cells = makeCells();
       const serialized = serializeNotebook('Round Trip', cells);

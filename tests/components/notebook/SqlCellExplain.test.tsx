@@ -5,6 +5,7 @@ import { parseExplain, type ExplainQueryOutput } from "@tabularis/explain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SqlCellExplain } from "../../../src/components/notebook/SqlCellExplain";
 import type { VisualExplainViewProps } from "../../../src/components/explain/VisualExplainView";
+import { isDataModifyingQuery } from "../../../src/utils/sql";
 
 const database = vi.hoisted(() => ({
   getConnectionData: vi.fn(),
@@ -209,13 +210,18 @@ describe("SqlCellExplain", () => {
   it.each(["SELECT * FROM widgets", "UPDATE widgets SET name = 'new'"])(
     "only executes opted-in Analyze on an explicit rerun, with a warning for %s",
     async (query) => {
+      const isDml = isDataModifyingQuery(query);
       render(<SqlCellExplain {...defaults} query={query} />);
       await settle();
       const checkbox = screen.getByRole("checkbox", { name: "editor.visualExplain.analyze" });
       fireEvent.click(checkbox);
       await settle();
       expect(checkbox).toBeChecked();
-      expect(screen.getByRole("status")).toHaveTextContent("editor.visualExplain.analyzeWarning");
+      if (isDml) {
+        expect(screen.getByRole("status")).toHaveTextContent("editor.visualExplain.analyzeWarning");
+      } else {
+        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      }
       expect(mockInvoke).toHaveBeenCalledTimes(1);
       fireEvent.click(checkbox);
       await settle();

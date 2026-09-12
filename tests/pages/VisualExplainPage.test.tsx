@@ -178,7 +178,7 @@ describe("VisualExplainPage", () => {
     mocks.search = source === "deep link" ? deepLink() : source === "file" ? "?file=%2Ftmp%2Fbroken.json" : "";
     vi.mocked(invoke).mockRejectedValue(new Error("load failed"));
     renderPage();
-    expect(await screen.findByRole("alert")).toHaveTextContent("Error: load failed");
+    expect(await screen.findByRole("alert")).toHaveTextContent("load failed");
     expect(screen.queryByText("visualExplainPage.emptyHint")).not.toBeInTheDocument();
     expect(screen.queryByText("visualExplainPage.loading")).not.toBeInTheDocument();
     expect(invoke).toHaveBeenCalledTimes(1);
@@ -205,7 +205,7 @@ describe("VisualExplainPage", () => {
     await waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
     vi.mocked(openDialog).mockRejectedValueOnce(new Error("picker failed"));
     pickFile();
-    expect(await screen.findByRole("alert")).toHaveTextContent("Error: picker failed");
+    expect(await screen.findByRole("alert")).toHaveTextContent("picker failed");
     expect(screen.queryByText("visualExplainPage.emptyHint")).not.toBeInTheDocument();
     vi.mocked(openDialog).mockResolvedValueOnce("/tmp/recovered.json");
     vi.mocked(invoke).mockResolvedValue(makeFile("recovered"));

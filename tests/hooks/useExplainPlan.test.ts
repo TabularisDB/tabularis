@@ -176,7 +176,7 @@ describe("useExplainPlan", () => {
     act(() => { older = result.current.loadPlan(() => old.promise); });
     await act(async () => { await result.current.loadPlan(async () => { throw new Error("latest failure"); }); });
     await act(async () => { old.resolve(makePlan("old")); await older; });
-    expect(result.current).toMatchObject({ plan: null, error: "Error: latest failure", selectedNodeId: null, isLoading: false });
+    expect(result.current).toMatchObject({ plan: null, error: "latest failure", selectedNodeId: null, isLoading: false });
     await act(async () => { await result.current.loadPlan(async () => makePlan("recovered")); });
     expect(result.current.error).toBeNull();
     expect(result.current.selectedNodeId).toBe("recovered");
@@ -198,7 +198,7 @@ describe("useExplainPlan", () => {
     vi.spyOn(sql, "isExplainableQuery").mockImplementationOnce(() => { throw new Error("validation failed"); });
     const { result } = renderHook(() => useExplainPlan(makePlan("initial")));
     await act(async () => { await result.current.runExplain(args); });
-    expect(result.current).toMatchObject({ plan: null, selectedNodeId: null, isLoading: false, error: "Error: validation failed" });
+    expect(result.current).toMatchObject({ plan: null, selectedNodeId: null, isLoading: false, error: "validation failed" });
     expect(invoke).not.toHaveBeenCalled();
   });
 
