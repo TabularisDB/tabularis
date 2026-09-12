@@ -4,7 +4,11 @@ import { Monitor, Code2 } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
 import { useTheme } from "../../hooks/useTheme";
-import { getFontCSS } from "../../utils/settings";
+import {
+  DEFAULT_RESULT_FONT_FAMILY,
+  RESULT_FONT_INHERIT,
+  getFontCSS,
+} from "../../utils/settings";
 import {
   SettingSection,
   SettingRow,
@@ -170,6 +174,25 @@ export function AppearanceTab() {
                 onChange={(v) => updateSetting("stickyColumnHeaders", v)}
               />
             </SettingRow>
+            <div className="py-3">
+              <p className="text-sm text-primary">
+                {t("settings.dataGrid.fontFamily")}
+              </p>
+              <p className="text-xs text-muted mb-3">
+                {t("settings.dataGrid.fontFamilyDesc")}
+              </p>
+              <FontPicker
+                value={settings.resultFontFamily ?? DEFAULT_RESULT_FONT_FAMILY}
+                onChange={(f) => updateSetting("resultFontFamily", f)}
+                getPreviewCSS={getFontCSS}
+                inputId="custom-result-font-input"
+                inheritOption={{
+                  value: RESULT_FONT_INHERIT,
+                  label: t("settings.dataGrid.fontSameAsInterface"),
+                  previewCSS: "var(--font-base)",
+                }}
+              />
+            </div>
           </SettingSection>
 
           <ResultColorsSection />

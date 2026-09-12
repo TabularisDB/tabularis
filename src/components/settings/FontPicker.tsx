@@ -9,6 +9,11 @@ interface FontPickerProps {
   onChange: (font: string) => void;
   getPreviewCSS: (fontName: string) => string;
   inputId: string;
+  /**
+   * Optional extra tile rendered before the bundled fonts, e.g. a
+   * "Same as interface" choice. `value` is what gets stored on selection.
+   */
+  inheritOption?: { value: string; label: string; previewCSS: string };
 }
 
 export function FontPicker({
@@ -16,15 +21,44 @@ export function FontPicker({
   onChange,
   getPreviewCSS,
   inputId,
+  inheritOption,
 }: FontPickerProps) {
   const { t } = useTranslation();
-  const isPreset = AVAILABLE_FONTS.some((f) => f.name === value);
+  const isPreset =
+    AVAILABLE_FONTS.some((f) => f.name === value) ||
+    (inheritOption !== undefined && value === inheritOption.value);
   const [customFont, setCustomFont] = useState(() =>
     !isPreset && value ? value : "",
   );
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {inheritOption && (
+        <button
+          onClick={() => onChange(inheritOption.value)}
+          className={clsx(
+            "p-3 rounded-xl border transition-all text-left",
+            value === inheritOption.value
+              ? "bg-surface-secondary border-blue-500 shadow-lg shadow-blue-900/20"
+              : "bg-base border-default hover:border-strong",
+          )}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-primary">
+              {inheritOption.label}
+            </span>
+            {value === inheritOption.value && (
+              <CheckCircle2 size={16} className="text-blue-500" />
+            )}
+          </div>
+          <p
+            className="text-xs text-muted truncate"
+            style={{ fontFamily: inheritOption.previewCSS }}
+          >
+            Aa Bb Cc 123
+          </p>
+        </button>
+      )}
       {AVAILABLE_FONTS.map((font) => (
         <button
           key={font.name}

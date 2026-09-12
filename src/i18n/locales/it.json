@@ -489,6 +489,14 @@
     "fontSizeDesc": "Regola la dimensione base del font usata nell'applicazione (10-20px).",
     "preview": "Anteprima",
     "fontPreviewText": "La volpe marrone salta sopra il cane pigro",
+    "dataGrid": {
+      "title": "Griglia dati",
+      "stickyHeaders": "Intestazioni colonne fisse",
+      "stickyHeadersDesc": "Mantieni le intestazioni delle colonne visibili in alto mentre scorri i risultati.",
+      "fontFamily": "Font dei risultati",
+      "fontFamilyDesc": "Font usato nelle celle dei risultati delle query. Il monospaziato mantiene i valori allineati; scegli \"Come interfaccia\" per riutilizzare il font dell'applicazione.",
+      "fontSameAsInterface": "Come interfaccia"
+    },
     "appearance_general": "Generali",
     "appearance_sqlEditor": "Editor SQL",
     "appearance_editorTheme": "Tema dell'Editor",

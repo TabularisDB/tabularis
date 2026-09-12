@@ -79,6 +79,7 @@
   --font-base: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   --font-size-base: 14px;
   --font-mono: "JetBrains Mono", "Consolas", "Courier New", monospace;
+  --font-result: var(--font-mono);
 
   /* Apply immediately */
   font-family: var(--font-base);
@@ -254,9 +255,12 @@ code {
   .bg-accent-info { background-color: var(--accent-info); }
   
   .font-mono-theme { font-family: var(--font-mono); }
+  /* Query result cells: follows the "Result font" setting */
+  .font-result { font-family: var(--font-result); }
   
   /* Fix for font-mono + truncate on Windows */
-  .font-mono.truncate {
+  .font-mono.truncate,
+  .font-result.truncate {
     min-width: 0;
   }
   

@@ -38,6 +38,49 @@ export function getFontCSS(fontFamily: string): string {
   return FONT_MAP[fontFamily] || fontFamily || FONT_MAP["System"];
 }
 
+/** Sentinel value for `resultFontFamily`: result cells follow the interface font. */
+export const RESULT_FONT_INHERIT = "inherit";
+export const DEFAULT_RESULT_FONT_FAMILY = "JetBrains Mono";
+
+/**
+ * Resolve the CSS font-family for query result cells. `RESULT_FONT_INHERIT`
+ * maps to the interface font variable so the grid tracks the UI font setting.
+ */
+export function getResultFontCSS(resultFontFamily: string | undefined): string {
+  if (!resultFontFamily) return getFontCSS(DEFAULT_RESULT_FONT_FAMILY);
+  if (resultFontFamily === RESULT_FONT_INHERIT) return "var(--font-base)";
+  return getFontCSS(resultFontFamily);
+}
+
+/**
+ * Resolve the font-family the result grid actually renders with. Reads the
+ * computed style of a probe element so `var()` chains (e.g. RESULT_FONT_INHERIT
+ * pointing at `--font-base`) are fully resolved; usable as a canvas `ctx.font`.
+ */
+export function resolveResultFontFamily(): string {
+  if (typeof document === "undefined" || !document.body) {
+    return getResultFontCSS(undefined);
+  }
+  const probe = document.createElement("span");
+  probe.className = "font-result";
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  document.body.appendChild(probe);
+  const family = getComputedStyle(probe).fontFamily;
+  probe.remove();
+  return family || getResultFontCSS(undefined);
+}
+
+export function applyResultFontToDocument(
+  resultFontFamily: string | undefined,
+): void {
+  if (typeof document === "undefined") return;
+  document.documentElement.style.setProperty(
+    "--font-result",
+    getResultFontCSS(resultFontFamily),
+  );
+}
+
 export function createFontCSSVariables(
   fontFamily: string,
   fontSize: number,

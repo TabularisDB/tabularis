@@ -7,7 +7,11 @@ import {
   DEFAULT_SETTINGS,
   type Settings,
 } from "./SettingsContext";
-import { getFontCSS, stripSessionFields } from "../utils/settings";
+import {
+  applyResultFontToDocument,
+  getFontCSS,
+  stripSessionFields,
+} from "../utils/settings";
 
 const LANGUAGE_APPLICATION_TIMEOUT_MS = 3000;
 
@@ -240,6 +244,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         );
         document.body.style.fontFamily = fontFamily;
         document.body.style.fontSize = `${fontSize}px`;
+        applyResultFontToDocument(finalSettings.resultFontFamily);
 
         const languageAlreadyApplied = isLanguageApplied(finalSettings.language);
         if (languageAlreadyApplied) {
@@ -375,6 +380,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       console.warn("Failed to cache font settings:", e);
     }
   }, [settings.fontFamily, settings.fontSize]);
+
+  // Apply query result font
+  useEffect(() => {
+    applyResultFontToDocument(settings.resultFontFamily);
+  }, [settings.resultFontFamily]);
 
   // Apply font size
   useEffect(() => {

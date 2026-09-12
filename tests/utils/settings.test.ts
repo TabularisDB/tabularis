@@ -17,6 +17,10 @@ import {
   detectAIProviderFromKeys,
   shouldDetectAIProvider,
   applyFontToDocument,
+  getResultFontCSS,
+  applyResultFontToDocument,
+  RESULT_FONT_INHERIT,
+  DEFAULT_RESULT_FONT_FAMILY,
   getLanguageForI18n,
   stripSessionFields,
   type FontCache,
@@ -419,6 +423,39 @@ describe('settings', () => {
     });
   });
 
+  describe('getResultFontCSS', () => {
+    it('should default to the bundled monospace font when unset', () => {
+      expect(getResultFontCSS(undefined)).toBe(FONT_MAP[DEFAULT_RESULT_FONT_FAMILY]);
+      expect(getResultFontCSS('')).toBe(FONT_MAP[DEFAULT_RESULT_FONT_FAMILY]);
+    });
+
+    it('should follow the interface font for the inherit sentinel', () => {
+      expect(getResultFontCSS(RESULT_FONT_INHERIT)).toBe('var(--font-base)');
+    });
+
+    it('should map bundled fonts through FONT_MAP', () => {
+      expect(getResultFontCSS('Hack')).toBe(FONT_MAP['Hack']);
+    });
+
+    it('should pass custom fonts through as-is', () => {
+      expect(getResultFontCSS('Comic Sans MS')).toBe('Comic Sans MS');
+    });
+  });
+
+  describe('applyResultFontToDocument', () => {
+    it('should set the --font-result CSS variable', () => {
+      const setProperty = vi.fn();
+      Object.defineProperty(document, 'documentElement', {
+        value: { style: { setProperty } },
+        writable: true,
+      });
+
+      applyResultFontToDocument(RESULT_FONT_INHERIT);
+
+      expect(setProperty).toHaveBeenCalledWith('--font-result', 'var(--font-base)');
+    });
+  });
+
   describe('applyFontToDocument', () => {
     beforeEach(() => {
       // Mock document
@@ -600,6 +637,10 @@ describe('getLanguageForI18n', () => {
 
     it('should not set an editor theme override by default', () => {
       expect(DEFAULT_SETTINGS.editorTheme).toBeUndefined();
+    });
+
+    it('should default the result font to JetBrains Mono', () => {
+      expect(DEFAULT_SETTINGS.resultFontFamily).toBe(DEFAULT_RESULT_FONT_FAMILY);
     });
   });
 

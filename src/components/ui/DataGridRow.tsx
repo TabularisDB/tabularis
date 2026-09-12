@@ -25,6 +25,7 @@ import { isLongTextCellTarget, truncateCellPreview } from "../../utils/text";
 import { getForeignKeyForPreview } from "../../utils/foreignKeys";
 import { getDateInputMode } from "../../utils/dateInput";
 import { renderDefaultCellContent } from "../../utils/dataGridCell";
+import { resolveResultFontFamily } from "../../utils/settings";
 import { GeometryInput } from "./GeometryInput";
 import { DateInput } from "./DateInput";
 import { JsonCell } from "./JsonCell";
@@ -432,7 +433,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
               onContextMenu={(e) =>
                 handleContextMenu(e, rowOriginal, rowIndex, colIndex, colName)
               }
-              className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-mono ${isEditing ? "relative" : "whitespace-nowrap truncate max-w-[300px]"} ${fkForPreview ? "cursor-pointer" : "cursor-text"} ${stateClass} ${selectedColIndices.has(colIndex) || (rangeColBounds !== null && colIndex >= rangeColBounds.minCol && colIndex <= rangeColBounds.maxCol) ? "bg-blue-500/15" : ""} ${isFocused ? "ring-2 ring-inset ring-blue-400" : ""}`}
+              className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? "relative" : "whitespace-nowrap truncate max-w-[300px]"} ${fkForPreview ? "cursor-pointer" : "cursor-text"} ${stateClass} ${selectedColIndices.has(colIndex) || (rangeColBounds !== null && colIndex >= rangeColBounds.minCol && colIndex <= rangeColBounds.maxCol) ? "bg-blue-500/15" : ""} ${isFocused ? "ring-2 ring-inset ring-blue-400" : ""}`}
               title={
                 // The hover tooltip would leak the real value of a masked cell.
                 !isEditing && !isMasked
@@ -485,7 +486,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                             // Open sidebar with the current row
                             openInSidebar(rowIndex, colName);
                           }}
-                          className="w-full bg-base text-primary border-none outline-none p-0 m-0 font-mono"
+                          className="w-full bg-base text-primary border-none outline-none p-0 m-0 font-result"
                         />
                       );
                     }
@@ -552,8 +553,10 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                     const canvas = document.createElement("canvas");
                     const ctx = canvas.getContext("2d");
                     if (ctx) {
-                      ctx.font =
-                        "14px ui-monospace, SFMono-Regular, monospace";
+                      // Measure with the same font the textarea renders in
+                      // (the "Result font" setting), otherwise a proportional
+                      // font would be sized with monospace metrics.
+                      ctx.font = `14px ${resolveResultFontFamily()}`;
                     }
                     const longestLineWidth = ctx
                       ? Math.max(
@@ -597,7 +600,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                           }}
                           onBlur={handleEditCommit}
                           onKeyDown={handleKeyDown}
-                          className="absolute left-0 top-0 max-w-[400px] max-h-[120px] bg-base text-primary border border-blue-500 rounded shadow-lg p-2 font-mono text-sm resize-none z-50 outline-none"
+                          className="absolute left-0 top-0 max-w-[400px] max-h-[120px] bg-base text-primary border border-blue-500 rounded shadow-lg p-2 font-result text-sm resize-none z-50 outline-none"
                         />
                       </>
                     );
