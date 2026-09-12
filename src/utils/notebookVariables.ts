@@ -138,10 +138,11 @@ export function resolveQueryVariables(
   cells: NotebookCell[],
   options?: ResolveVariablesOptions,
 ): ResolvedQuery {
+  if (!hasCellReferences(sql)) return { sql, unresolvedRefs: [] };
+
   const unresolvedRefs: CellReference[] = [];
   const ctes: string[] = [];
   const seen = new Set<number>();
-  // Replace every spelling/occurrence, but materialize each resolved cell once.
   let resolvedSql = sql.replace(new RegExp(CELL_REF_PATTERN.source, "g"), (match: string, number: string) => {
     const cellIndex = Number(number) - 1;
     const targetCell = cells[cellIndex];

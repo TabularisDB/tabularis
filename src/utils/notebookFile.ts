@@ -106,9 +106,7 @@ export function deserializeNotebook(json: string): {
         isQueryCollapsed: cellRaw.isQueryCollapsed as boolean | undefined,
         isResultCollapsed: cellRaw.isResultCollapsed as boolean | undefined,
         isChartVisible: cellRaw.isChartVisible as boolean | undefined,
-        isQueryPlanVisible: typeof cellRaw.isQueryPlanVisible === "boolean"
-          ? cellRaw.isQueryPlanVisible
-          : undefined,
+        isQueryPlanVisible: cellRaw.isQueryPlanVisible as boolean | undefined,
         result: null,
         error: undefined,
         executionTime: null,

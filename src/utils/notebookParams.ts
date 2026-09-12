@@ -45,8 +45,7 @@ export function resolveParams(
   const unresolvedParams: string[] = [];
   let resolvedSql = sql;
 
-  // Replace each unique param by name; the global regex replaces every
-  // occurrence, so processing order doesn't matter.
+  // Process refs in reverse order to avoid index shifting
   const uniqueNames = [...new Set(refs.map((r) => r.name))];
   for (const name of uniqueNames) {
     const value = paramMap.get(name);
