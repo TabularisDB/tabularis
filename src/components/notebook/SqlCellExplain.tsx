@@ -42,7 +42,7 @@ export function SqlCellExplain({
     setSelectedNodeId,
     runExplain,
   } = useExplainPlan();
-  const { sourceKey, analyze, setAnalyze } = useExplainAnalyze({ connectionId, query, schema });
+  const { sourceKey, analyze, setAnalyze, isDml } = useExplainAnalyze({ connectionId, query, schema });
   const [requestedSource, setRequestedSource] = useState<string | null>(null);
   const autoStarted = useRef(false);
   const [height, setHeight] = useState(720);
@@ -65,7 +65,6 @@ export function SqlCellExplain({
       await Promise.resolve();
       if (cancelled || autoStarted.current) return;
       autoStarted.current = true;
-      // Visibility/restoration may request a plan, but never execute ANALYZE.
       await explain(false);
     };
     void start();
@@ -107,7 +106,7 @@ export function SqlCellExplain({
           />
           {t("editor.visualExplain.analyze")}
         </label>
-        {analyze && (
+        {isDml && analyze && (
           <span className="flex items-center gap-1 text-warning-text" role="status">
             <AlertTriangle size={12} />
             {t("editor.visualExplain.analyzeWarning")}

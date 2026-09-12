@@ -5,6 +5,7 @@ import type { ExplainPlan, ExplainQueryOutput } from "@tabularis/explain";
 import { resolveExplainOutput } from "@tabularis/explain";
 import type { ExplainViewMode } from "@tabularis/explain/react";
 import { isExplainableQuery } from "../utils/sql";
+import { toErrorMessage } from "../utils/errors";
 import { useLatestAsync } from "./useLatestAsync";
 
 interface RunExplainArgs {
@@ -31,7 +32,6 @@ export function useExplainPlan(initialPlan: ExplainPlan | null = null) {
   );
   const { run, invalidate: invalidateRequest } = useLatestAsync();
 
-  // Discard work without setting state: safe to call from effect cleanup.
   const invalidate = useCallback(() => {
     invalidateRequest("explain-plan");
   }, [invalidateRequest]);
@@ -55,7 +55,7 @@ export function useExplainPlan(initialPlan: ExplainPlan | null = null) {
         setPlan(result.value.plan);
         setSelectedNodeId(result.value.selectedNodeId);
       } else {
-        setError(String(result.error));
+        setError(toErrorMessage(result.error));
       }
       setIsLoading(false);
     },

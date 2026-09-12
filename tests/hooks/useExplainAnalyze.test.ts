@@ -1,6 +1,12 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { explainSourceKey, useExplainAnalyze } from "../../src/hooks/useExplainAnalyze";
+import { useExplainAnalyze } from "../../src/hooks/useExplainAnalyze";
+
+const sourceKeyOf = (source: {
+  connectionId: string;
+  query: string;
+  schema?: string | null;
+}) => renderHook(() => useExplainAnalyze(source)).result.current.sourceKey;
 
 const source = { connectionId: "connection-1", query: "SELECT * FROM widgets", schema: "analytics" };
 const writes = [
@@ -13,13 +19,13 @@ const writes = [
 ];
 
 describe("useExplainAnalyze", () => {
-  describe("explainSourceKey", () => {
+  describe("sourceKey", () => {
     it.each([
       { name: "an omitted schema", schema: undefined },
       { name: "a null schema", schema: null },
     ])("treats $name as the same source", ({ schema }) => {
-      expect(explainSourceKey({ connectionId: "c", query: "SELECT 1", schema })).toBe(
-        explainSourceKey({ connectionId: "c", query: "SELECT 1", schema: null }),
+      expect(sourceKeyOf({ connectionId: "c", query: "SELECT 1", schema })).toBe(
+        sourceKeyOf({ connectionId: "c", query: "SELECT 1", schema: null }),
       );
     });
 
@@ -29,14 +35,14 @@ describe("useExplainAnalyze", () => {
       { field: "schema", change: { schema: "reporting" } },
     ])("changes with the $field", ({ change }) => {
       const base = { connectionId: "connection-1", query: "SELECT 1", schema: "analytics" };
-      expect(explainSourceKey({ ...base, ...change })).not.toBe(explainSourceKey(base));
+      expect(sourceKeyOf({ ...base, ...change })).not.toBe(sourceKeyOf(base));
     });
   });
 
   it("defaults to off and reports a plain query", () => {
     const { result } = renderHook(() => useExplainAnalyze(source));
     expect(result.current).toMatchObject({ analyze: false, isDml: false });
-    expect(result.current.sourceKey).toBe(explainSourceKey(source));
+    expect(result.current.sourceKey).toBe(sourceKeyOf(source));
   });
 
   it.each([true, false])("defaults a plain query to defaultEnabled=%s", (defaultEnabled) => {
