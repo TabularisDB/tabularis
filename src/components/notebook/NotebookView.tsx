@@ -92,9 +92,10 @@ export function NotebookView({
   const { t } = useTranslation();
   const { activeSchema, activeCapabilities, selectedDatabases, activeDriver } =
     useDatabase();
-  // Share the existing notebook literal-escaping policy with plan preparation.
   const variableOptions = useMemo(
-    () => ({ escapeBackslashes: activeDriver === "mysql" }),
+    () => ({
+      escapeBackslashes: activeDriver === "mysql" || activeDriver === "mariadb",
+    }),
     [activeDriver],
   );
   const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
@@ -916,9 +917,15 @@ export function NotebookView({
               }}
               onRun={() => runCell(cell.id)}
               connectionId={connectionId}
-              explainQuery={cell.type === "sql" && cell.isQueryPlanVisible
-                ? resolveQueryVariables(resolveParams(cell.content.trim(), params).sql, cells, variableOptions)
-                : undefined}
+              explainQuery={
+                cell.type === "sql" && cell.isQueryPlanVisible
+                  ? resolveQueryVariables(
+                      resolveParams(cell.content.trim(), params).sql,
+                      cells,
+                      variableOptions,
+                    )
+                  : undefined
+              }
               activeSchema={cell.schema || effectiveSchema || undefined}
               selectedDatabases={isMultiDb ? selectedDatabases : undefined}
               onSchemaChange={
