@@ -222,7 +222,6 @@ describe("ThemeProvider", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.restoreAllMocks();
   });
 
   it("should provide default theme when backend is empty", async () => {
