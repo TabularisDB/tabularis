@@ -423,7 +423,7 @@
       "applyToDesc": "按流量类别选择是否使用全局代理。未勾选的类别不会使用全局代理。",
       "scopes": {
         "appHttp": "软件本体网络请求",
-        "appHttpDesc": "插件下载、注册表访问、检查更新，以及 WebDAV 备份上传。",
+        "appHttpDesc": "插件下载（含 legacy raw.githubusercontent.com 的 registry.json）、Tabularium 注册表 API、检查更新，以及 WebDAV 备份上传。",
         "database": "数据库连接",
         "databaseDesc": "直连数据库的 TCP（若已走本地 SSH/K8s 隧道则跳过）。",
         "ai": "大模型 endpoint",

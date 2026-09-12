@@ -11,7 +11,7 @@ pub mod types;
 
 pub use http::{
     ai_http_client, app_http_client, app_http_client_012, build_reqwest_012_client,
-    build_reqwest_client, build_reqwest_client_with_timeout,
+    build_reqwest_client, build_reqwest_client_with_timeout, direct_http_client,
 };
 pub use registry::{
     PROXY_SCOPES, SCOPE_AI, SCOPE_APP_HTTP, SCOPE_DATABASE, SCOPE_SSH_TUNNEL,

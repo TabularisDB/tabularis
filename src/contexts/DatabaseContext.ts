@@ -39,7 +39,7 @@ export interface ConnectionAppearance {
 export interface SavedConnection {
   id: string;
   name: string;
-    params: {
+  params: {
     driver: string;
     host?: string;
     database: string | string[];

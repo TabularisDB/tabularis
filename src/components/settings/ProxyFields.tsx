@@ -3,12 +3,14 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { Save } from "lucide-react";
 import { PasswordInput } from "../ui/PasswordInput";
+import { useAlert } from "../../hooks/useAlert";
 import {
   SettingButtonGroup,
   SettingRow,
 } from "./SettingControls";
 import {
   DEFAULT_PROXY_ENDPOINT,
+  clampProxyPort,
   type ProxyEndpoint,
   type ProxyMode,
   type ProxyOverride,
@@ -40,6 +42,7 @@ export function ProxyFields({
   disabled,
 }: ProxyFieldsProps) {
   const { t } = useTranslation();
+  const { showAlert } = useAlert();
   const [password, setPassword] = useState("");
   const [passwordSet, setPasswordSet] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -78,6 +81,8 @@ export function ProxyFields({
       });
       setPassword("");
       await refreshPasswordStatus();
+    } catch (e) {
+      showAlert(String(e), { title: t("common.error"), kind: "error" });
     } finally {
       setSavingPassword(false);
     }
@@ -90,6 +95,8 @@ export function ProxyFields({
       await invoke("delete_proxy_password", { slot: passwordSlot });
       setPassword("");
       await refreshPasswordStatus();
+    } catch (e) {
+      showAlert(String(e), { title: t("common.error"), kind: "error" });
     } finally {
       setSavingPassword(false);
     }
@@ -166,7 +173,7 @@ export function ProxyFields({
               value={endpoint.port || ""}
               disabled={disabled}
               onChange={(e) =>
-                patch({ port: Number(e.target.value) || 0 })
+                patch({ port: clampProxyPort(e.target.value) })
               }
             />
           </SettingRow>

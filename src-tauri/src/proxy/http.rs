@@ -4,6 +4,9 @@ use reqwest::{Client, Proxy};
 use std::time::Duration;
 
 /// Build a `reqwest::Client`, optionally routed through `proxy`.
+///
+/// Always calls `.no_proxy()` first so env/system proxies cannot override an
+/// explicit Disabled / no-proxy choice from app settings.
 pub fn build_reqwest_client(proxy: Option<&ProxyEndpoint>) -> Result<Client, String> {
     build_reqwest_client_with_timeout(proxy, Duration::from_secs(30))
 }
@@ -12,7 +15,7 @@ pub fn build_reqwest_client_with_timeout(
     proxy: Option<&ProxyEndpoint>,
     timeout: Duration,
 ) -> Result<Client, String> {
-    let mut builder = Client::builder().timeout(timeout);
+    let mut builder = Client::builder().timeout(timeout).no_proxy();
     if let Some(endpoint) = proxy {
         let url = endpoint_to_proxy_url(endpoint)?;
         let proxy = Proxy::all(&url).map_err(|e| format!("Invalid proxy URL: {e}"))?;
@@ -29,7 +32,7 @@ pub fn build_reqwest_012_client(
     proxy: Option<&ProxyEndpoint>,
     timeout: Duration,
 ) -> Result<reqwest_012::Client, String> {
-    let mut builder = reqwest_012::Client::builder().timeout(timeout);
+    let mut builder = reqwest_012::Client::builder().timeout(timeout).no_proxy();
     if let Some(endpoint) = proxy {
         let url = endpoint_to_proxy_url(endpoint)?;
         let proxy =
@@ -57,4 +60,9 @@ pub fn app_http_client_012() -> Result<reqwest_012::Client, String> {
 pub fn ai_http_client(provider: &str) -> Result<Client, String> {
     let proxy = super::resolve::resolve_for_ai_provider(provider);
     build_reqwest_client(proxy.as_ref())
+}
+
+/// Unproxied client for loopback targets (e.g. local Ollama).
+pub fn direct_http_client() -> Result<Client, String> {
+    build_reqwest_client(None)
 }

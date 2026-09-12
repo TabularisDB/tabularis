@@ -172,8 +172,16 @@ fn ai_client_for(provider: &str) -> Client {
     })
 }
 
+/// Local Ollama is always on loopback — never send it through a remote proxy.
+fn ollama_http_client() -> Client {
+    crate::proxy::direct_http_client().unwrap_or_else(|e| {
+        log::warn!("Failed to build direct Ollama HTTP client: {e}");
+        Client::new()
+    })
+}
+
 async fn fetch_ollama_models(port: u16) -> Vec<String> {
-    let client = ai_client_for("ollama");
+    let client = ollama_http_client();
     let url = format!("http://localhost:{}/api/tags", port);
     match client.get(&url).send().await {
         Ok(res) => {
@@ -569,7 +577,11 @@ async fn dispatch_provider(
         String::new()
     };
 
-    let client = ai_client_for(&gen_req.provider);
+    let client = if gen_req.provider == "ollama" {
+        ollama_http_client()
+    } else {
+        ai_client_for(&gen_req.provider)
+    };
     match gen_req.provider.as_str() {
         "openai" => generate_openai(&client, &api_key, gen_req, system_prompt).await,
         "anthropic" => generate_anthropic(&client, &api_key, gen_req, system_prompt).await,

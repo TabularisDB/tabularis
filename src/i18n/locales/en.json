@@ -442,7 +442,7 @@
       "applyToDesc": "Opt-in traffic categories. Unchecked categories never use the global proxy.",
       "scopes": {
         "appHttp": "App network requests",
-        "appHttpDesc": "Plugin downloads, registry access, update checks, and WebDAV backup uploads.",
+        "appHttpDesc": "Plugin downloads (including legacy raw.githubusercontent.com registry.json), Tabularium registry API, update checks, and WebDAV backup uploads.",
         "database": "Database connections",
         "databaseDesc": "Direct TCP connections to databases (skipped when already on a local SSH/K8s tunnel).",
         "ai": "AI / LLM endpoints",

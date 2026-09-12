@@ -530,6 +530,7 @@ export function AiTab() {
                   {t("settings.network.providerProxyDesc")}
                 </p>
                 <ProxyOverrideEditor
+                  key={settings.aiProvider}
                   value={
                     settings.aiProviderProxies?.[settings.aiProvider] ??
                     defaultProxyOverride("inherit")

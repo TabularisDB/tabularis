@@ -76,6 +76,15 @@ export const DEFAULT_GLOBAL_PROXY: GlobalProxySettings = {
   scopes: {},
 };
 
+/** Clamp UI/persisted proxy ports to integers in 0..=65535 (0 = unset). */
+export function clampProxyPort(raw: unknown): number {
+  const n = Math.trunc(Number(raw));
+  if (!Number.isFinite(n) || n < 1) {
+    return 0;
+  }
+  return Math.min(65535, n);
+}
+
 export function defaultProxyOverride(
   mode: ProxyMode = "inherit",
 ): ProxyOverride {
@@ -86,7 +95,8 @@ export function defaultProxyOverride(
   };
 }
 
-/** Drop inherit-with-no-endpoint so nothing extra is persisted. */
+/** Drop inherit-with-no-endpoint so nothing extra is persisted.
+ * Invalid custom overrides (blank host / bad port) are also dropped. */
 export function normalizeProxyOverride(
   override: ProxyOverride | undefined | null,
 ): ProxyOverride | undefined {
@@ -96,15 +106,18 @@ export function normalizeProxyOverride(
   if (override.mode === "disabled") {
     return { mode: "disabled" };
   }
+  const host = override.endpoint?.host?.trim() ?? "";
+  const port = clampProxyPort(override.endpoint?.port);
+  if (!host || port < 1) {
+    return undefined;
+  }
   return {
     mode: "custom",
-    endpoint: override.endpoint
-      ? {
-          protocol: override.endpoint.protocol || "http",
-          host: override.endpoint.host?.trim() ?? "",
-          port: Number(override.endpoint.port) || 0,
-          username: override.endpoint.username?.trim() || undefined,
-        }
-      : { ...DEFAULT_PROXY_ENDPOINT },
+    endpoint: {
+      protocol: override.endpoint?.protocol || "http",
+      host,
+      port,
+      username: override.endpoint?.username?.trim() || undefined,
+    },
   };
 }

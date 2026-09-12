@@ -585,6 +585,12 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.proxy.is_some() {
             existing_config.proxy = config.proxy;
+            // Drop cached TCP forwards / SSH tunnels that may have been built
+            // with the previous proxy (password rotation, protocol switch, …).
+            crate::proxy::stop_all_forwards();
+            if let Ok(mut tunnels) = crate::ssh_tunnel::get_tunnels().lock() {
+                tunnels.clear();
+            }
         }
         if config.ai_provider_proxies.is_some() {
             existing_config.ai_provider_proxies = config.ai_provider_proxies;

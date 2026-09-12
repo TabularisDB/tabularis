@@ -46,6 +46,30 @@ describe("proxy types", () => {
     });
   });
 
+  it("drops invalid custom overrides", () => {
+    expect(
+      normalizeProxyOverride({
+        mode: "custom",
+        endpoint: { protocol: "http", host: "", port: 8080 },
+      }),
+    ).toBeUndefined();
+    expect(
+      normalizeProxyOverride({
+        mode: "custom",
+        endpoint: { protocol: "http", host: "proxy", port: 0 },
+      }),
+    ).toBeUndefined();
+    expect(
+      normalizeProxyOverride({
+        mode: "custom",
+        endpoint: { protocol: "http", host: "proxy", port: 99999 },
+      }),
+    ).toEqual({
+      mode: "custom",
+      endpoint: { protocol: "http", host: "proxy", port: 65535 },
+    });
+  });
+
   it("builds keychain slots", () => {
     expect(PROXY_KEYCHAIN_GLOBAL).toBe("proxy:global");
     expect(proxyKeychainAi("openai")).toBe("proxy:ai:openai");

@@ -392,7 +392,28 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
         let remote_host = params.host.as_deref().unwrap_or("localhost");
         let remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
 
-        let map_key = build_tunnel_map_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port);
+        let proxy = crate::proxy::resolve_for_connection(
+            crate::proxy::SCOPE_SSH_TUNNEL,
+            connection_id,
+            proxy_override,
+        );
+        let base_key =
+            build_tunnel_map_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port);
+        let map_key = match &proxy {
+            Some(p) => {
+                let proto = match p.protocol {
+                    crate::proxy::ProxyProtocol::Http => "http",
+                    crate::proxy::ProxyProtocol::Socks5 => "socks5",
+                };
+                let user = p.username.as_deref().unwrap_or("");
+                format!(
+                    "{base_key}|px:{proto}:{}:{}:{user}",
+                    p.host.trim(),
+                    p.port
+                )
+            }
+            None => base_key,
+        };
 
         // Check for existing tunnel
         {
@@ -406,11 +427,7 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
             }
         }
 
-        let (tcp_host, tcp_port) = if let Some(proxy) = crate::proxy::resolve_for_connection(
-            crate::proxy::SCOPE_SSH_TUNNEL,
-            connection_id,
-            proxy_override,
-        ) {
+        let (tcp_host, tcp_port) = if let Some(proxy) = proxy {
             let fwd_port = crate::proxy::ensure_forward(&proxy, ssh_host, ssh_port)?;
             log::info!(
                 "SSH bastion {}:{} reached via proxy forward on 127.0.0.1:{}",

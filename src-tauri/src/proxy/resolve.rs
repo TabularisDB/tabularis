@@ -19,9 +19,15 @@ pub fn keychain_connection(connection_id: &str) -> String {
 
 /// Attach a keychain password onto an endpoint (mutates in place).
 pub fn attach_password(endpoint: &mut ProxyEndpoint, slot: &str) {
-    if let Ok(Some(pwd)) = keychain_utils::get_proxy_password(slot) {
-        if !pwd.is_empty() {
+    match keychain_utils::get_proxy_password(slot) {
+        Ok(Some(pwd)) if !pwd.is_empty() => {
             endpoint.password = Some(pwd);
+        }
+        Ok(_) => {}
+        Err(e) => {
+            log::warn!(
+                "Failed to read proxy password from keychain slot '{slot}': {e}"
+            );
         }
     }
 }
@@ -69,11 +75,14 @@ pub fn resolve(
     }
 }
 
-/// Build a reqwest / URL-style proxy URL (`http://…` or `socks5://…`).
+/// Build a reqwest / URL-style proxy URL (`http://…` or `socks5h://…`).
+///
+/// SOCKS5 uses `socks5h` so the proxy resolves DNS (matches the TCP forwarder
+/// ATYP=domain path and avoids local DNS leaks).
 pub fn endpoint_to_proxy_url(endpoint: &ProxyEndpoint) -> Result<String, String> {
     let scheme = match endpoint.protocol {
         ProxyProtocol::Http => "http",
-        ProxyProtocol::Socks5 => "socks5",
+        ProxyProtocol::Socks5 => "socks5h",
     };
     let host = endpoint.host.trim();
     if host.is_empty() {
@@ -98,9 +107,15 @@ pub fn endpoint_to_proxy_url(endpoint: &ProxyEndpoint) -> Result<String, String>
         _ => String::new(),
     };
 
+    let host_part = if host.parse::<std::net::Ipv6Addr>().is_ok() {
+        format!("[{host}]")
+    } else {
+        host.to_string()
+    };
+
     Ok(format!(
         "{}://{}{}:{}",
-        scheme, auth, host, endpoint.port
+        scheme, auth, host_part, endpoint.port
     ))
 }
 
@@ -146,96 +161,4 @@ pub fn resolve_for_connection(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::collections::HashMap;
-
-    fn endpoint(host: &str, port: u16) -> ProxyEndpoint {
-        ProxyEndpoint {
-            protocol: ProxyProtocol::Http,
-            host: host.into(),
-            port,
-            username: None,
-            password: None,
-        }
-    }
-
-    fn global_on(scopes: &[&str]) -> GlobalProxySettings {
-        let mut map = HashMap::new();
-        for s in scopes {
-            map.insert((*s).to_string(), true);
-        }
-        GlobalProxySettings {
-            enabled: true,
-            endpoint: Some(endpoint("proxy.example", 8080)),
-            scopes: map,
-        }
-    }
-
-    #[test]
-    fn inherit_uses_global_when_scope_on() {
-        let g = global_on(&[registry::SCOPE_APP_HTTP]);
-        let got = resolve(&g, registry::SCOPE_APP_HTTP, None, None).unwrap();
-        assert_eq!(got.host, "proxy.example");
-        assert_eq!(got.port, 8080);
-    }
-
-    #[test]
-    fn inherit_skips_when_scope_off() {
-        let g = global_on(&[registry::SCOPE_AI]);
-        assert!(resolve(&g, registry::SCOPE_APP_HTTP, None, None).is_none());
-    }
-
-    #[test]
-    fn inherit_skips_when_global_disabled() {
-        let mut g = global_on(&[registry::SCOPE_APP_HTTP]);
-        g.enabled = false;
-        assert!(resolve(&g, registry::SCOPE_APP_HTTP, None, None).is_none());
-    }
-
-    #[test]
-    fn disabled_beats_global() {
-        let g = global_on(&[registry::SCOPE_DATABASE]);
-        let ov = ProxyOverride {
-            mode: ProxyMode::Disabled,
-            endpoint: None,
-        };
-        assert!(resolve(&g, registry::SCOPE_DATABASE, Some(&ov), None).is_none());
-    }
-
-    #[test]
-    fn custom_beats_global() {
-        let g = global_on(&[registry::SCOPE_DATABASE]);
-        let ov = ProxyOverride {
-            mode: ProxyMode::Custom,
-            endpoint: Some(endpoint("custom.proxy", 1080)),
-        };
-        let got = resolve(&g, registry::SCOPE_DATABASE, Some(&ov), None).unwrap();
-        assert_eq!(got.host, "custom.proxy");
-        assert_eq!(got.port, 1080);
-    }
-
-    #[test]
-    fn custom_empty_host_yields_none() {
-        let g = global_on(&[registry::SCOPE_AI]);
-        let ov = ProxyOverride {
-            mode: ProxyMode::Custom,
-            endpoint: Some(endpoint("  ", 1080)),
-        };
-        assert!(resolve(&g, registry::SCOPE_AI, Some(&ov), None).is_none());
-    }
-
-    #[test]
-    fn proxy_url_http_and_socks() {
-        let mut ep = endpoint("127.0.0.1", 7890);
-        assert_eq!(
-            endpoint_to_proxy_url(&ep).unwrap(),
-            "http://127.0.0.1:7890"
-        );
-        ep.protocol = ProxyProtocol::Socks5;
-        ep.username = Some("u".into());
-        ep.password = Some("p@ss".into());
-        let url = endpoint_to_proxy_url(&ep).unwrap();
-        assert!(url.starts_with("socks5://u:p%40ss@127.0.0.1:7890"));
-    }
-}
+mod tests;

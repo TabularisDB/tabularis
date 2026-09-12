@@ -4,16 +4,16 @@
 //! dial `target_host:target_port` via the proxy, then bidirectional-copy.
 
 use super::types::{ProxyEndpoint, ProxyProtocol};
+use base64::Engine;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
+use std::net::{IpAddr, Ipv6Addr, Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
-const IO_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Clone)]
 pub struct ProxyTcpForward {
@@ -27,15 +27,26 @@ fn forwards() -> &'static Mutex<HashMap<String, ProxyTcpForward>> {
     FORWARDS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// Cache key for a forward. Includes protocol and username so rotating
+/// credentials / switching HTTP↔SOCKS5 does not reuse a stale listener.
+/// Password changes are handled by [`stop_all_forwards`] on proxy config save.
 pub fn build_forward_key(
-    proxy_host: &str,
-    proxy_port: u16,
+    proxy: &ProxyEndpoint,
     target_host: &str,
     target_port: u16,
 ) -> String {
+    let proto = match proxy.protocol {
+        ProxyProtocol::Http => "http",
+        ProxyProtocol::Socks5 => "socks5",
+    };
+    let user = proxy.username.as_deref().unwrap_or("");
     format!(
-        "{}:{}->{}:{}",
-        proxy_host, proxy_port, target_host, target_port
+        "{proto}:{}:{}:{}->{}:{}",
+        proxy.host.trim(),
+        proxy.port,
+        user,
+        target_host,
+        target_port
     )
 }
 
@@ -45,7 +56,7 @@ pub fn ensure_forward(
     target_host: &str,
     target_port: u16,
 ) -> Result<u16, String> {
-    let key = build_forward_key(&proxy.host, proxy.port, target_host, target_port);
+    let key = build_forward_key(proxy, target_host, target_port);
     {
         let map = forwards().lock().map_err(|e| e.to_string())?;
         if let Some(existing) = map.get(&key) {
@@ -104,7 +115,7 @@ impl ProxyTcpForward {
                             {
                                 log::debug!("[ProxyForward] connection error: {e}");
                             }
-                            let _ = stop_conn; // keep alive semantics explicit
+                            let _ = stop_conn;
                         });
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -118,7 +129,6 @@ impl ProxyTcpForward {
             }
         });
 
-        // Brief readiness: ensure the listener is up.
         thread::sleep(Duration::from_millis(20));
         Ok(Self { local_port, stop })
     }
@@ -130,12 +140,22 @@ fn handle_connection(
     target_host: &str,
     target_port: u16,
 ) -> Result<(), String> {
-    let _ = incoming.set_read_timeout(Some(IO_TIMEOUT));
-    let _ = incoming.set_write_timeout(Some(IO_TIMEOUT));
+    let (mut upstream, leftover) = dial_via_proxy(proxy, target_host, target_port)?;
 
-    let mut upstream = dial_via_proxy(proxy, target_host, target_port)?;
-    let _ = upstream.set_read_timeout(Some(IO_TIMEOUT));
-    let _ = upstream.set_write_timeout(Some(IO_TIMEOUT));
+    // Idle DB/SSH sessions must not be killed by a read timeout; only the
+    // CONNECT/SOCKS handshake above uses CONNECT_TIMEOUT.
+    let _ = incoming.set_read_timeout(None);
+    let _ = incoming.set_write_timeout(None);
+    let _ = upstream.set_read_timeout(None);
+    let _ = upstream.set_write_timeout(None);
+
+    // HTTP CONNECT may have already consumed early tunnel bytes (SSH banner /
+    // MySQL greeting) in the same read as the 200 response — replay them.
+    if !leftover.is_empty() {
+        incoming
+            .write_all(&leftover)
+            .map_err(|e| format!("Failed to write CONNECT leftover: {e}"))?;
+    }
 
     let mut incoming_clone = incoming
         .try_clone()
@@ -163,17 +183,22 @@ fn dial_via_proxy(
     proxy: &ProxyEndpoint,
     target_host: &str,
     target_port: u16,
-) -> Result<TcpStream, String> {
-    let proxy_addr = format!("{}:{}", proxy.host.trim(), proxy.port);
-    let stream = TcpStream::connect_timeout(
-        &resolve_addr(&proxy_addr)?,
-        CONNECT_TIMEOUT,
-    )
-    .map_err(|e| format!("Failed to connect to proxy {proxy_addr}: {e}"))?;
+) -> Result<(TcpStream, Vec<u8>), String> {
+    let host = proxy.host.trim();
+    let proxy_addr = if host.contains(':') && !host.starts_with('[') {
+        format!("[{host}]:{}", proxy.port)
+    } else {
+        format!("{host}:{}", proxy.port)
+    };
+    let stream = TcpStream::connect_timeout(&resolve_addr(&proxy_addr)?, CONNECT_TIMEOUT)
+        .map_err(|e| format!("Failed to connect to proxy {proxy_addr}: {e}"))?;
 
     match proxy.protocol {
         ProxyProtocol::Http => http_connect(stream, proxy, target_host, target_port),
-        ProxyProtocol::Socks5 => socks5_connect(stream, proxy, target_host, target_port),
+        ProxyProtocol::Socks5 => {
+            let stream = socks5_connect(stream, proxy, target_host, target_port)?;
+            Ok((stream, Vec::new()))
+        }
     }
 }
 
@@ -185,18 +210,25 @@ fn resolve_addr(addr: &str) -> Result<SocketAddr, String> {
         .ok_or_else(|| format!("No address for {addr}"))
 }
 
+fn format_connect_authority(host: &str, port: u16) -> String {
+    if host.parse::<Ipv6Addr>().is_ok() {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
 fn http_connect(
     mut stream: TcpStream,
     proxy: &ProxyEndpoint,
     target_host: &str,
     target_port: u16,
-) -> Result<TcpStream, String> {
+) -> Result<(TcpStream, Vec<u8>), String> {
     let _ = stream.set_read_timeout(Some(CONNECT_TIMEOUT));
     let _ = stream.set_write_timeout(Some(CONNECT_TIMEOUT));
 
-    let mut request = format!(
-        "CONNECT {target_host}:{target_port} HTTP/1.1\r\nHost: {target_host}:{target_port}\r\n"
-    );
+    let authority = format_connect_authority(target_host, target_port);
+    let mut request = format!("CONNECT {authority} HTTP/1.1\r\nHost: {authority}\r\n");
     if let Some(user) = proxy
         .username
         .as_deref()
@@ -223,24 +255,25 @@ fn http_connect(
             return Err("HTTP CONNECT: proxy closed connection".into());
         }
         collected.extend_from_slice(&buf[..n]);
-        if collected.windows(4).any(|w| w == b"\r\n\r\n") {
-            break;
+        if let Some(header_end) = find_header_end(&collected) {
+            let header = String::from_utf8_lossy(&collected[..header_end]);
+            let status_line = header.lines().next().unwrap_or("");
+            if !status_line.contains(" 200") {
+                return Err(format!("HTTP CONNECT failed: {status_line}"));
+            }
+            let leftover = collected[header_end + 4..].to_vec();
+            let _ = stream.set_read_timeout(None);
+            let _ = stream.set_write_timeout(None);
+            return Ok((stream, leftover));
         }
         if collected.len() > 64 * 1024 {
             return Err("HTTP CONNECT: response too large".into());
         }
     }
+}
 
-    let header_end = collected
-        .windows(4)
-        .position(|w| w == b"\r\n\r\n")
-        .ok_or("HTTP CONNECT: incomplete response")?;
-    let header = String::from_utf8_lossy(&collected[..header_end]);
-    let status_line = header.lines().next().unwrap_or("");
-    if !status_line.contains(" 200") {
-        return Err(format!("HTTP CONNECT failed: {status_line}"));
-    }
-    Ok(stream)
+fn find_header_end(buf: &[u8]) -> Option<usize> {
+    buf.windows(4).position(|w| w == b"\r\n\r\n")
 }
 
 fn socks5_connect(
@@ -259,7 +292,6 @@ fn socks5_connect(
         .filter(|s| !s.is_empty());
     let pass = proxy.password.as_deref().unwrap_or("");
 
-    // Greeting
     if user.is_some() {
         stream
             .write_all(&[0x05, 0x02, 0x00, 0x02])
@@ -304,14 +336,9 @@ fn socks5_connect(
         other => return Err(format!("SOCKS5: unsupported auth method {other}")),
     }
 
-    // CONNECT request — use domain name form (ATYP=0x03)
-    if target_host.len() > 255 {
-        return Err("SOCKS5: target host too long".into());
-    }
     let mut req = Vec::with_capacity(7 + target_host.len());
-    req.extend_from_slice(&[0x05, 0x01, 0x00, 0x03]);
-    req.push(target_host.len() as u8);
-    req.extend_from_slice(target_host.as_bytes());
+    req.extend_from_slice(&[0x05, 0x01, 0x00]);
+    append_socks5_address(&mut req, target_host)?;
     req.push((target_port >> 8) as u8);
     req.push((target_port & 0xff) as u8);
     stream
@@ -327,7 +354,6 @@ fn socks5_connect(
     if hdr[1] != 0x00 {
         return Err(format!("SOCKS5 CONNECT failed with code {}", hdr[1]));
     }
-    // Consume bound address
     match hdr[3] {
         0x01 => {
             let mut skip = [0u8; 6];
@@ -350,40 +376,44 @@ fn socks5_connect(
         other => return Err(format!("SOCKS5: unknown ATYP {other}")),
     }
 
+    let _ = stream.set_read_timeout(None);
+    let _ = stream.set_write_timeout(None);
     Ok(stream)
 }
 
-fn base64_encode(input: &str) -> String {
-    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let bytes = input.as_bytes();
-    let mut out = String::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        let b0 = bytes[i] as u32;
-        let b1 = if i + 1 < bytes.len() {
-            bytes[i + 1] as u32
-        } else {
-            0
-        };
-        let b2 = if i + 2 < bytes.len() {
-            bytes[i + 2] as u32
-        } else {
-            0
-        };
-        let triple = (b0 << 16) | (b1 << 8) | b2;
-        out.push(TABLE[((triple >> 18) & 0x3f) as usize] as char);
-        out.push(TABLE[((triple >> 12) & 0x3f) as usize] as char);
-        if i + 1 < bytes.len() {
-            out.push(TABLE[((triple >> 6) & 0x3f) as usize] as char);
-        } else {
-            out.push('=');
-        }
-        if i + 2 < bytes.len() {
-            out.push(TABLE[(triple & 0x3f) as usize] as char);
-        } else {
-            out.push('=');
-        }
-        i += 3;
+fn append_socks5_address(req: &mut Vec<u8>, host: &str) -> Result<(), String> {
+    if let Ok(IpAddr::V4(v4)) = host.parse::<IpAddr>() {
+        req.push(0x01);
+        req.extend_from_slice(&v4.octets());
+        return Ok(());
     }
-    out
+    if let Ok(IpAddr::V6(v6)) = host.parse::<IpAddr>() {
+        req.push(0x04);
+        req.extend_from_slice(&v6.octets());
+        return Ok(());
+    }
+    // Strip brackets from IPv6 literals like [::1]
+    let unbracketed = host
+        .strip_prefix('[')
+        .and_then(|h| h.strip_suffix(']'))
+        .unwrap_or(host);
+    if let Ok(IpAddr::V6(v6)) = unbracketed.parse::<IpAddr>() {
+        req.push(0x04);
+        req.extend_from_slice(&v6.octets());
+        return Ok(());
+    }
+    if host.len() > 255 {
+        return Err("SOCKS5: target host too long".into());
+    }
+    req.push(0x03);
+    req.push(host.len() as u8);
+    req.extend_from_slice(host.as_bytes());
+    Ok(())
 }
+
+fn base64_encode(input: &str) -> String {
+    base64::engine::general_purpose::STANDARD.encode(input.as_bytes())
+}
+
+#[cfg(test)]
+mod tests;
