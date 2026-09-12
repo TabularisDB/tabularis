@@ -376,71 +376,140 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
         );
     }
 
-    // Handle K8s tunnel
+    // Handle K8s tunnel — result is already on localhost; do not re-proxy.
     if params.k8s_enabled.unwrap_or(false) {
         return resolve_k8s_params(params);
     }
 
-    // Handle SSH tunnel (existing logic)
-    if !params.ssh_enabled.unwrap_or(false) {
-        return Ok(params.clone());
+    let connection_id = params.connection_id.as_deref();
+    let proxy_override = params.proxy.as_ref();
+
+    // Handle SSH tunnel (existing logic), optionally via an SSH-scope proxy.
+    if params.ssh_enabled.unwrap_or(false) {
+        let ssh_host = params.ssh_host.as_deref().ok_or("Missing SSH Host")?;
+        let ssh_port = params.ssh_port.unwrap_or(22);
+        let ssh_user = params.ssh_user.as_deref().ok_or("Missing SSH User")?;
+        let remote_host = params.host.as_deref().unwrap_or("localhost");
+        let remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
+
+        let proxy = crate::proxy::resolve_for_connection(
+            crate::proxy::SCOPE_SSH_TUNNEL,
+            connection_id,
+            proxy_override,
+        );
+        let base_key =
+            build_tunnel_map_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port);
+        let map_key = match &proxy {
+            Some(p) => {
+                let proto = match p.protocol {
+                    crate::proxy::ProxyProtocol::Http => "http",
+                    crate::proxy::ProxyProtocol::Socks5 => "socks5",
+                };
+                let user = p.username.as_deref().unwrap_or("");
+                format!(
+                    "{base_key}|px:{proto}:{}:{}:{user}",
+                    p.host.trim(),
+                    p.port
+                )
+            }
+            None => base_key,
+        };
+
+        // Check for existing tunnel
+        {
+            let tunnels = get_tunnels().lock().unwrap();
+            if let Some(tunnel) = tunnels.get(&map_key) {
+                log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
+                let mut new_params = params.clone();
+                new_params.host = Some("127.0.0.1".to_string());
+                new_params.port = Some(tunnel.local_port);
+                return Ok(new_params);
+            }
+        }
+
+        let (tcp_host, tcp_port) = if let Some(proxy) = proxy {
+            let fwd_port = crate::proxy::ensure_forward(&proxy, ssh_host, ssh_port)?;
+            log::info!(
+                "SSH bastion {}:{} reached via proxy forward on 127.0.0.1:{}",
+                ssh_host,
+                ssh_port,
+                fwd_port
+            );
+            (Some("127.0.0.1".to_string()), Some(fwd_port))
+        } else {
+            (None, None)
+        };
+
+        log::info!(
+            "Creating new SSH tunnel for {}@{}:{}",
+            ssh_user,
+            ssh_host,
+            ssh_port
+        );
+        let tunnel = SshTunnel::new_with_tcp_override(
+            ssh_host,
+            ssh_port,
+            ssh_user,
+            params.ssh_password.as_deref(),
+            params.ssh_key_file.as_deref(),
+            params.ssh_key_passphrase.as_deref(),
+            params.ssh_allow_passphrase_prompt.unwrap_or(false),
+            remote_host,
+            remote_port,
+            tcp_host.as_deref(),
+            tcp_port,
+        )
+        .map_err(|e| {
+            eprintln!("[Connection Error] SSH Tunnel setup failed: {}", e);
+            e
+        })?;
+
+        let local_port = tunnel.local_port;
+        log::info!("SSH tunnel created successfully on port {}", local_port);
+
+        {
+            let mut tunnels = get_tunnels().lock().unwrap();
+            tunnels.insert(map_key, tunnel);
+        }
+
+        let mut new_params = params.clone();
+        new_params.host = Some("127.0.0.1".to_string());
+        new_params.port = Some(local_port);
+        return Ok(new_params);
     }
 
-    let ssh_host = params.ssh_host.as_deref().ok_or("Missing SSH Host")?;
-    let ssh_port = params.ssh_port.unwrap_or(22);
-    let ssh_user = params.ssh_user.as_deref().ok_or("Missing SSH User")?;
-    let remote_host = params.host.as_deref().unwrap_or("localhost");
-    let remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
-
-    let map_key = build_tunnel_map_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port);
-
-    // Check for existing tunnel
-    {
-        let tunnels = get_tunnels().lock().unwrap();
-        if let Some(tunnel) = tunnels.get(&map_key) {
-            log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
-            let mut new_params = params.clone();
-            new_params.host = Some("127.0.0.1".to_string());
-            new_params.port = Some(tunnel.local_port);
-            return Ok(new_params);
+    // Direct DB connection — apply database-scope proxy when configured.
+    let mut resolved = params.clone();
+    if let Some(proxy) = crate::proxy::resolve_for_connection(
+        crate::proxy::SCOPE_DATABASE,
+        connection_id,
+        proxy_override,
+    ) {
+        let host = resolved
+            .host
+            .as_deref()
+            .unwrap_or("localhost")
+            .to_string();
+        let port = resolved.port.unwrap_or(DEFAULT_MYSQL_PORT);
+        if !is_loopback_host(&host) {
+            let fwd_port = crate::proxy::ensure_forward(&proxy, &host, port)?;
+            log::info!(
+                "Database {}:{} reached via proxy forward on 127.0.0.1:{}",
+                host,
+                port,
+                fwd_port
+            );
+            resolved.host = Some("127.0.0.1".to_string());
+            resolved.port = Some(fwd_port);
         }
     }
 
-    // Create new tunnel
-    log::info!(
-        "Creating new SSH tunnel for {}@{}:{}",
-        ssh_user,
-        ssh_host,
-        ssh_port
-    );
-    let tunnel = SshTunnel::new(
-        ssh_host,
-        ssh_port,
-        ssh_user,
-        params.ssh_password.as_deref(),
-        params.ssh_key_file.as_deref(),
-        params.ssh_key_passphrase.as_deref(),
-        params.ssh_allow_passphrase_prompt.unwrap_or(false),
-        remote_host,
-        remote_port,
-    )
-    .map_err(|e| {
-        eprintln!("[Connection Error] SSH Tunnel setup failed: {}", e);
-        e
-    })?;
+    Ok(resolved)
+}
 
-    let local_port = tunnel.local_port;
-    log::info!("SSH tunnel created successfully on port {}", local_port);
-
-    {
-        let mut tunnels = get_tunnels().lock().unwrap();
-        tunnels.insert(map_key, tunnel);
-    }
-
-    let mut new_params = params.clone();
-    new_params.host = Some("127.0.0.1".to_string());
-    new_params.port = Some(local_port);
-    Ok(new_params)
+fn is_loopback_host(host: &str) -> bool {
+    let h = host.trim().to_ascii_lowercase();
+    h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "[::1]"
 }
 
 /// Resolve connection params and set connection_id for stable pooling
@@ -448,9 +517,9 @@ pub fn resolve_connection_params_with_id(
     params: &ConnectionParams,
     connection_id: &str,
 ) -> Result<ConnectionParams, String> {
-    let mut resolved = resolve_connection_params(params)?;
-    resolved.connection_id = Some(connection_id.to_string());
-    Ok(resolved)
+    let mut with_id = params.clone();
+    with_id.connection_id = Some(connection_id.to_string());
+    resolve_connection_params(&with_id)
 }
 
 pub fn get_config_path<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf, String> {

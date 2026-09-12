@@ -80,7 +80,11 @@ fn b64url(segment: &str) -> Result<Vec<u8>, String> {
 /// doesn't break in-flight installs).
 pub async fn fetch_jwks(base_url: &str) -> Result<Vec<Jwk>, String> {
     let url = format!("{}{}", base_url.trim_end_matches('/'), JWKS_PATH);
-    let resp = reqwest::get(&url)
+    let client = crate::proxy::app_http_client()
+        .map_err(|e| format!("JWKS fetch failed: {e}"))?;
+    let resp = client
+        .get(&url)
+        .send()
         .await
         .map_err(|e| format!("JWKS fetch failed: {e}"))?;
     if !resp.status().is_success() {

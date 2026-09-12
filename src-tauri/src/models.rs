@@ -270,6 +270,13 @@ pub struct ConnectionParams {
     /// Absent from the JSON when empty.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub extra: HashMap<String, String>,
+    /// Optional proxy override for this connection (database / SSH traffic).
+    /// Absent or `inherit` falls back to the global proxy scopes.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::proxy::types::skip_optional_proxy_override"
+    )]
+    pub proxy: Option<crate::proxy::ProxyOverride>,
     // Connection ID for stable pooling (not persisted, set at runtime)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,

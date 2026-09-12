@@ -240,10 +240,11 @@ impl WebdavTarget {
             .filter(|u| !u.is_empty())
             .ok_or("WebDAV URL is not configured")?;
         Ok(Self {
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .map_err(|e| format!("Failed to build HTTP client: {e}"))?,
+            http: crate::proxy::build_reqwest_client_with_timeout(
+                crate::proxy::resolve_global_scope(crate::proxy::SCOPE_APP_HTTP).as_ref(),
+                std::time::Duration::from_secs(30),
+            )
+            .map_err(|e| format!("Failed to build HTTP client: {e}"))?,
             base,
             username: config.backup_webdav_username.clone().unwrap_or_default(),
             password: get_target_password("webdav")?.ok_or("WebDAV password is not set")?,

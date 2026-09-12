@@ -165,8 +165,23 @@ fn save_cache(app: &AppHandle, models: &HashMap<String, Vec<String>>) {
 
 // --- Fetchers ---
 
+fn ai_client_for(provider: &str) -> Client {
+    crate::proxy::ai_http_client(provider).unwrap_or_else(|e| {
+        log::warn!("Failed to build proxied AI client for {provider}: {e}");
+        Client::new()
+    })
+}
+
+/// Local Ollama is always on loopback — never send it through a remote proxy.
+fn ollama_http_client() -> Client {
+    crate::proxy::direct_http_client().unwrap_or_else(|e| {
+        log::warn!("Failed to build direct Ollama HTTP client: {e}");
+        Client::new()
+    })
+}
+
 async fn fetch_ollama_models(port: u16) -> Vec<String> {
-    let client = Client::new();
+    let client = ollama_http_client();
     let url = format!("http://localhost:{}/api/tags", port);
     match client.get(&url).send().await {
         Ok(res) => {
@@ -185,7 +200,7 @@ async fn fetch_openai_models(api_key: &str) -> Vec<String> {
     if api_key.is_empty() {
         return Vec::new();
     }
-    let client = Client::new();
+    let client = ai_client_for("openai");
     match client
         .get("https://api.openai.com/v1/models")
         .header("Authorization", format!("Bearer {}", api_key))
@@ -213,7 +228,7 @@ async fn fetch_anthropic_models(api_key: &str) -> Vec<String> {
     if api_key.is_empty() {
         return Vec::new();
     }
-    let client = Client::new();
+    let client = ai_client_for("anthropic");
     match client
         .get("https://api.anthropic.com/v1/models")
         .header("x-api-key", api_key)
@@ -237,7 +252,7 @@ async fn fetch_minimax_models(api_key: &str) -> Vec<String> {
     if api_key.is_empty() {
         return Vec::new();
     }
-    let client = Client::new();
+    let client = ai_client_for("minimax");
     let preferred = MINIMAX_PREFERRED_ENDPOINT.load(Ordering::Relaxed);
     for index in minimax_endpoint_order(preferred) {
         let endpoint = MINIMAX_ENDPOINTS[index];
@@ -259,7 +274,7 @@ async fn fetch_minimax_models(api_key: &str) -> Vec<String> {
 }
 
 async fn fetch_openrouter_models() -> Vec<String> {
-    let client = Client::new();
+    let client = ai_client_for("openrouter");
     match client
         .get("https://openrouter.ai/api/v1/models")
         .send()
@@ -303,7 +318,7 @@ async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String
         return Vec::new();
     }
 
-    let client = Client::new();
+    let client = ai_client_for("custom-openai");
 
     let url = build_api_url(base_url, "/models");
 
@@ -562,7 +577,11 @@ async fn dispatch_provider(
         String::new()
     };
 
-    let client = Client::new();
+    let client = if gen_req.provider == "ollama" {
+        ollama_http_client()
+    } else {
+        ai_client_for(&gen_req.provider)
+    };
     match gen_req.provider.as_str() {
         "openai" => generate_openai(&client, &api_key, gen_req, system_prompt).await,
         "anthropic" => generate_anthropic(&client, &api_key, gen_req, system_prompt).await,

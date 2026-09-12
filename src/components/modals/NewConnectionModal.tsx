@@ -25,6 +25,13 @@ import { listen } from "@tauri-apps/api/event";
 import type { ConnectionAppearance } from "../../contexts/DatabaseContext";
 import { AppearanceSection } from "./NewConnectionModal/AppearanceSection";
 import { MaskingOverridesEditor } from "../settings/MaskingOverridesEditor";
+import { ProxyOverrideEditor } from "../settings/ProxyFields";
+import {
+  defaultProxyOverride,
+  normalizeProxyOverride,
+  proxyKeychainConnection,
+  type ProxyOverride,
+} from "../../types/proxy";
 import { TagSelector } from "./NewConnectionModal/TagSelector";
 import { EnvironmentSelect } from "./NewConnectionModal/EnvironmentSelect";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -149,6 +156,8 @@ interface ConnectionParams {
   // Opaque plugin-specific connection fields, forwarded verbatim to the
   // driver/plugin and persisted as-is in connections.json.
   extra?: Record<string, string>;
+  /** Optional proxy override (inherit / custom / disabled). */
+  proxy?: ProxyOverride;
 }
 
 interface SavedConnection {
@@ -1488,9 +1497,9 @@ export const NewConnectionModal = ({
     [invalidateInlineK8sTest],
   );
 
-  const updateField = (
-    field: keyof ConnectionParams,
-    value: string | number | boolean | undefined,
+  const updateField = <K extends keyof ConnectionParams>(
+    field: K,
+    value: ConnectionParams[K],
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -1509,9 +1518,9 @@ export const NewConnectionModal = ({
     setSshTabError(false);
   }, []);
 
-  const updateSshField = (
-    field: keyof ConnectionParams,
-    value: string | number | boolean | undefined,
+  const updateSshField = <K extends keyof ConnectionParams>(
+    field: K,
+    value: ConnectionParams[K],
   ) => {
     invalidateSshTest();
     updateField(field, value);
@@ -2556,7 +2565,9 @@ export const NewConnectionModal = ({
               <FieldInput
                 label={t("newConnection.port")}
                 value={formData.port}
-                onChange={(v) => updateField("port", v)}
+                onChange={(v) =>
+                  updateField("port", v === "" ? undefined : Number(v))
+                }
                 type="number"
                 placeholder={driver === "mysql" ? "3306" : "5432"}
               />
@@ -2788,6 +2799,39 @@ export const NewConnectionModal = ({
           }}
         />
         </div>
+      </div>
+
+      <div className="space-y-2 border-t border-default pt-4">
+        <label className="text-[10px] uppercase font-semibold tracking-wider text-muted block">
+          {t("settings.network.connectionProxy", {
+            defaultValue: "Proxy",
+          })}
+        </label>
+        <p className="text-xs text-muted leading-snug">
+          {t("settings.network.connectionProxyDesc", {
+            defaultValue:
+              "Override the global proxy for this connection’s database and SSH traffic. When an SSH tunnel is used, the proxy applies to the bastion hop; the local tunnel leg is not re-proxied.",
+          })}
+        </p>
+        <ProxyOverrideEditor
+          value={formData.proxy ?? defaultProxyOverride("inherit")}
+          onChange={(proxy) =>
+            updateField("proxy", normalizeProxyOverride(proxy))
+          }
+          passwordSlot={
+            initialConnection?.id
+              ? proxyKeychainConnection(initialConnection.id)
+              : null
+          }
+        />
+        {!initialConnection?.id && formData.proxy?.mode === "custom" && (
+          <p className="text-xs text-muted">
+            {t("settings.network.passwordAfterSave", {
+              defaultValue:
+                "Save the connection first to store a proxy password in the keychain.",
+            })}
+          </p>
+        )}
       </div>
     </div>
   );

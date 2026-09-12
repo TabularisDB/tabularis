@@ -53,7 +53,14 @@ keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "li
 tauri-plugin-opener = "2"
 once_cell = "1.20"
 csv = "1.4.0"
-reqwest = { version = "0.13.1", features = ["json"] }
+reqwest = { version = "0.13.1", features = ["json", "socks"] }
+# tabularium-sdk pins reqwest 0.12; keep a renamed dep so we can inject a
+# proxied client without colliding with the app's 0.13 Client type.
+reqwest_012 = { package = "reqwest", version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+    "socks",
+] }
 clap = { version = "4.5.56", features = ["derive"] }
 directories = "6.0.0"
 which = "7.0.3"

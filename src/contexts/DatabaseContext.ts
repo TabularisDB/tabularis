@@ -1,5 +1,6 @@
 import { createContext } from 'react';
 import type { DriverCapabilities } from '../types/plugins';
+import type { ProxyOverride } from '../types/proxy';
 
 export interface TableInfo {
   name: string;
@@ -60,6 +61,8 @@ export interface SavedConnection {
      * driver flip drops it (by design — a stored URI belongs to the driver
      * that produced it), so the migration confirm warns before this happens. */
     connection_uri_in_keychain?: boolean;
+    /** Optional proxy override for this connection. */
+    proxy?: ProxyOverride;
   };
   group_id?: string;
   sort_order?: number;

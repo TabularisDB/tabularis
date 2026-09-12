@@ -1,6 +1,10 @@
 import { createContext } from "react";
 import type { AppLanguage } from "../i18n/config";
 import { DEFAULT_MASKING_PATTERNS } from "../utils/columnMasking";
+import type {
+  GlobalProxySettings,
+  ProxyOverride,
+} from "../types/proxy";
 
 export type { AppLanguage };
 export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
@@ -163,6 +167,10 @@ export interface Settings {
   /** Per built-in driver id → migration mode. Defaults to "opt-in" when unset;
    * flipping an entry to "forced" is a separate, later decision. */
   migrationModeByDriver?: Record<string, MigrationMode>;
+  /** Global HTTP/SOCKS5 proxy and opt-in traffic scopes. */
+  proxy?: GlobalProxySettings;
+  /** Per AI-provider proxy overrides. */
+  aiProviderProxies?: Partial<Record<AiProvider, ProxyOverride>>;
 }
 
 export interface SettingsContextType {

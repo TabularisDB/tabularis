@@ -1393,6 +1393,7 @@ mod tests {
             use_iam_auth: None,
             extra: HashMap::new(),
             connection_id: Some("conn-1".to_string()),
+            proxy: None,
         }
     }
 

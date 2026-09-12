@@ -180,10 +180,12 @@ pub async fn download_and_install(
 
     // Download ZIP to memory
     log::info!("Downloading plugin '{}' from: {}", plugin_id, download_url);
+    let client = crate::proxy::app_http_client()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
     let response = tokio::select! {
         biased;
         _ = cancellation.cancelled() => return Err(INSTALL_CANCELLED_ERROR.to_string()),
-        result = reqwest::get(download_url) => {
+        result = client.get(download_url).send() => {
             result.map_err(|e| format!("Failed to download plugin: {}", e))?
         }
     };
