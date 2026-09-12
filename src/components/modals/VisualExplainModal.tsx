@@ -60,6 +60,7 @@ export const VisualExplainModal = ({
     schema,
     defaultEnabled: true,
   });
+  const hasExternalPlan = !!viewState;
   const connectionData = getConnectionData(connectionId);
   const effectiveDriver =
     connectionData?.driver ?? viewState?.plan?.driver ?? plan?.driver ?? "sqlite";
@@ -77,7 +78,7 @@ export const VisualExplainModal = ({
       : databaseLabel;
 
   useEffect(() => {
-    if (!isOpen || viewState) return;
+    if (!isOpen || hasExternalPlan) return;
     let cancelled = false;
     const explain = async () => {
       // Defer the request so StrictMode's setup/cleanup probe cannot run it twice.
@@ -91,7 +92,7 @@ export const VisualExplainModal = ({
       cancelled = true;
       invalidate();
     };
-  }, [isOpen, viewState, query, connectionId, analyze, schema, runExplain, setViewMode, invalidate]);
+  }, [isOpen, hasExternalPlan, query, connectionId, analyze, schema, runExplain, setViewMode, invalidate]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -146,17 +147,19 @@ export const VisualExplainModal = ({
         />
 
         <div className="p-4 border-t border-default bg-base/50 flex items-center gap-4">
-          {!viewState && <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
-            <input
-              type="checkbox"
-              checked={analyze}
-              onChange={(e) => setAnalyze(e.target.checked)}
-              className="rounded border-strong"
-            />
-            {t("editor.visualExplain.analyze")}
-          </label>}
+          {!hasExternalPlan && (
+            <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                checked={analyze}
+                onChange={(e) => setAnalyze(e.target.checked)}
+                className="rounded border-strong"
+              />
+              {t("editor.visualExplain.analyze")}
+            </label>
+          )}
 
-          {!viewState && isDml && (
+          {!hasExternalPlan && isDml && (
             <div className="flex items-center gap-1.5 text-xs text-warning-text">
               <AlertTriangle size={12} />
               <span>{t("editor.visualExplain.analyzeWarning")}</span>
@@ -165,14 +168,16 @@ export const VisualExplainModal = ({
 
           <div className="flex-1" />
 
-          {!viewState && <button
-            onClick={() => runExplain({ connectionId, query, analyze, schema })}
-            disabled={isLoading || !query.trim() || !connectionId}
-            className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-            {t("editor.visualExplain.rerun")}
-          </button>}
+          {!hasExternalPlan && (
+            <button
+              onClick={() => runExplain({ connectionId, query, analyze, schema })}
+              disabled={isLoading || !query.trim() || !connectionId}
+              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+              {t("editor.visualExplain.rerun")}
+            </button>
+          )}
 
           <button
             onClick={onClose}

@@ -35,7 +35,6 @@ export const VisualExplainPage = ({
   const isDeepLink = !!deepLink.query && !!deepLink.connectionId;
 
   const [filePath, setFilePath] = useState<string | null>(initialParamPath);
-  // Guards source discovery (CLI handoff and picker), before a plan load starts.
   const sourceVersion = useRef(0);
   const pickerVersion = useRef(0);
   const {
@@ -70,9 +69,8 @@ export const VisualExplainPage = ({
     const version = ++source.current;
 
     const bootstrap = async () => {
-      // StrictMode cleanup cancels the first setup before it can invoke.
       await Promise.resolve();
-      if (cancelled || version !== sourceVersion.current || initialPlan) return;
+      if (cancelled || version !== source.current || initialPlan) return;
       if (isDeepLink) {
         await runExplain({
           connectionId: deepLink.connectionId!,
@@ -88,12 +86,12 @@ export const VisualExplainPage = ({
       }
       try {
         const pending = await invoke<string | null>("get_pending_explain_file");
-        if (!cancelled && version === sourceVersion.current && pending) {
+        if (!cancelled && version === source.current && pending) {
           setFilePath(pending);
           await loadFile(pending);
         }
       } catch (err) {
-        if (!cancelled && version === sourceVersion.current) {
+        if (!cancelled && version === source.current) {
           await loadPlan(async () => {
             throw err;
           });
