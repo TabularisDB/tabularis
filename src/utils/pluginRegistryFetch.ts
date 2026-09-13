@@ -2,8 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { RegistryPluginWithStatus } from "../types/plugins";
 
-/** Frontend soft TTL — backend also caches; this mainly avoids thrashing. */
-const FRONTEND_TTL_MS = 15 * 60 * 1000;
+/** Frontend soft TTL — backend also persists to disk for 12h across restarts. */
+const FRONTEND_TTL_MS = 12 * 60 * 60 * 1000;
 
 let memoryCache: {
   data: RegistryPluginWithStatus[];
