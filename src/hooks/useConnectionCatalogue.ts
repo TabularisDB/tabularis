@@ -1,7 +1,8 @@
-import { invoke } from '@tauri-apps/api/core';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { PluginManifest, RegistryPluginWithStatus } from '../types/plugins';
+import type { PluginManifest, RegistryPluginWithStatus } from "../types/plugins";
 import {
   builtinToCatalogueDriver,
   groupByEngine,
@@ -10,12 +11,16 @@ import {
   toCatalogueDriver,
   type EngineGroup,
   type ParadigmFacet,
-} from '../utils/connectionCatalogue';
+} from "../utils/connectionCatalogue";
+import {
+  fetchPluginRegistry,
+  invalidatePluginRegistryCache,
+} from "../utils/pluginRegistryFetch";
 
 const BUILTIN_META: Record<string, { engine: string; paradigms: string[] }> = {
-  postgres: { engine: 'postgres', paradigms: ['sql'] },
-  mysql: { engine: 'mysql', paradigms: ['sql'] },
-  sqlite: { engine: 'sqlite', paradigms: ['sql'] },
+  postgres: { engine: "postgres", paradigms: ["sql"] },
+  mysql: { engine: "mysql", paradigms: ["sql"] },
+  sqlite: { engine: "sqlite", paradigms: ["sql"] },
 };
 
 export interface ConnectionCatalogue {
@@ -34,21 +39,24 @@ export function useConnectionCatalogue(): ConnectionCatalogue {
   const [loading, setLoading] = useState(true);
   const [registryOffline, setRegistryOffline] = useState(false);
   const [nonce, setNonce] = useState(0);
+  const forceRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+    const force = forceRef.current;
+    forceRef.current = false;
     void (async () => {
       // setLoading lives inside the async IIFE (not the synchronous effect body)
       // to avoid a cascading render on refresh() per .rules/react.md #2.
       setLoading(true);
       try {
-        const drivers = await invoke<PluginManifest[]>('get_registered_drivers');
+        const drivers = await invoke<PluginManifest[]>("get_registered_drivers");
         if (!cancelled) setRegistered(drivers);
       } catch {
         /* built-ins always have a fallback in useDrivers; ignore here */
       }
       try {
-        const cat = await invoke<RegistryPluginWithStatus[]>('fetch_plugin_registry');
+        const cat = await fetchPluginRegistry({ force });
         if (!cancelled) {
           setRegistry(cat);
           setRegistryOffline(false);
@@ -90,7 +98,42 @@ export function useConnectionCatalogue(): ConnectionCatalogue {
   }, [registered, registry]);
 
   const facets = useMemo(() => paradigmFacets(groups), [groups]);
-  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+  const refresh = useCallback(() => {
+    invalidatePluginRegistryCache();
+    forceRef.current = true;
+    setNonce((n) => n + 1);
+  }, []);
+
+  // Background force-install can land after this hook already cached a
+  // "not installed" catalogue — invalidate so the next mount/open shows
+  // the new plugin without waiting for the soft TTL.
+  useEffect(() => {
+    let mounted = true;
+    let cleanup: (() => void) | null = null;
+    listen("tabularis://plugin-activated", () => {
+      if (!mounted) return;
+      invalidatePluginRegistryCache();
+      forceRef.current = true;
+      setNonce((n) => n + 1);
+    })
+      .then((unlisten) => {
+        if (mounted) {
+          cleanup = unlisten;
+        } else {
+          unlisten();
+        }
+      })
+      .catch((err) => {
+        console.warn(
+          "Failed to subscribe to tabularis://plugin-activated:",
+          err,
+        );
+      });
+    return () => {
+      mounted = false;
+      cleanup?.();
+    };
+  }, []);
 
   return { groups, facets, loading, registryOffline, registry, refresh };
 }
