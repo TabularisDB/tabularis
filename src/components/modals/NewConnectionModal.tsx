@@ -57,6 +57,7 @@ import { useLatestAsync } from "../../hooks/useLatestAsync";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
 import { isMultiDatabaseCapable } from "../../utils/database";
 import { updateExtraField } from "../../utils/connections";
+import { normalizeLocalDatabasePath, sanitizeLocalFilePath } from "../../utils/fsPath";
 import { toErrorMessage } from "../../utils/errors";
 import {
   classifyConnectionError,
@@ -1943,6 +1944,9 @@ export const NewConnectionModal = ({
             setTestLog((previous) => [...previous, entry]);
           },
         );
+        const isLocalPathDriver =
+          activeDriver?.capabilities?.file_based === true ||
+          activeDriver?.capabilities?.folder_based === true;
         const testParamsBase: Partial<ConnectionParams> = {
           driver,
           ...formData,
@@ -1955,7 +1959,14 @@ export const NewConnectionModal = ({
                 (typeof formData.database === "string"
                   ? formData.database
                   : ""))
-            : formData.database,
+            : isLocalPathDriver
+              ? (normalizeLocalDatabasePath(
+                  typeof formData.database === "string" ||
+                    Array.isArray(formData.database)
+                    ? formData.database
+                    : undefined,
+                ) ?? "")
+              : formData.database,
         };
         const testParams = withInlineK8sPaths(
           testParamsBase,
@@ -2149,6 +2160,9 @@ export const NewConnectionModal = ({
       if (!validateInlineK8sSelection()) return;
       if (!validateInlineSshSelection()) return;
 
+      const isLocalPathDriver =
+        activeDriver?.capabilities?.file_based === true ||
+        activeDriver?.capabilities?.folder_based === true;
       const paramsBase: Partial<ConnectionParams> = {
         driver,
         ...formData,
@@ -2166,7 +2180,14 @@ export const NewConnectionModal = ({
             ? typeof formData.database === "string" && formData.database.trim()
               ? formData.database
               : driver
-            : formData.database,
+            : isLocalPathDriver
+              ? (normalizeLocalDatabasePath(
+                  typeof formData.database === "string" ||
+                    Array.isArray(formData.database)
+                    ? formData.database
+                    : undefined,
+                ) ?? formData.database)
+              : formData.database,
       };
       const params = withInlineK8sPaths(paramsBase, inlinePaths.options);
       const appearancePayload =
@@ -2442,6 +2463,12 @@ export const NewConnectionModal = ({
                 typeof formData.database === "string" ? formData.database : ""
               }
               onChange={(e) => updateField("database", e.target.value)}
+              onBlur={(e) => {
+                const cleaned = sanitizeLocalFilePath(e.target.value);
+                if (cleaned !== e.target.value) {
+                  updateField("database", cleaned);
+                }
+              }}
               autoCorrect="off"
               autoCapitalize="off"
               autoComplete="off"

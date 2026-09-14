@@ -7,6 +7,7 @@ import type { DriverCapabilities } from "../types/plugins";
 import { isLocalDriver } from "./driverCapabilities";
 import type { ConnectionParams, DatabaseDriver } from "./connections";
 import { BUILTIN_DRIVER_IDS } from "./connections";
+import { sanitizeLocalFilePath } from "./fsPath";
 
 export interface ParsedConnectionString {
   driver: DatabaseDriver;
@@ -241,7 +242,9 @@ export function parseConnectionString(
       };
     }
 
-    const database = decodeURIComponent(rawPath.replace(/^\//, ""));
+    const database = sanitizeLocalFilePath(
+      decodeURIComponent(rawPath.replace(/^\//, "")),
+    );
     if (!database) {
       return {
         success: false,

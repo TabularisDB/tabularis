@@ -378,12 +378,18 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
 
     // Handle K8s tunnel
     if params.k8s_enabled.unwrap_or(false) {
-        return resolve_k8s_params(params);
+        let mut resolved = resolve_k8s_params(params)?;
+        resolved.database =
+            crate::fs_path::unwrap_database_selection_paths(&resolved.database);
+        return Ok(resolved);
     }
 
     // Handle SSH tunnel (existing logic)
     if !params.ssh_enabled.unwrap_or(false) {
-        return Ok(params.clone());
+        let mut resolved = params.clone();
+        resolved.database =
+            crate::fs_path::unwrap_database_selection_paths(&resolved.database);
+        return Ok(resolved);
     }
 
     let ssh_host = params.ssh_host.as_deref().ok_or("Missing SSH Host")?;
@@ -402,6 +408,8 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
             let mut new_params = params.clone();
             new_params.host = Some("127.0.0.1".to_string());
             new_params.port = Some(tunnel.local_port);
+            new_params.database =
+                crate::fs_path::unwrap_database_selection_paths(&new_params.database);
             return Ok(new_params);
         }
     }
@@ -440,6 +448,8 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
     let mut new_params = params.clone();
     new_params.host = Some("127.0.0.1".to_string());
     new_params.port = Some(local_port);
+    new_params.database =
+        crate::fs_path::unwrap_database_selection_paths(&new_params.database);
     Ok(new_params)
 }
 
@@ -2420,7 +2430,10 @@ pub async fn test_connection<R: Runtime>(
             PathBuf::from(resolved_params.database.primary())
         };
         if !db_path.exists() {
-            let err = format!("Database file not found: {}", resolved_params.database);
+            let err = format!(
+                "Database file not found: {}",
+                resolved_params.database.primary()
+            );
             return Err(emit_test_failure(&app, progress_id, "dbConnect", err));
         }
     }

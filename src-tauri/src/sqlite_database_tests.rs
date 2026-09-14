@@ -28,6 +28,24 @@ fn normalizes_home_relative_sqlite_paths() {
 }
 
 #[test]
+fn strips_quotes_before_expanding_sqlite_paths() {
+    let home = PathBuf::from("/home/dev");
+
+    assert_eq!(
+        expand_sqlite_filename_with_home(r#""~/customer-data""#, Some(&home)),
+        home.join("customer-data")
+    );
+    assert_eq!(
+        expand_sqlite_filename_with_home("'/tmp/app.db'", None),
+        PathBuf::from("/tmp/app.db")
+    );
+    assert_eq!(
+        expand_sqlite_filename_with_home(r#"`C:\data\app.db`"#, None),
+        PathBuf::from(r"C:\data\app.db")
+    );
+}
+
+#[test]
 fn accepts_supported_extensions_case_insensitively() {
     for path in ["data.db", "data.sqlite", "data.sqlite3", "data.SQLITE"] {
         assert_eq!(normalize_sqlite_path(path).unwrap().to_string_lossy(), path);
