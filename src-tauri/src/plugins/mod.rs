@@ -10,6 +10,7 @@ pub mod installer;
 pub mod integrity;
 pub mod manager;
 pub mod registry;
+pub mod registry_cache;
 pub mod rpc;
 pub mod runtime_version;
 pub mod tabularium;

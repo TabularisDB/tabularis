@@ -1,8 +1,11 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
 
 import type { RegistryPluginWithStatus } from "../types/plugins";
 import { toErrorMessage } from "../utils/errors";
+import {
+  fetchPluginRegistry,
+  invalidatePluginRegistryCache,
+} from "../utils/pluginRegistryFetch";
 
 export function usePluginRegistry(): {
   plugins: RegistryPluginWithStatus[];
@@ -14,8 +17,11 @@ export function usePluginRegistry(): {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    invoke<RegistryPluginWithStatus[]>("fetch_plugin_registry")
+  const load = useCallback((force = false) => {
+    if (force) {
+      invalidatePluginRegistryCache();
+    }
+    return fetchPluginRegistry({ force })
       .then((result) => {
         setPlugins(result);
         setError(null);
@@ -29,11 +35,11 @@ export function usePluginRegistry(): {
   const refresh = useCallback(() => {
     setLoading(true);
     setError(null);
-    load();
+    void load(true);
   }, [load]);
 
   useEffect(() => {
-    load();
+    void load(false);
   }, [load]);
 
   return { plugins, loading, error, refresh };

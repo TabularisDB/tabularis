@@ -19,13 +19,28 @@ fn registry_base_url(config: &crate::config::AppConfig) -> &str {
 #[tauri::command]
 pub async fn fetch_plugin_registry(
     app: AppHandle,
+    force: Option<bool>,
 ) -> Result<Vec<RegistryPluginWithStatus>, String> {
+    let force = force.unwrap_or(false);
     let config = crate::config::load_config_internal(&app);
     let base_url = registry_base_url(&config).trim_end_matches('/').to_string();
     // COMPAT(registry-ga): merge the API with the legacy static registry.json so
     // not-yet-migrated plugins stay visible during the transition.
     let legacy_url = crate::plugins::compat::legacy_registry_url(&config);
-    let installed = installer::list_installed()?;
+    // Cache key must change when either registry endpoint changes, otherwise a
+    // soft read could serve the wrong catalogue after the user switches URLs.
+    let registry_key = format!("{base_url}\n{legacy_url}");
+
+    if !force {
+        if let Some(cached) = crate::plugins::registry_cache::get_registry(&registry_key) {
+            return Ok(cached);
+        }
+    } else {
+        // Refresh must re-scan disk so install status / versions are current.
+        crate::plugins::registry_cache::invalidate_installed();
+    }
+
+    let installed = crate::plugins::registry_cache::list_installed_cached()?;
     let installed_ids: Vec<String> = installed.iter().map(|i| i.id.clone()).collect();
     let remote =
         crate::plugins::compat::resolve_registry(&base_url, &legacy_url, &installed_ids).await?;
@@ -45,6 +60,7 @@ pub async fn fetch_plugin_registry(
         })
         .collect();
 
+    crate::plugins::registry_cache::set_registry(&registry_key, result.clone());
     Ok(result)
 }
 
@@ -222,6 +238,7 @@ pub async fn install_plugin(
         .await
         .map_err(|e| format!("Plugin installed but failed to load: {}", e))?;
 
+    crate::plugins::registry_cache::invalidate_all();
     Ok(())
 }
 
@@ -238,13 +255,14 @@ pub async fn uninstall_plugin(plugin_id: String) -> Result<(), String> {
 
     // Remove from filesystem
     installer::uninstall(&plugin_id)?;
+    crate::plugins::registry_cache::invalidate_all();
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn get_installed_plugins() -> Result<Vec<InstalledPluginInfo>, String> {
-    installer::list_installed()
+    crate::plugins::registry_cache::list_installed_cached()
 }
 
 /// Stops the plugin process and removes the driver from the registry.
