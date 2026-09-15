@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" font-family="JetBrains Mono, monospace">
+  <!-- Background -->
+  <rect width="900" height="500" fill="#1a1b26"/>
+
+  <!-- Header with mode toggle -->
+  <rect x="0" y="0" width="900" height="44" fill="#24283b"/>
+  <text x="20" y="28" font-size="14" fill="#c0caf5" font-weight="bold">Compare</text>
+
+  <!-- Mode toggle -->
+  <rect x="120" y="10" width="180" height="26" rx="13" fill="#1a1b26" stroke="#3b4261"/>
+  <rect x="122" y="12" width="88" height="22" rx="11" fill="#24283b"/>
+  <text x="148" y="28" font-size="11" fill="#565f89">Data</text>
+  <rect x="210" y="12" width="88" height="22" rx="11" fill="#7aa2f7"/>
+  <text x="233" y="28" font-size="11" fill="#1a1b26" font-weight="bold">Schema</text>
+
+  <!-- Source selectors (same as data mode) -->
+  <rect x="20" y="56" width="400" height="60" rx="6" fill="#24283b" stroke="#3b4261"/>
+  <text x="40" y="78" font-size="10" fill="#7aa2f7" font-weight="bold">LEFT</text>
+  <text x="40" y="100" font-size="11" fill="#c0caf5">staging-db › public.users</text>
+
+  <rect x="430" y="72" width="40" height="28" rx="14" fill="#24283b" stroke="#7aa2f7"/>
+  <text x="443" y="91" font-size="14" fill="#7aa2f7">⇄</text>
+
+  <rect x="480" y="56" width="400" height="60" rx="6" fill="#24283b" stroke="#3b4261"/>
+  <text x="500" y="78" font-size="10" fill="#bb9af7" font-weight="bold">RIGHT</text>
+  <text x="500" y="100" font-size="11" fill="#c0caf5">production-db › public.users</text>
+
+  <!-- Summary Bar -->
+  <rect x="20" y="130" width="860" height="36" rx="4" fill="#1e2030"/>
+  <rect x="30" y="138" width="100" height="20" rx="10" fill="#22c55e20" stroke="#22c55e50"/>
+  <text x="42" y="153" font-size="10" fill="#22c55e">+2 columns</text>
+  <rect x="140" y="138" width="100" height="20" rx="10" fill="#ef444420" stroke="#ef444450"/>
+  <text x="152" y="153" font-size="10" fill="#ef4444">-1 column</text>
+  <rect x="250" y="138" width="110" height="20" rx="10" fill="#3b82f620" stroke="#3b82f650"/>
+  <text x="262" y="153" font-size="10" fill="#3b82f6">~3 modified</text>
+  <rect x="370" y="138" width="90" height="20" rx="10" fill="#ff9e6420" stroke="#ff9e6450"/>
+  <text x="382" y="153" font-size="10" fill="#ff9e64">+1 index</text>
+  <rect x="470" y="138" width="80" height="20" rx="10" fill="#22c55e20" stroke="#22c55e50"/>
+  <text x="482" y="153" font-size="10" fill="#22c55e">+1 FK</text>
+
+  <!-- Schema diff list -->
+  <rect x="20" y="178" width="860" height="270" rx="6" fill="#1e2030" stroke="#3b4261"/>
+
+  <!-- Section: Columns -->
+  <rect x="20" y="178" width="860" height="28" fill="#24283b"/>
+  <text x="40" y="197" font-size="11" fill="#c0caf5" font-weight="bold">COLUMNS</text>
+  <text x="820" y="197" font-size="10" fill="#565f89">5 diffs</text>
+
+  <!-- Added column -->
+  <rect x="20" y="206" width="860" height="32" fill="#22c55e08"/>
+  <rect x="20" y="206" width="3" height="32" fill="#22c55e"/>
+  <text x="40" y="226" font-size="11" fill="#22c55e">+ avatar_url</text>
+  <text x="200" y="226" font-size="10" fill="#22c55e">VARCHAR(512) NULL</text>
+  <text x="750" y="226" font-size="10" fill="#565f89">only in LEFT</text>
+
+  <!-- Added column -->
+  <rect x="20" y="238" width="860" height="32" fill="#22c55e08"/>
+  <rect x="20" y="238" width="3" height="32" fill="#22c55e"/>
+  <text x="40" y="258" font-size="11" fill="#22c55e">+ last_login_at</text>
+  <text x="200" y="258" font-size="10" fill="#22c55e">TIMESTAMP NULL</text>
+  <text x="750" y="258" font-size="10" fill="#565f89">only in LEFT</text>
+
+  <!-- Removed column -->
+  <rect x="20" y="270" width="860" height="32" fill="#ef444408"/>
+  <rect x="20" y="270" width="3" height="32" fill="#ef4444"/>
+  <text x="40" y="290" font-size="11" fill="#ef4444">- legacy_id</text>
+  <text x="200" y="290" font-size="10" fill="#ef4444">INTEGER NULL</text>
+  <text x="750" y="290" font-size="10" fill="#565f89">only in RIGHT</text>
+
+  <!-- Modified column -->
+  <rect x="20" y="302" width="860" height="32" fill="#3b82f608"/>
+  <rect x="20" y="302" width="3" height="32" fill="#3b82f6"/>
+  <text x="40" y="322" font-size="11" fill="#3b82f6">~ email</text>
+  <text x="200" y="322" font-size="10" fill="#565f89">VARCHAR(</text><text x="262" y="322" font-size="10" fill="#3b82f6">320</text><text x="280" y="322" font-size="10" fill="#565f89">) → VARCHAR(</text><text x="358" y="322" font-size="10" fill="#3b82f6">255</text><text x="376" y="322" font-size="10" fill="#565f89">)</text>
+  <text x="750" y="322" font-size="10" fill="#3b82f6">type changed</text>
+
+  <!-- Modified column -->
+  <rect x="20" y="334" width="860" height="32" fill="#3b82f608"/>
+  <rect x="20" y="334" width="3" height="32" fill="#3b82f6"/>
+  <text x="40" y="354" font-size="11" fill="#3b82f6">~ status</text>
+  <text x="200" y="354" font-size="10" fill="#565f89">NOT NULL → </text><text x="295" y="354" font-size="10" fill="#3b82f6">NULLABLE</text>
+  <text x="750" y="354" font-size="10" fill="#3b82f6">nullability changed</text>
+
+  <!-- Section: Indexes -->
+  <rect x="20" y="366" width="860" height="28" fill="#24283b"/>
+  <text x="40" y="385" font-size="11" fill="#c0caf5" font-weight="bold">INDEXES</text>
+  <text x="820" y="385" font-size="10" fill="#565f89">1 diff</text>
+
+  <!-- Added index -->
+  <rect x="20" y="394" width="860" height="32" fill="#22c55e08"/>
+  <rect x="20" y="394" width="3" height="32" fill="#22c55e"/>
+  <text x="40" y="414" font-size="11" fill="#22c55e">+ idx_users_last_login</text>
+  <text x="260" y="414" font-size="10" fill="#22c55e">BTREE (last_login_at)</text>
+  <text x="750" y="414" font-size="10" fill="#565f89">only in LEFT</text>
+
+  <!-- Section: Foreign Keys -->
+  <rect x="20" y="426" width="860" height="28" fill="#24283b"/>
+  <text x="40" y="445" font-size="11" fill="#c0caf5" font-weight="bold">FOREIGN KEYS</text>
+  <text x="820" y="445" font-size="10" fill="#565f89">1 diff</text>
+
+  <!-- Action Bar -->
+  <rect x="0" y="460" width="900" height="40" fill="#24283b"/>
+  <rect x="20" y="468" width="180" height="26" rx="4" fill="#7aa2f7"/>
+  <text x="40" y="486" font-size="11" fill="#1a1b26" font-weight="bold">Generate Migration ▼</text>
+  <rect x="210" y="468" width="130" height="26" rx="4" fill="#24283b" stroke="#3b4261"/>
+  <text x="230" y="486" font-size="11" fill="#a9b1d6">View as DDL</text>
+  <rect x="350" y="468" width="100" height="26" rx="4" fill="#24283b" stroke="#3b4261"/>
+  <text x="370" y="486" font-size="11" fill="#a9b1d6">Refresh</text>
+</svg>
