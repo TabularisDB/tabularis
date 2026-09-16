@@ -19,6 +19,7 @@ import { WhatsNewModal } from "./components/modals/WhatsNewModal";
 import { AiApprovalGate } from "./components/modals/AiApprovalGate";
 import { PluginInstallConfirmModal } from "./components/modals/PluginInstallConfirmModal";
 import { SshAskpassGate } from "./components/modals/SshAskpassGate";
+import { TeamShareGate } from "./components/modals/TeamShareGate";
 import { useUpdate } from "./hooks/useUpdate";
 import { useChangelog } from "./hooks/useChangelog";
 import { useSettings } from "./hooks/useSettings";
@@ -188,6 +189,7 @@ export function App() {
 
       <AiApprovalGate />
       <SshAskpassGate />
+      <TeamShareGate />
 
       <PluginInstallConfirmModal
         key={
