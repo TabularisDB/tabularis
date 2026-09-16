@@ -55,7 +55,9 @@ where
     // file literally named `~note.txt` are left alone.
     if let Some(home) = home {
         if chars.first() == Some(&'~')
-            && chars.get(1).is_none_or(|c| *c == '/' || *c == '\\')
+            // `map_or` rather than `is_none_or`: the latter needs Rust 1.82
+            // and the crate declares 1.77.2.
+            && chars.get(1).map_or(true, |c| *c == '/' || *c == '\\')
         {
             out.push_str(home);
             i = 1;
