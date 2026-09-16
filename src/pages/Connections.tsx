@@ -31,6 +31,8 @@ import {
   AppWindow,
   ArrowLeftRight,
   Loader2,
+  Share2,
+  Users,
 } from "lucide-react";
 import { useDatabase } from "../hooks/useDatabase";
 import { useDrivers } from "../hooks/useDrivers";
@@ -42,6 +44,12 @@ import { flattenGroupTree } from "../utils/groupTree";
 import { toErrorMessage } from "../utils/errors";
 import { migrationDirectionForDriver } from "../utils/connections";
 import { fuzzyFilter } from "../utils/fuzzy";
+import { useTeamShare } from "../hooks/useTeamShare";
+import {
+  countShared,
+  filterByShare,
+  type ShareFilter,
+} from "../utils/teamShare";
 import { useOpenConnectionInNewWindow } from "../hooks/useOpenConnectionInNewWindow";
 import { useConnectionTags } from "../hooks/useConnectionTags";
 import { GroupHeader } from "../components/connections/GroupHeader";
@@ -118,6 +126,9 @@ export const Connections = () => {
   const [error, setError] = useState<string | null>(null);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const { status: teamShare, setConnectionsShared } = useTeamShare();
+  const [shareFilter, setShareFilter] = useState<ShareFilter>("all");
+  const [isSharing, setIsSharing] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -373,12 +384,13 @@ export const Connections = () => {
     return map;
   }, [connectionGroups]);
 
-  // Organize connections by group
+  // Organize connections by group, after the team-share filter: hiding a
+  // connection also hides the group that would otherwise render empty.
   const { groupedConnections, ungroupedConnections } = useMemo(() => {
     const grouped: Record<string, SavedConnection[]> = {};
     const ungrouped: SavedConnection[] = [];
 
-    for (const conn of connections) {
+    for (const conn of filterByShare(connections, shareFilter)) {
       if (conn.group_id) {
         if (!grouped[conn.group_id]) {
           grouped[conn.group_id] = [];
@@ -398,7 +410,7 @@ export const Connections = () => {
     ungrouped.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
     return { groupedConnections: grouped, ungroupedConnections: ungrouped };
-  }, [connections]);
+  }, [connections, shareFilter]);
 
   // Group management functions
   const handleCreateGroup = async (parentId?: string | null) => {
@@ -572,6 +584,35 @@ export const Connections = () => {
         }
       },
     });
+  };
+
+  const selectedConnections = useMemo(
+    () => connections.filter((c) => selectedIds.has(c.id)),
+    [connections, selectedIds],
+  );
+  const selectedSharedCount = countShared(selectedConnections);
+  const selectedLocalCount = selectedConnections.length - selectedSharedCount;
+
+  /**
+   * Move the whole selection in or out of the team share in one call, so the
+   * shared folder is read-merged-written once instead of once per connection.
+   */
+  const handleBulkShare = async (shared: boolean) => {
+    const ids = [...selectedIds].filter(
+      (id) => (connections.find((c) => c.id === id)?.shared ?? false) !== shared,
+    );
+    if (ids.length === 0) return;
+    setIsSharing(true);
+    try {
+      await setConnectionsShared(ids, shared);
+      await loadConnections();
+      clearSelection();
+    } catch (e) {
+      console.error("Failed to change the team share membership:", e);
+      setError(toErrorMessage(e));
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const handleBulkMoveToGroup = async (groupId: string | null) => {
@@ -1230,6 +1271,32 @@ export const Connections = () => {
             <FolderInput size={14} />
             {t("connections.moveSelected")}
           </button>
+          {teamShare?.unlocked && selectedLocalCount > 0 && (
+            <button
+              onClick={() => void handleBulkShare(true)}
+              disabled={isSharing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-violet-400 hover:border-violet-500/50 disabled:opacity-50 transition-colors"
+              title={t("connections.shareSelectedTooltip")}
+            >
+              {isSharing ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Share2 size={14} />
+              )}
+              {t("connections.shareSelected", { count: selectedLocalCount })}
+            </button>
+          )}
+          {teamShare?.unlocked && selectedSharedCount > 0 && (
+            <button
+              onClick={() => void handleBulkShare(false)}
+              disabled={isSharing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-violet-400 hover:border-violet-500/50 disabled:opacity-50 transition-colors"
+              title={t("connections.unshareSelectedTooltip")}
+            >
+              <Users size={14} />
+              {t("connections.unshareSelected", { count: selectedSharedCount })}
+            </button>
+          )}
           <button
             onClick={handleBulkDelete}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400 hover:bg-red-500/20 transition-colors"
@@ -1388,6 +1455,27 @@ export const Connections = () => {
                   <Download size={14} />
                 </button>
               </div>
+
+              {/* Team-share filter — only worth the space once a share exists */}
+              {teamShare?.configured && (
+                <div className="flex items-center gap-0.5 bg-elevated border border-strong rounded-xl p-1 shrink-0">
+                  {(["all", "shared", "local"] as const).map((value) => (
+                    <button
+                      key={value}
+                      onClick={() => setShareFilter(value)}
+                      className={clsx(
+                        "px-2 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150",
+                        shareFilter === value
+                          ? "bg-violet-500/15 text-violet-400 shadow-sm"
+                          : "text-muted hover:text-secondary hover:bg-surface-secondary",
+                      )}
+                      title={t(`connections.shareFilter.${value}Tooltip`)}
+                    >
+                      {t(`connections.shareFilter.${value}`)}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* View toggle */}
               <div className="flex items-center gap-0.5 bg-elevated border border-strong rounded-xl p-1 shrink-0">

@@ -1161,6 +1161,16 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     return () => { unlisten.then(fn => fn()); };
   }, []);
 
+  // A team-share sync rewrites connections.json behind our back (it adds the
+  // connections a teammate shared and drops the ones they removed), so the
+  // list has to be re-read rather than patched.
+  useEffect(() => {
+    const unlisten = listen('team-share-synced', () => {
+      void loadConnections();
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, [loadConnections]);
+
   // Listen for backend health-check failures and clean up dead connections.
   useEffect(() => {
     const unlisten = listen<{ connectionId: string; error: string }>(

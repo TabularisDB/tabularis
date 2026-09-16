@@ -49,7 +49,7 @@ pub fn collect_group_ancestors<'a>(
     kept
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum DatabaseSelection {
     Single(String),
@@ -112,7 +112,7 @@ impl Default for DatabaseSelection {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct SshConnection {
     pub id: String,
     pub name: String,
@@ -130,6 +130,20 @@ pub struct SshConnection {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_passphrase_prompt: Option<bool>,
     pub save_in_keychain: Option<bool>,
+    /// `Some(true)` when this profile travels in the team share, because a
+    /// shared connection tunnels through it. Its secrets then live in the
+    /// shared vault instead of this machine's keychain. Managed by
+    /// [`crate::team_share`] as a consequence of sharing a connection — never
+    /// toggled on its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared: Option<bool>,
+}
+
+impl SshConnection {
+    /// True when the credentials of this profile come from the team share.
+    pub fn is_shared(&self) -> bool {
+        self.shared.unwrap_or(false)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -175,7 +189,7 @@ pub struct SshTestParams {
     pub progress_id: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq, Eq)]
 pub struct ConnectionParams {
     pub driver: String,
     pub host: Option<String>,
@@ -282,7 +296,7 @@ pub struct ConnectionParams {
     pub connection_id: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum IconOverride {
     Pack { id: String },
@@ -290,7 +304,7 @@ pub enum IconOverride {
     Image { path: String },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionAppearance {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -321,6 +335,19 @@ pub struct SavedConnection {
     /// write-confirmation warning and the visual identity in the UI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
+    /// `Some(true)` when this connection comes from the team share
+    /// ([`crate::team_share`]). Its credentials are not in this file and not
+    /// in the OS keychain: they live in the shared vault and are only
+    /// available while that vault is unlocked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared: Option<bool>,
+}
+
+impl SavedConnection {
+    /// True when the credentials of this connection come from the team share.
+    pub fn is_shared(&self) -> bool {
+        self.shared.unwrap_or(false)
+    }
 }
 
 /// A user-defined colored label. Tags are purely organizational: a
@@ -357,7 +384,7 @@ pub struct ConnectionsFile {
     pub tags: Vec<ConnectionTag>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct K8sConnection {
     pub id: String,
     pub name: String,
@@ -370,6 +397,19 @@ pub struct K8sConnection {
     pub kubectl_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kubeconfig_path: Option<String>,
+    /// `Some(true)` when this tunnel travels in the team share, because a
+    /// shared connection routes through it. Unlike an SSH profile it carries
+    /// no secrets, only reachability settings. Managed by
+    /// [`crate::team_share`] as a consequence of sharing a connection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared: Option<bool>,
+}
+
+impl K8sConnection {
+    /// True when this tunnel comes from the team share.
+    pub fn is_shared(&self) -> bool {
+        self.shared.unwrap_or(false)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
