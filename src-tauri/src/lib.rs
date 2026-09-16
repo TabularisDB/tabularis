@@ -68,6 +68,9 @@ pub mod models;
 #[cfg(test)]
 pub mod models_tests;
 pub mod notebooks;
+pub mod path_vars;
+#[cfg(test)]
+pub mod path_vars_tests;
 pub mod paths; // Added
 #[cfg(test)]
 pub mod paths_tests;
