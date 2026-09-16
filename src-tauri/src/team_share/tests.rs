@@ -185,6 +185,31 @@ mod merge {
     }
 
     #[test]
+    fn deleting_something_a_teammate_edited_is_reported_as_a_conflict() {
+        // The removal still wins, but their edit is being thrown away, so the
+        // caller has to be able to say so rather than log routine housekeeping.
+        let base = payload(vec![entry("a", "db", Some("pw"), "T1")]);
+        let remote = payload(vec![entry("a", "db.moved", Some("new-pw"), "T2")]);
+        let local = VaultPayload::default();
+
+        let (merged, notes) = merge_payload(&base, &remote, &local, &ctx());
+
+        assert!(merged.entries[0].deleted);
+        assert_eq!(outcomes(&notes), vec![MergeOutcome::ConflictLocalWins]);
+    }
+
+    #[test]
+    fn deleting_something_nobody_touched_is_not_a_conflict() {
+        let base = payload(vec![entry("a", "db", Some("pw"), "T1")]);
+        let remote = base.clone();
+        let local = VaultPayload::default();
+
+        let (_, notes) = merge_payload(&base, &remote, &local, &ctx());
+
+        assert_eq!(outcomes(&notes), vec![MergeOutcome::TombstonedLocally]);
+    }
+
+    #[test]
     fn an_entry_never_synced_here_is_not_read_as_a_deletion() {
         // No base at all: a teammate's entry must be pulled, not tombstoned.
         let base = VaultPayload::default();

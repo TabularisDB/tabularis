@@ -401,7 +401,12 @@ pub fn write(path: &Path, file: &VaultFile) -> Result<(), String> {
     // the full content if the rename then fails.
     #[cfg(windows)]
     if path.exists() {
-        fs::remove_file(path).map_err(|e| format!("Cannot replace the shared vault: {e}"))?;
+        // Clean the temp file up on the way out: leaving it behind would
+        // litter the team's folder with one orphan per failed write.
+        if let Err(e) = fs::remove_file(path) {
+            let _ = fs::remove_file(&temp);
+            return Err(format!("Cannot replace the shared vault: {e}"));
+        }
     }
     match fs::rename(&temp, path) {
         Ok(()) => Ok(()),
