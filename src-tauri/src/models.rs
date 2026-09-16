@@ -130,6 +130,20 @@ pub struct SshConnection {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_passphrase_prompt: Option<bool>,
     pub save_in_keychain: Option<bool>,
+    /// `Some(true)` when this profile travels in the team share, because a
+    /// shared connection tunnels through it. Its secrets then live in the
+    /// shared vault instead of this machine's keychain. Managed by
+    /// [`crate::team_share`] as a consequence of sharing a connection — never
+    /// toggled on its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared: Option<bool>,
+}
+
+impl SshConnection {
+    /// True when the credentials of this profile come from the team share.
+    pub fn is_shared(&self) -> bool {
+        self.shared.unwrap_or(false)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -321,6 +335,19 @@ pub struct SavedConnection {
     /// write-confirmation warning and the visual identity in the UI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
+    /// `Some(true)` when this connection comes from the team share
+    /// ([`crate::team_share`]). Its credentials are not in this file and not
+    /// in the OS keychain: they live in the shared vault and are only
+    /// available while that vault is unlocked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared: Option<bool>,
+}
+
+impl SavedConnection {
+    /// True when the credentials of this connection come from the team share.
+    pub fn is_shared(&self) -> bool {
+        self.shared.unwrap_or(false)
+    }
 }
 
 /// A user-defined colored label. Tags are purely organizational: a
@@ -370,6 +397,19 @@ pub struct K8sConnection {
     pub kubectl_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kubeconfig_path: Option<String>,
+    /// `Some(true)` when this tunnel travels in the team share, because a
+    /// shared connection routes through it. Unlike an SSH profile it carries
+    /// no secrets, only reachability settings. Managed by
+    /// [`crate::team_share`] as a consequence of sharing a connection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared: Option<bool>,
+}
+
+impl K8sConnection {
+    /// True when this tunnel comes from the team share.
+    pub fn is_shared(&self) -> bool {
+        self.shared.unwrap_or(false)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

@@ -266,6 +266,7 @@ pub fn run() {
         .manage(json_viewer::JsonViewerStore::default())
         .manage(results_window::ResultsWindowStore::default())
         .manage(query_history::QueryHistoryState::default())
+        .manage(team_share::TeamShareState::default())
         .setup(move |app| {
             #[cfg(target_os = "linux")]
             system_theme::watch(app.handle().clone());
@@ -589,6 +590,13 @@ pub fn run() {
             storage_location::reset_storage_location,
             storage_location::open_storage_location,
             storage_location::get_app_data_dir,
+            team_share::get_team_share_status,
+            team_share::setup_team_share,
+            team_share::unlock_team_share,
+            team_share::lock_team_share,
+            team_share::sync_team_share,
+            team_share::disable_team_share,
+            team_share::set_connections_shared,
             config::set_ai_key,
             config::delete_ai_key,
             config::check_ai_key,

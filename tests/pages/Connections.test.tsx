@@ -31,7 +31,9 @@ vi.mock("lucide-react", () => ({
   Loader2: () => null,
   Plus: () => null,
   Search: () => null,
+  Share2: () => null,
   Trash2: () => null,
+  Users: () => null,
   X: () => null,
 }));
 
@@ -118,6 +120,16 @@ vi.mock("../../src/hooks/useConnectionCatalogue", () => ({
     registryOffline: false,
     registry: [],
     refresh: vi.fn(),
+  }),
+}));
+
+// The page reads the team-share status on mount; these tests are about the
+// SQLite action, so the share is simply absent.
+vi.mock("../../src/hooks/useTeamShare", () => ({
+  useTeamShare: () => ({
+    status: null,
+    refresh: vi.fn(),
+    setConnectionsShared: vi.fn(),
   }),
 }));
 

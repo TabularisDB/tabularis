@@ -395,7 +395,21 @@
       "reportIssue": "segnalalo su GitHub."
     },
     "databaseCount_one": "{{count}} database",
-    "databaseCount_other": "{{count}} database"
+    "databaseCount_other": "{{count}} database",
+    "shared": "CONDIVISA",
+    "sharedTooltip": "Condivisa col team: le credenziali stanno nel vault condiviso e richiedono la master password.",
+    "shareSelected": "Condividi ({{count}})",
+    "shareSelectedTooltip": "Sposta le connessioni selezionate nella share del team. Le credenziali lasciano il keychain di questo computer per il vault condiviso.",
+    "unshareSelected": "Rimuovi dalla share ({{count}})",
+    "unshareSelectedTooltip": "Togli le connessioni selezionate dalla share del team e riporta le credenziali nel keychain di questo computer.",
+    "shareFilter": {
+      "all": "Tutte",
+      "allTooltip": "Mostra tutte le connessioni",
+      "shared": "Condivise",
+      "sharedTooltip": "Mostra solo le connessioni nella share del team",
+      "local": "Locali",
+      "localTooltip": "Mostra solo le connessioni che restano su questo computer"
+    }
   },
   "connectionAppearance": {
     "section": "Aspetto",
@@ -901,6 +915,55 @@
       "restartRequiredDesc": "Tabularis userà {{path}} dopo il riavvio.",
       "restartNow": "Riavvia ora"
     },
+    "teamShare": {
+      "title": "Condivisione col team",
+      "description": "Tieni una copia delle connessioni scelte e delle loro credenziali su una cartella condivisa col team. La copia è cifrata con una master password nota a tutto il team.",
+      "vault": "Vault condiviso",
+      "vaultDesc": "Il file che contiene le connessioni condivise. A ogni sincronizzazione viene letto, unito e riscritto: non resta mai aperto.",
+      "notConfigured": "Nessun vault condiviso configurato",
+      "revision": "revisione {{revision}}",
+      "lastWrite": "Ultima scrittura di {{who}} il {{when}}",
+      "unreachable": "Il vault condiviso non è raggiungibile. Verifica che la share sia montata, poi sbloccalo di nuovo.",
+      "phase": {
+        "disabled": "Disattiva",
+        "unreachable": "Non raggiungibile",
+        "locked": "Bloccato",
+        "unlocked": "Sbloccato"
+      },
+      "setUp": "Configura la condivisione",
+      "unlock": "Sblocca",
+      "lock": "Blocca",
+      "syncNow": "Sincronizza ora",
+      "disable": "Esci dalla condivisione",
+      "syncUpToDate": "Già allineato con la share.",
+      "syncSummary": "Ultima sincronizzazione: {{pulled}} ricevute, {{pushed}} inviate, {{conflicts}} conflitto/i, {{removed}} rimosse.",
+      "membership": "Connessioni condivise",
+      "membershipDesc": "Quali connessioni viaggiano nella share si decide nella schermata connessioni: selezionale e usa Condividi.",
+      "unlockToManage": "Sblocca il vault condiviso con la master password per gestirne le connessioni.",
+      "unlockTitle": "Sblocca la condivisione col team",
+      "unlockSubtitle": "Le credenziali condivise restano bloccate finché non inserisci la master password",
+      "unlockDescription": "La master password non viene mai salvata, quindi viene richiesta a ogni avvio. Senza, le connessioni condivise restano elencate ma non utilizzabili.",
+      "masterPassword": "Master password",
+      "continueLocked": "Continua senza",
+      "setupTitle": "Configura la condivisione col team",
+      "setupSubtitle": "Collegati a un vault condiviso esistente, o creane uno per il team",
+      "setupDescription": "Scegli la cartella condivisa. Se contiene già un vault, la master password deve aprirlo; altrimenti ne viene creato uno nuovo con questa password.",
+      "sharedFolder": "Cartella condivisa",
+      "sharedFolderPlaceholder": "\\\\server\\share\\tabularis",
+      "sharedFolderHint": "Indica la cartella: il file del vault viene creato al suo interno. Va bene anche il percorso completo di un vault esistente.",
+      "browse": "Sfoglia",
+      "repeatMasterPassword": "Ripeti la master password",
+      "masterPasswordWarning": "Una master password persa non è recuperabile: le credenziali condivise resterebbero illeggibili per tutto il team.",
+      "connect": "Collega",
+      "errorEmptyPassword": "Inserisci una master password.",
+      "errorPasswordMismatch": "Le due master password non coincidono.",
+      "errorNoFolder": "Scegli prima la cartella condivisa.",
+      "membershipHint_one": "{{count}} connessione è attualmente nella share.",
+      "membershipHint_other": "{{count}} connessioni sono attualmente nella share.",
+      "conflictToastTitle": "Conflitto nella share del team",
+      "conflictToast_one": "{{count}} record è cambiato qui e sulla share dall'ultima sincronizzazione. Ha vinto la tua versione: verifica che sia ancora quella giusta, soprattutto se un collega ha ruotato una password.",
+      "conflictToast_other": "{{count}} record sono cambiati qui e sulla share dall'ultima sincronizzazione. Hanno vinto le tue versioni: verifica che siano ancora quelle giuste, soprattutto se un collega ha ruotato una password."
+    },
     "backup": {
       "title": "Backup",
       "directory": "Cartella di backup",
@@ -1098,7 +1161,8 @@
     "chooseDatabases": "Scegli i database",
     "allDatabasesHint": "Alla connessione vengono caricati automaticamente tutti i database del server. I database creati o eliminati sul server compaiono da soli, senza modificare questa connessione.",
     "selectDatabasesHint": "Seleziona i database da includere in questa connessione.",
-    "loadDatabasesHint": "Premi Carica database per recuperare i database disponibili."
+    "loadDatabasesHint": "Premi Carica database per recuperare i database disponibili.",
+    "sshKeyFileVarsHint": "Le variabili di ambiente vengono risolte alla connessione: %USERPROFILE%\\keys\\id_ed25519, $HOME/.ssh/id_rsa, ~/.ssh/id_rsa. Usa ~ per un percorso che funziona su ogni macchina."
   },
   "sshConnections": {
     "title": "Connessioni SSH",

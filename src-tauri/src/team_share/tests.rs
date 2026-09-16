@@ -5,6 +5,7 @@ use super::vault::{
     self, KdfParams, VaultEntry, VaultGroup, VaultK8sProfile, VaultPayload, VaultSshProfile,
     VaultTag, DEFAULT_VAULT_FILENAME,
 };
+use super::{EntrySecrets, SshSecrets};
 use crate::models::{
     ConnectionGroup, ConnectionParams, ConnectionTag, DatabaseSelection, K8sConnection,
     SshConnection,
@@ -23,7 +24,7 @@ fn ssh_profile(id: &str, host: &str, password: Option<&str>) -> SshConnection {
         key_passphrase: None,
         allow_passphrase_prompt: None,
         save_in_keychain: Some(true),
-
+        shared: Some(true),
     }
 }
 
@@ -350,7 +351,7 @@ mod merge {
                 port: 5432,
                 kubectl_path: None,
                 kubeconfig_path: None,
-
+                shared: Some(true),
             },
             updated_at: updated_at.to_string(),
             updated_by: "alice@box".to_string(),
@@ -698,3 +699,127 @@ mod appearance {
     }
 }
 
+mod secrets {
+    use super::*;
+
+    #[test]
+    fn stripping_removes_every_secret_and_the_keychain_marker() {
+        let mut p = params("db", Some("pw"));
+        p.ssh_password = Some("ssh-pw".to_string());
+        p.ssh_key_passphrase = Some("phrase".to_string());
+        p.connection_uri = Some("mysql://user:pw@db/shop".to_string());
+        p.connection_uri_in_keychain = Some(true);
+
+        EntrySecrets::strip(&mut p);
+
+        assert!(p.password.is_none());
+        assert!(p.ssh_password.is_none());
+        assert!(p.ssh_key_passphrase.is_none());
+        assert!(p.connection_uri.is_none());
+        assert!(p.connection_uri_in_keychain.is_none());
+        // Non-secret parameters survive: they are what the team shares.
+        assert_eq!(p.host.as_deref(), Some("db"));
+    }
+
+    #[test]
+    fn blank_secrets_are_read_as_absent() {
+        let mut p = params("db", Some("   "));
+        p.ssh_password = Some(String::new());
+        let secrets = EntrySecrets::from_params(&p);
+
+        assert_eq!(secrets, EntrySecrets::default());
+    }
+
+    #[test]
+    fn an_edit_that_omits_the_password_keeps_the_shared_one() {
+        // The connection modal only sends a password back when the user
+        // retyped it. Treating "absent" as "cleared" would wipe the
+        // credential for the whole team.
+        let mut stored = EntrySecrets::from_params(&params("db", Some("team-pw")));
+        stored.ssh_password = Some("ssh-pw".to_string());
+
+        let mut edited = params("db.new", None);
+        edited.ssh_enabled = Some(true);
+        stored.overlay(&edited);
+
+        assert_eq!(stored.password.as_deref(), Some("team-pw"));
+        assert_eq!(stored.ssh_password.as_deref(), Some("ssh-pw"));
+    }
+
+    #[test]
+    fn a_retyped_password_replaces_the_shared_one() {
+        let mut stored = EntrySecrets::from_params(&params("db", Some("old-pw")));
+        stored.overlay(&params("db", Some("new-pw")));
+        assert_eq!(stored.password.as_deref(), Some("new-pw"));
+    }
+
+    #[test]
+    fn turning_the_ssh_tunnel_off_drops_the_ssh_secrets() {
+        let mut stored = EntrySecrets::from_params(&params("db", Some("pw")));
+        stored.ssh_password = Some("ssh-pw".to_string());
+        stored.ssh_key_passphrase = Some("phrase".to_string());
+
+        let mut edited = params("db", None);
+        edited.ssh_enabled = Some(false);
+        stored.overlay(&edited);
+
+        assert!(stored.ssh_password.is_none());
+        assert!(stored.ssh_key_passphrase.is_none());
+        // The database password is untouched by an SSH change.
+        assert_eq!(stored.password.as_deref(), Some("pw"));
+    }
+
+    #[test]
+    fn an_ssh_edit_that_omits_the_password_keeps_the_shared_one() {
+        let mut stored = SshSecrets {
+            password: Some("tunnel-pw".to_string()),
+            key_passphrase: Some("phrase".to_string()),
+        };
+        stored.overlay(&SshSecrets::default());
+
+        assert_eq!(stored.password.as_deref(), Some("tunnel-pw"));
+        assert_eq!(stored.key_passphrase.as_deref(), Some("phrase"));
+    }
+
+    #[test]
+    fn a_retyped_tunnel_password_replaces_the_shared_one() {
+        let mut stored = SshSecrets {
+            password: Some("old".to_string()),
+            key_passphrase: None,
+        };
+        stored.overlay(&SshSecrets {
+            password: Some("new".to_string()),
+            key_passphrase: None,
+        });
+
+        assert_eq!(stored.password.as_deref(), Some("new"));
+    }
+
+    #[test]
+    fn stripping_an_ssh_profile_leaves_its_reachability_intact() {
+        let mut profile = ssh_profile("s1", "bastion.internal", Some("pw"));
+        profile.key_passphrase = Some("phrase".to_string());
+
+        SshSecrets::strip(&mut profile);
+
+        assert!(profile.password.is_none());
+        assert!(profile.key_passphrase.is_none());
+        // Host, port and user are what the team needs to share.
+        assert_eq!(profile.host, "bastion.internal");
+        assert_eq!(profile.port, 22);
+        assert_eq!(profile.user, "deploy");
+    }
+
+    #[test]
+    fn secrets_round_trip_through_params() {
+        let mut source = params("db", Some("pw"));
+        source.ssh_password = Some("ssh-pw".to_string());
+        let secrets = EntrySecrets::from_params(&source);
+
+        let mut target = params("db", None);
+        secrets.apply_to(&mut target);
+
+        assert_eq!(target.password.as_deref(), Some("pw"));
+        assert_eq!(target.ssh_password.as_deref(), Some("ssh-pw"));
+    }
+}

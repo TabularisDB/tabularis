@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import { Shield, PlugZap, Check } from 'lucide-react';
+import { Shield, PlugZap, Check, Share2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import type { SavedConnection } from '../../contexts/DatabaseContext';
@@ -125,6 +125,14 @@ export const ConnectionListItem = ({
           isConnecting={isConnecting}
         />
         <EnvironmentBadge environment={conn.environment} />
+        {conn.shared && (
+          <span
+            className="flex items-center gap-0.5 text-[10px] font-bold text-violet-400 bg-violet-400/10 border border-violet-400/20 px-1.5 py-0.5 rounded-md"
+            title={t('connections.sharedTooltip')}
+          >
+            <Share2 size={8} /> {t('connections.shared')}
+          </span>
+        )}
         <TagChips tagIds={conn.tag_ids} tags={tags} />
         <span className="text-[10px] font-semibold text-secondary bg-surface-secondary border border-strong/40 px-1.5 py-0.5 rounded-md capitalize">
           {conn.params.driver}
