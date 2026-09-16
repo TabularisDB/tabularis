@@ -117,6 +117,8 @@ interface ConnectionParams {
   connection_uri?: string;
   /** True when the URI can be restored from the OS keychain. */
   connection_uri_in_keychain?: boolean;
+  /** Windows/Kerberos integrated authentication; mutually exclusive with username/password. */
+  integrated_auth?: boolean;
   database: string | string[];
   ssl_mode?: string;
   ssl_ca?: string;
@@ -611,6 +613,9 @@ export const NewConnectionModal = ({
   // host/port/username/database all derive from it, so the form only asks for
   // the connection string and an optional token (password) field.
   const isUriPassthrough = uriPassthroughEnabled(activeDriver?.capabilities);
+  const supportsIntegratedAuth =
+    activeDriver?.capabilities?.supports_integrated_auth === true;
+  const isIntegratedAuth = supportsIntegratedAuth && !!formData.integrated_auth;
   const isNetworkDriver =
     !noConnectionRequired &&
     activeDriver?.capabilities?.file_based === false &&
@@ -2581,36 +2586,62 @@ export const NewConnectionModal = ({
             className="flex flex-col gap-3"
           />
 
-          {/* User + Password */}
-          <div
-            className={clsx(
-              "grid gap-3",
-              isUriPassthrough ? "grid-cols-1" : "grid-cols-2",
-            )}
-          >
-            {!isUriPassthrough && (
-              <FieldInput
-                label={t("newConnection.username")}
-                value={formData.username}
-                onChange={(v) => updateField("username", v)}
-                placeholder={t("newConnection.usernamePlaceholder")}
+          {/* Windows/Kerberos integrated authentication */}
+          {supportsIntegratedAuth && (
+            <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+              <input
+                type="checkbox"
+                checked={isIntegratedAuth}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  updateField("integrated_auth", checked || undefined);
+                  if (checked) {
+                    updateField("username", "");
+                    updateField("password", "");
+                  }
+                }}
+                className="accent-blue-500 w-3.5 h-3.5 rounded"
               />
-            )}
-            <FieldInput
-              label={t("newConnection.password")}
-              value={formData.password}
-              onChange={(v) => {
-                setPasswordDirty(true);
-                updateField("password", v);
-              }}
-              type="password"
-              placeholder={
-                initialConnection && !passwordDirty && !formData.password
-                  ? "••••••••"
-                  : t("newConnection.passwordPlaceholder")
-              }
-            />
-          </div>
+              <span className="text-xs text-secondary">
+                {t("newConnection.integratedAuth", {
+                  defaultValue: "Use Windows Authentication",
+                })}
+              </span>
+            </label>
+          )}
+
+          {/* User + Password */}
+          {!isIntegratedAuth && (
+            <div
+              className={clsx(
+                "grid gap-3",
+                isUriPassthrough ? "grid-cols-1" : "grid-cols-2",
+              )}
+            >
+              {!isUriPassthrough && (
+                <FieldInput
+                  label={t("newConnection.username")}
+                  value={formData.username}
+                  onChange={(v) => updateField("username", v)}
+                  placeholder={t("newConnection.usernamePlaceholder")}
+                />
+              )}
+              <FieldInput
+                label={t("newConnection.password")}
+                value={formData.password}
+                onChange={(v) => {
+                  setPasswordDirty(true);
+                  updateField("password", v);
+                }}
+                type="password"
+                placeholder={
+                  initialConnection && !passwordDirty && !formData.password
+                    ? "••••••••"
+                    : t("newConnection.passwordPlaceholder")
+                }
+              />
+            </div>
+          )}
 
           {/* Database (single) — only shown for non-multi-db drivers */}
           {!isUriPassthrough && !isMultiDb && !singleDatabase && (

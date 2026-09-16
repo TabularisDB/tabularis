@@ -1785,6 +1785,7 @@ impl PostgresDriver {
                     readonly: false,
                     triggers: true,
                     supports_ssl: true,
+                    supports_integrated_auth: false,
                     user_management: false,
                     sql_dialect: Some(SqlDialect::Postgres),
                 },

@@ -1448,6 +1448,7 @@ mod tests {
             password: Some("secret".to_string()),
             connection_uri: None,
             connection_uri_in_keychain: None,
+            integrated_auth: None,
             database: DatabaseSelection::Single("db".to_string()),
             ssl_mode: None,
             ssl_ca: None,

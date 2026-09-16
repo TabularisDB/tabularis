@@ -57,6 +57,9 @@ export interface DriverCapabilities {
   /** Shows the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal.
    * Built-in network drivers (postgres, mysql) set this; plugins opt in via their manifest. Defaults to false. */
   supports_ssl?: boolean;
+  /** Shows the "Use Windows Authentication" checkbox in the connection modal, hiding
+   * username/password when checked. Plugins opt in via their manifest. Defaults to false. */
+  supports_integrated_auth?: boolean;
   /**
    * SQL dialect for the statement splitter / classifier. Plugins that
    * omit the field fall back to "postgres" (the dialect everyone got

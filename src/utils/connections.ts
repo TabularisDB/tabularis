@@ -73,6 +73,8 @@ export interface ConnectionParams {
   connection_uri?: string;
   /** True when the URI can be restored from the OS keychain. */
   connection_uri_in_keychain?: boolean;
+  /** Windows/Kerberos integrated authentication; mutually exclusive with username/password. */
+  integrated_auth?: boolean;
   ssh_enabled?: boolean;
   ssh_connection_id?: string;
   // Legacy fields (for backward compatibility)

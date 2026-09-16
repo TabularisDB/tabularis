@@ -198,6 +198,10 @@ pub struct ConnectionParams {
         skip_serializing_if = "Option::is_none"
     )]
     pub connection_uri_in_keychain: Option<bool>,
+    /// Windows/Kerberos integrated authentication, forwarded verbatim to
+    /// drivers advertising `supports_integrated_auth`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub integrated_auth: Option<bool>,
     pub database: DatabaseSelection,
     pub ssl_mode: Option<String>,
     pub ssl_ca: Option<String>,

@@ -134,6 +134,12 @@ pub struct DriverCapabilities {
     /// their manifest. Defaults to `false`.
     #[serde(default, alias = "supportsSsl")]
     pub supports_ssl: bool,
+    /// Supports Windows/Kerberos integrated authentication as an alternative
+    /// to username/password. Shows the "Use Windows Authentication" checkbox
+    /// in the connection modal. Plugins opt in via their manifest. Defaults
+    /// to `false`.
+    #[serde(default, alias = "supportsIntegratedAuth")]
+    pub supports_integrated_auth: bool,
     /// Supports EXPLAIN / query plan visualization (`explain_query`).
     /// When `false`, the Visual Explain UI is hidden for connections using
     /// this driver. Built-in drivers set this; plugins opt in via their

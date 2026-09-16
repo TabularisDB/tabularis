@@ -122,6 +122,22 @@ vi.mock("../../../src/hooks/useDrivers", () => ({
           sql_dialect: "postgres",
         },
       },
+      {
+        // Simulates the standalone SQL Server plugin: Windows/Kerberos
+        // integrated authentication as an alternative to username/password.
+        id: "sqlserver",
+        name: "SQL Server",
+        version: "1.0.0",
+        default_port: 1433,
+        is_builtin: false,
+        capabilities: {
+          file_based: false,
+          folder_based: false,
+          connection_string: true,
+          supports_ssl: true,
+          supports_integrated_auth: true,
+        },
+      },
     ],
     allDrivers: [],
     installedPlugins: [],
@@ -1370,5 +1386,54 @@ describe("NewConnectionModal SSL mode options (issue #614)", () => {
     const grid = hostInput.closest(".grid");
     expect(grid).not.toBeNull();
     expect(grid).toHaveClass("grid-cols-3");
+  });
+});
+
+describe("NewConnectionModal integrated authentication", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sshMocks.loadSshConnections.mockResolvedValue([]);
+    k8sMocks.loadK8sConnections.mockResolvedValue([]);
+  });
+
+  it("shows the Windows Authentication checkbox for a driver with supports_integrated_auth", () => {
+    renderModal(createInitialConnection({ driver: "sqlserver" }));
+    expect(
+      screen.getByText("newConnection.integratedAuth"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show the checkbox for a driver without supports_integrated_auth", () => {
+    renderModal(createInitialConnection({ driver: "mysql" }));
+    expect(
+      screen.queryByText("newConnection.integratedAuth"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides and clears username/password when checked, and restores them when unchecked", () => {
+    renderModal(
+      createInitialConnection({
+        driver: "sqlserver",
+        username: "sa",
+        password: "secret",
+      }),
+    );
+
+    expect(screen.getByText("newConnection.username")).toBeInTheDocument();
+    expect(screen.getByText("newConnection.password")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("newConnection.integratedAuth"));
+
+    expect(
+      screen.queryByText("newConnection.username"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("newConnection.password"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("newConnection.integratedAuth"));
+
+    expect(screen.getByText("newConnection.username")).toBeInTheDocument();
+    expect(screen.getByText("newConnection.password")).toBeInTheDocument();
   });
 });

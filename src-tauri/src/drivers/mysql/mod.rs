@@ -1814,6 +1814,7 @@ impl MysqlDriver {
                     triggers: true,
                     user_management: true,
                     supports_ssl: true,
+                    supports_integrated_auth: false,
                     sql_dialect: Some(SqlDialect::Mysql),
                 },
                 is_builtin: true,
