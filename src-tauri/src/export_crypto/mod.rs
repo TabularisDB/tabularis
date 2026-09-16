@@ -18,12 +18,12 @@ mod tests;
 
 pub const ENVELOPE_FORMAT: &str = "tabularis-connections-encrypted";
 
-const SALT_LEN: usize = 16;
+pub const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
 // Argon2id parameters: 64 MiB memory, 3 iterations, 1 lane.
-const ARGON2_M_COST: u32 = 65536;
-const ARGON2_T_COST: u32 = 3;
-const ARGON2_P_COST: u32 = 1;
+pub const ARGON2_M_COST: u32 = 65536;
+pub const ARGON2_T_COST: u32 = 3;
+pub const ARGON2_P_COST: u32 = 1;
 // Upper bounds when decrypting: a malicious envelope must not be able to
 // request unbounded memory or CPU during key derivation.
 const ARGON2_MAX_M_COST: u32 = 1024 * 1024; // 1 GiB
@@ -45,7 +45,12 @@ pub struct EncryptedEnvelope {
     pub ciphertext: String,
 }
 
-fn derive_key(
+/// Derive a 32-byte AES key from `password` with Argon2id.
+///
+/// Public so callers that manage their own envelope — the team vault keeps a
+/// long-lived salt in its header and derives the key once per unlock — reuse
+/// the same KDF instead of rolling their own.
+pub fn derive_key(
     password: &str,
     salt: &[u8],
     m_cost: u32,
@@ -60,6 +65,53 @@ fn derive_key(
         .hash_password_into(password.as_bytes(), salt, &mut key)
         .map_err(|e| format!("Key derivation failed: {e}"))?;
     Ok(key)
+}
+
+/// A nonce/ciphertext pair, both base64. Used by callers that derive the key
+/// themselves and store the KDF parameters elsewhere (see [`derive_key`]).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Sealed {
+    pub nonce: String,
+    pub ciphertext: String,
+}
+
+/// Generate a fresh random salt for a long-lived envelope.
+pub fn random_salt() -> [u8; SALT_LEN] {
+    let mut salt = [0u8; SALT_LEN];
+    OsRng.fill_bytes(&mut salt);
+    salt
+}
+
+/// Encrypt `plaintext` with an already-derived key, under a fresh nonce.
+pub fn seal_with_key(key: &[u8; 32], plaintext: &str) -> Result<Sealed, String> {
+    let mut nonce_bytes = [0u8; NONCE_LEN];
+    OsRng.fill_bytes(&mut nonce_bytes);
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
+    let ciphertext = cipher
+        .encrypt(Nonce::from_slice(&nonce_bytes), plaintext.as_bytes())
+        .map_err(|e| format!("Encryption failed: {e}"))?;
+    Ok(Sealed {
+        nonce: BASE64.encode(nonce_bytes),
+        ciphertext: BASE64.encode(ciphertext),
+    })
+}
+
+/// Decrypt a [`Sealed`] pair with an already-derived key.
+pub fn open_with_key(key: &[u8; 32], sealed: &Sealed) -> Result<String, String> {
+    let nonce_bytes = BASE64
+        .decode(&sealed.nonce)
+        .map_err(|e| format!("Invalid nonce: {e}"))?;
+    if nonce_bytes.len() != NONCE_LEN {
+        return Err("Invalid nonce length".to_string());
+    }
+    let ciphertext = BASE64
+        .decode(&sealed.ciphertext)
+        .map_err(|e| format!("Invalid ciphertext: {e}"))?;
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
+    let plaintext = cipher
+        .decrypt(Nonce::from_slice(&nonce_bytes), ciphertext.as_ref())
+        .map_err(|_| "Decryption failed: wrong password or corrupted data".to_string())?;
+    String::from_utf8(plaintext).map_err(|e| format!("Decrypted data is not valid UTF-8: {e}"))
 }
 
 /// Encrypts a serialized payload with the given password.
