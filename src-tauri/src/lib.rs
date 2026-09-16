@@ -100,6 +100,7 @@ pub mod sqlite_database;
 pub mod sqlite_database_tests;
 mod system_theme;
 pub mod task_manager;
+pub mod team_share;
 pub mod theme_commands;
 pub mod theme_models;
 pub mod theme_packages;
