@@ -162,3 +162,29 @@ fn a_malformed_nonce_is_rejected() {
         .unwrap_err()
         .contains("nonce length"));
 }
+
+#[test]
+fn derive_key_refuses_parameters_beyond_the_limits() {
+    // The guard belongs to the derivation itself, not only to `decrypt`: a
+    // caller that keeps its own envelope reads these from a file somebody else
+    // may have written, and an unbounded m_cost is a denial of service on
+    // every attempt, successful or not.
+    let salt = random_salt();
+    for (m, t, p) in [
+        (u32::MAX, TEST_T_COST, TEST_P_COST),
+        (TEST_M_COST, 1000, TEST_P_COST),
+        (TEST_M_COST, TEST_T_COST, 1000),
+    ] {
+        let err = derive_key("pw", &salt, m, t, p).unwrap_err();
+        assert!(
+            err.contains("exceed allowed limits"),
+            "expected a limits error, got: {err}"
+        );
+    }
+}
+
+#[test]
+fn derive_key_accepts_the_production_parameters() {
+    let salt = random_salt();
+    assert!(derive_key("pw", &salt, ARGON2_M_COST, ARGON2_T_COST, ARGON2_P_COST).is_ok());
+}

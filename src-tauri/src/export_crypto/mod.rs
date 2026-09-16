@@ -57,6 +57,14 @@ pub fn derive_key(
     t_cost: u32,
     p_cost: u32,
 ) -> Result<[u8; 32], String> {
+    // The bounds live here, not only in `decrypt`, because the parameters
+    // always arrive from a file somebody else may have written. A caller that
+    // keeps its own envelope reads them from its own header and would
+    // otherwise hand an attacker a way to demand gigabytes of memory on every
+    // attempt — including the failed ones.
+    if m_cost > ARGON2_MAX_M_COST || t_cost > ARGON2_MAX_T_COST || p_cost > ARGON2_MAX_P_COST {
+        return Err("KDF parameters exceed allowed limits".to_string());
+    }
     let params = Params::new(m_cost, t_cost, p_cost, Some(32))
         .map_err(|e| format!("Invalid KDF parameters: {e}"))?;
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
