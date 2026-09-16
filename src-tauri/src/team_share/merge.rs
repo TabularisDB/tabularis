@@ -316,7 +316,18 @@ fn resolve<T: Mergeable>(
                 // the retention clock is not restarted on every sync.
                 Some(source.clone())
             } else {
-                note(notes, MergeOutcome::TombstonedLocally);
+                // A removal here that lands on a record somebody edited in the
+                // meantime is a conflict, not a plain removal: their edit is
+                // being thrown away. Report it as one so the caller can say so
+                // rather than let it pass as routine housekeeping.
+                note(
+                    notes,
+                    if remote_changed {
+                        MergeOutcome::ConflictLocalWins
+                    } else {
+                        MergeOutcome::TombstonedLocally
+                    },
+                );
                 Some(source.tombstone(&ctx.now, &ctx.actor))
             }
         }
