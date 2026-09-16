@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Play,
@@ -25,6 +25,7 @@ import {
 import clsx from "clsx";
 import { invoke } from "@tauri-apps/api/core";
 import { ResultEntryContent } from "./ResultEntryContent";
+import type { DataGridCommandTarget } from "./DataGrid";
 import { StackedResultItem } from "./StackedResultItem";
 import { ContextMenu } from "./ContextMenu";
 import { formatDuration } from "../../utils/formatTime";
@@ -57,6 +58,7 @@ interface MultiResultPanelProps {
   onCloseEntriesToLeft: (entryId: string) => void;
   onCloseAllEntries: () => void;
   onRenameEntry: (entryId: string, label: string) => void;
+  commandTargetRef?: Ref<DataGridCommandTarget>;
 }
 
 function ResultTab({
@@ -253,6 +255,7 @@ export function MultiResultPanel({
   onCloseEntriesToLeft,
   onCloseAllEntries,
   onRenameEntry,
+  commandTargetRef,
 }: MultiResultPanelProps) {
   const { t } = useTranslation();
   const { settings } = useSettings();
@@ -464,6 +467,7 @@ export function MultiResultPanel({
           {/* Active entry content */}
           <div className="flex-1 min-h-0 flex flex-col">
             <ResultEntryContent
+              commandTargetRef={commandTargetRef}
               entry={activeEntry}
               connectionId={connectionId}
               copyFormat={copyFormat}
@@ -516,6 +520,9 @@ export function MultiResultPanel({
             {results.map((entry) => (
               <StackedResultItem
                 key={entry.id}
+                commandTargetRef={
+                  entry.id === activeEntry.id ? commandTargetRef : undefined
+                }
                 entry={entry}
                 connectionId={connectionId}
                 copyFormat={copyFormat}

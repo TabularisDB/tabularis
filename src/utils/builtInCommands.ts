@@ -18,6 +18,12 @@ interface BuiltInCommandLabels {
   navigationCategory: string;
   connectionCategory: string;
   tableCategory: string;
+  resultCategory: string;
+  copySelectedCells: (count: number) => string;
+  copySelectedRows: (count: number) => string;
+  copySelectedColumns: (count: number) => string;
+  copyColumnValuesAsSqlIn: string;
+  copyAllRows: (count?: number) => string;
 }
 
 /** Commands that open a modal the palette itself owns, rather than navigating. */
@@ -163,6 +169,67 @@ export function createBuiltInCommandItems(
             ),
         },
       },
+    );
+  }
+
+  const resultCommands = scope.getResultCommands?.();
+  const addResultCommand = (
+    id: string,
+    title: string,
+    execute: () => void | Promise<void>,
+    description?: string,
+  ) => {
+    items.push({
+      id,
+      title,
+      description,
+      group: labels.resultCategory,
+      keywords: ["copy", "clipboard", "result", "selection"],
+      icon: "copy",
+      relevance: PINNED_PALETTE_RELEVANCE,
+      primaryAction: { id, label: title, execute },
+    });
+  };
+
+  if (resultCommands?.copySelectedCells) {
+    const command = resultCommands.copySelectedCells;
+    addResultCommand(
+      "result.copy-selected-cells",
+      labels.copySelectedCells(command.count),
+      command.execute,
+    );
+  }
+  if (resultCommands?.copySelectedRows) {
+    const command = resultCommands.copySelectedRows;
+    addResultCommand(
+      "result.copy-selected-rows",
+      labels.copySelectedRows(command.count),
+      command.execute,
+    );
+  }
+  if (resultCommands?.copySelectedColumns) {
+    const command = resultCommands.copySelectedColumns;
+    addResultCommand(
+      "result.copy-selected-columns",
+      labels.copySelectedColumns(command.count),
+      command.execute,
+    );
+  }
+  if (resultCommands?.copyColumnValuesAsSqlIn) {
+    const command = resultCommands.copyColumnValuesAsSqlIn;
+    addResultCommand(
+      "result.copy-column-values-as-sql-in",
+      labels.copyColumnValuesAsSqlIn,
+      command.execute,
+      command.columnName,
+    );
+  }
+  if (resultCommands?.copyAllRows) {
+    const command = resultCommands.copyAllRows;
+    addResultCommand(
+      "result.copy-all-rows",
+      labels.copyAllRows(command.count),
+      command.execute,
     );
   }
 

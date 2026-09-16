@@ -1170,6 +1170,7 @@
     "copyColumnName": "컬럼 이름 복사",
     "copyColumnNameQuoted": "`column` 형식으로 복사",
     "copyColumnNameTable": "table.column 형식으로 복사",
+    "copyColumnValuesIn": "열 값을 SQL IN으로 복사",
     "copyCells": "{{count}}개 셀 복사",
     "copyRows": "{{count}}개 행 복사",
     "copied": "클립보드에 복사되었습니다",

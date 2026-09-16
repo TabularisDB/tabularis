@@ -1231,6 +1231,7 @@
     "copyColumnName": "Copia nome colonna",
     "copyColumnNameQuoted": "Copia come `colonna`",
     "copyColumnNameTable": "Copia come tabella.colonna",
+    "copyColumnValuesIn": "Copia i valori della colonna come SQL IN",
     "copyCells": "Copia {{count}} celle",
     "copyRows": "Copia {{count}} righe",
     "copied": "Copiato negli appunti",

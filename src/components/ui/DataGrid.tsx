@@ -4,6 +4,7 @@ import React, {
   useRef,
   useCallback,
   useMemo,
+  useImperativeHandle,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -62,6 +63,7 @@ import {
   buildCellRange,
   extendCellRange,
   moveCellPosition,
+  createDataGridResultCommands,
   type RangeExtendKey,
 } from "../../utils/dataGrid";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
@@ -103,9 +105,15 @@ import type {
   TableColumn,
   ForeignKey,
 } from "../../types/editor";
+import type { ResultCommands } from "../../types/commands";
 import { MemoRow, type RowCtx } from "./DataGridRow";
 
+export interface DataGridCommandTarget {
+  getResultCommands: () => ResultCommands;
+}
+
 interface DataGridProps {
+  ref?: React.Ref<DataGridCommandTarget>;
   columns: string[];
   data: unknown[][];
   tableName?: string | null;
@@ -181,7 +189,8 @@ const RANGE_EXTEND_KEYS = new Set([
 ]);
 
 export const DataGrid = React.memo(
-  ({
+  function DataGrid({
+    ref,
     columns,
     data,
     tableName,
@@ -217,7 +226,7 @@ export const DataGrid = React.memo(
     totalRows,
     hasMore,
     onCopyAllRows,
-  }: DataGridProps) => {
+  }: DataGridProps) {
     const { t } = useTranslation();
     const { activeSchema, connections } = useDatabase();
     const guardProductionWrite = useProductionGuard();
@@ -677,9 +686,9 @@ export const DataGrid = React.memo(
     // True when the result set continues beyond the loaded page and the parent
     // can fetch and copy it in full. The total may be unknown (user hasn't
     // requested a row count) — has_more is enough to offer the full copy.
-    const hasUnloadedRows =
-      !!onCopyAllRows &&
+    const hasRowsBeyondLoadedPage =
       (totalRows != null ? totalRows > mergedRows.length : hasMore === true);
+    const hasUnloadedRows = !!onCopyAllRows && hasRowsBeyondLoadedPage;
 
     // True when the selection covers every loaded row — the toast then says
     // "N of M" so a page-only copy of a larger result is never silent.
@@ -1829,6 +1838,53 @@ export const DataGrid = React.memo(
       },
       [mergedRows, columns, columnTypeMap, columnLengthMap, copyToClipboard],
     );
+
+    const copyAllLoadedRows = useCallback(async () => {
+      await copyToClipboard(
+        formatRows(data, true),
+        rowsCopiedToast(data.length),
+      );
+    }, [copyToClipboard, data, formatRows, rowsCopiedToast]);
+
+    const getResultCommands = useCallback(
+      (): ResultCommands =>
+        createDataGridResultCommands({
+          cellRange,
+          focusedCell,
+          selectedRowIndices,
+          selectedColIndices,
+          columns,
+          dataLength: data.length,
+          totalRows,
+          hasRowsBeyondLoadedPage,
+          onCopyAllRows,
+          copyCellRange,
+          copyCellValue,
+          copySelectedRows: copySelectedCells,
+          copySelectedColumns,
+          copyColumnValuesAsSqlIn: copyColumnValuesAsInClause,
+          copyAllLoadedRows,
+        }),
+      [
+        cellRange,
+        focusedCell,
+        selectedRowIndices,
+        selectedColIndices,
+        onCopyAllRows,
+        hasRowsBeyondLoadedPage,
+        data.length,
+        totalRows,
+        columns,
+        copyCellRange,
+        copyCellValue,
+        copySelectedCells,
+        copySelectedColumns,
+        copyColumnValuesAsInClause,
+        copyAllLoadedRows,
+      ],
+    );
+
+    useImperativeHandle(ref, () => ({ getResultCommands }), [getResultCommands]);
 
     const copyCellFromContext = useCallback(async () => {
       if (!contextMenu) return;

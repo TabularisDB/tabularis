@@ -30,6 +30,16 @@ export function useCommandPaletteActionItems(
         navigationCategory: t("commandPalette.categories.navigation"),
         connectionCategory: t("commandPalette.categories.connection"),
         tableCategory: t("commandPalette.categories.table"),
+        resultCategory: t("editor.multiResult.results"),
+        copySelectedCells: (count) => t("dataGrid.copyCells", { count }),
+        copySelectedRows: (count) => t("dataGrid.copyRows", { count }),
+        copySelectedColumns: (count) =>
+          t("dataGrid.copySelectedColumns", { count }),
+        copyColumnValuesAsSqlIn: t("dataGrid.copyColumnValuesIn"),
+        copyAllRows: (count) =>
+          count == null
+            ? t("dataGrid.copyAll")
+            : t("dataGrid.copyAllRows", { count }),
       },
       { generateSql: onGenerateSql, inspect: onInspect },
     );

@@ -14,7 +14,10 @@ import {
 import { useActiveCommandPaletteScope } from "../../src/hooks/useCommandPaletteScope";
 import { useCommandPaletteActionItems } from "../../src/hooks/useCommandPaletteActionItems";
 import { useEditor } from "../../src/hooks/useEditor";
-import type { CommandRuntime } from "../../src/types/commands";
+import type {
+  CommandRuntime,
+  CommandScope,
+} from "../../src/types/commands";
 import type { Tab } from "../../src/types/editor";
 import { ROOT_COMMAND_SCOPE_ID } from "../../src/utils/commandScopeStore";
 import { createEditorNavigationIntent } from "../../src/utils/editorNavigation";
@@ -76,12 +79,14 @@ function Panel({
   connectionId,
   driver,
   openEditor,
+  getResultCommands,
   schema,
   scopeId = connectionId,
 }: {
   connectionId: string;
   driver: string;
   openEditor?: CommandRuntime["openEditor"];
+  getResultCommands?: CommandScope["getResultCommands"];
   schema: string;
   scopeId?: string;
 }) {
@@ -90,7 +95,11 @@ function Panel({
       value={createDatabaseValue(connectionId, driver, schema)}
     >
       <EditorProvider>
-        <PanelScopeBridge scopeId={scopeId} openEditor={openEditor} />
+        <PanelScopeBridge
+          scopeId={scopeId}
+          openEditor={openEditor}
+          getResultCommands={getResultCommands}
+        />
         <PanelTabs connectionId={connectionId} />
       </EditorProvider>
     </DatabaseContext.Provider>
@@ -101,15 +110,18 @@ function Panel({
 function PanelScopeBridge({
   scopeId,
   openEditor,
+  getResultCommands,
 }: {
   scopeId: string;
   openEditor?: CommandRuntime["openEditor"];
+  getResultCommands?: CommandScope["getResultCommands"];
 }) {
   const { addTab } = useEditor();
 
   return (
     <CommandPaletteScopeBridge
       scopeId={scopeId}
+      getResultCommands={getResultCommands}
       openEditor={
         openEditor ??
         ((request) => {
@@ -158,18 +170,33 @@ function ActiveTableCommand() {
   const command = items.find(
     (item) => item.id === "table.open-in-console",
   );
+  const resultCommand = items.find(
+    (item) => item.id === "result.copy-selected-cells",
+  );
 
-  if (!command) return <div>No table command</div>;
+  if (!command && !resultCommand) return <div>No contextual command</div>;
 
   return (
     <>
-      <output data-testid="active-table">{command.description}</output>
-      <button
-        type="button"
-        onClick={() => void command.primaryAction.execute()}
-      >
-        Execute table command
-      </button>
+      {command && (
+        <>
+          <output data-testid="active-table">{command.description}</output>
+          <button
+            type="button"
+            onClick={() => void command.primaryAction.execute()}
+          >
+            Execute table command
+          </button>
+        </>
+      )}
+      {resultCommand && (
+        <button
+          type="button"
+          onClick={() => void resultCommand.primaryAction.execute()}
+        >
+          Execute result command
+        </button>
+      )}
     </>
   );
 }
@@ -400,5 +427,42 @@ describe("CommandPaletteProvider split-view scope", () => {
       targetConnectionId: "connection-b",
     });
     expect(openInPanelA).not.toHaveBeenCalled();
+  });
+
+  it("should execute result actions from the active split panel only", () => {
+    const copyFromPanelA = vi.fn();
+    const copyFromPanelB = vi.fn();
+
+    render(
+      <MemoryRouter initialEntries={["/editor"]}>
+        <CommandPaletteProvider>
+          <Panel
+            connectionId="connection-a"
+            driver="mysql"
+            schema="schema_a"
+            getResultCommands={() => ({
+              copySelectedCells: { count: 1, execute: copyFromPanelA },
+            })}
+          />
+          <Panel
+            connectionId="connection-b"
+            driver="postgres"
+            schema="schema_b"
+            getResultCommands={() => ({
+              copySelectedCells: { count: 2, execute: copyFromPanelB },
+            })}
+          />
+          <PaletteHarness />
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open actions" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Execute result command" }),
+    );
+
+    expect(copyFromPanelB).toHaveBeenCalledOnce();
+    expect(copyFromPanelA).not.toHaveBeenCalled();
   });
 });

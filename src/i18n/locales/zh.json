@@ -1162,6 +1162,7 @@
     "copyColumnName": "复制列名",
     "copyColumnNameQuoted": "复制为 `列`",
     "copyColumnNameTable": "复制为 表.列",
+    "copyColumnValuesIn": "将列值复制为 SQL IN",
     "copyCells": "复制 {{count}} 个单元格",
     "copyRows": "复制 {{count}} 行",
     "copied": "已复制到剪贴板",
@@ -1560,7 +1561,8 @@
       "rename": "重命名",
       "aiGenerateName": "使用 AI 生成名称",
       "generatingName": "正在生成名称...",
-      "resultSetPrefix": "结果"
+      "resultSetPrefix": "结果",
+      "results": "结果"
     }
   },
   "createTable": {

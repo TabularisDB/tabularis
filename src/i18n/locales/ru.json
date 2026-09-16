@@ -1196,6 +1196,7 @@
     "copyColumnName": "Копировать имя столбца",
     "copyColumnNameQuoted": "Копировать как `column`",
     "copyColumnNameTable": "Копировать как table.column",
+    "copyColumnValuesIn": "Копировать значения столбца как SQL IN",
     "copyCells": "Копировать {{count}} ячеек",
     "copyRows": "Копировать {{count}} строк",
     "copied": "Скопировано в буфер обмена",

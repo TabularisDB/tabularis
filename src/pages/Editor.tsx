@@ -83,7 +83,10 @@ import {
   save as saveFileDialog,
 } from "@tauri-apps/plugin-dialog";
 import { TableToolbar } from "../components/ui/TableToolbar";
-import { DataGrid } from "../components/ui/DataGrid";
+import {
+  DataGrid,
+  type DataGridCommandTarget,
+} from "../components/ui/DataGrid";
 import { MultiResultPanel } from "../components/ui/MultiResultPanel";
 import { ErrorDisplay } from "../components/ui/ErrorDisplay";
 import { PageSizeSelector } from "../components/ui/PageSizeSelector";
@@ -447,6 +450,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const saveMenuRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const dbDropdownRef = useRef<HTMLDivElement>(null);
+  const dataGridCommandTargetRef = useRef<DataGridCommandTarget>(null);
+  const getResultCommands = useCallback(
+    () => dataGridCommandTargetRef.current?.getResultCommands() ?? null,
+    [],
+  );
   useClickOutside(
     runDropdownRef,
     () => setIsRunDropdownOpen(false),
@@ -3774,6 +3782,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         <CommandPaletteScopeBridge
           scopeId={commandScopeId}
           openEditor={openEditorInScope}
+          getResultCommands={getResultCommands}
         />
       )}
       {/* Tab Bar — tinted with the active connection's accent color */}
@@ -4564,6 +4573,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               </div>
             ) : activeTab.results && activeTab.results.length > 0 ? (
               <MultiResultPanel
+                commandTargetRef={dataGridCommandTargetRef}
                 results={activeTab.results}
                 activeResultId={activeTab.activeResultId}
                 tabId={activeTab.id}
@@ -5023,6 +5033,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                   <div className="flex-1 min-h-0 overflow-hidden">
                     <DataGrid
+                      ref={dataGridCommandTargetRef}
                       key={`${activeTab.id}-${activeTab.sortClause || "none"}-${activeTab.filterClause || "none"}-${activeTab.result?.rows.length || 0}-${Object.keys(activeTab.pendingInsertions || {}).length}`}
                       columns={activeTab.result?.columns || []}
                       data={activeTab.result?.rows || []}

@@ -1195,6 +1195,7 @@
     "copyColumnName": "Spaltennamen kopieren",
     "copyColumnNameQuoted": "Als `column` kopieren",
     "copyColumnNameTable": "Als table.column kopieren",
+    "copyColumnValuesIn": "Spaltenwerte als SQL IN kopieren",
     "copyCells": "{{count}} Zelle(n) kopieren",
     "copyRows": "{{count}} Zeile(n) kopieren",
     "copied": "In Zwischenablage kopiert",

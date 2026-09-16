@@ -1207,6 +1207,7 @@
     "copyColumnName": "カラム名をコピー",
     "copyColumnNameQuoted": "`column` 形式でコピー",
     "copyColumnNameTable": "table.column 形式でコピー",
+    "copyColumnValuesIn": "列の値を SQL IN としてコピー",
     "copyCells": "{{count}} 個のセルをコピー",
     "copyRows": "{{count}} 行をコピー",
     "copied": "クリップボードにコピーしました",

@@ -1223,6 +1223,7 @@
     "copyColumnName": "Copiar nombre de columna",
     "copyColumnNameQuoted": "Copiar como `columna`",
     "copyColumnNameTable": "Copiar como tabla.columna",
+    "copyColumnValuesIn": "Copiar valores de columna como SQL IN",
     "copyCells": "Copiar {{count}} Celdas",
     "copyRows": "Copiar {{count}} Filas",
     "copied": "Copiado al portapapeles",

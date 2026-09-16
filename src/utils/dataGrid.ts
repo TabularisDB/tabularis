@@ -6,6 +6,7 @@
 import { formatGeometricValue, isGeometricType } from "./geometry";
 import { formatBlobValue, isBlobColumn, isBlobWireFormat } from "./blob";
 import { isJsonColumn } from "./json";
+import type { ResultCommands } from "../types/commands";
 
 /** Sentinel value indicating that the database DEFAULT value should be used */
 export const USE_DEFAULT_SENTINEL = "__USE_DEFAULT__";
@@ -205,6 +206,97 @@ export interface CellRangeRect {
 export interface CellPosition {
   rowIndex: number;
   colIndex: number;
+}
+
+interface DataGridResultCommandsInput {
+  cellRange: CellRangeRect | null;
+  focusedCell: CellPosition | null;
+  selectedRowIndices: ReadonlySet<number>;
+  selectedColIndices: ReadonlySet<number>;
+  columns: string[];
+  dataLength: number;
+  totalRows: number | null | undefined;
+  hasRowsBeyondLoadedPage: boolean;
+  onCopyAllRows?: () => void | Promise<void>;
+  copyCellRange: () => void | Promise<void>;
+  copyCellValue: (rowIndex: number, colIndex: number) => void | Promise<void>;
+  copySelectedRows: () => void | Promise<void>;
+  copySelectedColumns: () => void | Promise<void>;
+  copyColumnValuesAsSqlIn: (columnIndex: number) => void | Promise<void>;
+  copyAllLoadedRows: () => void | Promise<void>;
+}
+
+export function createDataGridResultCommands({
+  cellRange,
+  focusedCell,
+  selectedRowIndices,
+  selectedColIndices,
+  columns,
+  dataLength,
+  totalRows,
+  hasRowsBeyondLoadedPage,
+  onCopyAllRows,
+  copyCellRange,
+  copyCellValue,
+  copySelectedRows,
+  copySelectedColumns,
+  copyColumnValuesAsSqlIn,
+  copyAllLoadedRows,
+}: DataGridResultCommandsInput): ResultCommands {
+  const commands: ResultCommands = {};
+
+  if (cellRange) {
+    commands.copySelectedCells = {
+      count:
+        (cellRange.maxRow - cellRange.minRow + 1) *
+        (cellRange.maxCol - cellRange.minCol + 1),
+      execute: copyCellRange,
+    };
+  } else if (focusedCell) {
+    commands.copySelectedCells = {
+      count: 1,
+      execute: () => copyCellValue(focusedCell.rowIndex, focusedCell.colIndex),
+    };
+  }
+
+  if (selectedRowIndices.size > 0) {
+    commands.copySelectedRows = {
+      count: selectedRowIndices.size,
+      execute: copySelectedRows,
+    };
+  }
+
+  if (selectedColIndices.size > 0) {
+    commands.copySelectedColumns = {
+      count: selectedColIndices.size,
+      execute: copySelectedColumns,
+    };
+  }
+
+  if (selectedColIndices.size === 1) {
+    const columnIndex = selectedColIndices.values().next().value;
+    if (columnIndex !== undefined) {
+      commands.copyColumnValuesAsSqlIn = {
+        columnName: columns[columnIndex] ?? "",
+        execute: () => copyColumnValuesAsSqlIn(columnIndex),
+      };
+    }
+  }
+
+  if (dataLength > 0 && (!hasRowsBeyondLoadedPage || onCopyAllRows)) {
+    commands.copyAllRows = {
+      count:
+        hasRowsBeyondLoadedPage && totalRows == null
+          ? undefined
+          : (totalRows ?? dataLength),
+      execute:
+        hasRowsBeyondLoadedPage && onCopyAllRows
+          ? onCopyAllRows
+          : copyAllLoadedRows,
+    };
+  }
+
+  return commands;
 }
 
 /** Arrow keys that extend a cell range when pressed with Shift. */
