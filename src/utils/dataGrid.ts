@@ -286,9 +286,9 @@ export function createDataGridResultCommands({
   if (dataLength > 0 && (!hasRowsBeyondLoadedPage || onCopyAllRows)) {
     commands.copyAllRows = {
       count:
-        hasRowsBeyondLoadedPage && totalRows == null
-          ? undefined
-          : (totalRows ?? dataLength),
+        hasRowsBeyondLoadedPage
+          ? (onCopyAllRows ? totalRows ?? undefined : dataLength)
+          : dataLength,
       execute:
         hasRowsBeyondLoadedPage && onCopyAllRows
           ? onCopyAllRows

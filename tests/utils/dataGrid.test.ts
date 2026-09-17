@@ -80,6 +80,25 @@ describe('createDataGridResultCommands', () => {
     expect(copyAllRows).toHaveBeenCalledOnce();
     expect(actions.copyAllLoadedRows).not.toHaveBeenCalled();
   });
+
+  it('counts pending rows when copying only loaded rows', async () => {
+    const actions = callbacks();
+    const commands = createDataGridResultCommands({
+      cellRange: null,
+      focusedCell: null,
+      selectedRowIndices: new Set(),
+      selectedColIndices: new Set(),
+      columns: ['id'],
+      dataLength: 2,
+      totalRows: 1,
+      hasRowsBeyondLoadedPage: false,
+      ...actions,
+    });
+
+    expect(commands.copyAllRows?.count).toBe(2);
+    await commands.copyAllRows?.execute();
+    expect(actions.copyAllLoadedRows).toHaveBeenCalledOnce();
+  });
 });
 
 describe('dataGrid utils', () => {
