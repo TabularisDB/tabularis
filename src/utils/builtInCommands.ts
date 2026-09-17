@@ -17,6 +17,7 @@ interface BuiltInCommandLabels {
   countRows: string;
   navigationCategory: string;
   connectionCategory: string;
+  editorCategory: string;
   tableCategory: string;
   resultCategory: string;
   copySelectedCells: (count: number) => string;
@@ -169,6 +170,56 @@ export function createBuiltInCommandItems(
             ),
         },
       },
+    );
+  }
+
+  const editorCommands = scope.getEditorCommands?.();
+  const addEditorCommand = (
+    id: string,
+    command: { label: string; execute: () => void | Promise<void> },
+    keywords: string[],
+  ) => {
+    items.push({
+      id,
+      title: command.label,
+      group: labels.editorCategory,
+      keywords,
+      icon: "command",
+      relevance: PINNED_PALETTE_RELEVANCE,
+      primaryAction: {
+        id,
+        label: command.label,
+        execute: command.execute,
+      },
+    });
+  };
+
+  if (editorCommands?.run) {
+    addEditorCommand(
+      "editor.run",
+      editorCommands.run,
+      ["run", "execute", "query", "selection", "statement"],
+    );
+  }
+  if (editorCommands?.runAll) {
+    addEditorCommand(
+      "editor.run-all",
+      editorCommands.runAll,
+      ["run", "execute", "query", "all", "statements"],
+    );
+  }
+  if (editorCommands?.saveSqlFile) {
+    addEditorCommand(
+      "editor.save-sql-file",
+      editorCommands.saveSqlFile,
+      ["save", "sql", "file"],
+    );
+  }
+  if (editorCommands?.closeTab) {
+    addEditorCommand(
+      "tab.close-active",
+      editorCommands.closeTab,
+      ["close", "tab", "editor"],
     );
   }
 

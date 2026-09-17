@@ -12,6 +12,17 @@ export interface ResultCommand {
   execute: () => void | Promise<void>;
 }
 
+export interface EditorCommand extends ResultCommand {
+  label: string;
+}
+
+export interface EditorCommands {
+  run?: EditorCommand;
+  runAll?: EditorCommand;
+  saveSqlFile?: EditorCommand;
+  closeTab?: EditorCommand;
+}
+
 interface CountedResultCommand extends ResultCommand {
   count: number;
 }
@@ -32,5 +43,7 @@ export interface CommandScope {
   table: TableTarget | null;
   /** Reads the active grid selection when the action palette opens. */
   getResultCommands?: () => ResultCommands | null;
+  /** Reads commands for the active editor tab when the palette opens. */
+  getEditorCommands?: () => EditorCommands | null;
   runtime: CommandRuntime;
 }

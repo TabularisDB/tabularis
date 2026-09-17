@@ -29,6 +29,7 @@ export function useCommandPaletteActionItems(
         countRows: t("editor.quickNavigator.actions.countRows"),
         navigationCategory: t("commandPalette.categories.navigation"),
         connectionCategory: t("commandPalette.categories.connection"),
+        editorCategory: t("settings.shortcuts.categories.editor"),
         tableCategory: t("commandPalette.categories.table"),
         resultCategory: t("editor.multiResult.results"),
         copySelectedCells: (count) => t("dataGrid.copyCells", { count }),

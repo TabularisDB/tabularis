@@ -165,6 +165,8 @@ import {
   parseEditorNavigationIntent,
 } from "../utils/editorNavigation";
 import { CommandPaletteScopeBridge } from "../components/layout/CommandPaletteScopeBridge";
+import type { CommandScope } from "../types/commands";
+import { createActiveEditorCommands } from "../utils/editorCommands";
 import { buildForeignKeyFilterClause } from "../utils/foreignKeys";
 import { formatSqlIdentifier } from "../utils/identifiers";
 import {
@@ -2109,6 +2111,48 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     }
   }, [activeTab, activeDialect, runQuery, runMultipleQueries, settings.runStatementUnderCursor]);
 
+  const getEditorCommands = useCallback<
+    NonNullable<CommandScope["getEditorCommands"]>
+  >(() => {
+    if (!activeTab) return null;
+
+    const editorText =
+      editorsRef.current[activeTab.id]?.getValue() ?? activeTab.query ?? "";
+    return createActiveEditorCommands({
+      tabType: activeTab.type,
+      hasConnection: !!activeConnectionId,
+      hasRunnableQuery:
+        activeTab.type === "table" || editorText.trim().length > 0,
+      isReadOnly: activeTab.readOnly === true,
+      isLoading: activeTab.isLoading === true,
+      canSaveSqlFile: canSaveSqlFile(activeTab),
+      statementCount: splitQueries(editorText, activeDialect).length,
+      labels: {
+        run: runLabel,
+        runAll: t("editor.runAll"),
+        saveSqlFile: t("editor.saveSqlFile"),
+        closeTab: t("editor.closeTab"),
+      },
+      actions: {
+        run: handleRunButton,
+        runAll: handleRunAll,
+        saveSqlFile: () => handleSaveSqlFile(activeTab),
+        closeTab: () => handleCloseTab(activeTab.id),
+      },
+    });
+  }, [
+    activeConnectionId,
+    activeDialect,
+    activeTab,
+    canSaveSqlFile,
+    handleCloseTab,
+    handleRunAll,
+    handleRunButton,
+    handleSaveSqlFile,
+    runLabel,
+    t,
+  ]);
+
   const openExplainForQuery = useCallback((query: string, tabId?: string) => {
     let queryToExplain = query;
     const params = extractQueryParams(queryToExplain, activeDialect);
@@ -3782,6 +3826,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         <CommandPaletteScopeBridge
           scopeId={commandScopeId}
           openEditor={openEditorInScope}
+          getEditorCommands={getEditorCommands}
           getResultCommands={getResultCommands}
         />
       )}

@@ -13,6 +13,7 @@ const labels = {
   countRows: "Count rows",
   navigationCategory: "Navigation",
   connectionCategory: "Connection",
+  editorCategory: "Editor",
   tableCategory: "Table",
   resultCategory: "Results",
   copySelectedCells: (count: number) => `Copy ${count} cells`,
@@ -204,5 +205,38 @@ describe("createBuiltInCommandItems", () => {
     createBuiltInCommandItems(scope, labels, modals());
 
     expect(getResultCommands).toHaveBeenCalledOnce();
+  });
+
+  it("should add only the editor actions available in the active tab", async () => {
+    const run = vi.fn();
+    const runAll = vi.fn();
+    const saveSqlFile = vi.fn();
+    const closeTab = vi.fn();
+    const scope = createScope({
+      getEditorCommands: () => ({
+        run: { label: "Run statement", execute: run },
+        runAll: { label: "Run all", execute: runAll },
+        saveSqlFile: { label: "Save SQL file", execute: saveSqlFile },
+        closeTab: { label: "Close tab", execute: closeTab },
+      }),
+    });
+
+    const items = createBuiltInCommandItems(scope, labels, modals());
+    const editorItems = items.filter((item) => item.group === "Editor");
+
+    expect(editorItems.map((item) => [item.id, item.title])).toEqual([
+      ["editor.run", "Run statement"],
+      ["editor.run-all", "Run all"],
+      ["editor.save-sql-file", "Save SQL file"],
+      ["tab.close-active", "Close tab"],
+    ]);
+
+    for (const item of editorItems) {
+      await item.primaryAction.execute();
+    }
+    expect(run).toHaveBeenCalledOnce();
+    expect(runAll).toHaveBeenCalledOnce();
+    expect(saveSqlFile).toHaveBeenCalledOnce();
+    expect(closeTab).toHaveBeenCalledOnce();
   });
 });

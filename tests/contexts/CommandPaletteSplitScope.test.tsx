@@ -79,6 +79,7 @@ function Panel({
   connectionId,
   driver,
   openEditor,
+  getEditorCommands,
   getResultCommands,
   schema,
   scopeId = connectionId,
@@ -86,6 +87,7 @@ function Panel({
   connectionId: string;
   driver: string;
   openEditor?: CommandRuntime["openEditor"];
+  getEditorCommands?: CommandScope["getEditorCommands"];
   getResultCommands?: CommandScope["getResultCommands"];
   schema: string;
   scopeId?: string;
@@ -98,6 +100,7 @@ function Panel({
         <PanelScopeBridge
           scopeId={scopeId}
           openEditor={openEditor}
+          getEditorCommands={getEditorCommands}
           getResultCommands={getResultCommands}
         />
         <PanelTabs connectionId={connectionId} />
@@ -110,10 +113,12 @@ function Panel({
 function PanelScopeBridge({
   scopeId,
   openEditor,
+  getEditorCommands,
   getResultCommands,
 }: {
   scopeId: string;
   openEditor?: CommandRuntime["openEditor"];
+  getEditorCommands?: CommandScope["getEditorCommands"];
   getResultCommands?: CommandScope["getResultCommands"];
 }) {
   const { addTab } = useEditor();
@@ -121,6 +126,7 @@ function PanelScopeBridge({
   return (
     <CommandPaletteScopeBridge
       scopeId={scopeId}
+      getEditorCommands={getEditorCommands}
       getResultCommands={getResultCommands}
       openEditor={
         openEditor ??
@@ -173,8 +179,11 @@ function ActiveTableCommand() {
   const resultCommand = items.find(
     (item) => item.id === "result.copy-selected-cells",
   );
+  const editorCommand = items.find((item) => item.id === "editor.run");
 
-  if (!command && !resultCommand) return <div>No contextual command</div>;
+  if (!command && !resultCommand && !editorCommand) {
+    return <div>No contextual command</div>;
+  }
 
   return (
     <>
@@ -195,6 +204,14 @@ function ActiveTableCommand() {
           onClick={() => void resultCommand.primaryAction.execute()}
         >
           Execute result command
+        </button>
+      )}
+      {editorCommand && (
+        <button
+          type="button"
+          onClick={() => void editorCommand.primaryAction.execute()}
+        >
+          Execute editor command
         </button>
       )}
     </>
@@ -464,5 +481,42 @@ describe("CommandPaletteProvider split-view scope", () => {
 
     expect(copyFromPanelB).toHaveBeenCalledOnce();
     expect(copyFromPanelA).not.toHaveBeenCalled();
+  });
+
+  it("should execute editor actions from the active split panel only", () => {
+    const runFromPanelA = vi.fn();
+    const runFromPanelB = vi.fn();
+
+    render(
+      <MemoryRouter initialEntries={["/editor"]}>
+        <CommandPaletteProvider>
+          <Panel
+            connectionId="connection-a"
+            driver="mysql"
+            schema="schema_a"
+            getEditorCommands={() => ({
+              run: { label: "Run A", execute: runFromPanelA },
+            })}
+          />
+          <Panel
+            connectionId="connection-b"
+            driver="postgres"
+            schema="schema_b"
+            getEditorCommands={() => ({
+              run: { label: "Run B", execute: runFromPanelB },
+            })}
+          />
+          <PaletteHarness />
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open actions" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Execute editor command" }),
+    );
+
+    expect(runFromPanelB).toHaveBeenCalledOnce();
+    expect(runFromPanelA).not.toHaveBeenCalled();
   });
 });

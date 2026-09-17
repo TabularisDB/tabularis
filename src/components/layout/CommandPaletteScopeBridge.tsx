@@ -14,12 +14,14 @@ import type {
 interface CommandPaletteScopeBridgeProps {
   scopeId: string;
   openEditor?: CommandRuntime["openEditor"];
+  getEditorCommands?: CommandScope["getEditorCommands"];
   getResultCommands?: CommandScope["getResultCommands"];
 }
 
 export const CommandPaletteScopeBridge = ({
   scopeId,
   openEditor,
+  getEditorCommands,
   getResultCommands,
 }: CommandPaletteScopeBridgeProps) => {
   const location = useLocation();
@@ -73,10 +75,18 @@ export const CommandPaletteScopeBridge = ({
       connectionId: activeConnectionId,
       driver: activeDriver,
       table,
+      getEditorCommands,
       getResultCommands,
       runtime,
     }),
-    [activeConnectionId, activeDriver, getResultCommands, runtime, table],
+    [
+      activeConnectionId,
+      activeDriver,
+      getEditorCommands,
+      getResultCommands,
+      runtime,
+      table,
+    ],
   );
 
   useRegisterCommandPaletteScope(scopeId, scope);
