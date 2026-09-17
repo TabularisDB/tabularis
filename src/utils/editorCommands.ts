@@ -34,16 +34,18 @@ export function createActiveEditorCommands({
   labels,
   actions,
 }: CreateActiveEditorCommandsOptions): EditorCommands {
-  const commands: EditorCommands = {
+  const closeTabCommand: EditorCommands = {
     closeTab: { label: labels.closeTab, execute: actions.closeTab },
   };
-
-  if (tabType === "console" && canSaveSqlFile) {
-    commands.saveSqlFile = {
-      label: labels.saveSqlFile,
-      execute: actions.saveSqlFile,
-    };
-  }
+  const saveSqlFileCommand: EditorCommands =
+    tabType === "console" && canSaveSqlFile
+      ? {
+          saveSqlFile: {
+            label: labels.saveSqlFile,
+            execute: actions.saveSqlFile,
+          },
+        }
+      : {};
 
   const canRun =
     hasConnection &&
@@ -53,12 +55,14 @@ export function createActiveEditorCommands({
     tabType !== "notebook" &&
     tabType !== "users";
 
-  if (!canRun) return commands;
+  if (!canRun) return { ...closeTabCommand, ...saveSqlFileCommand };
 
-  commands.run = { label: labels.run, execute: actions.run };
-  if (tabType === "console" && statementCount > 1) {
-    commands.runAll = { label: labels.runAll, execute: actions.runAll };
-  }
-
-  return commands;
+  return {
+    ...closeTabCommand,
+    ...saveSqlFileCommand,
+    run: { label: labels.run, execute: actions.run },
+    ...(tabType === "console" && statementCount > 1
+      ? { runAll: { label: labels.runAll, execute: actions.runAll } }
+      : {}),
+  };
 }

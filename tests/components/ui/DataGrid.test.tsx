@@ -1,8 +1,11 @@
-import { render, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, render, fireEvent, screen, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { useState } from "react";
+import { createRef, useState } from "react";
 import { vi } from "vitest";
-import { DataGrid } from "../../../src/components/ui/DataGrid";
+import {
+  DataGrid,
+  type DataGridCommandTarget,
+} from "../../../src/components/ui/DataGrid";
 import {
   buildPkMap,
   serializePkKey,
@@ -541,6 +544,36 @@ describe("DataGrid select all", () => {
       value: { writeText },
       configurable: true,
     });
+  });
+
+  it("copies pending insertions with all loaded rows", async () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <DataGrid
+        ref={commandTargetRef}
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    const command = commandTargetRef.current?.getResultCommands().copyAllRows;
+    expect(command?.count).toBe(2);
+    await act(async () => {
+      await command?.execute();
+    });
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
   });
 
   it("selects all loaded rows with Cmd/Ctrl+A without copying", () => {

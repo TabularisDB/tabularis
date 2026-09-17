@@ -56,4 +56,27 @@ describe("createConnectionCommandItems", () => {
 
     expect(items).toEqual([]);
   });
+
+  it("should omit empty connection keywords", () => {
+    const items = createConnectionCommandItems({
+      activeConnectionId: "connection-a",
+      connections: [
+        {
+          id: "connection-b",
+          name: "Analytics",
+          driver: "sqlite",
+          database: "warehouse.db",
+        },
+      ],
+      group: "Connection",
+      switchConnection: vi.fn(),
+    });
+
+    expect(items[0].keywords).toEqual([
+      "switch",
+      "connection",
+      "sqlite",
+      "warehouse.db",
+    ]);
+  });
 });

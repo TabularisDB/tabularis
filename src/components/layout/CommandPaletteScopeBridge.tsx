@@ -11,8 +11,6 @@ import type {
   CommandScope,
 } from "../../types/commands";
 
-const NOOP_SWITCH_CONNECTION = () => {};
-
 interface CommandPaletteScopeBridgeProps {
   scopeId: string;
   openEditor?: CommandRuntime["openEditor"];
@@ -32,9 +30,9 @@ export const CommandPaletteScopeBridge = ({
     activeConnectionId,
     activeDriver,
     activeSchema,
-    connections: availableConnections = [],
-    openConnectionIds = [],
-    switchConnection: switchActiveConnection = NOOP_SWITCH_CONNECTION,
+    connections: availableConnections,
+    openConnectionIds,
+    switchConnection: switchActiveConnection,
   } = useDatabase();
   const { activeTab } = useEditor();
   const activeTable = activeTab?.activeTable ?? null;

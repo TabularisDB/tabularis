@@ -26,17 +26,46 @@ const locales = {
   zh,
 };
 
+const assertTranslation = (
+  locale: string,
+  key: string,
+  value: unknown,
+  englishValue: string,
+) => {
+  expect(typeof value, `${locale} ${key}`).toBe("string");
+  expect((value as string).trim(), `${locale} ${key}`).not.toBe("");
+  if (locale !== "en") {
+    expect(value, `${locale} ${key} uses the English fallback`).not.toBe(
+      englishValue,
+    );
+  }
+};
+
 describe("command palette result translations", () => {
   it("defines every result command label in every locale", () => {
     for (const [locale, translation] of Object.entries(locales)) {
-      expect(
-        translation.dataGrid.copyColumnValuesIn,
-        `${locale} dataGrid.copyColumnValuesIn`,
-      ).toBeTruthy();
-      expect(
-        translation.editor.multiResult.results,
-        `${locale} editor.multiResult.results`,
-      ).toBeTruthy();
+      const resultLabels = {
+        "dataGrid.copyCells": translation.dataGrid.copyCells,
+        "dataGrid.copyRows": translation.dataGrid.copyRows,
+        "dataGrid.copySelectedColumns":
+          translation.dataGrid.copySelectedColumns,
+        "dataGrid.copyColumnValuesIn":
+          translation.dataGrid.copyColumnValuesIn,
+        "dataGrid.copyAll": translation.dataGrid.copyAll,
+        "dataGrid.copyAllRows": translation.dataGrid.copyAllRows,
+        "editor.multiResult.results": translation.editor.multiResult.results,
+      };
+
+      for (const [key, value] of Object.entries(resultLabels)) {
+        const [section, ...path] = key.split(".");
+        const englishValue = path.reduce<unknown>(
+          (current, segment) =>
+            (current as Record<string, unknown>)[segment],
+          en[section as keyof typeof en],
+        );
+        assertTranslation(locale, key, value, englishValue as string);
+      }
     }
   });
+
 });

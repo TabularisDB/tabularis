@@ -35,8 +35,8 @@ export function createConnectionCommandItems({
           "connection",
           connection.driver,
           connection.database,
-          connection.host ?? "",
-        ],
+          connection.host,
+        ].filter((keyword): keyword is string => Boolean(keyword)),
         icon: "command",
         primaryAction: {
           id: "switch",

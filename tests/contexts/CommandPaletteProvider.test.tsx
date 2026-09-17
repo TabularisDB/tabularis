@@ -19,17 +19,24 @@ import { createPaletteSearch } from "../../src/utils/paletteItems";
 
 const navigateMock = vi.fn();
 const addTabMock = vi.fn(() => "console-tab");
+const switchConnectionMock = vi.fn();
 
 const databaseState: {
   activeConnectionId: string | null;
   activeDriver: string | null;
   activeDatabaseName: string | null;
   activeSchema: string | null;
+  connections: [];
+  openConnectionIds: string[];
+  switchConnection: typeof switchConnectionMock;
 } = {
   activeConnectionId: "connection-1",
   activeDriver: "postgres",
   activeDatabaseName: "app",
   activeSchema: "public",
+  connections: [],
+  openConnectionIds: [],
+  switchConnection: switchConnectionMock,
 };
 
 const editorState = {
@@ -134,6 +141,7 @@ describe("CommandPaletteProvider", () => {
   beforeEach(() => {
     navigateMock.mockClear();
     addTabMock.mockClear();
+    switchConnectionMock.mockClear();
     databaseState.activeConnectionId = "connection-1";
   });
 

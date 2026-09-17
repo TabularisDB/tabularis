@@ -1840,11 +1840,12 @@ export const DataGrid = React.memo(
     );
 
     const copyAllLoadedRows = useCallback(async () => {
+      const rows = mergedRows.map((row) => row.rowData);
       await copyToClipboard(
-        formatRows(data, true),
-        rowsCopiedToast(data.length),
+        formatRows(rows, true),
+        rowsCopiedToast(rows.length),
       );
-    }, [copyToClipboard, data, formatRows, rowsCopiedToast]);
+    }, [copyToClipboard, formatRows, mergedRows, rowsCopiedToast]);
 
     const getResultCommands = useCallback(
       (): ResultCommands =>
@@ -1854,7 +1855,7 @@ export const DataGrid = React.memo(
           selectedRowIndices,
           selectedColIndices,
           columns,
-          dataLength: data.length,
+          dataLength: mergedRows.length,
           totalRows,
           hasRowsBeyondLoadedPage,
           onCopyAllRows,
@@ -1872,7 +1873,7 @@ export const DataGrid = React.memo(
         selectedColIndices,
         onCopyAllRows,
         hasRowsBeyondLoadedPage,
-        data.length,
+        mergedRows.length,
         totalRows,
         columns,
         copyCellRange,
