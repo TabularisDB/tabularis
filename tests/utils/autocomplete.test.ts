@@ -827,5 +827,61 @@ describe('autocomplete', () => {
       expect(groups.tables).toBe(0);
       expect(groups.columns).toBe(0);
     });
+
+    it('gives shared column names the nearest table prefix over non-nearest tables', async () => {
+      const mockInvoke = invoke as unknown as ReturnType<typeof vi.fn>;
+      // Both orders and customers share an `id` column.
+      mockInvoke.mockImplementation(async (_cmd: string, args: { tableName: string }) => {
+        if (args.tableName === 'customers') {
+          return [
+            { name: 'id', data_type: 'INT' },
+            { name: 'customer_name', data_type: 'VARCHAR' },
+          ];
+        }
+        if (args.tableName === 'orders') {
+          return [
+            { name: 'id', data_type: 'INT' },
+            { name: 'order_total', data_type: 'INT' },
+          ];
+        }
+        return [];
+      });
+
+      const { parseTablesFromQuery } = await import('../../src/utils/sqlAnalysis');
+      (parseTablesFromQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+        new Map([
+          ['o', { name: 'orders' }],
+          ['c', { name: 'customers' }],
+        ]),
+      );
+
+      const provider = setup([{ name: 'orders' }, { name: 'customers' }]);
+      // In WHERE, `orders o` is the nearest table (primary FROM).
+      const whereQuery = 'SELECT * FROM orders o JOIN customers c ON o.cust_id = c.id WHERE ';
+      const modelWhere = createMockModel(whereQuery);
+      const resultWhere = await provider.provideCompletionItems(
+        modelWhere,
+        { lineNumber: 1, column: whereQuery.length + 1 },
+      );
+
+      const ordersId = resultWhere.suggestions.find(
+        (s: { label: string }) => s.label === 'id' && s.sortText?.startsWith('0_0_'),
+      );
+      // There should be exactly one `id` with the 0_0_ prefix (from the nearest table, orders).
+      expect(ordersId).toBeDefined();
+      expect(ordersId?.sortText).toBe('0_0_id');
+
+      // The non-nearest table's `id` (customers) should get 0_1_ or higher, or not appear.
+      const customersId = resultWhere.suggestions.find(
+        (s: { label: string; sortText?: string }) =>
+          s.label === 'id' && s.sortText !== undefined && !s.sortText.startsWith('0_0_'),
+      );
+      // If it appears, it must have a higher index prefix.
+      if (customersId) {
+        expect(customersId.sortText).toMatch(/^0_\d+_id$/);
+        const nonNearestIdx = parseInt(customersId.sortText.split('_')[1], 10);
+        expect(nonNearestIdx).toBeGreaterThan(0);
+      }
+    });
   });
 });

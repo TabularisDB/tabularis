@@ -347,8 +347,35 @@ export const registerSqlAutocomplete = (
           return found.length > 0 ? found : [ref as TableInfo];
         });
 
-        // Limit parallel fetches to prevent memory spikes
+        // Limit parallel fetches to prevent memory spikes.
+        // Sort by nearest-table preference first so the most relevant table's
+        // columns get the "0_0_" prefix, and shared column names are claimed
+        // by the nearest table rather than a non-nearest one.
         const MAX_PARALLEL_FETCHES = 5;
+        const nearestRef = sqlContext.lastTableRef?.toLowerCase();
+        matchingTables.sort((a, b) => {
+          const aIsNearest = Boolean(
+            nearestRef &&
+              (a.name.toLowerCase() === nearestRef ||
+                Array.from(scopedAliases.entries()).some(
+                  ([alias, ref]) =>
+                    alias.toLowerCase() === nearestRef &&
+                    ref.name.toLowerCase() === a.name.toLowerCase() &&
+                    (!ref.schema || !a.schema || ref.schema.toLowerCase() === a.schema.toLowerCase()),
+                )),
+          );
+          const bIsNearest = Boolean(
+            nearestRef &&
+              (b.name.toLowerCase() === nearestRef ||
+                Array.from(scopedAliases.entries()).some(
+                  ([alias, ref]) =>
+                    alias.toLowerCase() === nearestRef &&
+                    ref.name.toLowerCase() === b.name.toLowerCase() &&
+                    (!ref.schema || !b.schema || ref.schema.toLowerCase() === b.schema.toLowerCase()),
+                )),
+          );
+          return aIsNearest === bIsNearest ? 0 : aIsNearest ? -1 : 1;
+        });
         if (matchingTables.length > MAX_PARALLEL_FETCHES) {
           matchingTables.splice(MAX_PARALLEL_FETCHES);
         }
@@ -358,8 +385,6 @@ export const registerSqlAutocomplete = (
         );
 
         const seenColumns = new Set<string>();
-
-        const nearestRef = sqlContext.lastTableRef?.toLowerCase();
 
         matchingTables.forEach((table, idx) => {
           const columns = results[idx];
