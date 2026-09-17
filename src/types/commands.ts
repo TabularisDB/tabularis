@@ -1,7 +1,7 @@
 import type { TableTarget } from "./databaseObjects";
 import type { EditorNavigationRequest } from "./editor";
 
-export type CommandPaletteMode = "actions" | "objects";
+export type CommandPaletteMode = "all" | "actions" | "objects";
 
 export interface CommandRuntime {
   navigate: (path: string) => void;

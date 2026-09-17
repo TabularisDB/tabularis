@@ -390,6 +390,37 @@ describe('SqlEditorWrapper', () => {
     expect(trigger).not.toHaveBeenCalled();
   });
 
+  it('opens the unified palette before Monaco consumes its shortcut', () => {
+    matchesShortcutMock.mockImplementation(
+      (_event, id) => id === 'command_palette',
+    );
+    render(
+      <SqlEditorWrapper
+        initialValue=""
+        onChange={mockOnChange}
+        onRun={mockOnRun}
+        editorKey="unified-palette-shortcut"
+      />,
+      { wrapper }
+    );
+    const { keyDownHandlers, trigger } = mountCapturedEditor();
+    const event = {
+      browserEvent: new KeyboardEvent('keydown', {
+        key: 'k',
+        ctrlKey: true,
+      }),
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    };
+
+    keyDownHandlers[0](event);
+
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+    expect(togglePaletteMock).toHaveBeenCalledWith('all');
+    expect(trigger).not.toHaveBeenCalled();
+  });
+
   it('does not intercept composing editor key events as palette shortcuts', () => {
     matchesShortcutMock.mockImplementation(
       (_event, id) => id === 'command_palette_actions',

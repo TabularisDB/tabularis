@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useCommandPaletteState } from "../../hooks/useCommandPalette";
@@ -38,6 +38,44 @@ const ActionPalette = ({
   };
 
   return <Palette labels={labels} items={items} />;
+};
+
+const AllPalette = ({
+  onGenerateSql,
+  onInspect,
+}: ActionPaletteProps) => {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState("");
+  const actionItems = useCommandPaletteActionItems(onGenerateSql, onInspect);
+  const objectsEnabled = query.trim().length > 0;
+  const { items: objectItems, error } = useCommandPaletteObjectItems(
+    onGenerateSql,
+    onInspect,
+    { enabled: objectsEnabled },
+  );
+  const items = useMemo(
+    () =>
+      objectsEnabled ? [...actionItems, ...objectItems] : actionItems,
+    [actionItems, objectItems, objectsEnabled],
+  );
+  const labels: PaletteLabels = {
+    ariaLabel: t("commandPalette.title"),
+    searchLabel: t("commandPalette.searchLabel"),
+    placeholder: t("commandPalette.placeholder"),
+    noResults: t("commandPalette.noResults"),
+    navigationHint: t("commandPalette.navigationHint"),
+    escapeHint: t("commandPalette.escapeHint"),
+  };
+
+  return (
+    <Palette
+      labels={labels}
+      items={items}
+      error={objectsEnabled ? error : null}
+      query={query}
+      onQueryChange={setQuery}
+    />
+  );
 };
 
 interface ObjectPaletteProps {
@@ -80,6 +118,12 @@ export const CommandPaletteModal = () => {
 
   return (
     <>
+      {activePalette === "all" && (
+        <AllPalette
+          onGenerateSql={setGenerateSQLTarget}
+          onInspect={setInspectTarget}
+        />
+      )}
       {activePalette === "actions" && (
         <ActionPalette
           onGenerateSql={setGenerateSQLTarget}

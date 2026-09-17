@@ -240,6 +240,25 @@ describe("CommandPaletteProvider", () => {
     expect(palette!.state.activePalette).toBeNull();
   });
 
+  it("should open unified search without an active connection", () => {
+    databaseState.activeConnectionId = null;
+    let palette: PaletteContexts | undefined;
+
+    render(
+      <CommandPaletteProvider>
+        <PaletteTestHarness
+          onContexts={(contexts) => {
+            palette = contexts;
+          }}
+        />
+      </CommandPaletteProvider>,
+    );
+
+    act(() => palette!.dispatch.openPalette("all"));
+
+    expect(palette!.state.activePalette).toBe("all");
+  });
+
   it("should open the current table in a new SQL console", async () => {
     let palette: PaletteContexts | undefined;
 

@@ -61,6 +61,22 @@ describe("useGlobalShortcuts", () => {
     input.remove();
   });
 
+  it("should open unified search while focus is inside an input", () => {
+    activeShortcutId = "command_palette";
+    renderHook(() => useGlobalShortcuts());
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+
+    fireEvent.keyDown(input, {
+      key: "k",
+      metaKey: true,
+    });
+
+    expect(togglePaletteMock).toHaveBeenCalledWith("all");
+    input.remove();
+  });
+
   it("ignores composing key events while focus is inside an input", () => {
     renderHook(() => useGlobalShortcuts());
     const input = document.createElement("input");

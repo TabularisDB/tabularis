@@ -260,6 +260,16 @@
     "overridable": true
   },
   {
+    "id": "command_palette",
+    "category": "navigation",
+    "defaultMac": "⌘+K",
+    "defaultWin": "Ctrl+K",
+    "macMatch": { "metaKey": true, "key": "k" },
+    "winMatch": { "ctrlKey": true, "key": "k" },
+    "i18nKey": "commandPalette.title",
+    "overridable": true
+  },
+  {
     "id": "quick_navigator",
     "category": "navigation",
     "defaultMac": "⌘+P",
