@@ -67,11 +67,16 @@ function createDatabaseValue(
   connectionId: string,
   driver: string,
   schema: string,
+  overrides: Partial<DatabaseContextType> = {},
 ): DatabaseContextType {
   return {
     activeConnectionId: connectionId,
     activeDriver: driver,
     activeSchema: schema,
+    connections: [],
+    openConnectionIds: [],
+    switchConnection: vi.fn(),
+    ...overrides,
   } as DatabaseContextType;
 }
 
@@ -81,6 +86,7 @@ function Panel({
   openEditor,
   getEditorCommands,
   getResultCommands,
+  databaseOverrides,
   schema,
   scopeId = connectionId,
 }: {
@@ -89,12 +95,18 @@ function Panel({
   openEditor?: CommandRuntime["openEditor"];
   getEditorCommands?: CommandScope["getEditorCommands"];
   getResultCommands?: CommandScope["getResultCommands"];
+  databaseOverrides?: Partial<DatabaseContextType>;
   schema: string;
   scopeId?: string;
 }) {
   return (
     <DatabaseContext.Provider
-      value={createDatabaseValue(connectionId, driver, schema)}
+      value={createDatabaseValue(
+        connectionId,
+        driver,
+        schema,
+        databaseOverrides,
+      )}
     >
       <EditorProvider>
         <PanelScopeBridge
@@ -180,8 +192,11 @@ function ActiveTableCommand() {
     (item) => item.id === "result.copy-selected-cells",
   );
   const editorCommand = items.find((item) => item.id === "editor.run");
+  const connectionCommand = items.find((item) =>
+    item.id.startsWith("connection.switch:"),
+  );
 
-  if (!command && !resultCommand && !editorCommand) {
+  if (!command && !resultCommand && !editorCommand && !connectionCommand) {
     return <div>No contextual command</div>;
   }
 
@@ -212,6 +227,14 @@ function ActiveTableCommand() {
           onClick={() => void editorCommand.primaryAction.execute()}
         >
           Execute editor command
+        </button>
+      )}
+      {connectionCommand && (
+        <button
+          type="button"
+          onClick={() => void connectionCommand.primaryAction.execute()}
+        >
+          Execute connection command
         </button>
       )}
     </>
@@ -518,5 +541,58 @@ describe("CommandPaletteProvider split-view scope", () => {
 
     expect(runFromPanelB).toHaveBeenCalledOnce();
     expect(runFromPanelA).not.toHaveBeenCalled();
+  });
+
+  it("should switch connections through the active split panel only", () => {
+    const switchFromPanelA = vi.fn();
+    const switchFromPanelB = vi.fn();
+    const connections = [
+      {
+        id: "connection-a",
+        name: "Primary",
+        params: { driver: "mysql", database: "app" },
+      },
+      {
+        id: "connection-b",
+        name: "Analytics",
+        params: { driver: "postgres", database: "warehouse" },
+      },
+    ];
+
+    render(
+      <MemoryRouter initialEntries={["/editor"]}>
+        <CommandPaletteProvider>
+          <Panel
+            connectionId="connection-a"
+            driver="mysql"
+            schema="schema_a"
+            databaseOverrides={{
+              connections,
+              openConnectionIds: ["connection-a", "connection-b"],
+              switchConnection: switchFromPanelA,
+            }}
+          />
+          <Panel
+            connectionId="connection-b"
+            driver="postgres"
+            schema="schema_b"
+            databaseOverrides={{
+              connections,
+              openConnectionIds: ["connection-a", "connection-b"],
+              switchConnection: switchFromPanelB,
+            }}
+          />
+          <PaletteHarness />
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open actions" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Execute connection command" }),
+    );
+
+    expect(switchFromPanelB).toHaveBeenCalledWith("connection-a");
+    expect(switchFromPanelA).not.toHaveBeenCalled();
   });
 });

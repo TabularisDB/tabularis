@@ -11,6 +11,8 @@ import type {
   CommandScope,
 } from "../../types/commands";
 
+const NOOP_SWITCH_CONNECTION = () => {};
+
 interface CommandPaletteScopeBridgeProps {
   scopeId: string;
   openEditor?: CommandRuntime["openEditor"];
@@ -30,6 +32,9 @@ export const CommandPaletteScopeBridge = ({
     activeConnectionId,
     activeDriver,
     activeSchema,
+    connections: availableConnections = [],
+    openConnectionIds = [],
+    switchConnection: switchActiveConnection = NOOP_SWITCH_CONNECTION,
   } = useDatabase();
   const { activeTab } = useEditor();
   const activeTable = activeTab?.activeTable ?? null;
@@ -66,13 +71,34 @@ export const CommandPaletteScopeBridge = ({
       openEditor:
         openEditor ??
         ((request) => navigateToEditor(navigate, request)),
+      switchConnection: (connectionId) => {
+        switchActiveConnection(connectionId);
+        navigate("/editor");
+      },
     }),
-    [navigate, openEditor],
+    [navigate, openEditor, switchActiveConnection],
+  );
+
+  const commandConnections = useMemo(
+    () =>
+      availableConnections
+        .filter((connection) => openConnectionIds.includes(connection.id))
+        .map((connection) => ({
+          id: connection.id,
+          name: connection.name,
+          driver: connection.params.driver,
+          database: Array.isArray(connection.params.database)
+            ? (connection.params.database[0] ?? "")
+            : connection.params.database,
+          ...(connection.params.host ? { host: connection.params.host } : {}),
+        })),
+    [availableConnections, openConnectionIds],
   );
 
   const scope = useMemo<CommandScope>(
     () => ({
       connectionId: activeConnectionId,
+      connections: commandConnections,
       driver: activeDriver,
       table,
       getEditorCommands,
@@ -82,6 +108,7 @@ export const CommandPaletteScopeBridge = ({
     [
       activeConnectionId,
       activeDriver,
+      commandConnections,
       getEditorCommands,
       getResultCommands,
       runtime,
