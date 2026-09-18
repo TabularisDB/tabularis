@@ -1419,22 +1419,22 @@ export const DataGrid = React.memo(
         colIndex: number,
         colName: string,
       ) => {
-        if (tableName) {
-          e.preventDefault();
-          // Find the merged row corresponding to this DOM element
-          const mergedRow = mergedRows.find((mr) => mr.rowData === row);
-          setContextMenu({
-            x: e.clientX,
-            y: e.clientY,
-            row,
-            rowIndex,
-            colIndex,
-            colName,
-            mergedRow,
-          });
-        }
+        if (!tableName && !readonlyProp) return;
+
+        e.preventDefault();
+        // Find the merged row corresponding to this DOM element
+        const mergedRow = mergedRows.find((mr) => mr.rowData === row);
+        setContextMenu({
+          x: e.clientX,
+          y: e.clientY,
+          row,
+          rowIndex,
+          colIndex,
+          colName,
+          mergedRow,
+        });
       },
-      [tableName, mergedRows],
+      [tableName, readonlyProp, mergedRows],
     );
 
     const revertSelectedRow = useCallback(() => {
@@ -2625,6 +2625,7 @@ export const DataGrid = React.memo(
               const isAutoIncrement = autoIncrementColumns?.includes(colName);
               const isNullable = nullableColumns?.includes(colName);
               const hasDefault = defaultValueColumns?.includes(colName);
+              const colDataType = columnTypeMap?.get(colName) ?? "";
 
               // Build menu items dynamically
               const menuItems: ContextMenuItem[] = [];
@@ -2656,7 +2657,6 @@ export const DataGrid = React.memo(
                 // Empty string ("") is only a valid value for textual columns.
                 // Strongly-typed columns (uuid, numeric, temporal, …) reject it,
                 // so offer "Set Empty" only where an empty string is assignable.
-                const colDataType = columnTypeMap?.get(colName) ?? "";
                 if (supportsEmptyString(colDataType)) {
                   menuItems.push({
                     label: t("dataGrid.setEmpty"),
@@ -2671,18 +2671,19 @@ export const DataGrid = React.memo(
                     action: setCellServerNow,
                   });
                 }
-                if (isJsonColumn(colDataType)) {
-                  menuItems.push({
-                    label: t("contextMenu.openJsonEditor"),
-                    icon: Braces,
-                    action: openJsonEditor,
-                  });
-                }
+              }
 
-                // Separator before row actions
-                if (menuItems.length > 0) {
-                  menuItems.push({ separator: true });
-                }
+              if (isJsonColumn(colDataType)) {
+                menuItems.push({
+                  label: t("contextMenu.openJsonEditor"),
+                  icon: Braces,
+                  action: openJsonEditor,
+                });
+              }
+
+              // Separator before row actions
+              if (menuItems.length > 0) {
+                menuItems.push({ separator: true });
               }
 
               const fkContextValue =
