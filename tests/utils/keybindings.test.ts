@@ -382,21 +382,48 @@ describe('matchesReservedShortcut', () => {
   });
 
   it.each([
-    { platform: 'macOS', isMac: true },
-    { platform: 'Windows', isMac: false },
+    {
+      id: 'jump_to_edge',
+      match: { key: 'ArrowRight', code: 'ArrowRight' },
+    },
+    {
+      id: 'extend_cell_range_to_edge',
+      match: { shiftKey: true, key: 'ArrowRight', code: 'ArrowRight' },
+    },
+    {
+      id: 'select_column',
+      match: { key: ' ', code: 'Space' },
+    },
   ])(
-    'does not reserve a shortcut with both primary modifiers on $platform',
-    ({ isMac }) => {
-      const match: KeyMatch = {
-        ctrlKey: true,
-        metaKey: true,
-        key: 'ArrowRight',
-        code: 'ArrowRight',
-      };
-
-      expect(matchesReservedShortcut('jump_to_edge', match, isMac)).toBe(false);
+    'reserves $id with both primary modifiers on macOS',
+    ({ id, match }) => {
+      expect(
+        matchesReservedShortcut(
+          id,
+          {
+            ...match,
+            ctrlKey: true,
+            metaKey: true,
+          },
+          true,
+        ),
+      ).toBe(true);
     },
   );
+
+  it('keeps switch-connection shortcuts exclusive to one primary modifier', () => {
+    const match: KeyMatch = {
+      ctrlKey: true,
+      metaKey: true,
+      shiftKey: true,
+      key: '!',
+      code: 'Digit1',
+    };
+
+    expect(
+      matchesReservedShortcut('switch_connection', match, true),
+    ).toBe(false);
+  });
 });
 
 // ─── mergeShortcuts ────────────────────────────────────────────────────────────

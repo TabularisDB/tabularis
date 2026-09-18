@@ -186,9 +186,7 @@ export function matchesReservedShortcut(
   }
 
   const isArrow = ARROW_KEYS.has(match.key);
-  const hasPrimaryModifier = isMac
-    ? !!match.metaKey !== !!match.ctrlKey
-    : !!match.ctrlKey && !match.metaKey;
+  const hasPrimaryModifier = !!match.metaKey || !!match.ctrlKey;
   const hasNoPrimaryModifier = !match.ctrlKey && !match.metaKey;
   const hasNoAltModifier = !match.altKey;
 
