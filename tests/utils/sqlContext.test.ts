@@ -504,5 +504,34 @@ describe('sqlContext', () => {
       expect(analyzeSqlContext('UPDATE users u SET ').lastTableRef).toBe('u');
       expect(analyzeSqlContext('INSERT INTO users (').lastTableRef).toBe('users');
     });
+
+    it('resolves the nearest aliased table after a comma in FROM', () => {
+      const result = analyzeSqlContext('SELECT * FROM orders o, customers c WHERE ');
+      expect(result.lastTableRef).toBe('c');
+    });
+
+    it('returns null lastTableRef when no FROM is encountered before cursor', () => {
+      expect(analyzeSqlContext('SELECT ').lastTableRef).toBeNull();
+    });
+  });
+
+  describe('analyzeSqlContext - openFrameClause', () => {
+    it('resolves `IN (` as an in-list', () => {
+      expect(analyzeSqlContext('SELECT * FROM t WHERE id IN (1, ').clause).toBe('in-list');
+    });
+
+    it('resolves `AS (` as a fresh statement scope', () => {
+      expect(analyzeSqlContext('WITH cte AS (').clause).toBe('start');
+    });
+
+    it('does not treat a quoted identifier before `(` as a keyword', () => {
+      expect(analyzeSqlContext('SELECT "in" (').clause).toBe('function-args');
+      expect(analyzeSqlContext('SELECT "as" (').clause).toBe('function-args');
+    });
+
+    it('treats `(` after non-keyword identifiers as function-args', () => {
+      expect(analyzeSqlContext('SELECT fn(').clause).toBe('function-args');
+      expect(analyzeSqlContext('SELECT count(').clause).toBe('function-args');
+    });
   });
 });
