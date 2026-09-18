@@ -805,7 +805,8 @@
       "categories": {
         "editor": "Editor",
         "navigation": "Navigation",
-        "data_grid": "Datenraster"
+        "data_grid": "Datenraster",
+        "notebook": "Notizbuch"
       },
       "runQuery": "Abfrage ausführen",
       "runQueryEditor": "Abfrage ausführen (im Editor)",
@@ -817,6 +818,9 @@
       "toggleRightSidebar": "Rechte Seitenleiste umschalten",
       "focusTableFilter": "Tabellenfilter fokussieren",
       "openConnections": "Verbindungen öffnen",
+      "openSettings": "Einstellungen öffnen",
+      "conflict": "Diese Tastenkombination steht in Konflikt mit „{{shortcut}}“.",
+      "needsModifier": "Modifikatortaste hinzufügen, etwa Strg oder Alt.",
       "newConnection": "Neue Verbindung",
       "newTab": "Neuer Tab",
       "closeTab": "Tab schließen",

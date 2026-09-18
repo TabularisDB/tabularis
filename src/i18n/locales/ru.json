@@ -798,7 +798,8 @@
       "categories": {
         "editor": "Редактор",
         "navigation": "Навигация",
-        "data_grid": "Таблица данных"
+        "data_grid": "Таблица данных",
+        "notebook": "Блокнот"
       },
       "runQuery": "Выполнить запрос",
       "runQueryEditor": "Выполнить запрос (в редакторе)",
@@ -810,6 +811,9 @@
       "toggleRightSidebar": "Переключить правую боковую панель",
       "focusTableFilter": "Фокус на фильтре таблиц",
       "openConnections": "Открыть подключения",
+      "openSettings": "Открыть настройки",
+      "conflict": "Это сочетание конфликтует с «{{shortcut}}».",
+      "needsModifier": "Добавьте клавишу-модификатор, например Ctrl или Alt.",
       "newConnection": "Новое подключение",
       "newTab": "Новая вкладка",
       "closeTab": "Закрыть вкладку",

@@ -838,7 +838,8 @@
       "categories": {
         "editor": "Éditeur",
         "navigation": "Navigation",
-        "data_grid": "Grille de données"
+        "data_grid": "Grille de données",
+        "notebook": "Carnet"
       },
       "runQuery": "Exécuter la requête",
       "runQueryEditor": "Exécuter la requête (dans l’éditeur)",
@@ -850,6 +851,9 @@
       "toggleRightSidebar": "Basculer la barre latérale droite",
       "focusTableFilter": "Focaliser le filtre de tables",
       "openConnections": "Ouvrir les connexions",
+      "openSettings": "Ouvrir les paramètres",
+      "conflict": "Ce raccourci entre en conflit avec « {{shortcut}} ».",
+      "needsModifier": "Ajoutez une touche de modification, comme Ctrl ou Alt.",
       "newConnection": "Nouvelle connexion",
       "newTab": "Nouvel onglet",
       "closeTab": "Fermer l’onglet",

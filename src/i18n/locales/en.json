@@ -850,7 +850,8 @@
       "categories": {
         "editor": "Editor",
         "navigation": "Navigation",
-        "data_grid": "Data Grid"
+        "data_grid": "Data Grid",
+        "notebook": "Notebook"
       },
       "runQuery": "Run query",
       "runQueryEditor": "Run query (in editor)",
@@ -862,6 +863,9 @@
       "toggleRightSidebar": "Toggle right sidebar",
       "focusTableFilter": "Focus table filter",
       "openConnections": "Open connections",
+      "openSettings": "Open settings",
+      "conflict": "This shortcut conflicts with “{{shortcut}}”.",
+      "needsModifier": "Add a modifier key, such as Ctrl or Alt.",
       "newConnection": "New connection",
       "newTab": "New tab",
       "closeTab": "Close tab",

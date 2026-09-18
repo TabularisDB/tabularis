@@ -781,7 +781,8 @@
       "categories": {
         "editor": "에디터",
         "navigation": "탐색",
-        "data_grid": "데이터 그리드"
+        "data_grid": "데이터 그리드",
+        "notebook": "노트북"
       },
       "runQuery": "쿼리 실행",
       "runQueryEditor": "쿼리 실행 (에디터에서)",
@@ -793,6 +794,9 @@
       "toggleRightSidebar": "오른쪽 사이드바 전환",
       "focusTableFilter": "테이블 필터에 포커스",
       "openConnections": "연결 열기",
+      "openSettings": "설정 열기",
+      "conflict": "이 단축키는 “{{shortcut}}” 단축키와 충돌합니다.",
+      "needsModifier": "Ctrl 또는 Alt 같은 조합 키를 추가하세요.",
       "newConnection": "새 연결",
       "newTab": "새 탭",
       "closeTab": "탭 닫기",

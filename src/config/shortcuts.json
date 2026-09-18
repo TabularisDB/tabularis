@@ -210,6 +210,16 @@
     "overridable": true
   },
   {
+    "id": "open_settings",
+    "category": "navigation",
+    "defaultMac": "⌘+,",
+    "defaultWin": "Ctrl+,",
+    "macMatch": { "metaKey": true, "key": ",", "code": "Comma" },
+    "winMatch": { "ctrlKey": true, "key": ",", "code": "Comma" },
+    "i18nKey": "settings.shortcuts.openSettings",
+    "overridable": true
+  },
+  {
     "id": "new_connection",
     "category": "navigation",
     "defaultMac": "⌘+Shift+N",

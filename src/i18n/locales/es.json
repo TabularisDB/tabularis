@@ -830,7 +830,8 @@
       "categories": {
         "editor": "Editor",
         "navigation": "Navegación",
-        "data_grid": "Cuadrícula de datos"
+        "data_grid": "Cuadrícula de datos",
+        "notebook": "Cuaderno"
       },
       "runQuery": "Ejecutar consulta",
       "runQueryEditor": "Ejecutar consulta (en el editor)",
@@ -842,6 +843,9 @@
       "toggleRightSidebar": "Alternar barra lateral derecha",
       "focusTableFilter": "Enfocar el filtro de tablas",
       "openConnections": "Abrir conexiones",
+      "openSettings": "Abrir configuración",
+      "conflict": "Este atajo entra en conflicto con «{{shortcut}}».",
+      "needsModifier": "Añade una tecla modificadora, como Ctrl o Alt.",
       "newConnection": "Nueva conexión",
       "newTab": "Nueva pestaña",
       "closeTab": "Cerrar pestaña",

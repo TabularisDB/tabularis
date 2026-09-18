@@ -1,9 +1,16 @@
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Keyboard, Lock, RotateCcw, Loader2, X } from "lucide-react";
-import clsx from "clsx";
+import { Keyboard, Lock, RotateCcw } from "lucide-react";
 import { useKeybindings } from "../../hooks/useKeybindings";
-import { formatEvent, formatMatch, parseCombo } from "../../utils/keybindings";
+import { useAlert } from "../../hooks/useAlert";
+import {
+  formatMatch,
+  keyMatchesOverlap,
+  matchesReservedShortcut,
+  shortcutCategoriesOverlap,
+} from "../../utils/keybindings";
+import type { KeyMatch } from "../../utils/keybindings";
+import { ShortcutsEditModal } from "./ShortcutsEditModal";
 import { SettingSection } from "./SettingControls";
 
 /* ── Edit modal ── */
@@ -14,127 +21,21 @@ interface EditingShortcut {
   current: string;
 }
 
-function ShortcutsEditModal({
-  editing,
-  onClose,
-  onSave,
-  isMac,
-}: {
-  editing: EditingShortcut;
-  onClose: () => void;
-  onSave: (combo: string) => Promise<void>;
-  isMac: boolean;
-}) {
-  const { t } = useTranslation();
-  const [combo, setCombo] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (["Control", "Meta", "Shift", "Alt"].includes(e.key)) return;
-      setCombo(formatEvent(e.nativeEvent, isMac));
-    },
-    [isMac, onClose],
-  );
-
-  const handleSave = async () => {
-    if (!combo) return;
-    setSaving(true);
-    try {
-      await onSave(combo);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-elevated border border-default rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/15 rounded-lg">
-              <Keyboard size={18} className="text-blue-400" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-primary">
-                {editing.label}
-              </h3>
-              <p className="text-xs text-muted mt-0.5">{editing.current}</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface-secondary transition-colors"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <div
-          className={clsx(
-            "flex items-center justify-center h-24 rounded-xl border-2 text-sm font-mono cursor-default select-none transition-colors",
-            combo
-              ? "border-blue-500 bg-blue-500/10 text-blue-300"
-              : "border-dashed border-default text-muted",
-          )}
-          tabIndex={0}
-          autoFocus
-          onKeyDown={handleKeyDown}
-        >
-          {combo ? (
-            <kbd className="text-2xl font-semibold tracking-wide">
-              {combo}
-            </kbd>
-          ) : (
-            <span className="text-sm">
-              {t("settings.shortcuts.pressKeys")}
-            </span>
-          )}
-        </div>
-
-        <p className="text-xs text-muted text-center mt-2">
-          {combo
-            ? t("common.save") + " / Esc"
-            : "Esc " + t("common.cancel")}
-        </p>
-
-        <div className="flex gap-3 mt-5">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg text-sm border border-default text-muted hover:text-primary hover:border-blue-500/50 transition-colors"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!combo || saving}
-            className="flex-1 px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : null}
-            {t("common.save")}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── Main tab ── */
 
 export function ShortcutsTab() {
   const { t } = useTranslation();
+  const { showAlert } = useAlert();
   const { shortcuts, saveOverride, resetOverride, overrides, isMac } =
     useKeybindings();
   const [editingShortcut, setEditingShortcut] =
     useState<EditingShortcut | null>(null);
-
-  const categories = ["editor", "navigation", "data_grid"] as const;
+  const categories = [
+    "editor",
+    "navigation",
+    "data_grid",
+    "notebook",
+  ] as const;
 
   const openEdit = useCallback(
     (s: (typeof shortcuts)[number]) => {
@@ -155,34 +56,64 @@ export function ShortcutsTab() {
   );
 
   const handleSave = useCallback(
-    async (combo: string) => {
+    async (match: KeyMatch) => {
       if (!editingShortcut) return;
-      const match = parseCombo(
-        combo.replace("\u2318", "Meta").replace("\u2325", "Alt"),
+      const editedShortcut = shortcuts.find(
+        (shortcut) => shortcut.id === editingShortcut.id,
       );
+      if (!editedShortcut) return;
+      const conflict = shortcuts.find(
+        (shortcut) =>
+          shortcut.id !== editingShortcut.id &&
+          shortcutCategoriesOverlap(
+            editedShortcut.category,
+            shortcut.category,
+          ) &&
+          (keyMatchesOverlap(match, shortcut.match, isMac) ||
+            matchesReservedShortcut(shortcut.id, match, isMac)),
+      );
+      if (conflict) {
+        showAlert(
+          t("settings.shortcuts.conflict", {
+            shortcut: t(conflict.i18nKey as Parameters<typeof t>[0]),
+          }),
+          { title: t("common.error"), kind: "error" },
+        );
+        return;
+      }
+
       if (isMac) {
         await saveOverride(
           editingShortcut.id,
           match,
-          overrides[editingShortcut.id]?.win ?? match,
+          overrides[editingShortcut.id]?.win ?? editedShortcut.winMatch,
         );
       } else {
         await saveOverride(
           editingShortcut.id,
-          overrides[editingShortcut.id]?.mac ?? match,
+          overrides[editingShortcut.id]?.mac ?? editedShortcut.macMatch,
           match,
         );
       }
       setEditingShortcut(null);
     },
-    [editingShortcut, isMac, saveOverride, overrides],
+    [
+      editingShortcut,
+      isMac,
+      saveOverride,
+      overrides,
+      shortcuts,
+      showAlert,
+      t,
+    ],
   );
 
   return (
     <>
       {editingShortcut && (
         <ShortcutsEditModal
-          editing={editingShortcut}
+          label={editingShortcut.label}
+          current={editingShortcut.current}
           onClose={() => setEditingShortcut(null)}
           onSave={handleSave}
           isMac={isMac}

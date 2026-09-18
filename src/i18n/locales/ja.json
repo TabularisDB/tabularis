@@ -819,7 +819,8 @@
       "categories": {
         "editor": "エディタ",
         "navigation": "ナビゲーション",
-        "data_grid": "データグリッド"
+        "data_grid": "データグリッド",
+        "notebook": "ノートブック"
       },
       "runQuery": "クエリを実行",
       "runQueryEditor": "クエリを実行 (エディタ内)",
@@ -831,6 +832,9 @@
       "toggleRightSidebar": "右サイドバーの切り替え",
       "focusTableFilter": "テーブルフィルターにフォーカス",
       "openConnections": "接続を開く",
+      "openSettings": "設定を開く",
+      "conflict": "このショートカットは「{{shortcut}}」と競合しています。",
+      "needsModifier": "Ctrl や Alt などの修飾キーを追加してください。",
       "newConnection": "新規接続",
       "newTab": "新規タブ",
       "closeTab": "タブを閉じる",

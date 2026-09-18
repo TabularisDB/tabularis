@@ -820,7 +820,8 @@
       "categories": {
         "editor": "Editor",
         "navigation": "Navegação",
-        "data_grid": "Grade de Dados"
+        "data_grid": "Grade de Dados",
+        "notebook": "Caderno"
       },
       "runQuery": "Executar consulta",
       "runQueryEditor": "Executar consulta (no editor)",
@@ -832,6 +833,9 @@
       "toggleRightSidebar": "Alternar barra lateral direita",
       "focusTableFilter": "Focar filtro de tabela",
       "openConnections": "Abrir conexões",
+      "openSettings": "Abrir configurações",
+      "conflict": "Este atalho entra em conflito com “{{shortcut}}”.",
+      "needsModifier": "Adicione uma tecla modificadora, como Ctrl ou Alt.",
       "newConnection": "Nova conexão",
       "newTab": "Nova aba",
       "closeTab": "Fechar aba",

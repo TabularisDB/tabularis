@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { connectionIndexFromShortcut } from "../utils/keybindings";
 import { useCommandPaletteDispatch } from "./useCommandPalette";
 import { useConnectionManager } from "./useConnectionManager";
 import { useKeybindings } from "./useKeybindings";
@@ -10,7 +11,16 @@ const TYPING_SAFE_SHORTCUTS = [
   "quick_navigator",
   "command_palette_actions",
   "focus_table_filter",
+  "open_settings",
+  "close_tab",
 ];
+
+/**
+ * Routes where the close shortcut steps back instead of closing the window.
+ * The editor binds it to its own tabs, and /connections is the start screen,
+ * so there it stays the window close the platform expects.
+ */
+const BACKABLE_ROUTES = new Set(["/settings", "/mcp"]);
 
 /**
  * Registers global keyboard shortcuts for navigation.
@@ -19,6 +29,7 @@ const TYPING_SAFE_SHORTCUTS = [
  */
 export function useGlobalShortcuts() {
   const navigate = useNavigate();
+  const { pathname, key: historyKey } = useLocation();
   const { matchesShortcut, isMac } = useKeybindings();
   const { openConnections, handleSwitch } = useConnectionManager();
   const { togglePalette } = useCommandPaletteDispatch();
@@ -89,22 +100,36 @@ export function useGlobalShortcuts() {
         return;
       }
 
+      if (matchesShortcut(e, "open_settings")) {
+        e.preventDefault();
+        if (pathname !== "/settings") navigate("/settings");
+        return;
+      }
+
+      if (
+        BACKABLE_ROUTES.has(pathname) &&
+        matchesShortcut(e, "close_tab")
+      ) {
+        e.preventDefault();
+        // A "default" key means the app started on this route, so there is
+        // nothing to step back to.
+        if (historyKey === "default") {
+          navigate("/connections");
+        } else {
+          navigate(-1);
+        }
+        return;
+      }
+
       if (matchesShortcut(e, "new_connection")) {
         e.preventDefault();
         navigate("/connections", { state: { openNew: true } });
         return;
       }
 
-      // Cmd/Ctrl+Shift+1–9: switch to Nth open connection (on Mac accept both ⌘ and Ctrl)
-      // Use e.code (layout-independent) instead of e.key, because Shift+1 gives "!" not "1"
-      const modifierHeld = isMac ? e.metaKey || e.ctrlKey : e.ctrlKey;
-      if (
-        modifierHeld &&
-        e.shiftKey &&
-        /^Digit[1-9]$/.test(e.code)
-      ) {
-        const idx = parseInt(e.code.slice(-1), 10) - 1;
-        const conn = openConnections[idx];
+      const connectionIndex = connectionIndexFromShortcut(e, isMac);
+      if (connectionIndex !== null) {
+        const conn = openConnections[connectionIndex];
         if (conn) {
           e.preventDefault();
           handleSwitch(conn.id);
@@ -119,6 +144,8 @@ export function useGlobalShortcuts() {
     matchesShortcut,
     isMac,
     navigate,
+    pathname,
+    historyKey,
     openConnections,
     handleSwitch,
     togglePalette,

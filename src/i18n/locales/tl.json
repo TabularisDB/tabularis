@@ -836,7 +836,8 @@
       "categories": {
         "editor": "Editor",
         "navigation": "Navigation",
-        "data_grid": "Data Grid"
+        "data_grid": "Data Grid",
+        "notebook": "Kuwaderno"
       },
       "runQuery": "Patakbuhin ang query",
       "runQueryEditor": "Patakbuhin ang query (sa editor)",
@@ -848,6 +849,9 @@
       "toggleRightSidebar": "I-toggle ang kanang sidebar",
       "focusTableFilter": "Tumuon sa table filter",
       "openConnections": "Buksan ang mga koneksyon",
+      "openSettings": "Buksan ang settings",
+      "conflict": "Sumasalungat ang shortcut na ito sa “{{shortcut}}”.",
+      "needsModifier": "Magdagdag ng modifier key, gaya ng Ctrl o Alt.",
       "newConnection": "Bagong koneksyon",
       "newTab": "Bagong tab",
       "closeTab": "Isara ang tab",

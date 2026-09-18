@@ -838,7 +838,8 @@
       "categories": {
         "editor": "Editor",
         "navigation": "Navigazione",
-        "data_grid": "Griglia dati"
+        "data_grid": "Griglia dati",
+        "notebook": "Taccuino"
       },
       "runQuery": "Esegui query",
       "runQueryEditor": "Esegui query (nell'editor)",
@@ -850,6 +851,9 @@
       "toggleRightSidebar": "Attiva/disattiva barra laterale destra",
       "focusTableFilter": "Focalizza il filtro tabelle",
       "openConnections": "Apri connessioni",
+      "openSettings": "Apri impostazioni",
+      "conflict": "Questa scorciatoia è in conflitto con “{{shortcut}}”.",
+      "needsModifier": "Aggiungi un tasto modificatore, come Ctrl o Alt.",
       "newConnection": "Nuova connessione",
       "newTab": "Nuovo tab",
       "closeTab": "Chiudi tab",

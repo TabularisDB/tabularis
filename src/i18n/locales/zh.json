@@ -769,7 +769,8 @@
       "categories": {
         "editor": "编辑器",
         "navigation": "导航",
-        "data_grid": "数据网格"
+        "data_grid": "数据网格",
+        "notebook": "笔记本"
       },
       "runQuery": "运行查询",
       "runQueryEditor": "运行查询（编辑器中）",
@@ -781,6 +782,9 @@
       "toggleRightSidebar": "切换右侧边栏",
       "focusTableFilter": "聚焦表格筛选",
       "openConnections": "打开连接",
+      "openSettings": "打开设置",
+      "conflict": "此快捷键与“{{shortcut}}”冲突。",
+      "needsModifier": "请添加修饰键，例如 Ctrl 或 Alt。",
       "newConnection": "新建连接",
       "newTab": "新建标签",
       "closeTab": "关闭标签",

@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   resolveMatch,
   matchesEvent,
+  keyMatchesOverlap,
+  connectionIndexFromShortcut,
+  matchesReservedShortcut,
+  shortcutCategoriesOverlap,
   mergeShortcuts,
   parseCombo,
   formatEvent,
@@ -117,6 +121,283 @@ describe('matchesEvent', () => {
     const event = makeEvent({ key: 'B', metaKey: true });
     expect(matchesEvent(event, match)).toBe(true);
   });
+
+  it('matches a physical key across keyboard layouts when code is defined', () => {
+    const match: KeyMatch = { metaKey: true, key: ',', code: 'Comma' };
+    const event = makeEvent({ key: 'б', code: 'Comma', metaKey: true });
+
+    expect(matchesEvent(event, match)).toBe(true);
+  });
+
+  it('matches the shortcut character on a different physical key', () => {
+    const match: KeyMatch = { metaKey: true, key: ',', code: 'Comma' };
+    const event = makeEvent({ key: ',', code: 'KeyM', metaKey: true });
+
+    expect(matchesEvent(event, match)).toBe(true);
+  });
+
+  it('rejects an event when neither key nor physical code matches', () => {
+    const match: KeyMatch = { metaKey: true, key: ',', code: 'Comma' };
+    const event = makeEvent({ key: ';', code: 'Semicolon', metaKey: true });
+
+    expect(matchesEvent(event, match)).toBe(false);
+  });
+});
+
+describe('keyMatchesOverlap', () => {
+  it('detects shortcuts sharing a character alias', () => {
+    const first: KeyMatch = { metaKey: true, key: ',', code: 'Comma' };
+    const second: KeyMatch = { metaKey: true, key: ',', code: 'KeyM' };
+
+    expect(keyMatchesOverlap(first, second)).toBe(true);
+  });
+
+  it('detects shortcuts sharing a physical key alias', () => {
+    const first: KeyMatch = { metaKey: true, key: ',', code: 'Comma' };
+    const second: KeyMatch = { metaKey: true, key: ';', code: 'Comma' };
+
+    expect(keyMatchesOverlap(first, second)).toBe(true);
+  });
+
+  it('detects a same-code collision without key aliases', () => {
+    const first: KeyMatch = { metaKey: true, key: 'ö', code: 'Semicolon' };
+    const second: KeyMatch = { metaKey: true, key: 'ä', code: 'Semicolon' };
+
+    expect(keyMatchesOverlap(first, second)).toBe(true);
+  });
+
+  it.each([
+    { code: 'KeyC', recordedKey: 'с', defaultKey: 'c' },
+    { code: 'Comma', recordedKey: ';', defaultKey: ',' },
+    { code: 'Digit1', recordedKey: '&', defaultKey: '1' },
+  ])('detects $code against a key-only shortcut', ({ code, recordedKey, defaultKey }) => {
+    const recorded: KeyMatch = { metaKey: true, key: recordedKey, code };
+    const defaultMatch: KeyMatch = { metaKey: true, key: defaultKey };
+
+    expect(keyMatchesOverlap(recorded, defaultMatch)).toBe(true);
+    expect(keyMatchesOverlap(defaultMatch, recorded)).toBe(true);
+  });
+
+  it('reserves a physical alias that can conflict after switching layouts', () => {
+    const germanLayout: KeyMatch = {
+      metaKey: true,
+      key: 'ö',
+      code: 'Semicolon',
+    };
+    const usLayout: KeyMatch = { metaKey: true, key: ';' };
+
+    expect(keyMatchesOverlap(germanLayout, usLayout)).toBe(true);
+  });
+
+  it('normalizes shifted punctuation using US-QWERTY output', () => {
+    const recorded: KeyMatch = {
+      metaKey: true,
+      shiftKey: true,
+      key: 'Б',
+      code: 'Comma',
+    };
+    const shiftedComma: KeyMatch = {
+      metaKey: true,
+      shiftKey: true,
+      key: '<',
+    };
+    const unshiftedComma: KeyMatch = {
+      metaKey: true,
+      shiftKey: true,
+      key: ',',
+    };
+
+    expect(keyMatchesOverlap(recorded, shiftedComma)).toBe(true);
+    expect(keyMatchesOverlap(recorded, unshiftedComma)).toBe(false);
+  });
+
+  it('normalizes numpad digit codes', () => {
+    const numpad: KeyMatch = { metaKey: true, key: 'End', code: 'Numpad1' };
+    const digit: KeyMatch = { metaKey: true, key: '1' };
+
+    expect(keyMatchesOverlap(numpad, digit)).toBe(true);
+  });
+
+  it('normalizes named codes through the fallback', () => {
+    const physicalArrow: KeyMatch = {
+      metaKey: true,
+      key: '→',
+      code: 'ArrowRight',
+    };
+    const namedArrow: KeyMatch = { metaKey: true, key: 'ArrowRight' };
+
+    expect(keyMatchesOverlap(physicalArrow, namedArrow)).toBe(true);
+  });
+
+  it('allows the same key with different modifiers', () => {
+    const first: KeyMatch = { metaKey: true, key: ',', code: 'Comma' };
+    const second: KeyMatch = { ctrlKey: true, key: ',', code: 'Comma' };
+
+    expect(keyMatchesOverlap(first, second)).toBe(false);
+  });
+
+  it('detects the Cmd/Ctrl alias overlap on Mac', () => {
+    const first: KeyMatch = { metaKey: true, key: ',', code: 'Comma' };
+    const second: KeyMatch = { ctrlKey: true, key: ',', code: 'Comma' };
+
+    expect(keyMatchesOverlap(first, second, true)).toBe(true);
+  });
+
+  it('allows shortcuts with distinct keys and physical codes', () => {
+    const first: KeyMatch = { metaKey: true, key: ',', code: 'Comma' };
+    const second: KeyMatch = { metaKey: true, key: 'p', code: 'KeyP' };
+
+    expect(keyMatchesOverlap(first, second)).toBe(false);
+  });
+
+  it('handles inherited object property names as unrecognized codes', () => {
+    const recorded: KeyMatch = {
+      metaKey: true,
+      key: 'a',
+      code: 'constructor',
+    };
+    const existing: KeyMatch = { metaKey: true, key: 'b' };
+
+    expect(keyMatchesOverlap(recorded, existing)).toBe(false);
+  });
+});
+
+describe('shortcutCategoriesOverlap', () => {
+  it('treats navigation shortcuts as global', () => {
+    expect(shortcutCategoriesOverlap('navigation', 'notebook')).toBe(true);
+  });
+
+  it('allows the same key in separate local contexts', () => {
+    expect(shortcutCategoriesOverlap('editor', 'notebook')).toBe(false);
+  });
+
+  it('detects collisions inside one context', () => {
+    expect(shortcutCategoriesOverlap('data_grid', 'data_grid')).toBe(true);
+  });
+
+  it('detects editor and data-grid collisions', () => {
+    expect(shortcutCategoriesOverlap('editor', 'data_grid')).toBe(true);
+    expect(shortcutCategoriesOverlap('data_grid', 'editor')).toBe(true);
+  });
+});
+
+describe('connectionIndexFromShortcut', () => {
+  it.each([
+    { code: 'Digit2', index: 1 },
+    { code: 'Digit9', index: 8 },
+  ])('maps $code to connection index $index', ({ code, index }) => {
+    const match: KeyMatch = {
+      metaKey: true,
+      shiftKey: true,
+      key: '',
+      code,
+    };
+
+    expect(connectionIndexFromShortcut(match, true)).toBe(index);
+  });
+
+  it('rejects a digit without the platform modifier', () => {
+    const match: KeyMatch = {
+      shiftKey: true,
+      key: '',
+      code: 'Digit2',
+    };
+
+    expect(connectionIndexFromShortcut(match, true)).toBeNull();
+  });
+
+  it('rejects extra modifiers on Windows', () => {
+    const match: KeyMatch = {
+      ctrlKey: true,
+      shiftKey: true,
+      altKey: true,
+      key: '@',
+      code: 'Digit2',
+    };
+
+    expect(connectionIndexFromShortcut(match, false)).toBeNull();
+  });
+
+  it('rejects pressing both primary modifiers on macOS', () => {
+    const match: KeyMatch = {
+      ctrlKey: true,
+      metaKey: true,
+      shiftKey: true,
+      key: '@',
+      code: 'Digit2',
+    };
+
+    expect(connectionIndexFromShortcut(match, true)).toBeNull();
+  });
+});
+
+describe('matchesReservedShortcut', () => {
+  it.each([
+    {
+      id: 'extend_cell_range',
+      match: { shiftKey: true, key: 'ArrowLeft', code: 'ArrowLeft' },
+    },
+    {
+      id: 'jump_to_edge',
+      match: { metaKey: true, key: 'ArrowUp', code: 'ArrowUp' },
+    },
+    {
+      id: 'extend_cell_range_to_edge',
+      match: {
+        ctrlKey: true,
+        shiftKey: true,
+        key: 'ArrowRight',
+        code: 'ArrowRight',
+      },
+    },
+    {
+      id: 'select_row',
+      match: { shiftKey: true, key: ' ', code: 'Space' },
+    },
+    {
+      id: 'select_column',
+      match: { metaKey: true, shiftKey: true, key: ' ', code: 'Space' },
+    },
+    {
+      id: 'switch_connection',
+      match: {
+        metaKey: true,
+        shiftKey: true,
+        key: '@',
+        code: 'Digit2',
+      },
+    },
+  ])('matches the full $id range', ({ id, match }) => {
+    expect(matchesReservedShortcut(id, match, true)).toBe(true);
+  });
+
+  it('does not reserve an unrelated shortcut', () => {
+    const match: KeyMatch = {
+      metaKey: true,
+      key: 'k',
+      code: 'KeyK',
+    };
+
+    expect(matchesReservedShortcut('select_column', match, true)).toBe(false);
+    expect(matchesReservedShortcut('open_settings', match, true)).toBe(false);
+  });
+
+  it.each([
+    { platform: 'macOS', isMac: true },
+    { platform: 'Windows', isMac: false },
+  ])(
+    'does not reserve a shortcut with both primary modifiers on $platform',
+    ({ isMac }) => {
+      const match: KeyMatch = {
+        ctrlKey: true,
+        metaKey: true,
+        key: 'ArrowRight',
+        code: 'ArrowRight',
+      };
+
+      expect(matchesReservedShortcut('jump_to_edge', match, isMac)).toBe(false);
+    },
+  );
 });
 
 // ─── mergeShortcuts ────────────────────────────────────────────────────────────
