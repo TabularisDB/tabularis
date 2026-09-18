@@ -63,6 +63,24 @@ describe("SettingsProvider", () => {
     vi.restoreAllMocks();
   });
 
+  it("hydrates settings while optional AI model discovery is still pending", async () => {
+    let finishModels!: (models: Record<string, string[]>) => void;
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "get_config") return { language: "en", aiEnabled: true, aiProvider: "openai", autoConnectLastConnection: false };
+      if (command === "get_ai_models") return new Promise<Record<string, string[]>>((resolve) => { finishModels = resolve; });
+      return undefined;
+    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => React.createElement(SettingsProvider, null, children);
+    const { result } = renderHook(() => useSettings(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.settings.autoConnectLastConnection).toBe(false);
+    expect(result.current.settings.aiModel).toBeNull();
+    // A user selection made while discovery is running must win.
+    await act(async () => { await result.current.updateSetting("aiModel", "user-choice"); });
+    await act(async () => { finishModels({ openai: ["suggested"] }); });
+    expect(result.current.settings.aiModel).toBe("user-choice");
+  });
+
   it("persists per-plugin notification versions through other setting changes and reloads", async () => {
     let persisted: Partial<Settings> = {
       language: "en",

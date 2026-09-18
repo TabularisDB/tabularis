@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
-import MonacoEditor, { type BeforeMount } from '@monaco-editor/react';
+import type { BeforeMount } from "@monaco-editor/react";
+import { MonacoEditor } from "../ui/LazyMonaco";
 import { useTranslation } from 'react-i18next';
 import { useEditorTheme } from '../../hooks/useEditorTheme';
 import { loadMonacoTheme } from '../../themes/themeUtils';

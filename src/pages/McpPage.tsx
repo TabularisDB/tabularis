@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
-import Editor from "@monaco-editor/react";
+import { MonacoEditor as Editor } from "../components/ui/LazyMonaco";
 import {
   Activity,
   Check,

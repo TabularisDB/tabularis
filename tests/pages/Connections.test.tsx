@@ -1,24 +1,29 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Connections } from "../../src/pages/Connections";
+import { invoke } from "@tauri-apps/api/core";
+import type { SavedConnection } from "../../src/contexts/DatabaseContext";
 
 const mocks = vi.hoisted(() => ({
   connect: vi.fn(),
   connectionGroups: [],
-  connections: [],
+  connections: [] as SavedConnection[],
   createSqliteDatabase: vi.fn(),
   drivers: [],
   loadConnections: vi.fn(),
   navigate: vi.fn(),
   openConnectionInNewWindow: vi.fn(),
   settings: { autoConnectLastConnection: false },
+  isSettingsLoading: false,
 }));
 
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("lucide-react")>()),
   AlertCircle: () => null,
   AppWindow: () => null,
   ChevronDown: () => null,
   ChevronRight: () => null,
+  Check: () => null,
   Database: () => null,
   Download: () => null,
   Edit: () => null,
@@ -65,8 +70,12 @@ vi.mock("../../src/hooks/useDrivers", () => ({
   useDrivers: () => ({ drivers: mocks.drivers, allDrivers: mocks.drivers, installedPlugins: [] }),
 }));
 
+vi.mock("../../src/hooks/usePluginRegistry", () => ({
+  usePluginRegistry: () => ({ plugins: [], updates: [], loading: false, error: null, refresh: vi.fn() }),
+}));
+
 vi.mock("../../src/hooks/useSettings", () => ({
-  useSettings: () => ({ settings: mocks.settings }),
+  useSettings: () => ({ settings: mocks.settings, isLoading: mocks.isSettingsLoading }),
 }));
 
 vi.mock("../../src/hooks/useConnectionTags", () => ({
@@ -149,6 +158,9 @@ const sqliteConnection = {
 describe("Connections SQLite database action", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.connections = [];
+    mocks.isSettingsLoading = false;
+    mocks.settings.autoConnectLastConnection = false;
     mocks.connect.mockResolvedValue(undefined);
     mocks.createSqliteDatabase.mockResolvedValue(sqliteConnection);
     mocks.loadConnections.mockResolvedValue(undefined);
@@ -186,6 +198,20 @@ describe("Connections SQLite database action", () => {
     expect(
       await screen.findByText("connections.newSqliteDatabase.error"),
     ).toBeInTheDocument();
+    expect(mocks.connect).not.toHaveBeenCalled();
+  });
+
+  it("waits for persisted settings before deciding whether to restore a session", async () => {
+    mocks.connections = [sqliteConnection];
+    mocks.settings.autoConnectLastConnection = true;
+    mocks.isSettingsLoading = true;
+    const { rerender } = render(<Connections />);
+    expect(invoke).not.toHaveBeenCalledWith("get_last_open_connections");
+    // The actual setting disables restore; the default must never win the race.
+    mocks.settings.autoConnectLastConnection = false;
+    mocks.isSettingsLoading = false;
+    rerender(<Connections />);
+    expect(invoke).not.toHaveBeenCalledWith("get_last_open_connections");
     expect(mocks.connect).not.toHaveBeenCalled();
   });
 });

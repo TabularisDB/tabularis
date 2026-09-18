@@ -16,10 +16,10 @@ interface MonacoMockProps {
 
 const lastProps: { current: MonacoMockProps | null } = { current: null };
 
-vi.mock("@monaco-editor/react", () => {
+vi.mock("../../../src/components/ui/LazyMonaco", () => {
   return {
     __esModule: true,
-    default: (props: MonacoMockProps) => {
+    MonacoEditor: (props: MonacoMockProps) => {
       lastProps.current = props;
       props.beforeMount?.({});
       return (

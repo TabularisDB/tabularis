@@ -297,8 +297,7 @@ pub fn run() {
 
             // Read persisted config to know which external plugins are enabled.
             // `None` means no preference has been saved yet → load all installed plugins.
-            let active_ext_drivers =
-                crate::config::load_config_internal(&app.handle()).active_external_drivers;
+            let active_ext_drivers = startup_config.active_external_drivers.as_deref();
 
             // Register built-in drivers
             tauri::async_runtime::block_on(async {
@@ -307,8 +306,11 @@ pub fn run() {
                 drivers::registry::register_driver(drivers::sqlite::SqliteDriver::new()).await;
 
                 // Load only enabled external plugins (or all if no preference saved).
-                crate::plugins::manager::load_plugins(&app.handle(), active_ext_drivers.as_deref())
-                    .await;
+                crate::plugins::manager::load_plugins_with_configs(
+                    startup_config.plugins.clone().unwrap_or_default(),
+                    active_ext_drivers,
+                )
+                .await;
             });
 
             // Ensure replacement plugins are installed for any built-in
@@ -333,8 +335,7 @@ pub fn run() {
 
             // Start connection health-check ping loop.
             {
-                let config = crate::config::load_config_internal(&app.handle());
-                let interval = config
+                let interval = startup_config
                     .ping_interval
                     .unwrap_or(health_check::DEFAULT_PING_INTERVAL);
                 let handle = app.handle().clone();
@@ -407,7 +408,7 @@ pub fn run() {
             heartbeat::spawn();
 
             // Maximize the window on startup if the user enabled it.
-            if crate::config::load_config_internal(&app.handle())
+            if startup_config
                 .start_maximized
                 .unwrap_or(false)
             {

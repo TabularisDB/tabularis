@@ -1,7 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useDrivers } from './useDrivers';
+import { useSettings } from './useSettings';
+import { createAsyncResource } from '../utils/asyncResource';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 
-import type { PluginManifest, RegistryPluginWithStatus } from '../types/plugins';
+import type { RegistryPluginWithStatus } from '../types/plugins';
 import {
   builtinToCatalogueDriver,
   groupByEngine,
@@ -28,41 +31,28 @@ export interface ConnectionCatalogue {
   refresh: () => void;
 }
 
-export function useConnectionCatalogue(): ConnectionCatalogue {
-  const [registry, setRegistry] = useState<RegistryPluginWithStatus[]>([]);
-  const [registered, setRegistered] = useState<PluginManifest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [registryOffline, setRegistryOffline] = useState(false);
-  const [nonce, setNonce] = useState(0);
+const catalogues = new Map<string, ReturnType<typeof createCatalogue>>();
 
+function createCatalogue() {
+  return createAsyncResource<RegistryPluginWithStatus[]>([], () => invoke("fetch_plugin_registry"));
+}
+
+export function useConnectionCatalogue(enabled = true): ConnectionCatalogue {
+  const { settings } = useSettings();
+  const { allDrivers: registered } = useDrivers();
+  const registryKey = settings.tabulariumRegistryUrl ?? "default";
+  const resource = useMemo(() => {
+    let resource = catalogues.get(registryKey);
+    if (!resource) {
+      resource = createCatalogue();
+      catalogues.set(registryKey, resource);
+    }
+    return resource;
+  }, [registryKey]);
+  const { data: registry, loading, error } = useSyncExternalStore(resource.subscribe, resource.getSnapshot);
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      // setLoading lives inside the async IIFE (not the synchronous effect body)
-      // to avoid a cascading render on refresh() per .rules/react.md #2.
-      setLoading(true);
-      try {
-        const drivers = await invoke<PluginManifest[]>('get_registered_drivers');
-        if (!cancelled) setRegistered(drivers);
-      } catch {
-        /* built-ins always have a fallback in useDrivers; ignore here */
-      }
-      try {
-        const cat = await invoke<RegistryPluginWithStatus[]>('fetch_plugin_registry');
-        if (!cancelled) {
-          setRegistry(cat);
-          setRegistryOffline(false);
-        }
-      } catch {
-        if (!cancelled) setRegistryOffline(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [nonce]);
+    if (enabled) void resource.load();
+  }, [enabled, resource]);
 
   const groups = useMemo(() => {
     const builtinDrivers = registered
@@ -90,7 +80,7 @@ export function useConnectionCatalogue(): ConnectionCatalogue {
   }, [registered, registry]);
 
   const facets = useMemo(() => paradigmFacets(groups), [groups]);
-  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+  const refresh = resource.refresh;
 
-  return { groups, facets, loading, registryOffline, registry, refresh };
+  return { groups, facets, loading: enabled && loading, registryOffline: error !== null, registry, refresh };
 }

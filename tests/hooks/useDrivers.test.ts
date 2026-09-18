@@ -39,6 +39,20 @@ describe("useDrivers", () => {
     });
   };
 
+  it("shares one driver read and activation listener among concurrent consumers", async () => {
+    invokeMock.mockResolvedValue([]);
+    const first = renderHook(() => useDrivers());
+    const second = renderHook(() => useDrivers());
+    const third = renderHook(() => useDrivers());
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    expect(second.result.current.loading).toBe(false);
+    expect(third.result.current.loading).toBe(false);
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual([
+      "get_registered_drivers", "get_installed_plugins",
+    ]);
+    expect(listenMock).toHaveBeenCalledTimes(1);
+  });
+
   it("re-fetches drivers and installed plugins when tabularis://plugin-activated fires", async () => {
     // Cold start: the force-install flow hasn't installed postgresql yet.
     invokeMock.mockImplementation((cmd: string) => {

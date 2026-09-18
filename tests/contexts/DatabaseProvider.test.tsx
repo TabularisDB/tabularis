@@ -113,6 +113,63 @@ describe('DatabaseProvider', () => {
     vi.restoreAllMocks();
   });
 
+  it('shares concurrent connection-list loads but refreshes on a later call', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => React.createElement(DatabaseProvider, null, children);
+    vi.mocked(invoke).mockImplementation(async (command) => command === 'get_connections_with_groups'
+      ? { connections: mockConnections, groups: [] } : []);
+    const { result } = renderHook(() => useDatabase(), { wrapper });
+    await act(async () => {
+      await Promise.all([result.current.loadConnections({ ifNeeded: true }), result.current.loadConnections({ ifNeeded: true }), result.current.loadConnections({ ifNeeded: true })]);
+    });
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === 'get_connections_with_groups')).toHaveLength(1);
+    await act(async () => { await result.current.loadConnections(); });
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === 'get_connections_with_groups')).toHaveLength(2);
+  });
+
+  it('does not reuse or publish a stale bootstrap read after an explicit refresh', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => React.createElement(DatabaseProvider, null, children);
+    let finishInitial!: (value: { connections: typeof mockConnections; groups: [] }) => void;
+    let reads = 0;
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command !== 'get_connections_with_groups') return [];
+      if (++reads === 1) return new Promise((resolve) => { finishInitial = resolve; });
+      return { connections: [{ ...mockConnections[0], name: 'Updated' }], groups: [] };
+    });
+    const { result } = renderHook(() => useDatabase(), { wrapper });
+    let initial!: Promise<void>;
+    act(() => { initial = result.current.loadConnections({ ifNeeded: true }); });
+    await act(async () => { await result.current.loadConnections(); });
+    expect(reads).toBe(2);
+    expect(result.current.connections[0].name).toBe('Updated');
+    await act(async () => { finishInitial({ connections: mockConnections, groups: [] }); await initial; });
+    expect(result.current.connections[0].name).toBe('Updated');
+  });
+
+  it('keeps the active connection and table when a background restore succeeds or fails', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => React.createElement(DatabaseProvider, null, children);
+    const records = ['active', 'background', 'broken'].map((id) => ({ ...mockConnections[0], id }));
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === 'get_connections') return records;
+      if (command === 'get_driver_manifest') return { ...mockMysqlManifest, capabilities: { ...mockMysqlManifest.capabilities, single_database: true } };
+      if (command === 'test_connection' && (args as { request: { connection_id: string } }).request.connection_id === 'broken') throw new Error('offline');
+      if (command === 'get_tables') return mockTables;
+      if (command === 'get_views') return mockViews;
+      if (command === 'get_routines') return mockRoutines;
+      return [];
+    });
+    const { result } = renderHook(() => useDatabase(), { wrapper });
+    await act(async () => { await result.current.connect('active'); });
+    act(() => result.current.setActiveTable('users'));
+    await act(async () => { await result.current.connect('background', { activate: false }); });
+    expect(result.current.activeConnectionId).toBe('active');
+    expect(result.current.activeTable).toBe('users');
+    expect(result.current.openConnectionIds).toEqual(['active', 'background']);
+    await act(async () => { await expect(result.current.connect('broken', { activate: false })).rejects.toThrow('offline'); });
+    expect(result.current.activeConnectionId).toBe('active');
+    expect(result.current.activeTable).toBe('users');
+    expect(result.current.openConnectionIds).toEqual(['active', 'background']);
+  });
+
   it('should persist empty connection list after connections have been opened', async () => {
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       React.createElement(DatabaseProvider, null, children);

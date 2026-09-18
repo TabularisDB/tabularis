@@ -89,6 +89,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const [connections, setConnections] = useState<SavedConnection[]>([]);
   const [connectionGroups, setConnectionGroups] = useState<ConnectionGroup[]>([]);
   const [isLoadingConnections, setIsLoadingConnections] = useState(false);
+  const connectionsLoadRef = useRef<Promise<void> | null>(null);
+  const connectionsLoadedRef = useRef(false);
+  const connectionsLoadVersionRef = useRef(0);
   // Connection ids open anywhere in the app (shared backend, all windows).
   // Kept in sync via the `connections:active-changed` broadcast so each window
   // can show accurate cross-window connection status.
@@ -649,7 +652,8 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [activeConnectionId, connectionDataMap, updateConnectionData, loadDatabaseData]);
 
-  const connect = async (connectionId: string) => {
+  const connect = async (connectionId: string, options?: { activate?: boolean }) => {
+    const activate = options?.activate !== false;
     const attempt = Symbol(connectionId);
     connectionAttemptsRef.current.set(connectionId, attempt);
     const isCurrentAttempt = () => connectionAttemptsRef.current.get(connectionId) === attempt;
@@ -676,8 +680,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       },
     }));
 
-    setActiveConnectionId(connectionId);
-    setActiveTable(null);
+    if (activate) {
+      setActiveConnectionId(connectionId);
+      setActiveTable(null);
+    }
 
     try {
       const allConnections = await invoke<SavedConnection[]>('get_connections');
@@ -977,7 +983,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         return newMap;
       });
       setOpenConnectionIds(prev => prev.filter(id => id !== connectionId));
-      setActiveConnectionId(prevActiveConnectionId);
+      if (activate) {
+        setActiveConnectionId(current => current === connectionId ? prevActiveConnectionId : current);
+      }
       throw error;
     }
   };
@@ -1057,17 +1065,31 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [activeConnectionId, updateConnectionData]);
 
-  const loadConnections = useCallback(async () => {
-    setIsLoadingConnections(true);
-    try {
-      const result = await invoke<ConnectionsFile>('get_connections_with_groups');
-      setConnections(result.connections);
-      setConnectionGroups(result.groups);
-    } catch (e) {
-      console.error('Failed to load connections:', e);
-    } finally {
-      setIsLoadingConnections(false);
+  const loadConnections = useCallback((options?: { ifNeeded?: boolean }) => {
+    if (options?.ifNeeded) {
+      if (connectionsLoadRef.current) return connectionsLoadRef.current;
+      if (connectionsLoadedRef.current) return Promise.resolve();
     }
+    const version = ++connectionsLoadVersionRef.current;
+    connectionsLoadRef.current = (async () => {
+      setIsLoadingConnections(true);
+      try {
+        const result = await invoke<ConnectionsFile>('get_connections_with_groups');
+        if (version === connectionsLoadVersionRef.current) {
+          setConnections(result.connections);
+          setConnectionGroups(result.groups);
+          connectionsLoadedRef.current = true;
+        }
+      } catch (e) {
+        console.error('Failed to load connections:', e);
+      } finally {
+        if (version === connectionsLoadVersionRef.current) {
+          setIsLoadingConnections(false);
+          connectionsLoadRef.current = null;
+        }
+      }
+    })();
+    return connectionsLoadRef.current;
   }, []);
 
   const getConnectionData = useCallback((connectionId: string): ConnectionData | undefined => {

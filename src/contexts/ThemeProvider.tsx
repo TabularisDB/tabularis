@@ -2,12 +2,14 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { loadStartupConfig } from "../utils/startupConfig";
 import { ThemeContext } from "./ThemeContext";
 import { themeRegistry } from "../themes/themeRegistry";
 import { applyThemeToCSS } from "../themes/themeUtils";
@@ -22,21 +24,6 @@ const DEFAULT_THEME_SETTINGS: ThemeSettings = {
   darkThemeId: "tabularis-dark",
   customThemes: [],
 };
-
-interface AppConfig {
-  theme?: string;
-  followSystemTheme?: boolean;
-  lightThemeId?: string;
-  darkThemeId?: string;
-  language?: string;
-  resultPageSize?: number;
-  fontFamily?: string;
-  fontSize?: number;
-  aiEnabled?: boolean;
-  aiProvider?: string;
-  aiModel?: string;
-  aiCustomModels?: Record<string, string[]>;
-}
 
 const getSystemIsDark = async (): Promise<boolean> => {
   if (isLinuxDesktop()) {
@@ -125,6 +112,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   );
   const [customThemes, setCustomThemes] = useState<Theme[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const persistedThemeId = useRef<string | null>(null);
 
   // Combine all themes
   const allThemes = useMemo(() => {
@@ -137,7 +125,8 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     const loadThemes = async () => {
       try {
         // Load theme from backend config
-        const config = await invoke<AppConfig>("get_config");
+        const customThemesRequest = invoke<Theme[]>("get_all_themes").catch(() => [] as Theme[]);
+        const config = await loadStartupConfig();
 
         // Migration: check localStorage for old theme settings
         const oldLocalSettings = localStorage.getItem(
@@ -174,12 +163,6 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
           });
         }
 
-        // Load custom themes from backend
-        const loadedCustomThemes = await invoke<Theme[]>(
-          "get_all_themes",
-        ).catch(() => [] as Theme[]);
-        setCustomThemes(loadedCustomThemes.filter((t) => !t.isPreset));
-
         // Hydrate follow-system settings (absent ⇒ static mode)
         const followSystemTheme = config.followSystemTheme ?? false;
         const lightThemeId = config.lightThemeId ?? "tabularis-light";
@@ -201,6 +184,13 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
           );
         }
 
+        // Preset themes are available locally; custom-theme disk reads must not
+        // delay applying the user's colors to the first frame.
+        const preset = themeRegistry.getPreset(activeThemeId);
+        if (preset) applyThemeToCSS(preset);
+        const loadedCustomThemes = await customThemesRequest;
+        setCustomThemes(loadedCustomThemes.filter((theme) => !theme.isPreset));
+
         // Set initial theme; follow-system falls back to the preset matching
         // the OS mode, static mode keeps the registry default
         const allAvailableThemes = [
@@ -216,6 +206,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
             : undefined) ||
           themeRegistry.getDefault();
 
+        persistedThemeId.current = initialTheme.id;
         setCurrentTheme(initialTheme);
         setSettings({
           ...DEFAULT_THEME_SETTINGS,
@@ -251,9 +242,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentTheme, isLoading, settings.followSystemTheme]);
 
-  // Save theme to config.json when it changes (not on initial load)
+  // Save theme only after a user/system change, never on hydration.
   useEffect(() => {
-    if (!isLoading && currentTheme) {
+    if (!isLoading && currentTheme && persistedThemeId.current !== currentTheme.id) {
+      persistedThemeId.current = currentTheme.id;
       invoke("save_config", {
         config: { theme: currentTheme.id },
       }).catch((error) => {

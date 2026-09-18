@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { DiffEditor, type DiffOnMount } from "@monaco-editor/react";
+import type { DiffOnMount } from "@monaco-editor/react";
+import { MonacoDiffEditor as DiffEditor } from "./LazyMonaco";
 import type * as MonacoTypes from "monaco-editor";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";

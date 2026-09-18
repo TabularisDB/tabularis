@@ -3,8 +3,7 @@
  * it from the jsDelivr CDN at runtime, so the editor works offline and the
  * shipped version is the one pinned in package.json.
  *
- * Must be evaluated before any `loader.init()` call (some modules call it at
- * import time), hence the side-effect import at the top of main.tsx.
+ * Loaded through ensureMonaco only when an editor or SQL preview needs it.
  */
 import * as monaco from "monaco-editor";
 import { loader } from "@monaco-editor/react";
@@ -23,3 +22,5 @@ self.MonacoEnvironment = {
 loader.config({ monaco });
 
 installMonacoInputAreaSelectionFix();
+
+export { monaco };

@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, OnceCell};
 
 use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, PluginManifest};
 use crate::models::{
@@ -28,8 +28,7 @@ use std::os::windows::process::CommandExt;
 /// plugin cannot block the (single-threaded) MCP request loop forever.
 const PLUGIN_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// Shorter ceiling for the startup `initialize` handshake so one unresponsive
-/// plugin cannot stall MCP server startup indefinitely.
+/// The first operation waits for initialization of its own plugin only.
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Flag to create the process without a console window on Windows.
@@ -61,6 +60,8 @@ pub struct PluginProcess {
     next_id: AtomicU64,
     shutdown_tx: tokio::sync::Mutex<Option<oneshot::Sender<()>>>,
     pub pid: Option<u32>,
+    initialization_settings: Option<HashMap<String, Value>>,
+    initialized: OnceCell<()>,
 }
 
 impl PluginProcess {
@@ -192,6 +193,8 @@ impl PluginProcess {
             next_id: AtomicU64::new(1),
             shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
             pid,
+            initialization_settings: None,
+            initialized: OnceCell::new(),
         })
     }
 
@@ -223,6 +226,33 @@ impl PluginProcess {
     }
 
     async fn call_detailed(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value, PluginCallError> {
+        if let Some(settings) = &self.initialization_settings {
+            self.initialized
+                .get_or_init(|| async {
+                    // Older plugins may not implement initialize. Preserve that
+                    // compatibility, but serialize concurrent first calls behind it.
+                    if let Err(error) = self
+                        .send_request(
+                            "initialize",
+                            json!({ "settings": settings }),
+                            PLUGIN_INIT_TIMEOUT,
+                        )
+                        .await
+                    {
+                        log::warn!("Plugin initialization failed (pid {:?}): {}", self.pid, error);
+                    }
+                })
+                .await;
+        }
+        self.send_request(method, params, timeout).await
+    }
+
+    async fn send_request(
         &self,
         method: &str,
         params: Value,
@@ -277,18 +307,11 @@ impl RpcDriver {
         data_types: Vec<DataTypeInfo>,
         settings: HashMap<String, serde_json::Value>,
     ) -> Result<Self, String> {
-        let process = Arc::new(PluginProcess::new(executable_path, interpreter).await?);
-        // Send initialize RPC with settings; silently ignore any error or
-        // non-response. The short timeout keeps one unresponsive plugin from
-        // stalling startup (notably the standalone `--mcp` subprocess, which
-        // registers every plugin before serving any request).
-        let _ = process
-            .call_with_timeout(
-                "initialize",
-                json!({ "settings": settings }),
-                PLUGIN_INIT_TIMEOUT,
-            )
-            .await;
+        let mut process = PluginProcess::new(executable_path, interpreter).await?;
+        // Register manifests immediately. Initialize only when this plugin is
+        // actually used, so idle plugins cannot delay the GUI or MCP startup.
+        process.initialization_settings = Some(settings);
+        let process = Arc::new(process);
         Ok(Self {
             manifest,
             process,
@@ -1478,6 +1501,8 @@ where
             next_id: AtomicU64::new(1),
             shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
             pid: None,
+            initialization_settings: None,
+            initialized: OnceCell::new(),
         }),
         data_types: Vec::new(),
         connection_metadata: false,
@@ -2306,6 +2331,8 @@ mod tests {
                 next_id: AtomicU64::new(1),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
                 pid: None,
+                initialization_settings: None,
+                initialized: OnceCell::new(),
             }),
             data_types: Vec::new(),
             connection_metadata: false,
@@ -2335,6 +2362,8 @@ mod tests {
                 next_id: AtomicU64::new(1),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
                 pid: None,
+                initialization_settings: None,
+                initialized: OnceCell::new(),
             }),
             data_types: Vec::new(),
             connection_metadata: false,
@@ -2346,3 +2375,7 @@ mod tests {
         assert_eq!(driver.map_inferred_type("JSON"), "JSON");
     }
 }
+
+#[cfg(test)]
+#[path = "startup_tests.rs"]
+mod startup_tests;

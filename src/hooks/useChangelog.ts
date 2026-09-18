@@ -11,15 +11,17 @@ interface UseChangelogResult {
   error: string | null;
 }
 
-export function useChangelog(): UseChangelogResult {
+export function useChangelog(enabled = true): UseChangelogResult {
   const [entries, setEntries] = useState<ChangelogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
+    const controller = new AbortController();
 
-    fetch(CHANGELOG_RAW_URL)
+    fetch(CHANGELOG_RAW_URL, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.text();
@@ -39,8 +41,9 @@ export function useChangelog(): UseChangelogResult {
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, []);
+  }, [enabled]);
 
-  return { entries, isLoading, error };
+  return { entries, isLoading: enabled && isLoading, error };
 }

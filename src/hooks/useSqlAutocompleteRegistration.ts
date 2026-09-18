@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { Monaco } from "@monaco-editor/react";
-import { loader } from "@monaco-editor/react";
+import { ensureMonaco } from "../utils/monaco";
 import { useDatabase } from "./useDatabase";
 import { usesMultiDatabaseLayout } from "../utils/database";
 import { registerSqlAutocomplete, disposeSqlAutocomplete } from "../utils/autocomplete";
@@ -14,7 +14,7 @@ type Options = {
 
 /**
  * Keeps the global SQL completion provider in sync with the active connection.
- * Pass `monaco` from the main editor when available; otherwise Monaco is loaded via loader.init (notebook).
+ * Pass `monaco` from the main editor when available; otherwise load it on demand.
  */
 export function useSqlAutocompleteRegistration(
   connectionId: string | null,
@@ -83,7 +83,9 @@ export function useSqlAutocompleteRegistration(
       return cleanup;
     }
 
-    loader.init().then((monaco) => register(monaco));
+    ensureMonaco().then(register).catch((error: unknown) => {
+      console.error("Failed to initialize SQL autocomplete:", error);
+    });
     return cleanup;
   }, [
     connectionId,

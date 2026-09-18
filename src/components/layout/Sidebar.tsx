@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Plug2, Settings, Cpu, PanelLeft, Layers, Star, Clock, BookOpen } from "lucide-react";
@@ -14,7 +14,8 @@ import { NavItem } from "./sidebar/NavItem";
 import { RailIndicator } from "./sidebar/RailIndicator";
 import { OpenConnectionItem } from "./sidebar/OpenConnectionItem";
 import { ConnectionGroupItem } from "./sidebar/ConnectionGroupItem";
-import { ExplorerSidebar, type SidebarTab } from "./ExplorerSidebar";
+import type { SidebarTab } from "./ExplorerSidebar";
+import { LoadingState } from "../ui/LoadingState";
 import { PanelDatabaseProvider } from "./PanelDatabaseProvider";
 import { DiscordCommunityCallout } from "./sidebar/DiscordCommunityCallout";
 
@@ -29,6 +30,8 @@ import { useDrivers } from "../../hooks/useDrivers";
 import { useKeybindings } from "../../hooks/useKeybindings";
 import { useAvailableUpdates } from "../../hooks/useAvailableUpdates";
 import { UpdateBadge } from "../ui/UpdateBadge";
+
+const ExplorerSidebar = lazy(() => import("./ExplorerSidebar").then((module) => ({ default: module.ExplorerSidebar })));
 
 export const Sidebar = () => {
   const { t } = useTranslation();
@@ -351,6 +354,7 @@ export const Sidebar = () => {
       {/* Secondary Sidebar (Schema Explorer) */}
       {shouldShowExplorer && !isExplorerCollapsed && explorerConnId && (
         <PanelDatabaseProvider connectionId={explorerConnId}>
+          <Suspense fallback={<div style={{ width: sidebarWidth }}><LoadingState /></div>}>
           <ExplorerSidebar
             sidebarWidth={sidebarWidth}
             startResize={startResize}
@@ -358,6 +362,7 @@ export const Sidebar = () => {
             sidebarTab={sidebarTab}
             onSidebarTabChange={setSidebarTab}
           />
+          </Suspense>
         </PanelDatabaseProvider>
       )}
 

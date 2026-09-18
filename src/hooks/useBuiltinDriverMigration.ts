@@ -108,7 +108,9 @@ export function useBuiltinDriverMigration(
   const { connections, loadConnections, connect, disconnect, openConnectionIds, connectionDataMap } =
     useDatabase();
   const { allDrivers, installedPlugins } = useDrivers();
-  const { registryOffline } = useConnectionCatalogue();
+  const { registryOffline } = useConnectionCatalogue(
+    connections.some((connection) => connection.params.driver === builtinId),
+  );
   const { settings, updateSetting } = useSettings();
 
   // `undoMigration` is handed to callers that invoke it later, from a

@@ -3,8 +3,8 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryModal } from "../../../src/components/modals/QueryModal";
 
 // Mock MonacoEditor
-vi.mock("@monaco-editor/react", () => ({
-  default: vi.fn(({ value, onChange }) => (
+vi.mock("../../../src/components/ui/LazyMonaco", () => ({
+  MonacoEditor: vi.fn(({ value, onChange }) => (
     <textarea
       data-testid="monaco-editor"
       value={value || ""}

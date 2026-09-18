@@ -22,15 +22,12 @@ export default defineConfig({
     chunkSizeWarningLimit: 8000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'monaco-editor': ['monaco-editor', '@monaco-editor/react'],
-          recharts: ['recharts'],
-          xyflow: ['@xyflow/react', 'dagre'],
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          i18n: ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
-          markdown: ['react-markdown'],
-          table: ['@tanstack/react-table', '@tanstack/react-virtual'],
-          wkx: ['wkx', 'buffer', 'util'],
+        // Shared React dependencies must not be absorbed by the editor chunk.
+        onlyExplicitManualChunks: true,
+        manualChunks(id) {
+          // Vite/CommonJS helpers are shared by eager and lazy modules. Putting
+          // them in Monaco would turn its dynamic import into a static one.
+          if (id.includes('vite/preload-helper') || id.includes('commonjsHelpers')) return 'runtime';
         },
       },
     },

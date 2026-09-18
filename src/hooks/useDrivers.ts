@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import { createAsyncResource } from "../utils/asyncResource";
 
 import type { InstalledPluginInfo, PluginManifest } from "../types/plugins";
 import { useSettings } from "./useSettings";
@@ -132,6 +133,47 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
   },
 ];
 
+const driverResource = createAsyncResource<{
+  allDrivers: PluginManifest[];
+  installedPlugins: InstalledPluginInfo[];
+}>({ allDrivers: FALLBACK_DRIVERS, installedPlugins: [] }, async () => {
+  const [allDrivers, installedPlugins] = await Promise.all([
+    invoke<PluginManifest[]>("get_registered_drivers"),
+    invoke<InstalledPluginInfo[]>("get_installed_plugins"),
+  ]);
+  return { allDrivers, installedPlugins };
+});
+
+let subscribers = 0;
+let stopListening: (() => void) | undefined;
+
+function subscribeDrivers(listener: () => void): () => void {
+  const unsubscribe = driverResource.subscribe(listener);
+  if (++subscribers === 1) {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void listen("tabularis://plugin-activated", () => {
+      void driverResource.refresh();
+    }).then((cleanup) => {
+      if (disposed) cleanup();
+      else unlisten = cleanup;
+    }).catch((error: unknown) => {
+      console.warn("Failed to subscribe to plugin activation:", error);
+    });
+    stopListening = () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }
+  return () => {
+    unsubscribe();
+    if (--subscribers === 0) {
+      stopListening?.();
+      stopListening = undefined;
+    }
+  };
+}
+
 export function useDrivers(): {
   drivers: PluginManifest[];
   allDrivers: PluginManifest[];
@@ -140,70 +182,13 @@ export function useDrivers(): {
   error: string | null;
   refresh: () => void;
 } {
-  const [allDrivers, setAllDrivers] =
-    useState<PluginManifest[]>(FALLBACK_DRIVERS);
-  const [installedPlugins, setInstalledPlugins] = useState<InstalledPluginInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error } = useSyncExternalStore(subscribeDrivers, driverResource.getSnapshot);
   const { settings } = useSettings();
-
-  const load = useCallback(() => {
-    Promise.all([
-      invoke<PluginManifest[]>("get_registered_drivers"),
-      invoke<InstalledPluginInfo[]>("get_installed_plugins"),
-    ])
-      .then(([drivers, installed]) => {
-        setAllDrivers(drivers);
-        setInstalledPlugins(installed);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        setError(String(err));
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  const refresh = useCallback(() => {
-    setLoading(true);
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  // The backend's force-install flow installs and registers a plugin from a
-  // spawned background task, independent of any component's own refresh
-  // trigger. Without this listener, a `useDrivers` instance that mounted
-  // before that finished would keep reporting the plugin as absent — e.g.
-  // the migration banner staying stuck on its "couldn't be downloaded"
-  // variant — until the app restarts and re-runs `load` on mount.
-  useEffect(() => {
-    let mounted = true;
-    let cleanup: (() => void) | null = null;
-    listen("tabularis://plugin-activated", () => {
-      if (mounted) load();
-    })
-      .then((unlisten) => {
-        if (mounted) {
-          cleanup = unlisten;
-        } else {
-          unlisten();
-        }
-      })
-      .catch((err) => {
-        console.warn("Failed to subscribe to tabularis://plugin-activated:", err);
-      });
-    return () => {
-      mounted = false;
-      cleanup?.();
-    };
-  }, [load]);
-
-  const activeExt = settings.activeExternalDrivers || [];
-  const active = allDrivers.filter(
-    (d) => d.is_builtin === true || activeExt.includes(d.id),
+  useEffect(() => { void driverResource.load(); }, []);
+  const activeExt = settings.activeExternalDrivers;
+  // Match the backend: an absent preference enables installed external drivers.
+  const drivers = data.allDrivers.filter(
+    (driver) => driver.is_builtin === true || activeExt == null || activeExt.includes(driver.id),
   );
-
-  return { drivers: active, allDrivers, installedPlugins, loading, error, refresh };
+  return { ...data, drivers, loading, error, refresh: driverResource.refresh };
 }

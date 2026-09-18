@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
-import MonacoEditor from "@monaco-editor/react";
+import { MonacoEditor } from "../ui/LazyMonaco";
 import type * as monaco from "monaco-editor";
 import type { ExplainPlan } from "@tabularis/explain";
 import {

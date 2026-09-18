@@ -133,7 +133,7 @@ import { NotebookView } from "../components/notebook/NotebookView";
 import { UserManagementView } from "../components/users/UserManagementView";
 import { useSqlAutocompleteRegistration } from "../hooks/useSqlAutocompleteRegistration";
 import { createNotebook, renameNotebook } from "../utils/notebookStore";
-import { type OnMount, type Monaco } from "@monaco-editor/react";
+import type { OnMount, Monaco } from "@monaco-editor/react";
 import { useAlert } from "../hooks/useAlert";
 import { useToast } from "../hooks/useToast";
 import { useDatabase } from "../hooks/useDatabase";

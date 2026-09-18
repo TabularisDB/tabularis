@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react';
 import { SqlPreview } from '../../../src/components/ui/SqlPreview';
 
 // Mock MonacoEditor
-vi.mock('@monaco-editor/react', () => ({
-  default: vi.fn(({ value, options }) => (
+vi.mock('../../../src/components/ui/LazyMonaco', () => ({
+  MonacoEditor: vi.fn(({ value, options }) => (
     <div data-testid="monaco-editor" data-value={value}>
       <pre>{value}</pre>
     </div>

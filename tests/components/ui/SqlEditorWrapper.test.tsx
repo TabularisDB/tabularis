@@ -39,9 +39,9 @@ const togglePaletteMock = vi.hoisted(() => vi.fn());
 const closePaletteMock = vi.hoisted(() => vi.fn());
 
 // Mock MonacoEditor
-vi.mock('@monaco-editor/react', async () => {
+vi.mock('../../../src/components/ui/LazyMonaco', async () => {
   return {
-    default: ({ onChange, beforeMount, onMount, defaultValue, options }: MonacoEditorMockProps) => {
+    MonacoEditor: ({ onChange, beforeMount, onMount, defaultValue, options }: MonacoEditorMockProps) => {
       monacoRenderState.beforeMount = beforeMount;
       monacoRenderState.onMount = onMount;
       return (

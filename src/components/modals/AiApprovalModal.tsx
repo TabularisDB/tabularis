@@ -13,7 +13,7 @@ import {
   ShieldAlert,
   X,
 } from "lucide-react";
-import Editor from "@monaco-editor/react";
+import { MonacoEditor as Editor } from "../ui/LazyMonaco";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 import type { ExplainPlan, ExplainPlanSummary } from "@tabularis/explain";

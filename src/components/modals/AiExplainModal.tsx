@@ -5,7 +5,8 @@ import { useSettings } from "../../hooks/useSettings";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { getAiExplanationLanguage } from "../../i18n/language";
 import { Modal } from "../ui/Modal";
-import MonacoEditor, { type BeforeMount } from "@monaco-editor/react";
+import type { BeforeMount } from "@monaco-editor/react";
+import { MonacoEditor } from "../ui/LazyMonaco";
 import type * as MonacoTypes from "monaco-editor";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 

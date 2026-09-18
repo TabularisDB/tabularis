@@ -22,7 +22,7 @@ export function useConnectionManager() {
 
   useEffect(() => {
     if (connections.length === 0) {
-      loadConnections();
+      void loadConnections({ ifNeeded: true });
     }
   }, [connections.length, loadConnections]);
 

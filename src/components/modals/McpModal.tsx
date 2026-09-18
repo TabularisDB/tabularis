@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { X, Check, Copy, Cpu, Terminal } from "lucide-react";
 import { useAlert } from "../../hooks/useAlert";
 import { useCopyFeedback } from "../../hooks/useCopyFeedback";
-import Editor from "@monaco-editor/react";
+import { MonacoEditor as Editor } from "../ui/LazyMonaco";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 import { Modal } from "../ui/Modal";

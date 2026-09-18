@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { loadStartupConfig } from "../utils/startupConfig";
+import { detectAiDefaults } from "../utils/aiDefaults";
 import {
   SettingsContext,
   DEFAULT_SETTINGS,
@@ -137,7 +139,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     const loadSettings = async () => {
       try {
-        const config = await invoke<Partial<Settings>>("get_config");
+        const config = await loadStartupConfig();
 
         // Migration logic: Check localStorage if backend is empty/default
         const savedLocal = localStorage.getItem("tabularis_settings");
@@ -181,56 +183,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        // Smart detect AI Provider and Model if aiEnabled but provider/model not set
-        if (
-          finalSettings.aiEnabled &&
-          (!finalSettings.aiProvider || !finalSettings.aiModel)
-        ) {
-          // First, detect which provider has an API key
-          let detectedProvider: string | null = null;
-          const hasOpenAI = await invoke<boolean>("check_ai_key", {
-            provider: "openai",
-          });
-          if (hasOpenAI) {
-            detectedProvider = "openai";
-          } else {
-            const hasAnthropic = await invoke<boolean>("check_ai_key", {
-              provider: "anthropic",
-            });
-            if (hasAnthropic) {
-              detectedProvider = "anthropic";
-            } else {
-              const hasOpenRouter = await invoke<boolean>("check_ai_key", {
-                provider: "openrouter",
-              });
-              if (hasOpenRouter) detectedProvider = "openrouter";
-            else {
-              const hasMiniMax = await invoke<boolean>("check_ai_key", {
-                provider: "minimax",
-              });
-              if (hasMiniMax) detectedProvider = "minimax";
-            }
-            }
-          }
-
-          if (detectedProvider) {
-            // Get available models for the detected provider
-            const models =
-              await invoke<Record<string, string[]>>("get_ai_models");
-            const providerModels = models[detectedProvider] || [];
-            const firstModel = providerModels[0] || null;
-
-            // Only set provider if not already set
-            if (!finalSettings.aiProvider) {
-              finalSettings.aiProvider = detectedProvider as "openai" | "anthropic" | "openrouter" | "minimax";
-            }
-            // Only set model if not already set AND we have a model available
-            if (!finalSettings.aiModel && firstModel) {
-              finalSettings.aiModel = firstModel;
-            }
-          }
-        }
-
         // IMMEDIATELY apply font settings from backend config BEFORE setting state
         // This prevents flash if localStorage cache was stale
         const fontFamily = getFontCSS(finalSettings.fontFamily);
@@ -253,6 +205,17 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         }
 
         setSettings(finalSettings);
+        // Discovery can perform network requests. Publish persisted settings first,
+        // and never overwrite a selection made while discovery was in flight.
+        void detectAiDefaults(finalSettings).then((defaults) => {
+          if (!defaults.aiProvider) return;
+          setSettings((current) => {
+            if (!current.aiEnabled ||
+                current.aiProvider !== finalSettings.aiProvider ||
+                current.aiModel !== finalSettings.aiModel) return current;
+            return { ...current, ...defaults };
+          });
+        }).catch((error: unknown) => console.warn("Failed to detect AI defaults:", error));
         setLanguageState({
           language: finalSettings.language,
           ready: languageAlreadyApplied,
@@ -359,6 +322,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   // Apply font family
   useEffect(() => {
+    if (isLoading) return;
     const fontFamily = getFontCSS(settings.fontFamily);
 
     // Apply to CSS variable
@@ -379,15 +343,17 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     } catch (e) {
       console.warn("Failed to cache font settings:", e);
     }
-  }, [settings.fontFamily, settings.fontSize]);
+  }, [isLoading, settings.fontFamily, settings.fontSize]);
 
   // Apply query result font
   useEffect(() => {
+    if (isLoading) return;
     applyResultFontToDocument(settings.resultFontFamily);
-  }, [settings.resultFontFamily]);
+  }, [isLoading, settings.resultFontFamily]);
 
   // Apply font size
   useEffect(() => {
+    if (isLoading) return;
     const size = settings.fontSize || 14;
 
     // Apply to CSS variable
@@ -395,7 +361,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     // ALSO apply directly to body as fallback
     document.body.style.fontSize = `${size}px`;
-  }, [settings.fontSize]);
+  }, [isLoading, settings.fontSize]);
 
   const updateSetting = <K extends keyof Settings>(
     key: K,

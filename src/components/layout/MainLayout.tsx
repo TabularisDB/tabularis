@@ -1,4 +1,6 @@
+import { lazy, Suspense } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { LoadingState } from "../ui/LoadingState";
 
 import { CommandPaletteProvider } from "../../contexts/CommandPaletteProvider";
 import { PluginRegistryProvider } from "../../contexts/PluginRegistryProvider";
@@ -14,7 +16,7 @@ import { CommandPaletteScopeBridge } from "./CommandPaletteScopeBridge";
 import { ProductionBanner } from "./ProductionBanner";
 import { RightSidebar } from "./RightSidebar";
 import { Sidebar } from "./Sidebar";
-import { SplitPaneLayout } from "./SplitPaneLayout";
+const SplitPaneLayout = lazy(() => import("./SplitPaneLayout").then((m) => ({ default: m.SplitPaneLayout })));
 
 const MainLayoutContent = () => {
   const { splitView, isSplitVisible } = useConnectionLayoutContext();
@@ -40,11 +42,13 @@ const MainLayoutContent = () => {
             would push the page down without shrinking it, clipping the bottom
             row of the results grid. */}
         <div className="flex-1 min-h-0 min-w-0">
-          {renderedSplit ? (
-            <SplitPaneLayout {...renderedSplit} />
-          ) : (
-            <Outlet />
-          )}
+          <Suspense fallback={<LoadingState />}>
+            {renderedSplit ? (
+              <SplitPaneLayout {...renderedSplit} />
+            ) : (
+              <Outlet />
+            )}
+          </Suspense>
         </div>
       </main>
       <RightSidebar />

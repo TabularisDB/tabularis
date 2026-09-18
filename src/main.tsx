@@ -1,10 +1,6 @@
 // Import polyfills first to make Buffer available globally
 import './polyfills';
-// Bundle Monaco locally and register the editor input workarounds before any
-// module calls loader.init().
-import './monacoLoader';
-
-import React from 'react';
+import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import './index.css';
@@ -18,27 +14,30 @@ import { EditorProvider } from './contexts/EditorProvider';
 import { ThemeProvider } from './contexts/ThemeProvider';
 import { UpdateProvider } from './contexts/UpdateProvider';
 import { ProductionGuardProvider } from './contexts/ProductionGuardContext';
+import { LoadingState } from './components/ui/LoadingState';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <UpdateProvider>
-      <ThemeProvider>
-        <SettingsProvider>
-          <ToastProvider>
-            <DatabaseProvider>
-              <SavedQueriesProvider>
-              <QueryHistoryProvider>
-                <EditorProvider>
-                  <ProductionGuardProvider>
-                    <App />
-                  </ProductionGuardProvider>
-                </EditorProvider>
-              </QueryHistoryProvider>
-            </SavedQueriesProvider>
-            </DatabaseProvider>
-          </ToastProvider>
-        </SettingsProvider>
-      </ThemeProvider>
-    </UpdateProvider>
+    <Suspense fallback={<LoadingState />}>
+      <UpdateProvider>
+        <ThemeProvider>
+          <SettingsProvider>
+            <ToastProvider>
+              <DatabaseProvider>
+                <SavedQueriesProvider>
+                <QueryHistoryProvider>
+                  <EditorProvider>
+                    <ProductionGuardProvider>
+                      <App />
+                    </ProductionGuardProvider>
+                  </EditorProvider>
+                </QueryHistoryProvider>
+              </SavedQueriesProvider>
+              </DatabaseProvider>
+            </ToastProvider>
+          </SettingsProvider>
+        </ThemeProvider>
+      </UpdateProvider>
+    </Suspense>
   </React.StrictMode>,
 );

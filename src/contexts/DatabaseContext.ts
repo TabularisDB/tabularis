@@ -164,9 +164,9 @@ export interface DatabaseContextType {
   databaseDataMap: Record<string, SchemaData>;
   connections: SavedConnection[];
   connectionGroups: ConnectionGroup[];
-  loadConnections: () => Promise<void>;
+  loadConnections: (options?: { ifNeeded?: boolean }) => Promise<void>;
   isLoadingConnections: boolean;
-  connect: (connectionId: string) => Promise<void>;
+  connect: (connectionId: string, options?: { activate?: boolean }) => Promise<void>;
   disconnect: (connectionId?: string) => Promise<void>;
   /**
    * Remove a connection from THIS window's UI without closing its backend pool.

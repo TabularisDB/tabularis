@@ -1,8 +1,10 @@
-import { useCallback } from "react";
+import { lazy, Suspense, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useRightSidebar } from "../../hooks/useRightSidebar";
 import { useRightSidebarResize } from "../../hooks/useRightSidebarResize";
-import { RowEditorPanel } from "../ui/RowEditorPanel";
+import { LoadingState } from "../ui/LoadingState";
+
+const RowEditorPanel = lazy(() => import("../ui/RowEditorPanel").then((m) => ({ default: m.RowEditorPanel })));
 
 export const RightSidebar = () => {
 	const { t } = useTranslation();
@@ -43,7 +45,7 @@ export const RightSidebar = () => {
 
 			{/* Panel content */}
 			{activePanel === "row-editor" && rowEditorData && (
-				<RowEditorPanel
+				<Suspense fallback={<LoadingState />}><RowEditorPanel
 					rowData={rowEditorData.rowData}
 					originalRowData={rowEditorData.originalRowData}
 					rowIndex={rowEditorData.rowIndex}
@@ -63,7 +65,7 @@ export const RightSidebar = () => {
 					onClose={close}
 					isPinned={isPinned}
 					onTogglePin={togglePin}
-				/>
+				/></Suspense>
 			)}
 		</aside>
 	);
