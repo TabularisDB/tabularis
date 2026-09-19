@@ -1133,7 +1133,8 @@
     "chooseDatabases": "Choose databases",
     "allDatabasesHint": "Every database on the server is loaded automatically when connecting. Databases created or dropped on the server show up on their own — no need to edit this connection.",
     "selectDatabasesHint": "Select the databases to include in this connection.",
-    "loadDatabasesHint": "Click Load Databases to fetch available databases."
+    "loadDatabasesHint": "Click Load Databases to fetch available databases.",
+    "sshKeyFileVarsHint": "Environment variables are resolved when connecting: %USERPROFILE%\\keys\\id_ed25519, $HOME/.ssh/id_rsa, ~/.ssh/id_rsa. Use ~ to keep the path working on every machine."
   },
   "sshConnections": {
     "title": "SSH Connections",

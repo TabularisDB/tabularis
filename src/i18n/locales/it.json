@@ -1122,7 +1122,8 @@
     "chooseDatabases": "Scegli i database",
     "allDatabasesHint": "Alla connessione vengono caricati automaticamente tutti i database del server. I database creati o eliminati sul server compaiono da soli, senza modificare questa connessione.",
     "selectDatabasesHint": "Seleziona i database da includere in questa connessione.",
-    "loadDatabasesHint": "Premi Carica database per recuperare i database disponibili."
+    "loadDatabasesHint": "Premi Carica database per recuperare i database disponibili.",
+    "sshKeyFileVarsHint": "Le variabili di ambiente vengono risolte alla connessione: %USERPROFILE%\\keys\\id_ed25519, $HOME/.ssh/id_rsa, ~/.ssh/id_rsa. Usa ~ per un percorso che funziona su ogni macchina."
   },
   "sshConnections": {
     "title": "Connessioni SSH",
