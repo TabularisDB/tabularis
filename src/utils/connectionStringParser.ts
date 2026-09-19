@@ -70,6 +70,43 @@ function normalizeProtocol(protocol: string): string {
   return protocol.replace(/:$/, "").trim().toLowerCase();
 }
 
+function getProtocolFromConnectionString(value: string): string | null {
+  const match = /^([a-z][a-z\d+.-]*):/i.exec(value);
+  return match ? normalizeProtocol(match[1]) : null;
+}
+
+/**
+ * WHATWG URL rejects MongoDB's valid comma-separated host list. URI-passthrough
+ * drivers only need a representative URL for labels in the form, so parse the
+ * first host for display and leave validation of the complete URI to the
+ * driver that receives the original value.
+ */
+function getPassthroughDisplayUrl(value: string): URL | null {
+  const authorityMarker = value.indexOf("://");
+  if (authorityMarker < 0) return null;
+
+  const authorityStart = authorityMarker + 3;
+  const suffixOffset = value.slice(authorityStart).search(/[/?#]/);
+  const authorityEnd =
+    suffixOffset < 0 ? value.length : authorityStart + suffixOffset;
+  const authority = value.slice(authorityStart, authorityEnd);
+  const credentialsEnd = authority.lastIndexOf("@");
+  const credentials =
+    credentialsEnd < 0 ? "" : authority.slice(0, credentialsEnd + 1);
+  const hosts = authority.slice(credentialsEnd + 1);
+  const firstHost = hosts.split(",", 1)[0];
+
+  if (!firstHost) return null;
+
+  try {
+    return new URL(
+      `${value.slice(0, authorityStart)}${credentials}${firstHost}${value.slice(authorityEnd)}`,
+    );
+  } catch {
+    return null;
+  }
+}
+
 function getProtocolFromExample(example?: string | null): string | null {
   if (!example?.trim()) return null;
 
@@ -190,6 +227,33 @@ export function parseConnectionString(
 
   const trimmed = connectionString.trim();
 
+  const registry = buildProtocolRegistry(drivers);
+  const declaredProtocol = getProtocolFromConnectionString(trimmed);
+  const declaredDriver = declaredProtocol
+    ? registry.get(declaredProtocol)
+    : undefined;
+
+  // Resolve passthrough before using WHATWG URL: it rejects valid MongoDB
+  // replica-set URIs because their authority contains multiple hosts.
+  if (declaredDriver?.passthrough) {
+    const url = getPassthroughDisplayUrl(trimmed);
+    if (!url) {
+      return { success: false, error: "Invalid connection string format" };
+    }
+
+    return {
+      success: true,
+      params: {
+        driver: declaredDriver.id,
+        host: url.hostname || undefined,
+        port: url.port ? Number.parseInt(url.port, 10) : undefined,
+        username: url.username ? decodeURIComponent(url.username) : undefined,
+        database: decodeURIComponent(url.pathname.replace(/^\//, "")),
+        connection_uri: trimmed,
+      },
+    };
+  }
+
   let url: URL;
   try {
     url = new URL(trimmed);
@@ -198,7 +262,6 @@ export function parseConnectionString(
   }
 
   const protocol = normalizeProtocol(url.protocol);
-  const registry = buildProtocolRegistry(drivers);
   const resolved = registry.get(protocol);
 
   if (!resolved) {
@@ -208,27 +271,6 @@ export function parseConnectionString(
     return {
       success: false,
       error: `Unsupported database driver: ${protocol}${suffix}`,
-    };
-  }
-
-  if (resolved.passthrough) {
-    // The scheme and query string carry meaning the decomposed fields cannot
-    // represent (a `mongodb+srv://` host has SRV records but no A record, and
-    // params like `tls` or `replicaSet` have no field of their own), so the
-    // original string is kept verbatim and handed to the driver as-is. The
-    // fields below are derived only so the UI can label the connection; the
-    // password is deliberately left out because the URI already carries it and
-    // is the only copy that reaches the keychain.
-    return {
-      success: true,
-      params: {
-        driver: resolved.id,
-        host: url.hostname || undefined,
-        port: url.port ? Number.parseInt(url.port, 10) : undefined,
-        username: url.username ? decodeURIComponent(url.username) : undefined,
-        database: decodeURIComponent(url.pathname.replace(/^\//, "")),
-        connection_uri: trimmed,
-      },
     };
   }
 
@@ -318,6 +360,16 @@ export function looksLikeConnectionString(
 
   const trimmed = value.trim();
 
+  const registry = buildProtocolRegistry(drivers);
+  const declaredProtocol = getProtocolFromConnectionString(trimmed);
+  const declaredDriver = declaredProtocol
+    ? registry.get(declaredProtocol)
+    : undefined;
+
+  if (declaredDriver?.passthrough) {
+    return getPassthroughDisplayUrl(trimmed) !== null;
+  }
+
   let url: URL;
   try {
     url = new URL(trimmed);
@@ -325,8 +377,5 @@ export function looksLikeConnectionString(
     return false;
   }
 
-  const protocol = normalizeProtocol(url.protocol);
-  const registry = buildProtocolRegistry(drivers);
-
-  return registry.has(protocol);
+  return registry.has(normalizeProtocol(url.protocol));
 }
