@@ -1,0 +1,227 @@
+# TEMPORARY issue #791 bootstrap. Remove this workflow and its helper before
+# final PR handoff/merge. Automated evidence is NOT manual UI verification.
+name: Issue 791 temporary verification
+
+on:
+  push:
+    branches: [feat/791-installable-theme-packages]
+    # A head commit containing [791-baseline] selects the immutable baseline.
+    # Every other push verifies its exact feature SHA; no main registration or
+    # workflow_dispatch is required. Commit messages are never executed.
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'One SHA per run: immutable baseline or selected branch SHA'
+        type: choice
+        options: [baseline, feature]
+        default: baseline
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/feat/791-installable-theme-packages'
+    name: ${{ matrix.phase }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    # Feature pushes cannot cancel baseline evidence. Only a newer run for
+    # the same branch + phase + OS cancels its obsolete predecessor.
+    concurrency:
+      group: issue-791-${{ github.ref }}-${{ matrix.phase }}-${{ matrix.os }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2022]
+        phase: ["${{ inputs.phase || (contains(github.event.head_commit.message, '[791-baseline]') && 'baseline' || 'feature') }}"]
+    defaults:
+      run:
+        shell: bash
+        working-directory: subject
+    env:
+      CI: 'true'
+      RUSTUP_TOOLCHAIN: '1.98.0'
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      RUST_TEST_THREADS: '1'
+      CARGO_TARGET_DIR: ${{ github.workspace }}/subject/src-tauri/target
+      EVIDENCE_DIR: ${{ github.workspace }}/evidence
+      PHASE: ${{ matrix.phase }}
+      BOOTSTRAP_SHA: ${{ github.sha }}
+
+    steps:
+      - name: Checkout verification harness (never persist credentials)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: harness
+          persist-credentials: false
+
+      - name: Checkout exactly one subject in a separate directory
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.phase == 'feature' && github.sha || 'd044381c536a3b9e4b576b1ed33fcce39efcf4b1' }}
+          path: subject
+          persist-credentials: false
+
+      - name: Provision isolated profile path
+        run: |
+          : "${RUNNER_TEMP:?}" "${GITHUB_ENV:?}"
+          profile_dir="$RUNNER_TEMP/issue-791-profile"
+          if command -v cygpath >/dev/null 2>&1; then
+            profile_dir="$(cygpath -m "$profile_dir")"
+          fi
+          mkdir -p "$profile_dir"
+          printf 'PROFILE_DIR=%s\n' "$profile_dir" >> "$GITHUB_ENV"
+
+      - name: Record provenance and scope
+        run: |
+          mkdir -p "$EVIDENCE_DIR"
+          {
+            printf 'Phase: %s\nHarness SHA: %s\nSubject SHA: ' "$PHASE" "$BOOTSTRAP_SHA"
+            git rev-parse HEAD
+            printf 'Runner: %s / %s\nRust toolchain: %s\n' "$RUNNER_OS" "$RUNNER_ARCH" "$RUSTUP_TOOLCHAIN"
+            printf 'Node requested: '; head -n 1 .node-version
+            printf 'Ignored DB/portal tests remain ignored. No production services, registry requests, release, signing or manual UI checks.\n'
+          } | tee "$EVIDENCE_DIR/provenance.txt"
+
+      - name: Setup pnpm from subject manifest
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: subject/package.json
+          run_install: false
+
+      - name: Setup declared Node version
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: subject/.node-version
+
+      - name: Install explicit Rust toolchain
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: '1.98.0'
+          components: rustfmt, clippy
+
+      - name: Cache remote Rust dependencies and build output
+        uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: subject/src-tauri -> target
+          shared-key: issue-791-${{ runner.os }}-${{ runner.arch }}-rust-1.98.0
+          cache-on-failure: true
+
+      - name: Linux native prerequisites (ephemeral runner only)
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
+        timeout-minutes: 10
+        run: |
+          bash ../harness/.github/scripts/issue-791-check.sh native-prerequisites bash -c '
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+              build-essential pkg-config libwebkit2gtk-4.1-dev libsoup-3.0-dev \
+              libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+          '
+
+      - name: Frozen dependency installation (no lifecycle approval)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: bash ../harness/.github/scripts/issue-791-check.sh install pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Installed tool versions
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        run: |
+          bash ../harness/.github/scripts/issue-791-check.sh versions bash -c '
+            node --version && pnpm --version && cargo --version && rustc --version &&
+            pnpm exec tsc --version && pnpm exec vite --version && pnpm exec vitest --version &&
+            pnpm exec eslint --version
+          '
+
+      # Each independent check runs after failures; no continue-on-error. The
+      # aggregate also fails for missing/interrupted checks, not just nonzero exits.
+      - name: Full frontend tests (non-watch)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 15
+        run: bash ../harness/.github/scripts/issue-791-check.sh frontend-tests pnpm test --run --maxWorkers=2
+
+      - name: Frontend lint
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: bash ../harness/.github/scripts/issue-791-check.sh lint pnpm lint
+
+      - name: Declared typecheck
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        run: bash ../harness/.github/scripts/issue-791-check.sh typecheck pnpm typecheck
+
+      - name: Referenced TypeScript projects (root noEmit does not traverse references)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        run: bash ../harness/.github/scripts/issue-791-check.sh typecheck-projects pnpm exec tsc -b
+
+      - name: Frontend build (no Tauri packaging/signing)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 15
+        run: bash ../harness/.github/scripts/issue-791-check.sh frontend-build pnpm build
+
+      - name: Native formatting
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        run: bash ../harness/.github/scripts/issue-791-check.sh native-fmt cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
+      - name: Native Clippy (warnings are failures)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 45
+        run: bash ../harness/.github/scripts/issue-791-check.sh native-clippy cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
+
+      - name: Native tests (default suite; no include-ignored or external databases)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 45
+        run: bash ../harness/.github/scripts/issue-791-check.sh native-tests cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Native binary build (debug, unsigned, not bundled or launched)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 20
+        run: bash ../harness/.github/scripts/issue-791-check.sh native-build cargo build --manifest-path src-tauri/Cargo.toml --locked --bins
+
+      - name: Build existing author tool
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        run: bash ../harness/.github/scripts/issue-791-check.sh author-build pnpm build:create-plugin
+
+      - name: Existing author smoke (temporary scaffolds and cargo check only)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 20
+        run: bash ../harness/.github/scripts/issue-791-check.sh author-smoke pnpm smoke:create-plugin
+
+      - name: Public plugin API synchronization
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        run: bash ../harness/.github/scripts/issue-791-check.sh plugin-api pnpm check:plugin-api
+
+      - name: Aggregate required evidence (missing is not pass)
+        if: ${{ always() }}
+        run: |
+          mkdir -p "$EVIDENCE_DIR"
+          failed=0
+          required='install versions frontend-tests lint typecheck typecheck-projects frontend-build native-fmt native-clippy native-tests native-build author-build author-smoke plugin-api'
+          if [[ "$RUNNER_OS" == Linux ]]; then required="$required native-prerequisites"; fi
+          printf '| Check | Exit / status |\n| --- | --- |\n' > "$EVIDENCE_DIR/summary.md"
+          for check in $required; do
+            result=NOT_RUN_OR_INTERRUPTED
+            if [[ -f "$EVIDENCE_DIR/$check.exit" ]]; then result=$(<"$EVIDENCE_DIR/$check.exit"); fi
+            printf '| %s | %s |\n' "$check" "$result" >> "$EVIDENCE_DIR/summary.md"
+            if [[ "$result" != 0 ]]; then failed=1; fi
+          done
+          cat "$EVIDENCE_DIR/provenance.txt" "$EVIDENCE_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          exit "$failed"
+
+      - name: Upload logs only (including failures; no profiles or binaries)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue-791-${{ env.PHASE }}-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7
