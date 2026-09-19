@@ -30,7 +30,7 @@ const stopCardEvents = {
  * The attribute chips of a saved connection, in a fixed order shared by the
  * grid card and the list row: driver facts first (name, deprecation, pending
  * update), then where it lives (environment, tags), then how it is reached
- * (SSH, K8s), then anything blocking it (plugin disabled).
+ * (SSH, K8s, SSM), then anything blocking it (plugin disabled).
  */
 export const ConnectionChips = ({ conn, driverManifest, isDriverEnabled, tags }: ConnectionChipsProps) => {
   const { t } = useTranslation();
@@ -79,6 +79,9 @@ export const ConnectionChips = ({ conn, driverManifest, isDriverEnabled, tags }:
       )}
       {conn.params.k8s_enabled && (
         <Chip tone="primary" icon={<Shield size={8} />}>K8s</Chip>
+      )}
+      {conn.params.ssm_enabled && (
+        <Chip tone="neutral" icon={<Shield size={8} />}>SSM</Chip>
       )}
       {!isDriverEnabled && (
         <Chip tone="warning" icon={<PlugZap size={8} />}>{t('connections.pluginDisabled')}</Chip>

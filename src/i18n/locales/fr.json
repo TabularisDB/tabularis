@@ -1013,6 +1013,17 @@
     "configError": "Veuillez configurer un fournisseur IA dans les paramètres et saisir un prompt."
   },
   "newConnection": {
+    "ssmForwardHint": "Se résout en {{document}} : transfère vers {{host}}:{{port}} via le nœud géré. Modifiez l'adresse cible dans l'onglet Général ; un hôte de bouclage désigne le nœud lui-même.",
+    "ssmIamHint": "Nécessite ssm:StartSession sur la cible et sur le document résolu.",
+    "ssmNotAvailable": "AWS SSM n'est pas disponible pour ce pilote.",
+    "ssmPortRequired": "Définissez d'abord un port valide dans l'onglet Général.",
+    "ssmProfile": "Profil AWS",
+    "ssmRegion": "Région AWS",
+    "ssmTarget": "Nœud géré",
+    "ssmTargetRequired": "Indiquez le nœud géré par lequel se connecter.",
+    "testSsm": "Tester SSM",
+    "testSsmHint": "Ouvre une véritable session de transfert de port puis la referme, sans se connecter à la base de données.",
+    "useSsm": "Utiliser le transfert de port AWS SSM",
     "titleNew": "Nouvelle connexion",
     "titleEdit": "Modifier la connexion",
     "subtitle": "Configurer les paramètres de connexion à la base de données",
@@ -2417,6 +2428,10 @@
       "summary": "Échec du tunnel SSH",
       "recovery": "Vérifiez les paramètres dans l’onglet SSH."
     },
+    "ssm": {
+      "summary": "Échec de la session AWS SSM",
+      "recovery": "Ouvrez les détails pour voir l'erreur AWS exacte. Vérifiez que l'AWS CLI et le plugin Session Manager sont installés, que vos identifiants sont à jour et que le nœud géré est en ligne."
+    },
     "db-auth": {
       "summary": "Échec de l’authentification à la base de données",
       "recovery": "Vérifiez le nom d’utilisateur et le mot de passe de la base de données."
@@ -2453,6 +2468,11 @@
         "start": "Démarrage du port-forward Kubernetes",
         "ok": "Port-forward prêt",
         "error": "Échec du port-forward Kubernetes"
+      },
+      "ssmForward": {
+        "start": "Démarrage du transfert de port AWS SSM",
+        "ok": "Transfert de port prêt",
+        "error": "Échec du transfert de port AWS SSM"
       },
       "dbConnect": {
         "start": "Connexion à la base de données",

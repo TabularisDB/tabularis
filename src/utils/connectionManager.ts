@@ -8,6 +8,7 @@ export interface ConnectionStatus {
   host?: string;
   sshEnabled: boolean;
   k8sEnabled: boolean;
+  ssmEnabled: boolean;
   isOpen: boolean;
   isActive: boolean;
   isConnecting: boolean;
@@ -30,6 +31,7 @@ export function buildConnectionStatus(
     host: conn.params.host,
     sshEnabled: conn.params.ssh_enabled ?? false,
     k8sEnabled: conn.params.k8s_enabled ?? false,
+    ssmEnabled: conn.params.ssm_enabled ?? false,
     isOpen,
     isActive,
     isConnecting: data?.isConnecting ?? false,

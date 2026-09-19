@@ -976,6 +976,17 @@
     "configError": "Bitte konfiguriere einen KI-Anbieter in den Einstellungen und gib einen Prompt ein."
   },
   "newConnection": {
+    "ssmForwardHint": "Wird zu {{document}} aufgelöst - leitet über den verwalteten Knoten an {{host}}:{{port}} weiter. Die Zieladresse wird im Tab „Allgemein“ geändert; ein Loopback-Host bedeutet den Knoten selbst.",
+    "ssmIamHint": "Erfordert ssm:StartSession für das Ziel und für das aufgelöste Dokument.",
+    "ssmNotAvailable": "AWS SSM ist für diesen Treiber nicht verfügbar.",
+    "ssmPortRequired": "Legen Sie zuerst im Tab „Allgemein“ einen gültigen Port fest.",
+    "ssmProfile": "AWS-Profil",
+    "ssmRegion": "AWS-Region",
+    "ssmTarget": "Verwalteter Knoten",
+    "ssmTargetRequired": "Geben Sie den verwalteten Knoten an, über den verbunden werden soll.",
+    "testSsm": "SSM testen",
+    "testSsmHint": "Öffnet eine echte Portweiterleitungssitzung und schließt sie wieder, ohne eine Verbindung zur Datenbank herzustellen.",
+    "useSsm": "AWS-SSM-Portweiterleitung verwenden",
     "titleNew": "Neue Verbindung",
     "titleEdit": "Verbindung bearbeiten",
     "subtitle": "Datenbankverbindungseinstellungen konfigurieren",
@@ -2336,6 +2347,10 @@
       "summary": "SSH-Tunnel fehlgeschlagen",
       "recovery": "Die Einstellungen im SSH-Tab prüfen."
     },
+    "ssm": {
+      "summary": "AWS-SSM-Sitzung fehlgeschlagen",
+      "recovery": "Öffnen Sie die Details für den genauen AWS-Fehler. Prüfen Sie, ob die AWS CLI und das Session-Manager-Plugin installiert sind, ob Ihre Anmeldedaten aktuell sind und ob der verwaltete Knoten online ist."
+    },
     "db-auth": {
       "summary": "Datenbank-Authentifizierung fehlgeschlagen",
       "recovery": "Benutzername und Passwort der Datenbank prüfen."
@@ -2372,6 +2387,11 @@
         "start": "Kubernetes-Port-Forward wird gestartet",
         "ok": "Port-Forward bereit",
         "error": "Kubernetes-Port-Forward fehlgeschlagen"
+      },
+      "ssmForward": {
+        "start": "AWS-SSM-Portweiterleitung wird gestartet",
+        "ok": "Portweiterleitung bereit",
+        "error": "AWS-SSM-Portweiterleitung fehlgeschlagen"
       },
       "dbConnect": {
         "start": "Verbindung zur Datenbank wird hergestellt",

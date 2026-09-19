@@ -101,6 +101,10 @@ aes-gcm = "0.10"
 plist = "1.7"
 roxmltree = "0.20"
 
+# Signalling the `aws ssm start-session` process group (see ssm_tunnel.rs).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 # GTK dependencies for Wayland window title workaround (Linux only)
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"

@@ -1004,6 +1004,17 @@
     "configError": "Configura el proveedor de IA en Configuración e ingresa un prompt."
   },
   "newConnection": {
+    "ssmForwardHint": "Se resuelve a {{document}}: reenvía a {{host}}:{{port}} a través del nodo administrado. Cambia la dirección de destino en la pestaña General; un host de bucle invertido significa el propio nodo.",
+    "ssmIamHint": "Requiere ssm:StartSession sobre el destino y sobre el documento resuelto.",
+    "ssmNotAvailable": "AWS SSM no está disponible para este controlador.",
+    "ssmPortRequired": "Primero establece un puerto válido en la pestaña General.",
+    "ssmProfile": "Perfil de AWS",
+    "ssmRegion": "Región de AWS",
+    "ssmTarget": "Nodo administrado",
+    "ssmTargetRequired": "Indica el nodo administrado a través del cual conectar.",
+    "testSsm": "Probar SSM",
+    "testSsmHint": "Abre una sesión real de reenvío de puertos y la cierra de nuevo, sin conectarse a la base de datos.",
+    "useSsm": "Usar reenvío de puertos de AWS SSM",
     "titleNew": "Nueva Conexión",
     "titleEdit": "Editar Conexión",
     "subtitle": "Configurar los ajustes de conexión a la base de datos",
@@ -2270,6 +2281,10 @@
       "summary": "Fallo del túnel SSH",
       "recovery": "Comprueba la configuración en la pestaña SSH."
     },
+    "ssm": {
+      "summary": "Error en la sesión de AWS SSM",
+      "recovery": "Abra los detalles para ver el error exacto de AWS. Compruebe que la CLI de AWS y el complemento Session Manager estén instalados, que sus credenciales estén vigentes y que el nodo administrado esté en línea."
+    },
     "db-auth": {
       "summary": "Error de autenticación en la base de datos",
       "recovery": "Comprueba el nombre de usuario y la contraseña de la base de datos."
@@ -2306,6 +2321,11 @@
         "start": "Iniciando el port-forward de Kubernetes",
         "ok": "Port-forward listo",
         "error": "Fallo del port-forward de Kubernetes"
+      },
+      "ssmForward": {
+        "start": "Iniciando el reenvío de puertos de AWS SSM",
+        "ok": "Reenvío de puertos listo",
+        "error": "Error en el reenvío de puertos de AWS SSM"
       },
       "dbConnect": {
         "start": "Conectando a la base de datos",

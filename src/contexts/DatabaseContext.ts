@@ -51,6 +51,8 @@ export interface SavedConnection {
     ssh_connection_id?: string;
     k8s_enabled?: boolean;
     k8s_connection_id?: string;
+    ssm_enabled?: boolean;
+    ssm_target?: string;
     startup_script?: string;
     /** SSL/TLS mode (e.g. "verify-ca"); empty/absent means SSL is off. Used
      * by findUnsupportedFeatures to detect a plugin capability gap. */

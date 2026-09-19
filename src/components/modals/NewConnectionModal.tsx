@@ -59,6 +59,7 @@ import {
   type K8sCommandOptions,
   type K8sConnection,
 } from "../../utils/k8s";
+import { resolveSsmDocument, testSsmConnection } from "../../utils/ssm";
 import { useK8sPathOverrides } from "../../hooks/useK8sPathOverrides";
 import { useLatestAsync } from "../../hooks/useLatestAsync";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
@@ -151,6 +152,11 @@ interface ConnectionParams {
   k8s_port?: number;
   k8s_kubectl_path?: string;
   k8s_kubeconfig_path?: string;
+  // AWS SSM - forwards to host/port through the managed node
+  ssm_enabled?: boolean;
+  ssm_target?: string;
+  ssm_profile?: string;
+  ssm_region?: string;
   // SQL run on every new connection (e.g. SET / set_config)
   startup_script?: string;
   // Opaque plugin-specific connection fields, forwarded verbatim to the
@@ -261,6 +267,7 @@ export const NewConnectionModal = ({
   const { drivers, refresh: refreshDrivers } = useDrivers();
   const { settings, updateSetting } = useSettings();
   const { invalidate: invalidateK8sAsync, run: runK8sAsync } = useLatestAsync();
+  const { run: runSsmAsync } = useLatestAsync();
 
   // ── wizard step ──
   const isEditing = Boolean(initialConnection);
@@ -380,6 +387,7 @@ export const NewConnectionModal = ({
     | "ssh"
     | "ssl"
     | "k8s"
+    | "ssm"
     | "advanced"
     | "appearance"
     | "privacy"
@@ -446,6 +454,15 @@ export const NewConnectionModal = ({
   );
   const [sshTabError, setSshTabError] = useState(false);
   const sshTestSequenceRef = useRef(0);
+
+  // ── AWS SSM ──
+  const [ssmTestStatus, setSsmTestStatus] = useState<
+    "idle" | "testing" | "success" | "error"
+  >("idle");
+  const [ssmTestMessage, setSsmTestMessage] = useState<string | null>(null);
+  const [ssmSelectionError, setSsmSelectionError] = useState<string | null>(
+    null,
+  );
 
   // ── K8s ──
   const [k8sConnections, setK8sConnections] = useState<K8sConnection[]>([]);
@@ -1144,6 +1161,30 @@ export const NewConnectionModal = ({
     t,
   ]);
 
+  const validateInlineSsmSelection = useCallback((): boolean => {
+    if (!formData.ssm_enabled) {
+      setSsmSelectionError(null);
+      return true;
+    }
+
+    const port = Number(formData.port);
+    let errorKey: string | null = null;
+    if (!formData.ssm_target?.trim()) {
+      errorKey = "newConnection.ssmTargetRequired";
+    } else if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      errorKey = "newConnection.ssmPortRequired";
+    }
+
+    if (errorKey) {
+      setSsmSelectionError(t(errorKey));
+      setActiveTab("ssm");
+      return false;
+    }
+
+    setSsmSelectionError(null);
+    return true;
+  }, [formData.port, formData.ssm_enabled, formData.ssm_target, t]);
+
   const testSshTunnel = async () => {
     if (!validateInlineSshSelection()) return;
 
@@ -1487,6 +1528,7 @@ export const NewConnectionModal = ({
         ...previous,
         k8s_enabled: enabled,
         ssh_enabled: enabled ? false : previous.ssh_enabled,
+        ssm_enabled: enabled ? false : previous.ssm_enabled,
       }));
       if (!enabled) {
         invalidateK8sDiscovery();
@@ -1506,6 +1548,71 @@ export const NewConnectionModal = ({
       loadK8sContextsList,
     ],
   );
+
+  const handleSsmEnabledChange = useCallback(
+    (enabled: boolean) => {
+      setSsmTestStatus("idle");
+      setSsmTestMessage(null);
+      setFormData((previous) => ({
+        ...previous,
+        ssm_enabled: enabled,
+        ssh_enabled: enabled ? false : previous.ssh_enabled,
+        k8s_enabled: enabled ? false : previous.k8s_enabled,
+      }));
+      if (enabled && formData.k8s_enabled) {
+        invalidateK8sDiscovery();
+        invalidateInlineK8sTest();
+      }
+    },
+    [formData.k8s_enabled, invalidateInlineK8sTest, invalidateK8sDiscovery],
+  );
+
+  // Any edit invalidates a previous SSM test: a stale green check must not
+  // survive a changed target, profile or region.
+  const updateSsmField = useCallback(
+    (field: "ssm_target" | "ssm_profile" | "ssm_region", value: string) => {
+      setSsmTestStatus("idle");
+      setSsmTestMessage(null);
+      setSsmSelectionError(null);
+      setFormData((previous) => ({ ...previous, [field]: value }));
+    },
+    [],
+  );
+
+  const testSsmTunnel = useCallback(async () => {
+    if (!validateInlineSsmSelection()) return;
+
+    const target = formData.ssm_target?.trim() ?? "";
+    const port = Number(formData.port);
+    setSsmTestStatus("testing");
+    setSsmTestMessage(null);
+    const result = await runSsmAsync("new-ssm-test", () =>
+      testSsmConnection({
+        target,
+        profile: formData.ssm_profile?.trim() || undefined,
+        region: formData.ssm_region?.trim() || undefined,
+        host: formData.host?.trim() || "localhost",
+        port,
+      }),
+    );
+
+    if (result.status === "stale") return;
+    if (result.status === "error") {
+      setSsmTestStatus("error");
+      setSsmTestMessage(toErrorMessage(result.error));
+      return;
+    }
+    setSsmTestStatus("success");
+    setSsmTestMessage(result.value);
+  }, [
+    formData.host,
+    formData.port,
+    formData.ssm_profile,
+    formData.ssm_region,
+    formData.ssm_target,
+    runSsmAsync,
+    validateInlineSsmSelection,
+  ]);
 
   const handleSavedK8sConnectionChange = useCallback(
     (value: string) => {
@@ -1816,6 +1923,7 @@ export const NewConnectionModal = ({
           ssh_enabled: false,
           ssh_port: 22,
           k8s_enabled: false,
+          ssm_enabled: false,
         });
         setSelectedDatabasesState([]);
         setLoadAllDatabases(true);
@@ -1869,6 +1977,10 @@ export const NewConnectionModal = ({
       k8s_port: undefined,
       k8s_kubectl_path: undefined,
       k8s_kubeconfig_path: undefined,
+      ssm_enabled: false,
+      ssm_target: undefined,
+      ssm_profile: undefined,
+      ssm_region: undefined,
     });
     invalidateK8sDiscovery();
     invalidateInlineK8sTest();
@@ -1945,6 +2057,7 @@ export const NewConnectionModal = ({
     try {
       if (!validateInlineK8sSelection()) return false;
       if (!validateInlineSshSelection()) return false;
+      if (!validateInlineSsmSelection()) return false;
 
       const usesK8s = formData.k8s_enabled === true;
       const k8sTestSequence = usesK8s
@@ -2058,6 +2171,7 @@ export const NewConnectionModal = ({
         setStatus("error");
         const classified = classifyConnectionError(toErrorMessage(err), {
           sshEnabled: formData.ssh_enabled === true,
+          ssmEnabled: formData.ssm_enabled === true,
         });
         setMessage("");
         setErrorFeedback(classified);
@@ -2180,6 +2294,7 @@ export const NewConnectionModal = ({
       }
       if (!validateInlineK8sSelection()) return;
       if (!validateInlineSshSelection()) return;
+      if (!validateInlineSsmSelection()) return;
 
       const paramsBase: Partial<ConnectionParams> = {
         driver,
@@ -2314,6 +2429,7 @@ export const NewConnectionModal = ({
           setStatus("error");
           const classified = classifyConnectionError(toErrorMessage(err), {
             sshEnabled: formData.ssh_enabled === true,
+            ssmEnabled: formData.ssm_enabled === true,
           });
           setMessage("");
           setErrorFeedback(
@@ -3394,6 +3510,10 @@ export const NewConnectionModal = ({
                 enabled && previous.k8s_enabled
                   ? false
                   : previous.k8s_enabled,
+              ssm_enabled:
+                enabled && previous.ssm_enabled
+                  ? false
+                  : previous.ssm_enabled,
             }));
             if (enabled && formData.k8s_enabled) {
               invalidateK8sDiscovery();
@@ -3647,6 +3767,117 @@ export const NewConnectionModal = ({
                   {t("common.showDetails")}
                 </button>
               </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── rendered AWS SSM tab content ──
+  const ssmTabContent = !isNetworkDriver ? (
+    <p className="text-xs text-muted italic">
+      {t("newConnection.ssmNotAvailable")}
+    </p>
+  ) : (
+    <div className="space-y-4">
+      <label className="flex items-center gap-2.5 cursor-pointer select-none w-fit">
+        <input
+          type="checkbox"
+          id="ssm-toggle"
+          checked={!!formData.ssm_enabled}
+          onChange={(event) => handleSsmEnabledChange(event.target.checked)}
+          className="accent-blue-500 w-3.5 h-3.5 rounded"
+        />
+        <span className="text-sm font-medium text-secondary">
+          {t("newConnection.useSsm")}
+        </span>
+      </label>
+
+      {formData.ssm_enabled && (
+        <div className="space-y-4">
+          {ssmSelectionError && (
+            <p role="alert" className="text-xs text-red-400">
+              {ssmSelectionError}
+            </p>
+          )}
+          <FieldInput
+            label={t("newConnection.ssmTarget")}
+            value={formData.ssm_target}
+            onChange={(v) => updateSsmField("ssm_target", v)}
+            placeholder="i-0123456789abcdef0"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <FieldInput
+              label={t("newConnection.ssmProfile")}
+              value={formData.ssm_profile}
+              onChange={(v) => updateSsmField("ssm_profile", v)}
+              placeholder="default"
+            />
+            <FieldInput
+              label={t("newConnection.ssmRegion")}
+              value={formData.ssm_region}
+              onChange={(v) => updateSsmField("ssm_region", v)}
+              placeholder="eu-west-1"
+            />
+          </div>
+          <p className="text-[11px] text-muted">
+            {t("newConnection.ssmForwardHint", {
+              document: resolveSsmDocument(formData.host),
+              host: formData.host?.trim() || "localhost",
+              port: formData.port ?? "",
+            })}
+          </p>
+          <p className="text-[11px] text-muted">
+            {t("newConnection.ssmIamHint")}
+          </p>
+
+          <div className="pt-3 border-t border-default space-y-2">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={testSsmTunnel}
+                disabled={ssmTestStatus === "testing" || isActionPending}
+                className={clsx(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-50",
+                  ssmTestStatus === "success"
+                    ? "border-green-600/50 bg-green-900/20 text-green-400"
+                    : ssmTestStatus === "error"
+                      ? "border-red-600/50 bg-red-900/20 text-red-400"
+                      : "border-strong bg-elevated text-secondary hover:text-primary hover:bg-surface-secondary",
+                )}
+              >
+                {ssmTestStatus === "testing" ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : ssmTestStatus === "success" ? (
+                  <Check size={13} />
+                ) : ssmTestStatus === "error" ? (
+                  <XCircle size={13} />
+                ) : (
+                  <Plug size={13} />
+                )}
+                {t("newConnection.testSsm")}
+              </button>
+              {ssmTestStatus === "success" && ssmTestMessage && (
+                <p
+                  aria-live="polite"
+                  className="text-xs text-green-400 truncate"
+                >
+                  {ssmTestMessage}
+                </p>
+              )}
+            </div>
+            <p className="text-[11px] text-muted">
+              {t("newConnection.testSsmHint")}
+            </p>
+            {ssmTestStatus === "error" && ssmTestMessage && (
+              <p
+                role="alert"
+                className="text-xs text-red-400 flex items-start gap-1.5"
+              >
+                <AlertCircle size={13} className="shrink-0 mt-px" />
+                <span>{ssmTestMessage}</span>
+              </p>
             )}
           </div>
         </div>
@@ -4147,6 +4378,7 @@ export const NewConnectionModal = ({
                     : []),
                   ...(isNetworkDriver ? [{ id: "ssh", label: "SSH" }] : []),
                   ...(isNetworkDriver ? [{ id: "k8s", label: "Kubernetes" }] : []),
+                  ...(isNetworkDriver ? [{ id: "ssm", label: "AWS SSM" }] : []),
                   {
                     id: "advanced",
                     label: t("newConnection.advanced", {
@@ -4171,6 +4403,7 @@ export const NewConnectionModal = ({
                     | "ssh"
                     | "ssl"
                     | "k8s"
+                    | "ssm"
                     | "advanced"
                     | "appearance"
                     | "privacy";
@@ -4239,13 +4472,15 @@ export const NewConnectionModal = ({
                     ? sslTabContent
                     : activeTab === "k8s"
                       ? k8sTabContent
-                      : activeTab === "ssh"
-                        ? sshTabContent
-                        : activeTab === "advanced"
-                          ? advancedTabContent
-                          : activeTab === "privacy"
-                            ? privacyTabContent
-                            : appearanceTabContent}
+                      : activeTab === "ssm"
+                        ? ssmTabContent
+                        : activeTab === "ssh"
+                          ? sshTabContent
+                          : activeTab === "advanced"
+                            ? advancedTabContent
+                            : activeTab === "privacy"
+                              ? privacyTabContent
+                              : appearanceTabContent}
             </div>
           </div>
         )}

@@ -75,6 +75,7 @@ describe('connectionManager', () => {
         host: 'localhost',
         sshEnabled: false,
         k8sEnabled: false,
+        ssmEnabled: false,
         isOpen: true,
         isActive: true,
         isConnecting: false,

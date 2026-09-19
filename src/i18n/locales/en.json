@@ -1023,6 +1023,17 @@
     "configError": "Please configure AI provider in Settings and enter a prompt."
   },
   "newConnection": {
+    "ssmForwardHint": "Resolves to {{document}} - forwards to {{host}}:{{port}} through the managed node. Change the target address on the General tab; a loopback host means the node itself.",
+    "ssmIamHint": "Requires ssm:StartSession on the target and on the resolved document.",
+    "ssmNotAvailable": "AWS SSM is not available for this driver.",
+    "ssmPortRequired": "Set a valid port on the General tab first.",
+    "ssmProfile": "AWS Profile",
+    "ssmRegion": "AWS Region",
+    "ssmTarget": "Managed Node",
+    "ssmTargetRequired": "Enter the managed node to connect through.",
+    "testSsm": "Test SSM",
+    "testSsmHint": "Opens a real port-forwarding session and closes it again, without connecting to the database.",
+    "useSsm": "Use AWS SSM Port Forwarding",
     "titleNew": "New Connection",
     "titleEdit": "Edit Connection",
     "subtitle": "Configure database connection settings",
@@ -2428,6 +2439,10 @@
       "summary": "SSH tunnel failed",
       "recovery": "Check the settings in the SSH tab."
     },
+    "ssm": {
+      "summary": "AWS SSM session failed",
+      "recovery": "Open the details for the exact AWS error. Check that the AWS CLI and the Session Manager plugin are installed, that your credentials are current, and that the managed node is online."
+    },
     "db-auth": {
       "summary": "Database authentication failed",
       "recovery": "Check the database username and password."
@@ -2464,6 +2479,11 @@
         "start": "Starting Kubernetes port-forward",
         "ok": "Port-forward ready",
         "error": "Kubernetes port-forward failed"
+      },
+      "ssmForward": {
+        "start": "Starting AWS SSM port forwarding",
+        "ok": "Port forwarding ready",
+        "error": "AWS SSM port forwarding failed"
       },
       "dbConnect": {
         "start": "Connecting to the database",

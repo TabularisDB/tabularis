@@ -990,6 +990,17 @@
     "configError": "設定で AI プロバイダを構成し、プロンプトを入力してください。"
   },
   "newConnection": {
+    "ssmForwardHint": "{{document}} に解決されます。マネージドノード経由で {{host}}:{{port}} に転送します。転送先アドレスは「一般」タブで変更します。ループバックホストはノード自身を意味します。",
+    "ssmIamHint": "対象と解決されたドキュメントに対する ssm:StartSession 権限が必要です。",
+    "ssmNotAvailable": "AWS SSM はこのドライバーでは利用できません。",
+    "ssmPortRequired": "先に「一般」タブで有効なポートを設定してください。",
+    "ssmProfile": "AWS プロファイル",
+    "ssmRegion": "AWS リージョン",
+    "ssmTarget": "マネージドノード",
+    "ssmTargetRequired": "接続に使用するマネージドノードを入力してください。",
+    "testSsm": "SSM をテスト",
+    "testSsmHint": "実際のポートフォワーディングセッションを開いてすぐに閉じます。データベースには接続しません。",
+    "useSsm": "AWS SSM ポートフォワーディングを使用",
     "titleNew": "新規接続",
     "titleEdit": "接続を編集",
     "subtitle": "データベース接続の設定を構成します",
@@ -2354,6 +2365,10 @@
       "summary": "SSH トンネルに失敗しました",
       "recovery": "SSH タブの設定を確認してください。"
     },
+    "ssm": {
+      "summary": "AWS SSM セッションに失敗しました",
+      "recovery": "詳細を開いて正確な AWS のエラーを確認してください。AWS CLI と Session Manager プラグインがインストールされていること、認証情報が有効であること、マネージドノードがオンラインであることを確認してください。"
+    },
     "db-auth": {
       "summary": "データベース認証に失敗しました",
       "recovery": "データベースのユーザー名とパスワードを確認してください。"
@@ -2390,6 +2405,11 @@
         "start": "Kubernetes ポートフォワードを開始しています",
         "ok": "ポートフォワードの準備ができました",
         "error": "Kubernetes ポートフォワードに失敗しました"
+      },
+      "ssmForward": {
+        "start": "AWS SSM ポートフォワーディングを開始しています",
+        "ok": "ポートフォワーディングの準備ができました",
+        "error": "AWS SSM ポートフォワーディングに失敗しました"
       },
       "dbConnect": {
         "start": "データベースに接続しています",

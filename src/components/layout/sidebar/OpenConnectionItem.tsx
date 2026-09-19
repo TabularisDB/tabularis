@@ -180,7 +180,10 @@ export const OpenConnectionItem = ({
           )}
 
           {/* SSH badge */}
-          {sshEnabled && !showShortcutHint && !connection.k8sEnabled && (
+          {sshEnabled &&
+            !showShortcutHint &&
+            !connection.k8sEnabled &&
+            !connection.ssmEnabled && (
             <div className="absolute top-1 right-1">
               <Shield size={9} className="text-accent-success fill-accent-success/20" />
             </div>
@@ -190,6 +193,13 @@ export const OpenConnectionItem = ({
           {connection.k8sEnabled && !showShortcutHint && (
             <div className="absolute top-1 right-1">
               <Shield size={9} className="text-accent-primary fill-accent-primary/20" />
+            </div>
+          )}
+
+          {/* AWS SSM badge */}
+          {connection.ssmEnabled && !connection.k8sEnabled && !showShortcutHint && (
+            <div className="absolute top-1 right-1">
+              <Shield size={9} className="text-orange-400 fill-orange-400/20" />
             </div>
           )}
 

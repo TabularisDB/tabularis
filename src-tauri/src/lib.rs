@@ -94,6 +94,7 @@ pub mod saved_queries;
 #[cfg(test)]
 pub mod saved_queries_tests;
 pub mod ssh_tunnel;
+pub mod ssm_tunnel;
 pub mod sqlite_database;
 #[cfg(test)]
 pub mod sqlite_database_tests;
@@ -489,6 +490,8 @@ pub fn run() {
             commands::get_k8s_resources_cmd,
             commands::get_k8s_resource_ports_cmd,
             commands::validate_k8s_path_cmd,
+            // AWS SSM
+            commands::test_ssm_connection_cmd,
             // Connection Groups
             commands::get_connection_groups,
             commands::get_connections_with_groups,
@@ -747,9 +750,10 @@ pub fn run() {
                 // Back up the freshest state before the process ends (no-op
                 // unless backups are enabled and due).
                 backup::run_exit_backup(app_handle);
-                log::info!("Application exiting, stopping all active SSH tunnels...");
+                log::info!("Application exiting, stopping all active tunnels...");
                 crate::ssh_tunnel::stop_all_tunnels();
                 crate::proxy::stop_all_forwards();
+                crate::ssm_tunnel::stop_all_tunnels();
             }
         });
 }

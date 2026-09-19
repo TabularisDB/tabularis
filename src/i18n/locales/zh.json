@@ -944,6 +944,17 @@
     "configError": "请在设置中配置 AI 提供商并输入提示词。"
   },
   "newConnection": {
+    "ssmForwardHint": "解析为 {{document}}：通过托管节点转发到 {{host}}:{{port}}。在“常规”选项卡中修改目标地址；回环地址表示节点自身。",
+    "ssmIamHint": "需要对目标和解析出的文档具有 ssm:StartSession 权限。",
+    "ssmNotAvailable": "此驱动不支持 AWS SSM。",
+    "ssmPortRequired": "请先在“常规”选项卡中设置有效端口。",
+    "ssmProfile": "AWS 配置文件",
+    "ssmRegion": "AWS 区域",
+    "ssmTarget": "托管节点",
+    "ssmTargetRequired": "请填写用于连接的托管节点。",
+    "testSsm": "测试 SSM",
+    "testSsmHint": "打开一个真实的端口转发会话并随即关闭，不会连接数据库。",
+    "useSsm": "使用 AWS SSM 端口转发",
     "titleNew": "新建连接",
     "titleEdit": "编辑连接",
     "subtitle": "配置数据库连接设置",
@@ -2276,6 +2287,10 @@
       "summary": "SSH 隧道失败",
       "recovery": "请检查 SSH 标签页中的设置。"
     },
+    "ssm": {
+      "summary": "AWS SSM 会话失败",
+      "recovery": "展开详情查看具体的 AWS 错误。请确认已安装 AWS CLI 和 Session Manager 插件、凭证仍然有效，并且托管节点处于在线状态。"
+    },
     "db-auth": {
       "summary": "数据库认证失败",
       "recovery": "请检查数据库用户名和密码。"
@@ -2312,6 +2327,11 @@
         "start": "正在启动 Kubernetes 端口转发",
         "ok": "端口转发就绪",
         "error": "Kubernetes 端口转发失败"
+      },
+      "ssmForward": {
+        "start": "正在启动 AWS SSM 端口转发",
+        "ok": "端口转发就绪",
+        "error": "AWS SSM 端口转发失败"
       },
       "dbConnect": {
         "start": "正在连接数据库",

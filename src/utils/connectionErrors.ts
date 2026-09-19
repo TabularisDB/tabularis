@@ -10,6 +10,7 @@ export type ConnectionErrorKind =
   | "ssh-auth"
   | "ssh-unreachable"
   | "ssh"
+  | "ssm"
   | "db-auth"
   | "network"
   | "db-not-found"
@@ -37,6 +38,7 @@ const SSH_AUTH =
   /auth|password|passphrase|credential|permission denied|publickey|keyboard-interactive/i;
 const SSH_UNREACHABLE =
   /timed?\s?out|timeout|refused|unreachable|resolve|resolution|failed to connect|exited prematurely|failed to launch|handshake|host key/i;
+const SSM_CONTEXT = /aws ssm|ssm session|session[- ]manager|aws output:|aws cli/i;
 const DB_AUTH =
   /access denied|authentication failed|password authentication|login failed|role ".*" does not exist|invalid credentials/i;
 const NETWORK =
@@ -49,11 +51,15 @@ const DB_NOT_FOUND =
  *
  * `sshEnabled` refines network failures: with a tunnel active the database is
  * dialed through 127.0.0.1, so "connection refused" points at the tunnel, not
- * at the database host.
+ * at the database host. `ssmEnabled` does the same for an SSM session.
+ *
+ * AWS SSM failures are matched before the database categories because the AWS
+ * CLI reports an IAM denial as "Access denied", which would otherwise be read
+ * as a database login failure and hide the hint naming the missing permission.
  */
 export function classifyConnectionError(
   raw: string,
-  context: { sshEnabled?: boolean } = {},
+  context: { sshEnabled?: boolean; ssmEnabled?: boolean } = {},
 ): ClassifiedConnectionError {
   const detail = sanitizeErrorDetail(raw);
   const build = (
@@ -71,10 +77,12 @@ export function classifyConnectionError(
     if (SSH_UNREACHABLE.test(raw)) return build("ssh-unreachable");
     return build("ssh");
   }
+  if (SSM_CONTEXT.test(raw)) return build("ssm");
   if (DB_AUTH.test(raw)) return build("db-auth");
   if (DB_NOT_FOUND.test(raw)) return build("db-not-found");
   if (NETWORK.test(raw)) {
     if (context.sshEnabled) return build("ssh-unreachable");
+    if (context.ssmEnabled) return build("ssm");
     return build("network");
   }
   return build("unknown", false);

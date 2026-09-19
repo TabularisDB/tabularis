@@ -412,17 +412,105 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
     Ok(new_params)
 }
 
-pub fn resolve_connection_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
-    // K8s and SSH are mutually exclusive
-    if params.k8s_enabled.unwrap_or(false) && params.ssh_enabled.unwrap_or(false) {
-        return Err(
-            "Kubernetes and SSH tunnel cannot both be enabled for the same connection".to_string()
-        );
+/// Resolve AWS SSM tunnel params synchronously. Like SSH, the session forwards
+/// to the connection's own host/port; unlike SSH there is no saved-connection
+/// indirection, so every field is inline.
+fn resolve_ssm_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
+    let target = params
+        .ssm_target
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .ok_or("Missing AWS SSM target")?;
+    let profile = params.ssm_profile.as_deref();
+    let region = params.ssm_region.as_deref();
+    let remote_host = params.host.as_deref().unwrap_or("localhost");
+    let remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
+
+    let map_key =
+        crate::ssm_tunnel::build_tunnel_key(target, profile, region, remote_host, remote_port);
+
+    {
+        let mut tunnels = crate::ssm_tunnel::get_tunnels().lock().unwrap();
+        if let Some(tunnel) = tunnels.get(&map_key) {
+            if tunnel.is_alive() {
+                log::debug!("Reusing existing SSM tunnel on port {}", tunnel.local_port);
+                let mut new_params = params.clone();
+                new_params.ssm_enabled = Some(false);
+                new_params.host = Some("127.0.0.1".to_string());
+                new_params.port = Some(tunnel.local_port);
+                return Ok(new_params);
+            }
+            log::info!(
+                "Discarding dead SSM tunnel on port {}; the session ended",
+                tunnel.local_port
+            );
+            tunnels.remove(&map_key);
+        }
     }
 
-    // Handle K8s tunnel — result is already on localhost; do not re-proxy.
+    log::info!(
+        "Creating new SSM tunnel to {}:{} via {}",
+        remote_host,
+        remote_port,
+        target
+    );
+
+    let tunnel =
+        crate::ssm_tunnel::SsmTunnel::new(target, profile, region, remote_host, remote_port)
+            .map_err(|e| {
+                eprintln!("[Connection Error] SSM Tunnel setup failed: {}", e);
+                e
+            })?;
+
+    let local_port = tunnel.local_port;
+    log::info!("SSM tunnel created successfully on port {}", local_port);
+
+    {
+        let mut tunnels = crate::ssm_tunnel::get_tunnels().lock().unwrap();
+        tunnels.insert(map_key, tunnel);
+    }
+
+    let mut new_params = params.clone();
+    new_params.ssm_enabled = Some(false);
+    new_params.host = Some("127.0.0.1".to_string());
+    new_params.port = Some(local_port);
+    Ok(new_params)
+}
+
+/// SSH, Kubernetes and AWS SSM each rewrite host/port to a local tunnel, so at
+/// most one of them can be active for a connection.
+fn ensure_single_tunnel(params: &ConnectionParams) -> Result<(), String> {
+    let enabled: Vec<&str> = [
+        ("SSH", params.ssh_enabled),
+        ("Kubernetes", params.k8s_enabled),
+        ("AWS SSM", params.ssm_enabled),
+    ]
+    .into_iter()
+    .filter(|(_, on)| on.unwrap_or(false))
+    .map(|(name, _)| name)
+    .collect();
+
+    if enabled.len() > 1 {
+        return Err(format!(
+            "{} tunnels cannot both be enabled for the same connection",
+            enabled.join(" and ")
+        ));
+    }
+    Ok(())
+}
+
+pub fn resolve_connection_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
+    ensure_single_tunnel(params)?;
+
+    // Handle K8s tunnel - result is already on localhost; do not re-proxy.
     if params.k8s_enabled.unwrap_or(false) {
         return resolve_k8s_params(params);
+    }
+
+    // Handle AWS SSM tunnel
+    if params.ssm_enabled.unwrap_or(false) {
+        return resolve_ssm_params(params);
     }
 
     let connection_id = params.connection_id.as_deref();
@@ -2289,6 +2377,32 @@ pub async fn validate_k8s_path_cmd<R: Runtime>(
     crate::k8s_tunnel::validate_k8s_path(&path, &kind)
 }
 
+// ---------------------------------------------------------------------------
+// AWS SSM
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn test_ssm_connection_cmd<R: Runtime>(
+    _app: AppHandle<R>,
+    target: String,
+    profile: Option<String>,
+    region: Option<String>,
+    host: String,
+    port: u16,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        crate::ssm_tunnel::test_ssm_connection(
+            &target,
+            profile.as_deref(),
+            region.as_deref(),
+            &host,
+            port,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Expand K8s connection params by loading saved config and creating/reusing a tunnel.
 pub async fn expand_k8s_connection_params<R: Runtime>(
     app: &AppHandle<R>,
@@ -2298,12 +2412,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
         return Ok(params.clone());
     }
 
-    // Mutual exclusion: K8s and SSH cannot both be active
-    if params.ssh_enabled.unwrap_or(false) {
-        return Err(
-            "Kubernetes and SSH tunnel cannot both be enabled for the same connection".to_string()
-        );
-    }
+    ensure_single_tunnel(params)?;
 
     // Resolve K8s params from saved connection if using connection_id
     let (context, namespace, resource_type, resource_name, port, kubectl_path, kubeconfig_path) =
@@ -2494,10 +2603,13 @@ pub async fn test_connection<R: Runtime>(
 
     let ssh_enabled = expanded_params.ssh_enabled.unwrap_or(false);
     let k8s_enabled = expanded_params.k8s_enabled.unwrap_or(false);
+    let ssm_enabled = expanded_params.ssm_enabled.unwrap_or(false);
     let tunnel_step = if ssh_enabled {
         Some("sshTunnel")
     } else if k8s_enabled {
         Some("k8sForward")
+    } else if ssm_enabled {
+        Some("ssmForward")
     } else {
         None
     };
@@ -2522,6 +2634,14 @@ pub async fn test_connection<R: Runtime>(
             "k8sForward",
             "start",
             expanded_params.k8s_resource_name.clone(),
+        );
+    } else if ssm_enabled {
+        emit_test_progress(
+            &app,
+            progress_id,
+            "ssmForward",
+            "start",
+            expanded_params.ssm_target.clone(),
         );
     }
 
@@ -3283,6 +3403,63 @@ mod tests {
             let result = resolve_connection_params(&params);
             assert!(result.is_err());
             assert!(result.unwrap_err().contains("SSH User"));
+        }
+    }
+
+    mod resolve_ssm_params_tests {
+        use super::*;
+
+        fn create_ssm_params(target: &str) -> ConnectionParams {
+            ConnectionParams {
+                driver: "mysql".to_string(),
+                host: Some("db.internal".to_string()),
+                port: Some(3306),
+                username: Some("root".to_string()),
+                database: DatabaseSelection::Single("testdb".to_string()),
+                ssm_enabled: Some(true),
+                ssm_target: Some(target.to_string()),
+                ..Default::default()
+            }
+        }
+
+        #[test]
+        fn test_ssm_requires_target() {
+            let mut params = create_ssm_params("i-0abc");
+            params.ssm_target = Some("   ".to_string());
+            let result = resolve_ssm_params(&params);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().contains("AWS SSM target"));
+        }
+
+        #[test]
+        fn test_ssm_and_ssh_mutual_exclusion() {
+            let mut params = create_ssm_params("i-0abc");
+            params.ssh_enabled = Some(true);
+            let result = resolve_connection_params(&params);
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .contains("SSH and AWS SSM tunnels cannot both be enabled"));
+        }
+
+        #[test]
+        fn test_ssm_and_k8s_mutual_exclusion() {
+            let mut params = create_ssm_params("i-0abc");
+            params.k8s_enabled = Some(true);
+            let result = resolve_connection_params(&params);
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .contains("Kubernetes and AWS SSM tunnels cannot both be enabled"));
+        }
+
+        #[test]
+        fn test_disabled_ssm_leaves_params_untouched() {
+            let mut params = create_ssm_params("i-0abc");
+            params.ssm_enabled = Some(false);
+            let result = resolve_connection_params(&params).unwrap();
+            assert_eq!(result.host, Some("db.internal".to_string()));
+            assert_eq!(result.port, Some(3306));
         }
     }
 

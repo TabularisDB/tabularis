@@ -91,6 +91,11 @@ export interface ConnectionParams {
   k8s_resource_type?: string;
   k8s_resource_name?: string;
   k8s_port?: number;
+  // AWS SSM
+  ssm_enabled?: boolean;
+  ssm_target?: string;
+  ssm_profile?: string;
+  ssm_region?: string;
   /** SQL run on every new connection to this data source (e.g. SET / set_config). */
   startup_script?: string;
   /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB

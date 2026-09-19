@@ -6478,6 +6478,7 @@ dependencies = [
  "gtk",
  "infer 0.16.0",
  "keyring",
+ "libc",
  "log",
  "notify",
  "once_cell",

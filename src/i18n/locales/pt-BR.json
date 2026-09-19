@@ -996,6 +996,17 @@
     "configError": "Configure o provedor de IA em Configurações e digite um prompt."
   },
   "newConnection": {
+    "ssmForwardHint": "Resolve para {{document}}: encaminha para {{host}}:{{port}} através do nó gerenciado. Altere o endereço de destino na aba Geral; um host de loopback significa o próprio nó.",
+    "ssmIamHint": "Requer ssm:StartSession no destino e no documento resolvido.",
+    "ssmNotAvailable": "O AWS SSM não está disponível para este driver.",
+    "ssmPortRequired": "Defina primeiro uma porta válida na aba Geral.",
+    "ssmProfile": "Perfil da AWS",
+    "ssmRegion": "Região da AWS",
+    "ssmTarget": "Nó gerenciado",
+    "ssmTargetRequired": "Informe o nó gerenciado pelo qual conectar.",
+    "testSsm": "Testar SSM",
+    "testSsmHint": "Abre uma sessão real de encaminhamento de porta e a fecha em seguida, sem conectar ao banco de dados.",
+    "useSsm": "Usar encaminhamento de porta do AWS SSM",
     "titleNew": "Nova Conexão",
     "titleEdit": "Editar Conexão",
     "subtitle": "Configure as opções de conexão do banco de dados",
@@ -2393,6 +2404,10 @@
       "summary": "Falha no túnel SSH",
       "recovery": "Verifique as configurações na aba SSH."
     },
+    "ssm": {
+      "summary": "Falha na sessão do AWS SSM",
+      "recovery": "Abra os detalhes para ver o erro exato da AWS. Verifique se a CLI da AWS e o plugin Session Manager estão instalados, se suas credenciais estão válidas e se o nó gerenciado está on-line."
+    },
     "db-auth": {
       "summary": "Falha na autenticação do banco de dados",
       "recovery": "Verifique o nome de usuário e a senha do banco de dados."
@@ -2429,6 +2444,11 @@
         "start": "Iniciando o port-forward do Kubernetes",
         "ok": "Port-forward pronto",
         "error": "Falha no port-forward do Kubernetes"
+      },
+      "ssmForward": {
+        "start": "Iniciando o encaminhamento de porta do AWS SSM",
+        "ok": "Encaminhamento de porta pronto",
+        "error": "Falha no encaminhamento de porta do AWS SSM"
       },
       "dbConnect": {
         "start": "Conectando ao banco de dados",

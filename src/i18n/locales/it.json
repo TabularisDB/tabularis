@@ -1012,6 +1012,17 @@
     "configError": "Configura il provider AI nelle Impostazioni e inserisci un prompt."
   },
   "newConnection": {
+    "ssmForwardHint": "Si risolve in {{document}}: inoltra a {{host}}:{{port}} attraverso il nodo gestito. Modifica l'indirizzo di destinazione nella scheda Generale; un host di loopback indica il nodo stesso.",
+    "ssmIamHint": "Richiede ssm:StartSession sul target e sul documento risolto.",
+    "ssmNotAvailable": "AWS SSM non è disponibile per questo driver.",
+    "ssmPortRequired": "Imposta prima una porta valida nella scheda Generale.",
+    "ssmProfile": "Profilo AWS",
+    "ssmRegion": "Regione AWS",
+    "ssmTarget": "Nodo gestito",
+    "ssmTargetRequired": "Indica il nodo gestito attraverso cui connettersi.",
+    "testSsm": "Testa SSM",
+    "testSsmHint": "Apre una vera sessione di port forwarding e la richiude, senza connettersi al database.",
+    "useSsm": "Usa il port forwarding AWS SSM",
     "titleNew": "Nuova Connessione",
     "titleEdit": "Modifica Connessione",
     "subtitle": "Configura le impostazioni di connessione al database",
@@ -2349,6 +2360,10 @@
       "summary": "Tunnel SSH fallito",
       "recovery": "Controlla le impostazioni nella scheda SSH."
     },
+    "ssm": {
+      "summary": "Sessione AWS SSM non riuscita",
+      "recovery": "Apri i dettagli per l'errore AWS esatto. Verifica che la CLI di AWS e il plugin Session Manager siano installati, che le credenziali siano valide e che il nodo gestito sia online."
+    },
     "db-auth": {
       "summary": "Autenticazione al database fallita",
       "recovery": "Controlla nome utente e password del database."
@@ -2385,6 +2400,11 @@
         "start": "Avvio del port-forward Kubernetes",
         "ok": "Port-forward pronto",
         "error": "Port-forward Kubernetes fallito"
+      },
+      "ssmForward": {
+        "start": "Avvio del port forwarding AWS SSM",
+        "ok": "Port forwarding pronto",
+        "error": "Port forwarding AWS SSM non riuscito"
       },
       "dbConnect": {
         "start": "Connessione al database",

@@ -1006,6 +1006,17 @@
     "configError": "Pakiconfigure ang AI provider sa Settings at maglagay ng prompt."
   },
   "newConnection": {
+    "ssmForwardHint": "Nire-resolve sa {{document}} - ipinapasa sa {{host}}:{{port}} sa pamamagitan ng managed node. Baguhin ang target na address sa tab na General; ang loopback host ay ang node mismo.",
+    "ssmIamHint": "Kailangan ng ssm:StartSession sa target at sa na-resolve na dokumento.",
+    "ssmNotAvailable": "Hindi available ang AWS SSM para sa driver na ito.",
+    "ssmPortRequired": "Magtakda muna ng wastong port sa tab na General.",
+    "ssmProfile": "AWS profile",
+    "ssmRegion": "AWS region",
+    "ssmTarget": "Managed node",
+    "ssmTargetRequired": "Ilagay ang managed node na daraanan ng koneksyon.",
+    "testSsm": "Subukan ang SSM",
+    "testSsmHint": "Nagbubukas ng tunay na port forwarding session at isinasara itong muli, nang hindi kumokonekta sa database.",
+    "useSsm": "Gamitin ang AWS SSM port forwarding",
     "titleNew": "Bagong Connection",
     "titleEdit": "I-edit ang Connection",
     "subtitle": "I-configure ang mga setting ng database connection",
@@ -2310,6 +2321,10 @@
       "summary": "Nabigo ang SSH tunnel",
       "recovery": "Suriin ang mga setting sa tab na SSH."
     },
+    "ssm": {
+      "summary": "Nabigo ang AWS SSM session",
+      "recovery": "Buksan ang mga detalye para sa eksaktong error ng AWS. Tiyaking naka-install ang AWS CLI at ang Session Manager plugin, kasalukuyan pa ang iyong mga kredensyal, at online ang managed node."
+    },
     "db-auth": {
       "summary": "Nabigo ang authentication sa database",
       "recovery": "Suriin ang username at password ng database."
@@ -2346,6 +2361,11 @@
         "start": "Sinisimulan ang Kubernetes port-forward",
         "ok": "Handa na ang port-forward",
         "error": "Nabigo ang Kubernetes port-forward"
+      },
+      "ssmForward": {
+        "start": "Sinisimulan ang AWS SSM port forwarding",
+        "ok": "Handa na ang port forwarding",
+        "error": "Nabigo ang AWS SSM port forwarding"
       },
       "dbConnect": {
         "start": "Kumokonekta sa database",
