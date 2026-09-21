@@ -33,7 +33,9 @@ const MainLayoutContent = () => {
 
   return (
     <div className="flex h-screen bg-base text-primary overflow-hidden">
-      <CommandPaletteScopeBridge scopeId={ROOT_COMMAND_SCOPE_ID} />
+      {location.pathname !== "/editor" && (
+        <CommandPaletteScopeBridge scopeId={ROOT_COMMAND_SCOPE_ID} />
+      )}
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {location.pathname === "/editor" && <ProductionBanner />}

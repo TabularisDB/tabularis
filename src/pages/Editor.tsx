@@ -166,6 +166,7 @@ import {
 } from "../utils/editorNavigation";
 import { CommandPaletteScopeBridge } from "../components/layout/CommandPaletteScopeBridge";
 import type { CommandScope } from "../types/commands";
+import { ROOT_COMMAND_SCOPE_ID } from "../utils/commandScopeStore";
 import { createActiveEditorCommands } from "../utils/editorCommands";
 import { buildForeignKeyFilterClause } from "../utils/foreignKeys";
 import { formatSqlIdentifier } from "../utils/identifiers";
@@ -211,10 +212,7 @@ function getStatementAtCursor(
 }
 
 interface EditorProps {
-  /**
-   * Set by split panes only. The routed editor needs no scope of its own — the
-   * layout registers the root scope, and its `openEditor` navigates here.
-   */
+  /** Split panes provide a connection id; the routed editor owns the root scope. */
   commandScopeId?: string;
 }
 
@@ -3787,24 +3785,36 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     setIsRunDropdownOpen((prev) => !prev);
   }, [isRunDropdownOpen, activeTab, activeDialect]);
 
+  const commandPaletteScopeBridge = (
+    <CommandPaletteScopeBridge
+      scopeId={commandScopeId ?? ROOT_COMMAND_SCOPE_ID}
+      openEditor={openEditorInScope}
+      getEditorCommands={getEditorCommands}
+      getResultCommands={getResultCommands}
+    />
+  );
+
   if (!activeTab) {
     return (
-      <div className="flex flex-col h-full bg-base items-center justify-center text-muted">
-        <Database size={48} className="mb-4 opacity-20" />
-        {activeConnectionId ? (
-          <div className="text-center">
-            <p className="mb-4">{t("editor.noTabs")}</p>
-            <button
-              onClick={() => addTab({ type: "console" })}
-              className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded transition-colors"
-            >
-              {t("editor.newConsole")}
-            </button>
-          </div>
-        ) : (
-          <p>{t("editor.noActiveSession")}</p>
-        )}
-      </div>
+      <>
+        {commandPaletteScopeBridge}
+        <div className="flex flex-col h-full bg-base items-center justify-center text-muted">
+          <Database size={48} className="mb-4 opacity-20" />
+          {activeConnectionId ? (
+            <div className="text-center">
+              <p className="mb-4">{t("editor.noTabs")}</p>
+             <button
+               onClick={() => addTab({ type: "console" })}
+               className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded transition-colors"
+             >
+                {t("editor.newConsole")}
+              </button>
+            </div>
+          ) : (
+            <p>{t("editor.noActiveSession")}</p>
+          )}
+        </div>
+      </>
     );
   }
 
@@ -3822,14 +3832,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   return (
     <div ref={editorRootRef} className="flex flex-col h-full bg-base">
-      {commandScopeId && (
-        <CommandPaletteScopeBridge
-          scopeId={commandScopeId}
-          openEditor={openEditorInScope}
-          getEditorCommands={getEditorCommands}
-          getResultCommands={getResultCommands}
-        />
-      )}
+      {commandPaletteScopeBridge}
       {/* Tab Bar — tinted with the active connection's accent color */}
       <div
         className="flex items-center bg-elevated border-b border-default h-9 shrink-0"
