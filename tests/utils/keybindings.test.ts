@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import shortcutDefs from '../../src/config/shortcuts.json';
 import {
   resolveMatch,
   matchesEvent,
@@ -125,6 +126,18 @@ describe('matchesEvent', () => {
     const event = makeEvent({ key: 'б', code: 'Comma', metaKey: true });
 
     expect(matchesEvent(event, match)).toBe(true);
+  });
+
+  it('opens the command palette from the physical K key on another layout', () => {
+    const commandPalette = shortcutDefs.find(
+      (shortcut) => shortcut.id === 'command_palette',
+    );
+    const event = makeEvent({ key: 'л', code: 'KeyK', metaKey: true });
+
+    expect(commandPalette).toBeDefined();
+    expect(commandPalette?.macMatch.code).toBe('KeyK');
+    expect(commandPalette?.winMatch.code).toBe('KeyK');
+    expect(matchesEvent(event, commandPalette!.macMatch)).toBe(true);
   });
 
   it('matches the shortcut character on a different physical key', () => {
@@ -275,6 +288,15 @@ describe('keyMatchesOverlap', () => {
 });
 
 describe('connectionIndexFromShortcut', () => {
+  it('keeps the default connection shortcut aligned with its code-based matcher', () => {
+    const switchConnection = shortcutDefs.find(
+      (shortcut) => shortcut.id === 'switch_connection',
+    );
+
+    expect(switchConnection?.macMatch.code).toBe('Digit1');
+    expect(switchConnection?.winMatch.code).toBe('Digit1');
+  });
+
   it.each([
     { code: 'Digit2', index: 1 },
     { code: 'Digit9', index: 8 },
@@ -501,6 +523,12 @@ describe('formatEvent', () => {
     const event = makeEvent({ key: ' ', ctrlKey: true });
     expect(formatEvent(event, false)).toBe('Ctrl+Space');
   });
+
+  it('formats a printable shortcut from its physical code', () => {
+    const event = makeEvent({ key: 'б', code: 'Comma', metaKey: true });
+
+    expect(formatEvent(event, true)).toBe('⌘+,');
+  });
 });
 
 // ─── formatMatch ──────────────────────────────────────────────────────────────
@@ -533,5 +561,11 @@ describe('formatMatch', () => {
   it('formats space key as Space', () => {
     const match: KeyMatch = { ctrlKey: true, key: ' ' };
     expect(formatMatch(match, false)).toBe('Ctrl+Space');
+  });
+
+  it('keeps a recorded printable shortcut stable across layouts', () => {
+    const match: KeyMatch = { metaKey: true, key: 'б', code: 'Comma' };
+
+    expect(formatMatch(match, true)).toBe('⌘+,');
   });
 });

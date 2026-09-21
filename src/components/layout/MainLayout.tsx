@@ -44,7 +44,16 @@ const MainLayoutContent = () => {
             would push the page down without shrinking it, clipping the bottom
             row of the results grid. */}
         <div className="flex-1 min-h-0 min-w-0">
-          <Suspense fallback={<LoadingState />}>
+          <Suspense
+            fallback={
+              <>
+                {location.pathname === "/editor" && (
+                  <CommandPaletteScopeBridge scopeId={ROOT_COMMAND_SCOPE_ID} />
+                )}
+                <LoadingState />
+              </>
+            }
+          >
             {renderedSplit ? (
               <SplitPaneLayout {...renderedSplit} />
             ) : (

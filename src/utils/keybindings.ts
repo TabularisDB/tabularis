@@ -310,7 +310,10 @@ export function formatEvent(event: KeyboardEvent, isMac: boolean): string {
     if (event.shiftKey) parts.push("Shift");
     if (event.altKey) parts.push("Alt");
   }
-  const key = formatKey(event.key, isMac);
+  const key = formatKey(
+    printableKeyFromCode(event.code, event.shiftKey) ?? event.key,
+    isMac,
+  );
   if (key) parts.push(key);
   return parts.join("+");
 }
@@ -330,13 +333,28 @@ export function formatMatch(match: KeyMatch, isMac: boolean): string {
     if (match.shiftKey) parts.push("Shift");
     if (match.altKey) parts.push("Alt");
   }
-  const key = formatKey(match.key, isMac);
+  const key = formatKey(
+    printableKeyFromCode(match.code, !!match.shiftKey) ?? match.key,
+    isMac,
+  );
   if (key) parts.push(key);
   return parts.join("+");
 }
 
+function printableKeyFromCode(
+  code: string | undefined,
+  shiftKey: boolean,
+): string | undefined {
+  if (!code) return undefined;
+  const isPrintableCode =
+    Object.hasOwn(KEY_BY_CODE, code) ||
+    Object.hasOwn(SHIFTED_KEY_BY_CODE, code) ||
+    /^(?:Key[A-Z]|Digit[0-9]|Numpad[0-9])$/.test(code);
+  return isPrintableCode ? keyFromCode(code, shiftKey) : undefined;
+}
+
 function formatKey(key: string | undefined, isMac: boolean): string {
-  if (typeof key !== 'string') return '';
+  if (typeof key !== "string") return "";
   if (isMac && MAC_SYMBOL_MAP[key]) return MAC_SYMBOL_MAP[key];
   // Common display names for all platforms
   const COMMON_DISPLAY: Record<string, string> = {

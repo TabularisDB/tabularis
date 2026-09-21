@@ -136,4 +136,23 @@ describe("MainLayout", () => {
 
     expect(screen.getByTestId("command-scope-root")).toBeInTheDocument();
   });
+
+  it("should provide root commands while the editor route is loading", () => {
+    const pending = new Promise<never>(() => {});
+    const SuspendedEditor = () => {
+      throw pending;
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/editor"]}>
+        <Routes>
+          <Route element={<MainLayout />}>
+            <Route path="editor" element={<SuspendedEditor />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("command-scope-root")).toBeInTheDocument();
+  });
 });
