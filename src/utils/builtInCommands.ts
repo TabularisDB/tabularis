@@ -70,7 +70,7 @@ export function createBuiltInCommandItems(
     items.push({
       id: "connection.new-console",
       title: labels.newConsole,
-      group: labels.connectionCategory,
+      group: labels.editorCategory,
       keywords: ["sql", "query", "console", "editor"],
       icon: "new-console",
       primaryAction: {

@@ -83,8 +83,10 @@ describe("createBuiltInCommandItems", () => {
   it("should open an empty console on the schema the user is looking at", async () => {
     const scope = createScope();
     const items = createBuiltInCommandItems(scope, labels, modals());
+    const command = findItem(items, "connection.new-console");
 
-    await findItem(items, "connection.new-console").primaryAction.execute();
+    expect(command.group).toBe("Editor");
+    await command.primaryAction.execute();
     expect(scope.runtime.openEditor).toHaveBeenCalledWith({
       kind: "console",
       initialQuery: "",
@@ -207,7 +209,7 @@ describe("createBuiltInCommandItems", () => {
     expect(getResultCommands).toHaveBeenCalledOnce();
   });
 
-  it("should add only the editor actions available in the active tab", async () => {
+  it("should group available editor actions with new console", async () => {
     const run = vi.fn();
     const runAll = vi.fn();
     const saveSqlFile = vi.fn();
@@ -225,6 +227,7 @@ describe("createBuiltInCommandItems", () => {
     const editorItems = items.filter((item) => item.group === "Editor");
 
     expect(editorItems.map((item) => [item.id, item.title])).toEqual([
+      ["connection.new-console", "New console"],
       ["editor.run", "Run statement"],
       ["editor.run-all", "Run all"],
       ["editor.save-sql-file", "Save SQL file"],
