@@ -4458,6 +4458,7 @@ pub async fn execute_query<R: Runtime>(
     limit: Option<u32>,
     page: Option<u32>,
     schema: Option<String>,
+    session_id: Option<String>,
 ) -> Result<QueryResult, String> {
     log::info!(
         "Executing query on connection: {} | Query: {}",
@@ -4477,13 +4478,15 @@ pub async fn execute_query<R: Runtime>(
     let dropped = crate::sql_database_statements::dropped_database(&sanitized_query);
 
     let drv = driver_for_params(&params).await?;
+    let session = session_id.clone();
     let task = tokio::spawn(async move {
-        drv.execute_query(
+        drv.execute_query_in_session(
             &params,
             &sanitized_query,
             limit,
             page.unwrap_or(1),
             schema.as_deref(),
+            session.as_deref(),
         )
         .await
     });
@@ -4496,11 +4499,23 @@ pub async fn execute_query<R: Runtime>(
     unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
 
     match result {
-        Ok(Ok(query_result)) => {
+        Ok(Ok((query_result, in_transaction))) => {
             log::info!(
                 "Query executed successfully, returned {} rows",
                 query_result.rows.len()
             );
+            // Driving a transaction one statement at a time is the whole
+            // point, so this path reports session state exactly as a batch
+            // does.
+            if let Some(id) = session_id.as_deref() {
+                let _ = app.emit(
+                    "session-transaction-state",
+                    SessionTransactionStateEvent {
+                        session_id: id,
+                        in_transaction,
+                    },
+                );
+            }
             if let Some(database) = &dropped {
                 emit_database_dropped(&app, &connection_id, database);
             }

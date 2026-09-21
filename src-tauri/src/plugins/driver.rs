@@ -39,6 +39,32 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 /// the error *message* survives the response plumbing, so optional-method
 /// fallbacks match on the standard wording (and the code, for SDKs that
 /// embed it in the message).
+/// Read an `execute_query` response in either supported shape.
+///
+/// A plugin written before session pinning answers with the `QueryResult`
+/// itself. One that supports it answers with an object carrying that result
+/// plus whether the session is still inside an explicit transaction. Both
+/// stay valid permanently, so core and plugin can be updated in either
+/// order.
+///
+/// The wrapper is recognised by its `in_transaction` key: a bare
+/// `QueryResult` has no such field, while its own `rows`/`columns` live one
+/// level down under `result`.
+fn parse_query_response(value: Value) -> Result<(QueryResult, bool), String> {
+    if let Some(object) = value.as_object() {
+        if let (Some(result), Some(in_transaction)) = (
+            object.get("result"),
+            object.get("in_transaction").and_then(Value::as_bool),
+        ) {
+            let parsed: QueryResult =
+                serde_json::from_value(result.clone()).map_err(|e| e.to_string())?;
+            return Ok((parsed, in_transaction));
+        }
+    }
+    let parsed: QueryResult = serde_json::from_value(value).map_err(|e| e.to_string())?;
+    Ok((parsed, false))
+}
+
 /// Read an `execute_query_batch` response in either supported shape.
 ///
 /// A plugin written before session pinning answers with a bare array of
@@ -930,6 +956,32 @@ impl DatabaseDriver for RpcDriver {
             }
             Err(e) => Err(e),
         }
+    }
+
+    async fn execute_query_in_session(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        session_id: Option<&str>,
+    ) -> Result<(QueryResult, bool), String> {
+        let res = self
+            .process
+            .call(
+                "execute_query",
+                json!({
+                    "params": params,
+                    "query": query,
+                    "limit": limit,
+                    "page": page,
+                    "schema": schema,
+                    "session_id": session_id
+                }),
+            )
+            .await?;
+        parse_query_response(res)
     }
 
     async fn execute_batch_in_session(
@@ -2017,6 +2069,56 @@ mod tests {
             *seen.lock().expect("progress lock"),
             vec![(0, true), (1, false)]
         );
+    }
+
+    #[test]
+    fn parse_query_response_accepts_a_bare_query_result() {
+        // The shape a plugin built before session pinning answers with.
+        let value = serde_json::json!({
+            "columns": ["id"],
+            "rows": [[1]],
+            "affected_rows": 0,
+            "pagination": null
+        });
+        let (result, in_transaction) =
+            parse_query_response(value).expect("bare QueryResult is a valid response");
+        assert_eq!(result.columns, vec!["id".to_string()]);
+        assert!(!in_transaction);
+    }
+
+    #[test]
+    fn parse_query_response_reads_the_session_aware_wrapper() {
+        let value = serde_json::json!({
+            "result": {
+                "columns": ["id"],
+                "rows": [[1]],
+                "affected_rows": 0,
+                "pagination": null
+            },
+            "in_transaction": true
+        });
+        let (result, in_transaction) =
+            parse_query_response(value).expect("wrapper form is a valid response");
+        assert_eq!(result.columns, vec!["id".to_string()]);
+        assert!(in_transaction);
+    }
+
+    #[test]
+    fn parse_query_response_treats_a_result_column_as_a_bare_result() {
+        // A query selecting a column literally named "result" must not be
+        // mistaken for the wrapper, which is why the wrapper is recognised
+        // by `in_transaction` being present too.
+        let value = serde_json::json!({
+            "columns": ["result"],
+            "rows": [["ok"]],
+            "affected_rows": 0,
+            "pagination": null,
+            "result": "not a wrapper"
+        });
+        let (result, in_transaction) =
+            parse_query_response(value).expect("a result column is not a wrapper");
+        assert_eq!(result.columns, vec!["result".to_string()]);
+        assert!(!in_transaction);
     }
 
     #[test]

@@ -676,6 +676,30 @@ pub trait DatabaseDriver: Send + Sync {
         Ok(results)
     }
 
+    /// `execute_query` with the caller's connection carried across calls.
+    ///
+    /// One statement at a time is how a transaction is actually driven, so
+    /// the single-statement path needs the same pinning as a batch: without
+    /// it `BEGIN`, the changes and `COMMIT` each land on a different pooled
+    /// connection. See [`Self::execute_batch_in_session`].
+    ///
+    /// The default implementation delegates to [`Self::execute_query`] and
+    /// always reports `false`, so a driver that does not pin is unchanged.
+    async fn execute_query_in_session(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        _session_id: Option<&str>,
+    ) -> Result<(QueryResult, bool), String> {
+        let result = self
+            .execute_query(params, query, limit, page, schema)
+            .await?;
+        Ok((result, false))
+    }
+
     /// `execute_batch` with the caller's connection carried across calls.
     ///
     /// `session_id` identifies a long-lived caller — an editor tab. When a

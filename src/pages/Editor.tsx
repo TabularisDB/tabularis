@@ -1248,6 +1248,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           query: textToRun,
           limit: pageSize,
           page: pageNum,
+          // One statement at a time is how a transaction is driven: BEGIN,
+          // the changes, a verifying SELECT, COMMIT. Without the session the
+          // run would land on a different pooled connection each time.
+          sessionId: targetTabId,
           ...(schema ? { schema } : {}),
         });
         const end = performance.now();
@@ -1696,6 +1700,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           query: entry.query,
           limit: pageSize,
           page: pageNum,
+          // Paging within the tab has to read through the tab's own
+          // transaction, or it shows pre-transaction rows.
+          sessionId: targetTabId,
           ...(schema ? { schema } : {}),
         });
         const end = performance.now();
@@ -3731,6 +3738,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         // a large practical cap; the toast reports the actual rows fetched.
         limit: totalRows ?? 1_000_000,
         page: 1,
+        // Copying every row must see what the tab's own transaction sees.
+        sessionId: activeTab.id,
         ...(schema ? { schema } : {}),
       });
       const text = formatRowsForCopy(res.rows, res.columns ?? columns, copyFormat, {

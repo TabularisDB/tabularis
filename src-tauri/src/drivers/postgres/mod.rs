@@ -1126,8 +1126,40 @@ pub async fn execute_query(
     page: u32,
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
-    let client = acquire_pg_client(params, schema).await?;
-    exec_on_pg_client(&client, query, limit, page).await
+    let (result, _) =
+        execute_query_in_session(params, query, limit, page, schema, None).await?;
+    Ok(result)
+}
+
+/// `execute_query` with the tab's connection carried across calls.
+///
+/// One statement at a time is how a transaction is actually driven — run
+/// `BEGIN`, look, change, verify, `COMMIT` — so the single-statement path
+/// needs the same pinning as a batch, or each run lands on a different
+/// pooled connection and the transaction is stranded.
+///
+/// Implemented as a one-statement batch so there is a single session
+/// code path.
+pub async fn execute_query_in_session(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    session_id: Option<&str>,
+) -> Result<(QueryResult, bool), String> {
+    let queries = [query.to_string()];
+    let (mut results, in_transaction) =
+        execute_batch_in_session(params, &queries, limit, page, schema, session_id, None).await?;
+
+    let statement = results
+        .pop()
+        .ok_or_else(|| "The statement produced no result".to_string())?;
+    match (statement.result, statement.error) {
+        (Some(result), _) => Ok((result, in_transaction)),
+        (None, Some(error)) => Err(error),
+        (None, None) => Err("The statement produced no result".to_string()),
+    }
 }
 
 /// Runs a sequence of statements on a single pooled client so
@@ -2256,6 +2288,18 @@ impl DatabaseDriver for PostgresDriver {
         schema: Option<&str>,
     ) -> Result<crate::models::QueryResult, String> {
         execute_query(params, query, limit, page, schema).await
+    }
+
+    async fn execute_query_in_session(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        session_id: Option<&str>,
+    ) -> Result<(crate::models::QueryResult, bool), String> {
+        execute_query_in_session(params, query, limit, page, schema, session_id).await
     }
 
     async fn execute_batch(
