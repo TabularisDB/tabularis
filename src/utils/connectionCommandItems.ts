@@ -5,7 +5,7 @@ interface CreateConnectionCommandItemsOptions {
   activeConnectionId: string | null;
   connections: CommandConnection[];
   group: string;
-  switchConnection: (connectionId: string) => void;
+  switchConnection: (connectionId: string) => void | Promise<void>;
 }
 
 export function createConnectionCommandItems({

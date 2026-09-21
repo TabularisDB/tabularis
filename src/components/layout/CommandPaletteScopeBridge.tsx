@@ -30,6 +30,7 @@ export const CommandPaletteScopeBridge = ({
     activeConnectionId,
     activeDriver,
     activeSchema,
+    connect,
     connections: availableConnections,
     openConnectionIds,
     switchConnection: switchActiveConnection,
@@ -69,18 +70,21 @@ export const CommandPaletteScopeBridge = ({
       openEditor:
         openEditor ??
         ((request) => navigateToEditor(navigate, request)),
-      switchConnection: (connectionId) => {
-        switchActiveConnection(connectionId);
+      switchConnection: async (connectionId) => {
+        if (openConnectionIds.includes(connectionId)) {
+          switchActiveConnection(connectionId);
+        } else {
+          await connect(connectionId);
+        }
         navigate("/editor");
       },
     }),
-    [navigate, openEditor, switchActiveConnection],
+    [connect, navigate, openConnectionIds, openEditor, switchActiveConnection],
   );
 
   const commandConnections = useMemo(
     () =>
       availableConnections
-        .filter((connection) => openConnectionIds.includes(connection.id))
         .map((connection) => ({
           id: connection.id,
           name: connection.name,
@@ -90,7 +94,7 @@ export const CommandPaletteScopeBridge = ({
             : connection.params.database,
           ...(connection.params.host ? { host: connection.params.host } : {}),
         })),
-    [availableConnections, openConnectionIds],
+    [availableConnections],
   );
 
   const scope = useMemo<CommandScope>(

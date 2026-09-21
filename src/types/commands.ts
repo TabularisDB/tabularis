@@ -6,7 +6,7 @@ export type CommandPaletteMode = "all" | "actions" | "objects";
 export interface CommandRuntime {
   navigate: (path: string) => void;
   openEditor: (request: EditorNavigationRequest) => void;
-  switchConnection?: (connectionId: string) => void;
+  switchConnection?: (connectionId: string) => void | Promise<void>;
 }
 
 export interface CommandConnection {
@@ -46,7 +46,7 @@ export interface ResultCommands {
 
 export interface CommandScope {
   connectionId: string | null;
-  /** Open connections available as direct switch targets. */
+  /** Saved connections available as direct activation targets. */
   connections?: CommandConnection[];
   /** Needed to quote identifiers in the SQL built-in commands generate. */
   driver: string | null;
