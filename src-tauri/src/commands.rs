@@ -4530,6 +4530,35 @@ struct BatchStatementEvent<'a> {
     statement: &'a BatchStatementResult,
 }
 
+/// Payload for the `session-transaction-state` event, emitted after a batch
+/// that carried a `session_id` so the owning tab can show whether it is
+/// still inside an explicit transaction — and therefore still holding a
+/// pooled connection.
+#[derive(serde::Serialize, Clone)]
+struct SessionTransactionStateEvent<'a> {
+    session_id: &'a str,
+    in_transaction: bool,
+}
+
+/// Roll back and release the connection pinned to `session_id`.
+///
+/// Called when an editor tab closes, so an abandoned transaction cannot
+/// hold its locks until the idle sweep reclaims it.
+#[tauri::command]
+pub async fn release_query_session<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    session_id: String,
+) -> Result<(), String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let drv = driver_for_params(&params).await?;
+    drv.release_session(&session_id).await;
+    Ok(())
+}
+
 /// Runs a sequence of statements that share a single physical database
 /// connection. Use this — not multiple parallel `execute_query` calls —
 /// whenever statements depend on connection-local session state
@@ -4552,6 +4581,7 @@ pub async fn execute_query_batch<R: Runtime>(
     page: Option<u32>,
     schema: Option<String>,
     batch_id: Option<String>,
+    session_id: Option<String>,
 ) -> Result<Vec<BatchStatementResult>, String> {
     log::info!(
         "Executing query batch on connection: {} | {} statement(s)",
@@ -4595,13 +4625,15 @@ pub async fn execute_query_batch<R: Runtime>(
             cb
         });
 
+    let session = session_id.clone();
     let task = tokio::spawn(async move {
-        drv.execute_batch(
+        drv.execute_batch_in_session(
             &params,
             &sanitized_queries,
             limit,
             page.unwrap_or(1),
             schema.as_deref(),
+            session.as_deref(),
             progress.as_deref(),
         )
         .await
@@ -4615,7 +4647,19 @@ pub async fn execute_query_batch<R: Runtime>(
     unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
 
     match result {
-        Ok(Ok(batch_results)) => {
+        Ok(Ok((batch_results, in_transaction))) => {
+            // The tab holds a pooled connection for as long as its
+            // transaction is open, so the UI has to be able to show it and
+            // release it on close.
+            if let Some(id) = session_id.as_deref() {
+                let _ = app.emit(
+                    "session-transaction-state",
+                    SessionTransactionStateEvent {
+                        session_id: id,
+                        in_transaction,
+                    },
+                );
+            }
             let success_count = batch_results.iter().filter(|r| r.result.is_some()).count();
             log::info!(
                 "Batch executed: {} succeeded, {} failed (of {} total)",

@@ -460,3 +460,55 @@ fn trailing_comment_start(sql: &str) -> Option<usize> {
         State::SingleQuote | State::DoubleQuote | State::Backtick => None,
     }
 }
+
+/// What a statement does to the surrounding transaction.
+///
+/// Drivers use this to decide whether the physical connection a batch ran
+/// on must be held for the next batch (an explicit transaction is still
+/// open) or may go back to the pool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransactionEffect {
+    /// Opens an explicit transaction (`BEGIN`, `START TRANSACTION`).
+    Opens,
+    /// Closes the current transaction (`COMMIT`, `ROLLBACK`, `END`).
+    ///
+    /// `ROLLBACK TO SAVEPOINT` does NOT close the transaction and is
+    /// classified as [`TransactionEffect::None`].
+    Closes,
+    /// Leaves the transaction state as it was.
+    None,
+}
+
+/// Classify a statement's effect on the transaction state.
+///
+/// Only the leading keywords are inspected, on the statement the driver is
+/// about to run, so a `BEGIN` inside a string literal or a later clause
+/// cannot be mistaken for transaction control. PL/pgSQL `BEGIN ... END`
+/// blocks are not a concern here: they arrive as part of a `DO` or
+/// `CREATE FUNCTION` statement, whose leading keyword is not `BEGIN`.
+pub fn transaction_effect(query: &str) -> TransactionEffect {
+    let normalized = strip_leading_sql_comments(query);
+    let mut words = normalized
+        .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+        .filter(|w| !w.is_empty())
+        .map(|w| w.to_uppercase());
+
+    let Some(first) = words.next() else {
+        return TransactionEffect::None;
+    };
+    let second = words.next();
+
+    match first.as_str() {
+        // `BEGIN` alone, `BEGIN TRANSACTION`, `BEGIN ISOLATION LEVEL …`.
+        "BEGIN" => TransactionEffect::Opens,
+        "START" if second.as_deref() == Some("TRANSACTION") => TransactionEffect::Opens,
+        "COMMIT" => TransactionEffect::Closes,
+        // `ROLLBACK TO [SAVEPOINT] x` unwinds to a savepoint and leaves the
+        // transaction open; a bare `ROLLBACK` ends it.
+        "ROLLBACK" if second.as_deref() == Some("TO") => TransactionEffect::None,
+        "ROLLBACK" => TransactionEffect::Closes,
+        // `END` ends a transaction; `END TRANSACTION` likewise.
+        "END" => TransactionEffect::Closes,
+        _ => TransactionEffect::None,
+    }
+}
