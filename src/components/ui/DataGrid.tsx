@@ -1712,14 +1712,17 @@ export const DataGrid = React.memo(
 
     const copySelectedCells = useCallback(async () => {
       if (selectedRowIndices.size === 0) return;
-      const rows = getSelectedRows(data, selectedRowIndices);
+      const rows = getSelectedRows(
+        mergedRows.map((row) => row.rowData),
+        selectedRowIndices,
+      );
       await copyToClipboard(
         formatRows(rows, true),
         rowsCopiedToast(rows.length),
       );
     }, [
       selectedRowIndices,
-      data,
+      mergedRows,
       formatRows,
       copyToClipboard,
       rowsCopiedToast,

@@ -624,6 +624,37 @@ describe("DataGrid select all", () => {
     );
   });
 
+  it("copies pending insertions when selected with Cmd/Ctrl+A", async () => {
+    const Harness = () => {
+      const [selected, setSelected] = useState<Set<number>>(new Set());
+      return (
+        <DataGrid
+          columns={columns}
+          data={[[1, "Alice"]]}
+          pendingInsertions={{
+            pending: {
+              tempId: "pending",
+              data: { id: 2, name: "Pending" },
+              displayIndex: 1,
+            },
+          }}
+          selectedRows={selected}
+          onSelectionChange={setSelected}
+          readonly
+        />
+      );
+    };
+    const { container } = render(<Harness />);
+
+    fireEvent.mouseDown(container.querySelector("table")!);
+    fireEvent.keyDown(document, { key: "a", metaKey: true });
+    fireEvent.keyDown(document, { key: "c", metaKey: true });
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
+  });
+
   it("ignores Cmd/Ctrl+A when the grid was not interacted with", () => {
     const onSelectionChange = vi.fn();
     render(
