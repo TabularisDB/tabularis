@@ -291,6 +291,22 @@ export function splitQueries(
 }
 
 /**
+ * Split a SQL source into the units the server actually executes as one
+ * unit of scope. Dialects with a batch separator (T-SQL `GO`) split on
+ * that alone, so `;`-separated statements stay in one batch and
+ * batch-scoped state (`DECLARE @var`, `#temp`) survives across them — the
+ * way SSMS runs a script or a selection. Every other dialect splits per
+ * statement, identical to `splitStatements`.
+ */
+export function splitBatches(
+  sql: string,
+  dialect?: Dialect | string,
+): Statement[] {
+  const options = dialectOptions(normalizeDialect(dialect));
+  return splitInto(sql, options, options.goDelimiter);
+}
+
+/**
  * Spans of every string literal and comment in `sql` — the regions
  * where a `:name` is data, not a potential bind parameter.
  *
