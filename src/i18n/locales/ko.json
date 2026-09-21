@@ -1292,6 +1292,8 @@
     "rollback": "롤백",
     "pendingCount": "대기 중 {{count}}건",
     "executingQuery": "쿼리를 실행하는 중...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "트랜잭션 열림 — 이 탭은 COMMIT 또는 ROLLBACK 할 때까지 연결을 유지합니다",
     "exporting": "내보내는 중...",
     "rowsProcessed": "처리된 행",
     "exportLoadedRowsWarning": "총 {{total}}개 행 중 로드된 {{loaded}}개 행만 내보냈습니다. 더 많은 행이 필요하면 결과 페이지를 넘기거나 더 좁은 쿼리를 실행한 뒤 내보내세요.",

@@ -1337,6 +1337,8 @@
     "rollback": "Reverter",
     "pendingCount": "{{count}} pendente(s)",
     "executingQuery": "Executando consulta...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transação aberta — esta aba mantém sua conexão até você fazer COMMIT ou ROLLBACK",
     "exporting": "Exportando...",
     "rowsProcessed": "Linhas Processadas",
     "exportLoadedRowsWarning": "Apenas {{loaded}} linhas carregadas de {{total}} linhas totais foram exportadas. Navegue pelas páginas do resultado ou execute uma consulta mais restrita antes de exportar se precisar de mais linhas.",

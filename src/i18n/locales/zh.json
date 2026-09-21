@@ -1283,6 +1283,8 @@
     "rollback": "回滚",
     "pendingCount": "{{count}} 待处理",
     "executingQuery": "执行查询中...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "事务进行中 — 此标签页会保留其连接，直到你执行 COMMIT 或 ROLLBACK",
     "exporting": "导出中...",
     "rowsProcessed": "已处理行数",
     "exportLoadedRowsWarning": "仅导出了总计 {{total}} 行中的 {{loaded}} 行已加载数据。如果需要更多行，请先翻页加载结果或运行范围更窄的查询后再导出。",

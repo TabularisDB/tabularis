@@ -1358,6 +1358,8 @@
     "rollback": "Annuler",
     "pendingCount": "{{count}} en attente",
     "executingQuery": "Exécution de la requête...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transaction ouverte — cet onglet conserve sa connexion jusqu'au COMMIT ou ROLLBACK",
     "exporting": "Exportation...",
     "rowsProcessed": "Lignes traitées",
     "exportLoadedRowsWarning": "Seules {{loaded}} lignes chargées sur {{total}} lignes au total ont été exportées. Parcourez les pages du résultat ou exécutez une requête plus restrictive avant d'exporter si vous avez besoin de plus de lignes.",

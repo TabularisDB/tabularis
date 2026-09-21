@@ -1317,6 +1317,8 @@
     "rollback": "Zurückrollen",
     "pendingCount": "{{count}} ausstehend",
     "executingQuery": "Abfrage wird ausgeführt...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transaktion offen — dieser Tab behält seine Verbindung bis zum COMMIT oder ROLLBACK",
     "exporting": "Wird exportiert...",
     "rowsProcessed": "Verarbeitete Zeilen",
     "exportLoadedRowsWarning": "Es wurden nur {{loaded}} geladene Zeilen von insgesamt {{total}} Zeilen exportiert. Blättere durch das Ergebnis oder führe eine eingeschränktere Abfrage aus, wenn du mehr Zeilen exportieren musst.",

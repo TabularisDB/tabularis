@@ -1319,6 +1319,8 @@
     "rollback": "Откатить",
     "pendingCount": "Ожидает: {{count}}",
     "executingQuery": "Выполнение запроса...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Транзакция открыта — эта вкладка удерживает своё соединение до COMMIT или ROLLBACK",
     "exporting": "Экспорт...",
     "rowsProcessed": "Обработано строк",
     "exportLoadedRowsWarning": "Экспортированы только {{loaded}} загруженных строк из {{total}} строк. Если нужны дополнительные строки, пролистайте результат или выполните более узкий запрос перед экспортом.",

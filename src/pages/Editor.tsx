@@ -300,6 +300,58 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     setActiveFkQuery(null);
   }, [activeTabId]);
 
+  // Tabs that left an explicit transaction open. Such a tab holds a pooled
+  // connection until it commits, rolls back or closes, so the state is shown
+  // on the tab and the connection is released when it goes away.
+  const [transactionTabIds, setTransactionTabIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const transactionTabIdsRef = useRef<ReadonlySet<string>>(transactionTabIds);
+  transactionTabIdsRef.current = transactionTabIds;
+
+  useEffect(() => {
+    const unlisten = listen<{ session_id: string; in_transaction: boolean }>(
+      "session-transaction-state",
+      (event) => {
+        const { session_id: sessionId, in_transaction: inTransaction } = event.payload;
+        setTransactionTabIds((prev) => {
+          if (prev.has(sessionId) === inTransaction) return prev;
+          const next = new Set(prev);
+          if (inTransaction) next.add(sessionId);
+          else next.delete(sessionId);
+          return next;
+        });
+      },
+    );
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
+
+  /// Roll back and hand back the connection of every closing tab that holds
+  /// one. Called only once a close actually proceeds, so cancelling the
+  /// unsaved-file prompt cannot discard a live transaction.
+  const releaseTransactionSessions = useCallback(
+    (tabIds: ReadonlyArray<string>) => {
+      const pinned = tabIds.filter((id) => transactionTabIdsRef.current.has(id));
+      if (pinned.length === 0 || !activeConnectionId) return;
+      const connectionId = activeConnectionId;
+      for (const sessionId of pinned) {
+        void invoke("release_query_session", { connectionId, sessionId }).catch(
+          () => {
+            // The tab is already gone; nothing useful to surface.
+          },
+        );
+      }
+      setTransactionTabIds((prev) => {
+        const next = new Set(prev);
+        for (const id of pinned) next.delete(id);
+        return next;
+      });
+    },
+    [activeConnectionId],
+  );
+
   useEffect(() => {
     const unlisten = listen<ExportProgress>("export_progress", (event) => {
       setExportState((prev) => ({
@@ -892,14 +944,18 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const requestTabClosure = useCallback(
     (tabIds: string[], action: () => void) => {
-      if (!hasUnsavedSqlFileTabs(tabsRef.current, tabIds)) {
+      const close = () => {
+        releaseTransactionSessions(tabIds);
         action();
+      };
+      if (!hasUnsavedSqlFileTabs(tabsRef.current, tabIds)) {
+        close();
         return;
       }
-      pendingTabCloseActionRef.current = action;
+      pendingTabCloseActionRef.current = close;
       setHasPendingSqlFileClose(true);
     },
-    [],
+    [releaseTransactionSessions],
   );
 
   const handleCloseTab = useCallback(
@@ -1485,6 +1541,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             limit: pageSize,
             page: 1,
             batchId,
+            // The tab is the session: a transaction it leaves open keeps
+            // this tab's connection so the next run continues it.
+            sessionId: targetTabId,
             ...(schema ? { schema } : {}),
           },
         );
@@ -3915,6 +3974,17 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   {tab.type === "console" && isMultiDb && (
                     <span className="text-muted shrink-0">
                       ({tab.schema || selectedDatabases[0]})
+                    </span>
+                  )}
+                  {transactionTabIds.has(tab.id) && (
+                    // This tab is holding a pooled connection open, and its
+                    // uncommitted changes are invisible to every other tab.
+                    <span
+                      className="shrink-0 px-1 rounded text-[9px] font-semibold uppercase tracking-wide bg-amber-500/20 text-amber-400"
+                      title={t("editor.transactionOpenHint")}
+                      aria-label={t("editor.transactionOpenHint")}
+                    >
+                      {t("editor.transactionOpen")}
                     </span>
                   )}
                 </span>

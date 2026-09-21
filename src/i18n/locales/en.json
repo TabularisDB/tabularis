@@ -1368,6 +1368,8 @@
     "rollback": "Rollback",
     "pendingCount": "{{count}} pending",
     "executingQuery": "Executing query...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transaction open — this tab keeps its connection until you COMMIT or ROLLBACK",
     "exporting": "Exporting...",
     "rowsProcessed": "Rows Processed",
     "exportLoadedRowsWarning": "Only {{loaded}} loaded rows were exported out of {{total}} total rows. Page through the result or run a narrower query before exporting if you need more rows.",

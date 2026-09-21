@@ -1338,6 +1338,8 @@
     "rollback": "Revertir",
     "pendingCount": "{{count}} pendientes",
     "executingQuery": "Ejecutando consulta...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transacción abierta — esta pestaña mantiene su conexión hasta que hagas COMMIT o ROLLBACK",
     "exporting": "Exportando...",
     "rowsProcessed": "Filas Procesadas",
     "exportLoadedRowsWarning": "Solo se exportaron {{loaded}} filas cargadas de {{total}} filas totales. Recorre las páginas del resultado o ejecuta una consulta más específica antes de exportar si necesitas más filas.",
