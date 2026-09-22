@@ -1,5 +1,9 @@
 name: Design & Accessibility
 
+# Each check runs only when its own inputs change: a `changes` job maps
+# changed paths to the three checks. The `on.paths` list is the union of
+# the filters below.
+
 concurrency:
   group: quality-${{ github.ref }}
   cancel-in-progress: true
@@ -13,6 +17,7 @@ on:
       - 'tests/utils/themeContrast.test.ts'
       - 'scripts/check-theme-tokens.mjs'
       - 'eslint.config.js'
+      - 'vitest.config.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/quality.yml'
@@ -24,6 +29,7 @@ on:
       - 'tests/utils/themeContrast.test.ts'
       - 'scripts/check-theme-tokens.mjs'
       - 'eslint.config.js'
+      - 'vitest.config.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/quality.yml'
@@ -32,8 +38,52 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect changed checks
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      tokens: ${{ steps.filter.outputs.tokens }}
+      contrast: ${{ steps.filter.outputs.contrast }}
+      a11y: ${{ steps.filter.outputs.a11y }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Map changed paths to checks
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            tokens:
+              - 'src/**/*.{ts,tsx,css}'
+              - 'scripts/check-theme-tokens.mjs'
+              - '.github/workflows/quality.yml'
+            contrast:
+              # Everything themeContrast.test.ts imports, directly or not.
+              - 'src/themes/**'
+              - 'src/schemas/theme*'
+              - 'src/types/theme*'
+              - 'src/utils/theme*'
+              - 'tests/utils/themeContrast.test.ts'
+              - 'vitest.config.ts'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/quality.yml'
+            a11y:
+              - 'src/**/*.{ts,tsx}'
+              - 'packages/*/src/**/*.{ts,tsx}'
+              - 'eslint.config.js'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/quality.yml'
+
   design-tokens:
     name: Theme tokens
+    needs: changes
+    if: needs.changes.outputs.tokens == 'true'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -50,6 +100,8 @@ jobs:
 
   theme-contrast:
     name: Theme contrast (WCAG AA)
+    needs: changes
+    if: needs.changes.outputs.contrast == 'true'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -72,6 +124,8 @@ jobs:
 
   a11y-lint:
     name: ESLint with jsx-a11y
+    needs: changes
+    if: needs.changes.outputs.a11y == 'true'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
