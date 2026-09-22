@@ -151,12 +151,22 @@ export function QueryHistorySection({
               {t(`sidebar.${groupKey}`)}
             </div>
             {items.map((entry) => (
-              <div
+              <button
+                type="button"
                 key={entry.id}
+                aria-pressed={selectedId === entry.id}
                 onClick={() => setSelectedId(entry.id)}
                 onDoubleClick={() => onDoubleClick(entry)}
+                onKeyDown={(e) => {
+                  // Enter opens the entry like a double click; Space keeps selecting it.
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    setSelectedId(entry.id);
+                    onDoubleClick(entry);
+                  }
+                }}
                 onContextMenu={(e) => onContextMenu(e, entry)}
-                className={`pl-3 pr-3 py-1.5 cursor-pointer group transition-colors border-b border-default/30 ${
+                className={`block w-full text-left pl-3 pr-3 py-1.5 cursor-pointer group transition-colors border-b border-default/30 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
                   selectedId === entry.id
                     ? entry.status === "error"
                       ? "bg-accent-error/15"
@@ -195,7 +205,7 @@ export function QueryHistorySection({
                 ) : (
                   <SqlHighlight sql={entry.sql} />
                 )}
-              </div>
+              </button>
             ))}
           </div>
         ))

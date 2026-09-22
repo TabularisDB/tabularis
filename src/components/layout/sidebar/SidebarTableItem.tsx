@@ -19,6 +19,7 @@ import { groupIndexes } from "../../../utils/indexes";
 import type { TableColumn, ForeignKey, Index } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 import type { DriverCapabilities } from "../../../types/plugins";
+import { onActivationKey } from "../../../utils/keyboardEvents";
 
 interface SidebarTableItemProps {
   table: { name: string; comment?: string | null };
@@ -168,11 +169,14 @@ const SidebarTableItemImpl = ({
           document.addEventListener('pointermove', move);
           document.addEventListener('pointerup', up);
         }}
+        role="button"
+        tabIndex={0}
         onClick={() => onTableClick(table.name)}
+        onKeyDown={onActivationKey(() => onTableClick(table.name))}
         onDoubleClick={() => onTableDoubleClick(table.name)}
         onContextMenu={(e) => handleContextMenu(e, "table", table.name)}
         className={clsx(
-          "flex items-center gap-1 pl-1 pr-3 py-1.5 text-sm cursor-pointer group select-none transition-colors border-l-2",
+          "flex items-center gap-1 pl-1 pr-3 py-1.5 text-sm cursor-pointer group select-none transition-colors border-l-2 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
           activeTable === table.name
             ? "bg-[color-mix(in_srgb,var(--accent-primary)_20%,transparent)] text-accent border-focus"
             : "text-secondary hover:bg-surface-secondary border-transparent hover:text-primary",
@@ -293,9 +297,6 @@ const SidebarTableItemImpl = ({
               <div className="flex flex-col">
                 <div
                   className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary cursor-pointer select-none"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
                   onContextMenu={canManage !== false ? (e) =>
                     handleContextMenu(e, "folder_fks", "foreign keys")
                   : undefined}

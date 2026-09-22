@@ -278,8 +278,11 @@ export const EnumSetInput = ({
   );
 
   return (
+    // Layout wrapper that catches Escape/Enter bubbling from the trigger and
+    // the portalled options; the controls themselves carry the semantics.
     <div
       ref={setRootEl}
+      role="presentation"
       tabIndex={-1}
       onKeyDown={handleKeyDown}
       className={clsx(

@@ -57,6 +57,7 @@ import {
 } from "../hooks/useBuiltinDriverMigration";
 import { useConnectionCatalogue } from "../hooks/useConnectionCatalogue";
 import { useToast } from "../hooks/useToast";
+import { useEscapeKey } from "../hooks/useEscapeKey";
 import { buildPluginIssueUrl, resolvePluginRepoUrl } from "../utils/pluginIssueReport";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { APP_VERSION } from "../version";
@@ -104,6 +105,8 @@ export const Connections = () => {
   const [isMigrationChecklistOpen, setIsMigrationChecklistOpen] = useState(false);
   const importMenuBtnRef = useRef<HTMLButtonElement>(null);
   const [importMenuPos, setImportMenuPos] = useState({ top: 0, right: 0 });
+  const closeImportMenu = useCallback(() => setIsImportMenuOpen(false), []);
+  useEscapeKey(isImportMenuOpen, closeImportMenu);
 
   // The header clips its overflow, so the dropup menu is portaled to the body
   // and positioned just under the trigger button.
@@ -978,7 +981,6 @@ export const Connections = () => {
             <div
               className="flex items-center gap-2"
               style={{ paddingLeft: 24 + indentPx }}
-              onClick={(e) => e.stopPropagation()}
             >
               <FolderPlus size={12} className="text-accent-warning shrink-0" />
               <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
@@ -1146,8 +1148,9 @@ export const Connections = () => {
             createPortal(
               <>
                 <div
+                  role="presentation"
                   className="fixed inset-0 z-[200]"
-                  onClick={() => setIsImportMenuOpen(false)}
+                  onClick={closeImportMenu}
                 />
                 <div
                   style={{ top: importMenuPos.top, right: importMenuPos.right }}

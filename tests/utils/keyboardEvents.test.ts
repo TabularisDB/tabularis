@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { isTextCompositionKeyEvent } from "../../src/utils/keyboardEvents";
+import { describe, expect, it, vi } from "vitest";
+import { isTextCompositionKeyEvent, onActivationKey } from "../../src/utils/keyboardEvents";
 
 describe("keyboardEvents", () => {
   describe("isTextCompositionKeyEvent", () => {
@@ -40,6 +40,38 @@ describe("keyboardEvents", () => {
         shiftKey: true,
       });
       expect(isTextCompositionKeyEvent(event)).toBe(false);
+    });
+  });
+
+  describe("onActivationKey", () => {
+    const keyEvent = (key: string, nested = false) => {
+      const currentTarget = document.createElement("div");
+      const target = nested ? document.createElement("input") : currentTarget;
+      return { key, target, currentTarget, preventDefault: vi.fn() };
+    };
+
+    it.each(["Enter", " "])("activates on %j and prevents the default action", (key) => {
+      const activate = vi.fn();
+      const event = keyEvent(key);
+      onActivationKey(activate)(event);
+      expect(activate).toHaveBeenCalledWith(event);
+      expect(event.preventDefault).toHaveBeenCalled();
+    });
+
+    it("ignores other keys", () => {
+      const activate = vi.fn();
+      const event = keyEvent("a");
+      onActivationKey(activate)(event);
+      expect(activate).not.toHaveBeenCalled();
+      expect(event.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it("ignores keys pressed inside a nested control", () => {
+      const activate = vi.fn();
+      const event = keyEvent("Enter", true);
+      onActivationKey(activate)(event);
+      expect(activate).not.toHaveBeenCalled();
+      expect(event.preventDefault).not.toHaveBeenCalled();
     });
   });
 });

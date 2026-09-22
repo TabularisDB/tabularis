@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
+import { useEscapeKey } from "../../hooks/useEscapeKey";
 
 interface AddCellButtonProps {
   onAddSql: () => void;
@@ -12,6 +13,8 @@ export function AddCellButton({ onAddSql, onAddMarkdown }: AddCellButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [openUpward, setOpenUpward] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = useCallback(() => setIsOpen(false), []);
+  useEscapeKey(isOpen, closeMenu);
 
   const handleToggle = () => {
     if (!isOpen && buttonRef.current) {
@@ -32,6 +35,8 @@ export function AddCellButton({ onAddSql, onAddMarkdown }: AddCellButtonProps) {
         ref={buttonRef}
         type="button"
         onClick={handleToggle}
+        aria-label={t("editor.notebook.addCell")}
+        aria-expanded={isOpen}
         className="relative z-10 flex items-center justify-center w-6 h-6 rounded-full bg-surface-secondary text-muted hover:text-primary hover:bg-surface-tertiary opacity-0 group-hover:opacity-100 transition-all"
       >
         <Plus size={14} />
@@ -41,8 +46,9 @@ export function AddCellButton({ onAddSql, onAddMarkdown }: AddCellButtonProps) {
       {isOpen && (
         <>
           <div
+            role="presentation"
             className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
+            onClick={closeMenu}
           />
           <div
             className={`absolute z-20 bg-elevated border border-default rounded-lg shadow-lg overflow-hidden ${

@@ -17,6 +17,7 @@ import { ResultEntryContent } from "./ResultEntryContent";
 import { PaginationControls } from "./PaginationControls";
 import { ResizeHandle } from "../notebook/ResizeHandle";
 import { formatDuration } from "../../utils/formatTime";
+import { onActivationKey } from "../../utils/keyboardEvents";
 import { getEntryDisplayLabel, getStackedGridHeight } from "../../utils/multiResult";
 import type { QueryResultEntry } from "../../types/editor";
 
@@ -100,9 +101,13 @@ export function StackedResultItem({
     <div className="border-b border-default">
       {/* Header — clickable collapse + label + actions */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={!collapsed}
         className={clsx(
           "@container flex items-center gap-2 px-3 py-1.5 text-xs select-none group cursor-pointer",
           "bg-elevated hover:bg-surface-secondary transition-colors",
+          "focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
           collapsed && "border-b-0",
         )}
         onClick={(e) => {
@@ -110,6 +115,9 @@ export function StackedResultItem({
           if ((e.target as HTMLElement).closest("button, input")) return;
           onToggleCollapse();
         }}
+        onKeyDown={onActivationKey(() => {
+          if (!isEditing) onToggleCollapse();
+        })}
         onAuxClick={(e) => {
           if (e.button === 1) {
             e.preventDefault();
@@ -165,7 +173,7 @@ export function StackedResultItem({
               e.stopPropagation();
               startEditing();
             }}
-            className="p-0.5 rounded-sm hover:bg-surface-secondary text-muted hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-0.5 rounded-sm hover:bg-surface-secondary text-muted hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
             title={t("editor.multiResult.rename")}
           >
             <Pencil size={10} />
@@ -180,7 +188,7 @@ export function StackedResultItem({
               onAiRename();
             }}
             disabled={aiRenaming}
-            className="p-0.5 rounded-sm hover:bg-surface-secondary shrink-0 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+            className="p-0.5 rounded-sm hover:bg-surface-secondary shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity disabled:opacity-50"
             title={aiRenaming ? t("editor.multiResult.generatingName") : t("editor.multiResult.aiGenerateName")}
           >
             {aiRenaming ? (
@@ -198,7 +206,7 @@ export function StackedResultItem({
               e.stopPropagation();
               onRerun();
             }}
-            className="p-0.5 rounded-sm hover:bg-surface-secondary text-muted hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-0.5 rounded-sm hover:bg-surface-secondary text-muted hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
             title={t("editor.multiResult.rerun")}
           >
             <Play size={10} fill="currentColor" />
@@ -211,7 +219,7 @@ export function StackedResultItem({
             e.stopPropagation();
             onClose();
           }}
-          className="p-0.5 rounded-sm hover:bg-surface-secondary text-muted hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="p-0.5 rounded-sm hover:bg-surface-secondary text-muted hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
           title={t("editor.multiResult.close")}
         >
           <X size={12} />
@@ -259,27 +267,29 @@ export function StackedResultItem({
         <>
           {/* Query preview — collapsible */}
           {entry.query && (
-            <div
-              className="bg-surface-secondary border-b border-default px-3 py-1 flex items-start gap-2 cursor-pointer select-none"
+            <button
+              type="button"
+              aria-expanded={queryExpanded}
+              className="w-full text-left bg-surface-secondary border-b border-default px-3 py-1 flex items-start gap-2 cursor-pointer select-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
               onClick={() => setQueryExpanded((v) => !v)}
             >
-              <Code2 size={12} className="text-muted shrink-0 mt-0.5" />
-              <pre
+              <Code2 size={12} aria-hidden="true" className="text-muted shrink-0 mt-0.5" />
+              <span
                 className={clsx(
                   "flex-1 text-[11px] font-mono text-secondary whitespace-pre-wrap break-all m-0",
-                  !queryExpanded && "line-clamp-1",
+                  queryExpanded ? "block" : "line-clamp-1",
                 )}
               >
                 {entry.query.trim()}
-              </pre>
-              <button className="text-muted hover:text-primary shrink-0 mt-0.5">
+              </span>
+              <span aria-hidden="true" className="text-muted hover:text-primary shrink-0 mt-0.5">
                 {queryExpanded ? (
                   <ChevronDown size={12} className="rotate-180" />
                 ) : (
                   <ChevronDown size={12} />
                 )}
-              </button>
-            </div>
+              </span>
+            </button>
           )}
 
           {/* Result content */}

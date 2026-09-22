@@ -34,6 +34,7 @@ export function ThemeDialog({ isOpen, onClose, title, subtitle, icon, children, 
   }, [isOpen]);
   if (!isOpen) return null;
   return <Modal isOpen onClose={() => { if (!busy) onClose(); }}>
+    {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the dialog owns its Tab focus trap; the rule exempts <dialog> but not role="dialog" */}
     <div ref={container} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={subtitle ? subtitleId : undefined} aria-busy={busy || undefined} tabIndex={-1}
       className={`bg-elevated text-primary border border-strong rounded-xl shadow-2xl ${widthClass} max-w-[calc(100vw-32px)] max-h-[90dvh] overflow-hidden flex flex-col outline-none`}
       onKeyDown={(event) => {

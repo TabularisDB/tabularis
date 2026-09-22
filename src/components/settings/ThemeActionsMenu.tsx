@@ -73,7 +73,7 @@ export function ThemeActionsMenu({ label, items, children, disabled = false }: {
       className={clsx("inline-flex items-center justify-center gap-1.5 rounded-lg text-muted transition-colors hover:bg-surface-secondary hover:text-primary focus-visible:outline focus-visible:outline-focus disabled:opacity-40 disabled:cursor-not-allowed", children ? "border border-default px-3 py-2 text-xs" : "p-1.5")}
     >{children ?? <MoreHorizontal size={16} />}</button>
     {position && createPortal(<div
-      ref={menu} id={id} role="menu" aria-label={label} style={position}
+      ref={menu} id={id} role="menu" tabIndex={-1} aria-label={label} style={position}
       className="fixed z-[200] w-64 max-w-[calc(100vw-16px)] max-h-[calc(100vh-16px)] overflow-y-auto rounded-xl border border-strong bg-elevated p-1 shadow-xl"
       onKeyDown={(event) => {
         if (event.key === "Tab") { close(true); return; }
@@ -86,7 +86,7 @@ export function ThemeActionsMenu({ label, items, children, disabled = false }: {
           : (index + (event.key === "ArrowUp" ? -1 : 1) + buttons.length) % buttons.length;
         buttons[next]?.focus();
       }}
-    >{items.map(({ icon: Icon, ...item }) => <div key={item.label} className={item.separatorBefore ? "mt-1 border-t border-default pt-1" : undefined}>
+    >{items.map(({ icon: Icon, ...item }) => <div key={item.label} role="none" className={item.separatorBefore ? "mt-1 border-t border-default pt-1" : undefined}>
       <button type="button" role="menuitem" tabIndex={-1} disabled={item.disabled} title={item.label}
         onPointerMove={(event) => { if (!item.disabled && event.pointerType !== "touch") event.currentTarget.focus({ preventScroll: true }); }}
         onClick={() => { close(true); item.onSelect(); }}

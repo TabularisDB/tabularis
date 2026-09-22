@@ -209,8 +209,11 @@ export const DateInput = ({
   const showTime = mode === "time" || mode === "datetime";
 
   return (
+    // Layout wrapper: onKeyDown/onBlur only observe events bubbling from the
+    // inner selects and inputs, which carry the semantics.
     <div
       ref={containerRef}
+      role="presentation"
       className={`inline-flex flex-col gap-1.5 p-2 bg-base border border-strong rounded-lg shadow-lg ${className}`}
       onBlur={(e) => {
         // Only fire onBlur when focus leaves the entire component

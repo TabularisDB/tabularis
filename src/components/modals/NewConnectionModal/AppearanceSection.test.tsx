@@ -18,8 +18,11 @@ vi.mock("@tauri-apps/api/core", () => ({
 // emoji-picker-react mock — avoids heavy DOM in JSDOM
 vi.mock("emoji-picker-react", () => ({
   default: ({ onEmojiClick }: { onEmojiClick: (e: { emoji: string }) => void }) => (
-    <div data-testid="emoji-picker" onClick={() => onEmojiClick({ emoji: "🐘" })}>
+    <div data-testid="emoji-picker">
       <input aria-label="emoji search" />
+      <button type="button" aria-label="pick elephant" onClick={() => onEmojiClick({ emoji: "🐘" })}>
+        🐘
+      </button>
     </div>
   ),
   Theme: { DARK: "dark", LIGHT: "light", AUTO: "auto" },
@@ -193,8 +196,8 @@ describe("AppearanceSection — icon tabs", () => {
     const onChange = vi.fn();
     render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
     fireEvent.click(screen.getByRole("tab", { name: /emoji/i }));
-    // Clicking the picker div triggers the mock onEmojiClick({ emoji: "🐘" })
-    fireEvent.click(screen.getByTestId("emoji-picker"));
+    // Clicking the mock emoji button triggers onEmojiClick({ emoji: "🐘" })
+    fireEvent.click(screen.getByRole("button", { name: /pick elephant/i }));
     expect(onChange).toHaveBeenCalledWith({ icon: { type: "emoji", value: "🐘" } });
   });
 

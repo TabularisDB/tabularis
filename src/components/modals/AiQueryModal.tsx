@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useId } from "react";
 import { X, Sparkles, Loader2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDatabase } from "../../hooks/useDatabase";
@@ -33,6 +33,7 @@ export const AiQueryModal = ({
   const schemaKey = `${resolvedConnectionId ?? ""}:${resolvedSchema ?? ""}`;
   
   const [prompt, setPrompt] = useState("");
+  const promptId = useId();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [schemaLoad, setSchemaLoad] = useState<SchemaLoadState>({
@@ -154,11 +155,11 @@ export const AiQueryModal = ({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-secondary mb-2">
+            <label htmlFor={promptId} className="block text-sm font-medium text-secondary mb-2">
               Describe your query in natural language
             </label>
             {/* Prose field: natural-language input, so spellcheck/autocorrect stay ON; only the WebKit autofill pill is disabled. */}
-            <textarea autoComplete="off" spellCheck={true}
+            <textarea id={promptId} autoComplete="off" spellCheck={true}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="e.g. Find all users who signed up last month and ordered a 'Premium' plan..."

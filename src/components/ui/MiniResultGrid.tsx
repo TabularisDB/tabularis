@@ -80,15 +80,16 @@ export function MiniResultGrid({ columns, rows, loading, message }: MiniResultGr
           {/* Header */}
           <div className="sticky top-0 z-10 bg-elevated border-b border-strong flex">
             {columns.map((col) => (
-              <div
+              <button
+                type="button"
                 key={col}
-                className="text-left px-3 py-2 text-xs font-semibold text-secondary flex-1 min-w-[80px] whitespace-nowrap cursor-pointer select-none hover:text-primary transition-colors flex items-center gap-1 overflow-hidden"
+                className="text-left px-3 py-2 text-xs font-semibold text-secondary flex-1 min-w-[80px] whitespace-nowrap cursor-pointer select-none hover:text-primary transition-colors flex items-center gap-1 overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                 onClick={() => handleSort(col)}
                 title={col}
               >
                 <span className="truncate flex-1 min-w-0">{col}</span>
-                <ArrowUpDown size={12} className={sortCol === col ? 'text-accent flex-shrink-0' : 'text-muted opacity-50 flex-shrink-0'} />
-              </div>
+                <ArrowUpDown size={12} aria-hidden="true" className={sortCol === col ? 'text-accent flex-shrink-0' : 'text-muted opacity-50 flex-shrink-0'} />
+              </button>
             ))}
           </div>
 

@@ -124,12 +124,37 @@ choose to stand out against their inputs (Highlighter uses pink on a yellow acce
    colors the user picked. They live in the `ALLOWLIST` of
    `scripts/check-theme-tokens.mjs` with a reason. Do not add UI files there.
 
+## Contrast
+
+Every built-in theme meets WCAG 2.2 AA on the token pairs the UI paints, listed in
+`CONTRAST_PAIRS` in `src/utils/themeContrast.ts`:
+
+- 4.5:1 for `text.primary`, `text.secondary` and `text.muted` on `bg.base`, `bg.elevated`,
+  `bg.overlay` and `surface.secondary`; `text.primary` also on `bg.tooltip` and
+  `surface.tertiary`.
+- 4.5:1 for `text.accent` on those surfaces, `text.inverse` on `accent.primary` and the
+  derived `text-on-accent-*` label on each accent fill.
+- 4.5:1 for accent fills used as status text (`text-accent-error`, `text-accent-success`,
+  ...) and for every `semantic.*` data color on `bg.base` and `bg.elevated`.
+- 3:1 for `border.focus` on `bg.base`, `bg.elevated` and `bg.input`.
+- `text.primary` reads stronger than `text.secondary`, which reads stronger than
+  `text.muted`.
+
+`text.disabled` is exempt, as WCAG exempts inactive controls. When a pair fails, the test
+prints the nearest color with the same hue that passes; prefer adjusting lightness over
+changing hue so ported palettes stay recognizable. Painting a new combination (say
+`text-muted` on `bg-surface-tertiary`) means adding it to `CONTRAST_PAIRS` first.
+
 ## Checking your work
 
 ```sh
 pnpm lint:theme            # token conformance, also part of pnpm lint
+pnpm test:contrast         # WCAG AA contrast of every built-in theme
 pnpm typecheck && pnpm test
 ```
+
+The `Design & Accessibility` workflow runs both checks and ESLint (with `jsx-a11y`) on
+every pull request that touches the UI.
 
 Then open Settings, Appearance and switch between Tabularis Light, High Contrast and a
 package with strong opinions (the Oddities themes ship square corners, a red background

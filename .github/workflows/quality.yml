@@ -1,0 +1,94 @@
+name: Design & Accessibility
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'packages/*/src/**'
+      - 'tests/utils/themeContrast.test.ts'
+      - 'scripts/check-theme-tokens.mjs'
+      - 'eslint.config.js'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/quality.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'packages/*/src/**'
+      - 'tests/utils/themeContrast.test.ts'
+      - 'scripts/check-theme-tokens.mjs'
+      - 'eslint.config.js'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/quality.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  design-tokens:
+    name: Theme tokens
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+
+      # Dependency-free script: colors, radii and fonts must come from theme tokens (DESIGN.md).
+      - name: Check theme token usage
+        run: node scripts/check-theme-tokens.mjs --github
+
+  theme-contrast:
+    name: Theme contrast (WCAG AA)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check built-in theme contrast
+        run: pnpm run test:contrast
+
+  a11y-lint:
+    name: ESLint with jsx-a11y
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      # setup-node registers the ESLint problem matcher, so findings are annotated on the diff.
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (includes jsx-a11y recommended rules)
+        run: pnpm exec eslint .

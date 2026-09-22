@@ -106,9 +106,8 @@ export function PluginCard({
               <UpdateTooltip label={updateLabel}>
                 <span
                   role="img"
-                  tabIndex={0}
                   aria-label={updateLabel}
-                  className="inline-flex rounded-full focus-visible:outline focus-visible:outline-focus"
+                  className="inline-flex rounded-full"
                 >
                   <PluginUpdateIndicator version={updateVersion} />
                 </span>

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import { Check, ChevronDown } from "lucide-react";
+import { useEscapeKey } from "../../../hooks/useEscapeKey";
 
 const ENVIRONMENTS = ["", "development", "staging", "production"] as const;
 
@@ -30,6 +31,9 @@ interface EnvironmentSelectProps {
 export function EnvironmentSelect({ value, onChange }: EnvironmentSelectProps) {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+  const close = useCallback(() => setIsOpen(false), []);
+  // Escape closes the menu only; the modal stays open (topmost handler wins).
+  useEscapeKey(isOpen, close);
 
   const labelFor = (env: string) =>
     env === "" ? t("environment.none") : t(`environment.${env}`);
@@ -53,7 +57,8 @@ export function EnvironmentSelect({ value, onChange }: EnvironmentSelectProps) {
 
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          {/* Click-outside catcher; keyboard users close the menu with Escape. */}
+          <div role="presentation" className="fixed inset-0 z-40" onClick={close} />
           <div
             role="listbox"
             className="absolute right-0 top-full mt-1 z-50 min-w-[150px] bg-elevated border border-strong rounded-lg shadow-xl py-1"

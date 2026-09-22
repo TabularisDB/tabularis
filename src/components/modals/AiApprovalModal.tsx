@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
@@ -54,6 +54,7 @@ export function AiApprovalModal({
   const [viewMode, setViewMode] = useState<ExplainViewMode>("graph");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [planExpanded, setPlanExpanded] = useState(false);
+  const planTitleId = useId();
 
   // Reset local state if a new pending arrives.
   useEffect(() => {
@@ -279,15 +280,20 @@ export function AiApprovalModal({
 
       {planExpanded && explainPlan && (
         <div
+          role="presentation"
           className="fixed inset-0 bg-black/70 flex items-center justify-center z-[130] backdrop-blur-sm"
-          onClick={() => setPlanExpanded(false)}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPlanExpanded(false);
+          }}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={planTitleId}
             className="bg-elevated border border-strong rounded-xl shadow-2xl w-[95vw] h-[90vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-3 border-b border-default bg-base">
-              <h3 className="text-sm font-semibold text-primary">
+              <h3 id={planTitleId} className="text-sm font-semibold text-primary">
                 {t("aiApproval.preflightPlan")}
               </h3>
               <button

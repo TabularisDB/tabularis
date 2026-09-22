@@ -643,22 +643,20 @@ const SourcePicker = ({
 
       {/* Include passwords toggle */}
       {showPasswordToggle && (
-      <label className="flex items-start gap-3 rounded-xl border border-strong bg-base p-3.5 cursor-pointer">
+      <label className="grid grid-cols-[auto_1fr] items-start gap-x-3 rounded-xl border border-strong bg-base p-3.5 cursor-pointer">
         <input
           type="checkbox"
           checked={includePasswords}
           onChange={(e) => onTogglePasswords(e.target.checked)}
           className="mt-0.5 accent-accent-primary"
         />
-        <div>
-          <p className="flex items-center gap-1.5 text-sm font-medium text-primary">
-            <KeyRound size={13} />
-            {t("connections.importFromApp.includePasswords")}
-          </p>
-          <p className="text-xs text-muted">
-            {t("connections.importFromApp.includePasswordsHint")}
-          </p>
-        </div>
+        <span className="flex items-center gap-1.5 text-sm font-medium text-primary">
+          <KeyRound size={13} />
+          {t("connections.importFromApp.includePasswords")}
+        </span>
+        <span className="col-start-2 text-xs text-muted">
+          {t("connections.importFromApp.includePasswordsHint")}
+        </span>
       </label>
       )}
     </div>

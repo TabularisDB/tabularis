@@ -22,15 +22,15 @@
       },
       "text": {
         "primary": "#f8fafc",
-        "secondary": "#94a3b8",
-        "muted": "#7583a0",
+        "secondary": "#abb7c7",
+        "muted": "#a2acbf",
         "disabled": "#475569",
-        "accent": "#3b82f6",
+        "accent": "#7dacf9",
         "inverse": "#020617"
       },
       "accent": {
         "primary": "#3b82f6",
-        "secondary": "#8b5cf6",
+        "secondary": "#9063f6",
         "success": "#22c55e",
         "warning": "#f59e0b",
         "error": "#ef4444",
@@ -47,7 +47,7 @@
         "number": "#60a5fa",
         "boolean": "#a78bfa",
         "date": "#4ade80",
-        "null": "#64748b",
+        "null": "#718199",
         "primaryKey": "#fbbf24",
         "foreignKey": "#22d3ee",
         "index": "#c084fc",
@@ -116,18 +116,18 @@
       "text": {
         "primary": "#0f172a",
         "secondary": "#475569",
-        "muted": "#64748b",
+        "muted": "#5b697e",
         "disabled": "#94a3b8",
-        "accent": "#3b82f6",
+        "accent": "#0b5ee7",
         "inverse": "#ffffff"
       },
       "accent": {
-        "primary": "#3b82f6",
-        "secondary": "#8b5cf6",
-        "success": "#22c55e",
-        "warning": "#f59e0b",
-        "error": "#ef4444",
-        "info": "#06b6d4"
+        "primary": "#1e6ff5",
+        "secondary": "#8250f5",
+        "success": "#17843f",
+        "warning": "#a06707",
+        "error": "#e51414",
+        "info": "#047e92"
       },
       "border": {
         "subtle": "#f1f5f9",
@@ -139,16 +139,16 @@
         "string": "#dc2626",
         "number": "#2563eb",
         "boolean": "#7c3aed",
-        "date": "#16a34a",
+        "date": "#12853c",
         "null": "#64748b",
-        "primaryKey": "#d97706",
-        "foreignKey": "#0891b2",
+        "primaryKey": "#ae5f05",
+        "foreignKey": "#077d9a",
         "index": "#9333ea",
         "connectionActive": "#22c55e",
         "connectionInactive": "#64748b",
-        "modified": "#3b82f6",
-        "deleted": "#ef4444",
-        "new": "#22c55e"
+        "modified": "#186bf4",
+        "deleted": "#e51414",
+        "new": "#17843f"
       }
     },
     "typography": {
@@ -209,8 +209,8 @@
       },
       "text": {
         "primary": "#f8f8f2",
-        "secondary": "#a59f85",
-        "muted": "#908c78",
+        "secondary": "#c5c2b1",
+        "muted": "#b8b6a9",
         "disabled": "#49483e",
         "accent": "#66d9ef",
         "inverse": "#272822"
@@ -220,7 +220,7 @@
         "secondary": "#ae81ff",
         "success": "#a6e22e",
         "warning": "#e6db74",
-        "error": "#f92672",
+        "error": "#fa4989",
         "info": "#66d9ef"
       },
       "border": {
@@ -234,14 +234,14 @@
         "number": "#ae81ff",
         "boolean": "#ae81ff",
         "date": "#a6e22e",
-        "null": "#75715e",
+        "null": "#928e78",
         "primaryKey": "#fd971f",
         "foreignKey": "#66d9ef",
         "index": "#ae81ff",
         "connectionActive": "#a6e22e",
         "connectionInactive": "#75715e",
         "modified": "#66d9ef",
-        "deleted": "#f92672",
+        "deleted": "#fa4989",
         "new": "#a6e22e"
       }
     },
@@ -302,9 +302,9 @@
         "disabled": "#21252b"
       },
       "text": {
-        "primary": "#abb2bf",
-        "secondary": "#828997",
-        "muted": "#717d8c",
+        "primary": "#b0b7c3",
+        "secondary": "#a3a8b2",
+        "muted": "#8f99a5",
         "disabled": "#4b5263",
         "accent": "#61afef",
         "inverse": "#282c34"
@@ -314,7 +314,7 @@
         "secondary": "#c678dd",
         "success": "#98c379",
         "warning": "#e5c07b",
-        "error": "#e06c75",
+        "error": "#e17079",
         "info": "#56b6c2"
       },
       "border": {
@@ -324,18 +324,18 @@
         "focus": "#61afef"
       },
       "semantic": {
-        "string": "#e06c75",
+        "string": "#e17079",
         "number": "#d19a66",
         "boolean": "#c678dd",
         "date": "#98c379",
-        "null": "#5c6370",
+        "null": "#8c93a0",
         "primaryKey": "#e5c07b",
         "foreignKey": "#56b6c2",
         "index": "#c678dd",
         "connectionActive": "#98c379",
         "connectionInactive": "#5c6370",
         "modified": "#61afef",
-        "deleted": "#e06c75",
+        "deleted": "#e17079",
         "new": "#98c379"
       }
     },
@@ -397,19 +397,19 @@
       },
       "text": {
         "primary": "#d8dee9",
-        "secondary": "#81a1c1",
-        "muted": "#6e94be",
+        "secondary": "#baccdd",
+        "muted": "#a6bed7",
         "disabled": "#4c566a",
-        "accent": "#88c0d0",
+        "accent": "#8fc4d3",
         "inverse": "#2e3440"
       },
       "accent": {
         "primary": "#88c0d0",
-        "secondary": "#b48ead",
+        "secondary": "#c3a5be",
         "success": "#a3be8c",
         "warning": "#ebcb8b",
-        "error": "#bf616a",
-        "info": "#81a1c1"
+        "error": "#d89fa4",
+        "info": "#96b1cc"
       },
       "border": {
         "subtle": "#3b4252",
@@ -418,18 +418,18 @@
         "focus": "#88c0d0"
       },
       "semantic": {
-        "string": "#bf616a",
-        "number": "#b48ead",
-        "boolean": "#b48ead",
+        "string": "#d89fa4",
+        "number": "#c3a5be",
+        "boolean": "#c3a5be",
         "date": "#a3be8c",
-        "null": "#4c566a",
+        "null": "#a6aebf",
         "primaryKey": "#ebcb8b",
         "foreignKey": "#88c0d0",
-        "index": "#b48ead",
+        "index": "#c3a5be",
         "connectionActive": "#a3be8c",
         "connectionInactive": "#4c566a",
         "modified": "#88c0d0",
-        "deleted": "#bf616a",
+        "deleted": "#d89fa4",
         "new": "#a3be8c"
       }
     },
@@ -477,32 +477,32 @@
       "bg": {
         "base": "#282a36",
         "elevated": "#44475a",
-        "overlay": "#6272a4",
+        "overlay": "#535774",
         "input": "#282a36",
         "tooltip": "#44475a"
       },
       "surface": {
         "primary": "#44475a",
-        "secondary": "#6272a4",
-        "tertiary": "#6c7290",
-        "hover": "#6272a4",
+        "secondary": "#535774",
+        "tertiary": "#5d6180",
+        "hover": "#535774",
         "active": "#bd93f9",
         "disabled": "#44475a"
       },
       "text": {
         "primary": "#f8f8f2",
-        "secondary": "#cdd4ee",
-        "muted": "#b8c0d8",
+        "secondary": "#d3d9f0",
+        "muted": "#c8cfe1",
         "disabled": "#6c7290",
-        "accent": "#bd93f9",
+        "accent": "#dcc6fc",
         "inverse": "#282a36"
       },
       "accent": {
         "primary": "#bd93f9",
-        "secondary": "#ff79c6",
+        "secondary": "#ff93d1",
         "success": "#50fa7b",
         "warning": "#f1fa8c",
-        "error": "#ff5555",
+        "error": "#ff9a9a",
         "info": "#8be9fd"
       },
       "border": {
@@ -513,17 +513,17 @@
       },
       "semantic": {
         "string": "#f1fa8c",
-        "number": "#bd93f9",
-        "boolean": "#ff79c6",
+        "number": "#caa8fa",
+        "boolean": "#ff93d1",
         "date": "#50fa7b",
-        "null": "#6272a4",
+        "null": "#aeb6d0",
         "primaryKey": "#ffb86c",
         "foreignKey": "#8be9fd",
-        "index": "#ff79c6",
+        "index": "#ff93d1",
         "connectionActive": "#50fa7b",
         "connectionInactive": "#6272a4",
-        "modified": "#bd93f9",
-        "deleted": "#ff5555",
+        "modified": "#caa8fa",
+        "deleted": "#ff9a9a",
         "new": "#50fa7b"
       }
     },
@@ -585,39 +585,39 @@
       },
       "text": {
         "primary": "#f6f8fa",
-        "secondary": "#959da5",
-        "muted": "#6a737d",
+        "secondary": "#a6adb3",
+        "muted": "#969ea6",
         "disabled": "#444d56",
-        "accent": "#0366d6",
+        "accent": "#4ea0fd",
         "inverse": "#24292e"
       },
       "accent": {
-        "primary": "#0366d6",
+        "primary": "#2f8ffc",
         "secondary": "#b392f0",
         "success": "#28a745",
         "warning": "#fb8532",
-        "error": "#ea4a5a",
+        "error": "#ed606e",
         "info": "#79b8ff"
       },
       "border": {
         "subtle": "#1f2428",
         "default": "#444d56",
         "strong": "#6a737d",
-        "focus": "#0366d6"
+        "focus": "#036de4"
       },
       "semantic": {
         "string": "#79b8ff",
         "number": "#c8e1ff",
         "boolean": "#b392f0",
         "date": "#7bcc72",
-        "null": "#6a737d",
+        "null": "#879099",
         "primaryKey": "#fb8532",
         "foreignKey": "#79b8ff",
         "index": "#b392f0",
         "connectionActive": "#28a745",
         "connectionInactive": "#6a737d",
-        "modified": "#0366d6",
-        "deleted": "#d73a49",
+        "modified": "#2f8ffc",
+        "deleted": "#e16a75",
         "new": "#28a745"
       }
     },
@@ -665,33 +665,33 @@
       "bg": {
         "base": "#002b36",
         "elevated": "#073642",
-        "overlay": "#586e75",
+        "overlay": "#0b4452",
         "input": "#002b36",
         "tooltip": "#073642"
       },
       "surface": {
         "primary": "#073642",
-        "secondary": "#586e75",
-        "tertiary": "#657b83",
-        "hover": "#586e75",
+        "secondary": "#0b4452",
+        "tertiary": "#135262",
+        "hover": "#0b4452",
         "active": "#268bd2",
         "disabled": "#073642"
       },
       "text": {
-        "primary": "#839496",
+        "primary": "#d6dcdc",
         "secondary": "#c6d3d6",
         "muted": "#b0bfc2",
         "disabled": "#657b83",
-        "accent": "#268bd2",
+        "accent": "#66b0e3",
         "inverse": "#002b36"
       },
       "accent": {
-        "primary": "#268bd2",
-        "secondary": "#6c71c4",
-        "success": "#859900",
-        "warning": "#b58900",
-        "error": "#dc322f",
-        "info": "#2aa198"
+        "primary": "#2f93d9",
+        "secondary": "#8f93d2",
+        "success": "#8da200",
+        "warning": "#c09200",
+        "error": "#e87674",
+        "info": "#2ca9a0"
       },
       "border": {
         "subtle": "#073642",
@@ -700,19 +700,19 @@
         "focus": "#268bd2"
       },
       "semantic": {
-        "string": "#b58900",
-        "number": "#2aa198",
-        "boolean": "#d33682",
-        "date": "#859900",
-        "null": "#586e75",
-        "primaryKey": "#cb4b16",
-        "foreignKey": "#268bd2",
-        "index": "#d33682",
+        "string": "#c09200",
+        "number": "#2ca9a0",
+        "boolean": "#e175a9",
+        "date": "#8da200",
+        "null": "#859ca3",
+        "primaryKey": "#eb7849",
+        "foreignKey": "#479fde",
+        "index": "#e175a9",
         "connectionActive": "#859900",
         "connectionInactive": "#586e75",
-        "modified": "#268bd2",
-        "deleted": "#dc322f",
-        "new": "#859900"
+        "modified": "#479fde",
+        "deleted": "#e87674",
+        "new": "#8da200"
       }
     },
     "typography": {
@@ -759,33 +759,33 @@
       "bg": {
         "base": "#fdf6e3",
         "elevated": "#eee8d5",
-        "overlay": "#93a1a1",
+        "overlay": "#e3dcc6",
         "input": "#fdf6e3",
         "tooltip": "#eee8d5"
       },
       "surface": {
         "primary": "#eee8d5",
-        "secondary": "#93a1a1",
-        "tertiary": "#839496",
-        "hover": "#93a1a1",
+        "secondary": "#e3dcc6",
+        "tertiary": "#d8cfb3",
+        "hover": "#e3dcc6",
         "active": "#268bd2",
         "disabled": "#eee8d5"
       },
       "text": {
-        "primary": "#657b83",
+        "primary": "#3a474b",
         "secondary": "#3a5058",
         "muted": "#485e65",
         "disabled": "#839496",
-        "accent": "#268bd2",
+        "accent": "#1c6599",
         "inverse": "#fdf6e3"
       },
       "accent": {
-        "primary": "#268bd2",
-        "secondary": "#6c71c4",
-        "success": "#859900",
-        "warning": "#b58900",
-        "error": "#dc322f",
-        "info": "#2aa198"
+        "primary": "#2076b3",
+        "secondary": "#5a5fbd",
+        "success": "#606f00",
+        "warning": "#836300",
+        "error": "#ca2522",
+        "info": "#1e736d"
       },
       "border": {
         "subtle": "#eee8d5",
@@ -794,19 +794,19 @@
         "focus": "#268bd2"
       },
       "semantic": {
-        "string": "#b58900",
-        "number": "#2aa198",
-        "boolean": "#d33682",
-        "date": "#859900",
-        "null": "#93a1a1",
-        "primaryKey": "#cb4b16",
-        "foreignKey": "#268bd2",
-        "index": "#d33682",
+        "string": "#836300",
+        "number": "#1e736d",
+        "boolean": "#bf2a72",
+        "date": "#606f00",
+        "null": "#5d6b6b",
+        "primaryKey": "#b64314",
+        "foreignKey": "#1e6da5",
+        "index": "#bf2a72",
         "connectionActive": "#859900",
         "connectionInactive": "#93a1a1",
-        "modified": "#268bd2",
-        "deleted": "#dc322f",
-        "new": "#859900"
+        "modified": "#1e6da5",
+        "deleted": "#ca2522",
+        "new": "#606f00"
       }
     },
     "typography": {
@@ -877,7 +877,7 @@
         "secondary": "#ffff00",
         "success": "#00ff00",
         "warning": "#ffff00",
-        "error": "#ff0000",
+        "error": "#ff1c1c",
         "info": "#00ffff"
       },
       "border": {
@@ -891,14 +891,14 @@
         "number": "#00ffff",
         "boolean": "#ff00ff",
         "date": "#00ff00",
-        "null": "#808080",
+        "null": "#828282",
         "primaryKey": "#ff8000",
         "foreignKey": "#00ffff",
         "index": "#ff00ff",
         "connectionActive": "#00ff00",
         "connectionInactive": "#808080",
         "modified": "#ffffff",
-        "deleted": "#ff0000",
+        "deleted": "#ff1c1c",
         "new": "#00ff00"
       }
     },
@@ -959,9 +959,9 @@
         "disabled": "#32302f"
       },
       "text": {
-        "primary": "#d4be98",
+        "primary": "#e2d3b9",
         "secondary": "#ddc7a1",
-        "muted": "#a89984",
+        "muted": "#aea08c",
         "disabled": "#7c6f64",
         "accent": "#7daea3",
         "inverse": "#292828"
@@ -971,7 +971,7 @@
         "secondary": "#a9b665",
         "success": "#a9b665",
         "warning": "#d8a657",
-        "error": "#ea6962",
+        "error": "#eb736c",
         "info": "#89b482"
       },
       "border": {
@@ -985,14 +985,14 @@
         "number": "#d3869b",
         "boolean": "#d3869b",
         "date": "#89b482",
-        "null": "#7c6f64",
+        "null": "#a2968c",
         "primaryKey": "#e78a4e",
         "foreignKey": "#7daea3",
         "index": "#d3869b",
         "connectionActive": "#a9b665",
         "connectionInactive": "#7c6f64",
         "modified": "#7daea3",
-        "deleted": "#ea6962",
+        "deleted": "#eb736c",
         "new": "#a9b665"
       }
     },
@@ -1053,20 +1053,20 @@
         "disabled": "#f2e5bc"
       },
       "text": {
-        "primary": "#654735",
+        "primary": "#463125",
         "secondary": "#4f3829",
-        "muted": "#7c6f64",
+        "muted": "#6a5f56",
         "disabled": "#a89984",
-        "accent": "#6c782e",
+        "accent": "#5c6627",
         "inverse": "#fbf1c7"
       },
       "accent": {
-        "primary": "#6c782e",
-        "secondary": "#45707a",
-        "success": "#6c782e",
-        "warning": "#b47109",
-        "error": "#c14a4a",
-        "info": "#45707a"
+        "primary": "#68732c",
+        "secondary": "#436d77",
+        "success": "#616c29",
+        "warning": "#915b07",
+        "error": "#b43e3e",
+        "info": "#436d77"
       },
       "border": {
         "subtle": "#ebdbb2",
@@ -1075,19 +1075,19 @@
         "focus": "#6c782e"
       },
       "semantic": {
-        "string": "#b47109",
-        "number": "#945e80",
-        "boolean": "#945e80",
-        "date": "#4c7a5d",
-        "null": "#a89984",
-        "primaryKey": "#c35e0a",
-        "foreignKey": "#45707a",
-        "index": "#945e80",
+        "string": "#915b07",
+        "number": "#895777",
+        "boolean": "#895777",
+        "date": "#467055",
+        "null": "#736552",
+        "primaryKey": "#a34f08",
+        "foreignKey": "#436d77",
+        "index": "#895777",
         "connectionActive": "#6c782e",
         "connectionInactive": "#a89984",
-        "modified": "#45707a",
-        "deleted": "#c14a4a",
-        "new": "#6c782e"
+        "modified": "#436d77",
+        "deleted": "#b43e3e",
+        "new": "#616c29"
       }
     },
     "typography": {

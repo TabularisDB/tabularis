@@ -128,6 +128,7 @@ export const ConnectionGroupItem = ({ connections, mode, isDropTarget = false }:
             isDropTarget ? 'ring-2 ring-accent-primary' : 'ring-1 ring-default'
           }`}
           title={orderedConnections.map(c => c.name).join(' / ')}
+          aria-label={`${t('sidebar.splitGroup')}: ${orderedConnections.map(c => c.name).join(' / ')}`}
         >
           {orderedConnections.map(conn => {
             const saved = savedConnections.find(c => c.id === conn.id);
@@ -139,6 +140,8 @@ export const ConnectionGroupItem = ({ connections, mode, isDropTarget = false }:
                   if (el) iconRefs.current.set(conn.id, el);
                   else iconRefs.current.delete(conn.id);
                 }}
+                // Mouse-only drag handle for reordering; the group button's label lists the connections.
+                aria-hidden="true"
                 onMouseDown={(e) => startIconMove(conn, e)}
                 onContextMenu={(e) => handleIconContextMenu(conn.id, e)}
                 className={`w-5 h-5 rounded flex items-center justify-center text-white cursor-grab active:cursor-grabbing ${

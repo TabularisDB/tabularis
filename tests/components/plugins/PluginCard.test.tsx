@@ -70,9 +70,12 @@ describe("PluginCard compact presentation", () => {
     expect(pill.style.backgroundColor).toContain("--accent-primary");
     expect(indicator.querySelector("[class*='animate-']")).toBeNull();
     expect(indicator.closest("button, a")).toBeNull();
-    fireEvent.focus(indicator);
+    // Informational only: the label is exposed via role="img", not as a tab stop.
+    expect(indicator).not.toHaveAttribute("tabindex");
+    fireEvent.mouseEnter(indicator);
     expect(screen.getByRole("tooltip")).toHaveTextContent("update.badges.driverUpdate");
-    fireEvent.blur(indicator);
+    fireEvent.mouseLeave(indicator);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     fireEvent.click(indicator);
     expect(toggle).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Disable" }));

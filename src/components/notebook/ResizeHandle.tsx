@@ -1,4 +1,5 @@
 import { useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 interface ResizeHandleProps {
   onResize: (height: number) => void;
@@ -11,6 +12,7 @@ export function ResizeHandle({
   minHeight = 100,
   maxHeight = 800,
 }: ResizeHandleProps) {
+  const { t } = useTranslation();
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,8 +54,12 @@ export function ResizeHandle({
   );
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- mouse-only drag handle; jsx-a11y models separator as non-interactive even though it is the correct role
     <div
       ref={containerRef}
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label={t("editor.notebook.resizeResult")}
       onMouseDown={handleMouseDown}
       className="h-1.5 cursor-row-resize bg-transparent hover:bg-accent-primary/20 transition-colors flex items-center justify-center group"
     >

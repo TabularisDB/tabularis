@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { quoteTableRef } from "../../utils/identifiers";
@@ -40,6 +40,7 @@ import {
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { toErrorMessage } from "../../utils/errors";
 import { useAlert } from "../../hooks/useAlert";
+import { useEscapeKey } from "../../hooks/useEscapeKey";
 import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useEditor } from "../../hooks/useEditor";
@@ -270,6 +271,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [pendingDbSelection, setPendingDbSelection] = useState<Set<string>>(new Set());
   const [allAvailableDatabases, setAllAvailableDatabases] = useState<string[]>([]);
   const [isLoadingAllDbs, setIsLoadingAllDbs] = useState(false);
+  const closeActionsDropdown = useCallback(() => setIsActionsDropdownOpen(false), []);
+  const closeSchemaFilter = useCallback(() => setIsSchemaFilterOpen(false), []);
+  const closeDbManager = useCallback(() => setIsDbManagerOpen(false), []);
+  useEscapeKey(isActionsDropdownOpen, closeActionsDropdown);
+  useEscapeKey(isSchemaFilterOpen, closeSchemaFilter);
+  useEscapeKey(isDbManagerOpen, closeDbManager);
   const [isRefreshingDbList, setIsRefreshingDbList] = useState(false);
   // Guards against toast spam on rapid repeated clicks: isRefreshingDbList only
   // blocks calls that overlap in flight, so several quick, individually-fast
@@ -538,7 +545,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         style={{ width: sidebarWidth }}
       >
         {/* Resize Handle */}
+        {/* Mouse-only drag handle (no keyboard resize available), hidden from assistive tech. */}
         <div
+          aria-hidden="true"
           onMouseDown={startResize}
           className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent-primary/50 z-30 transition-colors"
         />
@@ -598,8 +607,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                 {isActionsDropdownOpen && (
                   <>
                     <div
+                      role="presentation"
                       className="fixed inset-0 z-40"
-                      onClick={() => setIsActionsDropdownOpen(false)}
+                      onClick={closeActionsDropdown}
                     />
                     <div className="absolute left-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-1 min-w-[200px]">
                       <button
@@ -808,14 +818,24 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         {t(`sidebar.${groupKey}`)}
                       </div>
                       {items.map((q) => (
-                        <div
+                        <button
+                          type="button"
                           key={q.id}
+                          aria-pressed={selectedFavoriteId === q.id}
                           onClick={() => setSelectedFavoriteId(q.id)}
                           onDoubleClick={() => runQuery(q.sql, q.name, false, q.database ?? undefined)}
+                          onKeyDown={(e) => {
+                            // Enter runs the query like a double click; Space keeps selecting it.
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              setSelectedFavoriteId(q.id);
+                              runQuery(q.sql, q.name, false, q.database ?? undefined);
+                            }
+                          }}
                           onContextMenu={(e) =>
                             handleContextMenu(e, "query", q.id, q.name, q)
                           }
-                          className={`pl-3 pr-3 py-1.5 cursor-pointer group transition-colors border-b border-default/30 ${
+                          className={`block w-full text-left pl-3 pr-3 py-1.5 cursor-pointer group transition-colors border-b border-default/30 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
                             selectedFavoriteId === q.id
                               ? "bg-surface-secondary"
                               : "hover:bg-surface-secondary"
@@ -837,7 +857,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             </div>
                           </div>
                           <SqlHighlight sql={q.sql} />
-                        </div>
+                        </button>
                       ))}
                     </div>
                   ))
@@ -942,8 +962,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           {schemas.map((schemaName) => {
                             const isSelected = pendingSchemaSelection.has(schemaName);
                             return (
-                              <div
+                              <button
+                                type="button"
                                 key={schemaName}
+                                aria-pressed={isSelected}
                                 onClick={() => {
                                   const next = new Set(pendingSchemaSelection);
                                   if (isSelected) {
@@ -953,7 +975,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   }
                                   setPendingSchemaSelection(next);
                                 }}
-                                className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
+                                className={`flex w-full text-left items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
                                   isSelected
                                     ? "text-primary hover:bg-surface-secondary"
                                     : "text-muted hover:bg-surface-secondary"
@@ -973,7 +995,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 <span className="text-sm truncate select-none">
                                   {schemaName}
                                 </span>
-                              </div>
+                              </button>
                             );
                           })}
                         </div>
@@ -1037,8 +1059,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           {isSchemaFilterOpen && (
                             <>
                               <div
+                                role="presentation"
                                 className="fixed inset-0 z-40"
-                                onClick={() => setIsSchemaFilterOpen(false)}
+                                onClick={closeSchemaFilter}
                               />
                               <div className="absolute right-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-2 min-w-[200px] max-h-[300px] flex flex-col">
                                 <div className="flex items-center justify-between px-3 pb-2 border-b border-default">
@@ -1064,8 +1087,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   {schemas.map((schemaName) => {
                                     const isSelected = pendingSchemaSelection.has(schemaName);
                                     return (
-                                      <div
+                                      <button
+                                        type="button"
                                         key={schemaName}
+                                        aria-pressed={isSelected}
                                         onClick={() => {
                                           const next = new Set(pendingSchemaSelection);
                                           if (isSelected) {
@@ -1075,7 +1100,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                           }
                                           setPendingSchemaSelection(next);
                                         }}
-                                        className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
+                                        className={`flex w-full text-left items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
                                           isSelected
                                             ? "text-primary hover:bg-surface-secondary"
                                             : "text-muted hover:bg-surface-secondary"
@@ -1095,7 +1120,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         <span className="text-sm truncate select-none">
                                           {schemaName}
                                         </span>
-                                      </div>
+                                      </button>
                                     );
                                   })}
                                 </div>
@@ -1251,8 +1276,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       {isDbManagerOpen && (
                         <>
                           <div
+                            role="presentation"
                             className="fixed inset-0 z-40"
-                            onClick={() => setIsDbManagerOpen(false)}
+                            onClick={closeDbManager}
                           />
                           <div className="absolute right-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-2 min-w-[200px] max-h-[320px] flex flex-col">
                             <div className="flex items-center justify-between px-3 pb-2 border-b border-default">
@@ -1283,8 +1309,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               ) : allAvailableDatabases.map((dbName) => {
                                 const isSelected = pendingDbSelection.has(dbName);
                                 return (
-                                  <div
+                                  <button
+                                    type="button"
                                     key={dbName}
+                                    aria-pressed={isSelected}
                                     onClick={() => {
                                       const next = new Set(pendingDbSelection);
                                       if (isSelected) {
@@ -1294,7 +1322,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       }
                                       setPendingDbSelection(next);
                                     }}
-                                    className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
+                                    className={`flex w-full text-left items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
                                       isSelected ? "text-primary hover:bg-surface-secondary" : "text-muted hover:bg-surface-secondary"
                                     }`}
                                   >
@@ -1302,7 +1330,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
                                     </div>
                                     <span className="text-sm truncate select-none">{dbName}</span>
-                                  </div>
+                                  </button>
                                 );
                               })}
                             </div>

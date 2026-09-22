@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { NotebookCellType } from "../../types/notebook";
 import { CellNameAiButton } from "./CellNameAiButton";
+import { useEscapeKey } from "../../hooks/useEscapeKey";
 
 interface NotebookCellHeaderProps {
   cellType: NotebookCellType;
@@ -126,6 +127,8 @@ export function NotebookCellHeader({
   const [nameInput, setNameInput] = useState(cellName ?? "");
   const dbButtonRef = useRef<HTMLButtonElement>(null);
   const [dbDropdownPosition, setDbDropdownPosition] = useState({ top: 0, left: 0 });
+  const closeDbDropdown = useCallback(() => setIsDbOpen(false), []);
+  useEscapeKey(isDbOpen, closeDbDropdown);
   const showDbSelector = cellType === "sql" && selectedDatabases && selectedDatabases.length >= 1 && activeSchema && onSchemaChange;
   const queryPlanToggleLabel = t(
     isQueryPlanVisible ? "editor.notebook.hideQueryPlan" : "editor.notebook.toggleQueryPlan",
@@ -224,6 +227,7 @@ export function NotebookCellHeader({
                 if (!isDbOpen) updateDbDropdownPosition();
                 setIsDbOpen((v) => !v);
               }}
+              aria-expanded={isDbOpen}
               className="flex items-center gap-1 px-1.5 py-0.5 bg-surface-secondary border border-strong rounded text-[10px] text-secondary hover:text-primary hover:bg-surface transition-colors"
               title={t("editor.activeDatabase")}
             >
@@ -235,8 +239,9 @@ export function NotebookCellHeader({
               createPortal(
                 <>
                   <div
+                    role="presentation"
                     className="fixed inset-0 z-[150]"
-                    onClick={() => setIsDbOpen(false)}
+                    onClick={closeDbDropdown}
                   />
                   <div
                     className="fixed min-w-[120px] max-h-[230px] overflow-y-auto bg-surface-secondary border border-strong rounded shadow-xl z-[200] flex flex-col py-1"

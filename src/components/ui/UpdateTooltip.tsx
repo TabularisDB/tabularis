@@ -1,10 +1,13 @@
-import { cloneElement, useId, useState, type ReactElement, type CSSProperties } from "react";
+import { cloneElement, useId, useState, type ReactElement, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
 interface UpdateTooltipProps {
   label: string;
   details?: string[];
-  children: ReactElement<{ "aria-describedby"?: string }>;
+  children: ReactElement<{
+    "aria-describedby"?: string;
+    onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
+  }>;
   disabled?: boolean;
   className?: string;
 }
@@ -31,14 +34,18 @@ export function UpdateTooltip({ label, details = [], children, disabled = false,
       onMouseLeave={() => setPosition(null)}
       onFocus={(event) => show(event.currentTarget)}
       onBlur={() => setPosition(null)}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.stopPropagation();
-          setPosition(null);
-        }
-      }}
     >
-      {cloneElement(children, { "aria-describedby": position && !disabled ? id : undefined })}
+      {cloneElement(children, {
+        "aria-describedby": position && !disabled ? id : undefined,
+        // Escape dismisses the tooltip; handled on the focusable trigger itself.
+        onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+          children.props.onKeyDown?.(event);
+          if (event.key === "Escape" && position) {
+            event.stopPropagation();
+            setPosition(null);
+          }
+        },
+      })}
       {position && !disabled && createPortal(
         <div
           id={id}

@@ -97,9 +97,9 @@ export const AiExplainModal = ({ isOpen, onClose, query }: AiExplainModalProps) 
 
           {/* Original Query */}
           <div>
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+            <div className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
                 Query
-            </label>
+            </div>
             <div className="h-32 border border-default rounded-lg overflow-hidden">
                 <MonacoEditor
                     height="100%"
@@ -120,9 +120,9 @@ export const AiExplainModal = ({ isOpen, onClose, query }: AiExplainModalProps) 
 
           {/* Explanation */}
           <div>
-            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+            <div className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2">
                 Explanation
-            </label>
+            </div>
             <div className="bg-base border border-strong rounded-lg p-4 min-h-[150px] text-secondary leading-relaxed whitespace-pre-wrap">
                 {isLoading ? (
                     <div className="flex items-center gap-2 text-muted">

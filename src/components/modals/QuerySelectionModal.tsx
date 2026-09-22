@@ -47,6 +47,10 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
   }, [queries, selectedIndices, onRunSelected]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // A focused button activates itself on Enter/Space; do not run the
+    // list shortcut on top of it.
+    const onButton = e.target instanceof Element && e.target.closest('button') !== null;
+    if (onButton && (e.key === ' ' || (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.shiftKey))) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setFocusedIndex(prev => Math.min(prev + 1, queries.length - 1));
@@ -138,16 +142,21 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
               </span>
 
               {/* SQL + run-single on click */}
-              <div className="flex-1 min-w-0" onClick={() => onSelect(q)}>
-                <pre className="text-[13px] font-mono text-secondary leading-relaxed overflow-hidden whitespace-pre-wrap break-all line-clamp-3 group-hover:text-primary transition-colors">
+              <button
+                type="button"
+                className="flex-1 min-w-0 text-left rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                onClick={() => onSelect(q)}
+                onFocus={() => setFocusedIndex(i)}
+              >
+                <span className="block text-[13px] font-mono text-secondary leading-relaxed overflow-hidden whitespace-pre-wrap break-all line-clamp-3 group-hover:text-primary transition-colors">
                   {statementLabel(q)}
-                </pre>
-              </div>
+                </span>
+              </button>
 
               {/* Inline run button — visible on hover */}
               <button
                 onClick={(e) => { e.stopPropagation(); onSelect(q); }}
-                className="mt-0.5 shrink-0 p-1.5 rounded-md text-muted opacity-0 group-hover:opacity-100 hover:bg-accent-primary/20 hover:text-accent transition-all"
+                className="mt-0.5 shrink-0 p-1.5 rounded-md text-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-accent-primary/20 hover:text-accent transition-all"
                 title={t('editor.querySelection.runSingle')}
               >
                 <Play size={13} fill="currentColor" />

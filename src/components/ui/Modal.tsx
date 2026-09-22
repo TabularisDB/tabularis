@@ -21,7 +21,10 @@ export const Modal = ({
   if (!isOpen) return null;
 
   return createPortal(
+    // Backdrop only: the dialog inside carries the semantics, Escape closes it
+    // via useEscapeKey, and clicks on the child never reach this check.
     <div
+      role="presentation"
       className={overlayClassName}
       onMouseDown={(event) => {
         if (

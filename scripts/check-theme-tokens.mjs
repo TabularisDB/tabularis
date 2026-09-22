@@ -21,7 +21,9 @@
  * driver colors, user-picked swatches) are listed in ALLOWLIST with the rules
  * they may skip. Add an entry only with a reason; never to silence a UI color.
  *
- * Usage: node scripts/check-theme-tokens.mjs [--verbose]
+ * Usage: node scripts/check-theme-tokens.mjs [--verbose] [--github]
+ *   --github  also print GitHub Actions annotations, so findings show up on
+ *             the pull request diff (the CI workflow passes it).
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -38,6 +40,7 @@ const ALLOWLIST = {
   "src/App.css": { rules: ["hex"], reason: "Vite scaffold leftovers, unused by the app" },
   "src/utils/themeResolver.ts": { rules: ["hex"], reason: "theme engine: transparent constant used while resolving definitions" },
   "src/utils/themePackageExport.ts": { rules: ["hex"], reason: "theme engine: transparent constant used while exporting definitions" },
+  "src/utils/themeContrast.ts": { rules: ["hex"], reason: "contrast audit: black/white labels derived like --text-on-accent-*" },
   "src/components/icons/ClientIcons.tsx": { rules: ["hex", "palette"], reason: "third-party brand marks" },
   "src/components/icons/BrandIcons.tsx": { rules: ["hex", "palette"], reason: "third-party brand marks" },
   "src/components/icons/DiscordIcon.tsx": { rules: ["hex", "palette"], reason: "Discord brand mark" },
@@ -76,6 +79,8 @@ const NON_PRIMARY_FILL = /(?<![a-zA-Z0-9-])(?:hover:)?bg-accent-(secondary|succe
 const INVERSE = /(?<![a-zA-Z0-9-])text-inverse(?![a-zA-Z0-9-/])/;
 
 const verbose = process.argv.includes("--verbose");
+const github = process.argv.includes("--github");
+/** @type {Array<{ file: string, line: number, message: string }>} */
 const findings = [];
 
 function walk(dir) {
@@ -100,38 +105,38 @@ function allowed(rel, rule) {
 function checkFile(full, rel, ext) {
   const lines = readFileSync(full, "utf8").split("\n");
   lines.forEach((line, index) => {
-    const at = `${rel}:${index + 1}`;
+    const report = (message) => findings.push({ file: rel, line: index + 1, message });
     if (!allowed(rel, "palette")) {
       for (const match of line.matchAll(PALETTE)) {
-        findings.push(`${at}: Tailwind palette class "${match[0]}" bypasses the theme (use an accent/surface/semantic token, see DESIGN.md)`);
+        report(`Tailwind palette class "${match[0]}" bypasses the theme (use an accent/surface/semantic token, see DESIGN.md)`);
       }
     }
     if (ext !== ".css" && !allowed(rel, "hex") && !COMMENT_LINE.test(line)) {
       for (const match of line.matchAll(HEX)) {
-        findings.push(`${at}: hex color "${match[0]}" bypasses the theme (read currentTheme.colors or a CSS variable)`);
+        report(`hex color "${match[0]}" bypasses the theme (read currentTheme.colors or a CSS variable)`);
       }
     }
     if (ext !== ".css" && !allowed(rel, "rgb") && RGB.test(line) && !NEUTRAL_RGB.test(line)) {
-      findings.push(`${at}: rgb()/hsl() literal bypasses the theme (use color-mix over a theme variable)`);
+      report(`rgb()/hsl() literal bypasses the theme (use color-mix over a theme variable)`);
     }
     if (!allowed(rel, "white")) {
       if (WHITE_ON_ACCENT.test(line) && ACCENT_BG.test(line)) {
-        findings.push(`${at}: "text-white" over an accent background is unreadable on light-accent themes (use "text-inverse")`);
+        report(`"text-white" over an accent background is unreadable on light-accent themes (use "text-inverse")`);
       }
       if (HOVER_WHITE.test(line)) {
-        findings.push(`${at}: "hover:text-white" assumes a dark theme (use "hover:text-primary")`);
+        report(`"hover:text-white" assumes a dark theme (use "hover:text-primary")`);
       }
     }
     if (!allowed(rel, "palette")) {
       for (const match of line.matchAll(ACCENT_AS_TEXT)) {
-        findings.push(`${at}: "${match[0]}" paints text with the accent fill; use "text-accent" (theme text.accent)`);
+        report(`"${match[0]}" paints text with the accent fill; use "text-accent" (theme text.accent)`);
       }
       for (const match of line.matchAll(ACCENT_FOCUS)) {
-        findings.push(`${at}: "${match[0]}" colors a focus state with the accent; use the "focus" token (border-focus, ring-focus, outline-focus)`);
+        report(`"${match[0]}" colors a focus state with the accent; use the "focus" token (border-focus, ring-focus, outline-focus)`);
       }
       const fill = NON_PRIMARY_FILL.exec(line);
       if (fill && INVERSE.test(line)) {
-        findings.push(`${at}: "text-inverse" is only guaranteed on accent.primary; over bg-accent-${fill[1]} use "text-on-accent-${fill[1]}"`);
+        report(`"text-inverse" is only guaranteed on accent.primary; over bg-accent-${fill[1]} use "text-on-accent-${fill[1]}"`);
       }
     }
   });
@@ -141,7 +146,11 @@ walk(SRC);
 
 if (findings.length > 0) {
   console.error(`Theme token check: ${findings.length} problem(s)\n`);
-  for (const finding of findings) console.error(`  ${finding}`);
+  for (const { file, line, message } of findings) {
+    console.error(`  ${file}:${line}: ${message}`);
+    // Annotation values must escape %, CR and LF (GitHub workflow command syntax).
+    if (github) console.log(`::error file=${file},line=${line},title=Theme token::${message.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A")}`);
+  }
   console.error("\nSee DESIGN.md for the token to use in each case.");
   process.exit(1);
 }

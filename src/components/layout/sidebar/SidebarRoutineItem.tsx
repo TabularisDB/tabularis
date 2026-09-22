@@ -12,6 +12,7 @@ import {
 import clsx from "clsx";
 import type { RoutineInfo } from "../../../contexts/DatabaseContext";
 import type { ContextMenuData } from "../../../types/sidebar";
+import { onActivationKey } from "../../../utils/keyboardEvents";
 
 interface RoutineParameter {
   name: string;
@@ -73,7 +74,7 @@ export const SidebarRoutineItem = ({
     }
   }, [isExpanded, refreshParameters]);
 
-  const handleExpand = (e: React.MouseEvent) => {
+  const handleExpand = (e: React.SyntheticEvent) => {
     e.stopPropagation();
     setIsExpanded((prev) => !prev);
   };
@@ -89,20 +90,25 @@ export const SidebarRoutineItem = ({
   return (
     <div className="flex flex-col">
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
         onClick={handleExpand}
+        onKeyDown={onActivationKey((e: React.KeyboardEvent) => handleExpand(e))}
         onDoubleClick={(e) => {
           e.stopPropagation();
           onDoubleClick(routine);
         }}
         onContextMenu={handleContextMenu}
         className={clsx(
-          "flex items-center gap-1 pl-1 pr-3 py-1.5 text-sm cursor-pointer group select-none transition-colors border-l-2",
+          "flex items-center gap-1 pl-1 pr-3 py-1.5 text-sm cursor-pointer group select-none transition-colors border-l-2 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
           "text-secondary hover:bg-surface-secondary border-transparent hover:text-primary",
         )}
       >
-        <button className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors">
+        {/* Decorative chevron: the whole row toggles expansion. */}
+        <span aria-hidden="true" className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors">
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </button>
+        </span>
         <Code2 size={14} className="text-muted group-hover:text-accent-warning" />
         <span className="truncate flex-1">{routine.name}</span>
       </div>

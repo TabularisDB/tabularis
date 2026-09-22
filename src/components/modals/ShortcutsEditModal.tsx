@@ -138,6 +138,7 @@ export function ShortcutsEditModal({
       }}
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] backdrop-blur-sm"
     >
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Escape and the Tab focus trap belong on the dialog; the plugin only exempts the <dialog> element, not role="dialog" */}
       <div
         ref={dialogRef}
         role="dialog"

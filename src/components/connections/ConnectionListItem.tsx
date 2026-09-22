@@ -12,6 +12,7 @@ import { StatusBadge } from './StatusBadge';
 import { ActionButtons } from './ActionButtons';
 import { ConnectionChips } from './ConnectionChips';
 import { SelectionCheckbox } from './SelectionCheckbox';
+import { onActivationKey } from '../../utils/keyboardEvents';
 
 export interface ConnectionListItemProps {
   conn: SavedConnection;
@@ -71,14 +72,22 @@ export const ConnectionListItem = ({
   });
   const driverColor = getConnectionAccent(conn, driverManifest);
   const migrationDirection = migrationDirectionForDriver(conn.params.driver, allDrivers);
+  const connectIfPossible = () => {
+    if (isDriverEnabled && !isConnecting) onConnect();
+  };
 
   return (
     <div
-      onDoubleClick={() => isDriverEnabled && !isConnecting && onConnect()}
+      role="button"
+      tabIndex={0}
+      aria-label={conn.name}
+      aria-disabled={!isDriverEnabled || undefined}
+      onDoubleClick={connectIfPossible}
+      onKeyDown={onActivationKey(connectIfPossible)}
       onContextMenu={onContextMenu}
       onMouseDown={onMouseDown}
       className={clsx(
-        'group flex items-center gap-3 px-3.5 py-2 rounded-xl border transition-all duration-150 cursor-pointer select-none',
+        'group flex items-center gap-3 px-3.5 py-2 rounded-xl border transition-all duration-150 cursor-pointer select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
         !isDriverEnabled && 'opacity-60 cursor-not-allowed',
         isConnecting && 'pointer-events-none',
         selected && 'ring-2 ring-accent-primary/70',

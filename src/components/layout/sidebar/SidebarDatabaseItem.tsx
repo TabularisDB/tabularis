@@ -28,6 +28,7 @@ import type { DriverCapabilities } from "../../../types/plugins";
 import { groupRoutinesByType } from "../../../utils/routines";
 import { formatObjectCount } from "../../../utils/schema";
 import { fuzzyFilter } from "../../../utils/fuzzy";
+import { onActivationKey } from "../../../utils/keyboardEvents";
 
 interface SidebarDatabaseItemProps {
   databaseName: string;
@@ -155,8 +156,12 @@ export const SidebarDatabaseItem = ({
     <div className="flex flex-col">
       {/* Database header */}
       <div
-        className="flex items-center justify-between px-2 py-1.5 group/db cursor-pointer hover:bg-surface-secondary transition-colors"
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        className="flex items-center justify-between px-2 py-1.5 group/db cursor-pointer hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
         onClick={handleToggle}
+        onKeyDown={onActivationKey(handleToggle)}
         onContextMenu={(e) => {
           e.preventDefault();
           onContextMenu(e, "database", databaseName, databaseName);

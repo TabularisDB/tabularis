@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { createContext, useContext, useId, type ReactNode } from "react";
 import clsx from "clsx";
 
 /* ── Section ── */
@@ -31,6 +31,9 @@ export function SettingSection({ title, icon, description, action, children }: S
 
 /* ── Row ── */
 
+/** Lets a control inside a SettingRow name itself after the row's label. */
+const SettingRowContext = createContext<{ labelId: string; descriptionId?: string } | null>(null);
+
 interface SettingRowProps {
   label: string;
   description?: string;
@@ -44,28 +47,31 @@ export function SettingRow({
   children,
   vertical,
 }: SettingRowProps) {
+  const labelId = useId();
+  const descriptionId = useId();
+  const context = { labelId, descriptionId: description ? descriptionId : undefined };
+  const text = (
+    <>
+      <div id={labelId} className="text-sm text-primary">{label}</div>
+      {description && (
+        <div id={descriptionId} className="text-xs text-muted mt-0.5">{description}</div>
+      )}
+    </>
+  );
   if (vertical) {
     return (
       <div className="py-3">
-        <div className="mb-2">
-          <div className="text-sm text-primary">{label}</div>
-          {description && (
-            <div className="text-xs text-muted mt-0.5">{description}</div>
-          )}
-        </div>
-        {children}
+        <div className="mb-2">{text}</div>
+        <SettingRowContext.Provider value={context}>{children}</SettingRowContext.Provider>
       </div>
     );
   }
   return (
     <div className="flex items-center justify-between py-3 gap-8">
-      <div className="min-w-0">
-        <div className="text-sm text-primary">{label}</div>
-        {description && (
-          <div className="text-xs text-muted mt-0.5">{description}</div>
-        )}
+      <div className="min-w-0">{text}</div>
+      <div className="shrink-0">
+        <SettingRowContext.Provider value={context}>{children}</SettingRowContext.Provider>
       </div>
-      <div className="shrink-0">{children}</div>
     </div>
   );
 }
@@ -83,19 +89,26 @@ export function SettingToggle({
   onChange,
   disabled,
 }: SettingToggleProps) {
+  const row = useContext(SettingRowContext);
   return (
-    <label
+    <span
       className={clsx(
         "relative inline-flex items-center w-10 h-6 shrink-0",
-        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+        disabled && "opacity-50",
       )}
     >
+      {/* The native checkbox covers the whole switch, so it is both the click target and the named control. */}
       <input
         type="checkbox"
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        className="peer sr-only"
+        aria-labelledby={row?.labelId}
+        aria-describedby={row?.descriptionId}
+        className={clsx(
+          "peer absolute inset-0 z-10 m-0 h-full w-full appearance-none opacity-0",
+          disabled ? "cursor-not-allowed" : "cursor-pointer",
+        )}
       />
       <span
         aria-hidden="true"
@@ -105,7 +118,7 @@ export function SettingToggle({
         aria-hidden="true"
         className="relative ml-1 w-4 h-4 rounded-full bg-primary transition-all peer-checked:bg-inverse peer-checked:translate-x-4"
       />
-    </label>
+    </span>
   );
 }
 

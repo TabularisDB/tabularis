@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useId } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Filter,
@@ -91,6 +91,9 @@ const TableToolbarInternal = ({
   const [sortAcIndex, setSortAcIndex] = useState(0);
   const sortInputRef = useRef<HTMLInputElement>(null);
   const sortAcMouseDown = useRef(false);
+
+  const whereListId = useId();
+  const sortListId = useId();
 
   const panelRef = useRef<HTMLDivElement>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
@@ -450,12 +453,20 @@ const TableToolbarInternal = ({
               onChange={handleWhereChange}
               onBlur={handleWhereBlur}
               onKeyDown={handleWhereKeyDown}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={autocompleteOpen && autocompleteItems.length > 0}
+              aria-controls={autocompleteOpen && autocompleteItems.length > 0 ? whereListId : undefined}
+              aria-activedescendant={autocompleteOpen && autocompleteItems.length > 0 ? `${whereListId}-${autocompleteIndex}` : undefined}
               className="bg-transparent border-none outline-none text-xs text-secondary w-full placeholder:text-surface-tertiary font-mono"
               placeholder={`${placeholderColumn} > 5 AND status = 'active'`}
             />
 
             {autocompleteOpen && autocompleteItems.length > 0 && (
               <ul
+                id={whereListId}
+                role="listbox"
+                tabIndex={-1}
                 className="absolute left-0 top-full mt-1 z-50 bg-elevated border border-default rounded-lg shadow-xl min-w-52 max-h-52 overflow-y-auto"
                 onMouseDown={() => { autocompleteMouseDown.current = true; }}
                 onMouseUp={() => { autocompleteMouseDown.current = false; }}
@@ -463,6 +474,9 @@ const TableToolbarInternal = ({
                 {autocompleteItems.map((col, idx) => (
                   <li
                     key={col.name}
+                    id={`${whereListId}-${idx}`}
+                    role="option"
+                    aria-selected={idx === autocompleteIndex}
                     className={`flex items-center justify-between px-3 py-1.5 text-xs cursor-pointer transition-colors first:rounded-t-lg last:rounded-b-lg ${
                       idx === autocompleteIndex
                         ? "bg-accent-primary/25 text-accent"
@@ -505,12 +519,20 @@ const TableToolbarInternal = ({
             onChange={handleSortChange}
             onBlur={handleSortBlur}
             onKeyDown={handleSortKeyDown}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={sortAcOpen && sortAcItems.length > 0}
+            aria-controls={sortAcOpen && sortAcItems.length > 0 ? sortListId : undefined}
+            aria-activedescendant={sortAcOpen && sortAcItems.length > 0 ? `${sortListId}-${sortAcIndex}` : undefined}
             className="bg-transparent border-none outline-none text-xs text-secondary w-full placeholder:text-surface-tertiary font-mono"
             placeholder={`${placeholderSort} DESC`}
           />
 
           {sortAcOpen && sortAcItems.length > 0 && (
             <ul
+              id={sortListId}
+              role="listbox"
+              tabIndex={-1}
               className="absolute left-0 top-full mt-1 z-50 bg-elevated border border-default rounded-lg shadow-xl min-w-52 max-h-52 overflow-y-auto"
               onMouseDown={() => { sortAcMouseDown.current = true; }}
               onMouseUp={() => { sortAcMouseDown.current = false; }}
@@ -518,6 +540,9 @@ const TableToolbarInternal = ({
               {sortAcItems.map((col, idx) => (
                 <li
                   key={col.name}
+                  id={`${sortListId}-${idx}`}
+                  role="option"
+                  aria-selected={idx === sortAcIndex}
                   className={`flex items-center justify-between px-3 py-1.5 text-xs cursor-pointer transition-colors first:rounded-t-lg last:rounded-b-lg ${
                     idx === sortAcIndex
                       ? "bg-accent-primary/25 text-accent"
@@ -558,8 +583,11 @@ const TableToolbarInternal = ({
 
       {/* Overlay filter panel */}
       {panelOpen && (
+        // Layout wrapper: onKeyDown only catches Escape bubbling from the
+        // filter controls inside, which carry the semantics.
         <div
           ref={panelRef}
+          role="presentation"
           onKeyDown={handlePanelKeyDown}
           className="absolute top-full left-0 z-50 mt-1 w-full min-w-[min(560px,100cqw)] max-w-4xl bg-elevated border border-default/80 rounded-lg overflow-hidden"
           style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3)" }}

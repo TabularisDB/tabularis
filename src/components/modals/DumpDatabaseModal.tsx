@@ -225,14 +225,17 @@ export const DumpDatabaseModal = ({
                         effectiveTables.map(table => {
                             const isSelected = selectedTables.has(table);
                             return (
-                                <div key={table}
+                                <button key={table}
+                                    type="button"
+                                    aria-pressed={isSelected}
+                                    disabled={isExporting}
                                     onClick={() => !isExporting && handleToggleTable(table)}
-                                    className={`flex items-center gap-2 p-2 rounded cursor-pointer border transition-colors ${isSelected ? 'bg-accent-primary/10 border-accent-primary/50' : 'hover:bg-surface-secondary border-transparent'} ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    className={`w-full text-left flex items-center gap-2 p-2 rounded cursor-pointer border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${isSelected ? 'bg-accent-primary/10 border-accent-primary/50' : 'hover:bg-surface-secondary border-transparent'} ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                     <div className={`w-4 h-4 flex items-center justify-center ${isSelected ? 'text-accent' : 'text-muted'}`}>
                                         {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
                                     </div>
                                     <span className="truncate text-sm select-none" title={table}>{table}</span>
-                                </div>
+                                </button>
                             );
                         })
                     )}

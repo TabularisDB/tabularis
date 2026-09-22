@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Sparkles, BookOpen, ChevronUp } from "lucide-react";
+import { useEscapeKey } from "../../hooks/useEscapeKey";
 
 interface AiDropdownButtonProps {
   onGenerate: () => void;
@@ -19,6 +20,8 @@ export function AiDropdownButton({
 }: AiDropdownButtonProps) {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+  const close = useCallback(() => setIsOpen(false), []);
+  useEscapeKey(isOpen, close);
 
   const iconSize = compact ? 10 : 12;
   const btnClass = compact
@@ -31,6 +34,7 @@ export function AiDropdownButton({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         disabled={disableAll}
+        aria-expanded={isOpen}
         className={btnClass}
         title="AI"
       >
@@ -45,8 +49,9 @@ export function AiDropdownButton({
       {isOpen && (
         <>
           <div
+            role="presentation"
             className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
+            onClick={close}
           />
           <div className="absolute bottom-full mb-1 right-0 z-20 bg-elevated border border-default rounded-lg shadow-lg overflow-hidden min-w-[160px]">
             <button

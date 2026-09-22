@@ -28,6 +28,7 @@ import { ResultEntryContent } from "./ResultEntryContent";
 import { StackedResultItem } from "./StackedResultItem";
 import { ContextMenu } from "./ContextMenu";
 import { formatDuration } from "../../utils/formatTime";
+import { onActivationKey } from "../../utils/keyboardEvents";
 import { getTabScrollState } from "../../utils/tabScroll";
 import {
   findActiveEntry,
@@ -115,7 +116,11 @@ function ResultTab({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={isActive}
       onClick={onSelect}
+      onKeyDown={onActivationKey(onSelect)}
       onContextMenu={onContextMenu}
       onAuxClick={(e) => {
         if (e.button === 1) {
@@ -124,7 +129,7 @@ function ResultTab({
         }
       }}
       className={clsx(
-        "flex items-center gap-2 px-3 h-full border-r border-default cursor-pointer min-w-[120px] max-w-[220px] text-xs transition-all group relative select-none",
+        "flex items-center gap-2 px-3 h-full border-r border-default cursor-pointer min-w-[120px] max-w-[220px] text-xs transition-all group relative select-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
         isActive
           ? "bg-base text-primary font-medium"
           : "text-muted hover:bg-surface-secondary hover:text-secondary",
@@ -187,7 +192,8 @@ function ResultTab({
             onAiRename();
           }}
           disabled={aiRenaming}
-          className="p-0.5 rounded-sm hover:bg-surface-secondary transition-opacity shrink-0 opacity-0 group-hover:opacity-100 disabled:opacity-50"
+          aria-label={aiRenaming ? t("editor.multiResult.generatingName") : t("editor.multiResult.aiGenerateName")}
+          className="p-0.5 rounded-sm hover:bg-surface-secondary transition-opacity shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-50"
           title={aiRenaming ? t("editor.multiResult.generatingName") : t("editor.multiResult.aiGenerateName")}
         >
           {aiRenaming ? (
@@ -205,7 +211,8 @@ function ResultTab({
             e.stopPropagation();
             onRerun();
           }}
-          className="p-0.5 rounded-sm hover:bg-surface-secondary transition-opacity shrink-0 opacity-0 group-hover:opacity-100"
+          aria-label={t("editor.multiResult.rerun")}
+          className="p-0.5 rounded-sm hover:bg-surface-secondary transition-opacity shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
           title={t("editor.multiResult.rerun")}
         >
           <Play size={10} fill="currentColor" />
@@ -218,9 +225,10 @@ function ResultTab({
           e.stopPropagation();
           onClose();
         }}
+        aria-label={t("editor.multiResult.close")}
         className={clsx(
           "p-0.5 rounded-sm hover:bg-surface-secondary transition-opacity shrink-0",
-          isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
         )}
       >
         <X size={12} />
@@ -432,23 +440,25 @@ export function MultiResultPanel({
 
           {/* Query preview */}
           {activeEntry.query && (
-            <div
-              className="bg-surface-secondary border-b border-default px-3 py-1.5 flex items-start gap-2 cursor-pointer select-none group/qp"
+            <button
+              type="button"
+              aria-expanded={queryExpanded}
+              className="w-full text-left bg-surface-secondary border-b border-default px-3 py-1.5 flex items-start gap-2 cursor-pointer select-none group/qp focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
               onClick={() => setQueryExpanded((v) => !v)}
             >
-              <Code2 size={12} className="text-muted shrink-0 mt-0.5" />
-              <pre
+              <Code2 size={12} aria-hidden="true" className="text-muted shrink-0 mt-0.5" />
+              <span
                 className={clsx(
                   "flex-1 text-[11px] font-mono text-secondary whitespace-pre-wrap break-all m-0",
-                  !queryExpanded && "line-clamp-1",
+                  queryExpanded ? "block" : "line-clamp-1",
                 )}
               >
                 {activeEntry.query.trim()}
-              </pre>
-              <button className="text-muted hover:text-primary shrink-0 mt-0.5">
+              </span>
+              <span aria-hidden="true" className="text-muted hover:text-primary shrink-0 mt-0.5">
                 {queryExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-              </button>
-            </div>
+              </span>
+            </button>
           )}
 
           {/* Active entry content */}

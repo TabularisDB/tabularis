@@ -2853,7 +2853,7 @@ export const NewConnectionModal = ({
       )}
 
       {/* Detect JSON in text columns (per-connection opt-in) */}
-      <label className="flex items-start gap-2 cursor-pointer select-none w-fit">
+      <label className="grid grid-cols-[auto_1fr] items-start gap-x-2 cursor-pointer select-none w-fit">
         <input
           type="checkbox"
           checked={detectJsonInTextColumns}
@@ -2861,10 +2861,10 @@ export const NewConnectionModal = ({
           className="accent-accent-primary w-3.5 h-3.5 rounded mt-0.5"
         />
         <span className="text-xs text-secondary leading-snug">
-          <span className="block">{t("settings.detectJsonInTextColumns")}</span>
-          <span className="block text-muted">
-            {t("settings.detectJsonInTextColumnsDesc")}
-          </span>
+          {t("settings.detectJsonInTextColumns")}
+        </span>
+        <span className="col-start-2 text-xs text-muted leading-snug">
+          {t("settings.detectJsonInTextColumnsDesc")}
         </span>
       </label>
 
@@ -3121,8 +3121,10 @@ export const NewConnectionModal = ({
               .map((db) => {
                 const sel = selectedDatabasesState.includes(db);
                 return (
-                  <div
+                  <button
                     key={db}
+                    type="button"
+                    aria-pressed={sel}
                     onClick={() => {
                       setSelectedDatabasesState((prev) =>
                         sel ? prev.filter((d) => d !== db) : [...prev, db],
@@ -3131,7 +3133,7 @@ export const NewConnectionModal = ({
                         setDatabasesTabError(false);
                     }}
                     className={clsx(
-                      "flex items-center gap-2 px-2.5 py-1.5 cursor-pointer text-sm transition-colors hover:bg-surface-secondary select-none",
+                      "w-full text-left flex items-center gap-2 px-2.5 py-1.5 cursor-pointer text-sm transition-colors hover:bg-surface-secondary select-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
                       sel ? "text-primary" : "text-muted",
                     )}
                   >
@@ -3144,7 +3146,7 @@ export const NewConnectionModal = ({
                       {sel ? <CheckSquare size={13} /> : <Square size={13} />}
                     </span>
                     <span className="truncate">{db}</span>
-                  </div>
+                  </button>
                 );
               })}
           </div>

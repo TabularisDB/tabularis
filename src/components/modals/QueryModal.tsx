@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { X, Save } from 'lucide-react';
 import type { BeforeMount } from "@monaco-editor/react";
 import { MonacoEditor } from "../ui/LazyMonaco";
@@ -23,6 +23,7 @@ interface QueryModalProps {
 export const QueryModal = ({ isOpen, onClose, onSave, initialName = '', initialSql = '', initialDatabase, databases, title = 'Save Query' }: QueryModalProps) => {
   const { t } = useTranslation();
   const [name, setName] = useState(initialName);
+  const nameId = useId();
   const [sql, setSql] = useState(initialSql);
   const [database, setDatabase] = useState<string | null>(initialDatabase ?? null);
   const [error, setError] = useState('');
@@ -76,8 +77,8 @@ export const QueryModal = ({ isOpen, onClose, onSave, initialName = '', initialS
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">Name</label>
-            <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
+            <label htmlFor={nameId} className="block text-sm font-medium text-secondary mb-1">Name</label>
+            <input id={nameId} autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -101,7 +102,7 @@ export const QueryModal = ({ isOpen, onClose, onSave, initialName = '', initialS
           )}
 
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">SQL</label>
+            <div className="block text-sm font-medium text-secondary mb-1">SQL</div>
             <div className="h-64 w-full border border-strong rounded overflow-hidden">
                 <MonacoEditor
                     height="100%"

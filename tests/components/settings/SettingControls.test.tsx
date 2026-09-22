@@ -135,10 +135,19 @@ describe("SettingToggle", () => {
     render(
       <SettingToggle checked={false} onChange={() => {}} disabled />,
     );
+    // The native checkbox covers the switch, so it carries the cursor.
     const input = screen.getByRole("checkbox");
-    const label = input.closest("label");
-    expect(label).not.toBeNull();
-    expect(label!.className).toContain("cursor-not-allowed");
+    expect(input.className).toContain("cursor-not-allowed");
+  });
+
+  it("takes its accessible name and description from the enclosing SettingRow", () => {
+    render(
+      <SettingRow label="Show welcome" description="On startup">
+        <SettingToggle checked={false} onChange={() => {}} />
+      </SettingRow>,
+    );
+    const input = screen.getByRole("checkbox", { name: "Show welcome" });
+    expect(input).toHaveAccessibleDescription("On startup");
   });
 });
 

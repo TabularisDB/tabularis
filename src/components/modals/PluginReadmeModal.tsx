@@ -172,7 +172,10 @@ export function PluginReadmeModal({
               })}
             </div>
           ) : safeHtml ? (
+            // Delegates clicks from the README's <a> elements, which stay
+            // focusable and fire click on Enter, so the wrapper needs no role.
             <div
+              role="presentation"
               className={README_PROSE}
               onClick={handleContentClick}
               dangerouslySetInnerHTML={{ __html: safeHtml }}

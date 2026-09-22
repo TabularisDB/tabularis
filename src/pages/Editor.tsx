@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { reconstructTableQuery, resolveTabPageSize } from "../utils/editor";
 import { shouldShowStatementSuccess } from "../utils/resultPresentation";
 import { formatRowsForCopy, copyTextToClipboard } from "../utils/clipboard";
+import { onActivationKey } from "../utils/keyboardEvents";
 import {
   formatResultForExport,
   getLoadedRowsExportLimit,
@@ -3817,7 +3818,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               onDragStart={(e) => handleTabDragStart(e, tab.id)}
               onDragEnd={handleTabDragEnd}
               onDragOver={handleTabDragOver(index)}
+              role="button"
+              tabIndex={0}
+              aria-current={activeTabId === tab.id ? "true" : undefined}
               onClick={() => setActiveTabId(tab.id)}
+              onKeyDown={onActivationKey(() => setActiveTabId(tab.id))}
               onContextMenu={(e) => handleTabContextMenu(e, tab.id)}
               onAuxClick={(e) => {
                 if (e.button === 1) {
@@ -3826,7 +3831,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 }
               }}
               className={clsx(
-                "flex items-center gap-2 px-3 h-full border-r border-default cursor-pointer min-w-[140px] max-w-[220px] text-xs transition-all duration-150 group relative select-none",
+                "flex items-center gap-2 px-3 h-full border-r border-default cursor-pointer min-w-[140px] max-w-[220px] text-xs transition-all duration-150 group relative select-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
                 activeTabId === tab.id
                   ? "bg-base text-primary font-medium"
                   : "text-muted hover:bg-[var(--tab-hover)] hover:text-secondary",
@@ -3927,6 +3932,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   e.stopPropagation();
                   handleCloseTab(tab.id);
                 }}
+                aria-label={t("editor.closeTab")}
                 className={clsx(
                   "p-0.5 rounded hover:bg-surface-secondary hover:text-primary hover:scale-110 transition-all duration-150 shrink-0",
                   activeTabId === tab.id
@@ -4471,16 +4477,20 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             />
           ) : (
             <div
-              onMouseDown={isEditorOpen ? startResize : undefined}
               className={clsx(
                 "h-6 bg-elevated border-y border-default flex items-center justify-end px-2 relative",
                 isEditorOpen ? "cursor-row-resize" : "",
               )}
             >
-              <div
-                className="flex items-center gap-0.5"
-                onMouseDown={(e) => e.stopPropagation()}
-              >
+              {isEditorOpen && (
+                // Mouse-only drag surface behind the buttons (no keyboard resize), hidden from assistive tech.
+                <div
+                  aria-hidden="true"
+                  onMouseDown={startResize}
+                  className="absolute inset-0"
+                />
+              )}
+              <div className="relative flex items-center gap-0.5">
                 {/* Detach results into a separate window */}
                 <button
                   onClick={(e) => {
@@ -4735,17 +4745,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                           <ChevronLeft size={14} />
                         </button>
 
-                        <div
-                          className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap"
-                          onClick={() => {
-                            setIsEditingPage(true);
-                            setTempPage(
-                              String(activeTab.result!.pagination!.page),
-                            );
-                          }}
-                          title={t("editor.jumpToPage")}
-                        >
-                          {isEditingPage ? (
+                        {isEditingPage ? (
+                          <div
+                            className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap"
+                            title={t("editor.jumpToPage")}
+                          >
                             <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
                               autoFocus
                               type="text"
@@ -4777,10 +4781,20 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                                 e.stopPropagation();
                               }}
                               onBlur={() => setIsEditingPage(false)}
-                              onClick={(e) => e.stopPropagation()}
                             />
-                          ) : (
-                            <>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                            onClick={() => {
+                              setIsEditingPage(true);
+                              setTempPage(
+                                String(activeTab.result!.pagination!.page),
+                              );
+                            }}
+                            title={t("editor.jumpToPage")}
+                          >
                               {activeTab.result.pagination.total_rows !== null
                                 ? t("editor.pageOf", {
                                     current: activeTab.result.pagination.page,
@@ -4792,9 +4806,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                                 : t("editor.page", {
                                     current: activeTab.result.pagination.page,
                                   })}
-                            </>
-                          )}
-                        </div>
+                          </button>
+                        )}
 
                         {activeTab.result.pagination.total_rows === null ? (
                           <button

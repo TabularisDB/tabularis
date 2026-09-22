@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Select } from '../../ui/Select';
 import type { DataTypeInfo } from '../../../types/dataTypes';
 import { useColumnResize } from '../../../hooks/useColumnResize';
+import { ColumnResizeHandle } from './ColumnResizeHandle';
 
 export interface SchemaColumn {
   name: string;
@@ -64,7 +65,7 @@ export function SchemaEditor({
     [isAppend],
   );
   const colCount = initialWidths.length;
-  const { widths, startResize } = useColumnResize(colCount, 160, 40, initialWidths);
+  const { widths, startResize, onResizeKeyDown, minWidth, maxWidth } = useColumnResize(colCount, 160, 40, initialWidths);
 
   // Selection is remounted with an empty set via key={columns.length} in the
   // parent whenever the column list is replaced (delete or re-parse), so no
@@ -157,50 +158,32 @@ export function SchemaEditor({
                   className="accent-accent-primary"
                   disabled={columns.length === 0}
                 />
-                <div
-                  onMouseDown={(e) => startResize(0, e)}
-                  className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-accent-primary/60 active:bg-accent-primary select-none"
-                />
+                <ColumnResizeHandle index={0} width={widths[0]} minWidth={minWidth} maxWidth={maxWidth} onMouseDown={startResize} onKeyDown={onResizeKeyDown} />
               </th>
               <th className="relative p-2 text-[10px] text-muted font-semibold">
                 {isAppend ? t('clipboardImport.sourceColumn') : t('createTable.colName')}
-                <div
-                  onMouseDown={(e) => startResize(1, e)}
-                  className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-accent-primary/60 active:bg-accent-primary select-none"
-                />
+                <ColumnResizeHandle index={1} width={widths[1]} minWidth={minWidth} maxWidth={maxWidth} onMouseDown={startResize} onKeyDown={onResizeKeyDown} />
               </th>
               {isAppend ? (
                 <th className="relative p-2 text-[10px] text-muted font-semibold">
                   {t('clipboardImport.targetColumn')}
-                  <div
-                    onMouseDown={(e) => startResize(2, e)}
-                    className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-accent-primary/60 active:bg-accent-primary select-none"
-                  />
+                  <ColumnResizeHandle index={2} width={widths[2]} minWidth={minWidth} maxWidth={maxWidth} onMouseDown={startResize} onKeyDown={onResizeKeyDown} />
                 </th>
               ) : (
                 <>
                   <th className="relative p-2 text-[10px] text-muted font-semibold">
                     {t('createTable.colType')}
-                    <div
-                      onMouseDown={(e) => startResize(2, e)}
-                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-accent-primary/60 active:bg-accent-primary select-none"
-                    />
+                    <ColumnResizeHandle index={2} width={widths[2]} minWidth={minWidth} maxWidth={maxWidth} onMouseDown={startResize} onKeyDown={onResizeKeyDown} />
                   </th>
                   <th className="relative p-2 text-[10px] text-muted font-semibold text-center">
                     NULL
-                    <div
-                      onMouseDown={(e) => startResize(3, e)}
-                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-accent-primary/60 active:bg-accent-primary select-none"
-                    />
+                    <ColumnResizeHandle index={3} width={widths[3]} minWidth={minWidth} maxWidth={maxWidth} onMouseDown={startResize} onKeyDown={onResizeKeyDown} />
                   </th>
                 </>
               )}
               <th className="relative p-2 text-[10px] text-muted font-semibold">
                 {t('clipboardImport.sample')}
-                <div
-                  onMouseDown={(e) => startResize(isAppend ? 3 : 4, e)}
-                  className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-accent-primary/60 active:bg-accent-primary select-none"
-                />
+                <ColumnResizeHandle index={isAppend ? 3 : 4} width={widths[isAppend ? 3 : 4]} minWidth={minWidth} maxWidth={maxWidth} onMouseDown={startResize} onKeyDown={onResizeKeyDown} />
               </th>
               <th className="p-2" />
             </tr>

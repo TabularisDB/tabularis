@@ -17,11 +17,12 @@ export const MetadataErrorIndicator = ({
   const [isCopied, setIsCopied] = useState(false);
 
   return (
-    <div className="relative">
+    // The indicator lives inside clickable sidebar rows: clicks on it or on its
+    // popover must not reach the row.
+    <div role="presentation" className="relative" onClick={(event) => event.stopPropagation()}>
       <button
         type="button"
-        onClick={(event) => {
-          event.stopPropagation();
+        onClick={() => {
           setIsOpen((current) => !current);
           setIsCopied(false);
         }}
@@ -37,7 +38,6 @@ export const MetadataErrorIndicator = ({
         <div
           role="dialog"
           aria-label={title}
-          onClick={(event) => event.stopPropagation()}
           className="absolute right-0 top-full z-50 mt-1 w-72 rounded-md border border-default bg-surface-primary p-3 text-left normal-case tracking-normal shadow-xl"
         >
           <div className="mb-2 text-xs font-semibold text-accent-error">{title}</div>

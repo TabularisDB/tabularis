@@ -64,12 +64,14 @@ export const TableNodeComponent = memo(({ data }: NodeProps<TableNode>) => {
                     onChange={(e) => data.onColumnCheck(col.name, e.target.checked)}
                     onClick={(e) => e.stopPropagation()}
                   />
-                  <span 
-                    className="truncate cursor-pointer hover:text-accent-secondary transition-colors"
+                  <button
+                    type="button"
+                    aria-expanded={isExpanded}
+                    className="truncate text-left cursor-pointer hover:text-accent-secondary transition-colors rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                     onClick={() => setExpandedColumn(isExpanded ? null : col.name)}
                   >
                     {col.name}
-                  </span>
+                  </button>
                   {aggregation?.function && (
                     <span className="text-accent-secondary text-[9px] font-mono bg-accent-secondary/10 px-1 rounded">
                       {aggregation.function}

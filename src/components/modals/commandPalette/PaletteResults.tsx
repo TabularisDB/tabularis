@@ -120,6 +120,7 @@ export const PaletteResults = ({
                     {item.group}
                   </div>
                 )}
+                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus -- combobox option: focus stays on the search input, which drives it via aria-activedescendant and Arrow/Enter keys */}
                 <div
                   id={paletteOptionId(index)}
                   role="option"

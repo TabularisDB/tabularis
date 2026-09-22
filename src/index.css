@@ -120,14 +120,14 @@
   --surface-disabled: #1e293b;
   
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #7583a0;
+  --text-secondary: #abb7c7;
+  --text-muted: #a2acbf;
   --text-disabled: #475569;
-  --text-accent: #3b82f6;
+  --text-accent: #7dacf9;
   --text-inverse: #020617;
   
   --accent-primary: #3b82f6;
-  --accent-secondary: #8b5cf6;
+  --accent-secondary: #9063f6;
   --accent-success: #22c55e;
   --accent-warning: #f59e0b;
   --accent-error: #ef4444;
@@ -171,7 +171,7 @@
   --semantic-number: #60a5fa;
   --semantic-boolean: #a78bfa;
   --semantic-date: #4ade80;
-  --semantic-null: #64748b;
+  --semantic-null: #718199;
   --semantic-pk: #fbbf24;
   --semantic-fk: #22d3ee;
   --semantic-index: #c084fc;
