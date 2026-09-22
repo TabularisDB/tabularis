@@ -1,3 +1,4 @@
+// CI path-filter test, do not merge
 // Import polyfills first to make Buffer available globally
 import './polyfills';
 import React, { Suspense } from 'react';
