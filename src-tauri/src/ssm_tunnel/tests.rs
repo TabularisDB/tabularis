@@ -299,3 +299,79 @@ mod is_alive_tests {
         assert!(!tunnel.is_alive());
     }
 }
+
+mod extend_path_tests {
+    use super::*;
+    use std::ffi::OsString;
+    use std::path::PathBuf;
+
+    fn entries(value: &OsString) -> Vec<PathBuf> {
+        std::env::split_paths(value).collect()
+    }
+
+    #[test]
+    fn appends_well_known_directories_after_the_inherited_ones() {
+        let inherited = OsString::from("/usr/bin:/bin");
+
+        let result = entries(&extend_path(&inherited, &["/usr/share"]));
+
+        assert_eq!(
+            result,
+            vec![
+                PathBuf::from("/usr/bin"),
+                PathBuf::from("/bin"),
+                PathBuf::from("/usr/share"),
+            ]
+        );
+    }
+
+    #[test]
+    fn skips_directories_that_do_not_exist() {
+        let inherited = OsString::from("/usr/bin");
+
+        let result = entries(&extend_path(&inherited, &["/no/such/directory/here"]));
+
+        assert_eq!(result, vec![PathBuf::from("/usr/bin")]);
+    }
+
+    #[test]
+    fn never_duplicates_a_directory_already_on_the_path() {
+        let inherited = OsString::from("/usr/bin:/usr/share");
+
+        let result = entries(&extend_path(&inherited, &["/usr/share"]));
+
+        assert_eq!(
+            result,
+            vec![PathBuf::from("/usr/bin"), PathBuf::from("/usr/share")]
+        );
+    }
+
+    #[test]
+    fn an_empty_inherited_path_still_gains_the_well_known_directories() {
+        let result = entries(&extend_path(&OsString::new(), &["/usr/share"]));
+
+        assert!(result.contains(&PathBuf::from("/usr/share")));
+    }
+}
+
+/// Runs the real spawn path against a locally installed AWS CLI. Ignored by
+/// default: CI has no AWS CLI, and the point is to be run under the stripped
+/// PATH a desktop app inherits (`env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin`).
+#[test]
+#[ignore = "requires a locally installed AWS CLI"]
+fn launches_the_aws_cli_from_a_desktop_environment() {
+    let output = aws_command()
+        .arg("--version")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .unwrap_or_else(|error| panic!("{}", aws_spawn_error(&error)));
+
+    assert!(output.status.success(), "aws --version failed");
+    eprintln!(
+        "resolved: {}\nPATH: {}\n{}",
+        aws_program().to_string_lossy(),
+        search_path().to_string_lossy(),
+        String::from_utf8_lossy(&output.stdout).trim()
+    );
+}
