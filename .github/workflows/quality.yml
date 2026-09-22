@@ -22,7 +22,7 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/quality.yml'
   pull_request:
-    branches: [main]
+    branches: [main, ci/path-scoped-workflows]
     paths:
       - 'src/**'
       - 'packages/*/src/**'

@@ -25,7 +25,7 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/packages.yml'
   pull_request:
-    branches: [main]
+    branches: [main, ci/path-scoped-workflows]
     paths:
       - 'packages/**'
       - 'src/pluginApi.ts'

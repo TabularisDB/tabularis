@@ -29,7 +29,7 @@ on:
       - 'postcss.config.js'
       - '.github/workflows/ci.yml'
   pull_request:
-    branches: [main]
+    branches: [main, ci/path-scoped-workflows]
     paths:
       - 'src/**'
       - 'src-tauri/**'

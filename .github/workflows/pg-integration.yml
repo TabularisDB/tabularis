@@ -12,7 +12,7 @@ on:
       - '.github/workflows/pg-integration.yml'
       - 'tests/fixtures/*postgres*'
   pull_request:
-    branches: [main]
+    branches: [main, ci/path-scoped-workflows]
     paths:
       - 'src-tauri/**'
       - '.github/workflows/pg-integration.yml'
