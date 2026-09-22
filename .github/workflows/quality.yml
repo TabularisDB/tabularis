@@ -13,7 +13,9 @@ on:
     branches: [main]
     paths:
       - 'src/**'
-      - 'packages/*/src/**'
+      - 'packages/**/*.ts'
+      - 'packages/**/*.tsx'
+      - '*.ts' # root configs, linted by ESLint
       - 'tests/utils/themeContrast.test.ts'
       - 'scripts/check-theme-tokens.mjs'
       - 'eslint.config.js'
@@ -25,7 +27,9 @@ on:
     branches: [main]
     paths:
       - 'src/**'
-      - 'packages/*/src/**'
+      - 'packages/**/*.ts'
+      - 'packages/**/*.tsx'
+      - '*.ts' # root configs, linted by ESLint
       - 'tests/utils/themeContrast.test.ts'
       - 'scripts/check-theme-tokens.mjs'
       - 'eslint.config.js'
@@ -73,8 +77,10 @@ jobs:
               - 'pnpm-lock.yaml'
               - '.github/workflows/quality.yml'
             a11y:
+              # Everything `eslint .` lints (see globalIgnores in eslint.config.js).
               - 'src/**/*.{ts,tsx}'
-              - 'packages/*/src/**/*.{ts,tsx}'
+              - 'packages/**/*.{ts,tsx}'
+              - '*.ts'
               - 'eslint.config.js'
               - 'package.json'
               - 'pnpm-lock.yaml'

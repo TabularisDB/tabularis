@@ -3,7 +3,8 @@ name: CI
 # Frontend and Rust checks run as separate jobs, each only when its own
 # inputs change: a `changes` job maps changed paths to the two areas. The
 # `on.paths` list is the union of both filters, so a docs-only change does
-# not start the workflow at all.
+# not start the workflow at all. Linting (ESLint and theme tokens) lives in
+# quality.yml, so it is not repeated here.
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -18,14 +19,12 @@ on:
       - 'tests/**'
       - 'packages/explain/**' # imported from source by the host
       - 'public/**'
-      - 'scripts/**'
       - 'index.html'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'tsconfig*.json'
       - 'vite.config.ts'
       - 'vitest.config.ts'
-      - 'eslint.config.js'
       - 'postcss.config.js'
       - '.github/workflows/ci.yml'
   pull_request:
@@ -36,14 +35,12 @@ on:
       - 'tests/**'
       - 'packages/explain/**'
       - 'public/**'
-      - 'scripts/**'
       - 'index.html'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'tsconfig*.json'
       - 'vite.config.ts'
       - 'vitest.config.ts'
-      - 'eslint.config.js'
       - 'postcss.config.js'
       - '.github/workflows/ci.yml'
 
@@ -75,14 +72,12 @@ jobs:
               - 'src-tauri/capabilities/**' # imported by frontend tests
               - 'packages/explain/**'
               - 'public/**'
-              - 'scripts/**'
               - 'index.html'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'tsconfig*.json'
               - 'vite.config.ts'
               - 'vitest.config.ts'
-              - 'eslint.config.js'
               - 'postcss.config.js'
               - '.github/workflows/ci.yml'
             rust:
@@ -118,9 +113,6 @@ jobs:
 
       - name: Typecheck
         run: pnpm run typecheck
-
-      - name: Lint
-        run: pnpm run lint
 
       - name: Build
         run: pnpm run build
