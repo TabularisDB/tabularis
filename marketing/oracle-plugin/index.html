@@ -1,0 +1,1386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tabularis + Oracle</title>
+<meta name="description" content="Animated announcement of the Oracle plugin for Tabularis." />
+<!--
+  Launch animation for the Oracle plugin.
+
+  Open this file in a browser to watch it loop (Space pauses, arrow keys scrub,
+  ?t=12 starts at a given second). render.mjs loads it with ?capture, calls
+  window.__seek(t) for every frame and encodes the screenshots with ffmpeg, so
+  every visual is a pure function of the time t: no CSS transitions, no timers.
+
+  UI copy, geometry and data mirror the real app and the plugin's screenshots
+  (Tabularis Dark theme, FREEPDB1/SHOP demo schema, the plan of the same query).
+-->
+<style>
+  @font-face {
+    font-family: "Inter";
+    src: url("fonts/inter-latin-wght-normal.woff2") format("woff2");
+    font-weight: 100 900;
+    font-display: block;
+  }
+  @font-face {
+    font-family: "JetBrains Mono";
+    src: url("fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2");
+    font-weight: 100 800;
+    font-display: block;
+  }
+
+  :root {
+    /* Tabularis Dark (src/themes/presets/tabularisDark.ts) */
+    --bg-base: #020617;
+    --bg-elevated: #0f172a;
+    --bg-overlay: #1e293b;
+    --surface: #1e293b;
+    --surface-2: #334155;
+    --border-subtle: #1e293b;
+    --border: #334155;
+    --border-strong: #5b6b82;
+    --text: #f8fafc;
+    --text-2: #abb7c7;
+    --muted: #7c879b;
+    --text-accent: #7dacf9;
+    --accent: #3b82f6;
+    --success: #22c55e;
+    --success-text: #4ade80;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --violet: #9063f6;
+    /* Monaco "GitHub Dark", the editor theme Tabularis Dark ships with */
+    --sql-kw: #ea4a5a;
+    --sql-id: #e6edf3;
+    --sql-paren: #ffd700;
+    --gutter: #6e7681;
+    /* Brand: logo gradient stops and the Oracle plugin identity color */
+    --teal: #0cdccf;
+    --indigo: #29285e;
+    --purple: #7746c8;
+    --magenta: #a842bd;
+    --oracle: #c74634;
+    --oracle-hi: #e0634d;
+    --sans: "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+  body { font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  svg { display: block; }
+  .abs { position: absolute; left: 0; top: 0; }
+  .ic { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  #stage {
+    position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden;
+    background: var(--bg-base); color: var(--text); transform-origin: 0 0;
+  }
+
+  /* ---------- background ---------- */
+  .glow { position: absolute; border-radius: 50%; opacity: 0; }
+  #glowTeal { left: 860px; top: -760px; width: 1500px; height: 1500px;
+    background: radial-gradient(closest-side, rgba(12, 220, 207, .26), rgba(12, 220, 207, .08) 48%, transparent 74%); }
+  #glowViolet { left: -620px; top: 260px; width: 1500px; height: 1500px;
+    background: radial-gradient(closest-side, rgba(119, 70, 200, .34), rgba(119, 70, 200, .10) 48%, transparent 74%); }
+  #glowRed { left: 760px; top: -260px; width: 1400px; height: 1400px;
+    background: radial-gradient(closest-side, rgba(199, 70, 52, .30), rgba(199, 70, 52, .08) 50%, transparent 74%); }
+  #bgGrid { position: absolute; inset: 0; opacity: 0;
+    background-image:
+      linear-gradient(rgba(148, 163, 184, .075) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, .075) 1px, transparent 1px);
+    background-size: 64px 64px; background-position: 32px 28px;
+    -webkit-mask-image: radial-gradient(ellipse 62% 58% at 50% 46%, #000 25%, transparent 78%);
+            mask-image: radial-gradient(ellipse 62% 58% at 50% 46%, #000 25%, transparent 78%); }
+  #vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(0, 0, 0, .5)); }
+
+  /* ---------- heroes ---------- */
+  .hero { width: 300px; height: 300px; transform-origin: 50% 50%; }
+  #logo svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 18px 40px rgba(12, 220, 207, .18)); }
+  #oracle svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 18px 44px rgba(199, 70, 52, .45)); }
+
+  #wordmark { font-weight: 800; font-size: 150px; line-height: 1; letter-spacing: -0.045em; white-space: nowrap;
+    background: linear-gradient(180deg, #ffffff 30%, #b9c6db); -webkit-background-clip: text; background-clip: text; color: transparent;
+    padding: 0 .06em .12em 0; }
+  #tagline { font-family: var(--mono); font-size: 27px; letter-spacing: .02em; color: #93a3b8; white-space: nowrap; }
+  #tagline b { color: var(--teal); font-weight: 500; }
+
+  #plug { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(circle at 30% 25%, #1e293b, #0b1224); color: #fff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, .10), 0 10px 30px rgba(0, 0, 0, .5); transform-origin: 50% 50%; }
+  #plug::before { content: ""; position: absolute; inset: -2px; border-radius: 50%; padding: 2px;
+    background: linear-gradient(90deg, var(--teal), var(--oracle));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+            mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+
+  /* ---------- scene 2 copy ---------- */
+  #s2 { width: 1920px; top: 612px; text-align: center; }
+  .pill { display: inline-flex; align-items: center; gap: 12px; padding: 10px 22px 10px 16px; border-radius: 999px;
+    font-family: var(--mono); font-size: 22px; font-weight: 600; letter-spacing: .14em; color: #fecaca;
+    background: rgba(199, 70, 52, .16); box-shadow: inset 0 0 0 1.5px rgba(224, 99, 77, .45); }
+  .pill .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--oracle-hi); box-shadow: 0 0 12px var(--oracle-hi); }
+  #s2title { margin-top: 26px; font-size: 104px; font-weight: 800; letter-spacing: -0.04em; line-height: 1.05; }
+  #s2title span { display: inline-block; }
+  .ora { background: linear-gradient(90deg, #ff8a70, var(--oracle-hi) 45%, var(--oracle)); -webkit-background-clip: text;
+    background-clip: text; color: transparent; padding-right: .05em; }
+  #s2sub { margin-top: 26px; font-size: 32px; font-weight: 500; color: var(--text-2); letter-spacing: -0.005em; }
+  #s2sub i { font-style: normal; color: #6b7a92; padding: 0 .45em; }
+
+  /* ---------- captions (scene 3) ---------- */
+  .cap { position: absolute; left: 0; top: 58px; width: 1920px; display: flex; justify-content: center; align-items: center; gap: 22px;
+    font-size: 44px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; text-shadow: 0 4px 24px rgba(0, 0, 0, .6); }
+  .cap b { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--teal); padding: 7px 12px; border-radius: 10px;
+    background: rgba(12, 220, 207, .12); box-shadow: inset 0 0 0 1.5px rgba(12, 220, 207, .35); letter-spacing: .06em; text-shadow: none; }
+  .cap em { font-style: normal; color: #ff9b85; }
+
+  /* ---------- app window ---------- */
+  #appLayer { width: 1920px; height: 1080px; perspective: 2200px; perspective-origin: 50% 30%; z-index: 10; }
+  #capBand { width: 1920px; height: 160px; z-index: 11;
+    background: linear-gradient(180deg, var(--bg-base) 0, var(--bg-base) 92px, rgba(2, 6, 23, .82) 118px, rgba(2, 6, 23, 0) 160px); }
+  #captions { position: absolute; left: 0; top: 0; z-index: 12; }
+  #logo, #oracle, #link, #plug, #s2 { z-index: 13; }
+  #end { z-index: 14; }
+  #fade { z-index: 20; }
+  #winTilt { width: 1920px; height: 1080px; transform-origin: 960px 760px; }
+  .win { position: absolute; left: 0; top: 0; width: 1280px; height: 800px; transform-origin: 0 0; overflow: hidden;
+    border-radius: 12px; background: var(--bg-base); font-size: 14px; color: var(--text);
+    box-shadow: 0 60px 140px -30px rgba(0, 0, 0, .85), 0 0 0 1px rgba(148, 163, 184, .16); }
+  .win * { position: relative; }
+  .tb { position: absolute; left: 0; top: 0; width: 1280px; height: 34px; background: #0c101c; border-bottom: 1px solid #161f33;
+    display: flex; align-items: center; z-index: 5; }
+  .lights { display: flex; gap: 9px; margin-left: 14px; }
+  .lights i { width: 12px; height: 12px; border-radius: 50%; }
+  .tb .title { margin-left: 20px; font-weight: 600; font-size: 14px; color: #dbe3ee; white-space: nowrap; }
+
+  .ws { position: absolute; left: 0; top: 34px; width: 1280px; height: 766px; }
+  .rail { position: absolute; left: 0; top: 0; width: 56px; height: 766px; background: #0f172a; border-right: 1px solid #1a2438; }
+  .rail .it { position: absolute; left: 16px; width: 24px; height: 24px; color: #94a3b8; }
+  .rail .logoTile { position: absolute; left: 8px; top: 12px; width: 40px; height: 40px; border-radius: 10px; background: #1b1f45;
+    display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+  .rail .conn { position: absolute; left: 8px; top: 158px; width: 40px; height: 40px; border-radius: 10px; background: var(--oracle);
+    display: grid; place-items: center; color: #fff; transform-origin: 50% 50%; box-shadow: 0 0 0 2px #0f172a, 0 0 0 3.5px rgba(199, 70, 52, .55); }
+  .rail .conn .dot { position: absolute; right: -3px; bottom: -3px; width: 12px; height: 12px; border-radius: 50%; background: var(--success);
+    box-shadow: 0 0 0 2.5px #0f172a; }
+  .rail .plugDot { position: absolute; left: 34px; top: 100px; width: 8px; height: 8px; border-radius: 50%; background: var(--success);
+    box-shadow: 0 0 0 2px #0f172a; }
+
+  .explorer { position: absolute; left: 56px; top: 0; width: 256px; height: 766px; background: var(--bg-base); border-right: 1px solid #172033; }
+  .exHead { height: 62px; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 16px; }
+  .exHead .t1 { font-weight: 700; font-size: 15px; }
+  .exHead .t2 { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
+  .exHead .tools { margin-left: auto; display: flex; gap: 9px; color: #94a3b8; }
+  .exTabs { height: 30px; display: flex; align-items: center; padding: 0 8px; gap: 18px; border-bottom: 1px solid #172033; color: #94a3b8; }
+  .exTabs .on { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 13px; font-weight: 600; height: 30px; padding: 0 20px;
+    border-bottom: 2px solid var(--accent); }
+  .tree { position: absolute; left: 0; top: 100px; width: 256px; }
+  .tr { height: 26px; display: flex; align-items: center; gap: 7px; padding-right: 10px; font-size: 13px; white-space: nowrap; }
+  .tr .chev { width: 12px; height: 12px; color: #7c879b; flex: none; }
+  .tr .ti { width: 15px; height: 15px; flex: none; }
+  .tr .r { margin-left: auto; font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+  .tr.label { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; color: #8b96aa; }
+  .tr.group { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; color: #c4ccd8; }
+  .tr.filter .box { flex: 1; height: 22px; border-radius: 6px; background: #1e293b; color: #7c879b; font-size: 12px;
+    display: flex; align-items: center; gap: 6px; padding: 0 8px; }
+  .tr.col { color: #d7dee8; font-size: 12.5px; }
+  .tr.pk { color: #fbbf24; font-weight: 700; font-size: 12.5px; }
+  .exEmpty { position: absolute; left: 0; top: 330px; width: 256px; text-align: center; color: #56627a; font-size: 13px; }
+
+  .ed { position: absolute; left: 312px; top: 0; width: 968px; height: 766px; }
+  .tabs { height: 30px; background: #0f172a; display: flex; align-items: flex-end; border-bottom: 1px solid #1a2438; }
+  .tabs .tint { position: absolute; inset: 0; background: rgba(199, 70, 52, .14); }
+  .tabs .nav { display: flex; gap: 10px; padding: 0 12px 7px; color: #475569; }
+  .tabs .tab { height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 12px; width: 136px; font-size: 13px; color: #e2e8f0;
+    background: rgba(0, 0, 0, .38); border-top: 2px solid var(--violet); }
+  .tabs .tab .x { margin-left: auto; color: #94a3b8; }
+  .tabs .right { margin-left: auto; display: flex; gap: 14px; padding: 0 14px 7px; color: #94a3b8; }
+  .toolbar { height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 7px; border-bottom: 1px solid #172033; background: #0b1222; }
+  .btn { height: 30px; border-radius: 7px; display: inline-flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 13.5px; font-weight: 600;
+    white-space: nowrap; transform-origin: 50% 50%; }
+  .btn.run { background: #4cc05f; color: #03130a; padding: 0 10px 0 12px; }
+  .btn.run .split { width: 1px; height: 30px; background: rgba(0, 0, 0, .25); margin: 0 2px 0 6px; }
+  .btn.ghost { background: #334155; color: #e2e8f0; }
+  .btn.dim { background: #1f2a3c; color: #6b778b; }
+  .btn.pri { background: var(--accent); color: #fff; }
+  .btn.out { background: transparent; color: #e2e8f0; box-shadow: inset 0 0 0 1px #3b4a60; }
+  .code { position: absolute; left: 0; top: 82px; width: 968px; height: 300px; font-family: var(--mono); font-size: 15px; }
+  .ln { height: 21px; line-height: 21px; display: flex; white-space: pre; }
+  .ln .g { width: 44px; text-align: right; color: var(--gutter); padding-right: 14px; flex: none; }
+  .ln .g.on { color: #e6edf3; }
+  .ln .fold { width: 20px; flex: none; color: #6e7681; }
+  .ln .src { color: var(--sql-id); }
+  .kw { color: var(--sql-kw); }
+  .pa { color: var(--sql-paren); }
+  .caret { display: inline-block; width: 2px; height: 19px; background: #fff; vertical-align: -4px; margin-left: 1px; }
+  .explainBtn { position: absolute; left: 853px; top: 354px; height: 26px; font-size: 12.5px; font-weight: 500; padding: 0 10px; gap: 6px;
+    background: #0e1526; color: #cbd5e1; box-shadow: inset 0 0 0 1px #2a3549; }
+  .resBar { position: absolute; left: 0; top: 404px; width: 968px; height: 34px; background: #0f172a; border-top: 1px solid #1a2438;
+    display: flex; align-items: center; padding: 0 8px; gap: 10px; font-size: 12.5px; color: #9aa5b8; }
+  .resBar .pager { margin-left: auto; display: flex; gap: 6px; align-items: center; color: #64748b; }
+  .resBar .pager .box { height: 22px; border-radius: 5px; background: #1e293b; color: #cbd5e1; display: inline-flex; align-items: center; padding: 0 8px; gap: 4px; font-size: 12px; }
+  .rgrid { position: absolute; left: 0; top: 438px; width: 968px; }
+  .gh, .gr { display: flex; height: 34px; align-items: center; border-bottom: 1px solid #1a2438; font-size: 13.5px; }
+  .gh { background: var(--bg-base); font-size: 11.5px; font-weight: 700; letter-spacing: .06em; color: #9aa5b8; height: 32px; }
+  .gr { background: #0f172a; }
+  .gh > div, .gr > div { padding: 0 14px; height: 100%; display: flex; align-items: center; border-right: 1px solid #1a2438; }
+  .c0 { width: 50px; justify-content: center; padding: 0 !important; color: #8f9ab0; }
+  .c1 { width: 290px; } .c2 { width: 300px; } .c3 { flex: 1; border-right: 0 !important; }
+  .resEmpty { position: absolute; left: 0; top: 540px; width: 968px; text-align: center; color: #4b5870; font-size: 13px; }
+
+  /* modals */
+  .scrim { position: absolute; left: 0; top: 34px; width: 1280px; height: 766px; background: rgba(0, 0, 0, .5); }
+  .modal { position: absolute; border-radius: 12px; overflow: hidden; background: #0b1222; transform-origin: 50% 50%;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .6), 0 0 0 1px rgba(71, 85, 105, .55); }
+  #mConn { left: 190px; top: 71px; width: 900px; height: 690px; }
+  .pane { position: absolute; left: 0; top: 0; width: 900px; height: 690px; }
+  .mh { height: 48px; display: flex; align-items: center; padding: 0 18px; gap: 10px; border-bottom: 1px solid #1c2638; background: #080e1c; }
+  .mh .mt { font-size: 15.5px; font-weight: 700; white-space: nowrap; }
+  .steps { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #94a3b8; }
+  .st { display: inline-flex; align-items: center; gap: 7px; padding: 3px 9px 3px 4px; border-radius: 999px; white-space: nowrap; }
+  .st i { width: 18px; height: 18px; border-radius: 50%; font-style: normal; font-size: 11px; font-weight: 700; display: grid; place-items: center; background: #334155; color: #cbd5e1; }
+  .st.on { background: rgba(59, 130, 246, .2); color: #bfdbfe; }
+  .st.on i { background: var(--accent); color: #fff; }
+  .st.done i { background: var(--success); color: #03130a; }
+  .steps .sep { width: 14px; height: 1px; background: #475569; }
+  .mx { color: #94a3b8; margin-left: 10px; }
+
+  .search { position: absolute; left: 18px; top: 63px; width: 862px; height: 36px; border-radius: 8px; background: #050b19;
+    box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 3px rgba(59, 130, 246, .18); display: flex; align-items: center; gap: 10px; padding: 0 12px;
+    font-size: 14.5px; color: var(--text); }
+  .search .ph { color: #64748b; }
+  .search .clr { margin-left: auto; color: #94a3b8; }
+  .chips { position: absolute; left: 18px; top: 110px; display: flex; gap: 6px; align-items: center; font-size: 12px; color: #cbd5e1; }
+  .chips span { height: 22px; padding: 0 9px; border-radius: 999px; box-shadow: inset 0 0 0 1px #334155; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .chips span b { font-weight: 500; color: #8391a7; }
+  .chips .vs { width: 1px; height: 18px; background: #334155; box-shadow: none; padding: 0; margin: 0 3px; }
+  .catDiv { position: absolute; left: 0; top: 142px; width: 900px; height: 1px; background: #1c2638; }
+  .sect { position: absolute; left: 18px; top: 160px; font-size: 12px; font-weight: 700; letter-spacing: .1em; color: #8b96aa; }
+  .sect b { color: #cbd5e1; margin-left: 8px; }
+  .card { position: absolute; width: 279px; height: 78px; border-radius: 12px; background: #1d2839; padding: 12px;
+    box-shadow: inset 0 0 0 1px #334155; overflow: hidden; }
+  .card .row { display: flex; align-items: center; gap: 10px; }
+  .card .ico { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; flex: none; }
+  .card .nm { font-weight: 600; font-size: 14.5px; white-space: nowrap; }
+  .card .meta { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+  .stt { margin-left: auto; height: 20px; padding: 0 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; display: inline-flex;
+    align-items: center; gap: 5px; white-space: nowrap; }
+  .stt.ok { background: rgba(34, 197, 94, .15); color: var(--success-text); }
+  .stt.ok i { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  .stt.inst { box-shadow: inset 0 0 0 1px #334155; color: #8391a7; font-weight: 500; }
+  .card .prog { position: absolute; left: 12px; top: 54px; width: 255px; display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 11px; font-weight: 600; color: #fecaca; }
+  .card .prog .track { flex: 1; height: 6px; border-radius: 3px; background: rgba(199, 70, 52, .22); overflow: hidden; }
+  .card .prog .track i { display: block; height: 6px; width: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--oracle), #ff8a70); transform-origin: 0 50%; }
+
+  .cfgHead { height: 84px; display: flex; align-items: center; gap: 14px; padding: 0 18px; border-bottom: 1px solid #1c2638; }
+  .cfgHead .big { width: 42px; height: 42px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+  .cfgHead .n { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .cfgHead .ver { font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: #334155; color: #cbd5e1; font-family: var(--mono); }
+  .cfgHead .rel { display: inline-block; margin-top: 4px; font-size: 10px; font-weight: 700; letter-spacing: .1em; color: #93c5fd; background: rgba(59, 130, 246, .18); padding: 2px 6px; border-radius: 4px; }
+  .cfgHead .desc { font-size: 12.5px; color: #a8b3c4; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 640px; }
+  .cfgHead .chg { margin-left: auto; height: 30px; border-radius: 7px; box-shadow: inset 0 0 0 1px #3b4a60; display: flex; align-items: center; gap: 7px; padding: 0 12px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+  .cfgTabs { height: 34px; display: flex; gap: 28px; padding: 0 18px; border-bottom: 1px solid #1c2638; font-size: 12px; font-weight: 700; letter-spacing: .08em; color: #8b96aa; align-items: stretch; }
+  .cfgTabs span { display: flex; align-items: center; }
+  .cfgTabs .on { color: var(--text-accent); box-shadow: inset 0 -2px 0 var(--accent); padding: 0 14px; margin: 0 -14px; }
+  .fl { position: absolute; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; color: #a3aec0; }
+  .fi { position: absolute; height: 34px; border-radius: 7px; background: #050b19; box-shadow: inset 0 0 0 1px #3b4a60; display: flex; align-items: center; padding: 0 12px; font-size: 14px; color: var(--text); white-space: pre; }
+  .fi.focus { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 3px rgba(59, 130, 246, .18); }
+  .fi .ph { color: #64748b; font-style: italic; }
+  .chk { position: absolute; left: 18px; display: flex; gap: 10px; align-items: center; font-size: 12.5px; color: #cbd5e1; }
+  .chk i { width: 14px; height: 14px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px #64748b; }
+  .cfgFoot { position: absolute; left: 0; top: 638px; width: 900px; height: 52px; border-top: 1px solid #1c2638; display: flex; align-items: center; padding: 0 18px; gap: 10px; }
+  .testBtn { height: 32px; border-radius: 7px; box-shadow: inset 0 0 0 1px #3b4a60; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; font-size: 13.5px; font-weight: 600; white-space: nowrap; transform-origin: 50% 50%; }
+  .testBtn.ok { box-shadow: inset 0 0 0 1.5px rgba(34, 197, 94, .7); color: var(--success-text); background: rgba(34, 197, 94, .08); }
+  .okMsg { font-size: 13px; color: var(--success-text); font-weight: 500; white-space: nowrap; }
+
+  #mExp { left: 65px; top: 91px; width: 1150px; height: 650px; background: #0a1120; }
+  .xh { height: 76px; display: flex; align-items: center; gap: 14px; padding: 0 18px; border-bottom: 1px solid #1c2638; }
+  .xh .tile { width: 36px; height: 36px; border-radius: 9px; background: rgba(34, 197, 94, .14); color: var(--success-text); display: grid; place-items: center; }
+  .xh .t { font-size: 18px; font-weight: 700; }
+  .xh .tags { display: flex; gap: 8px; margin-top: 6px; }
+  .xh .tag { height: 24px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 12px; font-weight: 600; background: #1e293b; white-space: nowrap; }
+  .xh .tag.mono { font-family: var(--mono); font-weight: 500; background: transparent; box-shadow: inset 0 0 0 1px #334155; color: #cbd5e1; letter-spacing: .03em; }
+  .xs { height: 42px; display: flex; align-items: center; gap: 22px; padding: 0 18px; font-size: 13px; color: #a8b3c4; border-bottom: 1px solid #1c2638; }
+  .xs b { font-family: var(--mono); color: var(--text); font-weight: 700; }
+  .xs .views { margin-left: auto; display: flex; gap: 4px; background: #111a2d; padding: 3px; border-radius: 8px; }
+  .xs .views span { height: 24px; padding: 0 10px; border-radius: 6px; display: inline-flex; align-items: center; font-size: 12px; color: #9aa5b8; white-space: nowrap; }
+  .xs .views .on { background: rgba(59, 130, 246, .22); color: #bfdbfe; }
+  .ov { margin: 10px 14px 0; border-radius: 12px; background: #0e1628; box-shadow: inset 0 0 0 1px #243047; padding: 10px 12px 12px; }
+  .ov .hd { font-size: 12px; font-weight: 700; letter-spacing: .1em; color: #cbd5e1; }
+  .ov .hd span { font-weight: 500; letter-spacing: 0; color: #8391a7; margin-left: 8px; }
+  .ov .cards { display: flex; gap: 8px; margin-top: 8px; }
+  .oc { width: 238px; height: 64px; border-radius: 9px; padding: 8px 12px; font-size: 11.5px; }
+  .oc .k { font-weight: 700; letter-spacing: .08em; font-size: 10.5px; }
+  .oc .v { font-family: var(--mono); font-weight: 700; font-size: 15px; margin-top: 2px; }
+  .oc .s { color: #a8b3c4; margin-top: 1px; white-space: nowrap; }
+  .pt { position: absolute; left: 0; top: 232px; width: 826px; }
+  .ph2, .pr { display: flex; height: 26px; align-items: center; font-size: 12.5px; border-bottom: 1px solid #172033; white-space: nowrap; }
+  .ph2 { color: #9aa5b8; font-weight: 600; font-size: 12px; height: 28px; }
+  .pr { color: #e2e8f0; font-weight: 700; font-size: 12px; }
+  .pr.sel { background: rgba(59, 130, 246, .13); }
+  .pc0 { width: 44px; padding-left: 14px; color: #8391a7; font-weight: 500; }
+  .pc1 { width: 262px; display: flex; align-items: center; gap: 4px; }
+  .pc2 { width: 104px; color: #cbd5e1; font-weight: 500; }
+  .pcn { width: 76px; text-align: right; font-family: var(--mono); font-weight: 500; color: #cbd5e1; padding-right: 8px; }
+  .pcw { width: 92px; }
+  .warn { color: #fbbf24 !important; }
+  .xside { position: absolute; left: 826px; top: 232px; width: 324px; height: 360px; border-left: 1px solid #1c2638; padding: 12px 14px; }
+  .xside .h { font-size: 12px; font-weight: 700; letter-spacing: .1em; color: #cbd5e1; margin-bottom: 8px; }
+  .xside .k { font-size: 12px; color: #a8b3c4; margin-top: 10px; }
+  .xside .v { font-family: var(--mono); font-size: 13px; color: var(--text); margin-top: 3px; }
+  .xf { position: absolute; left: 0; top: 592px; width: 1150px; height: 58px; border-top: 1px solid #1c2638; display: flex; align-items: center; padding: 0 18px; gap: 12px; font-size: 13.5px; }
+  .xf .cb { width: 15px; height: 15px; border-radius: 4px; background: var(--accent); display: grid; place-items: center; color: #fff; }
+  .xf .rerun { margin-left: auto; background: #4cc05f; color: #03130a; }
+
+  #cursor { position: absolute; left: 0; top: 0; width: 26px; height: 26px; z-index: 50; transform-origin: 3px 2px; }
+  #ripple { position: absolute; left: 0; top: 0; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%;
+    box-shadow: 0 0 0 2.5px rgba(125, 172, 249, .9), inset 0 0 18px rgba(125, 172, 249, .35); z-index: 49; }
+
+  /* ---------- end card ---------- */
+  #end { width: 1920px; top: 0; text-align: center; }
+  #endPill { position: absolute; left: 0; top: 352px; width: 1920px; }
+  #endTitle { position: absolute; left: 0; top: 424px; width: 1920px; font-weight: 800; font-size: 100px; letter-spacing: -0.045em; line-height: 1.1; }
+  #endTitle > div { display: block; }
+  #endTitle .l2 { background: linear-gradient(90deg, var(--teal), #7aa7ff 42%, #ff8a70 78%, var(--oracle-hi)); -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: .08em; }
+  #chips { position: absolute; left: 0; top: 678px; width: 1920px; display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 14px; padding: 0 300px; }
+  .fchip { display: inline-flex; align-items: center; gap: 12px; height: 54px; padding: 0 22px 0 16px; border-radius: 14px; font-size: 24px; font-weight: 600;
+    background: rgba(30, 41, 59, .72); box-shadow: inset 0 0 0 1.5px rgba(71, 85, 105, .7); color: #e2e8f0; white-space: nowrap; }
+  .fchip svg { width: 26px; height: 26px; color: var(--teal); }
+  .fchip.o svg { color: #ff8a70; }
+  #cta { position: absolute; left: 0; top: 856px; width: 1920px; display: flex; justify-content: center; align-items: center; gap: 26px; }
+  .ctaBtn { display: inline-flex; align-items: center; gap: 12px; height: 64px; padding: 0 28px; border-radius: 16px; font-size: 27px; font-weight: 700;
+    background: linear-gradient(180deg, #4f8ff7, #2f6fe0); color: #fff; box-shadow: 0 16px 40px -10px rgba(59, 130, 246, .7), inset 0 1px 0 rgba(255, 255, 255, .25); white-space: nowrap; }
+  .ctaBtn svg { width: 22px; height: 22px; opacity: .8; }
+  .ctaUrl { font-family: var(--mono); font-size: 25px; color: #cbd5e1; white-space: nowrap; }
+  .ctaUrl b { color: #fff; font-weight: 600; }
+  #foot { position: absolute; left: 0; top: 994px; width: 1920px; font-family: var(--mono); font-size: 21px; color: #7d8aa0; letter-spacing: .02em; white-space: nowrap; }
+  #foot i { font-style: normal; color: #3c4a60; padding: 0 .7em; }
+
+  #fade { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: var(--bg-base); pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg" class="abs" style="width:1920px;height:1080px">
+    <div id="glowTeal" class="glow"></div>
+    <div id="glowViolet" class="glow"></div>
+    <div id="glowRed" class="glow"></div>
+    <div id="bgGrid"></div>
+    <div id="vignette"></div>
+  </div>
+
+  <!-- link between the two heroes -->
+  <svg id="link" class="abs" width="1920" height="1080" viewBox="0 0 1920 1080" aria-hidden="true">
+    <defs>
+      <linearGradient id="linkGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1920" y2="0">
+        <stop offset="0" stop-color="#0cdccf" />
+        <stop offset="1" stop-color="#e0634d" />
+      </linearGradient>
+      <filter id="blur8" x="-20%" y="-200%" width="140%" height="500%"><feGaussianBlur stdDeviation="8" /></filter>
+      <radialGradient id="pulseGrad"><stop offset="0" stop-color="#fff" /><stop offset=".45" stop-color="#fff" stop-opacity=".9" /><stop offset="1" stop-color="#fff" stop-opacity="0" /></radialGradient>
+    </defs>
+    <line id="linkGlowL" stroke="url(#linkGrad)" stroke-width="14" stroke-linecap="round" opacity=".45" filter="url(#blur8)" />
+    <line id="linkGlowR" stroke="url(#linkGrad)" stroke-width="14" stroke-linecap="round" opacity=".45" filter="url(#blur8)" />
+    <line id="linkL" stroke="url(#linkGrad)" stroke-width="5" stroke-linecap="round" />
+    <line id="linkR" stroke="url(#linkGrad)" stroke-width="5" stroke-linecap="round" />
+    <circle id="burst" r="0" fill="none" stroke="#fff" stroke-width="3" opacity="0" />
+    <circle id="burst2" r="0" fill="none" stroke="#e0634d" stroke-width="2" opacity="0" />
+    <g id="pulses"></g>
+  </svg>
+  <div id="plug" class="abs"><svg class="ic" width="34" height="34" viewBox="0 0 24 24"><path d="M12 22v-5" /><path d="M9 8V2" /><path d="M15 8V2" /><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" /></svg></div>
+
+  <div id="logo" class="abs hero">
+    <svg viewBox="0 0 409 409" aria-label="Tabularis">
+      <defs>
+        <linearGradient id="topA" x1="48" y1="50" x2="192" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#222154" /><stop offset=".55" stop-color="#29285e" /><stop offset="1" stop-color="#20204b" /></linearGradient>
+        <linearGradient id="topB" x1="133" y1="94" x2="277" y2="90" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#252359" /><stop offset=".58" stop-color="#26366f" /><stop offset="1" stop-color="#0cb9bf" /></linearGradient>
+        <linearGradient id="topC" x1="217" y1="135" x2="361" y2="132" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#23315f" /><stop offset=".48" stop-color="#1b6f93" /><stop offset="1" stop-color="#0cdccf" /></linearGradient>
+        <linearGradient id="leftA" x1="38" y1="116" x2="113" y2="116" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#25245d" /><stop offset="1" stop-color="#1e1b4a" /></linearGradient>
+        <linearGradient id="frontA" x1="123" y1="158" x2="198" y2="158" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#28245d" /><stop offset="1" stop-color="#211d4b" /></linearGradient>
+        <linearGradient id="frontB" x1="210" y1="200" x2="284" y2="200" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#29255d" /><stop offset="1" stop-color="#24204f" /></linearGradient>
+        <linearGradient id="sideC" x1="295" y1="200" x2="370" y2="200" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#26315f" /><stop offset=".55" stop-color="#1a8aa2" /><stop offset="1" stop-color="#0de7d2" /></linearGradient>
+        <linearGradient id="stemA" x1="122" y1="246" x2="198" y2="246" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2b2661" /><stop offset="1" stop-color="#211f50" /></linearGradient>
+        <linearGradient id="smallB" x1="210" y1="267" x2="278" y2="267" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#28265e" /><stop offset=".55" stop-color="#4b49b7" /><stop offset="1" stop-color="#10d6cf" /></linearGradient>
+        <linearGradient id="bottomA" x1="122" y1="334" x2="198" y2="334" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2a235c" /><stop offset=".56" stop-color="#4b2d8f" /><stop offset="1" stop-color="#a842bd" /></linearGradient>
+        <linearGradient id="bottomB" x1="210" y1="334" x2="286" y2="334" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#5c35b7" /><stop offset=".57" stop-color="#7746c8" /><stop offset="1" stop-color="#0fd7cc" /></linearGradient>
+        <linearGradient id="shine" x1="60" y1="10" x2="330" y2="200" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".22" /><stop offset=".5" stop-color="#fff" stop-opacity=".05" /><stop offset="1" stop-color="#fff" stop-opacity="0" /></linearGradient>
+      </defs>
+      <g stroke="#080715" stroke-width="3" stroke-linejoin="round">
+        <g id="cubeA"><path fill="url(#topA)" d="M48 51 120 11 192 48 119 88Z" /><path fill="url(#leftA)" d="M38 61 113 99 113 170 38 134Z" /><path fill="url(#shine)" stroke="none" d="M48 51 120 11 192 48 119 88Z" /></g>
+        <g id="cubeB"><path fill="url(#topB)" d="M133 94 206 54 277 90 204 130Z" /><path fill="url(#frontA)" d="M123 103 198 140 198 213 123 176Z" /><path fill="url(#shine)" stroke="none" d="M133 94 206 54 277 90 204 130Z" /></g>
+        <g id="cubeC"><path fill="url(#topC)" d="M217 135 289 96 361 132 289 171Z" /><path fill="url(#frontB)" d="M210 145 284 182 284 256 210 220Z" /><path fill="url(#sideC)" d="M295 181 370 141 370 216 295 257Z" /><path fill="url(#shine)" stroke="none" d="M217 135 289 96 361 132 289 171Z" /></g>
+        <g id="cubeD"><path fill="url(#stemA)" d="M122 190 198 228 198 302 122 264Z" /><path fill="url(#smallB)" d="M210 232 278 266 210 303Z" /></g>
+        <g id="cubeE"><path fill="url(#bottomA)" d="M122 278 198 316 198 391 122 352Z" /><path fill="url(#bottomB)" d="M210 316 286 276 286 344 210 391Z" /></g>
+      </g>
+    </svg>
+  </div>
+  <div id="wordmark" class="abs">tabularis</div>
+  <div id="tagline" class="abs">the open-source desktop <b>SQL</b> workspace</div>
+
+  <div id="oracle" class="abs hero">
+    <svg viewBox="0 0 32 32" aria-label="Oracle plugin">
+      <defs>
+        <linearGradient id="oraFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e0634d" /><stop offset=".55" stop-color="#c74634" /><stop offset="1" stop-color="#a5372a" /></linearGradient>
+        <linearGradient id="oraShine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22" /><stop offset=".5" stop-color="#fff" stop-opacity="0" /></linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="7" fill="url(#oraFill)" />
+      <rect width="32" height="32" rx="7" fill="url(#oraShine)" />
+      <rect x=".4" y=".4" width="31.2" height="31.2" rx="6.6" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width=".6" />
+      <ellipse cx="16" cy="9" rx="8" ry="3.5" fill="none" stroke="#fff" stroke-width="1.8" />
+      <path d="M8 9v12c0 2 3.6 3.5 8 3.5s8-1.5 8-3.5V9M8 15c0 2 3.6 3.5 8 3.5s8-1.5 8-3.5" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="1.8" />
+    </svg>
+  </div>
+
+  <div id="s2" class="abs">
+    <div id="s2pill" class="pill"><span class="dot"></span>NEW PLUGIN</div>
+    <div id="s2title"><span>Tabularis</span> <span>now</span> <span>speaks</span> <span class="ora">Oracle.</span></div>
+    <div id="s2sub">Oracle Database 12c+<i>&middot;</i>Free / XE<i>&middot;</i>Autonomous Database<i>&middot;</i>Amazon RDS</div>
+  </div>
+
+  <div id="appLayer" class="abs"><div id="winTilt" class="abs"><div id="win" class="win"></div></div></div>
+
+  <div id="capBand" class="abs"></div>
+  <div id="captions">
+    <div class="cap" id="cap0"><b>01</b><span>Install it from the database catalogue</span></div>
+    <div class="cap" id="cap1"><b>02</b><span>Connect: EZConnect, TNS aliases, <em>Autonomous DB</em></span></div>
+    <div class="cap" id="cap2"><b>03</b><span>Browse every schema, run SQL and PL/SQL</span></div>
+    <div class="cap" id="cap3"><b>04</b><span>Visual EXPLAIN with runtime statistics</span></div>
+  </div>
+
+  <div id="end" class="abs">
+    <div id="endPill"><span class="pill"><span class="dot"></span>ORACLE PLUGIN &middot; v0.1.0</span></div>
+    <div id="endTitle"><div class="l1">Oracle, in Tabularis.</div><div class="l2">Available now.</div></div>
+    <div id="chips"></div>
+    <div id="cta">
+      <span class="ctaBtn" id="ctaBtn"></span>
+      <span class="ctaUrl" id="ctaUrl">github.com/TabularisDB/<b>tabularis-oracle-plugin</b></span>
+    </div>
+    <div id="foot">tabularis.dev<i>/</i>open source<i>/</i>Linux &middot; macOS &middot; Windows<i>/</i>requires Tabularis 0.25+</div>
+  </div>
+
+  <div id="fade"></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const params = new URLSearchParams(location.search);
+  const CAPTURE = params.has("capture");
+  const DURATION = 20;
+  const $ = (id) => document.getElementById(id);
+  const stage = $("stage");
+
+  // ---------------------------------------------------------------- icons
+  // Lucide-style 24px stroke icons (the app uses lucide-react).
+  const ICON = {
+    db: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
+    plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    down: '<path d="m6 9 6 6 6-6"/>',
+    right: '<path d="m9 18 6-6-6-6"/>',
+    left: '<path d="m15 18-6-6 6-6"/>',
+    arrowL: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+    arrowR: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    table: '<path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/>',
+    eye: '<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>',
+    code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
+    folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+    key: '<path d="M2.59 17.41A2 2 0 0 0 2 18.83V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.17a2 2 0 0 0 1.41-.59l.82-.81a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
+    star: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    book: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+    cpu: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/>',
+    chat: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+    dl: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+    up: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+    spin: '<path d="M21 12a9 9 0 1 1-6.22-8.56"/>',
+    save: '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+    term: '<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>',
+    lines: '<path d="M21 6H3"/><path d="M15 12H3"/><path d="M17 18H3"/>',
+    tree: '<rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/>',
+    layers: '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    sliders: '<path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/>',
+    panel: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
+    braces: '<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/>',
+    pencil: '<path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/><path d="m15 5 4 4"/>',
+    er: '<rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/>',
+    pulse: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
+    cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+    ext: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+    min: '<path d="M5 12h14"/>',
+    max: '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>',
+    grid: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+    alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+    hash: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>',
+    play: '<path d="M6 3.5v17a.8.8 0 0 0 1.2.7l13.4-8.5a.8.8 0 0 0 0-1.4L7.2 2.8A.8.8 0 0 0 6 3.5z"/>',
+  };
+  const ic = (name, size = 16, extra = "") =>
+    `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" ${extra}>${ICON[name]}</svg>`;
+  // White cylinder on the Oracle red square: the plugin's own icon (oracle-icon.svg).
+  const oraIcon = (size) =>
+    `<svg width="${size}" height="${size}" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#c74634"/>` +
+    `<ellipse cx="16" cy="9" rx="8" ry="3.5" fill="none" stroke="#fff" stroke-width="1.8"/>` +
+    `<path d="M8 9v12c0 2 3.6 3.5 8 3.5s8-1.5 8-3.5V9M8 15c0 2 3.6 3.5 8 3.5s8-1.5 8-3.5" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="1.8"/></svg>`;
+  const miniLogo = (size) =>
+    `<svg width="${size}" height="${size}" viewBox="0 0 409 409"><g stroke="#080715" stroke-width="6" stroke-linejoin="round">` +
+    `<path fill="#29285e" d="M48 51 120 11 192 48 119 88Z"/><path fill="#1e1b4a" d="M38 61 113 99 113 170 38 134Z"/>` +
+    `<path fill="#26366f" d="M133 94 206 54 277 90 204 130Z"/><path fill="#221e4c" d="M123 103 198 140 198 213 123 176Z"/>` +
+    `<path fill="#1b8fa8" d="M217 135 289 96 361 132 289 171Z"/><path fill="#26214f" d="M210 145 284 182 284 256 210 220Z"/>` +
+    `<path fill="#12c3c3" d="M295 181 370 141 370 216 295 257Z"/><path fill="#26225a" d="M122 190 198 228 198 302 122 264Z"/>` +
+    `<path fill="#3f4aa8" d="M210 232 278 266 210 303Z"/><path fill="#6a36a8" d="M122 278 198 316 198 391 122 352Z"/>` +
+    `<path fill="#5a4cc0" d="M210 316 286 276 286 344 210 391Z"/></g></svg>`;
+
+  // ------------------------------------------------------------ app markup
+  const TREE = [
+    { d: 0, k: "label", t: "SCHEMAS (1/30)", r: ic("sliders", 13) },
+    { d: 0, k: "schema", t: "SHOP", r: "4T / 1V / 2R" },
+    { d: 1, k: "group", t: "TABLES (4)", r: ic("plus", 13) },
+    { d: 1, k: "filter", t: "Filter tables..." },
+    { d: 1, k: "table", t: "CUSTOMERS", open: true, r: "" },
+    { d: 2, k: "folder", t: "columns", r: "5", color: "#6b85c4" },
+    { d: 3, k: "pk", t: "ID", r: "NUMBER" },
+    { d: 3, k: "col", t: "NAME", r: "VARCHAR2(100)" },
+    { d: 3, k: "col", t: "EMAIL", r: "VARCHAR2(255)" },
+    { d: 3, k: "col", t: "REGION", r: "VARCHAR2(20)" },
+    { d: 3, k: "col", t: "CREATED_AT", r: "TIMESTAMP(6)" },
+    { d: 1, k: "table", t: "ORDERS" },
+    { d: 1, k: "table", t: "ORDER_ITEMS" },
+    { d: 1, k: "table", t: "PRODUCTS" },
+    { d: 1, k: "group", t: "VIEWS (1)", r: ic("plus", 13) },
+    { d: 2, k: "view", t: "CUSTOMER_REVENUE" },
+    { d: 1, k: "group", t: "ROUTINES (2)" },
+    { d: 2, k: "fn", t: "ORDER_TOTAL", r: "function" },
+    { d: 2, k: "proc", t: "SHIP_ORDER", r: "procedure" },
+  ];
+  function treeRow(n) {
+    const pad = 10 + n.d * 14;
+    const chev = (open) => `<span class="chev">${ic(open ? "down" : "right", 12)}</span>`;
+    let body = "";
+    switch (n.k) {
+      case "label": body = `<span>${n.t}</span>`; break;
+      case "schema": body = `${chev(true)}<span class="ti" style="color:#7dacf9">${ic("layers", 15)}</span><b style="font-weight:700">${n.t}</b>`; break;
+      case "group": body = `${chev(true)}<span>${n.t}</span>`; break;
+      case "filter": body = `<span class="box">${ic("search", 12)}${n.t}</span>`; break;
+      case "table": body = `${chev(n.open)}<span class="ti" style="color:#9aa5b8">${ic("table", 15)}</span><span style="font-weight:600">${n.t}</span>`; break;
+      case "folder": body = `${chev(true)}<span class="ti" style="color:${n.color}">${ic("folder", 14)}</span><span style="color:#b8c2d1">${n.t}</span>`; break;
+      case "pk": body = `<span class="ti" style="color:#fbbf24">${ic("key", 13)}</span><span>${n.t}</span>`; break;
+      case "col": body = `<span class="ti" style="color:#7c879b">${ic("panel", 13)}</span><span>${n.t}</span>`; break;
+      case "view": body = `${chev(false)}<span class="ti" style="color:#9aa5b8">${ic("eye", 15)}</span><span style="font-weight:600">${n.t}</span>`; break;
+      case "fn":
+      case "proc": body = `${chev(false)}<span class="ti" style="color:#c4b5fd">${ic("code", 14)}</span><span style="font-weight:600">${n.t}</span>`; break;
+    }
+    const right = n.r ? `<span class="r">${n.r}</span>` : "";
+    return `<div class="tr ${n.k}" style="padding-left:${pad}px">${body}${right}</div>`;
+  }
+
+  const SQL = [
+    "SELECT",
+    "  c.region,",
+    "  COUNT(*) AS orders,",
+    "  SUM(i.quantity * i.unit_price) AS revenue",
+    "FROM",
+    "  shop.customers c",
+    "  JOIN shop.orders o ON o.customer_id = c.id",
+    "  JOIN shop.order_items i ON i.order_id = o.id",
+    "GROUP BY",
+    "  c.region",
+    "ORDER BY",
+    "  revenue DESC",
+  ];
+  const KW = new Set(["SELECT", "FROM", "JOIN", "ON", "AS", "GROUP", "BY", "ORDER", "DESC"]);
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  function highlight(text) {
+    return text.replace(/([A-Za-z_][A-Za-z0-9_]*)|([()])|([^A-Za-z_()]+)/g, (m, word, paren) => {
+      if (word) return KW.has(word) ? `<span class="kw">${word}</span>` : esc(word);
+      if (paren) return `<span class="pa">${paren}</span>`;
+      return esc(m);
+    });
+  }
+  const SQL_START = SQL.map((_, i) => SQL.slice(0, i).reduce((n, l) => n + l.length + 1, 0));
+  const SQL_TOTAL = SQL_START[SQL.length - 1] + SQL[SQL.length - 1].length;
+
+  const RESULTS = [["West", "8", "1915.4"], ["East", "4", "1510.4"], ["South", "4", "1481.4"], ["North", "4", "943.2"]];
+
+  const CARDS = [
+    { n: "PostgreSQL", c: "#3b82f6", s: "ok" },
+    { n: "MySQL / MariaDB", c: "#f97316", s: "ok" },
+    { n: "SQLite", c: "#06b6d4", s: "ok" },
+    { n: "SQL Server", c: "#64748b", s: "inst" },
+    { n: "IBM Db2", c: "#64748b", s: "inst" },
+    { n: "Oracle", c: "#c74634", s: "inst", oracle: true },
+  ];
+  const cardSlot = (i) => ({ x: 18 + (i % 3) * 291, y: 184 + Math.floor(i / 3) * 90 });
+
+  const PLAN = [
+    ["#1", 0, "SELECT STATEMENT", "", "11.0", "-", "4", "0 us", "-"],
+    ["#2", 1, "SORT ORDER BY", "", "11.0", "20", "4", "25 us", "5.00x"],
+    ["#3", 2, "HASH GROUP BY", "", "11.0", "20", "4", "58 us", "5.00x"],
+    ["#4", 3, "HASH JOIN", "", "9.0", "20", "20", "146 us", "1.00x"],
+    ["#5", 4, "HASH JOIN", "", "6.0", "10", "10", "103 us", "1.00x"],
+    ["#6", 5, "TABLE ACCESS FULL", "CUSTOMERS", "3.0", "10", "10", "82 us", "1.00x"],
+    ["#7", 5, "TABLE ACCESS FULL", "ORDERS", "3.0", "10", "10", "39 us", "1.00x"],
+    ["#8", 4, "TABLE ACCESS FULL", "ORDER_ITEMS", "3.0", "20", "20", "38 us", "1.00x"],
+  ];
+
+  function buildApp() {
+    const railIcons = [
+      [98, "plug"], [610, "chat"], [656, "cpu"], [704, "gear"],
+    ].map(([y, n]) => `<span class="it" style="top:${y}px;position:absolute">${ic(n, 24)}</span>`).join("");
+    const tree = TREE.map(treeRow).join("");
+    const code = SQL.map((_, i) => `<div class="ln"><span class="g" id="g${i}">${i + 1}</span><span class="fold">${i === 0 ? ic("down", 13, 'style="margin-top:4px"') : ""}</span><span class="src" id="l${i}"></span></div>`).join("");
+    const rows = RESULTS.map((r, i) =>
+      `<div class="gr" id="row${i}"><div class="c0">${i + 1}</div><div class="c1">${r[0]}</div><div class="c2">${r[1]}</div><div class="c3">${r[2]}</div></div>`).join("");
+    const cards = CARDS.map((c, i) => {
+      const p = cardSlot(i);
+      const iconBox = c.oracle ? oraIcon(36) : `<span class="ico" style="background:${c.c}1f;color:${c.c}">${ic("db", 20)}</span>`;
+      const status = c.s === "ok"
+        ? `<span class="stt ok"><i></i>Installed</span>`
+        : c.oracle
+          ? `<span class="stt inst" id="oraStt">Install</span>`
+          : `<span class="stt inst">Install</span>`;
+      return `<div class="card" id="card${i}" style="left:${p.x}px;top:${p.y}px">` +
+        `<div class="row">${iconBox}<span class="nm">${c.n}</span>${status}</div>` +
+        `<div class="meta"${c.oracle ? ' id="oraMeta"' : ""}>Relational</div>` +
+        (c.oracle ? `<div class="prog" id="oraProg"><span class="track"><i id="oraFill"></i></span><span id="oraPct">0%</span></div>` : "") + `</div>`;
+    }).join("");
+    const plan = PLAN.map((p, i) => {
+      const warn = p[8] === "5.00x" ? " warn" : "";
+      return `<div class="pr${i === 4 ? " sel" : ""}" id="pr${i}"><div class="pc0">${p[0]}</div>` +
+        `<div class="pc1" style="padding-left:${p[1] * 16}px">${i < 5 ? `<span style="color:#8391a7">${ic("down", 12)}</span>` : '<span style="width:12px"></span>'}${p[2]}</div>` +
+        `<div class="pc2">${p[3]}</div><div class="pcn">${p[4]}</div><div class="pcn">${p[5]}</div><div class="pcn">${p[6]}</div>` +
+        `<div class="pcn" style="width:84px">${p[7]}</div><div class="pcn${warn}" style="width:96px">${p[8]}</div></div>`;
+    }).join("");
+    const ocard = (k, v, s, c) =>
+      `<div class="oc" style="background:${c}14;box-shadow:inset 0 0 0 1px ${c}66"><div class="k" style="color:${c}">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+
+    $("win").innerHTML = `
+      <div class="tb"><div class="lights"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+        <div class="title" id="winTitle">tabularis</div></div>
+      <div class="ws" id="ws">
+        <div class="rail">
+          <div class="logoTile">${miniLogo(30)}</div>
+          ${railIcons}
+          <span class="plugDot" id="plugDot"></span>
+          <div class="conn" id="railConn">${ic("db", 20)}<span class="dot" id="railDot"></span></div>
+        </div>
+        <div class="explorer">
+          <div class="exHead"><span style="color:#94a3b8">${ic("db", 18)}</span>
+            <div><div class="t1">Explorer</div><div class="t2" id="exSub">Local Oracle Free</div></div>
+            <div class="tools">${ic("up", 16)}${ic("dl", 16)}${ic("tree", 16)}${ic("panel", 16)}</div></div>
+          <div class="exTabs"><span class="on">${ic("layers", 14)}Structure</span>${ic("star", 15)}${ic("clock", 15)}${ic("book", 15)}</div>
+          <div class="tree" id="tree">${tree}</div>
+          <div class="exEmpty" id="exEmpty">No connection selected</div>
+        </div>
+        <div class="ed">
+          <div class="tabs"><div class="tint" id="tabTint"></div>
+            <div class="nav">${ic("left", 14)}${ic("right", 14)}</div>
+            <div class="tab" id="tab"><span style="color:#a78bfa">${ic("term", 14)}</span>Console<span class="x">${ic("x", 13)}</span></div>
+            <div class="right">${ic("plus", 16)}${ic("folder", 16)}${ic("tree", 16)}${ic("book", 16)}</div></div>
+          <div class="toolbar" id="toolbar">
+            <span class="btn run" id="runBtn">${ic("play", 14, 'fill="currentColor" stroke="none"')}Run<span class="split"></span>${ic("down", 14)}</span>
+            <span class="btn dim">${ic("hash", 14)}Parameters</span>
+            <span class="btn ghost">${ic("lines", 14)}Format SQL</span>
+            <span class="btn ghost">${ic("save", 14)}Save<span style="width:1px;height:18px;background:#4b5a70;margin:0 2px"></span>${ic("down", 13)}</span>
+            <span class="btn ghost" style="margin-left:auto">${ic("dl", 14)}Export${ic("down", 13)}</span>
+          </div>
+          <div class="code" id="code">${code}</div>
+          <span class="btn explainBtn" id="explainBtn">${ic("tree", 13)}Explain Plan</span>
+          <div class="resBar"><span id="resInfo" style="white-space:nowrap">4 rows retrieved <span style="color:#6b778b">(16 ms)</span></span>
+            <span class="pager"><span class="box">500 ${ic("down", 11)}</span>${ic("left", 13)}${ic("left", 13)}<span class="box" style="padding:0 18px">Page 1</span>${ic("hash", 13)}${ic("right", 13)}${ic("right", 13)}</span></div>
+          <div class="rgrid" id="resGrid"><div class="gh"><div class="c0">#</div><div class="c1">REGION</div><div class="c2">ORDERS</div><div class="c3">REVENUE</div></div>${rows}</div>
+          <div class="resEmpty" id="resEmpty">Run a query to see results</div>
+        </div>
+      </div>
+      <div class="scrim" id="scrim"></div>
+      <div class="modal" id="mConn">
+        <div class="pane" id="paneCat">
+          <div class="mh"><div class="mt">Choose a database</div>
+            <div class="steps"><span class="st on"><i>1</i>Choose</span><span class="sep"></span><span class="st"><i>2</i>Configure</span></div>
+            <span class="mx">${ic("x", 18)}</span></div>
+          <div class="search">${ic("search", 16)}<span id="catQuery"></span><span class="caret" id="catCaret"></span><span class="ph" id="catPh">Search databases…</span><span class="clr">${ic("x", 15)}</span></div>
+          <div class="chips"><span>SQL <b>10</b></span><span>Document <b>5</b></span><span>Other <b>5</b></span><span>Relational <b>4</b></span><span>Key-value <b>1</b></span><span>Search <b>1</b></span><span>Vector <b>1</b></span>
+            <span class="vs"></span><span>${ic("check", 11)}Verified</span><span>Installed</span></div>
+          <div class="catDiv"></div>
+          <div class="sect">RELATIONAL<b id="catCount">6</b></div>
+          ${cards}
+        </div>
+        <div class="pane" id="paneCfg">
+          <div class="mh"><span style="width:8px;height:8px;border-radius:50%;background:#e0634d"></span><div class="mt">Local Oracle Free</div>
+            <div class="steps"><span class="st" style="box-shadow:inset 0 0 0 1px #334155;padding:3px 10px">No environment ${ic("down", 12)}</span><span class="st" style="background:#1e293b;padding:3px 10px">Oracle</span>
+              <span class="st done"><i>${ic("check", 11, 'stroke-width="3"')}</i>Choose</span><span class="sep"></span><span class="st on"><i>2</i>Configure</span></div>
+            <span class="mx">${ic("x", 18)}</span></div>
+          <div class="cfgHead"><span class="big">${oraIcon(42)}</span>
+            <div><div class="n">Oracle <span class="ver">v0.1.0</span></div><span class="rel">RELATIONAL</span>
+              <div class="desc">Oracle Database driver for Tabularis (12c+, Free/XE, Autonomous Database, RDS) with multi-schema browsing, query execution…</div></div>
+            <span class="chg">${ic("arrowL", 14)}Change database</span></div>
+          <div class="cfgTabs"><span class="on">GENERAL</span><span>SSL</span><span>SSH</span><span>KUBERNETES</span><span>AWS SSM</span><span>ADVANCED</span><span>APPEARANCE</span></div>
+          <div class="fl" style="left:18px;top:184px">CONNECTION STRING</div>
+          <div class="fi" style="left:18px;top:202px;width:862px"><span class="ph">oracle://system:oracle@localhost:1521/FREEPDB1</span></div>
+          <div class="fl" style="left:18px;top:254px">HOST</div>
+          <div class="fi" id="fHost" style="left:18px;top:272px;width:572px"></div>
+          <div class="fl" style="left:600px;top:254px">PORT</div>
+          <div class="fi" id="fPort" style="left:600px;top:272px;width:280px"></div>
+          <div class="fl" style="left:18px;top:324px">USERNAME</div>
+          <div class="fi" id="fUser" style="left:18px;top:342px;width:426px"></div>
+          <div class="fl" style="left:454px;top:324px">PASSWORD</div>
+          <div class="fi" id="fPass" style="left:454px;top:342px;width:426px"></div>
+          <div class="fl" style="left:18px;top:394px">DATABASE NAME</div>
+          <div class="fl" style="left:760px;top:394px;color:#7dacf9;letter-spacing:0;font-weight:500;font-size:12.5px;display:flex;gap:5px;align-items:center">${ic("db", 13)}Load Databases</div>
+          <div class="fi" id="fDb" style="left:18px;top:412px;width:862px"></div>
+          <div class="chk" style="top:466px"><i></i>Save passwords in Keychain</div>
+          <div class="chk" style="top:494px"><i></i>Detect JSON in text columns</div>
+          <div class="cfgFoot">
+            <span class="testBtn" id="testBtn"><span id="testIco">${ic("plug", 15)}</span>Test Connection</span>
+            <span class="okMsg" id="okMsg">Connection successful!</span>
+            <span style="margin-left:auto" class="btn out">Cancel</span>
+            <span class="btn pri" id="saveBtn">Save</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal" id="mExp">
+        <div class="xh"><span class="tile">${ic("tree", 20)}</span>
+          <div><div class="t">Visual Explain</div>
+            <div class="tags"><span class="tag">${oraIcon(15)}Local Oracle Free</span><span class="tag mono">ORACLE · FREEPDB1 / SHOP</span></div></div>
+          <span style="margin-left:auto;color:#94a3b8">${ic("x", 20)}</span></div>
+        <div class="xs"><span>Execution: <b>491 us</b></span><span>Total Cost: <b>11.0</b></span>
+          <span class="views"><span>Graph</span><span>Diagram</span><span class="on">Table</span><span>Stats</span><span>Raw Output</span></span></div>
+        <div class="ov"><div class="hd">OVERVIEW<span>4 top issues</span></div>
+          <div class="cards">
+            <div id="oc0">${ocard("HIGHEST SELF COST", "3.0", "TABLE ACCESS FULL · CUSTOMERS", "#60a5fa")}</div>
+            <div id="oc1">${ocard("SLOWEST STEP", '<span style="color:#fbbf24">146 us</span>', "HASH JOIN", "#f59e0b")}</div>
+            <div id="oc2">${ocard("ESTIMATE GAP", "5.00x", "Estimate exceeds actual rows", "#ef4444")}</div>
+            <div id="oc3">${ocard("TEMP OR SORT OPS", "1", "Sort or temp work detected", "#a855f7")}</div>
+          </div></div>
+        <div class="pt"><div class="ph2"><div class="pc0">#</div><div class="pc1">Operation</div><div class="pc2">Table</div><div class="pcn">Cost</div><div class="pcn">Est. Rows</div><div class="pcn">Actual</div><div class="pcn" style="width:84px">Self Time</div><div class="pcn" style="width:96px">Est. Gap</div></div>${plan}</div>
+        <div class="xside"><div class="h">GENERAL</div>
+          <div class="k">Operation</div><div class="v">HASH JOIN</div>
+          <div class="k">Cost</div><div class="v">6.0</div>
+          <div class="k">Est. Rows</div><div class="v">10</div>
+          <div class="k">Actual Rows</div><div class="v">10</div>
+          <div class="k">Join Type</div><div class="v">INNER</div></div>
+        <div class="xf"><span class="cb">${ic("check", 11, 'stroke-width="3.5"')}</span>Analyze
+          <span class="btn rerun">${ic("refresh", 14)}Re-run</span><span class="btn" style="color:#cbd5e1">Close</span></div>
+      </div>
+      <div id="ripple"></div>
+      <svg id="cursor" viewBox="0 0 26 26"><path d="M3 2v19.5l5.2-4.9 3.4 7.6 3.3-1.5-3.3-7.4h7.2z" fill="#fff" stroke="#0b1020" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+  }
+
+  function buildEndCard() {
+    const chips = [
+      ["cloud", "12c+ · Free/XE · Autonomous · RDS", "o"],
+      ["layers", "Multi-schema browsing"],
+      ["braces", "PL/SQL blocks"],
+      ["pencil", "Row editing & DDL"],
+      ["er", "ER diagrams"],
+      ["pulse", "Visual EXPLAIN ANALYZE", "o"],
+    ];
+    $("chips").innerHTML = chips.map(([i, label, cls], k) =>
+      `<span class="fchip ${cls || ""}" id="chip${k}">${ic(i, 26)}${label}</span>`).join("");
+    $("ctaBtn").innerHTML = `Settings ${ic("right", 22)} Plugins ${ic("right", 22)} Oracle`;
+  }
+
+  // ------------------------------------------------------------ animation kit
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const mix = (a, b, p) => a + (b - a) * p;
+  const E = {
+    lin: (p) => p,
+    inC: (p) => p * p * p,
+    outC: (p) => 1 - (1 - p) ** 3,
+    ioC: (p) => (p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2),
+    outQ: (p) => 1 - (1 - p) ** 5,
+    ioQ: (p) => (p < 0.5 ? 16 * p ** 5 : 1 - (-2 * p + 2) ** 5 / 2),
+    outB: (p) => { const c = 1.7; return 1 + (c + 1) * (p - 1) ** 3 + c * (p - 1) ** 2; },
+  };
+  const prog = (t, t0, d, e = E.lin) => e(clamp((t - t0) / d));
+  // Keyframes: [[time, value, easeIntoThisKey], ...], value is a number or an array.
+  function track(t, keys) {
+    if (t <= keys[0][0]) return keys[0][1];
+    for (let i = 1; i < keys.length; i++) {
+      const [t1, v1, e = E.ioC] = keys[i];
+      if (t <= t1) {
+        const [t0, v0] = keys[i - 1];
+        const p = e((t - t0) / (t1 - t0));
+        return Array.isArray(v0) ? v0.map((a, j) => mix(a, v1[j], p)) : mix(v0, v1, p);
+      }
+    }
+    return keys[keys.length - 1][1];
+  }
+  function setStyle(el, k, v) {
+    const c = el.__s || (el.__s = {});
+    if (c[k] !== v) { el.style[k] = v; c[k] = v; }
+  }
+  const tr = (el, v) => setStyle(el, "transform", v);
+  function show(el, o) {
+    o = clamp(o);
+    setStyle(el, "opacity", o.toFixed(3));
+    setStyle(el, "visibility", o < 0.002 ? "hidden" : "visible");
+  }
+  function html(el, v) { if (el.__h !== v) { el.innerHTML = v; el.__h = v; } }
+  function attr(el, k, v) {
+    const c = el.__a || (el.__a = {});
+    if (c[k] !== v) { el.setAttribute(k, v); c[k] = v; }
+  }
+  const rgb = (a, b, p) => `rgb(${a.map((x, i) => Math.round(mix(x, b[i], p))).join(",")})`;
+
+  // -------------------------------------------------------------- timeline
+  // Seconds. Scenes: logo 0-2.5 | Oracle reveal 2.5-6 | app demo 6-14.7 | end card 14.7-19.5
+  const K = {
+    connect1: 3.75, connect2: 16.0,
+    appIn: 5.95, appOut: 15.1,
+    search: 6.78, searchCps: 12,
+    clickInstall: 7.72, installEnd: 8.36, clickCard: 8.64, paneSwap: 8.68,
+    clickTest: 10.06, testOk: 10.36, clickSave: 10.78, modalOut: 10.84,
+    connected: 10.98, sqlStart: 11.22, sqlDur: 1.2, clickRun: 12.64,
+    clickExplain: 13.42,
+    fadeOut: 19.4,
+  };
+  const CLICKS = [K.clickInstall, K.clickCard, K.clickTest, K.clickSave, K.clickRun, K.clickExplain];
+  const FIELDS = [
+    { id: "fHost", text: "localhost", t0: 8.98, cps: 40 },
+    { id: "fPort", text: "1521", t0: 9.24, cps: 40 },
+    { id: "fUser", text: "system", t0: 9.36, cps: 40 },
+    { id: "fPass", text: "••••••", t0: 9.54, cps: 50 },
+    { id: "fDb", text: "FREEPDB1", t0: 9.68, cps: 40 },
+  ];
+  const S0 = 1.125; // window scale at rest: 1280x800 -> 1440x900
+  const CAM = [
+    [0, [1, 640, 400]],
+    [6.95, [1, 640, 400]],
+    [7.55, [1.3, 470, 318]],
+    [8.55, [1.3, 470, 318]],
+    [9.05, [1.04, 640, 410]],
+    [10.85, [1.04, 640, 410]],
+    [11.3, [1.0, 640, 400]],
+    [11.7, [1.3, 760, 256]],
+    [12.35, [1.3, 760, 256]],
+    [12.85, [1.0, 640, 400]],
+    [13.5, [1.0, 640, 400]],
+    [15.1, [1.06, 640, 424], E.ioQ],
+    [20, [1.06, 640, 424]],
+  ];
+
+  // Anchor points inside #win (layout coordinates, transforms ignored).
+  function anchor(el, ax = 0.5, ay = 0.5) {
+    let x = 0, y = 0, n = el;
+    const win = $("win");
+    while (n && n !== win) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+    return [x + el.offsetWidth * ax, y + el.offsetHeight * ay];
+  }
+
+  let CUR = [];
+  let heroBase = {};
+  const cubes = ["cubeA", "cubeB", "cubeC", "cubeD", "cubeE"].map($);
+  const words = [...document.querySelectorAll("#s2title span")];
+  const caps = [0, 1, 2, 3].map((i) => $("cap" + i));
+  const CAP_T = [[6.35, 8.62], [8.68, 10.84], [10.9, 13.36], [13.42, 15.15]];
+  let pulses = [];
+
+  function init() {
+    buildApp();
+    buildEndCard();
+    // Scene 1 layout: logo + wordmark centered as one group.
+    const wm = $("wordmark"), tg = $("tagline");
+    const logoSize = 262, gap = 40;
+    const groupW = logoSize + gap + wm.offsetWidth;
+    const x0 = (1920 - groupW) / 2;
+    heroBase = { logoX: x0 + logoSize / 2, logoY: 520, logoSize };
+    wm.style.left = `${x0 + logoSize + gap}px`;
+    wm.style.top = `${520 - 118}px`;
+    tg.style.left = `${x0 + logoSize + gap + 8}px`;
+    tg.style.top = `${520 + 62}px`;
+
+    // pulses on the link
+    const g = $("pulses");
+    for (let i = 0; i < 4; i++) {
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("r", "9");
+      g.appendChild(c);
+      pulses.push(c);
+    }
+
+    // Cursor path (window coordinates), resolved from the real layout.
+    const install = anchor($("oraStt"), 0.5, 0.55);
+    const slot5 = cardSlot(5), slot0 = cardSlot(0);
+    const installAtSlot0 = [install[0] - slot5.x + slot0.x, install[1] - slot5.y + slot0.y];
+    const cardCenter = [installAtSlot0[0] - 120, installAtSlot0[1] + 20];
+    const test = anchor($("testBtn"), 0.45, 0.6);
+    const save = anchor($("saveBtn"), 0.45, 0.6);
+    const run = anchor($("runBtn"), 0.35, 0.6);
+    const explain = anchor($("explainBtn"), 0.4, 0.6);
+    CUR = [
+      [6.6, [1180, 780]],
+      [7.25, [720, 236]],
+      [7.64, installAtSlot0],
+      [7.76, installAtSlot0],
+      [8.02, [installAtSlot0[0] + 30, installAtSlot0[1] + 44]],
+      [8.2, [installAtSlot0[0] + 30, installAtSlot0[1] + 44]],
+      [8.56, cardCenter],
+      [8.8, cardCenter],
+      [9.3, [700, 560]],
+      [9.98, test],
+      [10.24, test],
+      [10.7, save],
+      [10.95, save],
+      [11.45, [930, 600]],
+      [12.18, [930, 600]],
+      [12.56, run],
+      [12.82, run],
+      [13.34, explain],
+      [13.6, explain],
+      [14.6, [1060, 690]],
+    ];
+  }
+
+  // ---------------------------------------------------------------- scenes
+  function heroes(t) {
+    const L = heroBase;
+    const logo = track(t, [
+      [0, [L.logoX, L.logoY, L.logoSize]],
+      [2.55, [L.logoX, L.logoY, L.logoSize]],
+      [3.25, [630, 392, 270]],
+      [5.7, [630, 392, 270]],
+      [6.45, [118, 88, 66]],
+      [15.15, [118, 88, 66]],
+      [15.85, [772, 214, 148]],
+    ]);
+    const ora = track(t, [
+      [0, [2180, 392, 212, 14, 0]],
+      [2.85, [2180, 392, 212, 14, 0]],
+      [3.5, [1290, 392, 212, 0, 1], E.outB],
+      [5.7, [1290, 392, 212, 0, 1]],
+      [6.45, [1802, 88, 60, 0, 1]],
+      [15.15, [1802, 88, 60, 0, 1]],
+      [15.85, [1150, 214, 136, 0, 1]],
+    ]);
+    return { logo, ora };
+  }
+
+  function placeHero(el, x, y, size, rot = 0) {
+    tr(el, `translate(${(x - 150).toFixed(2)}px,${(y - 150).toFixed(2)}px) rotate(${rot.toFixed(2)}deg) scale(${(size / 300).toFixed(4)})`);
+  }
+
+  function renderBackground(t) {
+    const teal = track(t, [[0.1, 0], [1.2, 1], [5.9, 1], [6.6, 0.55], [15.1, 0.55], [15.9, 0.95]]);
+    const violet = track(t, [[0.3, 0], [1.4, 1], [2.6, 1], [3.4, 0.6], [5.9, 0.6], [6.6, 0.45], [15.1, 0.45], [15.9, 0.7]]);
+    const red = track(t, [[2.8, 0], [3.7, 1], [5.9, 1], [6.6, 0.35], [15.1, 0.35], [15.9, 0.85]]);
+    const grid = track(t, [[0.1, 0], [1.4, 1], [5.9, 1], [6.6, 0.4], [15.1, 0.4], [15.9, 1]]);
+    show($("glowTeal"), teal);
+    show($("glowViolet"), violet);
+    show($("glowRed"), red);
+    show($("bgGrid"), grid);
+    show($("fade"), Math.max(1 - prog(t, 0, 0.45), prog(t, K.fadeOut, DURATION - K.fadeOut, E.ioC)));
+  }
+
+  function renderLogoAndWordmark(t, H) {
+    const [x, y, size] = H.logo;
+    placeHero($("logo"), x, y, size);
+    show($("logo"), 1);
+    cubes.forEach((c, i) => {
+      const p = prog(t, 0.22 + i * 0.12, 0.62, E.outB);
+      const o = prog(t, 0.22 + i * 0.12, 0.22);
+      attr(c, "transform", `translate(0 ${(-150 * (1 - p)).toFixed(2)})`);
+      attr(c, "opacity", o.toFixed(3));
+    });
+    const wIn = prog(t, 1.02, 0.7, E.outQ);
+    const wOut = prog(t, 2.5, 0.4, E.inC);
+    const wm = $("wordmark");
+    show(wm, wIn * (1 - wOut));
+    setStyle(wm, "clipPath", `inset(-10% ${(100 - wIn * 100).toFixed(2)}% -20% -5%)`);
+    tr(wm, `translateX(${(-36 * (1 - wIn) - 60 * wOut).toFixed(2)}px)`);
+    const tIn = prog(t, 1.5, 0.55, E.outC);
+    show($("tagline"), tIn * (1 - wOut));
+    tr($("tagline"), `translateY(${(16 * (1 - tIn)).toFixed(2)}px) translateX(${(-60 * wOut).toFixed(2)}px)`);
+  }
+
+  function renderOracle(t, H) {
+    const [x, y, size, rot, o] = H.ora;
+    placeHero($("oracle"), x, y, size, rot);
+    show($("oracle"), o);
+  }
+
+  function renderLink(t, H) {
+    const [lx, ly, ls] = H.logo;
+    const [ox, oy, os] = H.ora;
+    let draw, op, tc;
+    if (t < 10) {
+      tc = K.connect1;
+      draw = prog(t, 3.3, 0.45, E.ioC);
+      op = 1 - prog(t, 5.45, 0.3);
+    } else {
+      tc = K.connect2;
+      draw = prog(t, 15.55, 0.45, E.ioC);
+      op = 1;
+    }
+    const svg = $("link");
+    show(svg, draw > 0 ? op : 0);
+    const plug = $("plug");
+    if (draw <= 0 || op <= 0) { show(plug, 0); return; }
+    const gap = ls * 0.1 + 18;
+    const ax = lx + ls * 0.5 + gap - ls * 0.06, bx = ox - os * 0.5 - gap;
+    const ay = ly, by = oy;
+    const mx = (ax + bx) / 2, my = (ay + by) / 2;
+    const L = [$("linkL"), $("linkGlowL")], R = [$("linkR"), $("linkGlowR")];
+    const lx2 = mix(ax, mx, draw), ly2 = mix(ay, my, draw);
+    const rx2 = mix(bx, mx, draw), ry2 = mix(by, my, draw);
+    for (const el of L) { attr(el, "x1", ax.toFixed(1)); attr(el, "y1", ay.toFixed(1)); attr(el, "x2", lx2.toFixed(1)); attr(el, "y2", ly2.toFixed(1)); }
+    for (const el of R) { attr(el, "x1", bx.toFixed(1)); attr(el, "y1", by.toFixed(1)); attr(el, "x2", rx2.toFixed(1)); attr(el, "y2", ry2.toFixed(1)); }
+    const grad = $("linkGrad");
+    attr(grad, "x1", ax.toFixed(1)); attr(grad, "x2", bx.toFixed(1));
+
+    const bp = prog(t, tc, 0.7, E.outC);
+    const burst = $("burst"), burst2 = $("burst2");
+    attr(burst, "cx", mx.toFixed(1)); attr(burst, "cy", my.toFixed(1));
+    attr(burst, "r", (20 + 110 * bp).toFixed(1));
+    attr(burst, "opacity", (t >= tc ? (1 - bp) * 0.9 : 0).toFixed(3));
+    const bp2 = prog(t, tc + 0.12, 0.8, E.outC);
+    attr(burst2, "cx", mx.toFixed(1)); attr(burst2, "cy", my.toFixed(1));
+    attr(burst2, "r", (20 + 160 * bp2).toFixed(1));
+    attr(burst2, "opacity", (t >= tc + 0.12 ? (1 - bp2) * 0.7 : 0).toFixed(3));
+
+    const ps = prog(t, tc - 0.06, 0.45, E.outB);
+    const psize = t < 10 ? 1 : 0.8;
+    tr(plug, `translate(${(mx - 38).toFixed(2)}px,${(my - 38).toFixed(2)}px) scale(${(ps * psize).toFixed(4)})`);
+    show(plug, (t >= tc - 0.06 ? 1 : 0) * op);
+
+    const running = t >= tc;
+    pulses.forEach((c, i) => {
+      if (!running) { attr(c, "opacity", "0"); return; }
+      const ph = (((t - tc) / 1.15 + i / pulses.length) % 1 + 1) % 1;
+      // data packets travel from Tabularis to Oracle and pass behind the plug badge
+      const x = mix(ax, bx, ph);
+      const behindPlug = Math.abs(x - mx) < 40 * psize ? 0 : 1;
+      attr(c, "cx", x.toFixed(1)); attr(c, "cy", mix(ay, by, ph).toFixed(1));
+      attr(c, "r", (6 * psize + 2).toFixed(1));
+      attr(c, "fill", rgb([140, 255, 245], [255, 170, 150], ph));
+      attr(c, "opacity", (Math.sin(Math.PI * ph) * behindPlug * prog(t, tc, 0.4) * op).toFixed(3));
+    });
+  }
+
+  function renderScene2(t) {
+    const out = prog(t, 5.5, 0.35, E.inC);
+    const pillIn = prog(t, 3.72, 0.45, E.outB);
+    const pill = $("s2pill");
+    show(pill, prog(t, 3.72, 0.2) * (1 - out));
+    tr(pill, `translateY(${(-40 * out).toFixed(1)}px) scale(${(0.6 + 0.4 * pillIn).toFixed(4)})`);
+    words.forEach((w, i) => {
+      const p = prog(t, 3.86 + i * 0.09, 0.55, E.outQ);
+      show(w, p * (1 - out));
+      tr(w, `translateY(${(56 * (1 - p) - 40 * out).toFixed(1)}px)`);
+    });
+    const sp = prog(t, 4.38, 0.55, E.outC);
+    show($("s2sub"), sp * (1 - out));
+    tr($("s2sub"), `translateY(${(22 * (1 - sp) - 40 * out).toFixed(1)}px)`);
+    show($("s2"), t > 3.5 && t < 6 ? 1 : 0);
+  }
+
+  function renderCaptions(t) {
+    caps.forEach((el, i) => {
+      const [a, b] = CAP_T[i];
+      const pin = prog(t, a, 0.4, E.outQ), pout = prog(t, b - 0.28, 0.28, E.inC);
+      show(el, pin * (1 - pout));
+      tr(el, `translateY(${(26 * (1 - pin) - 18 * pout).toFixed(1)}px)`);
+    });
+  }
+
+  function renderApp(t) {
+    const pin = prog(t, K.appIn, 0.85, E.outC), pout = prog(t, K.appOut, 0.5, E.inC);
+    const o = pin * (1 - pout);
+    show($("appLayer"), o);
+    show($("capBand"), o);
+    if (o <= 0) return;
+    tr($("winTilt"), `translateY(${((1 - pin) * 420 + pout * 150).toFixed(1)}px) rotateX(${((1 - pin) * 26).toFixed(2)}deg) scale(${(0.86 + 0.14 * pin - 0.07 * pout).toFixed(4)})`);
+    const [z, fx, fy] = track(t, CAM);
+    const s = S0 * z;
+    tr($("win"), `translate(${(960 - fx * s).toFixed(2)}px,${(612 - fy * s).toFixed(2)}px) scale(${s.toFixed(4)})`);
+    renderConnModal(t);
+    renderWorkspace(t);
+    renderExplain(t);
+    renderCursor(t);
+  }
+
+  function renderConnModal(t) {
+    const modalIn = prog(t, 6.2, 0.45, E.outQ);
+    const modalOut = prog(t, K.modalOut, 0.25, E.inC);
+    const m = $("mConn");
+    show(m, modalIn * (1 - modalOut));
+    tr(m, `translateY(${(24 * (1 - modalIn)).toFixed(1)}px) scale(${(0.96 + 0.04 * modalIn - 0.03 * modalOut).toFixed(4)})`);
+    const blur = Math.max(prog(t, 6.2, 0.4) * (1 - prog(t, K.modalOut, 0.3)), prog(t, 13.46, 0.3) * 1);
+    show($("scrim"), blur);
+    setStyle($("ws"), "filter", blur > 0.01 ? `blur(${(2.5 * blur).toFixed(2)}px)` : "none");
+
+    // pane swap: catalogue -> configure
+    const sw = prog(t, K.paneSwap, 0.32, E.ioC);
+    show($("paneCat"), 1 - sw);
+    tr($("paneCat"), `translateX(${(-60 * sw).toFixed(1)}px)`);
+    show($("paneCfg"), sw);
+    tr($("paneCfg"), `translateX(${(60 * (1 - sw)).toFixed(1)}px)`);
+
+    // search typing
+    const q = "Oracle";
+    const n = clamp(Math.floor((t - K.search) * K.searchCps + 1e-6), 0, q.length);
+    html($("catQuery"), q.slice(0, n));
+    show($("catPh"), n === 0 ? 1 : 0);
+    setStyle($("catPh"), "display", n === 0 ? "inline" : "none");
+    const typing = t >= K.search - 0.2 && t < K.search + q.length / K.searchCps + 0.2;
+    show($("catCaret"), typing || Math.floor(t * 2.2) % 2 === 0 ? 1 : 0);
+
+    // filtering: "O" keeps PostgreSQL + Oracle, "Or" keeps Oracle
+    const tO = K.search, tOr = K.search + 1 / K.searchCps;
+    const count = n === 0 ? 6 : n === 1 ? 2 : 1;
+    html($("catCount"), String(count));
+    CARDS.forEach((c, i) => {
+      const el = $("card" + i);
+      if (c.oracle) return;
+      const hideAt = c.n === "PostgreSQL" ? tOr : tO;
+      const h = prog(t, hideAt, 0.2, E.inC);
+      show(el, 1 - h);
+      tr(el, `scale(${(1 - 0.06 * h).toFixed(4)})`);
+    });
+    const oc = $("card5");
+    const mv = prog(t, tOr + 0.12, 0.42, E.ioC);
+    const s5 = cardSlot(5), s0 = cardSlot(0);
+    const hover = prog(t, 7.5, 0.14) * (1 - prog(t, K.paneSwap, 0.1));
+    tr(oc, `translate(${((s0.x - s5.x) * mv).toFixed(1)}px,${((s0.y - s5.y) * mv - 2 * hover).toFixed(1)}px)`);
+    setStyle(oc, "boxShadow", hover > 0.5 ? "inset 0 0 0 1.5px #c74634, 0 10px 30px -8px rgba(199,70,52,.45)" : "inset 0 0 0 1px #334155");
+    setStyle(oc, "background", hover > 0.5 ? "#223047" : "#1d2839");
+
+    // install
+    const stt = $("oraStt");
+    const installing = t >= K.clickInstall && t < K.installEnd;
+    const installed = t >= K.installEnd;
+    const ip = prog(t, K.clickInstall + 0.04, K.installEnd - K.clickInstall - 0.1, E.outC);
+    if (installed) {
+      html(stt, "<i></i>Installed");
+      stt.className = "stt ok";
+      const pop = prog(t, K.installEnd, 0.35, E.outB);
+      tr(stt, `scale(${(0.7 + 0.3 * pop).toFixed(4)})`);
+    } else if (installing) {
+      html(stt, `${ic("spin", 11, `style="transform:rotate(${Math.round((t - K.clickInstall) * 720)}deg)"`)}Installing…`);
+      stt.className = "stt inst";
+      setStyle(stt, "color", "#fecaca");
+      setStyle(stt, "boxShadow", "inset 0 0 0 1px rgba(224,99,77,.6)");
+      tr(stt, "none");
+    } else {
+      html(stt, "Install");
+      stt.className = "stt inst";
+      setStyle(stt, "color", hover > 0.5 ? "#f8fafc" : "#8391a7");
+      setStyle(stt, "boxShadow", hover > 0.5 ? "inset 0 0 0 1px #c74634" : "inset 0 0 0 1px #334155");
+      tr(stt, "none");
+    }
+    if (installed) { setStyle(stt, "color", ""); setStyle(stt, "boxShadow", ""); }
+    const progOn = t < K.clickInstall ? 0 : installing ? prog(t, K.clickInstall, 0.08) : 1 - prog(t, K.installEnd + 0.1, 0.2);
+    show($("oraProg"), progOn);
+    show($("oraMeta"), 1 - progOn);
+    tr($("oraFill"), `scaleX(${(installed ? 1 : ip).toFixed(4)})`);
+    html($("oraPct"), installed ? "100%" : `${Math.round(ip * 100)}%`);
+
+    // configure: typing into fields
+    let active = null;
+    FIELDS.forEach((f) => {
+      const k = clamp(Math.floor((t - f.t0) * f.cps + 1e-6), 0, f.text.length);
+      html($(f.id), esc(f.text.slice(0, k)));
+      if (t >= f.t0 - 0.03 && t < f.t0 + f.text.length / f.cps + 0.05) active = f.id;
+    });
+    FIELDS.forEach((f) => { $(f.id).classList.toggle("focus", f.id === active); });
+
+    // test connection
+    const tb = $("testBtn");
+    const testing = t >= K.clickTest + 0.02 && t < K.testOk;
+    const ok = t >= K.testOk;
+    html($("testIco"), ok ? ic("check", 15, 'stroke-width="2.6"') : testing ? ic("spin", 15, `style="transform:rotate(${Math.round((t - K.clickTest) * 900)}deg)"`) : ic("plug", 15));
+    tb.classList.toggle("ok", ok);
+    const okp = prog(t, K.testOk, 0.3, E.outC);
+    show($("okMsg"), okp);
+    tr($("okMsg"), `translateX(${(-10 * (1 - okp)).toFixed(1)}px)`);
+    pressed(tb, t, K.clickTest);
+    pressed($("saveBtn"), t, K.clickSave);
+  }
+
+  function pressed(el, t, at) {
+    const p = t >= at - 0.04 && t < at + 0.16 ? Math.sin(Math.PI * clamp((t - at + 0.04) / 0.2)) : 0;
+    tr(el, p ? `scale(${(1 - 0.07 * p).toFixed(4)})` : "none");
+  }
+
+  function renderWorkspace(t) {
+    const c = prog(t, K.connected, 0.3, E.outC);
+    html($("winTitle"), t >= K.connected ? "tabularis - Local Oracle Free (FREEPDB1/SHOP)" : "tabularis");
+    const conn = $("railConn");
+    const cp = prog(t, K.connected, 0.45, E.outB);
+    show(conn, t >= K.connected ? 1 : 0);
+    tr(conn, `scale(${cp.toFixed(4)})`);
+    const dp = prog(t, K.connected + 0.25, 0.3, E.outB);
+    tr($("railDot"), `scale(${dp.toFixed(4)})`);
+    show($("plugDot"), c);
+    show($("exSub"), c);
+    show($("exEmpty"), 1 - c);
+    [...$("tree").children].forEach((row, i) => {
+      const p = prog(t, K.connected + 0.06 + i * 0.03, 0.26, E.outC);
+      show(row, p);
+      tr(row, `translateX(${(-10 * (1 - p)).toFixed(1)}px)`);
+    });
+    show($("tabTint"), c);
+    show($("tab"), c);
+    show($("toolbar"), 0.35 + 0.65 * c);
+
+    // SQL typing
+    const n = Math.floor(clamp((t - K.sqlStart) / K.sqlDur) * SQL_TOTAL + 1e-6);
+    const caretOn = t >= K.connected && t < K.clickRun && (t < K.sqlStart + K.sqlDur + 0.1 || Math.floor(t * 2.2) % 2 === 0);
+    SQL.forEach((line, i) => {
+      const left = n - SQL_START[i]; // characters typed on this line (the newline counts)
+      const isCaretLine = left >= 0 && left <= line.length;
+      html($("l" + i), highlight(line.slice(0, clamp(left, 0, line.length))) + (isCaretLine && caretOn ? '<span class="caret"></span>' : ""));
+      show($("g" + i), t >= K.connected && left >= 0 ? 1 : 0);
+      $("g" + i).classList.toggle("on", isCaretLine && t >= K.connected);
+    });
+    show($("explainBtn"), prog(t, K.sqlStart + K.sqlDur, 0.3));
+    const eh = prog(t, 13.2, 0.12) * (1 - prog(t, 13.8, 0.2));
+    setStyle($("explainBtn"), "boxShadow", eh > 0.5 ? "inset 0 0 0 1px #7dacf9" : "inset 0 0 0 1px #2a3549");
+
+    // run + results
+    pressed($("runBtn"), t, K.clickRun);
+    const r0 = K.clickRun + 0.08;
+    show($("resInfo"), prog(t, r0, 0.2));
+    show($("resEmpty"), 1 - prog(t, r0 - 0.05, 0.15));
+    show($("resGrid"), prog(t, r0, 0.15));
+    RESULTS.forEach((_, i) => {
+      const p = prog(t, r0 + 0.06 + i * 0.07, 0.3, E.outC);
+      const row = $("row" + i);
+      show(row, p);
+      tr(row, `translateY(${(-8 * (1 - p)).toFixed(1)}px)`);
+      setStyle(row, "background", p > 0 && p < 1 ? rgb([37, 58, 102], [15, 23, 42], p) : "#0f172a");
+    });
+  }
+
+  function renderExplain(t) {
+    const t0 = K.clickExplain + 0.05;
+    const p = prog(t, t0, 0.4, E.outQ);
+    const m = $("mExp");
+    show(m, p);
+    tr(m, `translateY(${(36 * (1 - p)).toFixed(1)}px) scale(${(0.97 + 0.03 * p).toFixed(4)})`);
+    if (p <= 0) return;
+    [0, 1, 2, 3].forEach((i) => {
+      const q = prog(t, t0 + 0.18 + i * 0.07, 0.35, E.outB);
+      const el = $("oc" + i);
+      show(el, prog(t, t0 + 0.18 + i * 0.07, 0.15));
+      tr(el, `translateY(${(14 * (1 - q)).toFixed(1)}px) scale(${(0.92 + 0.08 * q).toFixed(4)})`);
+    });
+    PLAN.forEach((_, i) => {
+      const q = prog(t, t0 + 0.3 + i * 0.05, 0.3, E.outC);
+      const el = $("pr" + i);
+      show(el, q);
+      tr(el, `translateX(${(-14 * (1 - q)).toFixed(1)}px)`);
+    });
+  }
+
+  function renderCursor(t) {
+    const cur = $("cursor"), rip = $("ripple");
+    const o = prog(t, 6.85, 0.2) * (1 - prog(t, 14.6, 0.3));
+    show(cur, o);
+    const [x, y] = track(t, CUR);
+    let press = 0;
+    let rp = -1;
+    for (const c of CLICKS) {
+      if (t >= c - 0.06 && t < c + 0.14) press = Math.sin(Math.PI * clamp((t - c + 0.06) / 0.2));
+      if (t >= c && t < c + 0.45) rp = (t - c) / 0.45;
+    }
+    tr(cur, `translate(${(x - 3).toFixed(1)}px,${(y - 2).toFixed(1)}px) scale(${(1 - 0.16 * press).toFixed(4)})`);
+    if (rp >= 0) {
+      const e = E.outC(rp);
+      show(rip, (1 - rp) * o);
+      tr(rip, `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) scale(${(0.2 + 0.8 * e).toFixed(4)})`);
+    } else {
+      show(rip, 0);
+    }
+  }
+
+  function renderEnd(t) {
+    const on = t >= 15.3;
+    show($("end"), on ? 1 : 0);
+    if (!on) return;
+    const pill = $("endPill");
+    const pp = prog(t, 15.65, 0.45, E.outB);
+    show(pill, prog(t, 15.65, 0.2));
+    tr(pill, `scale(${(0.7 + 0.3 * pp).toFixed(4)})`);
+    const l1 = document.querySelector("#endTitle .l1"), l2 = document.querySelector("#endTitle .l2");
+    const a = prog(t, 15.75, 0.6, E.outQ), b = prog(t, 15.9, 0.6, E.outQ);
+    show(l1, a); tr(l1, `translateY(${(50 * (1 - a)).toFixed(1)}px)`);
+    show(l2, b); tr(l2, `translateY(${(50 * (1 - b)).toFixed(1)}px)`);
+    for (let i = 0; i < 6; i++) {
+      const el = $("chip" + i);
+      const q = prog(t, 16.18 + i * 0.07, 0.5, E.outB);
+      show(el, prog(t, 16.18 + i * 0.07, 0.2));
+      tr(el, `translateY(${(22 * (1 - q)).toFixed(1)}px) scale(${(0.85 + 0.15 * q).toFixed(4)})`);
+    }
+    const c = prog(t, 16.7, 0.55, E.outQ);
+    show($("cta"), c);
+    tr($("cta"), `translateY(${(24 * (1 - c)).toFixed(1)}px)`);
+    const f = prog(t, 16.95, 0.6, E.outC);
+    show($("foot"), f);
+  }
+
+  function render(t) {
+    t = clamp(t, 0, DURATION);
+    const H = heroes(t);
+    renderBackground(t);
+    renderLink(t, H);
+    renderLogoAndWordmark(t, H);
+    renderOracle(t, H);
+    renderScene2(t);
+    renderApp(t);
+    renderCaptions(t);
+    renderEnd(t);
+  }
+
+  // --------------------------------------------------------------- runtime
+  function fit() {
+    if (CAPTURE) return;
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `translate(${(innerWidth - 1920 * s) / 2}px,${(innerHeight - 1080 * s) / 2}px) scale(${s})`;
+  }
+
+  const fontsReady = Promise.all([
+    document.fonts.load('800 100px "Inter"'),
+    document.fonts.load('600 20px "Inter"'),
+    document.fonts.load('500 20px "JetBrains Mono"'),
+  ]).catch(() => {}).then(() => document.fonts.ready);
+
+  fontsReady.then(() => {
+    init();
+    fit();
+    addEventListener("resize", fit);
+    window.__duration = DURATION;
+    window.__seek = (t) => render(t);
+    if (CAPTURE) {
+      render(0);
+      window.__ready = true;
+      return;
+    }
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let paused = reduce;
+    let clock = reduce ? 18.2 : parseFloat(params.get("t") || "0") || 0;
+    let last = performance.now();
+    addEventListener("keydown", (e) => {
+      if (e.code === "Space") { paused = !paused; e.preventDefault(); }
+      if (e.code === "ArrowRight") clock = Math.min(DURATION, clock + (e.shiftKey ? 1 / 60 : 1));
+      if (e.code === "ArrowLeft") clock = Math.max(0, clock - (e.shiftKey ? 1 / 60 : 1));
+      render(clock);
+    });
+    const loop = (now) => {
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      if (!paused) clock = (clock + dt) % DURATION;
+      render(clock);
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  });
+})();
+</script>
+</body>
+</html>
