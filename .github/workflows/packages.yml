@@ -20,6 +20,8 @@ on:
       - 'src/schemas/theme*' # imported by create-plugin
       - 'src/types/theme*'
       - 'src/utils/theme*'
+      - 'src/utils/vsCodeThemeImport.ts'
+      - 'src/themes/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/packages.yml'
   pull_request:
@@ -30,6 +32,8 @@ on:
       - 'src/schemas/theme*'
       - 'src/types/theme*'
       - 'src/utils/theme*'
+      - 'src/utils/vsCodeThemeImport.ts'
+      - 'src/themes/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/packages.yml'
 
@@ -70,6 +74,8 @@ jobs:
               - 'src/schemas/theme*'
               - 'src/types/theme*'
               - 'src/utils/theme*'
+              - 'src/utils/vsCodeThemeImport.ts'
+              - 'src/themes/**'
 
       - name: Build the package matrix
         id: matrix
