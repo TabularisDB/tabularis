@@ -3803,10 +3803,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           {activeConnectionId ? (
             <div className="text-center">
               <p className="mb-4">{t("editor.noTabs")}</p>
-             <button
-               onClick={() => addTab({ type: "console" })}
-               className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded transition-colors"
-             >
+              <button
+                onClick={() => addTab({ type: "console" })}
+                className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded transition-colors"
+              >
                 {t("editor.newConsole")}
               </button>
             </div>
