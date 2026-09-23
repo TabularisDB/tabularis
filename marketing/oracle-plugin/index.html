@@ -647,7 +647,7 @@
       return `<div class="card" id="card${i}" style="left:${p.x}px;top:${p.y}px">` +
         `<div class="row">${iconBox}<span class="nm">${c.n}</span>${status}</div>` +
         `<div class="meta"${c.oracle ? ' id="oraMeta"' : ""}>Relational</div>` +
-        (c.oracle ? `<div class="prog" id="oraProg"><span class="track"><i id="oraFill"></i></span><span id="oraPct">0%</span></div>` : "") + `</div>`;
+        (c.oracle ? `<div class="prog" id="oraProg"><span class="track"><i id="oraProgFill"></i></span><span id="oraPct">0%</span></div>` : "") + `</div>`;
     }).join("");
     const plan = PLAN.map((p, i) => {
       const warn = p[8] === "5.00x" ? " warn" : "";
@@ -1177,7 +1177,7 @@
     const progOn = t < K.clickInstall ? 0 : installing ? prog(t, K.clickInstall, 0.08) : 1 - prog(t, K.installEnd + 0.1, 0.2);
     show($("oraProg"), progOn);
     show($("oraMeta"), 1 - progOn);
-    tr($("oraFill"), `scaleX(${(installed ? 1 : ip).toFixed(4)})`);
+    tr($("oraProgFill"), `scaleX(${(installed ? 1 : ip).toFixed(4)})`);
     html($("oraPct"), installed ? "100%" : `${Math.round(ip * 100)}%`);
 
     // configure: typing into fields

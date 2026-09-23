@@ -11,6 +11,7 @@
  *
  * Requirements: Playwright with Chromium (from this repo, NODE_PATH or the global
  * pnpm/npm root) and an ffmpeg build with libx264 on PATH, or set FFMPEG=/path/to/ffmpeg.
+ * gifsicle (optional, GIFSICLE=...) halves the GIF with lossy LZW compression.
  * Every frame is produced by window.__seek(t), so the output is deterministic. Workers
  * render contiguous chunks into near-lossless intermediates that are then joined.
  */
@@ -25,6 +26,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const NAME = "tabularis-oracle-plugin";
 const FFMPEG = process.env.FFMPEG || "ffmpeg";
+const GIFSICLE = process.env.GIFSICLE || "gifsicle";
 const VIEWPORT = { width: 1920, height: 1080 };
 
 const argv = process.argv.slice(2);
@@ -150,6 +152,11 @@ try {
   const gif = join(OUT, `${NAME}.gif`);
   await ffmpeg(["-i", master, "-i", palette, "-lavfi",
     `${scale}[v];[v][1:v]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle`, "-loop", "0", gif]);
+  try {
+    execFileSync(GIFSICLE, ["-O3", "--lossy=30", "--batch", gif], { stdio: "ignore" });
+  } catch {
+    console.warn("gifsicle not found: the GIF stays unoptimized, about twice as large.");
+  }
   console.log(`${gif} ${size(gif)}`);
 } finally {
   await browser.close().catch(() => {});

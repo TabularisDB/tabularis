@@ -38,7 +38,8 @@ node render.mjs
 ```
 
 It needs Playwright with Chromium (from the repo, `NODE_PATH` or the global pnpm/npm root) and an
-ffmpeg build with libx264 on `PATH` (or `FFMPEG=/path/to/ffmpeg`). Options: `--fps 60`,
+ffmpeg build with libx264 on `PATH` (or `FFMPEG=/path/to/ffmpeg`); `gifsicle`, when installed,
+halves the GIF with no visible difference. Options: `--fps 60`,
 `--gif-fps 15`, `--gif-width 960`, `--poster 18.2` (time of the poster frame in seconds),
 `--workers 3` (parallel browser pages) and `--out <dir>`. Rendering takes a few minutes and is
 deterministic: every frame comes from `window.__seek(t)`, nothing depends on the wall clock.
