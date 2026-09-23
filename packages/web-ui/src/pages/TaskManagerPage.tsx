@@ -48,8 +48,8 @@ const KillConfirmModal = ({ pluginName, onConfirm, onCancel }: KillConfirmModalP
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] backdrop-blur-sm">
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[420px] overflow-hidden">
         <div className="flex items-center gap-3 p-4 border-b border-default bg-base">
-          <div className="p-2 rounded-lg bg-red-500/20 border border-red-500/30">
-            <TriangleAlert size={18} className="text-red-400" />
+          <div className="p-2 rounded-lg bg-accent-error/20 border border-accent-error/30">
+            <TriangleAlert size={18} className="text-accent-error" />
           </div>
           <div className="flex-1">
             <h3 className="text-sm font-semibold text-primary">{t("taskManager.killModal.title")}</h3>
@@ -68,7 +68,7 @@ const KillConfirmModal = ({ pluginName, onConfirm, onCancel }: KillConfirmModalP
             <span className="font-semibold text-primary">{pluginName}</span>{" "}
             {t("taskManager.killModal.descriptionAfter")}
           </p>
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-accent-error/10 border border-accent-error/20 text-accent-error text-xs">
             <TriangleAlert size={14} className="shrink-0 mt-0.5" />
             <span>{t("taskManager.killModal.warning")}</span>
           </div>
@@ -82,7 +82,7 @@ const KillConfirmModal = ({ pluginName, onConfirm, onCancel }: KillConfirmModalP
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/15 border border-red-500/25 text-red-400 hover:bg-red-500/25 transition-colors"
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-accent-error/15 border border-accent-error/25 text-accent-error hover:bg-accent-error/25 transition-colors"
           >
             {t("taskManager.killModal.confirm")}
           </button>
@@ -123,29 +123,29 @@ const TabularisSelfPanel = ({ stats }: { stats: TabularisSelfStats }) => {
   return (
     <div className="bg-elevated border border-default rounded-xl p-5">
       <h2 className="text-sm font-semibold text-primary mb-4 flex items-center gap-2">
-        <Activity size={15} className="text-blue-400" />
+        <Activity size={15} className="text-accent" />
         {t("taskManager.tabularisProcess.title")}
         <span className="ml-auto text-xs text-muted font-mono">PID {stats.pid}</span>
       </h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
-          icon={<Cpu size={14} className="text-blue-400" />}
+          icon={<Cpu size={14} className="text-accent" />}
           label={t("taskManager.tabularisProcess.cpu")}
           value={formatCpuPercent(stats.cpu_percent)}
         />
         <StatCard
-          icon={<MemoryStick size={14} className="text-purple-400" />}
+          icon={<MemoryStick size={14} className="text-accent-secondary" />}
           label={t("taskManager.tabularisProcess.ram")}
           value={formatBytes(stats.self_memory_bytes)}
         />
         <StatCard
-          icon={<HardDrive size={14} className="text-green-400" />}
+          icon={<HardDrive size={14} className="text-accent-success" />}
           label={t("taskManager.tabularisProcess.diskRead")}
           value={formatBytes(stats.disk_read_bytes)}
           suffix="/s"
         />
         <StatCard
-          icon={<HardDrive size={14} className="text-orange-400" />}
+          icon={<HardDrive size={14} className="text-accent-warning" />}
           label={t("taskManager.tabularisProcess.diskWrite")}
           value={formatBytes(stats.disk_write_bytes)}
           suffix="/s"
@@ -268,9 +268,9 @@ const Th = ({ label, col, current, asc, onClick }: ThProps) => (
       {label}
       {current === col ? (
         asc ? (
-          <ArrowUp size={12} className="text-blue-400" />
+          <ArrowUp size={12} className="text-accent" />
         ) : (
-          <ArrowDown size={12} className="text-blue-400" />
+          <ArrowDown size={12} className="text-accent" />
         )
       ) : (
         <ArrowUpDown size={12} className="opacity-40" />
@@ -296,12 +296,12 @@ const ChildRow = ({ child }: { child: ChildProcessInfo }) => {
       <td className="px-4 py-2 text-secondary text-xs">{formatCpuPercent(child.cpu_percent)}</td>
       <td className="px-4 py-2 text-secondary text-xs">{formatBytes(child.memory_bytes)}</td>
       <td className="px-4 py-2 text-secondary text-xs">
-        <span className="text-green-400">{formatBytes(child.disk_read_bytes)}/s</span>
+        <span className="text-accent-success">{formatBytes(child.disk_read_bytes)}/s</span>
         {" / "}
-        <span className="text-orange-400">{formatBytes(child.disk_write_bytes)}/s</span>
+        <span className="text-accent-warning">{formatBytes(child.disk_write_bytes)}/s</span>
       </td>
       <td className="px-4 py-2">
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-accent-success/20 text-accent-success border border-accent-success/30">
           {t("taskManager.pluginProcesses.status.running")}
         </span>
       </td>
@@ -365,9 +365,9 @@ const ProcessRow = ({
         <td className="px-4 py-3 text-secondary">{formatCpuPercent(proc.cpu_percent)}</td>
         <td className="px-4 py-3 text-secondary">{formatBytes(proc.memory_bytes)}</td>
         <td className="px-4 py-3 text-secondary text-xs">
-          <span className="text-green-400">{formatBytes(proc.disk_read_bytes)}/s</span>
+          <span className="text-accent-success">{formatBytes(proc.disk_read_bytes)}/s</span>
           {" / "}
-          <span className="text-orange-400">{formatBytes(proc.disk_write_bytes)}/s</span>
+          <span className="text-accent-warning">{formatBytes(proc.disk_write_bytes)}/s</span>
         </td>
         <td className="px-4 py-3">
           <span
@@ -384,7 +384,7 @@ const ProcessRow = ({
             <button
               onClick={() => onRestart(proc.plugin_id)}
               disabled={busy}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs bg-accent-primary/10 border border-accent-primary/20 text-accent hover:bg-accent-primary/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               title={t("taskManager.pluginProcesses.restart")}
             >
               {isRestarting ? (
@@ -397,7 +397,7 @@ const ProcessRow = ({
             <button
               onClick={() => onKillRequest(proc)}
               disabled={busy}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs bg-accent-error/10 border border-accent-error/20 text-accent-error hover:bg-accent-error/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               title={t("taskManager.killModal.confirm")}
             >
               {isKilling ? (
@@ -477,8 +477,8 @@ export const TaskManagerPage = () => {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-default bg-elevated shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-blue-500/20 border border-blue-500/30">
-              <Activity size={18} className="text-blue-400" />
+            <div className="p-2 rounded-lg bg-accent-primary/20 border border-accent-primary/30">
+              <Activity size={18} className="text-accent" />
             </div>
             <div>
               <h1 className="text-base font-semibold text-primary">{t("taskManager.header.title")}</h1>
@@ -498,7 +498,7 @@ export const TaskManagerPage = () => {
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Error banner */}
           {error && (
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-accent-error/10 border border-accent-error/20 text-accent-error text-sm">
               <AlertCircle size={16} className="shrink-0" />
               <span>{error}</span>
             </div>
@@ -507,14 +507,14 @@ export const TaskManagerPage = () => {
           {/* System stats */}
           <div className="bg-elevated border border-default rounded-xl p-5">
             <h2 className="text-sm font-semibold text-primary mb-4 flex items-center gap-2">
-              <Cpu size={15} className="text-blue-400" />
+              <Cpu size={15} className="text-accent" />
               {t("taskManager.systemResources.title")}
             </h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {/* CPU */}
               <div className="bg-base rounded-lg p-3 border border-default">
                 <div className="flex items-center gap-2 mb-2">
-                  <Cpu size={14} className="text-blue-400" />
+                  <Cpu size={14} className="text-accent" />
                   <span className="text-xs text-muted font-medium uppercase tracking-wide">{t("taskManager.systemResources.cpu")}</span>
                 </div>
                 <p className="text-xl font-bold text-primary">
@@ -525,7 +525,7 @@ export const TaskManagerPage = () => {
               {/* RAM */}
               <div className="bg-base rounded-lg p-3 border border-default">
                 <div className="flex items-center gap-2 mb-2">
-                  <MemoryStick size={14} className="text-purple-400" />
+                  <MemoryStick size={14} className="text-accent-secondary" />
                   <span className="text-xs text-muted font-medium uppercase tracking-wide">{t("taskManager.systemResources.ram")}</span>
                 </div>
                 <p className="text-xl font-bold text-primary">
@@ -535,7 +535,7 @@ export const TaskManagerPage = () => {
                   <div className="mt-2">
                     <div className="h-1.5 rounded-full bg-surface-secondary overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-purple-400 transition-all duration-300"
+                        className="h-full rounded-full bg-accent-secondary transition-all duration-300"
                         style={{ width: `${memoryPercent}%` }}
                       />
                     </div>
@@ -549,7 +549,7 @@ export const TaskManagerPage = () => {
               {/* Disk Read/s */}
               <div className="bg-base rounded-lg p-3 border border-default">
                 <div className="flex items-center gap-2 mb-2">
-                  <HardDrive size={14} className="text-green-400" />
+                  <HardDrive size={14} className="text-accent-success" />
                   <span className="text-xs text-muted font-medium uppercase tracking-wide">
                     {t("taskManager.systemResources.diskRead")}
                   </span>
@@ -565,7 +565,7 @@ export const TaskManagerPage = () => {
               {/* Disk Write/s */}
               <div className="bg-base rounded-lg p-3 border border-default">
                 <div className="flex items-center gap-2 mb-2">
-                  <HardDrive size={14} className="text-orange-400" />
+                  <HardDrive size={14} className="text-accent-warning" />
                   <span className="text-xs text-muted font-medium uppercase tracking-wide">
                     {t("taskManager.systemResources.diskWrite")}
                   </span>
@@ -595,7 +595,7 @@ export const TaskManagerPage = () => {
           {/* Plugin processes table */}
           <div className="bg-elevated border border-default rounded-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-default flex items-center gap-2">
-              <Plug size={15} className="text-blue-400" />
+              <Plug size={15} className="text-accent" />
               <h2 className="text-sm font-semibold text-primary">{t("taskManager.pluginProcesses.title")}</h2>
               {processes.length > 0 && (
                 <span className="ml-auto text-xs text-muted bg-surface-secondary px-2 py-0.5 rounded-full">

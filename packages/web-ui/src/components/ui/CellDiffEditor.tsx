@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
-import { DiffEditor, type DiffOnMount } from "@monaco-editor/react";
+import type { DiffOnMount } from "@monaco-editor/react";
+import { MonacoDiffEditor as DiffEditor } from "./LazyMonaco";
 import type * as MonacoTypes from "monaco-editor";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
+import { getMonacoThemeId } from "../../themes/themeRuntime";
 
 interface CellDiffEditorProps {
   original: string;
@@ -54,7 +56,7 @@ export const CellDiffEditor = ({
       key={renderSideBySide ? "sbs" : "inline"}
       height={height}
       language={language}
-      theme={editorTheme.id}
+      theme={getMonacoThemeId(editorTheme.id)}
       original={original}
       modified={modified}
       onMount={handleMount}

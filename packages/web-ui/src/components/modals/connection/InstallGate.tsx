@@ -65,7 +65,7 @@ export function InstallGate({ driver, status, error, onInstall, onBack }: Instal
 
       {unsupported ? (
         <div className="flex max-w-sm flex-col items-center gap-2">
-          <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
+          <div className="flex items-center gap-2 rounded-lg border border-accent-warning/30 bg-accent-warning/10 px-3 py-2 text-sm text-accent-warning">
             <AlertTriangle size={15} className="shrink-0" />
             <span>
               {t("connectionCatalogue.noReleaseTitle", {
@@ -88,13 +88,13 @@ export function InstallGate({ driver, status, error, onInstall, onBack }: Instal
             })}
           </p>
           {status === "error" && error && (
-            <p className="max-w-sm break-words text-xs text-red-400">{error}</p>
+            <p className="max-w-sm break-words text-xs text-accent-error">{error}</p>
           )}
           <button
             type="button"
             onClick={() => onInstall(driver.slug, driver.latestVersion)}
             disabled={installing}
-            className="mt-1 flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+            className="mt-1 flex items-center gap-2 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-inverse transition-colors hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
           >
             {installing && <Loader2 size={14} className="animate-spin" />}
             {installing
@@ -116,7 +116,7 @@ export function InstallGate({ driver, status, error, onInstall, onBack }: Instal
         <button
           type="button"
           onClick={() => setShowReadme(true)}
-          className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-blue-400 transition-colors hover:text-blue-300"
+          className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-accent transition-colors hover:text-accent"
         >
           <BookOpen size={13} />
           {t("connectionCatalogue.viewDetails", { defaultValue: "More details" })}

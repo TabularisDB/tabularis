@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { SqlEditorWrapper } from '../../../src/components/ui/SqlEditorWrapper';
 import { SettingsContext, DEFAULT_SETTINGS } from '../../../src/contexts/SettingsContext';
 import { CommandPaletteDispatchContext } from '../../../src/contexts/CommandPaletteContext';
@@ -46,9 +46,9 @@ vi.mock('../../../src/hooks/usePlatformCapabilities', () => ({
 }));
 
 // Mock MonacoEditor
-vi.mock('@monaco-editor/react', async () => {
+vi.mock('../../../src/components/ui/LazyMonaco', async () => {
   return {
-    default: ({ onChange, beforeMount, onMount, defaultValue, options }: MonacoEditorMockProps) => {
+    MonacoEditor: ({ onChange, beforeMount, onMount, defaultValue, options }: MonacoEditorMockProps) => {
       monacoRenderState.beforeMount = beforeMount;
       monacoRenderState.onMount = onMount;
       return (
@@ -397,6 +397,38 @@ describe('SqlEditorWrapper', () => {
     expect(trigger).not.toHaveBeenCalled();
   });
 
+  it('does not intercept composing editor key events as palette shortcuts', () => {
+    matchesShortcutMock.mockImplementation(
+      (_event, id) => id === 'command_palette_actions',
+    );
+    render(
+      <SqlEditorWrapper
+        initialValue=""
+        onChange={mockOnChange}
+        onRun={mockOnRun}
+        editorKey="palette-composition"
+      />,
+      { wrapper }
+    );
+    const { keyDownHandlers } = mountCapturedEditor();
+    const event = {
+      browserEvent: new KeyboardEvent('keydown', {
+        key: 'a',
+        ctrlKey: true,
+        shiftKey: true,
+        isComposing: true,
+      }),
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    };
+
+    keyDownHandlers[0](event);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(event.stopPropagation).not.toHaveBeenCalled();
+    expect(togglePaletteMock).not.toHaveBeenCalled();
+  });
+
   it('renders without a command palette provider and leaves its shortcut to Monaco', () => {
     matchesShortcutMock.mockImplementation(
       (_event, id) => id === 'command_palette_actions',
@@ -511,5 +543,120 @@ describe('SqlEditorWrapper', () => {
         'smart'
       );
     });
+  });
+});
+
+describe('SqlEditorWrapper debounced value sync', () => {
+  const mockOnChange = vi.fn();
+  const mockOnRun = vi.fn();
+
+  const mountValueEditor = (initial: string) => {
+    let value = initial;
+    const editor = {
+      addAction: vi.fn(),
+      addCommand: vi.fn(),
+      dispose: vi.fn(),
+      getContribution: vi.fn(() => null),
+      getModel: vi.fn(() => null),
+      onKeyDown: vi.fn(),
+      trigger: vi.fn(),
+      getValue: vi.fn(() => value),
+      setValue: vi.fn((next: string) => {
+        value = next;
+      }),
+      getPosition: vi.fn(() => ({ lineNumber: 1, column: 2 })),
+      setPosition: vi.fn(),
+      getSelections: vi.fn(() => []),
+      setSelections: vi.fn(),
+    };
+    monacoRenderState.onMount?.(editor, {
+      KeyMod: { CtrlCmd: 1, Shift: 2, Alt: 4 },
+      KeyCode: { KeyX: 8, KeyC: 16, KeyV: 32, Enter: 64, KeyF: 128, KeyA: 256 },
+    });
+    // Simulates the user typing: Monaco already holds the new text when it
+    // notifies onChange.
+    const type = (next: string) => {
+      value = next;
+      fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: next } });
+    };
+    return { editor, type };
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    monacoRenderState.onMount = undefined;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const renderEditor = (initialValue: string) =>
+    render(
+      <SqlEditorWrapper initialValue={initialValue} onChange={mockOnChange} onRun={mockOnRun} />,
+      { wrapper: standaloneWrapper },
+    );
+
+  it('does not overwrite keystrokes typed while a debounced change is echoed back', () => {
+    const { rerender } = renderEditor('');
+    const { editor, type } = mountValueEditor('');
+
+    type('x');
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(mockOnChange).toHaveBeenCalledWith('x');
+
+    // The consumer re-renders with "x" only after the user already typed "y".
+    type('xy');
+    rerender(
+      <SqlEditorWrapper initialValue="x" onChange={mockOnChange} onRun={mockOnRun} />,
+    );
+
+    expect(editor.setValue).not.toHaveBeenCalled();
+    expect(editor.getValue()).toBe('xy');
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(mockOnChange).toHaveBeenLastCalledWith('xy');
+    rerender(
+      <SqlEditorWrapper initialValue="xy" onChange={mockOnChange} onRun={mockOnRun} />,
+    );
+    expect(editor.setValue).not.toHaveBeenCalled();
+  });
+
+  it('applies an external initialValue change and restores the cursor', () => {
+    const { rerender } = renderEditor('');
+    const { editor, type } = mountValueEditor('');
+
+    type('x');
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    rerender(
+      <SqlEditorWrapper initialValue="SELECT 1" onChange={mockOnChange} onRun={mockOnRun} />,
+    );
+
+    expect(editor.setValue).toHaveBeenCalledWith('SELECT 1');
+    expect(editor.setPosition).toHaveBeenCalledWith({ lineNumber: 1, column: 2 });
+  });
+
+  it('lets an external change win over a pending debounced flush', () => {
+    const { rerender } = renderEditor('');
+    const { editor, type } = mountValueEditor('');
+
+    type('ab');
+    rerender(
+      <SqlEditorWrapper initialValue="SELECT 1" onChange={mockOnChange} onRun={mockOnRun} />,
+    );
+    expect(editor.setValue).toHaveBeenCalledWith('SELECT 1');
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(mockOnChange).not.toHaveBeenCalledWith('ab');
   });
 });

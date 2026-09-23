@@ -1,9 +1,11 @@
 import { createContext } from 'react';
-import type { DriverCapabilities } from '../types/plugins';
+import type { ProxyOverride } from '../types/proxy';
+import type { ConnectionMetadata, DriverCapabilities } from '../types/plugins';
 
 export interface TableInfo {
   name: string;
   schema?: string; // database/schema the table belongs to (populated in multiDb mode)
+  comment?: string | null;
 }
 
 export interface ViewInfo {
@@ -49,7 +51,21 @@ export interface SavedConnection {
     ssh_connection_id?: string;
     k8s_enabled?: boolean;
     k8s_connection_id?: string;
+    ssm_enabled?: boolean;
+    ssm_target?: string;
     startup_script?: string;
+    /** SSL/TLS mode (e.g. "verify-ca"); empty/absent means SSL is off. Used
+     * by findUnsupportedFeatures to detect a plugin capability gap. */
+    ssl_mode?: string;
+    /** Raw driver-specific connection URI, when present at runtime (never
+     * persisted to disk — see connection_uri_in_keychain below). */
+    connection_uri?: string;
+    /** True when a connection URI is restorable from the OS keychain. A
+     * driver flip drops it (by design — a stored URI belongs to the driver
+     * that produced it), so the migration confirm warns before this happens. */
+    connection_uri_in_keychain?: boolean;
+    /** Optional proxy override for this connection. */
+    proxy?: ProxyOverride;
   };
   group_id?: string;
   sort_order?: number;
@@ -91,6 +107,8 @@ export interface SchemaData {
 export interface ConnectionData {
   driver: string;
   capabilities: DriverCapabilities | null;
+  metadata?: ConnectionMetadata;
+  usesConnectionMetadata?: boolean;
   connectionName: string;
   databaseName: string;
   tables: TableInfo[];
@@ -148,9 +166,9 @@ export interface DatabaseContextType {
   databaseDataMap: Record<string, SchemaData>;
   connections: SavedConnection[];
   connectionGroups: ConnectionGroup[];
-  loadConnections: () => Promise<void>;
+  loadConnections: (options?: { ifNeeded?: boolean }) => Promise<void>;
   isLoadingConnections: boolean;
-  connect: (connectionId: string) => Promise<void>;
+  connect: (connectionId: string, options?: { activate?: boolean }) => Promise<void>;
   disconnect: (connectionId?: string) => Promise<void>;
   /**
    * Remove a connection from THIS window's UI without closing its backend pool.

@@ -420,6 +420,9 @@ export interface QueryExportRequest extends ConnectionIdRequest {
 
 export interface PersistedConfig extends Partial<Settings> {
   theme?: string;
+  followSystemTheme?: boolean;
+  lightThemeId?: string;
+  darkThemeId?: string;
   checkForUpdates?: boolean;
   lastDismissedVersion?: string;
   lastActiveConnectionId?: string;

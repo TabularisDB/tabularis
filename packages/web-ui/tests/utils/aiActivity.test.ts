@@ -45,12 +45,12 @@ const baseEvent = (overrides: Partial<AiActivityEvent> = {}): AiActivityEvent =>
 describe("getStatusBadgeStyle", () => {
   it("returns green styling for success", () => {
     const s = getStatusBadgeStyle("success");
-    expect(s.text).toContain("green");
+    expect(s.text).toContain("accent-success");
   });
 
   it("returns red styling for error and denied", () => {
-    expect(getStatusBadgeStyle("error").text).toContain("red");
-    expect(getStatusBadgeStyle("denied").text).toContain("red");
+    expect(getStatusBadgeStyle("error").text).toContain("accent-error");
+    expect(getStatusBadgeStyle("denied").text).toContain("accent-error");
   });
 
   it("returns fallback for unknown status", () => {
@@ -61,9 +61,9 @@ describe("getStatusBadgeStyle", () => {
 
 describe("getQueryKindBadgeStyle", () => {
   it("differentiates select / write / ddl", () => {
-    expect(getQueryKindBadgeStyle("select").text).toContain("blue");
-    expect(getQueryKindBadgeStyle("write").text).toContain("yellow");
-    expect(getQueryKindBadgeStyle("ddl").text).toContain("orange");
+    expect(getQueryKindBadgeStyle("select").text).toContain("text-accent");
+    expect(getQueryKindBadgeStyle("write").text).toContain("accent-warning");
+    expect(getQueryKindBadgeStyle("ddl").text).toContain("accent-secondary");
   });
 
   it("falls back when null or unknown", () => {

@@ -48,3 +48,27 @@ export function versionGte(versionA: string, versionB: string): boolean {
   }
   return true;
 }
+
+/** Registry kind buckets offered by the Plugin Center's kind filter. */
+export type PluginKind = "driver" | "theme";
+export type PluginKindFilter = "all" | PluginKind;
+
+/**
+ * Registry kind bucket of a plugin. Tabularium folds the kind into tags and the
+ * registry classifies it; an absent kind is the legacy rule for a driver.
+ */
+export function pluginKind(plugin: { kind?: string | null }): PluginKind {
+  return plugin.kind === "theme" ? "theme" : "driver";
+}
+
+export function matchesPluginKind(
+  plugin: { kind?: string | null },
+  filter: PluginKindFilter,
+): boolean {
+  return filter === "all" || pluginKind(plugin) === filter;
+}
+
+/** Narrows a URL query value to a kind filter; anything else means "all". */
+export function parsePluginKindFilter(value: string | null): PluginKindFilter {
+  return value === "driver" || value === "theme" ? value : "all";
+}

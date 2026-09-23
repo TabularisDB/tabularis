@@ -62,7 +62,7 @@ export function ExplainAiAnalysis({ plan }: ExplainAiAnalysisProps) {
   return (
     <div className="h-full overflow-y-auto p-6">
       {!settings.aiProvider && (
-        <div className="bg-yellow-900/20 border border-yellow-500/30 text-yellow-300 px-4 py-3 rounded-lg text-sm mb-4">
+        <div className="bg-accent-warning/10 border border-accent-warning/30 text-accent-warning px-4 py-3 rounded-lg text-sm mb-4">
           {t("editor.visualExplain.aiConfigRequired")}
         </div>
       )}
@@ -78,7 +78,7 @@ export function ExplainAiAnalysis({ plan }: ExplainAiAnalysisProps) {
         <div className="text-error-text text-sm">{error}</div>
       ) : analysis ? (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 text-purple-400 text-sm font-medium">
+          <div className="flex items-center gap-2 text-accent-secondary text-sm font-medium">
             <Sparkles size={14} />
             {t("editor.visualExplain.aiAnalysisTitle")}
           </div>

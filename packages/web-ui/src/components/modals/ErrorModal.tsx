@@ -16,8 +16,8 @@ export const ErrorModal = ({ isOpen, onClose, message }: ErrorModalProps) => {
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[520px] max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-900/30 rounded-lg">
-              <AlertTriangle size={20} className="text-red-400" />
+            <div className="p-2 bg-accent-error/15 rounded-lg">
+              <AlertTriangle size={20} className="text-accent-error" />
             </div>
             <h2 className="text-lg font-semibold text-primary">
               {t("common.error")}
@@ -38,7 +38,7 @@ export const ErrorModal = ({ isOpen, onClose, message }: ErrorModalProps) => {
         <div className="p-4 border-t border-default bg-base/50 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors"
           >
             {t("common.close")}
           </button>

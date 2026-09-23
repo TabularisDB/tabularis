@@ -550,6 +550,23 @@ async fn saved_driver_and_params(
             .find(|connection| connection.id == connection_id)
             .ok_or_else(|| "Connection not found".to_string())?;
     let driver = driver_for(&saved.params.driver).await?;
+    // Pure SQL builders still need no credentials for static drivers. Only
+    // discovery-enabled plugins resolve credentials and tunnels here.
+    if !driver.has_connection_metadata() {
+        return Ok((driver, saved.params));
+    }
+    let runtime_for_resolution = runtime.clone();
+    let connection_id_for_resolution = connection_id.to_string();
+    let (_, params) = tokio::task::spawn_blocking(move || {
+        crate::application::connections::resolve_saved_connection_params(
+            &runtime_for_resolution,
+            None,
+            &connection_id_for_resolution,
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    let driver = crate::drivers::registry::get_connection_driver(&params).await?;
     Ok((driver, saved.params))
 }
 
@@ -558,12 +575,15 @@ async fn connected_driver_and_params(
     session_id: Option<Uuid>,
     connection_id: &str,
 ) -> Result<(Arc<dyn DatabaseDriver>, ConnectionParams), String> {
-    let (driver_id, params) = crate::application::connections::resolve_saved_connection_params(
+    let (_driver_id, params) = crate::application::connections::resolve_saved_connection_params(
         runtime,
         session_id,
         connection_id,
     )?;
-    Ok((driver_for(&driver_id).await?, params))
+    Ok((
+        crate::drivers::registry::get_connection_driver(&params).await?,
+        params,
+    ))
 }
 
 async fn driver_for(driver_id: &str) -> Result<Arc<dyn DatabaseDriver>, String> {

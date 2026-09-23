@@ -1,0 +1,88 @@
+{
+  "type": "object",
+  "additionalProperties": true,
+  "description": "Runtime contract only. Catalog metadata (description, tags, license, screenshots, links, ...) is owned and validated by the Tabularium registry and tolerated here.",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Editor schema hint only. Tabularis validates against its bundled schema and never fetches this URL."
+    },
+    "id": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^(?!(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$)[a-z][a-z0-9-]{0,63}$",
+      "description": "Stable package identifier used for installation and selection IDs. Without id, name must be this slug."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "description": "Display name. Legacy manifests without id must keep this a lowercase slug; the host enforces that in code."
+    },
+    "version": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 40,
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "kind": {
+      "type": "string",
+      "const": "theme"
+    },
+    "min_runtime_version": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 40,
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "theme_schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "theme_variants": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^(?!(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$)[a-z][a-z0-9-]{0,63}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          },
+          "file": {
+            "type": "string",
+            "maxLength": 240,
+            "pattern": "^themes/(?:[A-Za-z0-9][A-Za-z0-9._-]*/){0,6}[A-Za-z0-9][A-Za-z0-9._-]*\\.json$"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "file"
+        ]
+      }
+    }
+  },
+  "required": [
+    "name",
+    "version",
+    "kind",
+    "min_runtime_version",
+    "theme_schema_version",
+    "theme_variants"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Tabularis theme package manifest v1"
+}

@@ -39,7 +39,7 @@ export function AiActivityPanel() {
             className={clsx(
               "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
               tab === id
-                ? "text-primary border-blue-500"
+                ? "text-primary border-accent-primary"
                 : "text-muted border-transparent hover:text-primary",
             )}
           >

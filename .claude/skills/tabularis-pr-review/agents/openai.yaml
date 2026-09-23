@@ -1,0 +1,7 @@
+interface:
+  display_name: "Tabularis PR Review"
+  short_description: "Review a Tabularis PR locally against repo rules with real test data."
+  default_prompt: "Use $tabularis-pr-review to review PR #N: check the diff against .rules/, verify the PR's claims, run its tests on the PR branch, and prepare real test data plus a manual test plan."
+
+policy:
+  allow_implicit_invocation: true

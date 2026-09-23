@@ -1,6 +1,7 @@
 [
   {
-    "name": "all_types"
+    "name": "all_types",
+    "comment": "PostgreSQL metadata integration fixture"
   },
   {
     "name": "crud_scratch"

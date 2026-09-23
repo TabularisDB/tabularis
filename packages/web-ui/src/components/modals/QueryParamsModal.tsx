@@ -82,7 +82,7 @@ const QueryParamsForm = ({ parameters, initialValues, onSubmit, onClose, mode }:
                   value={values[param] || ""}
                   onChange={(e) => handleChange(param, e.target.value)}
                   placeholder={t("editor.paramValuePlaceholder")}
-                  className="bg-base border border-strong rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-blue-500 font-mono"
+                  className="bg-base border border-strong rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-focus font-mono"
                   autoFocus={parameters[0] === param}
                 />
               </div>
@@ -100,7 +100,7 @@ const QueryParamsForm = ({ parameters, initialValues, onSubmit, onClose, mode }:
             <button
               type="submit"
               disabled={!isFormValid}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {mode === "run" || mode === "explain" ? (
                 <Play size={16} fill="currentColor" />

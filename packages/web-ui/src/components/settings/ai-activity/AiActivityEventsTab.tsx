@@ -136,12 +136,12 @@ export function AiActivityEventsTab() {
           {t("aiActivity.eventsCount", { count: stats.total })}
         </span>
         {stats.blocked > 0 && (
-          <span className="inline-flex items-center rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-yellow-300">
+          <span className="inline-flex items-center rounded-full border border-accent-warning/30 bg-accent-warning/10 px-2.5 py-1 text-accent-warning">
             {t("aiActivity.blockedCount", { count: stats.blocked })}
           </span>
         )}
         {stats.errors > 0 && (
-          <span className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-red-300">
+          <span className="inline-flex items-center rounded-full border border-accent-error/30 bg-accent-error/10 px-2.5 py-1 text-accent-error">
             {t("aiActivity.errorsCount", { count: stats.errors })}
           </span>
         )}
@@ -249,7 +249,7 @@ function FiltersBar({
             onChange={(e) =>
               update({ queryContains: e.target.value || undefined })
             }
-            className="h-9 w-full rounded border border-strong bg-base pl-9 pr-3 text-sm text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
+            className="h-9 w-full rounded border border-strong bg-base pl-9 pr-3 text-sm text-primary placeholder:text-muted focus:border-focus focus:outline-none"
           />
         </div>
         <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-1 lg:items-center lg:gap-2">
@@ -307,7 +307,7 @@ function FiltersBar({
           <div className="mx-1 h-6 w-px bg-default" aria-hidden />
           <button
             onClick={onClear}
-            className="flex h-9 items-center gap-1.5 rounded border border-red-900/40 bg-red-900/10 px-2.5 text-xs text-red-400 transition-colors hover:bg-red-900/30 hover:text-red-300"
+            className="flex h-9 items-center gap-1.5 rounded border border-accent-error/20 bg-accent-error/5 px-2.5 text-xs text-accent-error transition-colors hover:bg-accent-error/15 hover:text-accent-error"
             title={t("aiActivity.clearAll")}
           >
             <Trash2 size={12} /> {t("aiActivity.clearAll")}
@@ -480,7 +480,7 @@ function EventsTable({
                     {ev.tool === "run_query" && ev.query && ev.connectionId && (
                       <button
                         onClick={() => onOpenInVisualExplain(ev)}
-                        className="rounded p-1 text-muted hover:bg-green-900/20 hover:text-green-400"
+                        className="rounded p-1 text-muted hover:bg-accent-success/10 hover:text-accent-success"
                         title={t("aiActivity.openVisualExplain")}
                       >
                         <GitGraph size={12} />

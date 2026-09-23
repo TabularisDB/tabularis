@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, X, Copy, Check, Settings } from "lucide-react";
 import { Modal } from "../ui/Modal";
+import { useCopyFeedback } from "../../hooks/useCopyFeedback";
 
 interface PluginStartErrorModalProps {
   isOpen: boolean;
@@ -19,13 +19,9 @@ export const PluginStartErrorModal = ({
   onConfigureInterpreter,
 }: PluginStartErrorModalProps) => {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyFeedback();
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(error);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const handleCopy = () => copy(error);
 
   const handleConfigure = () => {
     onClose();
@@ -38,8 +34,8 @@ export const PluginStartErrorModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-900/30 rounded-lg">
-              <AlertTriangle size={20} className="text-red-400" />
+            <div className="p-2 bg-accent-error/15 rounded-lg">
+              <AlertTriangle size={20} className="text-accent-error" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
@@ -60,9 +56,9 @@ export const PluginStartErrorModal = ({
           </p>
 
           {onConfigureInterpreter && (
-            <div className="bg-blue-900/20 border border-blue-900/50 rounded-lg p-3 flex items-start gap-3">
-              <Settings size={15} className="text-blue-400 mt-0.5 shrink-0" />
-              <p className="text-xs text-blue-300">
+            <div className="bg-accent-primary/10 border border-accent-primary/25 rounded-lg p-3 flex items-start gap-3">
+              <Settings size={15} className="text-accent mt-0.5 shrink-0" />
+              <p className="text-xs text-accent">
                 {t("settings.plugins.startError.interpreterHint")}
               </p>
             </div>
@@ -79,8 +75,8 @@ export const PluginStartErrorModal = ({
               >
                 {copied ? (
                   <>
-                    <Check size={13} className="text-green-400" />
-                    <span className="text-green-400">{t("settings.plugins.startError.copied")}</span>
+                    <Check size={13} className="text-accent-success" />
+                    <span className="text-accent-success">{t("settings.plugins.startError.copied")}</span>
                   </>
                 ) : (
                   <>
@@ -90,7 +86,7 @@ export const PluginStartErrorModal = ({
                 )}
               </button>
             </div>
-            <pre className="w-full px-3 py-3 bg-base border border-strong rounded-lg text-xs text-red-300 font-mono whitespace-pre-wrap break-all overflow-y-auto max-h-[200px]">
+            <pre className="w-full px-3 py-3 bg-base border border-strong rounded-lg text-xs text-accent-error font-mono whitespace-pre-wrap break-all overflow-y-auto max-h-[200px]">
               {error}
             </pre>
           </div>
@@ -107,7 +103,7 @@ export const PluginStartErrorModal = ({
           {onConfigureInterpreter && (
             <button
               onClick={handleConfigure}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors"
             >
               <Settings size={14} />
               {t("settings.plugins.startError.configure")}

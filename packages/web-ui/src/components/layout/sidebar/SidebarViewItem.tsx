@@ -16,6 +16,7 @@ import type { TableColumn, Index } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 import type { DriverCapabilities } from "../../../types/plugins";
 import { useTabularisClient } from "../../../hooks/useTabularisClient";
+import { onActivationKey } from "../../../utils/keyboardEvents";
 
 interface SidebarViewItemProps {
   view: { name: string };
@@ -115,11 +116,14 @@ export const SidebarViewItem = ({
   return (
     <div className="flex flex-col">
       <div
+        role="button"
+        tabIndex={0}
         onClick={() => onViewClick(view.name)}
+        onKeyDown={onActivationKey(() => onViewClick(view.name))}
         onDoubleClick={() => onViewDoubleClick(view.name)}
         onContextMenu={handleContextMenu}
         className={clsx(
-          "flex items-center gap-1 pl-1 pr-3 py-1.5 text-sm cursor-pointer group select-none transition-colors border-l-2",
+          "flex items-center gap-1 pl-1 pr-3 py-1.5 text-sm cursor-pointer group select-none transition-colors border-l-2 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
           activeView === view.name
             ? "bg-[color-mix(in_srgb,var(--accent-secondary)_20%,transparent)] text-accent-secondary border-(--accent-secondary)"
             : "text-secondary hover:bg-surface-secondary border-transparent hover:text-primary",
@@ -127,6 +131,8 @@ export const SidebarViewItem = ({
       >
         <button
           onClick={handleExpand}
+          aria-label={isExpanded ? t("sidebar.collapseView", { name: view.name }) : t("sidebar.expandView", { name: view.name })}
+          aria-expanded={isExpanded}
           className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
         >
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -160,7 +166,7 @@ export const SidebarViewItem = ({
               <div
                 className="flex items-center gap-2 px-2 py-1 text-xs text-muted select-none"
               >
-                <Folder size={12} className="text-blue-400/70" />
+                <Folder size={12} className="text-accent/70" />
                 <span>{t("sidebar.columns")}</span>
                 <span className="ml-auto text-[10px] opacity-50">
                   {columns.length}

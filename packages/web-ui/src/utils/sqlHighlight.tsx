@@ -1,14 +1,8 @@
 import { useState, useEffect } from "react";
-import { loader } from "@monaco-editor/react";
+import { ensureMonaco } from "./monaco";
 import type * as Monaco from "monaco-editor";
 
 let monacoInstance: typeof Monaco | null = null;
-
-// Initialize Monaco instance once
-const monacoReady = loader.init().then((monaco: typeof Monaco) => {
-  monacoInstance = monaco;
-  return monaco;
-});
 
 /**
  * Uses Monaco's own colorize API to produce syntax-highlighted HTML
@@ -20,12 +14,13 @@ export function useColorizedSql(sql: string): string | null {
   useEffect(() => {
     let cancelled = false;
 
-    monacoReady.then((monaco: typeof Monaco) => {
+    ensureMonaco().then((monaco) => {
+      monacoInstance = monaco;
       if (cancelled) return;
-      monaco.editor.colorize(sql, "sql", { tabSize: 2 }).then((result: string) => {
+      return monaco.editor.colorize(sql, "sql", { tabSize: 2 }).then((result: string) => {
         if (!cancelled) setHtml(result);
       });
-    });
+    }).catch((error: unknown) => console.error("Failed to highlight SQL:", error));
 
     return () => { cancelled = true; };
   }, [sql]);

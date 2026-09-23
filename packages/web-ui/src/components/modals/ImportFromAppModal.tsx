@@ -383,8 +383,8 @@ export const ImportFromAppModal = ({
                 <ArrowLeft size={18} />
               </button>
             )}
-            <div className="p-2 bg-blue-900/30 rounded-lg">
-              <Database size={20} className="text-blue-400" />
+            <div className="p-2 bg-accent-primary/15 rounded-lg">
+              <Database size={20} className="text-accent" />
             </div>
             <div>
               <h2 className="flex items-center gap-2 text-lg font-semibold text-primary">
@@ -413,13 +413,13 @@ export const ImportFromAppModal = ({
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1">
           {/* Beta notice with a link to report problems. */}
-          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-300/90">
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-accent-warning/30 bg-accent-warning/5 p-3 text-xs text-accent-warning/90">
             <FlaskConical size={14} className="mt-0.5 shrink-0" />
             <span>
               {t("connections.importFromApp.betaNotice")}{" "}
               <button
                 onClick={() => void platform.openExternalUrl(GITHUB_ISSUES_URL)}
-                className="font-medium underline underline-offset-2 hover:text-amber-200"
+                className="font-medium underline underline-offset-2 hover:text-accent-warning"
               >
                 {t("connections.importFromApp.reportIssue")}
               </button>
@@ -427,7 +427,7 @@ export const ImportFromAppModal = ({
           </div>
 
           {error && (
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-accent-error/40 bg-accent-error/10 p-3 text-sm text-accent-error">
               <AlertTriangle size={16} className="mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
@@ -491,7 +491,7 @@ export const ImportFromAppModal = ({
           {!loading && step === "password" && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-secondary">
-                <Lock size={15} className="text-blue-400 shrink-0" />
+                <Lock size={15} className="text-accent shrink-0" />
                 <span>{t("connections.importPasswordModal.title")}</span>
               </div>
               <label className="block text-xs font-medium text-secondary">
@@ -513,7 +513,7 @@ export const ImportFromAppModal = ({
         {/* Footer */}
         <div className="p-4 border-t border-default bg-base/50 flex justify-between gap-3">
           {step === "preview" && preview?.credentialsAborted ? (
-            <span className="flex items-center gap-1.5 text-xs text-amber-400">
+            <span className="flex items-center gap-1.5 text-xs text-accent-warning">
               <AlertTriangle size={13} />
               {t("connections.importFromApp.credentialsAborted")}
             </span>
@@ -531,7 +531,7 @@ export const ImportFromAppModal = ({
               <button
                 onClick={handleContinue}
                 disabled={!canContinueFromPicker || loading}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {t("common.continue", { defaultValue: "Continue" })}
               </button>
@@ -539,7 +539,7 @@ export const ImportFromAppModal = ({
               <button
                 onClick={handleDecryptImport}
                 disabled={loading || !password}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {t("connections.importPasswordModal.unlock")}
               </button>
@@ -547,7 +547,7 @@ export const ImportFromAppModal = ({
               <button
                 onClick={handleApply}
                 disabled={loading || importCount === 0}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {t("connections.importFromApp.importCount", { count: importCount })}
               </button>
@@ -605,8 +605,8 @@ const SourcePicker = ({
               className={clsx(
                 "w-full flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all",
                 selected
-                  ? "border-blue-500/60 bg-blue-500/10"
-                  : "border-strong bg-base hover:border-blue-400/40",
+                  ? "border-accent-primary/60 bg-accent-primary/10"
+                  : "border-strong bg-base hover:border-accent-primary/40",
                 !s.available &&
                   !s.needsFile &&
                   !s.manualPathSupported &&
@@ -627,22 +627,20 @@ const SourcePicker = ({
 
       {/* Include passwords toggle */}
       {showPasswordToggle && (
-      <label className="flex items-start gap-3 rounded-xl border border-strong bg-base p-3.5 cursor-pointer">
+      <label className="grid grid-cols-[auto_1fr] items-start gap-x-3 rounded-xl border border-strong bg-base p-3.5 cursor-pointer">
         <input
           type="checkbox"
           checked={includePasswords}
           onChange={(e) => onTogglePasswords(e.target.checked)}
-          className="mt-0.5 accent-blue-500"
+          className="mt-0.5 accent-accent-primary"
         />
-        <div>
-          <p className="flex items-center gap-1.5 text-sm font-medium text-primary">
-            <KeyRound size={13} />
-            {t("connections.importFromApp.includePasswords")}
-          </p>
-          <p className="text-xs text-muted">
-            {t("connections.importFromApp.includePasswordsHint")}
-          </p>
-        </div>
+        <span className="flex items-center gap-1.5 text-sm font-medium text-primary">
+          <KeyRound size={13} />
+          {t("connections.importFromApp.includePasswords")}
+        </span>
+        <span className="col-start-2 text-xs text-muted">
+          {t("connections.importFromApp.includePasswordsHint")}
+        </span>
       </label>
       )}
     </div>
@@ -682,10 +680,10 @@ const BulkGroupSelector = ({
   const groupTree = flattenGroupTree(groups);
 
   return (
-    <div className="space-y-2 rounded-xl border border-blue-500/30 bg-blue-500/5 px-3.5 py-2.5">
+    <div className="space-y-2 rounded-xl border border-accent-primary/30 bg-accent-primary/5 px-3.5 py-2.5">
       <div className="flex items-center gap-2">
         <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-secondary">
-          <ListChecks size={13} className="text-blue-400" />
+          <ListChecks size={13} className="text-accent" />
           {t("connections.importFromApp.action.applyToAll")}
         </label>
         <Select
@@ -705,7 +703,7 @@ const BulkGroupSelector = ({
         <>
           <div className="flex items-center gap-2">
             <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-secondary">
-              <FolderPlus size={13} className="text-blue-400" />
+              <FolderPlus size={13} className="text-accent" />
               {t("connections.importFromApp.group.applyToAll")}
             </label>
             <Select
@@ -731,7 +729,7 @@ const BulkGroupSelector = ({
                 autoFocus
                 onChange={(e) => onNewGroupNameChange(e.target.value)}
                 placeholder={t("connections.importFromApp.group.newPlaceholder")}
-                className="min-w-0 flex-1 rounded border border-strong bg-base px-3 py-2 text-sm text-primary focus:border-blue-500 focus:outline-none"
+                className="min-w-0 flex-1 rounded border border-strong bg-base px-3 py-2 text-sm text-primary focus:border-focus focus:outline-none"
               />
               <label className="shrink-0 text-xs text-muted">
                 {t("connections.importFromApp.group.parentLabel")}
@@ -848,7 +846,7 @@ const PreviewRow = ({
           <p className="truncate text-sm font-medium text-primary">
             {item.name}
             {item.hasPassword && (
-              <Lock size={11} className="ml-1.5 inline text-green-400" />
+              <Lock size={11} className="ml-1.5 inline text-accent-success" />
             )}
           </p>
           <p className="truncate text-xs text-muted">
@@ -859,12 +857,12 @@ const PreviewRow = ({
             {item.groupName ? `  ·  ${item.groupName}` : ""}
           </p>
           {item.status.kind === "warnings" && (
-            <p className="mt-0.5 text-xs text-amber-400">
+            <p className="mt-0.5 text-xs text-accent-warning">
               {item.status.warnings.join(" · ")}
             </p>
           )}
           {isDuplicate && item.status.kind === "duplicate" && (
-            <p className="mt-0.5 text-xs text-blue-300">
+            <p className="mt-0.5 text-xs text-accent">
               {t("connections.importFromApp.duplicateOf", {
                 name: item.status.existingName,
               })}
@@ -916,7 +914,7 @@ const PreviewRow = ({
                 value={newGroupName}
                 onChange={(e) => onNewGroupNameChange(e.target.value)}
                 placeholder={t("connections.importFromApp.group.newPlaceholder")}
-                className="min-w-0 flex-1 rounded border border-strong bg-base px-3 py-2 text-sm text-primary focus:border-blue-500 focus:outline-none"
+                className="min-w-0 flex-1 rounded border border-strong bg-base px-3 py-2 text-sm text-primary focus:border-focus focus:outline-none"
               />
               <span className="shrink-0 text-xs text-muted">
                 {t("connections.importFromApp.group.parentLabel")}
@@ -947,10 +945,10 @@ const PreviewRow = ({
 
 const StatusBadge = ({ item }: { item: ImportItem }) => {
   if (item.status.kind === "duplicate") {
-    return <Copy size={16} className="shrink-0 text-blue-400" />;
+    return <Copy size={16} className="shrink-0 text-accent" />;
   }
   if (item.status.kind === "warnings") {
-    return <AlertTriangle size={16} className="shrink-0 text-amber-400" />;
+    return <AlertTriangle size={16} className="shrink-0 text-accent-warning" />;
   }
-  return <CheckCircle2 size={16} className="shrink-0 text-green-400" />;
+  return <CheckCircle2 size={16} className="shrink-0 text-accent-success" />;
 };

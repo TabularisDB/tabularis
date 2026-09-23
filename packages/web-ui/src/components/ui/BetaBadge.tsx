@@ -12,7 +12,7 @@ export const BetaBadge = ({ className }: BetaBadgeProps) => {
     <span
       className={clsx(
         "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-        "border border-amber-500/30 bg-amber-500/15 text-amber-400",
+        "border border-accent-warning/30 bg-accent-warning/15 text-accent-warning",
         className,
       )}
     >

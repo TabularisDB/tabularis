@@ -1,0 +1,2073 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Editor schema hint only. Tabularis validates against its bundled schema and never fetches this URL."
+    },
+    "schemaVersion": {
+      "const": 1,
+      "type": "integer"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "light",
+        "dark",
+        "high-contrast"
+      ]
+    },
+    "attribution": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bg": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "base": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "elevated": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "overlay": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "input": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "tooltip": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            }
+          }
+        },
+        "surface": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "primary": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "secondary": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "tertiary": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "hover": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "active": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "disabled": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            }
+          }
+        },
+        "text": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "primary": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "secondary": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "muted": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "disabled": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "accent": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inverse": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            }
+          }
+        },
+        "accent": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "primary": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "secondary": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "success": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "warning": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "error": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "info": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            }
+          }
+        },
+        "border": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "subtle": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "default": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "strong": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "focus": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            }
+          }
+        },
+        "semantic": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "string": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "number": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "boolean": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "date": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "null": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "primaryKey": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "foreignKey": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "index": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "modified": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "deleted": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "new": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            }
+          }
+        }
+      }
+    },
+    "typography": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fontFamily": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "base": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "pattern": "^[A-Za-z0-9 _-]+$"
+              }
+            },
+            "mono": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "pattern": "^[A-Za-z0-9 _-]+$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "borderRadius": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sm": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 32
+            },
+            "base": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 32
+            },
+            "lg": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 32
+            },
+            "xl": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 32
+            }
+          }
+        }
+      }
+    },
+    "editor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "colors": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "actionBar.toggledBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "activityErrorBadge.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "activityErrorBadge.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "activityWarningBadge.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "activityWarningBadge.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "badge.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "badge.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "breadcrumb.activeSelectionForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "breadcrumb.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "breadcrumb.focusForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "breadcrumb.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "breadcrumbPicker.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "button.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "button.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "button.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "button.hoverBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "button.secondaryBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "button.secondaryForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "button.secondaryHoverBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "button.separator": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "chart.axis": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "chart.guide": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "chart.line": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "charts.blue": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "charts.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "charts.green": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "charts.lines": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "charts.orange": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "charts.purple": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "charts.red": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "charts.yellow": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "checkbox.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "checkbox.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "checkbox.disabled.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "checkbox.disabled.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "checkbox.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "checkbox.selectBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "checkbox.selectBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "contrastActiveBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "contrastBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "descriptionForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.diagonalFill": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.insertedLineBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.insertedTextBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.insertedTextBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.move.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.moveActive.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.removedLineBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.removedTextBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.removedTextBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.unchangedCodeBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.unchangedRegionBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.unchangedRegionForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditor.unchangedRegionShadow": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditorGutter.insertedLineBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditorGutter.removedLineBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditorOverview.insertedForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "diffEditorOverview.removedForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "disabledForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "dropdown.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "dropdown.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "dropdown.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "dropdown.listBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.compositionBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.findMatchBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.findMatchBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.findMatchForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.findMatchHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.findMatchHighlightBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.findMatchHighlightForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.findRangeHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.findRangeHighlightBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.foldBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.foldPlaceholderForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.hoverHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.inactiveSelectionBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.lineHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.lineHighlightBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.linkedEditingBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.placeholder.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.rangeHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.rangeHighlightBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.selectionBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.selectionForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.selectionHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.selectionHighlightBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.snippetFinalTabstopHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.snippetFinalTabstopHighlightBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.snippetTabstopHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.snippetTabstopHighlightBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.symbolHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.symbolHighlightBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.wordHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.wordHighlightBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.wordHighlightStrongBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.wordHighlightStrongBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.wordHighlightTextBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editor.wordHighlightTextBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorActionList.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorActionList.focusBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorActionList.focusForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorActionList.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorActiveLineNumber.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketHighlight.foreground1": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketHighlight.foreground2": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketHighlight.foreground3": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketHighlight.foreground4": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketHighlight.foreground5": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketHighlight.foreground6": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketHighlight.unexpectedBracket.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketMatch.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketMatch.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.activeBackground1": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.activeBackground2": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.activeBackground3": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.activeBackground4": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.activeBackground5": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.activeBackground6": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.background1": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.background2": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.background3": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.background4": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.background5": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorBracketPairGuide.background6": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorCodeLens.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorCursor.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorCursor.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorError.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorError.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorError.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorGhostText.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorGhostText.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorGhostText.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorGutter.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorGutter.foldingControlForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorHint.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorHint.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorHoverWidget.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorHoverWidget.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorHoverWidget.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorHoverWidget.highlightForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorHoverWidget.statusBarBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.activeBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.activeBackground1": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.activeBackground2": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.activeBackground3": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.activeBackground4": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.activeBackground5": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.activeBackground6": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.background1": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.background2": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.background3": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.background4": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.background5": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorIndentGuide.background6": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorInfo.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorInfo.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorInfo.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorInlayHint.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorInlayHint.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorInlayHint.parameterBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorInlayHint.parameterForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorInlayHint.typeBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorInlayHint.typeForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorLightBulb.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorLightBulbAi.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorLightBulbAutoFix.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorLineNumber.activeForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorLineNumber.dimmedForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorLineNumber.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorLink.activeForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorMarkerNavigation.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorMarkerNavigationError.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorMarkerNavigationError.headerBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorMarkerNavigationInfo.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorMarkerNavigationInfo.headerBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorMarkerNavigationWarning.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorMarkerNavigationWarning.headerBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorMultiCursor.primary.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorMultiCursor.primary.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorMultiCursor.secondary.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorMultiCursor.secondary.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.bracketMatchForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.commonContentForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.currentContentForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.errorForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.findMatchForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.incomingContentForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.infoForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.rangeHighlightForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.selectionHighlightForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.warningForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.wordHighlightForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.wordHighlightStrongForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorOverviewRuler.wordHighlightTextForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorRuler.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorStickyScroll.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorStickyScroll.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorStickyScroll.shadow": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorStickyScrollGutter.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorStickyScrollHover.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorSuggestWidget.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorSuggestWidget.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorSuggestWidget.focusHighlightForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorSuggestWidget.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorSuggestWidget.highlightForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorSuggestWidget.selectedBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorSuggestWidget.selectedForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorSuggestWidget.selectedIconForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorSuggestWidgetStatus.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorUnicodeHighlight.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorUnicodeHighlight.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorUnnecessaryCode.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorUnnecessaryCode.opacity": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorWarning.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorWarning.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorWarning.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorWhitespace.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorWidget.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorWidget.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorWidget.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "editorWidget.resizeBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "errorForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "focusBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "icon.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.gutterIndicator.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.gutterIndicator.primaryBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.gutterIndicator.primaryBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.gutterIndicator.primaryForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.gutterIndicator.secondaryBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.gutterIndicator.secondaryBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.gutterIndicator.secondaryForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.gutterIndicator.successfulBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.gutterIndicator.successfulBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.gutterIndicator.successfulForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.modifiedBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.modifiedBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.modifiedChangedLineBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.modifiedChangedTextBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.originalBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.originalBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.originalChangedLineBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.originalChangedTextBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.tabWillAcceptModifiedBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inlineEdit.tabWillAcceptOriginalBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "input.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "input.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "input.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "input.placeholderForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputOption.activeBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputOption.activeBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputOption.activeForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputOption.hoverBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputValidation.errorBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputValidation.errorBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputValidation.errorForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputValidation.infoBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputValidation.infoBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputValidation.infoForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputValidation.warningBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputValidation.warningBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "inputValidation.warningForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "keybindingLabel.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "keybindingLabel.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "keybindingLabel.bottomBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "keybindingLabel.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.activeSelectionBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.activeSelectionForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.activeSelectionIconForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.deemphasizedForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.dropBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.dropBetweenBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.errorForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.filterMatchBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.filterMatchBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.focusAndSelectionOutline": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.focusBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.focusForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.focusHighlightForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.focusOutline": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.highlightForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.hoverBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.hoverForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.inactiveFocusBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.inactiveFocusOutline": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.inactiveSelectionBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.inactiveSelectionForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.inactiveSelectionIconForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.invalidItemForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "list.warningForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "listFilterWidget.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "listFilterWidget.noMatchesOutline": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "listFilterWidget.outline": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "listFilterWidget.shadow": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "menu.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "menu.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "menu.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "menu.selectionBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "menu.selectionBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "menu.selectionForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "menu.separatorBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "merge.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "merge.commonContentBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "merge.commonHeaderBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "merge.currentContentBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "merge.currentHeaderBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "merge.incomingContentBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "merge.incomingHeaderBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "minimap.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "minimap.errorHighlight": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "minimap.findMatchHighlight": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "minimap.foregroundOpacity": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "minimap.infoHighlight": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "minimap.selectionHighlight": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "minimap.selectionOccurrenceHighlight": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "minimap.warningHighlight": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "minimapSlider.activeBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "minimapSlider.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "minimapSlider.hoverBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "multiDiffEditor.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "multiDiffEditor.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "multiDiffEditor.headerBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekView.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewEditor.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewEditor.matchHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewEditor.matchHighlightBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewEditorGutter.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewEditorStickyScroll.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewEditorStickyScrollGutter.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewResult.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewResult.fileForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewResult.lineForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewResult.matchHighlightBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewResult.selectionBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewResult.selectionForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewTitle.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewTitleDescription.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "peekViewTitleLabel.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "pickerGroup.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "pickerGroup.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "problemsErrorIcon.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "problemsInfoIcon.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "problemsWarningIcon.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "progressBar.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "quickInput.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "quickInput.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "quickInput.list.focusBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "quickInputList.focusBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "quickInputList.focusForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "quickInputList.focusIconForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "quickInputTitle.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "radio.activeBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "radio.activeBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "radio.activeForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "radio.inactiveBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "radio.inactiveBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "radio.inactiveForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "radio.inactiveHoverBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "sash.hoverBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "scrollbar.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "scrollbar.shadow": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "scrollbarSlider.activeBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "scrollbarSlider.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "scrollbarSlider.hoverBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "search.resultsInfoForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "searchEditor.findMatchBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "searchEditor.findMatchBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "selection.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.arrayForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.booleanForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.classForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.colorForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.constantForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.constructorForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.enumeratorForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.enumeratorMemberForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.eventForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.fieldForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.fileForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.folderForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.functionForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.interfaceForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.keyForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.keywordForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.methodForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.moduleForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.namespaceForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.nullForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.numberForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.objectForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.operatorForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.packageForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.propertyForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.referenceForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.snippetForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.stringForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.structForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.textForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.typeParameterForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.unitForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "symbolIcon.variableForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "textBlockQuote.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "textBlockQuote.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "textCodeBlock.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "textLink.activeForeground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "textLink.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "textPreformat.background": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "textPreformat.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "textSeparator.foreground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "toolbar.activeBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "toolbar.hoverBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "toolbar.hoverOutline": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "tree.inactiveIndentGuidesStroke": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "tree.indentGuidesStroke": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "tree.tableColumnsBorder": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "tree.tableOddRowsBackground": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "widget.border": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            },
+            "widget.shadow": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "token": {
+                "type": "string",
+                "enum": [
+                  "",
+                  "white",
+                  "comment",
+                  "comment.quote",
+                  "delimiter",
+                  "delimiter.square",
+                  "delimiter.parenthesis",
+                  "identifier",
+                  "identifier.quote",
+                  "keyword",
+                  "keyword.block",
+                  "keyword.choice",
+                  "keyword.try",
+                  "keyword.catch",
+                  "number",
+                  "operator",
+                  "predefined",
+                  "string",
+                  "string.quote",
+                  "invalid",
+                  "white.sql",
+                  "comment.sql",
+                  "comment.quote.sql",
+                  "delimiter.sql",
+                  "delimiter.square.sql",
+                  "delimiter.parenthesis.sql",
+                  "identifier.sql",
+                  "identifier.quote.sql",
+                  "keyword.sql",
+                  "keyword.block.sql",
+                  "keyword.choice.sql",
+                  "keyword.try.sql",
+                  "keyword.catch.sql",
+                  "number.sql",
+                  "operator.sql",
+                  "predefined.sql",
+                  "string.sql",
+                  "string.quote.sql",
+                  "invalid.sql"
+                ]
+              },
+              "foreground": {
+                "type": "string",
+                "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+              },
+              "fontStyle": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^(?:(?:italic|bold|underline|strikethrough)(?: (?:italic|bold|underline|strikethrough))*)?$"
+              }
+            },
+            "required": [
+              "token"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "mode"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/TabularisDB/tabularis/main/src/schemas/theme-definition-v1.json",
+  "title": "Tabularis declarative theme definition v1"
+}

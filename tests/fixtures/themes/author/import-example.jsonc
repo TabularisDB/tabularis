@@ -1,0 +1,19 @@
+// Invented local test data. Not a third-party theme or redistribution license.
+{
+  "name": "Manual SQL import",
+  "author": "Fixture author — review rights separately",
+  "type": "dark",
+  "include": "./must-not-be-read.json",
+  "colors": {
+    "editor.background": "#101820",
+    "editor.foreground": "#ddeeff",
+    "editor.selectionBackground": "#33557780",
+  },
+  "tokenColors": [
+    {
+      "scope": "keyword.control.sql",
+      "settings": { "foreground": "#91b6ff", "fontStyle": "italic" },
+    },
+  ],
+  "semanticTokenColors": { "*.readonly": "#ff00ff" },
+}

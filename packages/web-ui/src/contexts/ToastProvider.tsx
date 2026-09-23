@@ -16,7 +16,14 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
     const id = nextIdRef.current++;
     setToasts((prev) => [
       ...prev,
-      { id, message, title: options?.title, kind: options?.kind ?? "info" },
+      {
+        id,
+        message,
+        title: options?.title,
+        kind: options?.kind ?? "info",
+        actions: options?.actions,
+        onClick: options?.onClick,
+      },
     ]);
     const duration = options?.duration ?? DEFAULT_DURATION_MS;
     if (duration > 0) {

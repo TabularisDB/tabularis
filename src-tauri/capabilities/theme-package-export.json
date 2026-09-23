@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "theme-package-export",
+  "description": "Allow the main-window theme exporter to write its ZIP to an existing filesystem scope or a path explicitly granted by the save dialog. Adds no filesystem scope.",
+  "windows": ["main"],
+  "permissions": ["fs:allow-write-file"]
+}

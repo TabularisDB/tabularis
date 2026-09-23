@@ -56,6 +56,7 @@ pub async fn open_connection_window(
         .inner_size(1280.0, 800.0)
         .min_inner_size(800.0, 500.0)
         .center()
+        .decorations(crate::window_decorations::native_decorations_enabled())
         .background_color(tauri::webview::Color(2, 6, 23, 255))
         // The native drag-drop handler swallows DOM drag events (sidebar
         // reorder, split panel moves), see dragDropEnabled in tauri.conf.json

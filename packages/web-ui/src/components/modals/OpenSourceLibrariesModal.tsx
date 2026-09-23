@@ -26,8 +26,8 @@ export function OpenSourceLibrariesModal({
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[760px] max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-900/30 rounded-lg">
-              <Library size={20} className="text-blue-400" />
+            <div className="p-2 bg-accent-primary/15 rounded-lg">
+              <Library size={20} className="text-accent" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
@@ -104,7 +104,7 @@ export function OpenSourceLibrariesModal({
                               ),
                             )
                           }
-                          className="p-2 text-secondary hover:text-blue-400 hover:bg-surface-secondary rounded-lg transition-colors"
+                          className="p-2 text-secondary hover:text-accent hover:bg-surface-secondary rounded-lg transition-colors"
                           title={t("settings.openSourceLibrariesOpenProject")}
                           aria-label={t(
                             "settings.openSourceLibrariesOpenProject",
@@ -124,7 +124,7 @@ export function OpenSourceLibrariesModal({
         <div className="p-4 border-t border-default bg-base/50 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors"
           >
             {t("common.close")}
           </button>

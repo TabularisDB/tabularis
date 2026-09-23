@@ -93,7 +93,7 @@ export function PageSizeSelector({
     clsx(
       "w-full text-left px-3 py-1.5 text-xs rounded transition-colors flex items-center justify-between gap-2",
       isActive
-        ? "bg-blue-600/10 text-blue-400 font-medium"
+        ? "bg-accent-primary/10 text-accent font-medium"
         : "text-primary hover:bg-surface-secondary",
     );
 
@@ -141,7 +141,7 @@ export function PageSizeSelector({
             if (e.key === "Escape") setIsOpen(false);
             e.stopPropagation();
           }}
-          className="w-full bg-base border border-strong rounded px-2 py-1 text-xs text-primary focus:outline-none focus:border-blue-500 placeholder:text-muted"
+          className="w-full bg-base border border-strong rounded px-2 py-1 text-xs text-primary focus:outline-none focus:border-focus placeholder:text-muted"
         />
       </div>
     </div>
@@ -153,7 +153,7 @@ export function PageSizeSelector({
         ref={buttonRef}
         disabled={disabled}
         onClick={handleToggle}
-        className="flex items-center gap-0.5 px-1.5 py-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium whitespace-nowrap"
+        className="flex items-center gap-0.5 px-1.5 py-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium whitespace-nowrap"
         title={t("pagination.pageSize")}
         aria-label={t("pagination.pageSize")}
       >

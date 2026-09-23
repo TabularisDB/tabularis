@@ -15,6 +15,12 @@ vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
   }),
 }));
 import { NewConnectionModal } from "../../../src/components/modals/NewConnectionModal";
+import { PluginSlotContext } from "../../../src/contexts/PluginSlotContext";
+import type { PluginSlotRegistryType } from "../../../src/contexts/PluginSlotContext";
+import type {
+  SlotComponentProps,
+  SlotContribution,
+} from "../../../src/types/pluginSlots";
 
 interface MockSelectProps {
   value: string | null;
@@ -1427,5 +1433,262 @@ describe("NewConnectionModal SSL mode options (issue #614)", () => {
     const grid = hostInput.closest(".grid");
     expect(grid).not.toBeNull();
     expect(grid).toHaveClass("grid-cols-3");
+  });
+});
+
+// Simulates a driver plugin (e.g. SQL Server "Use Windows Authentication")
+// contributing to `connection-modal.extra_fields` and toggling the host
+// username/password inputs through `setCredentialFieldsHidden`.
+interface CredentialToggleContext {
+  extra?: Record<string, string>;
+  setExtraField?: (key: string, value: string) => void;
+  credentialFieldsHidden?: boolean;
+  setCredentialFieldsHidden?: (hidden: boolean) => void;
+}
+
+function PluginCredentialToggle({ context }: SlotComponentProps) {
+  const c = context as CredentialToggleContext;
+  return (
+    <label>
+      <input
+        type="checkbox"
+        aria-label="plugin-integrated-auth"
+        checked={c.credentialFieldsHidden === true}
+        onChange={(e) => {
+          c.setExtraField?.("integrated_auth", e.target.checked ? "true" : "");
+          c.setCredentialFieldsHidden?.(e.target.checked);
+        }}
+      />
+      plugin-integrated-auth
+      <span data-testid="plugin-extra">{JSON.stringify(c.extra ?? {})}</span>
+    </label>
+  );
+}
+
+function registryWith(contribution: SlotContribution): PluginSlotRegistryType {
+  return {
+    contributions: [contribution],
+    register: () => () => {},
+    registerAll: () => () => {},
+    getSlotContributions: (slot) =>
+      slot === contribution.slot ? [contribution] : [],
+  };
+}
+
+function updateConnectionPayload(): Record<string, unknown> | undefined {
+  const call = vi
+    .mocked(invoke)
+    .mock.calls.find(([command]) => command === "update_connection");
+  return (call?.[1] as { params: Record<string, unknown> } | undefined)?.params;
+}
+
+function renderModalWithCredentialToggle(initialConnection?: InitialConnection) {
+  const registry = registryWith({
+    pluginId: "sqlserver",
+    slot: "connection-modal.extra_fields",
+    component: PluginCredentialToggle,
+  });
+  return render(
+    <PluginSlotContext.Provider value={registry}>
+      <NewConnectionModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        initialConnection={initialConnection}
+      />
+    </PluginSlotContext.Provider>,
+  );
+}
+
+describe("NewConnectionModal extra_fields slot credential toggle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // A connection-string import refreshes the database list.
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === "list_databases" ? [] : "ok",
+    );
+    sshMocks.loadSshConnections.mockResolvedValue([]);
+    k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+  });
+
+  it("exposes the toggle to the slot and starts with the login inputs visible", async () => {
+    renderModalWithCredentialToggle(
+      createInitialConnection({ driver: "mysql", username: "sa" }),
+    );
+
+    const toggle = (await screen.findByLabelText(
+      "plugin-integrated-auth",
+    )) as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    expect(
+      screen.getByPlaceholderText("newConnection.usernamePlaceholder"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("newConnection.password")).toBeInTheDocument();
+  });
+
+  it("hides and clears username/password when the plugin asks, and restores them empty", async () => {
+    renderModalWithCredentialToggle(
+      createInitialConnection({
+        driver: "mysql",
+        username: "sa",
+        password: "secret",
+      }),
+    );
+
+    const username = (await screen.findByPlaceholderText(
+      "newConnection.usernamePlaceholder",
+    )) as HTMLInputElement;
+    await waitFor(() => expect(username).toHaveValue("sa"));
+    expect(
+      screen.getByPlaceholderText("newConnection.passwordPlaceholder"),
+    ).toHaveValue("secret");
+
+    fireEvent.click(screen.getByLabelText("plugin-integrated-auth"));
+
+    expect(
+      screen.queryByPlaceholderText("newConnection.usernamePlaceholder"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("newConnection.password"),
+    ).not.toBeInTheDocument();
+    expect(
+      (screen.getByLabelText("plugin-integrated-auth") as HTMLInputElement)
+        .checked,
+    ).toBe(true);
+
+    fireEvent.click(screen.getByLabelText("plugin-integrated-auth"));
+
+    // Hiding cleared both values, so a stale login never comes back. An
+    // empty password on an existing connection shows the masked placeholder.
+    expect(
+      screen.getByPlaceholderText("newConnection.usernamePlaceholder"),
+    ).toHaveValue("");
+    expect(screen.getByText("newConnection.password")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("••••••••")).toHaveValue("");
+  });
+
+  it("sends the explicit empty password on save while the inputs are hidden", async () => {
+    renderModalWithCredentialToggle(
+      createInitialConnection({
+        driver: "mysql",
+        username: "sa",
+        password: "secret",
+        save_in_keychain: true,
+      }),
+    );
+    const username = await screen.findByPlaceholderText(
+      "newConnection.usernamePlaceholder",
+    );
+    await waitFor(() => expect(username).toHaveValue("sa"));
+
+    fireEvent.click(screen.getByLabelText("plugin-integrated-auth"));
+    fireEvent.click(screen.getByText("newConnection.save"));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "update_connection",
+        expect.anything(),
+      );
+    });
+    // "" (not an omitted field) tells the backend to drop the stored secret.
+    expect(updateConnectionPayload()).toMatchObject({
+      username: "",
+      password: "",
+      extra: { integrated_auth: "true" },
+    });
+  });
+
+  it("still omits an untouched empty password on save while the inputs are visible", async () => {
+    renderModalWithCredentialToggle(
+      createInitialConnection({
+        driver: "mysql",
+        username: "sa",
+        save_in_keychain: true,
+      }),
+    );
+    const username = await screen.findByPlaceholderText(
+      "newConnection.usernamePlaceholder",
+    );
+    await waitFor(() => expect(username).toHaveValue("sa"));
+
+    fireEvent.click(screen.getByText("newConnection.save"));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "update_connection",
+        expect.anything(),
+      );
+    });
+    expect(updateConnectionPayload()).toMatchObject({ username: "sa" });
+    expect(updateConnectionPayload()).not.toHaveProperty("password");
+  });
+
+  it("ignores the login of an imported connection string while the inputs are hidden", async () => {
+    renderModalWithCredentialToggle(
+      createInitialConnection({
+        driver: "mysql",
+        username: "sa",
+        password: "secret",
+      }),
+    );
+    const username = await screen.findByPlaceholderText(
+      "newConnection.usernamePlaceholder",
+    );
+    await waitFor(() => expect(username).toHaveValue("sa"));
+    fireEvent.click(screen.getByLabelText("plugin-integrated-auth"));
+
+    fireEvent.change(
+      screen.getByPlaceholderText("newConnection.connectionStringPlaceholder"),
+      { target: { value: "mysql://imported:pw@db.example.com:3307/shop" } },
+    );
+
+    // Host/port are imported, the login is not, and the inputs stay hidden.
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText("localhost")).toHaveValue(
+        "db.example.com",
+      ),
+    );
+    expect(
+      screen.queryByPlaceholderText("newConnection.usernamePlaceholder"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("plugin-integrated-auth"));
+    expect(
+      screen.getByPlaceholderText("newConnection.usernamePlaceholder"),
+    ).toHaveValue("");
+    expect(screen.getByPlaceholderText("••••••••")).toHaveValue("");
+  });
+
+  it("drops the plugin extra fields and restores the login inputs when an import switches driver", async () => {
+    renderModalWithCredentialToggle(
+      createInitialConnection({ driver: "mysql", username: "sa" }),
+    );
+    await screen.findByPlaceholderText("newConnection.usernamePlaceholder");
+    fireEvent.click(screen.getByLabelText("plugin-integrated-auth"));
+    expect(screen.getByTestId("plugin-extra")).toHaveTextContent(
+      '{"integrated_auth":"true"}',
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText("newConnection.connectionStringPlaceholder"),
+      {
+        target: {
+          value: "postgresql://pguser:pgpw@pg.example.com:5432/analytics",
+        },
+      },
+    );
+
+    // The driver switch resets the flag, so the imported login is applied.
+    await waitFor(() =>
+      expect(
+        screen.getByPlaceholderText("newConnection.usernamePlaceholder"),
+      ).toHaveValue("pguser"),
+    );
+    expect(
+      (screen.getByLabelText("plugin-integrated-auth") as HTMLInputElement)
+        .checked,
+    ).toBe(false);
+    expect(screen.getByTestId("plugin-extra")).toHaveTextContent("{}");
   });
 });

@@ -1,4 +1,6 @@
+import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import type { OnMount } from "@monaco-editor/react";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import { useSettings } from "../../hooks/useSettings";
 import { NotebookAiButtons } from "./NotebookAiButtons";
@@ -27,6 +29,12 @@ export function SqlCellEditor({
 }: SqlCellEditorProps) {
   const { settings } = useSettings();
   const { t } = useTranslation();
+  const [editorHeight, setEditorHeight] = useState(60);
+  const onMount: OnMount = useCallback((editor) => {
+    const sync = () => setEditorHeight(Math.max(60, editor.getContentHeight()));
+    editor.onDidContentSizeChange(sync);
+    sync();
+  }, []);
 
   return (
     <div>
@@ -37,12 +45,13 @@ export function SqlCellEditor({
         divider={false}
       />
       {!collapsed && (
-        <div className="h-[150px] relative">
+        <div className="relative" style={{ height: editorHeight }}>
           <SqlEditorWrapper
             height="100%"
             initialValue={content}
             onChange={onContentChange}
             onRun={onRun}
+            onMount={onMount}
             editorKey={`notebook-${cellId}`}
             options={{
               padding: { top: 8, bottom: 8 },

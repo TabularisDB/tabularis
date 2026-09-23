@@ -91,6 +91,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
       try {
         const mapped = await invoke<string[]>('map_inferred_column_types', {
           driver: activeDriver,
+          connectionId: activeConnectionId,
           kinds: inferred.map((c) => c.sqlType),
         });
         return base.map((c, i) => ({ ...c, sqlType: mapped[i] ?? c.sqlType }));
@@ -98,7 +99,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
         return base;
       }
     },
-    [activeDriver],
+    [activeDriver, activeConnectionId],
   );
 
   const tableExists = existingTables.some(
@@ -360,10 +361,10 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
         aria-busy={isLoadingClipboard || isImporting}
         className="bg-elevated rounded-xl shadow-2xl w-full max-w-[1040px] border border-strong flex flex-col max-h-[90vh] overflow-hidden"
       >
-        <div className="relative flex items-start justify-between gap-4 px-5 py-4 border-b border-default bg-gradient-to-br from-indigo-900/20 via-base to-base">
+        <div className="relative flex items-start justify-between gap-4 px-5 py-4 border-b border-default bg-gradient-to-br from-accent-primary/10 via-base to-base">
           <div className="flex min-w-0 flex-1 gap-3">
-            <div className="bg-indigo-500/15 p-2.5 rounded-lg ring-1 ring-indigo-400/20 shadow-inner shrink-0">
-              <Clipboard className="text-indigo-300" size={20} />
+            <div className="bg-accent-primary/15 p-2.5 rounded-lg ring-1 ring-accent-primary/20 shadow-inner shrink-0">
+              <Clipboard className="text-accent" size={20} />
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <div className="min-w-0">
@@ -375,24 +376,24 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/25 bg-indigo-500/10 px-2.5 py-1 text-[11px] text-indigo-200">
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-accent-primary/25 bg-accent-primary/10 px-2.5 py-1 text-[11px] text-accent">
                   <Clipboard size={12} className="shrink-0" />
                   <span>{selectedModeHint}</span>
                 </div>
                 {parsed && (
                   <>
                     <div className="inline-flex items-center gap-1.5 rounded-full border border-default bg-base/70 px-2.5 py-1 text-[11px] text-secondary">
-                      <Table2 size={12} className="text-blue-400 shrink-0" />
+                      <Table2 size={12} className="text-accent shrink-0" />
                       <span className="text-primary font-medium">{columns.length}</span>
                       <span>{t('clipboardImport.columnsLabel')}</span>
                     </div>
                     <div className="inline-flex items-center gap-1.5 rounded-full border border-default bg-base/70 px-2.5 py-1 text-[11px] text-secondary">
-                      <Rows size={12} className="text-green-400 shrink-0" />
+                      <Rows size={12} className="text-accent-success shrink-0" />
                       <span className="text-primary font-medium">{parsed.rowCount}</span>
                       <span>{t('clipboardImport.rowsLabel')}</span>
                     </div>
                     {parsed.warnings.length > 0 && (
-                      <div className="inline-flex items-center gap-1.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] text-yellow-300">
+                      <div className="inline-flex items-center gap-1.5 rounded-full border border-accent-warning/30 bg-accent-warning/10 px-2.5 py-1 text-[11px] text-accent-warning">
                         <AlertTriangle size={12} className="shrink-0" />
                         <span>{t('clipboardImport.warningsCount', { count: parsed.warnings.length })}</span>
                       </div>
@@ -420,12 +421,12 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
             </div>
           ) : error && !parsed ? (
             <div className="flex flex-col items-center justify-center h-40 gap-3 text-center">
-              <AlertTriangle size={32} className="text-yellow-400" />
+              <AlertTriangle size={32} className="text-accent-warning" />
               <p className="text-sm text-secondary">{error}</p>
               <button
                 type="button"
                 onClick={readClipboard}
-                className="text-xs text-blue-400 hover:underline"
+                className="text-xs text-accent hover:underline"
               >
                 {t('clipboardImport.retry')}
               </button>
@@ -482,18 +483,18 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                       )}
                     </div>
 
-                    <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/5 px-3 py-2 text-xs text-secondary">
+                    <div className="rounded-lg border border-accent-primary/20 bg-accent-primary/5 px-3 py-2 text-xs text-secondary">
                       <span className="text-primary font-medium">{selectedModeHint}</span>
                     </div>
 
                     {tableExists && importMode === 'create' && (
-                      <div className="flex flex-col gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-3">
-                        <div className="flex items-center gap-2 text-yellow-300">
+                      <div className="flex flex-col gap-2 rounded-lg border border-accent-warning/30 bg-accent-warning/10 px-3 py-3">
+                        <div className="flex items-center gap-2 text-accent-warning">
                           <AlertTriangle size={14} className="shrink-0" />
                           <span className="text-xs font-medium">{t('clipboardImport.tableExists')}</span>
                         </div>
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <span className="text-[11px] text-yellow-200/90 shrink-0">
+                          <span className="text-[11px] text-accent-warning/90 shrink-0">
                             {t('clipboardImport.onConflict')}:
                           </span>
                           <div className="min-w-0 flex-1">
@@ -559,14 +560,14 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
               {parsed.warnings.length > 0 && (
                 <div
                   id={warningsId}
-                  className="border border-yellow-500/30 bg-yellow-500/5 rounded-lg overflow-hidden shrink-0"
+                  className="border border-accent-warning/30 bg-accent-warning/5 rounded-lg overflow-hidden shrink-0"
                 >
                   <button
                     type="button"
                     onClick={() => setWarningsExpanded((v) => !v)}
                     aria-expanded={warningsExpanded}
                     aria-controls={`${warningsId}-panel`}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-yellow-400 hover:bg-yellow-500/10 transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-accent-warning hover:bg-accent-warning/10 transition-colors"
                   >
                     {warningsExpanded ? (
                       <ChevronDown size={14} className="shrink-0" />
@@ -581,11 +582,11 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                   {warningsExpanded && (
                     <div
                       id={`${warningsId}-panel`}
-                      className="max-h-32 overflow-y-auto px-3 pb-2 pt-1 flex flex-col gap-1 border-t border-yellow-500/20"
+                      className="max-h-32 overflow-y-auto px-3 pb-2 pt-1 flex flex-col gap-1 border-t border-accent-warning/20"
                     >
                       {parsed.warnings.map((w, i) => (
-                        <div key={i} className="flex items-start gap-2 text-xs text-yellow-400/90">
-                          <span className="text-yellow-500/60 mt-0.5">•</span>
+                        <div key={i} className="flex items-start gap-2 text-xs text-accent-warning/90">
+                          <span className="text-accent-warning/60 mt-0.5">•</span>
                           <span>{w}</span>
                         </div>
                       ))}
@@ -617,7 +618,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                   : t('clipboardImport.noData')}
               </span>
               {appendModeBlocked && (
-                <span className="text-[11px] text-yellow-300">{t('clipboardImport.selectTablePlaceholder')}</span>
+                <span className="text-[11px] text-accent-warning">{t('clipboardImport.selectTablePlaceholder')}</span>
               )}
             </div>
             <div className="flex gap-2 self-end sm:self-auto">
@@ -632,7 +633,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                 type="button"
                 onClick={handleImport}
                 disabled={!canImport}
-                className="bg-gradient-to-br from-indigo-500 to-indigo-700 hover:from-indigo-400 hover:to-indigo-600 disabled:from-indigo-800/50 disabled:to-indigo-900/50 disabled:opacity-60 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-indigo-900/30 transition-all"
+                className="bg-gradient-to-br from-accent-primary to-accent-primary hover:from-accent-primary hover:to-accent-primary disabled:from-accent-primary/25 disabled:to-accent-primary/25 disabled:opacity-60 disabled:cursor-not-allowed text-inverse px-5 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-accent-primary/15 transition-all"
               >
                 {isImporting ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -659,7 +660,7 @@ interface StepHeaderProps {
 function StepHeader({ number, label }: StepHeaderProps) {
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500/30 to-indigo-800/40 border border-indigo-500/40 text-[11px] font-bold text-indigo-200 shadow-inner shrink-0">
+      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-accent-primary/30 to-accent-primary/20 border border-accent-primary/40 text-[11px] font-bold text-accent shadow-inner shrink-0">
         {number}
       </span>
       <span className="text-xs font-semibold text-primary uppercase tracking-wider truncate">{label}</span>
@@ -678,7 +679,7 @@ function SuccessState({ result, tableName, onClose }: SuccessStateProps) {
   const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center h-48 gap-4 text-center" role="status" aria-live="polite">
-      <CheckCircle2 size={40} className="text-green-400" />
+      <CheckCircle2 size={40} className="text-accent-success" />
       <div>
         <p className="text-sm font-medium text-primary">
           {t('clipboardImport.success', { count: result.rows_inserted, table: tableName })}
@@ -690,7 +691,7 @@ function SuccessState({ result, tableName, onClose }: SuccessStateProps) {
       <button
         type="button"
         onClick={onClose}
-        className="flex items-center gap-2 px-4 py-2 bg-green-900/30 hover:bg-green-900/50 border border-green-800/40 text-green-300 rounded-lg text-sm transition-colors"
+        className="flex items-center gap-2 px-4 py-2 bg-accent-success/15 hover:bg-accent-success/25 border border-accent-success/20 text-accent-success rounded-lg text-sm transition-colors"
       >
         <ExternalLink size={14} />
         {t('clipboardImport.openTable')}

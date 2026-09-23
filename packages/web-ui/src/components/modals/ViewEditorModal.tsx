@@ -175,8 +175,8 @@ export const ViewEditorModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-900/30 rounded-lg">
-              <Eye size={20} className="text-purple-400" />
+            <div className="p-2 bg-accent-secondary/15 rounded-lg">
+              <Eye size={20} className="text-accent-secondary" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
@@ -200,7 +200,7 @@ export const ViewEditorModal = ({
         {/* Content */}
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
           {error && (
-            <div className="bg-red-900/20 border border-red-900/50 text-red-400 px-4 py-3 rounded-lg flex items-start gap-2">
+            <div className="bg-accent-error/10 border border-accent-error/25 text-accent-error px-4 py-3 rounded-lg flex items-start gap-2">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <div className="text-sm">{error}</div>
             </div>
@@ -217,7 +217,7 @@ export const ViewEditorModal = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={!isNewView || loading}
-              className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none disabled:opacity-50"
+              className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-focus focus:outline-none disabled:opacity-50"
               placeholder={t("views.viewNamePlaceholder")}
               autoFocus={isNewView}
             />
@@ -265,7 +265,7 @@ export const ViewEditorModal = ({
               <button
                 onClick={handlePreview}
                 disabled={previewLoading || !definition.trim()}
-                className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center gap-2"
+                className="px-3 py-1.5 text-sm bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse rounded-lg transition-colors flex items-center gap-2"
               >
                 {previewLoading ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -338,7 +338,7 @@ export const ViewEditorModal = ({
           <button
             onClick={handleSave}
             disabled={saving || loading || !name.trim() || !definition.trim()}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
             {saving && <Loader2 size={16} className="animate-spin" />}
             {isNewView ? t("views.create") : t("views.save")}

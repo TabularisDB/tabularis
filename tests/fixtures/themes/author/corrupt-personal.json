@@ -1,0 +1,7 @@
+{
+  "storageVersion": 1,
+  "id": "custom-corrupt",
+  "name": "Malformed personal fixture",
+  "format": "v1",
+  "source": "{\"schemaVersion\":1,\"mode\":\"invalid\"}"
+}

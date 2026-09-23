@@ -1,6 +1,7 @@
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useColumnResize } from '../../../hooks/useColumnResize';
+import { ColumnResizeHandle } from './ColumnResizeHandle';
 
 const MAX_PREVIEW_ROWS = 10;
 
@@ -15,7 +16,7 @@ interface DataPreviewProps {
 export function DataPreview({ headers, rows, rowCount, isMaximized, onToggleMaximize }: DataPreviewProps) {
   const { t } = useTranslation();
   const previewRows = isMaximized ? rows : rows.slice(0, MAX_PREVIEW_ROWS);
-  const { widths, startResize } = useColumnResize(headers.length, 160);
+  const { widths, startResize, onResizeKeyDown, minWidth, maxWidth } = useColumnResize(headers.length, 160);
 
   return (
     <div className="flex flex-col h-full min-h-0 border border-strong rounded-lg bg-base/50 overflow-hidden">
@@ -51,10 +52,7 @@ export function DataPreview({ headers, rows, rowCount, isMaximized, onToggleMaxi
               {headers.map((h, i) => (
                 <th key={i} className="relative p-2 text-[10px] text-muted font-semibold font-mono whitespace-nowrap truncate">
                   {h}
-                  <div
-                    onMouseDown={(e) => startResize(i, e)}
-                    className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500/60 active:bg-blue-500 select-none"
-                  />
+                  <ColumnResizeHandle index={i} width={widths[i]} minWidth={minWidth} maxWidth={maxWidth} onMouseDown={startResize} onKeyDown={onResizeKeyDown} />
                 </th>
               ))}
             </tr>

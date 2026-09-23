@@ -96,6 +96,7 @@ describe("UpdateProvider", () => {
     const { result } = renderHook(() => useUpdate(), { wrapper });
 
     expect(result.current.updateInfo).toBeNull();
+    expect(result.current.availableUpdate).toBeNull();
     expect(result.current.isChecking).toBe(false);
     expect(result.current.isDownloading).toBe(false);
     expect(result.current.downloadProgress).toBe(0);
@@ -203,7 +204,8 @@ describe("UpdateProvider", () => {
 
     await waitFor(() => {
       expect(result.current.updateInfo).toBeNull();
-      expect(result.current.isUpToDate).toBe(true);
+      expect(result.current.availableUpdate?.latestVersion).toBe("1.1.0");
+      expect(result.current.isUpToDate).toBe(false);
     });
   });
 
@@ -284,6 +286,7 @@ describe("UpdateProvider", () => {
 
     await waitFor(() => {
       expect(result.current.updateInfo).toBeNull();
+      expect(result.current.availableUpdate).toBeNull();
       expect(result.current.isUpToDate).toBe(true);
       expect(result.current.isChecking).toBe(false);
     });
@@ -416,6 +419,7 @@ describe("UpdateProvider", () => {
       config: { lastDismissedVersion: "1.1.0" },
     });
     expect(result.current.updateInfo).toBeNull();
+    expect(result.current.availableUpdate?.latestVersion).toBe("1.1.0");
   });
 
   it("should not check for updates on startup if disabled in config", async () => {

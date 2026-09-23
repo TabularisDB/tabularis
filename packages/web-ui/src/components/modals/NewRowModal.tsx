@@ -261,7 +261,7 @@ export const NewRowModal = ({
 
           {schemaLoading ? (
             <div className="flex justify-center p-4">
-              <Loader2 className="animate-spin text-blue-500" />
+              <Loader2 className="animate-spin text-accent" />
             </div>
           ) : (
             columns.map((col) => {
@@ -407,7 +407,7 @@ export const NewRowModal = ({
           <button
             onClick={handleSave}
             disabled={loading}
-            className="bg-blue-600 hover:bg-blue-500 text-primary px-6 py-2 rounded font-medium text-sm flex items-center gap-2"
+            className="bg-accent-primary hover:bg-accent-primary/90 text-inverse px-6 py-2 rounded font-medium text-sm flex items-center gap-2"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
             <Plus size={16} /> {t("newRow.insert")}

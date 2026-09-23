@@ -192,6 +192,20 @@ pub struct UIExtensionEntry {
     pub api_version: Option<String>,
 }
 
+/// An EXPLAIN parser bundle declared in a plugin's manifest.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ExplainParserManifestEntry {
+    /// Canonical database engine identifier handled by this parser.
+    pub engine: String,
+    /// Globally unique raw EXPLAIN wire-format tag.
+    pub format: String,
+    /// Parser IIFE path relative to the installed plugin directory.
+    pub module: String,
+    /// Optional human-readable label for format pickers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
 /// A single user-configurable setting declared in a plugin's manifest.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PluginSettingDefinition {
@@ -207,6 +221,44 @@ pub struct PluginSettingDefinition {
     pub required: bool,
     #[serde(default)]
     pub options: Vec<String>,
+}
+
+/// Deprecation notice for a built-in driver that's being retired in favour
+/// of a standalone plugin. Stamped onto the built-in's `PluginManifest` at
+/// registration time (an app-level decision, not a registry round-trip).
+/// `None` on a manifest means the driver is not deprecated.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct DeprecationInfo {
+    /// Driver id of the replacement plugin (e.g. `"postgresql"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replacement_id: Option<String>,
+    /// Human-readable target removal date (tentative, e.g. `"2026-10-05"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub removal_date: Option<String>,
+    /// App version targeted for removal, if decided (e.g. `"2.0.0"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub removal_version: Option<String>,
+}
+
+/// The single source of truth for which built-in drivers are deprecated and
+/// what their replacement is. Each built-in driver stamps the result of
+/// [`deprecation_for_builtin`] onto its manifest at construction time, so the
+/// decision lives in one table rather than spread across driver modules. The
+/// next deprecation (mysql, sqlite) is one entry here plus a call site.
+///
+/// The tentative removal date is revisited once real migration data exists
+/// (see the design doc's "Measuring adoption" section).
+pub fn deprecation_for_builtin(builtin_id: &str) -> Option<DeprecationInfo> {
+    match builtin_id {
+        "postgres" => Some(DeprecationInfo {
+            replacement_id: Some("postgresql".to_string()),
+            removal_date: Some("2026-10-05".to_string()),
+            removal_version: None,
+        }),
+        // mysql and sqlite are expected to follow the same path later; not
+        // deprecated yet, so they return `None` and get no badge.
+        _ => None,
+    }
 }
 
 /// Metadata describing a registered driver plugin.
@@ -254,12 +306,20 @@ pub struct PluginManifest {
     /// UI extension slot declarations. Absent for built-in drivers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ui_extensions: Option<Vec<UIExtensionEntry>>,
+    /// Plugin-owned EXPLAIN parser bundles. Absent for built-in drivers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub explain_parsers: Option<Vec<ExplainParserManifestEntry>>,
     /// Static type mappings applied by `map_inferred_type`. Keys are generic
     /// inferred types (uppercase, e.g. `"DATETIME"`), values are driver-specific
     /// types (e.g. `"TIMESTAMP"`). Empty for built-in drivers which override the
     /// trait method directly.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub type_mappings: HashMap<String, String>,
+    /// Deprecation notice for a built-in driver being retired in favour of a
+    /// plugin. `None` (and absent from serialized manifests) for drivers that
+    /// are not deprecated. Stamped onto built-ins at registration time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<DeprecationInfo>,
 }
 
 /// The complete interface every database driver plugin must implement.
@@ -272,6 +332,22 @@ pub trait DatabaseDriver: Send + Sync {
     // --- Metadata -----------------------------------------------------------
 
     fn manifest(&self) -> &PluginManifest;
+
+    fn has_connection_metadata(&self) -> bool {
+        false
+    }
+
+    /// Optionally bind connection-dependent metadata to an isolated driver
+    /// snapshot. Static drivers retain the registered instance and make no RPC.
+    async fn for_connection(
+        &self,
+        _params: &ConnectionParams,
+    ) -> Result<Option<std::sync::Arc<dyn DatabaseDriver>>, String> {
+        Ok(None)
+    }
+
+    /// Drop cached discovery results on reconnect. Static drivers do nothing.
+    async fn invalidate_connection_metadata(&self, _connection_id: Option<&str>) {}
 
     /// Returns the list of data types supported by this driver.
     fn get_data_types(&self) -> Vec<DataTypeInfo>;

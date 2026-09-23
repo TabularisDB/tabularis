@@ -30,7 +30,11 @@ pub const LEGACY_REGISTRY_URL: &str =
 /// `PluginRegistry` struct still deserializes the old schema unchanged
 /// (new fields are `#[serde(default)]`).
 pub async fn fetch_legacy_registry(url: &str) -> Result<PluginRegistry, String> {
-    let response = reqwest::get(url)
+    let client = crate::proxy::app_http_client()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let response = client
+        .get(url)
+        .send()
         .await
         .map_err(|e| format!("Failed to fetch legacy plugin registry: {}", e))?;
     if !response.status().is_success() {

@@ -4,11 +4,13 @@ import { useTranslation } from "react-i18next";
 import { reconstructTableQuery, resolveTabPageSize } from "../utils/editor";
 import { shouldShowStatementSuccess } from "../utils/resultPresentation";
 import { formatRowsForCopy, copyTextToClipboard } from "../utils/clipboard";
+import { onActivationKey } from "../utils/keyboardEvents";
 import {
   formatResultForExport,
   getLoadedRowsExportLimit,
 } from "../utils/resultExport";
 import { serializePkKey, buildPkMap } from "../utils/dataGrid";
+import { tint } from "../utils/tones";
 import {
   buildKeylessUpdatePlan,
   resolveRowIdentity,
@@ -42,10 +44,13 @@ import {
   ChevronDown,
   ChevronUp,
   Save,
+  SaveAll,
+  Bookmark,
   X,
   Database,
   Table as TableIcon,
   FileCode,
+  FolderOpen,
   Network,
   ChevronLeft,
   ChevronRight,
@@ -71,6 +76,10 @@ import {
   WrapText,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  open as openFileDialog,
+  save as saveFileDialog,
+} from "@tauri-apps/plugin-dialog";
 import { TableToolbar } from "../components/ui/TableToolbar";
 import { DataGrid } from "../components/ui/DataGrid";
 import { MultiResultPanel } from "../components/ui/MultiResultPanel";
@@ -127,7 +136,7 @@ import { NotebookView } from "../components/notebook/NotebookView";
 import { UserManagementView } from "../components/users/UserManagementView";
 import { useSqlAutocompleteRegistration } from "../hooks/useSqlAutocompleteRegistration";
 import { createNotebook, renameNotebook } from "../utils/notebookStore";
-import { type OnMount, type Monaco } from "@monaco-editor/react";
+import type { OnMount, Monaco } from "@monaco-editor/react";
 import { useAlert } from "../hooks/useAlert";
 import { useToast } from "../hooks/useToast";
 import { useDatabase } from "../hooks/useDatabase";
@@ -156,6 +165,13 @@ import {
 import { CommandPaletteScopeBridge } from "../components/layout/CommandPaletteScopeBridge";
 import { buildForeignKeyFilterClause } from "../utils/foreignKeys";
 import { formatSqlIdentifier } from "../utils/identifiers";
+import {
+  createSqlFileTab,
+  getSqlFileName,
+  hasUnsavedSqlFileTabs,
+  isSqlFileDirty,
+  savedSqlFileTab,
+} from "../utils/sqlFile";
 import { RelatedRecordsPanel } from "../components/ui/RelatedRecordsPanel";
 import {
   getTabScrollState,
@@ -385,6 +401,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const [showNewRowModal, setShowNewRowModal] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
   const [editorHeight, setEditorHeight] = useState(300);
   const editorHeightRef = useRef(300);
   // Root of this editor instance: the resize logic must stay scoped to it,
@@ -440,12 +457,18 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   // the toolbar is a CSS size container (@container), which would scope a
   // `fixed inset-0` backdrop to the toolbar itself.
   const runDropdownRef = useRef<HTMLDivElement>(null);
+  const saveMenuRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const dbDropdownRef = useRef<HTMLDivElement>(null);
   useClickOutside(
     runDropdownRef,
     () => setIsRunDropdownOpen(false),
     isRunDropdownOpen,
+  );
+  useClickOutside(
+    saveMenuRef,
+    () => setIsSaveMenuOpen(false),
+    isSaveMenuOpen,
   );
   useClickOutside(
     exportMenuRef,
@@ -484,6 +507,78 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   // Users tabs render full-height like notebooks: no SQL toolbar, no results panel.
   const isUsersTab = activeTab?.type === "users";
   const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
+
+  const handleOpenSqlFile = useCallback(async () => {
+    try {
+      const filePath = await openFileDialog({
+        multiple: false,
+        filters: [
+          {
+            name: t("editor.sqlFileFilter"),
+            extensions: ["sql", "psql", "pgsql"],
+          },
+        ],
+      });
+      if (typeof filePath !== "string") return;
+
+      const query = await invoke<string>("read_sql_file", { path: filePath });
+      addTab(
+        createSqlFileTab(
+          filePath,
+          query,
+          isMultiDb ? selectedDatabases[0] : undefined,
+        ),
+      );
+    } catch (error) {
+      showAlert(`${t("editor.openSqlFileError")}: ${String(error)}`, {
+        title: t("common.error"),
+        kind: "error",
+      });
+    }
+  }, [addTab, isMultiDb, selectedDatabases, showAlert, t]);
+
+  // Save is a no-op on a clean file and on an empty console (which would
+  // otherwise open a Save As dialog for nothing).
+  const canSaveSqlFile = useCallback(
+    (tab: Tab) =>
+      tab.sourceFilePath ? tab.sourceFileDirty === true : !!tab.query?.trim(),
+    [],
+  );
+
+  const handleSaveSqlFile = useCallback(
+    async (tab: Tab, saveAs = false) => {
+      try {
+        let filePath = tab.sourceFilePath;
+        if (saveAs || !filePath) {
+          const selectedPath = await saveFileDialog({
+            defaultPath: filePath ?? tab.title,
+            filters: [
+              {
+                name: t("editor.sqlFileFilter"),
+                extensions: ["sql", "psql", "pgsql"],
+              },
+            ],
+          });
+          if (typeof selectedPath !== "string") return;
+          filePath = selectedPath;
+        }
+
+        const savedQuery = tab.query;
+        await invoke("write_sql_file", { path: filePath, content: savedQuery });
+        updateTab(tab.id, (currentTab) =>
+          savedSqlFileTab(filePath, savedQuery, currentTab.query),
+        );
+        showToast(t("editor.sqlFileSaved"), { kind: "success" });
+      } catch (error) {
+        showAlert(`${t("editor.saveSqlFileError")}: ${String(error)}`, {
+          title: t("common.error"),
+          kind: "error",
+        });
+      }
+    },
+    [showAlert, showToast, t, updateTab],
+  );
+
   const isEditorOpen =
     !isTableTab && (activeTab?.isEditorOpen ?? activeTab?.type !== "table");
   const activeResultEntry = useMemo(
@@ -496,14 +591,6 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const activeExportResult = activeResultEntry?.result ?? activeTab?.result;
   const canExportActiveResult =
     !!activeExportResult && activeExportResult.rows.length > 0;
-
-  const handleCloseTab = useCallback(
-    (tabId: string) => {
-      delete editorsRef.current[tabId];
-      closeTab(tabId);
-    },
-    [closeTab],
-  );
 
   // Update window title when the active tab changes
   useEffect(() => {
@@ -568,6 +655,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const tabsRef = useRef<Tab[]>([]);
   const activeTabIdRef = useRef<string | null>(null);
+  const pendingTabCloseActionRef = useRef<(() => void) | null>(null);
+  const [hasPendingSqlFileClose, setHasPendingSqlFileClose] = useState(false);
   // Last executed SQL per tab — used to preserve the loaded row count across
   // pagination of the SAME query while resetting it when the query changes.
   const lastRunQueryRef = useRef<Record<string, string>>({});
@@ -816,6 +905,79 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     activeTabIdRef.current = activeTabId;
     detachedTabIdsRef.current = detachedTabIds;
   }, [tabs, activeTabId, detachedTabIds]);
+
+  const requestTabClosure = useCallback(
+    (tabIds: string[], action: () => void) => {
+      if (!hasUnsavedSqlFileTabs(tabsRef.current, tabIds)) {
+        action();
+        return;
+      }
+      pendingTabCloseActionRef.current = action;
+      setHasPendingSqlFileClose(true);
+    },
+    [],
+  );
+
+  const handleCloseTab = useCallback(
+    (tabId: string) => {
+      requestTabClosure([tabId], () => {
+        delete editorsRef.current[tabId];
+        closeTab(tabId);
+      });
+    },
+    [closeTab, requestTabClosure],
+  );
+
+  const handleCloseOtherTabs = useCallback(
+    (tabId: string) => {
+      const tabIds = tabsRef.current
+        .filter((tab) => tab.id !== tabId)
+        .map((tab) => tab.id);
+      requestTabClosure(tabIds, () => closeOtherTabs(tabId));
+    },
+    [closeOtherTabs, requestTabClosure],
+  );
+
+  const handleCloseTabsToRight = useCallback(
+    (tabId: string) => {
+      const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
+      const tabIds = index < 0
+        ? []
+        : tabsRef.current.slice(index + 1).map((tab) => tab.id);
+      requestTabClosure(tabIds, () => closeTabsToRight(tabId));
+    },
+    [closeTabsToRight, requestTabClosure],
+  );
+
+  const handleCloseTabsToLeft = useCallback(
+    (tabId: string) => {
+      const index = tabsRef.current.findIndex((tab) => tab.id === tabId);
+      const tabIds = index < 0
+        ? []
+        : tabsRef.current.slice(0, index).map((tab) => tab.id);
+      requestTabClosure(tabIds, () => closeTabsToLeft(tabId));
+    },
+    [closeTabsToLeft, requestTabClosure],
+  );
+
+  const handleCloseAllTabs = useCallback(() => {
+    requestTabClosure(
+      tabsRef.current.map((tab) => tab.id),
+      closeAllTabs,
+    );
+  }, [closeAllTabs, requestTabClosure]);
+
+  const cancelPendingTabClosure = useCallback(() => {
+    pendingTabCloseActionRef.current = null;
+    setHasPendingSqlFileClose(false);
+  }, []);
+
+  const confirmPendingTabClosure = useCallback(() => {
+    const action = pendingTabCloseActionRef.current;
+    pendingTabCloseActionRef.current = null;
+    setHasPendingSqlFileClose(false);
+    action?.();
+  }, []);
 
   useEffect(() => {
     updateScrollArrows();
@@ -3067,6 +3229,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       if (!focused) return;
       if (matchesShortcut(e, "save_grid_changes")) {
         e.preventDefault();
+        const tab = tabsRef.current.find(
+          (candidate) => candidate.id === activeTabIdRef.current,
+        );
+        if (tab?.sourceFilePath) {
+          handleSaveSqlFile(tab);
+          return;
+        }
         if (hasPendingChanges) handleSubmitChanges();
       }
     };
@@ -3077,6 +3246,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     activeConnectionId,
     matchesShortcut,
     hasPendingChanges,
+    handleSaveSqlFile,
     handleSubmitChanges,
   ]);
 
@@ -3347,6 +3517,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const startResize = () => {
     isDragging.current = true;
     document.body.style.cursor = "row-resize";
+    const activeEditor = activeTab ? editorsRef.current[activeTab.id] : undefined;
 
     // Overlay prevents CodeMirror from capturing mouse events during drag
     const overlay = document.createElement("div");
@@ -3376,6 +3547,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           panels.forEach((el) => {
             el.style.height = `${newHeight}px`;
           });
+          activeEditor?.layout();
         });
       }
     };
@@ -3385,6 +3557,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       overlay.remove();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       setEditorHeight(editorHeightRef.current);
+      requestAnimationFrame(() => activeEditor?.layout());
       document.removeEventListener("mousemove", handleResize);
       document.removeEventListener("mouseup", stopResize);
     };
@@ -3657,7 +3830,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             <p className="mb-4">{t("editor.noTabs")}</p>
             <button
               onClick={() => addTab({ type: "console" })}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+              className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded transition-colors"
             >
               {t("editor.newConsole")}
             </button>
@@ -3678,7 +3851,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     : null;
   // Active-tab accents (indicator line, loading bar, rename border) follow the
   // connection color when present, falling back to the default blue otherwise.
-  const tabAccentColor = tabBarAccent ?? "#3b82f6";
+  const tabAccentColor = tabBarAccent ?? "var(--accent-primary)";
+  const tabTint = (percent: number) => tint(tabAccentColor, percent);
 
   return (
     <div ref={editorRootRef} className="flex flex-col h-full bg-base">
@@ -3730,7 +3904,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               onDragStart={(e) => handleTabDragStart(e, tab.id)}
               onDragEnd={handleTabDragEnd}
               onDragOver={handleTabDragOver(index)}
+              role="button"
+              tabIndex={0}
+              aria-current={activeTabId === tab.id ? "true" : undefined}
               onClick={() => setActiveTabId(tab.id)}
+              onKeyDown={onActivationKey(() => setActiveTabId(tab.id))}
               onContextMenu={(e) => handleTabContextMenu(e, tab.id)}
               onAuxClick={(e) => {
                 if (e.button === 1) {
@@ -3739,7 +3917,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 }
               }}
               className={clsx(
-                "flex items-center gap-2 px-3 h-full border-r border-default cursor-pointer min-w-[140px] max-w-[220px] text-xs transition-all duration-150 group relative select-none",
+                "flex items-center gap-2 px-3 h-full border-r border-default cursor-pointer min-w-[140px] max-w-[220px] text-xs transition-all duration-150 group relative select-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
                 activeTabId === tab.id
                   ? "bg-base text-primary font-medium"
                   : "text-muted hover:bg-[var(--tab-hover)] hover:text-secondary",
@@ -3751,30 +3929,46 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       // Active tab keeps the content background (so it reads as
                       // connected to the pane below) but carries a soft accent
                       // body, stronger at the top, tinted by the connection.
-                      backgroundImage: `linear-gradient(${tabAccentColor}30, ${tabAccentColor}20)`,
+                      backgroundImage: `linear-gradient(${tabTint(19)}, ${tabTint(13)})`,
                     }
                   : // Inactive tabs pick up a soft accent wash on hover instead of
                     // a flat neutral grey, keeping the strip tied to the connection.
-                    ({ "--tab-hover": `${tabAccentColor}33` } as React.CSSProperties)
+                    ({ "--tab-hover": `${tabTint(20)}` } as React.CSSProperties)
               }
             >
               {activeTabId === tab.id && (
                 <div
                   className="absolute top-0 left-0 right-0 h-[2px] rounded-b-sm"
                   style={{
-                    backgroundColor: `${tabAccentColor}cc`,
-                    boxShadow: `0 0 5px ${tabAccentColor}59`,
+                    backgroundColor: `${tabTint(80)}`,
+                    boxShadow: `0 0 5px ${tabTint(35)}`,
                   }}
                 />
               )}
-              {tab.type === "table" ? (
+              {tab.isLoading ? (
+                // Running indicator: the type icon gives way to a spinner so
+                // the tab whose query is executing stands out even when it is
+                // not the active one.
+                <span
+                  className="flex shrink-0"
+                  title={t("editor.executingQuery")}
+                  aria-label={t("editor.executingQuery")}
+                  role="status"
+                >
+                  <Loader2
+                    size={12}
+                    className="animate-spin"
+                    style={{ color: tabAccentColor }}
+                  />
+                </span>
+              ) : tab.type === "table" ? (
                 <TableIcon size={12} className="text-accent shrink-0" />
               ) : tab.type === "query_builder" ? (
                 <Network size={12} className="text-accent-secondary shrink-0" />
               ) : tab.type === "notebook" ? (
-                <BookOpen size={12} className="text-orange-400 shrink-0" />
+                <BookOpen size={12} className="text-accent-warning shrink-0" />
               ) : tab.type === "users" ? (
-                <UsersRound size={12} className="text-emerald-400 shrink-0" />
+                <UsersRound size={12} className="text-accent-success shrink-0" />
               ) : (
                 <FileCode size={12} className="text-accent-secondary shrink-0" />
               )}
@@ -3793,7 +3987,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                     if (e.key === "Escape") setEditingTabId(null);
                   }}
                   className="flex-1 min-w-0 bg-surface-secondary border rounded px-1 py-0.5 text-xs text-primary focus:outline-none"
-                  style={{ borderColor: `${tabAccentColor}80` }}
+                  style={{ borderColor: `${tabTint(50)}` }}
                 />
               ) : (
                 <span
@@ -3807,7 +4001,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       : undefined
                   }
                 >
-                  <span className="truncate">{tab.title}</span>
+                  <span className="truncate" title={tab.sourceFilePath}>
+                    {tab.title}
+                    {tab.sourceFileDirty ? " •" : ""}
+                  </span>
                   {tab.type === "console" && isMultiDb && (
                     <span className="text-muted shrink-0">
                       ({tab.schema || selectedDatabases[0]})
@@ -3821,6 +4018,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   e.stopPropagation();
                   handleCloseTab(tab.id);
                 }}
+                aria-label={t("editor.closeTab")}
                 className={clsx(
                   "p-0.5 rounded hover:bg-surface-secondary hover:text-primary hover:scale-110 transition-all duration-150 shrink-0",
                   activeTabId === tab.id
@@ -3860,8 +4058,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           <Plus size={16} />
         </button>
         <button
+          onClick={handleOpenSqlFile}
+          className="flex items-center justify-center w-9 h-full text-accent-info hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+          title={t("editor.openSqlFile")}
+        >
+          <FolderOpen size={16} />
+        </button>
+        <button
           onClick={() => addTab({ type: "query_builder" })}
-          className="flex items-center justify-center w-9 h-full text-purple-500 hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+          className="flex items-center justify-center w-9 h-full text-accent-secondary hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
           title={t("editor.newVisualQuery")}
         >
           <Network size={16} />
@@ -3881,7 +4086,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               ...(isMultiDb ? { schema: selectedDatabases[0] } : {}),
             });
           }}
-          className="flex items-center justify-center w-9 h-full text-orange-400 hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+          className="flex items-center justify-center w-9 h-full text-accent-warning hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
           title={t("editor.newNotebook")}
         >
           <BookOpen size={16} />
@@ -3897,12 +4102,12 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         {!activeTab.readOnly && activeTab.isLoading ? (
           <button
             onClick={stopQuery}
-            className="flex items-center gap-2 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-sm font-medium shrink-0 whitespace-nowrap"
+            className="flex items-center gap-2 px-3 py-1.5 bg-accent-error hover:bg-accent-error/90 text-on-accent-error rounded text-sm font-medium shrink-0 whitespace-nowrap"
           >
             <Square size={16} fill="currentColor" /> {t("editor.stop")}
           </button>
         ) : !activeTab.readOnly ? (
-          <div ref={runDropdownRef} className="flex items-center rounded bg-green-700 relative shrink-0">
+          <div ref={runDropdownRef} className="flex items-center rounded bg-accent-success relative shrink-0">
             <button
               onClick={handleRunButton}
               disabled={!activeConnectionId}
@@ -3910,7 +4115,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               aria-keyshortcuts={isMac ? "Meta+Enter" : "Control+Enter"}
               title={runTitle}
               className={clsx(
-                "flex items-center gap-2 px-3 py-1.5 text-white text-sm font-medium disabled:opacity-50 hover:bg-green-600",
+                "flex items-center gap-2 px-3 py-1.5 text-on-accent-success text-sm font-medium disabled:opacity-50 hover:brightness-110",
                 isTableTab ? "rounded" : "rounded-l",
               )}
             >
@@ -3918,11 +4123,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             </button>
             {!isTableTab && (
               <>
-                <div className="h-5 w-[1px] bg-green-800"></div>
+                <div className="h-5 w-[1px] bg-on-accent-success/30"></div>
                 <button
                   onClick={handleRunDropdownToggle}
                   disabled={!activeConnectionId}
-                  className="px-1.5 py-1.5 text-white rounded-r hover:bg-green-600 disabled:opacity-50"
+                  className="px-1.5 py-1.5 text-on-accent-success rounded-r hover:brightness-110 disabled:opacity-50"
                 >
                   <ChevronDown size={14} />
                 </button>
@@ -3935,9 +4140,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                           handleRunAll();
                           setIsRunDropdownOpen(false);
                         }}
-                        className="flex items-center gap-2 text-left px-4 py-2 text-xs font-medium text-secondary hover:text-white hover:bg-surface-tertiary/50 border-b border-strong transition-colors"
+                        className="flex items-center gap-2 text-left px-4 py-2 text-xs font-medium text-secondary hover:text-primary hover:bg-surface-tertiary/50 border-b border-strong transition-colors"
                       >
-                        <Play size={12} fill="currentColor" className="text-green-500 shrink-0" />
+                        <Play size={12} fill="currentColor" className="text-accent-success shrink-0" />
                         {t("editor.runAll")} ({dropdownQueries.length})
                       </button>
                     )}
@@ -3958,7 +4163,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                               runQuery(q, 1);
                               setIsRunDropdownOpen(false);
                             }}
-                            className="text-left px-4 py-2 text-xs font-mono text-secondary hover:text-white flex-1 truncate"
+                            className="text-left px-4 py-2 text-xs font-mono text-secondary hover:text-primary flex-1 truncate"
                             title={q}
                           >
                             {label}
@@ -3969,7 +4174,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                               setIsRunDropdownOpen(false);
                               setSaveQueryModal({ isOpen: true, sql: q });
                             }}
-                            className="p-2 text-muted hover:text-white hover:bg-surface transition-colors mr-1 rounded shrink-0 opacity-0 group-hover:opacity-100"
+                            className="p-2 text-muted hover:text-primary hover:bg-surface transition-colors mr-1 rounded shrink-0 opacity-0 group-hover:opacity-100"
                             title={t("editor.saveThisQuery")}
                           >
                             <Save size={14} />
@@ -4022,6 +4227,115 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           </button>
         )}
 
+        {/* Save split button: main action saves the SQL file (or asks for a
+            path on a console that has none), the chevron opens the other
+            save destinations. */}
+        {!isTableTab && activeTab.type === "console" && (
+          <div ref={saveMenuRef} className="relative shrink-0">
+            <div
+              className="flex items-center rounded border border-strong bg-surface-secondary text-sm font-medium"
+            >
+              <button
+                onClick={() => handleSaveSqlFile(activeTab)}
+                disabled={!canSaveSqlFile(activeTab)}
+                title={
+                  activeTab.sourceFilePath
+                    ? `${t("editor.saveSqlFile")} (${isMac ? "⌘S" : "Ctrl+S"})\n${activeTab.sourceFilePath}`
+                    : t("editor.saveSqlFileAs")
+                }
+                className="flex items-center gap-2 px-2 @[640px]:px-3 py-1.5 rounded-l text-primary enabled:hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Save size={16} />
+                <span className="hidden @[640px]:inline whitespace-nowrap">
+                  {t("editor.saveFile")}
+                </span>
+                {activeTab.sourceFileDirty && (
+                  <span
+                    className="w-1.5 h-1.5 rounded-full bg-accent-warning shrink-0"
+                    aria-hidden
+                  />
+                )}
+              </button>
+              <div className="h-5 w-px bg-strong" />
+              <button
+                onClick={() => setIsSaveMenuOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={isSaveMenuOpen}
+                aria-label={t("editor.saveOptions")}
+                title={t("editor.saveOptions")}
+                className={clsx(
+                  "px-1.5 py-1.5 rounded-r text-primary hover:bg-surface transition-colors",
+                  isSaveMenuOpen && "bg-surface",
+                )}
+              >
+                <ChevronDown
+                  size={14}
+                  className={clsx(
+                    "transition-transform opacity-70",
+                    isSaveMenuOpen && "rotate-180",
+                  )}
+                />
+              </button>
+            </div>
+            {isSaveMenuOpen && (
+              <div
+                role="menu"
+                className="absolute top-full left-0 mt-1 w-64 max-w-[calc(100cqw-1rem)] bg-surface-secondary border border-strong rounded shadow-xl z-50 flex flex-col py-1 overflow-hidden"
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setIsSaveMenuOpen(false);
+                    handleSaveSqlFile(activeTab);
+                  }}
+                  disabled={!canSaveSqlFile(activeTab)}
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-surface-tertiary/50 enabled:hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Save size={14} className="shrink-0 opacity-80" />
+                  <span className="flex-1 min-w-0 flex flex-col">
+                    <span>{t("editor.saveFile")}</span>
+                    <span className="text-xs text-muted truncate">
+                      {activeTab.sourceFilePath
+                        ? getSqlFileName(activeTab.sourceFilePath)
+                        : t("editor.sqlFileNotSaved")}
+                    </span>
+                  </span>
+                  {activeTab.sourceFilePath && (
+                    <span className="text-xs text-muted">
+                      {isMac ? "⌘S" : "Ctrl+S"}
+                    </span>
+                  )}
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setIsSaveMenuOpen(false);
+                    handleSaveSqlFile(activeTab, true);
+                  }}
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-surface-tertiary/50 hover:text-primary transition-colors"
+                >
+                  <SaveAll size={14} className="shrink-0 opacity-80" />
+                  <span className="flex-1">{t("editor.saveFileAs")}</span>
+                  <span className="text-xs text-muted">.sql</span>
+                </button>
+                <div className="h-px bg-default my-1" />
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setIsSaveMenuOpen(false);
+                    setSaveQueryModal({ isOpen: true, sql: activeTab.query ?? "" });
+                  }}
+                  disabled={!activeTab.query?.trim()}
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-surface-tertiary/50 enabled:hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Bookmark size={14} className="shrink-0 opacity-80" />
+                  <span className="flex-1">{t("editor.addToSavedQueries")}</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div ref={exportMenuRef} className="relative ml-auto shrink-0">
           <button
             onClick={() => setExportMenuOpen(!exportMenuOpen)}
@@ -4032,8 +4346,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             className={clsx(
               "flex items-center gap-2 px-2 @[640px]:px-3 py-1.5 rounded text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
               exportMenuOpen
-                ? "bg-blue-500/15 border-blue-500/40 text-blue-400"
-                : "bg-surface-secondary enabled:hover:bg-blue-500/15 enabled:hover:border-blue-500/40 enabled:hover:text-blue-400 text-primary border-strong",
+                ? "bg-accent-primary/15 border-accent-primary/40 text-accent"
+                : "bg-surface-secondary enabled:hover:bg-accent-primary/15 enabled:hover:border-accent-primary/40 enabled:hover:text-accent text-primary border-strong",
             )}
           >
             <Download size={16} />
@@ -4056,7 +4370,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               <button
                 role="menuitem"
                 onClick={handleExportCSV}
-                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors"
               >
                 <FileText size={14} className="shrink-0 opacity-80" />
                 <span className="flex-1">CSV</span>
@@ -4065,7 +4379,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               <button
                 role="menuitem"
                 onClick={handleExportJSON}
-                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors"
               >
                 <FileJson size={14} className="shrink-0 opacity-80" />
                 <span className="flex-1">JSON</span>
@@ -4074,7 +4388,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               <button
                 role="menuitem"
                 onClick={handleExportMarkdown}
-                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors"
               >
                 <FileText size={14} className="shrink-0 opacity-80" />
                 <span className="flex-1">Markdown</span>
@@ -4108,7 +4422,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                     className={clsx(
                       "text-left px-3 py-1.5 text-xs hover:bg-surface transition-colors flex items-center gap-2",
                       (activeTab.schema || selectedDatabases[0]) === db
-                        ? "text-white font-medium"
+                        ? "text-primary font-medium"
                         : "text-secondary",
                     )}
                   >
@@ -4186,7 +4500,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 dialect={activeDialect}
                 foldPreview
                 onChange={(val) => {
-                  if (isActive) updateTab(tab.id, { query: val });
+                  if (!isActive) return;
+                  updateTab(tab.id, {
+                    query: val,
+                    ...(tab.sourceFilePath
+                      ? { sourceFileDirty: isSqlFileDirty(tab, val) }
+                      : {}),
+                  });
                 }}
                 onRun={handleRunButton}
                 onRunAll={handleRunAll}
@@ -4209,7 +4529,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 <button
                   onClick={handleExplainButton}
                   disabled={!activeConnectionId || !tab.query?.trim()}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-muted hover:text-green-300 bg-elevated/80 hover:bg-green-900/40 border border-default hover:border-green-500/40 transition-all disabled:opacity-30 disabled:pointer-events-none backdrop-blur-sm"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-muted hover:text-accent-success bg-elevated/80 hover:bg-accent-success/20 border border-default hover:border-accent-success/40 transition-all disabled:opacity-30 disabled:pointer-events-none backdrop-blur-sm"
                   title={t("editor.visualExplain.title")}
                 >
                   <Network size={12} />
@@ -4247,16 +4567,20 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             />
           ) : (
             <div
-              onMouseDown={isEditorOpen ? startResize : undefined}
               className={clsx(
                 "h-6 bg-elevated border-y border-default flex items-center justify-end px-2 relative",
                 isEditorOpen ? "cursor-row-resize" : "",
               )}
             >
-              <div
-                className="flex items-center gap-0.5"
-                onMouseDown={(e) => e.stopPropagation()}
-              >
+              {isEditorOpen && (
+                // Mouse-only drag surface behind the buttons (no keyboard resize), hidden from assistive tech.
+                <div
+                  aria-hidden="true"
+                  onMouseDown={startResize}
+                  className="absolute inset-0"
+                />
+              )}
+              <div className="relative flex items-center gap-0.5">
                 {/* Detach results into a separate window */}
                 <button
                   onClick={(e) => {
@@ -4305,7 +4629,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                     e.stopPropagation();
                     setIsResultsCollapsed(true);
                   }}
-                  className="text-muted hover:text-red-400 transition-colors p-1 hover:bg-surface-secondary rounded"
+                  className="text-muted hover:text-accent-error transition-colors p-1 hover:bg-surface-secondary rounded"
                   title={t("editor.results.close")}
                 >
                   <X size={14} />
@@ -4411,7 +4735,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               />
             ) : activeTab.isLoading ? (
               <div className="flex flex-col items-center justify-center h-full text-muted">
-                <div className="w-12 h-12 border-4 border-surface-secondary border-t-blue-500 rounded-full animate-spin mb-4"></div>
+                <div className="w-12 h-12 border-4 border-surface-secondary border-t-accent-primary rounded-full animate-spin mb-4"></div>
                 <p className="text-sm">{t("editor.executingQuery")}</p>
               </div>
             ) : activeTab.error ? (
@@ -4422,7 +4746,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               // Table tabs stay in data mode even when an empty result omits
               // columns, keeping the Add Row action available.
               <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 text-center px-4">
-                <CheckCircle2 size={32} className="text-green-500" />
+                <CheckCircle2 size={32} className="text-accent-success" />
                 <p className="text-sm font-medium text-primary">
                   {t("editor.queryExecuted")}
                 </p>
@@ -4489,7 +4813,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                             activeTab.isLoading
                           }
                           onClick={() => runQuery(undefined, 1)}
-                          className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
+                          className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
                           title="First Page"
                         >
                           <ChevronsLeft size={14} />
@@ -4505,27 +4829,21 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                               activeTab.result!.pagination!.page - 1,
                             )
                           }
-                          className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
+                          className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
                           title="Previous Page"
                         >
                           <ChevronLeft size={14} />
                         </button>
 
-                        <div
-                          className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap"
-                          onClick={() => {
-                            setIsEditingPage(true);
-                            setTempPage(
-                              String(activeTab.result!.pagination!.page),
-                            );
-                          }}
-                          title={t("editor.jumpToPage")}
-                        >
-                          {isEditingPage ? (
+                        {isEditingPage ? (
+                          <div
+                            className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap"
+                            title={t("editor.jumpToPage")}
+                          >
                             <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
                               autoFocus
                               type="text"
-                              className="w-full bg-transparent text-center focus:outline-none text-white p-0 m-0 border-none h-full"
+                              className="w-full bg-transparent text-center focus:outline-none text-primary p-0 m-0 border-none h-full"
                               value={tempPage}
                               onChange={(e) => setTempPage(e.target.value)}
                               onKeyDown={(e) => {
@@ -4553,10 +4871,20 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                                 e.stopPropagation();
                               }}
                               onBlur={() => setIsEditingPage(false)}
-                              onClick={(e) => e.stopPropagation()}
                             />
-                          ) : (
-                            <>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                            onClick={() => {
+                              setIsEditingPage(true);
+                              setTempPage(
+                                String(activeTab.result!.pagination!.page),
+                              );
+                            }}
+                            title={t("editor.jumpToPage")}
+                          >
                               {activeTab.result.pagination.total_rows !== null
                                 ? t("editor.pageOf", {
                                     current: activeTab.result.pagination.page,
@@ -4568,15 +4896,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                                 : t("editor.page", {
                                     current: activeTab.result.pagination.page,
                                   })}
-                            </>
-                          )}
-                        </div>
+                          </button>
+                        )}
 
                         {activeTab.result.pagination.total_rows === null ? (
                           <button
                             disabled={isCountLoading || activeTab.isLoading}
                             onClick={() => loadCount()}
-                            className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
+                            className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
                             title={t("editor.loadRowCount")}
                           >
                             {isCountLoading ? (
@@ -4605,7 +4932,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                               activeTab.result!.pagination!.page + 1,
                             )
                           }
-                          className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
+                          className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
                           title="Next Page"
                         >
                           <ChevronRight size={14} />
@@ -4624,7 +4951,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                               ),
                             )
                           }
-                          className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
+                          className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
                           title="Last Page"
                         >
                           <ChevronsRight size={14} />
@@ -4644,7 +4971,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                         <button
                           onClick={handleNewRow}
                           disabled={!!activeTab.materialized}
-                          className="flex items-center justify-center w-7 h-7 text-secondary hover:text-green-400 hover:bg-surface-secondary rounded transition-colors disabled:opacity-30"
+                          className="flex items-center justify-center w-7 h-7 text-secondary hover:text-accent-success hover:bg-surface-secondary rounded transition-colors disabled:opacity-30"
                           title={t("editor.newRow")}
                         >
                           <Plus size={16} />
@@ -4656,7 +4983,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                             !activeTab.selectedRows ||
                             activeTab.selectedRows.length === 0
                           }
-                          className="flex items-center justify-center w-7 h-7 text-secondary hover:text-red-400 hover:bg-surface-secondary rounded transition-colors disabled:opacity-30"
+                          className="flex items-center justify-center w-7 h-7 text-secondary hover:text-accent-error hover:bg-surface-secondary rounded transition-colors disabled:opacity-30"
                           title={t("dataGrid.deleteRow")}
                         >
                           <Minus size={16} />
@@ -4715,7 +5042,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                             onChange={(e) =>
                               setCsvIncludeHeaders(e.target.checked)
                             }
-                            className="w-3 h-3 cursor-pointer accent-blue-500"
+                            className="w-3 h-3 cursor-pointer accent-accent-primary"
                           />
                           <span className="hidden @[440px]:inline font-medium tracking-wide whitespace-nowrap">
                             {t("settings.csvHeaders")}
@@ -4767,7 +5094,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                           </span>
                         </button>
                         <div className="w-px self-stretch bg-default"></div>
-                        <span className="px-2.5 @[560px]:px-4 py-2 text-sm font-medium text-accent-primary select-none hover:bg-surface-secondary transition-colors whitespace-nowrap">
+                        <span className="px-2.5 @[560px]:px-4 py-2 text-sm font-medium text-accent select-none hover:bg-surface-secondary transition-colors whitespace-nowrap">
                           {t("editor.pendingCount", {
                             count:
                               Object.keys(activeTab.pendingChanges || {})
@@ -4969,14 +5296,31 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         }}
         onClose={() => setIsExplainSelectionOpen(false)}
       />
-      {tabContextMenu && (
+      {tabContextMenu && (() => {
+        const contextTab = tabs.find((t) => t.id === tabContextMenu.tabId);
+        return (
         <ContextMenu
           x={tabContextMenu.x}
           y={tabContextMenu.y}
           onClose={() => setTabContextMenu(null)}
           items={[
-            ...(tabs.find((t) => t.id === tabContextMenu.tabId)?.type ===
-            "notebook"
+            ...(contextTab?.type === "console"
+              ? [
+                  {
+                    label: t("editor.saveFile"),
+                    icon: Save,
+                    disabled: !canSaveSqlFile(contextTab),
+                    action: () => handleSaveSqlFile(contextTab),
+                  },
+                  {
+                    label: t("editor.saveFileAs"),
+                    icon: SaveAll,
+                    action: () => handleSaveSqlFile(contextTab, true),
+                  },
+                  { separator: true },
+                ]
+              : []),
+            ...(contextTab?.type === "notebook"
               ? [
                   {
                     label: t("sidebar.notebooks.rename"),
@@ -4986,7 +5330,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 ]
               : []),
             ...(!["console", "notebook", "query_builder", "users"].includes(
-              tabs.find((t) => t.id === tabContextMenu.tabId)?.type ?? "",
+              contextTab?.type ?? "",
             )
               ? [
                   {
@@ -5004,27 +5348,37 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             {
               label: t("editor.closeOthers"),
               icon: XCircle,
-              action: () => closeOtherTabs(tabContextMenu.tabId),
+              action: () => handleCloseOtherTabs(tabContextMenu.tabId),
             },
             {
               label: t("editor.closeRight"),
               icon: ArrowRightToLine,
-              action: () => closeTabsToRight(tabContextMenu.tabId),
+              action: () => handleCloseTabsToRight(tabContextMenu.tabId),
             },
             {
               label: t("editor.closeLeft"),
               icon: ArrowLeftToLine,
-              action: () => closeTabsToLeft(tabContextMenu.tabId),
+              action: () => handleCloseTabsToLeft(tabContextMenu.tabId),
             },
             {
               label: t("editor.closeAll"),
               icon: Trash2,
               danger: true,
-              action: () => closeAllTabs(),
+              action: handleCloseAllTabs,
             },
           ]}
         />
-      )}
+        );
+      })()}
+      <ConfirmModal
+        isOpen={hasPendingSqlFileClose}
+        onClose={cancelPendingTabClosure}
+        title={t("editor.unsavedSqlFileTitle")}
+        message={t("editor.unsavedSqlFileMessage")}
+        confirmLabel={t("editor.discardSqlFileChanges")}
+        onConfirm={confirmPendingTabClosure}
+        variant="warning"
+      />
       <ErrorModal
         isOpen={errorModal.isOpen}
         onClose={() => setErrorModal({ isOpen: false, message: "" })}

@@ -18,6 +18,7 @@ export interface TableColumn {
   is_auto_increment: boolean;
   is_generated?: boolean;
   default_value: string | null;
+  comment?: string | null;
 }
 
 interface ResolvedSqlCapabilities {
@@ -25,6 +26,7 @@ interface ResolvedSqlCapabilities {
   auto_increment_keyword: string;
   serial_type: string;
   inline_pk: boolean;
+  comment_syntax: 'mysql' | 'comment-on' | 'none';
 }
 
 /**
@@ -40,19 +42,26 @@ function resolveSqlCapabilities(
       auto_increment_keyword: driver.auto_increment_keyword || '',
       serial_type: driver.serial_type || '',
       inline_pk: driver.inline_pk ?? false,
+      comment_syntax:
+        driver.sql_dialect === 'mysql'
+          ? 'mysql'
+          : driver.sql_dialect === 'postgres' || driver.sql_dialect === 'oracle'
+            ? 'comment-on'
+            : 'none',
     };
   }
   // Legacy string driver IDs
   switch (driver) {
     case 'mysql':
     case 'mariadb':
-      return { quote: '`', auto_increment_keyword: 'AUTO_INCREMENT', serial_type: '', inline_pk: false };
+      return { quote: '`', auto_increment_keyword: 'AUTO_INCREMENT', serial_type: '', inline_pk: false, comment_syntax: 'mysql' };
+    case 'postgres':
     case 'postgresql':
-      return { quote: '"', auto_increment_keyword: '', serial_type: 'SERIAL', inline_pk: false };
+      return { quote: '"', auto_increment_keyword: '', serial_type: 'SERIAL', inline_pk: false, comment_syntax: 'comment-on' };
     case 'sqlite':
-      return { quote: '"', auto_increment_keyword: 'AUTOINCREMENT', serial_type: '', inline_pk: true };
+      return { quote: '"', auto_increment_keyword: 'AUTOINCREMENT', serial_type: '', inline_pk: true, comment_syntax: 'none' };
     default:
-      return { quote: '"', auto_increment_keyword: '', serial_type: '', inline_pk: false };
+      return { quote: '"', auto_increment_keyword: '', serial_type: '', inline_pk: false, comment_syntax: 'none' };
   }
 }
 
@@ -73,6 +82,19 @@ export function getIdentifierQuote(driver: DriverCapabilities | DatabaseDriver):
  * Accepts either a DriverCapabilities object or a legacy string driver ID.
  * The identifier quote character is derived internally from the driver.
  */
+function escapeSqlString(value: string): string {
+  return value.replaceAll("'", "''");
+}
+
+function appendInlineComment(
+  definition: string,
+  comment: string | null | undefined,
+  syntax: ResolvedSqlCapabilities['comment_syntax'],
+): string {
+  if (!comment || syntax !== 'mysql') return definition;
+  return `${definition} COMMENT '${escapeSqlString(comment)}'`;
+}
+
 export function generateColumnDefinition(
   column: TableColumn,
   driver: DriverCapabilities | DatabaseDriver,
@@ -84,7 +106,11 @@ export function generateColumnDefinition(
     if (caps.inline_pk) {
       // Inline PK style (e.g. SQLite): "id" INTEGER PRIMARY KEY AUTOINCREMENT
       // The data type is replaced by INTEGER and the PK constraint is inline.
-      return `  ${q}${column.name}${q} INTEGER PRIMARY KEY ${caps.auto_increment_keyword}`.trimEnd();
+      return appendInlineComment(
+        `  ${q}${column.name}${q} INTEGER PRIMARY KEY ${caps.auto_increment_keyword}`.trimEnd(),
+        column.comment,
+        caps.comment_syntax,
+      );
     }
 
     if (caps.serial_type) {
@@ -94,7 +120,7 @@ export function generateColumnDefinition(
       if (column.default_value !== null && column.default_value !== undefined) {
         def += ` DEFAULT ${column.default_value}`;
       }
-      return def;
+      return appendInlineComment(def, column.comment, caps.comment_syntax);
     }
   }
 
@@ -113,7 +139,7 @@ export function generateColumnDefinition(
     def += ` ${caps.auto_increment_keyword}`;
   }
 
-  return def;
+  return appendInlineComment(def, column.comment, caps.comment_syntax);
 }
 
 /**
@@ -232,7 +258,8 @@ export function generateCreateTableSQL(
   columns: TableColumn[],
   foreignKeys: ForeignKey[],
   indexes: Index[],
-  driver: DriverCapabilities | DatabaseDriver
+  driver: DriverCapabilities | DatabaseDriver,
+  tableComment?: string | null,
 ): string {
   const caps = resolveSqlCapabilities(driver);
   const quote = caps.quote;
@@ -256,13 +283,37 @@ export function generateCreateTableSQL(
 
   // Close column definitions
   lines.push(columnDefs.join(',\n'));
-  lines.push(');');
+  const tableCommentSuffix =
+    caps.comment_syntax === 'mysql' && tableComment
+      ? ` COMMENT='${escapeSqlString(tableComment)}'`
+      : '';
+  lines.push(`)${tableCommentSuffix};`);
 
   // Index statements
   const indexStatements = generateIndexStatements(indexes, tableName, quote);
   if (indexStatements.length > 0) {
     lines.push('');
     lines.push(...indexStatements);
+  }
+
+  if (caps.comment_syntax === 'comment-on') {
+    const commentStatements: string[] = [];
+    if (tableComment) {
+      commentStatements.push(
+        `COMMENT ON TABLE ${quote}${tableName}${quote} IS '${escapeSqlString(tableComment)}';`,
+      );
+    }
+    columns.forEach((column) => {
+      if (column.comment) {
+        commentStatements.push(
+          `COMMENT ON COLUMN ${quote}${tableName}${quote}.${quote}${column.name}${quote} IS '${escapeSqlString(column.comment)}';`,
+        );
+      }
+    });
+    if (commentStatements.length > 0) {
+      lines.push('');
+      lines.push(...commentStatements);
+    }
   }
 
   return lines.join('\n');

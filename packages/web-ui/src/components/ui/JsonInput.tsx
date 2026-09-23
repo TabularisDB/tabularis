@@ -223,7 +223,7 @@ export const JsonInput: React.FC<JsonInputProps> = ({
             data-testid="json-input-code"
             className={`w-full border rounded-lg overflow-hidden transition-colors ${
               fillHeight ? "flex-1 min-h-[220px]" : ""
-            } ${error ? "border-red-500" : "border-strong"}`}
+            } ${error ? "border-accent-error" : "border-strong"}`}
             style={fillHeight ? undefined : { height: 220 }}
           >
             {diffEnabled && hasDiff && originalText !== null ? (
@@ -274,8 +274,8 @@ export const JsonInput: React.FC<JsonInputProps> = ({
               fillHeight ? "flex-1 min-h-[120px]" : "min-h-[120px]"
             } ${
               error
-                ? "border-red-500 focus:border-red-500"
-                : "border-strong focus:border-blue-500"
+                ? "border-accent-error focus:border-accent-error"
+                : "border-strong focus:border-focus"
             }`}
           />
         )}
@@ -309,7 +309,7 @@ export const JsonInput: React.FC<JsonInputProps> = ({
                 disabled={!hasDiff}
                 className={`px-2 py-1 text-xs rounded border transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed ${
                   diffEnabled && hasDiff
-                    ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
+                    ? "bg-accent-primary/30 text-accent border-accent-primary/50"
                     : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
                 }`}
                 title={t("jsonInput.diff", { defaultValue: "Diff" })}
@@ -319,7 +319,7 @@ export const JsonInput: React.FC<JsonInputProps> = ({
                 {hasDiff && (
                   <span
                     aria-hidden
-                    className="ml-0.5 inline-block w-1.5 h-1.5 rounded-full bg-amber-400"
+                    className="ml-0.5 inline-block w-1.5 h-1.5 rounded-full bg-accent-warning"
                   />
                 )}
               </button>
@@ -331,7 +331,7 @@ export const JsonInput: React.FC<JsonInputProps> = ({
                 aria-pressed={sideBySide}
                 className={`px-2 py-1 text-xs rounded border transition-colors flex items-center gap-1 ${
                   sideBySide
-                    ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
+                    ? "bg-accent-primary/30 text-accent border-accent-primary/50"
                     : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
                 }`}
                 title={t("jsonInput.sideBySide", { defaultValue: "Side by side" })}
@@ -358,12 +358,12 @@ export const JsonInput: React.FC<JsonInputProps> = ({
             <div className="flex items-center gap-1 text-xs">
               {text.trim() !== "" &&
                 (error ? (
-                  <span className="text-red-400 flex items-center gap-1">
+                  <span className="text-accent-error flex items-center gap-1">
                     <X size={12} />
                     {t("jsonInput.invalid")}
                   </span>
                 ) : (
-                  <span className="text-green-400 flex items-center gap-1">
+                  <span className="text-accent-success flex items-center gap-1">
                     <Check size={12} />
                     {t("jsonInput.valid")}
                   </span>
@@ -375,7 +375,7 @@ export const JsonInput: React.FC<JsonInputProps> = ({
 
       {/* Error detail */}
       {error && isTextMode && (
-        <p className="text-xs text-red-400 break-words">{error}</p>
+        <p className="text-xs text-accent-error break-words">{error}</p>
       )}
     </div>
   );

@@ -49,11 +49,19 @@ async fn test_mysql_integration_flow() {
     }
 
     // 2. Create Table
-    let create_sql = "CREATE TABLE IF NOT EXISTS test_users (
+    let _ = mysql::execute_query(
+        &params,
+        "DROP TABLE IF EXISTS test_users",
+        None,
+        1,
+        None,
+    )
+    .await;
+    let create_sql = "CREATE TABLE test_users (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(100),
+        name VARCHAR(100) COMMENT 'Display name',
         email VARCHAR(100)
-    )";
+    ) COMMENT='Integration test users'";
     let res = mysql::execute_query(&params, create_sql, None, 1, None).await;
     assert!(
         res.is_ok(),
@@ -91,7 +99,26 @@ async fn test_mysql_integration_flow() {
         Err(e) => panic!("Select failed: {}", e),
     }
 
-    // 6. Cleanup
+    // 6. Verify table and column comments
+    let tables = mysql::get_tables(&params, None)
+        .await
+        .expect("get_tables should succeed");
+    let table = tables
+        .iter()
+        .find(|table| table.name == "test_users")
+        .expect("test_users should exist");
+    assert_eq!(table.comment.as_deref(), Some("Integration test users"));
+
+    let columns = mysql::get_columns(&params, "test_users", None)
+        .await
+        .expect("get_columns should succeed");
+    let name_column = columns
+        .iter()
+        .find(|column| column.name == "name")
+        .expect("name column should exist");
+    assert_eq!(name_column.comment.as_deref(), Some("Display name"));
+
+    // 7. Cleanup
     let _ = mysql::execute_query(&params, "DROP TABLE test_users", None, 1, None).await;
 }
 

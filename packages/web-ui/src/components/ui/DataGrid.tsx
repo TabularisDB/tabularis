@@ -59,6 +59,10 @@ import {
   type PasteTarget,
   type ColumnDisplayInfo,
   type MergedRow,
+  buildCellRange,
+  extendCellRange,
+  moveCellPosition,
+  type RangeExtendKey,
 } from "../../utils/dataGrid";
 import { useSettings } from "../../hooks/useSettings";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
@@ -165,6 +169,15 @@ const NAVIGATION_KEYS = new Set([
   "PageDown",
   "Enter",
   "F2",
+]);
+
+// Arrow keys that, with Shift held, extend the cell range instead of moving
+// the focused cell.
+const RANGE_EXTEND_KEYS = new Set([
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
 ]);
 
 export const DataGrid = React.memo(
@@ -364,6 +377,12 @@ export const DataGrid = React.memo(
     const columnTypeMap = useMemo(() => {
       if (!columnMetadata) return null;
       return new Map(columnMetadata.map((col) => [col.name, col.data_type]));
+    }, [columnMetadata]);
+
+    // Create column comment map for O(1) lookup in header tooltips.
+    const columnCommentMap = useMemo(() => {
+      if (!columnMetadata) return null;
+      return new Map(columnMetadata.map((col) => [col.name, col.comment]));
     }, [columnMetadata]);
 
     // Create column length map for O(1) lookup during blob rendering decisions
@@ -596,8 +615,9 @@ export const DataGrid = React.memo(
       [selectedRowIndices, lastSelectedRowIndex, updateSelection],
     );
 
-    // Column header selection: Cmd/Ctrl+click toggles one column, Shift+click
-    // range-selects from the anchor. Plain click stays reserved for sorting.
+    // Column header selection (spreadsheet-style): plain click selects the
+    // column, Cmd/Ctrl+click toggles it, Shift+click range-selects from the
+    // anchor. Sorting lives on the header's sort button.
     const handleColumnHeaderSelect = useCallback(
       (index: number, event: React.MouseEvent) => {
         setFocusedCell(null);
@@ -609,8 +629,11 @@ export const DataGrid = React.memo(
           setSelectedColIndices(
             new Set(calculateSelectionRange(lastSelectedColIndex, index)),
           );
-        } else {
+        } else if (event.ctrlKey || event.metaKey) {
           setSelectedColIndices((prev) => toggleSetValue(prev, index));
+          setLastSelectedColIndex(index);
+        } else {
+          setSelectedColIndices(new Set([index]));
           setLastSelectedColIndex(index);
         }
       },
@@ -628,12 +651,7 @@ export const DataGrid = React.memo(
     const handleCellClick = useCallback(
       (rowIndex: number, colIndex: number, event: React.MouseEvent) => {
         if (event.shiftKey && focusedCell) {
-          setCellRange({
-            minRow: Math.min(focusedCell.rowIndex, rowIndex),
-            maxRow: Math.max(focusedCell.rowIndex, rowIndex),
-            minCol: Math.min(focusedCell.colIndex, colIndex),
-            maxCol: Math.max(focusedCell.colIndex, colIndex),
-          });
+          setCellRange(buildCellRange(focusedCell, { rowIndex, colIndex }));
         } else {
           setFocusedCell({ rowIndex, colIndex });
           setCellRange(null);
@@ -873,10 +891,39 @@ export const DataGrid = React.memo(
 
     const handleCellDoubleClick = useCallback(
       (rowIndex: number, colIndex: number, value: unknown) => {
-      if (!tableName || readonlyProp) return;
-
       const mergedRow = mergedRows[rowIndex];
       if (!mergedRow) return;
+
+      const colName = columns[colIndex];
+      const isGeneratedColumn =
+        generatedColumns?.has(colName.toLowerCase()) ?? false;
+
+      const colType = columnTypeMap?.get(colName);
+
+      // Open the dedicated viewer for structured cells before checking whether
+      // the grid is editable, so query and notebook results remain inspectable.
+      const rawCellValue = mergedRow.rowData[colIndex];
+      if (isJsonCellTarget(colType, rawCellValue) || Array.isArray(rawCellValue)) {
+        const isInsertion = mergedRow.type === "insertion";
+        openJsonViewerWindow(
+          value,
+          rawCellValue,
+          colName,
+          mergedRow.rowData,
+          rowIndex,
+          isInsertion,
+          mergedRow.tempId,
+          (readonlyProp ?? false) || isGeneratedColumn,
+        );
+        return;
+      }
+
+      if (isGeneratedColumn) {
+        return;
+      }
+
+      if (!tableName || readonlyProp) return;
+
       // No usable row identity (no primary key and no safe all-columns
       // fallback, see resolveRowIdentity) → explain instead of silently
       // ignoring the double-click (#598).
@@ -892,12 +939,6 @@ export const DataGrid = React.memo(
           }),
           { title: t("common.error"), kind: "warning" },
         );
-        return;
-      }
-
-      const colName = columns[colIndex];
-
-      if (generatedColumns?.has(colName.toLowerCase())) {
         return;
       }
 
@@ -945,34 +986,12 @@ export const DataGrid = React.memo(
         }
       }
 
-      const colType = columnTypeMap?.get(colName);
-
       if (
         colType &&
         (isBlobColumn(colType, columnLengthMap?.get(colName)) ||
           isBlobWireFormat(value))
       ) {
         openInSidebar(rowIndex, colName);
-        return;
-      }
-
-      // Open the dedicated viewer for structured cells instead of the inline
-      // textarea, which would stringify an array into a cramped, comma-joined
-      // box. Array values always qualify (like json/jsonb columns); JSON found
-      // inside text columns still follows the detect-json-in-text setting.
-      const rawCellValue = mergedRow.rowData[colIndex];
-      if (isJsonCellTarget(colType, rawCellValue) || Array.isArray(rawCellValue)) {
-        const isInsertion = mergedRow.type === "insertion";
-        openJsonViewerWindow(
-          value,
-          rawCellValue,
-          colName,
-          mergedRow.rowData,
-          rowIndex,
-          isInsertion,
-          mergedRow.tempId,
-          readonlyProp ?? false,
-        );
         return;
       }
 
@@ -1231,55 +1250,69 @@ export const DataGrid = React.memo(
               // Only populated when column metadata is present (i.e. table
               // browse), not for arbitrary query results.
               const colType = columnTypeMap?.get(colName);
+              const colComment = columnCommentMap?.get(colName);
+              const hasMetadataTooltip = Boolean(colType || colComment);
               const tooltipAlignment =
                 index === columns.length - 1 ? "right-0" : "left-0";
 
               return (
                 <div
-                  role={onSort ? "button" : undefined}
-                  tabIndex={onSort ? 0 : undefined}
-                  aria-label={onSort ? (
-                    displaySortState === "none"
-                      ? t("dataGrid.sortByAsc", { col: colName })
-                      : displaySortState === "asc"
-                        ? t("dataGrid.sortByDesc", { col: colName })
-                        : t("dataGrid.clearSort")
-                  ) : undefined}
-                  className={`relative flex items-center gap-2 select-none group/header ${onSort ? "cursor-pointer" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t("dataGrid.selectColumn")}
+                  className="relative flex items-center gap-2 select-none group/header cursor-pointer"
                   onClick={(e) => {
-                    // Modifier clicks select columns instead of sorting:
-                    // Cmd/Ctrl toggles one, Shift range-selects from the anchor.
-                    if (e.metaKey || e.ctrlKey || e.shiftKey) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleColumnHeaderSelectRef.current(index, e);
-                      return;
-                    }
-                    if (onSort) onSort(colName);
+                    // Plain click selects the column, Cmd/Ctrl toggles it,
+                    // Shift range-selects from the anchor.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleColumnHeaderSelectRef.current(index, e);
                   }}
-                  onKeyDown={(e) => { if (onSort && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSort(colName); } }}
-                  title={
-                    // Suppress the native sort-hint title while the type tooltip
-                    // is shown, to avoid two overlapping tooltips on hover.
-                    colType
-                      ? undefined
-                      : onSort
-                        ? displaySortState === "none"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleColumnHeaderSelectRef.current(
+                        index,
+                        e as unknown as React.MouseEvent,
+                      );
+                    }
+                  }}
+                  title={hasMetadataTooltip ? undefined : t("dataGrid.selectColumn")}
+                >
+                  <span>{colName}</span>
+                  {onSort && (
+                    <button
+                      type="button"
+                      className="flex flex-col items-center justify-center cursor-pointer"
+                      aria-label={
+                        displaySortState === "none"
                           ? t("dataGrid.sortByAsc", { col: colName })
                           : displaySortState === "asc"
                             ? t("dataGrid.sortByDesc", { col: colName })
                             : t("dataGrid.clearSort")
-                        : undefined
-                  }
-                >
-                  <span>{colName}</span>
-                  {onSort && (
-                    <span className="flex flex-col items-center justify-center">
+                      }
+                      title={
+                        // Suppress the native sort-hint title while the type
+                        // tooltip is shown, to avoid two overlapping tooltips.
+                        hasMetadataTooltip
+                          ? undefined
+                          : displaySortState === "none"
+                            ? t("dataGrid.sortByAsc", { col: colName })
+                            : displaySortState === "asc"
+                              ? t("dataGrid.sortByDesc", { col: colName })
+                              : t("dataGrid.clearSort")
+                      }
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSort(colName);
+                      }}
+                    >
                       {displaySortState === "asc" && (
-                        <ArrowUp size={14} className="text-blue-400" />
+                        <ArrowUp size={14} className="text-accent" />
                       )}
                       {displaySortState === "desc" && (
-                        <ArrowDown size={14} className="text-blue-400" />
+                        <ArrowDown size={14} className="text-accent" />
                       )}
                       {displaySortState === "none" && (
                         <ArrowUpDown
@@ -1287,14 +1320,23 @@ export const DataGrid = React.memo(
                           className="text-secondary/60 opacity-50 group-hover/header:opacity-100 transition-opacity"
                         />
                       )}
-                    </span>
+                    </button>
                   )}
-                  {colType && (
+                  {hasMetadataTooltip && (
                     <span
                       role="tooltip"
-                      className={`pointer-events-none absolute ${tooltipAlignment} top-full z-20 mt-1 hidden whitespace-nowrap rounded-lg border border-strong bg-tooltip px-2 py-1 text-xs font-normal normal-case tracking-normal text-secondary shadow-xl group-hover/header:block`}
+                      className={`pointer-events-none absolute ${tooltipAlignment} top-full z-20 mt-1 hidden max-w-sm whitespace-normal rounded-lg border border-strong bg-tooltip px-2 py-1 text-left text-xs font-normal normal-case tracking-normal text-secondary shadow-xl group-hover/header:block group-focus-within/header:block`}
                     >
-                      <span className="text-primary">{colName}</span>: {colType}
+                      {colType && (
+                        <span className="block whitespace-nowrap">
+                          <span className="text-primary">{colName}</span>: {colType}
+                        </span>
+                      )}
+                      {colComment && (
+                        <span className="mt-1 block whitespace-pre-wrap text-secondary">
+                          {colComment}
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>
@@ -1309,6 +1351,7 @@ export const DataGrid = React.memo(
         sortClause,
         onSort,
         columnTypeMap,
+        columnCommentMap,
       ],
     );
 
@@ -1373,22 +1416,20 @@ export const DataGrid = React.memo(
         colIndex: number,
         colName: string,
       ) => {
-        if (tableName) {
-          e.preventDefault();
-          // Find the merged row corresponding to this DOM element
-          const mergedRow = mergedRows.find((mr) => mr.rowData === row);
-          setContextMenu({
-            x: e.clientX,
-            y: e.clientY,
-            row,
-            rowIndex,
-            colIndex,
-            colName,
-            mergedRow,
-          });
-        }
+        e.preventDefault();
+        // Find the merged row corresponding to this DOM element
+        const mergedRow = mergedRows.find((mr) => mr.rowData === row);
+        setContextMenu({
+          x: e.clientX,
+          y: e.clientY,
+          row,
+          rowIndex,
+          colIndex,
+          colName,
+          mergedRow,
+        });
       },
-      [tableName, mergedRows],
+      [mergedRows],
     );
 
     const revertSelectedRow = useCallback(() => {
@@ -1986,7 +2027,6 @@ export const DataGrid = React.memo(
     const handleGridKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
         if (editingCellRef.current) return;
-        if (e.metaKey || e.ctrlKey || e.altKey) return;
 
         // Let anything that handles keys itself keep them: text inputs, and the
         // focusable controls living inside cells and headers (FK/BLOB buttons,
@@ -2003,12 +2043,119 @@ export const DataGrid = React.memo(
         const totalCols = columns.length;
         if (totalRows === 0) return;
 
+        // Spreadsheet-style selection shortcuts, relative to the focused cell
+        // (or the current cell range): Shift+Space selects the row(s),
+        // Ctrl/Cmd+Space selects the column(s). Ctrl/Cmd+Shift+Space is an
+        // alternative for column selection, because plain Ctrl+Space is often
+        // swallowed before it reaches the app (IME toggle on Linux, Spotlight
+        // on macOS). Both convert the cell range into a row/column selection,
+        // since the three are mutually exclusive.
+        if (e.key === " " && focusedCell && !e.altKey) {
+          const isColumnSelect = e.ctrlKey || e.metaKey;
+          const isRowSelect = e.shiftKey && !isColumnSelect;
+          if (isColumnSelect) {
+            e.preventDefault();
+            const from = cellRange?.minCol ?? focusedCell.colIndex;
+            const to = cellRange?.maxCol ?? focusedCell.colIndex;
+            setSelectedColIndices(new Set(calculateSelectionRange(from, to)));
+            setLastSelectedColIndex(focusedCell.colIndex);
+            updateSelection(new Set());
+            setCellRange(null);
+            return;
+          }
+          if (isRowSelect) {
+            e.preventDefault();
+            const from = cellRange?.minRow ?? focusedCell.rowIndex;
+            const to = cellRange?.maxRow ?? focusedCell.rowIndex;
+            updateSelection(new Set(calculateSelectionRange(from, to)));
+            setLastSelectedRowIndex(focusedCell.rowIndex);
+            setSelectedColIndices(new Set());
+            setCellRange(null);
+            return;
+          }
+        }
+
+        // Ctrl/Cmd+Arrow jumps the focused cell to the grid edge, Ctrl/Cmd+
+        // Shift+Arrow extends the range to the edge, Ctrl/Cmd+Home/End go to
+        // the first/last cell (spreadsheet semantics). The event is stopped so
+        // the window-level pagination shortcuts (Ctrl+←/→) don't fire on top;
+        // they still work when no cell is focused.
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && focusedCell) {
+          if (RANGE_EXTEND_KEYS.has(e.key)) {
+            e.preventDefault();
+            e.stopPropagation();
+            const key = e.key as RangeExtendKey;
+            if (e.shiftKey) {
+              const next = extendCellRange(
+                focusedCell,
+                cellRange,
+                key,
+                totalRows,
+                totalCols,
+                true,
+              );
+              if (next) {
+                setCellRange(next.range);
+                updateSelection(new Set());
+                setSelectedColIndices(new Set());
+                rowVirtualizer.scrollToIndex(next.cursor.rowIndex, {
+                  align: "auto",
+                });
+              }
+            } else {
+              const next = moveCellPosition(
+                focusedCell,
+                key,
+                totalRows,
+                totalCols,
+                true,
+              );
+              setCellRange(null);
+              setFocusedCell(next);
+            }
+            return;
+          }
+          if ((e.key === "Home" || e.key === "End") && !e.shiftKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            setCellRange(null);
+            setFocusedCell(
+              e.key === "Home"
+                ? { rowIndex: 0, colIndex: 0 }
+                : { rowIndex: totalRows - 1, colIndex: totalCols - 1 },
+            );
+            return;
+          }
+        }
+
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
         if (!NAVIGATION_KEYS.has(e.key)) return;
         e.preventDefault();
 
         // First keystroke inside an unfocused grid enters at the top-left cell.
         if (!focusedCell) {
           setFocusedCell({ rowIndex: 0, colIndex: 0 });
+          return;
+        }
+
+        // Shift+Arrow grows/shrinks a rectangular range from the focused
+        // anchor, moving the opposite corner one step (Google Sheets style).
+        if (e.shiftKey && RANGE_EXTEND_KEYS.has(e.key)) {
+          const next = extendCellRange(
+            focusedCell,
+            cellRange,
+            e.key as RangeExtendKey,
+            totalRows,
+            totalCols,
+          );
+          if (next) {
+            setCellRange(next.range);
+            updateSelection(new Set());
+            setSelectedColIndices(new Set());
+            rowVirtualizer.scrollToIndex(next.cursor.rowIndex, {
+              align: "auto",
+            });
+          }
           return;
         }
 
@@ -2081,6 +2228,7 @@ export const DataGrid = React.memo(
       },
       [
         focusedCell,
+        cellRange,
         mergedRows,
         columns,
         editableCellValue,
@@ -2088,6 +2236,8 @@ export const DataGrid = React.memo(
         maskedColIndices,
         revealedColIndices,
         revealedCells,
+        updateSelection,
+        rowVirtualizer,
       ],
     );
 
@@ -2305,11 +2455,13 @@ export const DataGrid = React.memo(
 
     return (
       <>
+        {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- focus host for the spreadsheet keyboard model (arrows, ranges, copy); a full ARIA grid needs per-cell roles and activedescendant */}
         <div
           ref={parentRef}
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- same focus host: must be reachable with Tab to use the keyboard model
           tabIndex={0}
           onKeyDown={handleGridKeyDown}
-          className="h-full overflow-auto border border-default rounded bg-elevated relative focus:outline-none"
+          className="h-full overflow-auto border border-default rounded bg-elevated relative focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
         >
           <table className="w-full text-left border-collapse">
             <thead
@@ -2333,7 +2485,7 @@ export const DataGrid = React.memo(
                       key={header.id}
                       className={`px-4 py-2 text-xs font-semibold tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap ${
                         selectedColIndices.has(headerColIndex)
-                          ? "text-primary bg-blue-500/20"
+                          ? "text-primary bg-accent-primary/20"
                           : "text-secondary"
                       }`}
                       onContextMenu={(e) => {
@@ -2472,11 +2624,15 @@ export const DataGrid = React.memo(
               const isAutoIncrement = autoIncrementColumns?.includes(colName);
               const isNullable = nullableColumns?.includes(colName);
               const hasDefault = defaultValueColumns?.includes(colName);
+              const colDataType = columnTypeMap?.get(colName) ?? "";
+              const contextCellValue =
+                contextMenu.row[contextMenu.colIndex];
+              const isReadonlyGrid = Boolean(readonlyProp) || !tableName;
 
               // Build menu items dynamically
               const menuItems: ContextMenuItem[] = [];
 
-              if (!readonlyProp) {
+              if (!isReadonlyGrid) {
                 // Cell value manipulation options (shown first for cell context)
                 // SET GENERATED only for insertion rows, not for existing rows
                 if (isAutoIncrement && isInsertion) {
@@ -2503,7 +2659,6 @@ export const DataGrid = React.memo(
                 // Empty string ("") is only a valid value for textual columns.
                 // Strongly-typed columns (uuid, numeric, temporal, …) reject it,
                 // so offer "Set Empty" only where an empty string is assignable.
-                const colDataType = columnTypeMap?.get(colName) ?? "";
                 if (supportsEmptyString(colDataType)) {
                   menuItems.push({
                     label: t("dataGrid.setEmpty"),
@@ -2518,25 +2673,24 @@ export const DataGrid = React.memo(
                     action: setCellServerNow,
                   });
                 }
-                if (isJsonColumn(colDataType)) {
-                  menuItems.push({
-                    label: t("contextMenu.openJsonEditor"),
-                    icon: Braces,
-                    action: openJsonEditor,
-                  });
-                }
-
-                // Separator before row actions
-                if (menuItems.length > 0) {
-                  menuItems.push({ separator: true });
-                }
               }
 
-              const fkContextValue =
-                contextMenu.row[contextMenu.colIndex];
+              if (isJsonCellTarget(colDataType, contextCellValue)) {
+                menuItems.push({
+                  label: t("contextMenu.openJsonEditor"),
+                  icon: Braces,
+                  action: openJsonEditor,
+                });
+              }
+
+              // Separator before row actions
+              if (menuItems.length > 0) {
+                menuItems.push({ separator: true });
+              }
+
               const fkForContextPreview = getForeignKeyForPreview(
                 contextMenu.colName,
-                fkContextValue,
+                contextCellValue,
                 fksByColumn,
                 { isInsertion },
               );
@@ -2553,7 +2707,7 @@ export const DataGrid = React.memo(
                       updateSelection(new Set());
                       onForeignKeyShowPanel(
                         fkForContextPreview,
-                        fkContextValue,
+                        contextCellValue,
                       );
                       setContextMenu(null);
                     },
@@ -2568,7 +2722,7 @@ export const DataGrid = React.memo(
                     action: () => {
                       onForeignKeyNavigate(
                         fkForContextPreview,
-                        fkContextValue,
+                        contextCellValue,
                       );
                       setContextMenu(null);
                     },
@@ -2643,7 +2797,7 @@ export const DataGrid = React.memo(
                 },
               });
 
-              if (!readonlyProp) {
+              if (!isReadonlyGrid) {
                 menuItems.push({
                   label: t("dataGrid.pasteCells"),
                   icon: ClipboardPaste,
@@ -2671,7 +2825,7 @@ export const DataGrid = React.memo(
                 },
               });
 
-              if (!readonlyProp) {
+              if (!isReadonlyGrid) {
                 menuItems.push(
                   {
                     label: t("contextMenu.openSidebar"),

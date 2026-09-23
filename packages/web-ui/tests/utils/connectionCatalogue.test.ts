@@ -126,6 +126,30 @@ describe('connectionCatalogue', () => {
   });
 
   describe('groupByEngine', () => {
+    it('uses a standalone plugin display name without changing its identity', () => {
+      const driver = toCatalogueDriver(registryPlugin({ id: 'jdbc-sqlite', name: 'SQLite JDBC', engine: null }));
+      const group = groupByEngine([driver])[0];
+      expect(group.displayName).toBe('SQLite JDBC');
+      expect(group.engine).toBe('jdbc-sqlite');
+      expect(group.drivers[0].slug).toBe('jdbc-sqlite');
+      expect(filterCatalogue([group], { search: 'SQLite JDBC', paradigms: [], verifiedOnly: false, installedOnly: false })).toHaveLength(1);
+    });
+
+    it('keeps an engine title for shared groups and legacy or empty names', () => {
+      const driver = toCatalogueDriver(registryPlugin({ id: 'custom-db', name: 'Custom JDBC', engine: 'custom-db' }));
+      expect(groupByEngine([driver, { ...driver, slug: 'custom-native', name: 'Custom Native' }])[0].displayName).toBe('Custom Db');
+      for (const name of ['custom-db', '', '   ']) {
+        expect(groupByEngine([{ ...driver, name }])[0].displayName).toBe('Custom Db');
+      }
+    });
+
+    it('uses a locally installed plugin display name', () => {
+      const driver = localPluginToCatalogueDriver({
+        id: 'jdbc-sqlite', name: 'SQLite JDBC', version: '1.0.0',
+      } as PluginManifest);
+      expect(groupByEngine([driver])[0].displayName).toBe('SQLite JDBC');
+    });
+
     it('collapses drivers sharing an engine into one group', () => {
       const a = toCatalogueDriver(registryPlugin({ id: 'firestore-a', engine: 'firestore', paradigms: ['document'] }));
       const b = toCatalogueDriver(registryPlugin({ id: 'firestore-b', engine: 'firestore', paradigms: ['document', 'vector'], verified: false }));

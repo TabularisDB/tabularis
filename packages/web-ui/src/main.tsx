@@ -1,7 +1,7 @@
 // Import polyfills first to make Buffer available globally
 import './polyfills';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import './index.css';
@@ -24,6 +24,7 @@ import { detectPlatformEnvironment } from './platform/environment';
 import { toErrorMessage } from './utils/errors';
 import { BrowserCapabilityFallbacks } from './components/ui/BrowserCapabilityFallbacks';
 import { registerActivePlatformCapabilities } from './platform/activeCapabilities';
+import { LoadingState } from './components/ui/LoadingState';
 
 const rootElement = document.getElementById('root') as HTMLElement;
 const environment = detectPlatformEnvironment();
@@ -42,30 +43,32 @@ async function startApplication() {
 
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <TabularisClientProvider client={tabularisClient}>
-        <PlatformCapabilitiesProvider capabilities={platformCapabilities}>
-          <UpdateProvider session={session}>
-            <ThemeProvider>
-              <SettingsProvider>
-                <ToastProvider>
-                  <BrowserCapabilityFallbacks />
-                  <DatabaseProvider>
-                    <SavedQueriesProvider>
-                      <QueryHistoryProvider>
-                        <EditorProvider>
-                          <ProductionGuardProvider>
-                            <App />
-                          </ProductionGuardProvider>
-                        </EditorProvider>
-                      </QueryHistoryProvider>
-                    </SavedQueriesProvider>
-                  </DatabaseProvider>
-                </ToastProvider>
-              </SettingsProvider>
-            </ThemeProvider>
-          </UpdateProvider>
-        </PlatformCapabilitiesProvider>
-      </TabularisClientProvider>
+      <Suspense fallback={<LoadingState />}>
+        <TabularisClientProvider client={tabularisClient}>
+          <PlatformCapabilitiesProvider capabilities={platformCapabilities}>
+            <UpdateProvider session={session}>
+              <ThemeProvider>
+                <SettingsProvider>
+                  <ToastProvider>
+                    <BrowserCapabilityFallbacks />
+                    <DatabaseProvider>
+                      <SavedQueriesProvider>
+                        <QueryHistoryProvider>
+                          <EditorProvider>
+                            <ProductionGuardProvider>
+                              <App />
+                            </ProductionGuardProvider>
+                          </EditorProvider>
+                        </QueryHistoryProvider>
+                      </SavedQueriesProvider>
+                    </DatabaseProvider>
+                  </ToastProvider>
+                </SettingsProvider>
+              </ThemeProvider>
+            </UpdateProvider>
+          </PlatformCapabilitiesProvider>
+        </TabularisClientProvider>
+      </Suspense>
     </React.StrictMode>,
   );
 }

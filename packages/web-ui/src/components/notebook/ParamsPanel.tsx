@@ -26,7 +26,7 @@ function ParamRow({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[11px] text-green-400 font-mono shrink-0">
+      <span className="text-[11px] text-accent-success font-mono shrink-0">
         @{param.name}
       </span>
       <span className="text-[10px] text-muted">=</span>
@@ -34,12 +34,12 @@ function ParamRow({
         type="text"
         value={param.value}
         onChange={(e) => onValueChange(e.target.value)}
-        className="flex-1 text-[11px] bg-surface-secondary border border-strong rounded px-1.5 py-0.5 text-primary font-mono outline-none focus:border-blue-500 min-w-0"
+        className="flex-1 text-[11px] bg-surface-secondary border border-strong rounded px-1.5 py-0.5 text-primary font-mono outline-none focus:border-focus min-w-0"
       />
       <button
         type="button"
         onClick={onRemove}
-        className="p-0.5 text-muted hover:text-red-400 rounded transition-colors shrink-0"
+        className="p-0.5 text-muted hover:text-accent-error rounded transition-colors shrink-0"
       >
         <X size={12} />
       </button>
@@ -81,7 +81,7 @@ function AddParamForm({
           setError("");
         }}
         placeholder={t("editor.notebook.paramName")}
-        className="w-24 text-[11px] bg-surface-secondary border border-strong rounded px-1.5 py-0.5 text-primary font-mono outline-none focus:border-blue-500"
+        className="w-24 text-[11px] bg-surface-secondary border border-strong rounded px-1.5 py-0.5 text-primary font-mono outline-none focus:border-focus"
         onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
       />
       <span className="text-[10px] text-muted">=</span>
@@ -90,18 +90,18 @@ function AddParamForm({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={t("editor.notebook.paramValue")}
-        className="flex-1 text-[11px] bg-surface-secondary border border-strong rounded px-1.5 py-0.5 text-primary font-mono outline-none focus:border-blue-500 min-w-0"
+        className="flex-1 text-[11px] bg-surface-secondary border border-strong rounded px-1.5 py-0.5 text-primary font-mono outline-none focus:border-focus min-w-0"
         onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
       />
       <button
         type="button"
         onClick={handleSubmit}
-        className="p-0.5 text-muted hover:text-green-400 rounded transition-colors shrink-0"
+        className="p-0.5 text-muted hover:text-accent-success rounded transition-colors shrink-0"
       >
         <Plus size={12} />
       </button>
       {error && (
-        <span className="text-[9px] text-red-400 absolute -bottom-3 left-0">
+        <span className="text-[9px] text-accent-error absolute -bottom-3 left-0">
           {error}
         </span>
       )}

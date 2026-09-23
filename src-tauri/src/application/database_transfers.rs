@@ -437,7 +437,17 @@ async fn export_table_data(
             let mut batch = Vec::new();
             while let Some(row) = rows.try_next().await.map_err(|error| error.to_string())? {
                 let values = (0..row.columns().len())
-                    .map(|index| escape_sql_value(mysql::extract::extract_value(&row, index, None)))
+                    .map(|index| {
+                        use sqlx::{Column, TypeInfo};
+                        let value = mysql::extract::extract_value(&row, index, None);
+                        // JSON columns are extracted as parsed values and must be
+                        // written back as JSON literals, not as their string content.
+                        if row.column(index).type_info().name() == "JSON" {
+                            escape_json_column_value(driver, value)
+                        } else {
+                            escape_sql_value(driver, value)
+                        }
+                    })
                     .collect::<Vec<_>>();
                 write_insert_batch(writer, driver, schema, table, &mut batch, values)?;
             }
@@ -455,7 +465,15 @@ async fn export_table_data(
             while let Some(row) = rows.try_next().await.map_err(|error| error.to_string())? {
                 let values = (0..row.columns().len())
                     .map(|index| {
-                        escape_sql_value(postgres::extract::extract_value(&row, index, None))
+                        let value = postgres::extract::extract_value(&row, index, None);
+                        let column_type = row.columns()[index].type_();
+                        if *column_type == tokio_postgres::types::Type::JSON
+                            || *column_type == tokio_postgres::types::Type::JSONB
+                        {
+                            escape_json_column_value(driver, value)
+                        } else {
+                            escape_sql_value(driver, value)
+                        }
                     })
                     .collect::<Vec<_>>();
                 write_insert_batch(writer, driver, schema, table, &mut batch, values)?;
@@ -469,7 +487,7 @@ async fn export_table_data(
             while let Some(row) = rows.try_next().await.map_err(|error| error.to_string())? {
                 let values = (0..row.columns().len())
                     .map(|index| {
-                        escape_sql_value(sqlite::extract::extract_value(&row, index, None))
+                        escape_sql_value(driver, sqlite::extract::extract_value(&row, index, None))
                     })
                     .collect::<Vec<_>>();
                 write_insert_batch(writer, driver, schema, table, &mut batch, values)?;
@@ -516,15 +534,52 @@ fn flush_insert_batch(
     Ok(())
 }
 
-fn escape_sql_value(value: serde_json::Value) -> String {
+/// Quotes `s` as a string literal for the target dialect.
+///
+/// MySQL treats backslashes inside string literals as escape sequences
+/// (unless `NO_BACKSLASH_ESCAPES` is set), so a literal backslash must be
+/// doubled and a NUL byte written as `\0` — otherwise a `\u4e2d` escape
+/// inside JSON silently re-imports as `u4e2d` and `\"` breaks the JSON
+/// altogether. PostgreSQL (with the default
+/// `standard_conforming_strings = on`) and SQLite take backslashes
+/// literally, so doubling them there would corrupt the data instead; only
+/// the single quote needs escaping.
+fn escape_sql_string(driver: &str, s: &str) -> String {
+    match driver {
+        "mysql" => format!(
+            "'{}'",
+            s.replace('\\', "\\\\")
+                .replace('\'', "''")
+                .replace('\0', "\\0")
+        ),
+        _ => format!("'{}'", s.replace('\'', "''")),
+    }
+}
+
+fn escape_sql_value(driver: &str, value: serde_json::Value) -> String {
     match value {
         serde_json::Value::Null => "NULL".to_string(),
         serde_json::Value::Number(number) => number.to_string(),
         serde_json::Value::Bool(value) => if value { "1" } else { "0" }.to_string(),
-        serde_json::Value::String(value) => {
-            format!("'{}'", value.replace('\\', "\\\\").replace('\'', "''"))
-        }
-        value => format!("'{}'", value.to_string().replace('\'', "''")),
+        serde_json::Value::String(value) => escape_sql_string(driver, &value),
+        // Arrays/objects only reach here from non-JSON columns (e.g. hstore);
+        // serialize them and escape the text exactly like any other string.
+        other => escape_sql_string(driver, &other.to_string()),
+    }
+}
+
+/// Formats a value read from a JSON-typed column (`JSON` on MySQL,
+/// `json`/`jsonb` on PostgreSQL).
+///
+/// Such columns are extracted as parsed `serde_json::Value`s, so they must be
+/// written back as JSON *literals*: a JSON string keeps its surrounding
+/// quotes, booleans stay `true`/`false`, and the resulting text is escaped
+/// like any other string literal for the dialect. SQL `NULL` and a JSON
+/// `null` are indistinguishable at this point; both are written as `NULL`.
+fn escape_json_column_value(driver: &str, value: serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Null => "NULL".to_string(),
+        other => escape_sql_string(driver, &other.to_string()),
     }
 }
 

@@ -15,15 +15,23 @@ use crate::heartbeat;
 use crate::models::{ConnectionParams, K8sConnection, SshConnection};
 use crate::paths;
 use crate::persistence;
+use crate::plugins;
+use serde::Serialize;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 
+mod cooldown;
 pub mod install;
+mod output;
 pub mod preflight;
 pub mod protocol;
+use cooldown::{DISABLE_CHECK_COOLDOWN, RELOAD_COOLDOWN};
+use output::{OutputFormatError, ToolOutputFormat};
 use protocol::*;
 
+#[cfg(test)]
+mod output_tests;
 #[cfg(test)]
 mod tests;
 
@@ -325,10 +333,17 @@ async fn register_drivers_for_mcp() {
 
 /// Resolve the driver for an MCP-known connection. Returns the connection,
 /// the resolved DB params, and the registered driver. Errors with a JSON-RPC
-/// "Unsupported driver" payload when no driver matches the connection's
-/// `driver` id (e.g. the plugin failed to load).
+/// payload: see [`resolve_driver_for_params`] for how a registry miss (e.g.
+/// the plugin failed to load, or was never installed) versus a registered
+/// driver's own resolution failure are each surfaced.
+///
+/// `active_ids` is the caller's already-loaded `active_external_drivers`
+/// (see [`resolve_driver_for_params`]) — passed through rather than
+/// re-reading it here, since every caller already has an `AppConfig` in hand
+/// or loads one anyway.
 async fn resolve_db_driver(
     conn_id: &str,
+    active_ids: Option<&[String]>,
 ) -> Result<
     (
         crate::models::SavedConnection,
@@ -338,14 +353,79 @@ async fn resolve_db_driver(
     JsonRpcError,
 > {
     let (conn, db_params) = resolve_db_params(conn_id).await?;
-    let driver = driver_registry::get_driver(&conn.params.driver)
-        .await
-        .ok_or_else(|| JsonRpcError {
-            code: -32000,
-            message: format!("Unsupported driver: {}", conn.params.driver),
-            data: None,
-        })?;
+    let driver = resolve_driver_for_params(&db_params, active_ids).await?;
     Ok((conn, db_params, driver))
+}
+
+/// Resolve the registered driver for `db_params`, rescanning installed
+/// plugins against the latest on-disk config once and retrying on a
+/// registry miss. Split out from [`resolve_db_driver`] so this retry logic
+/// is testable against a bare [`ConnectionParams`], without needing a
+/// resolvable [`crate::models::SavedConnection`].
+///
+/// `active_ids` is the caller's `active_external_drivers` (`None` means "no
+/// explicit preference saved" — see [`plugins::manager::load_plugins`]'s doc
+/// comment). Taken as a parameter rather than read from disk here so this
+/// function stays a pure function of its inputs plus the driver registry —
+/// callers already have an `AppConfig` in hand (or load one anyway), so this
+/// avoids a redundant disk read on every call.
+async fn resolve_driver_for_params(
+    db_params: &ConnectionParams,
+    active_ids: Option<&[String]>,
+) -> Result<Arc<dyn DatabaseDriver>, JsonRpcError> {
+    // Reconciles the registry against `active_ids` before every lookup —
+    // not just on a miss, unlike the rescan-on-miss below. A driver that was
+    // disabled or uninstalled elsewhere keeps resolving successfully, so it
+    // never produces the miss that rescan relies on to notice anything
+    // (issue #787). Gated by its own cooldown, independent of
+    // `RELOAD_COOLDOWN` below: sharing one timer would let a busy reconcile
+    // check consume the cooldown budget a genuine registry-miss rescan needs
+    // to stay responsive.
+    if DISABLE_CHECK_COOLDOWN.elapsed() {
+        driver_registry::reconcile_active_drivers(active_ids).await;
+    }
+
+    match driver_registry::get_connection_driver(db_params).await {
+        Ok(driver) => return Ok(driver),
+        // The id has a registered driver, so this failure came from
+        // `for_connection` itself (e.g. a `get_connection_metadata` RPC
+        // error) rather than a registry miss — rescanning plugins on disk
+        // wouldn't change that, so surface the error directly instead of
+        // paying for a pointless rescan and a repeat of the same failing
+        // RPC call.
+        Err(message)
+            if driver_registry::get_driver(&db_params.driver)
+                .await
+                .is_some() =>
+        {
+            return Err(JsonRpcError {
+                code: -32000,
+                message,
+                data: None,
+            });
+        }
+        Err(_) => {}
+    }
+
+    // Not found in the in-memory registry populated at startup: this
+    // subprocess may have been running since before the plugin was
+    // installed/enabled, or before a connection was migrated to it (issue
+    // #783). The GUI hot-registers such changes in-process, but this
+    // standalone subprocess has no way to observe them — rescan installed
+    // plugins against the latest on-disk config once and retry before
+    // giving up. Rate-limited so a connection whose driver id is genuinely
+    // wrong (typo, never-installed plugin) can't force a filesystem scan on
+    // every single call from a tight retry loop.
+    if RELOAD_COOLDOWN.elapsed() {
+        plugins::manager::reload_plugins_from_disk_config().await;
+    }
+    driver_registry::get_connection_driver(db_params)
+        .await
+        .map_err(|message| JsonRpcError {
+            code: -32000,
+            message,
+            data: None,
+        })
 }
 
 /// Resolves the schema to pass to a metadata fetch, defaulting to `"public"`
@@ -435,7 +515,7 @@ async fn handle_request(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
         "initialize" => handle_initialize(req.params),
         "resources/list" => handle_list_resources().await,
         "resources/read" => handle_read_resource(req.params).await,
-        "tools/list" => handle_list_tools(),
+        "tools/list" => handle_list_tools(&config::load_config_from_disk()),
         "tools/call" => handle_call_tool(req.params).await,
         _ => Err(JsonRpcError {
             code: -32601,
@@ -576,7 +656,8 @@ async fn handle_read_resource(params: Option<Value>) -> Result<Value, JsonRpcErr
 
         // Resolve through the same path as the tools so keychain passwords and
         // SSH tunnels are applied — not just the raw saved params.
-        let (_conn, params, driver) = resolve_db_driver(conn_id).await?;
+        let active_ids = config::load_config_from_disk().active_external_drivers;
+        let (_conn, params, driver) = resolve_db_driver(conn_id, active_ids.as_deref()).await?;
         let schema = resolve_default_schema(&driver, None);
         let tables = driver
             .get_tables(&params, schema)
@@ -606,14 +687,17 @@ async fn handle_read_resource(params: Option<Value>) -> Result<Value, JsonRpcErr
     })
 }
 
-fn handle_list_tools() -> Result<Value, JsonRpcError> {
+fn handle_list_tools(config: &AppConfig) -> Result<Value, JsonRpcError> {
+    let default_output_format = ToolOutputFormat::from_config(config).as_str();
     let tools = vec![
         Tool {
             name: "list_connections".to_string(),
             description: Some("List all saved database connections".to_string()),
             input_schema: json!({
                 "type": "object",
-                "properties": {}
+                "properties": {
+                    "output_format": output_format_schema(default_output_format)
+                }
             }),
         },
         Tool {
@@ -622,7 +706,8 @@ fn handle_list_tools() -> Result<Value, JsonRpcError> {
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "connection_id": { "type": "string", "description": "The ID or name of the connection" }
+                    "connection_id": { "type": "string", "description": "The ID or name of the connection" },
+                    "output_format": output_format_schema(default_output_format)
                 },
                 "required": ["connection_id"]
             }),
@@ -634,7 +719,8 @@ fn handle_list_tools() -> Result<Value, JsonRpcError> {
                 "type": "object",
                 "properties": {
                     "connection_id": { "type": "string", "description": "The ID or name of the connection" },
-                    "schema": { "type": "string", "description": "Schema name (optional, defaults to 'public' for PostgreSQL)" }
+                    "schema": { "type": "string", "description": "Schema name (optional, defaults to 'public' for PostgreSQL)" },
+                    "output_format": output_format_schema(default_output_format)
                 },
                 "required": ["connection_id"]
             }),
@@ -649,7 +735,8 @@ fn handle_list_tools() -> Result<Value, JsonRpcError> {
                 "properties": {
                     "connection_id": { "type": "string", "description": "The ID or name of the connection" },
                     "table_name": { "type": "string", "description": "The name of the table to describe" },
-                    "schema": { "type": "string", "description": "Schema name (optional, defaults to 'public' for PostgreSQL)" }
+                    "schema": { "type": "string", "description": "Schema name (optional, defaults to 'public' for PostgreSQL)" },
+                    "output_format": output_format_schema(default_output_format)
                 },
                 "required": ["connection_id", "table_name"]
             }),
@@ -662,7 +749,8 @@ fn handle_list_tools() -> Result<Value, JsonRpcError> {
                 "properties": {
                     "connection_id": { "type": "string", "description": "The ID or name of the connection" },
                     "query": { "type": "string", "description": "The SQL query to execute" },
-                    "limit": { "type": "integer", "description": "Maximum number of rows to return (default: 100). If the query already contains a LIMIT clause smaller than this value, the query's LIMIT takes precedence." }
+                    "limit": { "type": "integer", "description": "Maximum number of rows to return (default: 100). If the query already contains a LIMIT clause smaller than this value, the query's LIMIT takes precedence." },
+                    "output_format": output_format_schema(default_output_format)
                 },
                 "required": ["connection_id", "query"]
             }),
@@ -778,22 +866,29 @@ async fn dispatch_tool(
     audit: &mut CallAudit,
 ) -> Result<Value, JsonRpcError> {
     match name {
-        "list_connections" => tool_list_connections(audit).await,
+        "list_connections" => {
+            let format = requested_output_format(args, config)?;
+            tool_list_connections(audit, format).await
+        }
         "list_databases" => {
             let args = require_args(args)?;
-            tool_list_databases(args, audit).await
+            let format = requested_output_format(Some(args), config)?;
+            tool_list_databases(args, config, audit, format).await
         }
         "list_tables" => {
             let args = require_args(args)?;
-            tool_list_tables(args, audit).await
+            let format = requested_output_format(Some(args), config)?;
+            tool_list_tables(args, config, audit, format).await
         }
         "describe_table" => {
             let args = require_args(args)?;
-            tool_describe_table(args, audit).await
+            let format = requested_output_format(Some(args), config)?;
+            tool_describe_table(args, config, audit, format).await
         }
         "run_query" => {
             let args = require_args(args)?;
-            tool_run_query(args, config, session_id, audit).await
+            let format = requested_output_format(Some(args), config)?;
+            tool_run_query(args, config, session_id, audit, format).await
         }
         _ => Err(JsonRpcError {
             code: -32601,
@@ -813,7 +908,52 @@ fn require_args(
     })
 }
 
-async fn tool_list_connections(_audit: &mut CallAudit) -> Result<Value, JsonRpcError> {
+fn output_format_schema(default: &str) -> Value {
+    json!({
+        "type": "string",
+        "enum": ["json", "toon"],
+        "default": default,
+        "description": "Text output encoding. JSON is the backward-compatible default; TOON is optimized for LLM token usage."
+    })
+}
+
+fn requested_output_format(
+    args: Option<&serde_json::Map<String, Value>>,
+    config: &AppConfig,
+) -> Result<ToolOutputFormat, JsonRpcError> {
+    ToolOutputFormat::from_arguments(args, ToolOutputFormat::from_config(config)).map_err(|_| {
+        JsonRpcError {
+            code: -32602,
+            message: "Invalid output_format: expected 'json' or 'toon'".to_string(),
+            data: None,
+        }
+    })
+}
+
+fn tool_result<T: Serialize>(value: &T, format: ToolOutputFormat) -> Result<Value, JsonRpcError> {
+    let text = format.encode(value).map_err(|error| JsonRpcError {
+        code: -32603,
+        message: match error {
+            OutputFormatError::Encoding(message) => {
+                format!("Failed to encode MCP tool output: {message}")
+            }
+            OutputFormatError::InvalidArgument => "Failed to encode MCP tool output".to_string(),
+        },
+        data: None,
+    })?;
+
+    Ok(json!({
+        "content": [{
+            "type": "text",
+            "text": text
+        }]
+    }))
+}
+
+async fn tool_list_connections(
+    _audit: &mut CallAudit,
+    format: ToolOutputFormat,
+) -> Result<Value, JsonRpcError> {
     let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
     let connections = persistence::load_connections(&config_path).map_err(|e| JsonRpcError {
         code: -32000,
@@ -834,17 +974,14 @@ async fn tool_list_connections(_audit: &mut CallAudit) -> Result<Value, JsonRpcE
         })
         .collect();
 
-    Ok(json!({
-        "content": [{
-            "type": "text",
-            "text": serde_json::to_string_pretty(&list).unwrap()
-        }]
-    }))
+    tool_result(&json!(list), format)
 }
 
 async fn tool_list_tables(
     args: &serde_json::Map<String, Value>,
+    config: &AppConfig,
     audit: &mut CallAudit,
+    format: ToolOutputFormat,
 ) -> Result<Value, JsonRpcError> {
     let conn_id = args
         .get("connection_id")
@@ -858,7 +995,8 @@ async fn tool_list_tables(
 
     audit.connection_id = Some(conn_id.to_string());
 
-    let (conn, db_params, driver) = resolve_db_driver(conn_id).await?;
+    let (conn, db_params, driver) =
+        resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
     audit.connection_name = Some(conn.name.clone());
 
     let effective_schema = resolve_default_schema(&driver, schema);
@@ -873,17 +1011,14 @@ async fn tool_list_tables(
 
     let names: Vec<&str> = tables.iter().map(|t| t.name.as_str()).collect();
     audit.rows = Some(names.len());
-    Ok(json!({
-        "content": [{
-            "type": "text",
-            "text": serde_json::to_string_pretty(&names).unwrap()
-        }]
-    }))
+    tool_result(&json!(names), format)
 }
 
 async fn tool_list_databases(
     args: &serde_json::Map<String, Value>,
+    config: &AppConfig,
     audit: &mut CallAudit,
+    format: ToolOutputFormat,
 ) -> Result<Value, JsonRpcError> {
     let conn_id = args
         .get("connection_id")
@@ -896,7 +1031,8 @@ async fn tool_list_databases(
 
     audit.connection_id = Some(conn_id.to_string());
 
-    let (conn, db_params, driver) = resolve_db_driver(conn_id).await?;
+    let (conn, db_params, driver) =
+        resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
     audit.connection_name = Some(conn.name.clone());
 
     let databases = driver
@@ -909,17 +1045,14 @@ async fn tool_list_databases(
         })?;
 
     audit.rows = Some(databases.len());
-    Ok(json!({
-        "content": [{
-            "type": "text",
-            "text": serde_json::to_string_pretty(&databases).unwrap()
-        }]
-    }))
+    tool_result(&json!(databases), format)
 }
 
 async fn tool_describe_table(
     args: &serde_json::Map<String, Value>,
+    config: &AppConfig,
     audit: &mut CallAudit,
+    format: ToolOutputFormat,
 ) -> Result<Value, JsonRpcError> {
     let conn_id = args
         .get("connection_id")
@@ -941,7 +1074,8 @@ async fn tool_describe_table(
 
     audit.connection_id = Some(conn_id.to_string());
 
-    let (conn, db_params, driver) = resolve_db_driver(conn_id).await?;
+    let (conn, db_params, driver) =
+        resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
     audit.connection_name = Some(conn.name.clone());
 
     let effective_schema = resolve_default_schema(&driver, schema);
@@ -961,12 +1095,7 @@ async fn tool_describe_table(
         "indexes": indexes.map_err(|e| JsonRpcError { code: -32000, message: e, data: None })?
     });
 
-    Ok(json!({
-        "content": [{
-            "type": "text",
-            "text": serde_json::to_string_pretty(&result).unwrap()
-        }]
-    }))
+    tool_result(&result, format)
 }
 
 async fn tool_run_query(
@@ -974,6 +1103,7 @@ async fn tool_run_query(
     config: &AppConfig,
     session_id: &str,
     audit: &mut CallAudit,
+    format: ToolOutputFormat,
 ) -> Result<Value, JsonRpcError> {
     let conn_id = args
         .get("connection_id")
@@ -1002,7 +1132,8 @@ async fn tool_run_query(
     let kind = ai_activity::classify_query_kind(query);
     audit.query_kind = Some(kind.to_string());
 
-    let (conn, db_params, driver) = resolve_db_driver(conn_id).await?;
+    let (conn, db_params, driver) =
+        resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
     audit.connection_name = Some(conn.name.clone());
 
     // Read-only enforcement (fail-closed: unknown counts as write).
@@ -1193,11 +1324,6 @@ async fn tool_run_query(
 
     audit.rows = Some(result.rows.len());
 
-    Ok(json!({
-        "content": [{
-            "type": "text",
-            "text": serde_json::to_string_pretty(&result).unwrap()
-        }]
-    }))
+    tool_result(&result, format)
 }
 

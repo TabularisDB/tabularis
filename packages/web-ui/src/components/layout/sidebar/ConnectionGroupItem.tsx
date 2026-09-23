@@ -126,9 +126,10 @@ export const ConnectionGroupItem = ({ connections, mode, isDropTarget = false }:
           }}
           onContextMenu={handleGroupContextMenu}
           className={`grid grid-cols-2 gap-0.5 p-1 rounded-xl transition-all relative cursor-pointer bg-surface-secondary ${
-            isDropTarget ? 'ring-2 ring-blue-400' : 'ring-1 ring-default'
+            isDropTarget ? 'ring-2 ring-accent-primary' : 'ring-1 ring-default'
           }`}
           title={orderedConnections.map(c => c.name).join(' / ')}
+          aria-label={`${t('sidebar.splitGroup')}: ${orderedConnections.map(c => c.name).join(' / ')}`}
         >
           {orderedConnections.map(conn => {
             const saved = savedConnections.find(c => c.id === conn.id);
@@ -140,10 +141,12 @@ export const ConnectionGroupItem = ({ connections, mode, isDropTarget = false }:
                   if (el) iconRefs.current.set(conn.id, el);
                   else iconRefs.current.delete(conn.id);
                 }}
+                // Mouse-only drag handle for reordering; the group button's label lists the connections.
+                aria-hidden="true"
                 onMouseDown={(e) => startIconMove(conn, e)}
                 onContextMenu={(e) => handleIconContextMenu(conn.id, e)}
                 className={`w-5 h-5 rounded flex items-center justify-center text-white cursor-grab active:cursor-grabbing ${
-                  reorderTarget === conn.id ? 'ring-2 ring-blue-400' : ''
+                  reorderTarget === conn.id ? 'ring-2 ring-accent-primary' : ''
                 }`}
                 style={{ backgroundColor: getConnectionAccent(saved, manifest) }}
                 title={conn.name}
@@ -154,7 +157,7 @@ export const ConnectionGroupItem = ({ connections, mode, isDropTarget = false }:
           })}
 
           {/* Split mode badge */}
-          <div className="absolute -bottom-0.5 -right-0.5 text-[8px] font-bold bg-purple-600 text-white rounded px-0.5 leading-tight">
+          <div className="absolute -bottom-0.5 -right-0.5 text-[8px] font-bold bg-accent-secondary text-on-accent-secondary rounded px-0.5 leading-tight">
             {mode === 'vertical' ? '⇔' : '⇕'}
           </div>
         </div>

@@ -3,8 +3,8 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryModal } from "../../../src/components/modals/QueryModal";
 
 // Mock MonacoEditor
-vi.mock("@monaco-editor/react", () => ({
-  default: vi.fn(({ value, onChange }) => (
+vi.mock("../../../src/components/ui/LazyMonaco", () => ({
+  MonacoEditor: vi.fn(({ value, onChange }) => (
     <textarea
       data-testid="monaco-editor"
       value={value || ""}
@@ -53,6 +53,44 @@ describe("QueryModal", () => {
     );
 
     expect(screen.getByText("Save Query")).toBeInTheDocument();
+  });
+
+  it("uses theme-aware text for the title and query name", () => {
+    render(
+      <QueryModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+        initialName="My saved query"
+      />,
+    );
+
+    const title = screen.getByRole("heading", { name: "Save Query" });
+    const nameInput = screen.getByDisplayValue("My saved query");
+
+    for (const element of [title, nameInput]) {
+      expect(element).toHaveClass("text-primary");
+      expect(element).not.toHaveClass("text-white");
+    }
+  });
+
+  it("uses theme-aware colors for secondary actions and the save button", () => {
+    render(
+      <QueryModal isOpen={true} onClose={mockOnClose} onSave={mockOnSave} />,
+    );
+
+    const closeButton = screen.getAllByRole("button")[0];
+    const cancelButton = screen.getByRole("button", { name: "Cancel" });
+
+    for (const button of [closeButton, cancelButton]) {
+      expect(button).toHaveClass("text-secondary", "hover:text-primary");
+      expect(button).not.toHaveClass("hover:text-white");
+    }
+    expect(screen.getByRole("button", { name: "Save" })).toHaveClass(
+      "bg-accent-primary",
+      "hover:bg-accent-primary/90",
+      "text-inverse",
+    );
   });
 
   it("renders with custom title", () => {

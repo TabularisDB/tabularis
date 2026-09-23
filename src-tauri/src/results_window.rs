@@ -57,11 +57,11 @@ pub async fn open_results_window(
         .copied();
 
     let url = format!("/results-window?tab={}", encode(&tab_id));
-    let mut builder =
-        WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
-            .title(&window_title)
-            .min_inner_size(500.0, 300.0)
-            .background_color(tauri::webview::Color(2, 6, 23, 255));
+    let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
+        .title(&window_title)
+        .min_inner_size(500.0, 300.0)
+        .decorations(crate::window_decorations::native_decorations_enabled())
+        .background_color(tauri::webview::Color(2, 6, 23, 255));
 
     builder = match remembered {
         Some(b) => builder

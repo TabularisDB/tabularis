@@ -1,0 +1,100 @@
+{
+  "id": "custom-1700000000000",
+  "name": "Legacy personal theme",
+  "isPreset": false,
+  "isReadOnly": false,
+  "colors": {
+    "bg": {
+      "base": "#020617",
+      "elevated": "#0f172a",
+      "overlay": "#1e293b",
+      "input": "#0f172a",
+      "tooltip": "#1e293b"
+    },
+    "surface": {
+      "primary": "#1e293b",
+      "secondary": "#334155",
+      "tertiary": "#475569",
+      "hover": "#334155",
+      "active": "#3b82f6",
+      "disabled": "#1e293b"
+    },
+    "text": {
+      "primary": "#f8fafc",
+      "secondary": "#94a3b8",
+      "muted": "#7583a0",
+      "disabled": "#475569",
+      "accent": "#3b82f6",
+      "inverse": "#020617"
+    },
+    "accent": {
+      "primary": "#3b82f6",
+      "secondary": "#8b5cf6",
+      "success": "#22c55e",
+      "warning": "#f59e0b",
+      "error": "#ef4444",
+      "info": "#06b6d4"
+    },
+    "border": {
+      "subtle": "#1e293b",
+      "default": "#334155",
+      "strong": "#5b6b82",
+      "focus": "#3b82f6"
+    },
+    "semantic": {
+      "string": "#f87171",
+      "number": "#60a5fa",
+      "boolean": "#a78bfa",
+      "date": "#4ade80",
+      "null": "#64748b",
+      "primaryKey": "#fbbf24",
+      "foreignKey": "#22d3ee",
+      "index": "#c084fc",
+      "modified": "#3b82f6",
+      "deleted": "#ef4444",
+      "new": "#22c55e",
+      "connection_active": "#22c55e",
+      "connection_inactive": "#64748b"
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "base": "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif",
+      "mono": "JetBrains Mono, Fira Code, Monaco, Consolas, monospace"
+    },
+    "fontSize": {
+      "xs": "0.75rem",
+      "sm": "0.875rem",
+      "base": "1rem",
+      "lg": "1.125rem",
+      "xl": "1.25rem"
+    }
+  },
+  "layout": {
+    "borderRadius": {
+      "sm": "0.25rem",
+      "base": "0.5rem",
+      "lg": "0.75rem",
+      "xl": "1rem"
+    },
+    "spacing": {
+      "xs": "0.25rem",
+      "sm": "0.5rem",
+      "base": "1rem",
+      "lg": "1.5rem",
+      "xl": "2rem"
+    }
+  },
+  "monacoTheme": {
+    "base": "vs-dark",
+    "inherit": true,
+    "themeName": null,
+    "rules": null,
+    "colors": null
+  },
+  "author": null,
+  "version": null,
+  "createdAt": null,
+  "updatedAt": null,
+  "taskbarIcon": null
+}

@@ -41,6 +41,7 @@ fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<TableColumn> 
         is_generated: hidden == 2 || hidden == 3,
         default_value: dflt_value,
         character_maximum_length: None,
+        comment: None,
     })
 }
 
@@ -77,6 +78,7 @@ pub async fn get_tables(params: &ConnectionParams) -> Result<Vec<TableInfo>, Str
         .iter()
         .map(|r| TableInfo {
             name: r.try_get("name").unwrap_or_default(),
+            comment: None,
         })
         .collect();
     log::debug!(
@@ -1016,7 +1018,9 @@ impl SqliteDriver {
                 icon: "sqlite".to_string(),
                 settings: vec![],
                 ui_extensions: None,
+                explain_parsers: None,
                 type_mappings: std::collections::HashMap::new(),
+                deprecated: None,
             },
         }
     }

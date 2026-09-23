@@ -205,8 +205,8 @@ export const TriggerEditorModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-yellow-900/30 rounded-lg">
-              <Zap size={20} className="text-yellow-400" />
+            <div className="p-2 bg-accent-warning/15 rounded-lg">
+              <Zap size={20} className="text-accent-warning" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
@@ -230,7 +230,7 @@ export const TriggerEditorModal = ({
         {/* Content */}
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
           {error && (
-            <div className="bg-red-900/20 border border-red-900/50 text-red-400 px-4 py-3 rounded-lg flex items-start gap-2">
+            <div className="bg-accent-error/10 border border-accent-error/25 text-accent-error px-4 py-3 rounded-lg flex items-start gap-2">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <div className="text-sm">{error}</div>
             </div>
@@ -247,13 +247,13 @@ export const TriggerEditorModal = ({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setUseRawSql(false)}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${!useRawSql ? "bg-blue-600 text-white" : "text-secondary hover:text-primary border border-strong"}`}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${!useRawSql ? "bg-accent-primary text-inverse" : "text-secondary hover:text-primary border border-strong"}`}
             >
               {t("triggers.guidedMode")}
             </button>
             <button
               onClick={() => setUseRawSql(true)}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${useRawSql ? "bg-blue-600 text-white" : "text-secondary hover:text-primary border border-strong"}`}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${useRawSql ? "bg-accent-primary text-inverse" : "text-secondary hover:text-primary border border-strong"}`}
             >
               {t("triggers.rawSqlMode")}
             </button>
@@ -287,7 +287,7 @@ export const TriggerEditorModal = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   disabled={!isNewTrigger}
-                  className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                  className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-focus focus:outline-none disabled:opacity-50"
                   placeholder={t("triggers.triggerNamePlaceholder")}
                   autoFocus={isNewTrigger}
                 />
@@ -304,7 +304,7 @@ export const TriggerEditorModal = ({
                   value={tableName}
                   onChange={(e) => setTableName(e.target.value)}
                   disabled={!isNewTrigger}
-                  className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                  className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-focus focus:outline-none disabled:opacity-50"
                   placeholder={t("triggers.tableNamePlaceholder")}
                 />
               </div>
@@ -320,7 +320,7 @@ export const TriggerEditorModal = ({
                       <button
                         key={opt}
                         onClick={() => setTiming(opt)}
-                        className={`px-3 py-1.5 text-sm rounded-lg transition-colors border ${timing === opt ? "bg-blue-600 border-blue-600 text-white" : "border-strong text-secondary hover:text-primary"}`}
+                        className={`px-3 py-1.5 text-sm rounded-lg transition-colors border ${timing === opt ? "bg-accent-primary border-accent-primary text-inverse" : "border-strong text-secondary hover:text-primary"}`}
                       >
                         {opt}
                       </button>
@@ -336,7 +336,7 @@ export const TriggerEditorModal = ({
                       <button
                         key={opt}
                         onClick={() => toggleEvent(opt)}
-                        className={`px-3 py-1.5 text-sm rounded-lg transition-colors border ${events.includes(opt) ? "bg-blue-600 border-blue-600 text-white" : "border-strong text-secondary hover:text-primary"}`}
+                        className={`px-3 py-1.5 text-sm rounded-lg transition-colors border ${events.includes(opt) ? "bg-accent-primary border-accent-primary text-inverse" : "border-strong text-secondary hover:text-primary"}`}
                       >
                         {opt}
                       </button>
@@ -384,7 +384,7 @@ export const TriggerEditorModal = ({
           <button
             onClick={handleSave}
             disabled={saving || loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
             {saving && <Loader2 size={16} className="animate-spin" />}
             {isNewTrigger ? t("triggers.create") : t("triggers.save")}

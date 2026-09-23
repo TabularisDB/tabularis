@@ -32,12 +32,12 @@ export function TableNameInput({
             onChange={(e) => onChange(e.target.value)}
             placeholder={t('clipboardImport.tableNamePlaceholder')}
             className={`w-full bg-base border rounded-lg px-3 py-2 text-primary focus:outline-none transition-all font-mono text-sm ${
-              tableExists ? 'border-yellow-500/60 focus:border-yellow-500' : 'border-strong focus:border-blue-500'
+              tableExists ? 'border-accent-warning/60 focus:border-accent-warning' : 'border-strong focus:border-focus'
             }`}
             autoFocus
           />
           {tableExists && (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-yellow-400 text-[10px]">
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-accent-warning text-[10px]">
               <AlertTriangle size={12} />
               <span>{t('clipboardImport.tableExists')}</span>
             </div>
@@ -47,7 +47,7 @@ export function TableNameInput({
           <button
             onClick={onAiSuggest}
             disabled={aiLoading}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs bg-purple-900/30 hover:bg-purple-900/50 border border-purple-800/40 text-purple-300 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs bg-accent-secondary/15 hover:bg-accent-secondary/25 border border-accent-secondary/20 text-accent-secondary rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
             title={t('clipboardImport.aiSuggest')}
           >
             {aiLoading ? (

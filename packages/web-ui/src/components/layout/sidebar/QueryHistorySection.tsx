@@ -55,18 +55,18 @@ export function QueryHistorySection({
   };
 
   const recoveryBanner = recoveryNotice ? (
-    <div className="m-2 p-2.5 bg-amber-500/10 border border-amber-500/40 rounded text-[11px] text-amber-200 leading-snug">
+    <div className="m-2 p-2.5 bg-accent-warning/10 border border-accent-warning/40 rounded text-[11px] text-accent-warning leading-snug">
       <div className="flex items-start gap-2">
-        <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-400" />
+        <AlertTriangle size={14} className="shrink-0 mt-0.5 text-accent-warning" />
         <div className="flex-1 min-w-0">
           <div className="font-semibold mb-1">
             {t("sidebar.historyRecoveredTitle")}
           </div>
-          <div className="text-amber-200/80">
+          <div className="text-accent-warning/80">
             {t("sidebar.historyRecoveredBody")}
           </div>
           <div
-            className="mt-1 font-mono text-[10px] text-amber-300/70 break-all"
+            className="mt-1 font-mono text-[10px] text-accent-warning/70 break-all"
             title={recoveryNotice.backupPath}
           >
             {recoveryNotice.backupPath}
@@ -75,7 +75,7 @@ export function QueryHistorySection({
         <button
           type="button"
           onClick={onDismissRecoveryNotice}
-          className="shrink-0 text-amber-300/60 hover:text-amber-200 transition-colors"
+          className="shrink-0 text-accent-warning/60 hover:text-accent-warning transition-colors"
           title={t("sidebar.historyRecoveredDismiss")}
           aria-label={t("sidebar.historyRecoveredDismiss")}
         >
@@ -120,12 +120,12 @@ export function QueryHistorySection({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("sidebar.searchHistory")}
-            className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-blue-500/50"
+            className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-focus/50"
           />
         </div>
         <button
           onClick={onClearAll}
-          className="p-1 text-muted hover:text-red-500 transition-colors shrink-0"
+          className="p-1 text-muted hover:text-accent-error transition-colors shrink-0"
           title={t("sidebar.clearAllHistory")}
         >
           <Trash2 size={13} />
@@ -151,18 +151,28 @@ export function QueryHistorySection({
               {t(`sidebar.${groupKey}`)}
             </div>
             {items.map((entry) => (
-              <div
+              <button
+                type="button"
                 key={entry.id}
+                aria-pressed={selectedId === entry.id}
                 onClick={() => setSelectedId(entry.id)}
                 onDoubleClick={() => onDoubleClick(entry)}
+                onKeyDown={(e) => {
+                  // Enter opens the entry like a double click; Space keeps selecting it.
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    setSelectedId(entry.id);
+                    onDoubleClick(entry);
+                  }
+                }}
                 onContextMenu={(e) => onContextMenu(e, entry)}
-                className={`pl-3 pr-3 py-1.5 cursor-pointer group transition-colors border-b border-default/30 ${
+                className={`block w-full text-left pl-3 pr-3 py-1.5 cursor-pointer group transition-colors border-b border-default/30 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
                   selectedId === entry.id
                     ? entry.status === "error"
-                      ? "bg-red-500/15"
+                      ? "bg-accent-error/15"
                       : "bg-surface-secondary"
                     : entry.status === "error"
-                      ? "hover:bg-red-500/10"
+                      ? "hover:bg-accent-error/10"
                       : "hover:bg-surface-secondary"
                 }`}
                 title={entry.database ? `[${entry.database}] ${entry.sql}` : entry.sql}
@@ -183,7 +193,7 @@ export function QueryHistorySection({
                 </div>
                 {entry.status === "error" ? (
                   <pre
-                    className="text-[11px] leading-[1.4] font-mono whitespace-pre-wrap break-all text-red-400/70 overflow-hidden"
+                    className="text-[11px] leading-[1.4] font-mono whitespace-pre-wrap break-all text-accent-error/70 overflow-hidden"
                     style={{
                       display: "-webkit-box",
                       WebkitLineClamp: 3,
@@ -195,7 +205,7 @@ export function QueryHistorySection({
                 ) : (
                   <SqlHighlight sql={entry.sql} />
                 )}
-              </div>
+              </button>
             ))}
           </div>
         ))

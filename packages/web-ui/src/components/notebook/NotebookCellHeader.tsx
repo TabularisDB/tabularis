@@ -14,9 +14,11 @@ import {
   GripVertical,
   Zap,
   History,
+  Network,
 } from "lucide-react";
 import type { NotebookCellType } from "../../types/notebook";
 import { CellNameAiButton } from "./CellNameAiButton";
+import { useEscapeKey } from "../../hooks/useEscapeKey";
 
 interface NotebookCellHeaderProps {
   cellType: NotebookCellType;
@@ -41,6 +43,8 @@ interface NotebookCellHeaderProps {
   onToggleParallel?: () => void;
   historyCount?: number;
   onToggleHistory?: () => void;
+  isQueryPlanVisible?: boolean;
+  onToggleQueryPlan?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse: () => void;
   cellName?: string;
@@ -53,14 +57,14 @@ function CellTypeBadge({ cellType }: { cellType: NotebookCellType }) {
 
   if (cellType === "sql") {
     return (
-      <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">
+      <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-accent-success/15 text-accent-success">
         {t("editor.notebook.sqlCell")}
       </span>
     );
   }
 
   return (
-    <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">
+    <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-accent-primary/15 text-accent">
       {t("editor.notebook.markdownCell")}
     </span>
   );
@@ -109,6 +113,8 @@ export function NotebookCellHeader({
   onToggleParallel,
   historyCount,
   onToggleHistory,
+  isQueryPlanVisible,
+  onToggleQueryPlan,
   isCollapsed,
   onToggleCollapse,
   cellName,
@@ -121,7 +127,12 @@ export function NotebookCellHeader({
   const [nameInput, setNameInput] = useState(cellName ?? "");
   const dbButtonRef = useRef<HTMLButtonElement>(null);
   const [dbDropdownPosition, setDbDropdownPosition] = useState({ top: 0, left: 0 });
+  const closeDbDropdown = useCallback(() => setIsDbOpen(false), []);
+  useEscapeKey(isDbOpen, closeDbDropdown);
   const showDbSelector = cellType === "sql" && selectedDatabases && selectedDatabases.length >= 1 && activeSchema && onSchemaChange;
+  const queryPlanToggleLabel = t(
+    isQueryPlanVisible ? "editor.notebook.hideQueryPlan" : "editor.notebook.toggleQueryPlan",
+  );
 
   const updateDbDropdownPosition = useCallback(() => {
     if (dbButtonRef.current) {
@@ -187,7 +198,7 @@ export function NotebookCellHeader({
                 setIsEditingName(false);
               }
             }}
-            className="text-[10px] text-secondary bg-base border border-strong rounded px-1 py-0.5 outline-none focus:border-blue-500 w-32"
+            className="text-[10px] text-secondary bg-base border border-strong rounded px-1 py-0.5 outline-none focus:border-focus w-32"
             placeholder={t("editor.notebook.cellNamePlaceholder")}
             autoFocus
           />
@@ -216,6 +227,7 @@ export function NotebookCellHeader({
                 if (!isDbOpen) updateDbDropdownPosition();
                 setIsDbOpen((v) => !v);
               }}
+              aria-expanded={isDbOpen}
               className="flex items-center gap-1 px-1.5 py-0.5 bg-surface-secondary border border-strong rounded text-[10px] text-secondary hover:text-primary hover:bg-surface transition-colors"
               title={t("editor.activeDatabase")}
             >
@@ -227,8 +239,9 @@ export function NotebookCellHeader({
               createPortal(
                 <>
                   <div
+                    role="presentation"
                     className="fixed inset-0 z-[150]"
-                    onClick={() => setIsDbOpen(false)}
+                    onClick={closeDbDropdown}
                   />
                   <div
                     className="fixed min-w-[120px] max-h-[230px] overflow-y-auto bg-surface-secondary border border-strong rounded shadow-xl z-[200] flex flex-col py-1"
@@ -244,7 +257,7 @@ export function NotebookCellHeader({
                         }}
                         className={`text-left px-2.5 py-1 text-[11px] hover:bg-surface transition-colors flex items-center gap-1.5 ${
                           activeSchema === db
-                            ? "text-white font-medium"
+                            ? "text-primary font-medium"
                             : "text-secondary"
                         }`}
                       >
@@ -278,11 +291,28 @@ export function NotebookCellHeader({
             title={t("editor.notebook.parallelExecution")}
             className={`p-1 rounded transition-colors ${
               isParallel
-                ? "text-yellow-400 bg-yellow-500/15"
+                ? "text-accent-warning bg-accent-warning/15"
                 : "text-muted hover:text-primary hover:bg-surface-secondary"
             }`}
           >
             <Zap size={14} />
+          </button>
+        )}
+
+        {cellType === "sql" && onToggleQueryPlan && (
+          <button
+            type="button"
+            onClick={onToggleQueryPlan}
+            title={queryPlanToggleLabel}
+            aria-label={queryPlanToggleLabel}
+            aria-pressed={!!isQueryPlanVisible}
+            className={`p-1 rounded transition-colors ${
+              isQueryPlanVisible
+                ? "text-accent bg-accent-primary/15"
+                : "text-muted hover:text-primary hover:bg-surface-secondary"
+            }`}
+          >
+            <Network size={14} />
           </button>
         )}
 
@@ -295,7 +325,7 @@ export function NotebookCellHeader({
           >
             <History size={14} />
             {historyCount != null && historyCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 text-[8px] bg-blue-500 text-white rounded-full w-3 h-3 flex items-center justify-center leading-none">
+              <span className="absolute -top-0.5 -right-0.5 text-[8px] bg-accent-primary text-inverse rounded-full w-3 h-3 flex items-center justify-center leading-none">
                 {historyCount > 9 ? "+" : historyCount}
               </span>
             )}

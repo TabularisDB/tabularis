@@ -97,32 +97,32 @@ describe("taskManager utils", () => {
 
   describe("getStatusColor", () => {
     it("returns green for running", () => {
-      expect(getStatusColor("running")).toContain("green");
+      expect(getStatusColor("running")).toContain("accent-success");
     });
 
     it("returns red for stopped", () => {
-      expect(getStatusColor("stopped")).toContain("red");
+      expect(getStatusColor("stopped")).toContain("accent-error");
     });
 
     it("returns yellow for unknown", () => {
-      expect(getStatusColor("unknown")).toContain("yellow");
+      expect(getStatusColor("unknown")).toContain("accent-warning");
     });
   });
 
   describe("getStatusBadgeColor", () => {
     it("returns green badge for running", () => {
       const cls = getStatusBadgeColor("running");
-      expect(cls).toContain("green");
+      expect(cls).toContain("accent-success");
     });
 
     it("returns red badge for stopped", () => {
       const cls = getStatusBadgeColor("stopped");
-      expect(cls).toContain("red");
+      expect(cls).toContain("accent-error");
     });
 
     it("returns yellow badge for unknown", () => {
       const cls = getStatusBadgeColor("unknown");
-      expect(cls).toContain("yellow");
+      expect(cls).toContain("accent-warning");
     });
   });
 

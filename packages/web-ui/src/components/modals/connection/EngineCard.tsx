@@ -99,24 +99,32 @@ export function EngineCard({ group, onSelect }: EngineCardProps) {
           {group.displayName}
           {group.verified && (
             <span
-              className="ml-1.5 inline-flex translate-y-px items-center align-baseline text-blue-400"
+              className="ml-1.5 inline-flex translate-y-px items-center align-baseline text-accent"
               title={t("connectionCatalogue.verified", { defaultValue: "Verified" })}
             >
               <ShieldCheck size={13} aria-hidden />
               <span className="sr-only">{t("connectionCatalogue.verified", { defaultValue: "Verified" })}</span>
             </span>
           )}
+          {rep.deprecated && (
+            <span
+              className="ml-1.5 inline-flex items-center align-baseline text-[10px] font-semibold text-accent-warning"
+              title={t("connectionCatalogue.deprecatedTooltip", { defaultValue: "This built-in driver is being replaced by a plugin" })}
+            >
+              {t("connectionCatalogue.deprecated", { defaultValue: "Deprecated" })}
+            </span>
+          )}
         </span>
 
         {/* trailing status */}
         {group.installed ? (
-          <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-accent-success/15 px-2 py-0.5 text-[10px] font-semibold text-accent-success">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent-success" />
             {t("connectionCatalogue.installed", { defaultValue: "Installed" })}
           </span>
         ) : unsupported ? (
           <span
-            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-amber-500/30 px-2 py-0.5 text-[10px] font-medium text-amber-400"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-accent-warning/30 px-2 py-0.5 text-[10px] font-medium text-accent-warning"
             title={t("connectionCatalogue.unavailableOnPlatform", { defaultValue: "Unavailable on your platform" })}
           >
             <MonitorOff size={10} aria-hidden />

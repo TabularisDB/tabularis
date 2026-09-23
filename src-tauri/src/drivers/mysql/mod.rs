@@ -294,7 +294,7 @@ pub async fn get_tables(
         // MariaDB reports tables created WITH SYSTEM VERSIONING as table_type
         // 'SYSTEM VERSIONED' rather than 'BASE TABLE', so they must be included
         // explicitly or they silently vanish from the table list.
-        "SELECT table_name as name FROM information_schema.tables WHERE table_schema = ? AND table_type IN ('BASE TABLE', 'SYSTEM VERSIONED') ORDER BY table_name ASC",
+        "SELECT table_name AS name, NULLIF(table_comment, '') AS comment FROM information_schema.tables WHERE table_schema = ? AND table_type IN ('BASE TABLE', 'SYSTEM VERSIONED') ORDER BY table_name ASC",
         &[db_name],
     )
     .await?;
@@ -302,6 +302,7 @@ pub async fn get_tables(
         .iter()
         .map(|r| TableInfo {
             name: mysql_row_str(r, 0),
+            comment: mysql_row_str_opt(r, 1),
         })
         .collect();
     log::debug!("MySQL: Found {} tables in {}", tables.len(), db_name);
@@ -318,7 +319,7 @@ pub async fn get_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length
+        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, NULLIF(column_comment, '')
         FROM information_schema.columns
         WHERE table_schema = ? AND table_name = ?
         ORDER BY ordinal_position
@@ -369,6 +370,7 @@ pub async fn get_columns(
                 is_generated: false,
                 default_value,
                 character_maximum_length,
+                comment: mysql_row_str_opt(r, 8),
             }
         })
         .collect())
@@ -383,6 +385,11 @@ pub async fn get_foreign_keys(
     let pool = get_mysql_pool(params).await?;
     let text = resolve_text_proto(&pool, params).await?;
 
+    // Scope both metadata views independently so MySQL 5.7 can prune table
+    // discovery on both sides. A schema-to-schema join can cause the optimizer
+    // to discard the constant constraint-schema filter. KCU's constraint schema
+    // is its table schema; binding the same database and table on both sides
+    // also keeps table-scoped constraint names (MariaDB 12.1+) separate.
     let query = r#"
         SELECT
             kcu.CONSTRAINT_NAME,
@@ -394,14 +401,21 @@ pub async fn get_foreign_keys(
         FROM information_schema.KEY_COLUMN_USAGE kcu
         JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
         ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
-        AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
         WHERE kcu.TABLE_SCHEMA = ?
         AND kcu.TABLE_NAME = ?
+        AND rc.CONSTRAINT_SCHEMA = ?
+        AND rc.TABLE_NAME = ?
         AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
         ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION
     "#;
 
-    let rows = fetch_all_rows(&pool, text, query, &[db_name, table_name]).await?;
+    let rows = fetch_all_rows(
+        &pool,
+        text,
+        query,
+        &[db_name, table_name, db_name, table_name],
+    )
+    .await?;
 
     Ok(rows
         .iter()
@@ -427,7 +441,7 @@ pub async fn get_all_columns_batch(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length
+        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, NULLIF(column_comment, '')
         FROM information_schema.columns
         WHERE table_schema = ?
         ORDER BY table_name, ordinal_position
@@ -479,6 +493,7 @@ pub async fn get_all_columns_batch(
             is_generated: false,
             default_value,
             character_maximum_length,
+            comment: mysql_row_str_opt(row, 9),
         };
 
         result
@@ -1164,6 +1179,7 @@ pub async fn get_view_columns(
                 is_generated: false,
                 default_value,
                 character_maximum_length,
+                comment: None,
             }
         })
         .collect())
@@ -1259,14 +1275,12 @@ pub async fn get_routine_definition(
     params: &ConnectionParams,
     routine_name: &str,
     routine_type: &str,
+    schema: Option<&str>,
 ) -> Result<String, String> {
+    let db_name = schema.unwrap_or_else(|| params.database.primary());
     let pool = get_mysql_pool(params).await?;
     let text = resolve_text_proto(&pool, params).await?;
-    let query = format!(
-        "SHOW CREATE {} `{}`",
-        routine_type,
-        escape_identifier(routine_name)
-    );
+    let query = routines::show_create_routine_sql(db_name, routine_name, routine_type);
 
     let row = fetch_one_row(&pool, text, &query, &[]).await?;
 
@@ -1867,7 +1881,9 @@ impl MysqlDriver {
                     },
                 ],
                 ui_extensions: None,
+                explain_parsers: None,
                 type_mappings: std::collections::HashMap::new(),
+                deprecated: None,
             },
         }
     }
@@ -2113,9 +2129,9 @@ impl DatabaseDriver for MysqlDriver {
         params: &crate::models::ConnectionParams,
         routine_name: &str,
         routine_type: &str,
-        _schema: Option<&str>,
+        schema: Option<&str>,
     ) -> Result<String, String> {
-        get_routine_definition(params, routine_name, routine_type).await
+        get_routine_definition(params, routine_name, routine_type, schema).await
     }
 
     async fn get_db_privilege_catalog(
@@ -2233,9 +2249,9 @@ impl DatabaseDriver for MysqlDriver {
         params: &crate::models::ConnectionParams,
         routine_name: &str,
         routine_type: &str,
-        _schema: Option<&str>,
+        schema: Option<&str>,
     ) -> Result<String, String> {
-        let definition = get_routine_definition(params, routine_name, routine_type).await?;
+        let definition = get_routine_definition(params, routine_name, routine_type, schema).await?;
         Ok(routines::routine_edit_script(
             routine_name,
             routine_type,

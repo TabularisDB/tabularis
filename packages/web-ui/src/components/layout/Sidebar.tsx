@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Plug2, Settings, Cpu, PanelLeft, Layers, Star, Clock, BookOpen } from "lucide-react";
@@ -14,7 +14,8 @@ import { NavItem } from "./sidebar/NavItem";
 import { RailIndicator } from "./sidebar/RailIndicator";
 import { OpenConnectionItem } from "./sidebar/OpenConnectionItem";
 import { ConnectionGroupItem } from "./sidebar/ConnectionGroupItem";
-import { ExplorerSidebar, type SidebarTab } from "./ExplorerSidebar";
+import type { SidebarTab } from "./ExplorerSidebar";
+import { LoadingState } from "../ui/LoadingState";
 import { PanelDatabaseProvider } from "./PanelDatabaseProvider";
 import { DiscordCommunityCallout } from "./sidebar/DiscordCommunityCallout";
 
@@ -27,10 +28,15 @@ import { canAddToSplit, isConnectionGrouped } from "../../utils/connectionLayout
 import { rectContains, startPointerDrag } from "../../utils/pointerDrag";
 import { useDrivers } from "../../hooks/useDrivers";
 import { useKeybindings } from "../../hooks/useKeybindings";
+import { useAvailableUpdates } from "../../hooks/useAvailableUpdates";
+import { UpdateBadge } from "../ui/UpdateBadge";
+
+const ExplorerSidebar = lazy(() => import("./ExplorerSidebar").then((module) => ({ default: module.ExplorerSidebar })));
 
 export const Sidebar = () => {
   const platform = usePlatformCapabilities();
   const { t } = useTranslation();
+  const updates = useAvailableUpdates();
   const { currentTheme } = useTheme();
   const isDarkTheme = !currentTheme?.id?.includes("-light");
   const {
@@ -234,7 +240,7 @@ export const Sidebar = () => {
           <img
             src="/logo.png"
             alt="tabularis"
-            className="w-12 h-12 p-2 rounded-2xl mx-auto mb-4 shadow-lg shadow-blue-500/30"
+            className="w-12 h-12 p-2 rounded-2xl mx-auto mb-4 shadow-lg shadow-accent-primary/30"
             style={{
               backgroundColor: isDarkTheme
                 ? currentTheme?.colors?.surface?.secondary || "#334155"
@@ -303,7 +309,7 @@ export const Sidebar = () => {
           <div className="relative mb-2">
             <button
               onClick={() => void platform.openExternalUrl(DISCORD_URL)}
-              className="flex items-center justify-center w-12 h-12 rounded-lg transition-colors relative group text-secondary hover:bg-surface-secondary hover:text-indigo-400"
+              className="flex items-center justify-center w-12 h-12 rounded-lg transition-colors relative group text-secondary hover:bg-surface-secondary hover:text-accent"
             >
               <RailIndicator isActive={false} className="-left-2" />
               <div className="relative">
@@ -326,6 +332,16 @@ export const Sidebar = () => {
             to="/settings"
             icon={Settings}
             label={t("sidebar.settings")}
+            tooltip={updates.summary}
+            badge={
+              // One aggregated counter on the rail; the Settings navigation
+              // splits it into core (Info) and plugin (Plugins) counts.
+              <UpdateBadge
+                count={updates.totalCount}
+                tooltip={updates.summary}
+                className="absolute -right-1 -top-1"
+              />
+            }
           />
 
           <SlotAnchor
@@ -339,6 +355,7 @@ export const Sidebar = () => {
       {/* Secondary Sidebar (Schema Explorer) */}
       {shouldShowExplorer && !isExplorerCollapsed && explorerConnId && (
         <PanelDatabaseProvider connectionId={explorerConnId}>
+          <Suspense fallback={<div style={{ width: sidebarWidth }}><LoadingState /></div>}>
           <ExplorerSidebar
             sidebarWidth={sidebarWidth}
             startResize={startResize}
@@ -346,6 +363,7 @@ export const Sidebar = () => {
             sidebarTab={sidebarTab}
             onSidebarTabChange={setSidebarTab}
           />
+          </Suspense>
         </PanelDatabaseProvider>
       )}
 
@@ -377,7 +395,7 @@ export const Sidebar = () => {
               }}
               className={`rounded-lg p-2 transition-colors group relative ${
                 sidebarTab === tab.id
-                  ? "text-blue-400 bg-blue-500/10"
+                  ? "text-accent bg-accent-primary/10"
                   : "text-muted hover:text-secondary hover:bg-surface-secondary"
               }`}
               title={tab.label}

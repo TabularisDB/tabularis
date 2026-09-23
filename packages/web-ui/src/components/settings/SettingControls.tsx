@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { createContext, useContext, useId, type ReactNode } from "react";
 import clsx from "clsx";
 
 /* ── Section ── */
@@ -31,6 +31,9 @@ export function SettingSection({ title, icon, description, action, children }: S
 
 /* ── Row ── */
 
+/** Lets a control inside a SettingRow name itself after the row's label. */
+const SettingRowContext = createContext<{ labelId: string; descriptionId?: string } | null>(null);
+
 interface SettingRowProps {
   label: string;
   description?: string;
@@ -44,28 +47,31 @@ export function SettingRow({
   children,
   vertical,
 }: SettingRowProps) {
+  const labelId = useId();
+  const descriptionId = useId();
+  const context = { labelId, descriptionId: description ? descriptionId : undefined };
+  const text = (
+    <>
+      <div id={labelId} className="text-sm text-primary">{label}</div>
+      {description && (
+        <div id={descriptionId} className="text-xs text-muted mt-0.5">{description}</div>
+      )}
+    </>
+  );
   if (vertical) {
     return (
       <div className="py-3">
-        <div className="mb-2">
-          <div className="text-sm text-primary">{label}</div>
-          {description && (
-            <div className="text-xs text-muted mt-0.5">{description}</div>
-          )}
-        </div>
-        {children}
+        <div className="mb-2">{text}</div>
+        <SettingRowContext.Provider value={context}>{children}</SettingRowContext.Provider>
       </div>
     );
   }
   return (
     <div className="flex items-center justify-between py-3 gap-8">
-      <div className="min-w-0">
-        <div className="text-sm text-primary">{label}</div>
-        {description && (
-          <div className="text-xs text-muted mt-0.5">{description}</div>
-        )}
+      <div className="min-w-0">{text}</div>
+      <div className="shrink-0">
+        <SettingRowContext.Provider value={context}>{children}</SettingRowContext.Provider>
       </div>
-      <div className="shrink-0">{children}</div>
     </div>
   );
 }
@@ -83,29 +89,36 @@ export function SettingToggle({
   onChange,
   disabled,
 }: SettingToggleProps) {
+  const row = useContext(SettingRowContext);
   return (
-    <label
+    <span
       className={clsx(
         "relative inline-flex items-center w-10 h-6 shrink-0",
-        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+        disabled && "opacity-50",
       )}
     >
+      {/* The native checkbox covers the whole switch, so it is both the click target and the named control. */}
       <input
         type="checkbox"
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        className="peer sr-only"
+        aria-labelledby={row?.labelId}
+        aria-describedby={row?.descriptionId}
+        className={clsx(
+          "peer absolute inset-0 z-10 m-0 h-full w-full appearance-none opacity-0",
+          disabled ? "cursor-not-allowed" : "cursor-pointer",
+        )}
       />
       <span
         aria-hidden="true"
-        className="absolute inset-0 rounded-full bg-base border border-strong transition-colors peer-checked:bg-blue-600 peer-checked:border-blue-600"
+        className="absolute inset-0 rounded-full bg-base border border-strong transition-colors peer-checked:bg-accent-primary peer-checked:border-accent-primary peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus"
       />
       <span
         aria-hidden="true"
-        className="relative ml-1 w-4 h-4 rounded-full bg-white transition-transform peer-checked:translate-x-4"
+        className="relative ml-1 w-4 h-4 rounded-full bg-primary transition-all peer-checked:bg-inverse peer-checked:translate-x-4"
       />
-    </label>
+    </span>
   );
 }
 
@@ -134,12 +147,14 @@ export function SettingButtonGroup<T extends string | number>({
       {options.map((opt) => (
         <button
           key={String(opt.value)}
+          type="button"
+          aria-pressed={value === opt.value}
           onClick={() => onChange(opt.value)}
           className={clsx(
-            "px-4 py-2 rounded-lg text-sm font-medium transition-all border",
+            "px-4 py-2 rounded-lg text-sm font-medium transition-all border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
             mono && "font-mono",
             value === opt.value
-              ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20"
+              ? "bg-accent-primary border-accent-primary text-inverse shadow-lg shadow-accent-primary/20"
               : "bg-base border-default text-muted hover:border-strong hover:text-primary",
           )}
         >
@@ -185,7 +200,7 @@ export function SettingSlider({
               : parseInt(e.target.value),
           )
         }
-        className="flex-1 h-2 bg-surface-tertiary rounded-lg appearance-none cursor-pointer accent-blue-500"
+        className="flex-1 h-2 bg-surface-tertiary rounded-lg appearance-none cursor-pointer accent-accent-primary"
       />
       <span className="text-sm font-mono text-primary w-16 text-right">
         {display}
@@ -224,7 +239,7 @@ export function SettingNumberInput({
         step={step}
         value={value}
         onChange={(e) => onChange(parseInt(e.target.value) || fallback)}
-        className="bg-base border border-strong rounded px-3 py-2 text-primary w-24 focus:outline-none focus:border-blue-500 transition-colors"
+        className="bg-base border border-strong rounded px-3 py-2 text-primary w-24 focus:outline-none focus:border-focus transition-colors"
       />
       {suffix && <span className="text-sm text-muted">{suffix}</span>}
     </div>

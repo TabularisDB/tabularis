@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { X, Network } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { statementLabel } from '../../utils/sql';
+import { onActivationKey } from '../../utils/keyboardEvents';
 
 interface ExplainSelectionModalProps {
   isOpen: boolean;
@@ -26,6 +27,10 @@ const ExplainSelectionContent = ({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // Already handled by a focused list item (Enter/Space activation), or a
+      // focused button that activates itself on Enter.
+      if (e.defaultPrevented) return;
+      if (e.key === 'Enter' && e.target instanceof Element && e.target.closest('button')) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setFocusedIndex((prev) => Math.min(prev + 1, queries.length - 1));
@@ -56,7 +61,7 @@ const ExplainSelectionContent = ({
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-default">
         <div>
-          <h3 className="text-base font-semibold text-white">
+          <h3 className="text-base font-semibold text-primary">
             {t('editor.explainSelection.title')}
           </h3>
           <p className="text-xs text-muted mt-0.5">
@@ -67,7 +72,7 @@ const ExplainSelectionContent = ({
         </div>
         <button
           onClick={onClose}
-          className="text-muted hover:text-white transition-colors p-1 rounded hover:bg-surface-secondary"
+          className="text-muted hover:text-primary transition-colors p-1 rounded hover:bg-surface-secondary"
         >
           <X size={18} />
         </button>
@@ -83,9 +88,13 @@ const ExplainSelectionContent = ({
               ref={(el) => {
                 itemRefs.current[i] = el;
               }}
+              role="button"
+              tabIndex={0}
               onMouseEnter={() => setFocusedIndex(i)}
+              onFocus={() => setFocusedIndex(i)}
               onClick={() => onSelect(entry.query)}
-              className={`group flex items-start gap-3 px-3 py-2.5 rounded-lg mb-1 cursor-pointer transition-all ${
+              onKeyDown={onActivationKey(() => onSelect(entry.query))}
+              className={`group flex items-start gap-3 px-3 py-2.5 rounded-lg mb-1 cursor-pointer transition-all focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
                 isFocused
                   ? 'bg-surface-secondary border border-transparent'
                   : 'border border-transparent hover:bg-surface-secondary/60'
@@ -94,7 +103,7 @@ const ExplainSelectionContent = ({
               {/* Index badge */}
               <span
                 className={`w-5 h-5 mt-0.5 shrink-0 flex items-center justify-center rounded text-[11px] font-bold tabular-nums ${
-                  isFocused ? 'text-green-400' : 'text-muted'
+                  isFocused ? 'text-accent-success' : 'text-muted'
                 }`}
               >
                 {entry.index}
@@ -113,7 +122,7 @@ const ExplainSelectionContent = ({
                   e.stopPropagation();
                   onSelect(entry.query);
                 }}
-                className="mt-0.5 shrink-0 p-1.5 rounded-md text-muted opacity-0 group-hover:opacity-100 hover:bg-green-500/20 hover:text-green-400 transition-all"
+                className="mt-0.5 shrink-0 p-1.5 rounded-md text-muted opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 focus-visible:opacity-100 hover:bg-accent-success/20 hover:text-accent-success transition-all"
                 title={t('editor.explainSelection.explainSingle')}
               >
                 <Network size={13} />

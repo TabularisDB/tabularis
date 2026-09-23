@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { FileJson, X, Loader2, RotateCcw } from "lucide-react";
-import MonacoEditor, { type OnMount } from "@monaco-editor/react";
+import type { OnMount } from "@monaco-editor/react";
+import { MonacoEditor } from "../ui/LazyMonaco";
 import { invoke } from "@tauri-apps/api/core";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
+import { getMonacoThemeId } from "../../themes/themeRuntime";
 import { Modal } from "../ui/Modal";
 import { ConfirmModal } from "./ConfirmModal";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
@@ -69,8 +71,8 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-default bg-base">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-900/30 rounded-lg">
-                <FileJson size={20} className="text-blue-400" />
+              <div className="p-2 bg-accent-primary/15 rounded-lg">
+                <FileJson size={20} className="text-accent" />
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-primary">
@@ -101,7 +103,7 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
                 <MonacoEditor
                   height="500px"
                   defaultLanguage="json"
-                  theme={editorTheme.id}
+                  theme={getMonacoThemeId(editorTheme.id)}
                   value={jsonValue}
                   onChange={(val) => {
                     setJsonValue(val ?? "");
@@ -123,7 +125,7 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
             )}
 
             {error && (
-              <div className="px-4 py-2 bg-red-900/20 border-t border-red-900/40 text-sm text-red-400">
+              <div className="px-4 py-2 bg-accent-error/10 border-t border-accent-error/20 text-sm text-accent-error">
                 {error}
               </div>
             )}
@@ -145,7 +147,7 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
               <button
                 onClick={handleSave}
                 disabled={isSaving || isLoading}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
               >
                 {isSaving && <Loader2 size={14} className="animate-spin" />}
                 {t("settings.configJsonModal.saveAndRestart")}
@@ -161,7 +163,7 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
         title={t("settings.configJsonModal.restartRequired")}
         message={t("settings.configJsonModal.restartMessage")}
         confirmLabel={t("settings.configJsonModal.restartNow")}
-        confirmClassName="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+        confirmClassName="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors"
         onConfirm={handleRestartNow}
       />
     </>

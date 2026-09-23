@@ -59,31 +59,31 @@ build-ui:
 # Build + copy binary, manifest and (if present) UI bundle into Tabularis's plugin folder.
 [linux]
 dev-install: build
-    mkdir -p ~/.local/share/tabularis/plugins/${ID}
-    cp target/debug/${BIN_NAME} ~/.local/share/tabularis/plugins/${ID}/
-    cp .tabularium ~/.local/share/tabularis/plugins/${ID}/
+    mkdir -p ~/.local/share/tabularis/plugins/drivers/${ID}
+    cp target/debug/${BIN_NAME} ~/.local/share/tabularis/plugins/drivers/${ID}/
+    cp .tabularium ~/.local/share/tabularis/plugins/drivers/${ID}/
     @if [ -f ui/dist/index.js ]; then \
-        mkdir -p ~/.local/share/tabularis/plugins/${ID}/ui/dist; \
-        cp ui/dist/index.js ~/.local/share/tabularis/plugins/${ID}/ui/dist/; \
+        mkdir -p ~/.local/share/tabularis/plugins/drivers/${ID}/ui/dist; \
+        cp ui/dist/index.js ~/.local/share/tabularis/plugins/drivers/${ID}/ui/dist/; \
     fi
-    @echo "Installed to ~/.local/share/tabularis/plugins/${ID}"
+    @echo "Installed to ~/.local/share/tabularis/plugins/drivers/${ID}"
     @echo "Restart Tabularis (or toggle the plugin in Settings) to pick up changes."
 
 [macos]
 dev-install: build
-    mkdir -p "$HOME/Library/Application Support/tabularis/plugins/${ID}"
-    cp target/debug/${BIN_NAME} "$HOME/Library/Application Support/tabularis/plugins/${ID}/"
-    cp .tabularium "$HOME/Library/Application Support/tabularis/plugins/${ID}/"
+    mkdir -p "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}"
+    cp target/debug/${BIN_NAME} "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}/"
+    cp .tabularium "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}/"
     @if [ -f ui/dist/index.js ]; then \
-        mkdir -p "$HOME/Library/Application Support/tabularis/plugins/${ID}/ui/dist"; \
-        cp ui/dist/index.js "$HOME/Library/Application Support/tabularis/plugins/${ID}/ui/dist/"; \
+        mkdir -p "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}/ui/dist"; \
+        cp ui/dist/index.js "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}/ui/dist/"; \
     fi
-    @echo "Installed to ~/Library/Application Support/tabularis/plugins/${ID}"
+    @echo "Installed to ~/Library/Application Support/tabularis/plugins/drivers/${ID}"
     @echo "Restart Tabularis (or toggle the plugin in Settings) to pick up changes."
 
 [windows]
 dev-install: build
-    $dest = Join-Path $env:APPDATA "tabularis\plugins\${ID}"
+    $dest = Join-Path $env:APPDATA "tabularis\plugins\drivers\${ID}"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
     Copy-Item "target\debug\${BIN_NAME}.exe" $dest
     Copy-Item ".tabularium" $dest
@@ -94,16 +94,16 @@ dev-install: build
     Write-Host "Installed to $dest"
     Write-Host "Restart Tabularis (or toggle the plugin in Settings) to pick up changes."
 
-# Remove the installed plugin.
+# Remove the kind-scoped development install. Manage old flat copies in Settings.
 [linux]
 uninstall:
-    rm -rf ~/.local/share/tabularis/plugins/${ID}
+    rm -rf ~/.local/share/tabularis/plugins/drivers/${ID}
 
 [macos]
 uninstall:
-    rm -rf "$HOME/Library/Application Support/tabularis/plugins/${ID}"
+    rm -rf "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}"
 
 [windows]
 uninstall:
-    $dest = Join-Path $env:APPDATA "tabularis\plugins\${ID}"
+    $dest = Join-Path $env:APPDATA "tabularis\plugins\drivers\${ID}"
     if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }

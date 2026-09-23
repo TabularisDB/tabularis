@@ -63,7 +63,7 @@ const MenuRow = ({ item, onClose }: { item: ContextMenuItem; onClose: () => void
         ${depth === 0 ? 'pl-3' : 'pl-0'}
         ${item.disabled
           ? 'text-muted/50 cursor-not-allowed'
-          : `hover:bg-surface-tertiary ${item.danger ? 'text-red-400' : 'text-primary'}`
+          : `hover:bg-surface-tertiary ${item.danger ? 'text-accent-error' : 'text-primary'}`
         }
       `}
     >
@@ -84,7 +84,7 @@ const MenuRow = ({ item, onClose }: { item: ContextMenuItem; onClose: () => void
           ))}
         </span>
       )}
-      {Icon && <Icon size={14} className={`shrink-0 ${item.disabled ? 'text-muted/50' : item.danger ? 'text-red-400' : 'text-secondary'}`} />}
+      {Icon && <Icon size={14} className={`shrink-0 ${item.disabled ? 'text-muted/50' : item.danger ? 'text-accent-error' : 'text-secondary'}`} />}
       <span className="truncate">{item.label}</span>
     </button>
   );
@@ -167,9 +167,10 @@ const SubmenuRow = ({
             ${openLeft ? 'right-full mr-1 origin-top-right' : 'left-full ml-1 origin-top-left'}
           `}
         >
-          {item.submenu.map((sub, i) => (
-            <MenuRow key={i} item={sub} onClose={onClose} />
-          ))}
+          {item.submenu.map((sub, i) => {
+            const subKey = sub.separator ? `sub-sep-${i}` : (sub.label ? `${sub.label}-${i}` : `sub-${i}`);
+            return <MenuRow key={subKey} item={sub} onClose={onClose} />;
+          })}
         </div>
       )}
     </div>
@@ -245,13 +246,14 @@ export const ContextMenu = ({ x, y, items, onClose, children, boundaryRight }: C
       style={style}
       className="fixed z-50 min-w-[160px] bg-surface-secondary border border-strong rounded-lg shadow-xl py-1 animate-in fade-in zoom-in-95 duration-100"
     >
-      {items.map((item, index) =>
-        item.submenu ? (
-          <SubmenuRow key={index} item={item} onClose={onClose} openLeft={openSubmenuLeft} />
+      {items.map((item, index) => {
+        const key = item.separator ? `sep-${index}` : (item.label ? `${item.label}-${index}` : `item-${index}`);
+        return item.submenu ? (
+          <SubmenuRow key={key} item={item} onClose={onClose} openLeft={openSubmenuLeft} />
         ) : (
-          <MenuRow key={index} item={item} onClose={onClose} />
-        ),
-      )}
+          <MenuRow key={key} item={item} onClose={onClose} />
+        );
+      })}
       {children}
     </div>
   );

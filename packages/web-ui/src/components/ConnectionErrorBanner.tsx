@@ -23,7 +23,7 @@ export const ConnectionErrorBanner = ({
   const { summary, details } = splitErrorDetails(message);
 
   return (
-    <div className="mx-6 mt-4 p-3.5 bg-red-900/20 border border-red-900/40 rounded-xl flex items-start gap-3 text-red-400 shrink-0">
+    <div className="mx-6 mt-4 p-3.5 bg-accent-error/10 border border-accent-error/20 rounded-xl flex items-start gap-3 text-accent-error shrink-0">
       <AlertCircle size={15} className="mt-0.5 shrink-0" />
       <div className="flex-1 min-w-0">
         <span className="text-sm whitespace-pre-wrap leading-relaxed block">
@@ -33,7 +33,7 @@ export const ConnectionErrorBanner = ({
           <>
             <button
               onClick={() => setShowDetails(v => !v)}
-              className="mt-2 flex items-center gap-1 text-xs text-red-400/70 hover:text-red-400 transition-colors"
+              className="mt-2 flex items-center gap-1 text-xs text-accent-error/70 hover:text-accent-error transition-colors"
             >
               {showDetails ? (
                 <ChevronDown size={12} />
@@ -45,7 +45,7 @@ export const ConnectionErrorBanner = ({
                 : t("common.showDetails")}
             </button>
             {showDetails && (
-              <pre className="mt-2 p-2.5 max-h-56 overflow-auto rounded-lg bg-red-950/40 border border-red-900/30 text-[11px] leading-relaxed text-red-300/90 font-mono whitespace-pre-wrap break-words">
+              <pre className="mt-2 p-2.5 max-h-56 overflow-auto rounded-lg bg-accent-error/20 border border-accent-error/15 text-[11px] leading-relaxed text-accent-error/90 font-mono whitespace-pre-wrap break-words">
                 {details}
               </pre>
             )}
@@ -54,7 +54,7 @@ export const ConnectionErrorBanner = ({
       </div>
       <button
         onClick={onClose}
-        className="text-red-400/50 hover:text-red-400 transition-colors shrink-0 mt-0.5"
+        className="text-accent-error/50 hover:text-accent-error transition-colors shrink-0 mt-0.5"
       >
         <X size={14} />
       </button>

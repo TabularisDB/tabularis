@@ -97,3 +97,37 @@ describe("classifyConnectionError", () => {
     expect(result.detail).toBe("something exploded");
   });
 });
+
+describe("classifyConnectionError with AWS SSM", () => {
+  it("keeps an IAM denial out of the database-auth bucket", () => {
+    const raw =
+      "The AWS SSM session ended before the port was open (exit status 254).\n\n" +
+      "Access denied. The caller needs ssm:StartSession on this target.\n\n" +
+      "AWS output:\nAn error occurred (AccessDeniedException)";
+
+    expect(classifyConnectionError(raw).kind).toBe("ssm");
+  });
+
+  it("classifies a missing AWS CLI as an SSM failure, not a network one", () => {
+    const raw =
+      "Failed to launch the AWS CLI: No such file or directory (os error 2). " +
+      "Install the AWS CLI v2 and the Session Manager plugin.";
+
+    expect(classifyConnectionError(raw).kind).toBe("ssm");
+  });
+
+  it("blames the session when the driver cannot reach the forwarded port", () => {
+    const raw = "Connection refused (os error 61)";
+
+    expect(classifyConnectionError(raw, { ssmEnabled: true }).kind).toBe("ssm");
+    expect(classifyConnectionError(raw).kind).toBe("network");
+  });
+
+  it("leaves ordinary database failures alone", () => {
+    expect(
+      classifyConnectionError("Access denied for user 'root'@'localhost'", {
+        ssmEnabled: true,
+      }).kind,
+    ).toBe("db-auth");
+  });
+});

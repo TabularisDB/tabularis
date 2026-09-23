@@ -31,7 +31,7 @@ export class SlotErrorBoundary extends Component<SlotErrorBoundaryProps, SlotErr
     if (this.state.hasError) {
       return (
         <div
-          className="text-[10px] text-red-400 bg-red-900/10 border border-red-900/30 rounded px-2 py-1"
+          className="text-[10px] text-accent-error bg-accent-error/5 border border-accent-error/15 rounded px-2 py-1"
           title={this.state.error?.message}
         >
           Plugin error: {this.props.pluginId}

@@ -23,7 +23,7 @@ function MarkdownPreview({ content }: { content: string }) {
         "[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 " +
         "[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 " +
         "[&_li]:mb-1 " +
-        "[&_a]:text-blue-400 [&_a]:underline " +
+        "[&_a]:text-accent [&_a]:underline " +
         "[&_blockquote]:border-l-2 [&_blockquote]:border-muted [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted " +
         "[&_hr]:border-default [&_hr]:my-4 " +
         "[&_table]:border-collapse [&_table]:w-full [&_table]:mb-2 " +

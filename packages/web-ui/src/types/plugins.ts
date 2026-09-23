@@ -65,6 +65,13 @@ export interface DriverCapabilities {
   sql_dialect?: Dialect;
 }
 
+/** Effective metadata for one connection. The registered manifest stays static. */
+export interface ConnectionMetadata {
+  capabilities: DriverCapabilities;
+  data_types: import("./dataTypes").DataTypeInfo[];
+  type_mappings: Record<string, string>;
+}
+
 export type PluginSettingType = "string" | "boolean" | "number" | "select";
 
 export interface PluginSettingDefinition {
@@ -77,6 +84,18 @@ export interface PluginSettingDefinition {
   options?: string[]; // only when type === "select"
 }
 
+/** Deprecation notice for a built-in driver being retired in favour of a
+ * standalone plugin. Absent on manifests for drivers that are not deprecated.
+ * Stamped onto built-in manifests by the backend at registration time. */
+export interface DeprecationInfo {
+  /** Driver id of the replacement plugin (e.g. "postgresql"). */
+  replacement_id?: string;
+  /** Human-readable target removal date (tentative, e.g. "2026-10-05"). */
+  removal_date?: string;
+  /** App version targeted for removal, if decided. */
+  removal_version?: string;
+}
+
 export interface PluginManifest {
   id: string;
   name: string;
@@ -84,6 +103,8 @@ export interface PluginManifest {
   description: string;
   default_port: number | null;
   capabilities: DriverCapabilities;
+  /** Present on get_driver_manifest when the plugin opts in to discovery. */
+  connection_metadata?: boolean;
   /** true for built-in drivers (postgres, mysql, sqlite); false/absent for external plugins */
   is_builtin?: boolean;
   /** Concrete database engine (registry manifest `engine`). Lets the connection
@@ -107,6 +128,19 @@ export interface PluginManifest {
   type_mappings?: Record<string, string>;
   /** UI extension declarations for slot-based rendering (Phase 2). */
   ui_extensions?: UIExtensionManifestEntry[];
+  /** Deprecation notice for a built-in driver being retired in favour of a
+   * plugin. Absent/undefined for non-deprecated drivers. */
+  deprecated?: DeprecationInfo;
+  /** Raw EXPLAIN parser bundles loaded when this plugin is enabled. */
+  explain_parsers?: ExplainParserManifestEntry[];
+}
+
+/** Manifest-level declaration for a plugin-owned EXPLAIN parser bundle. */
+export interface ExplainParserManifestEntry {
+  engine: string;
+  format: string;
+  module: string;
+  label?: string;
 }
 
 /** Manifest-level entry for a UI extension slot. */

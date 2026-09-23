@@ -166,8 +166,8 @@ export function BrowserPlatformDialogs() {
       <div className="flex max-h-[90vh] w-[700px] flex-col overflow-hidden rounded-xl border border-strong bg-elevated shadow-2xl">
         <div className="flex items-center justify-between border-b border-default bg-base p-4">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-blue-900/30 p-2">
-              <FolderOpen size={20} className="text-blue-400" />
+            <div className="rounded-lg bg-accent-primary/15 p-2">
+              <FolderOpen size={20} className="text-accent" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
@@ -194,7 +194,7 @@ export function BrowserPlatformDialogs() {
               type="button"
               disabled={!listing || (listing.path === null && !listing.parent)}
               onClick={() => void loadDirectory(listing?.parent ?? undefined)}
-              className="font-sans text-blue-400 transition-colors hover:text-blue-300 disabled:text-muted"
+              className="font-sans text-accent transition-colors hover:text-accent/90 disabled:text-muted"
             >
               {t("common.back")}
             </button>
@@ -208,7 +208,7 @@ export function BrowserPlatformDialogs() {
                 {t("common.loading")}
               </div>
             ) : error ? (
-              <div className="p-4 text-sm text-red-400">{error}</div>
+              <div className="p-4 text-sm text-accent-error">{error}</div>
             ) : visibleEntries.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted">
                 {t("serverFilePicker.empty")}
@@ -224,12 +224,12 @@ export function BrowserPlatformDialogs() {
                     onDoubleClick={() => handleEntryDoubleClick(entry)}
                     className={`flex w-full items-center gap-3 border-b border-default px-3 py-2 text-left text-sm transition-colors last:border-b-0 ${
                       isSelected
-                        ? "bg-blue-900/30 text-primary"
+                        ? "bg-accent-primary/15 text-primary"
                         : "text-secondary hover:bg-surface-secondary hover:text-primary"
                     }`}
                   >
                     {entry.kind === "directory" ? (
-                      <Folder size={17} className="shrink-0 text-blue-400" />
+                      <Folder size={17} className="shrink-0 text-accent" />
                     ) : (
                       <File size={17} className="shrink-0 text-muted" />
                     )}
@@ -250,7 +250,7 @@ export function BrowserPlatformDialogs() {
                 value={fileName}
                 onChange={(event) => setFileName(event.target.value)}
                 autoFocus
-                className="w-full rounded-lg border border-strong bg-base px-3 py-2 text-primary focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-strong bg-base px-3 py-2 text-primary focus:border-focus focus:outline-none"
               />
             </div>
           )}
@@ -268,7 +268,7 @@ export function BrowserPlatformDialogs() {
             type="button"
             onClick={() => void choose()}
             disabled={!canChoose || loading}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-inverse transition-colors hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {t("serverFilePicker.select")}
           </button>

@@ -9,6 +9,13 @@ import type { PaletteItem } from "../types/palette";
  */
 export const PINNED_PALETTE_RELEVANCE = 100;
 
+/**
+ * Rows rendered per query. The list is not virtualised, and painting every one
+ * of a large schema's objects on each keystroke is what makes typing lag; the
+ * footer still reports the full match count so nothing looks lost.
+ */
+export const MAX_VISIBLE_PALETTE_RESULTS = 100;
+
 function keepGroupsContiguous<T extends { item: PaletteItem }>(
   matches: T[],
 ): T[] {
@@ -55,7 +62,10 @@ export function createPaletteSearch(
         { name: "group", weight: 0.1 },
         { name: "badge", weight: 0.05 },
       ],
-      threshold: 0.4,
+      // 0.4 lets a five-letter query match anything within two edits, which
+      // against a thousand extension functions keeps most of them in the
+      // list. 0.3 still tolerates a typo per four characters.
+      threshold: 0.3,
       ignoreLocation: true,
       includeScore: true,
     }));

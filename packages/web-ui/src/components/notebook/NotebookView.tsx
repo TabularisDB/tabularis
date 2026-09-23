@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { BookOpen, Loader2 } from "lucide-react";
 import type { Tab } from "../../types/editor";
@@ -92,6 +93,12 @@ export function NotebookView({
   const { t } = useTranslation();
   const { activeSchema, activeCapabilities, selectedDatabases, activeDriver } =
     useDatabase();
+  const variableOptions = useMemo(
+    () => ({
+      escapeBackslashes: activeDriver === "mysql" || activeDriver === "mariadb",
+    }),
+    [activeDriver],
+  );
   const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
   const effectiveSchema =
     tab.schema || activeSchema || (isMultiDb ? selectedDatabases[0] : null);
@@ -273,15 +280,41 @@ export function NotebookView({
     [updateNotebook],
   );
 
+  const focusCell = useCallback((cellId: string) => {
+    const tryFocus = (attempts: number) => {
+      const el = cellRefsMap.current.get(cellId);
+      if (!el) {
+        if (attempts < 10) requestAnimationFrame(() => tryFocus(attempts + 1));
+        return;
+      }
+      const monacoTextarea = el.querySelector<HTMLTextAreaElement>(".monaco-editor textarea");
+      if (monacoTextarea) {
+        monacoTextarea.focus();
+        return;
+      }
+      const textarea = el.querySelector<HTMLTextAreaElement>("textarea");
+      if (textarea) {
+        textarea.focus();
+        return;
+      }
+      if (attempts < 10) requestAnimationFrame(() => tryFocus(attempts + 1));
+    };
+    requestAnimationFrame(() => tryFocus(0));
+  }, []);
+
   const addCell = useCallback(
     (type: NotebookCellType, afterIndex?: number): string => {
       const newCells = addCellToCells(cellsRef.current, type, afterIndex);
       const insertAt = afterIndex !== undefined ? afterIndex + 1 : newCells.length - 1;
       const newCellId = newCells[insertAt].id;
-      updateNotebook(newCells);
+      flushSync(() => updateNotebook(newCells));
+      cellRefsMap.current
+        .get(newCellId)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      focusCell(newCellId);
       return newCellId;
     },
-    [updateNotebook],
+    [updateNotebook, focusCell],
   );
 
   const deleteCell = useCallback(
@@ -302,7 +335,7 @@ export function NotebookView({
     [updateNotebook],
   );
 
-  const runCell = useCallback(
+  const runCellInner = useCallback(
     async (cellId: string) => {
       const cell = cellsRef.current.find((c) => c.id === cellId);
       if (!cell || cell.type !== "sql" || !cell.content.trim()) return;
@@ -351,7 +384,7 @@ export function NotebookView({
       const { sql: resolvedSql, unresolvedRefs } = resolveQueryVariables(
         sql,
         cellsRef.current,
-        { escapeBackslashes: activeDriver === "mysql" },
+        variableOptions,
       );
 
       if (unresolvedRefs.length > 0) {
@@ -426,9 +459,32 @@ export function NotebookView({
       settings.resultPageSize,
       updateCell,
       params,
-      activeDriver,
+      variableOptions,
       guardQueryExecution,
     ],
+  );
+
+  // Number of cells currently executing. The tab's `isLoading` flag drives the
+  // running indicator on the editor tab strip, so it must stay on while any
+  // cell is still running and go off only when the last one finishes.
+  const runningCellsRef = useRef(0);
+
+  const runCell = useCallback(
+    async (cellId: string) => {
+      runningCellsRef.current += 1;
+      if (runningCellsRef.current === 1) {
+        updateTab(tab.id, { isLoading: true });
+      }
+      try {
+        await runCellInner(cellId);
+      } finally {
+        runningCellsRef.current -= 1;
+        if (runningCellsRef.current === 0) {
+          updateTab(tab.id, { isLoading: false });
+        }
+      }
+    },
+    [runCellInner, tab.id, updateTab],
   );
 
   useEffect(() => {
@@ -669,40 +725,9 @@ export function NotebookView({
   // Cancel any in-flight auto-scroll frame if the view unmounts mid-drag.
   useEffect(() => stopAutoScroll, [stopAutoScroll]);
 
-  const scrollToBottom = useCallback(() => {
-    requestAnimationFrame(() => {
-      scrollContainerRef.current?.scrollTo({
-        top: scrollContainerRef.current.scrollHeight,
-        behavior: "smooth",
-      });
-    });
-  }, []);
-
-  const focusCell = useCallback((cellId: string) => {
-    const tryFocus = (attempts: number) => {
-      const el = cellRefsMap.current.get(cellId);
-      if (!el) {
-        if (attempts < 10) requestAnimationFrame(() => tryFocus(attempts + 1));
-        return;
-      }
-      const monacoTextarea = el.querySelector<HTMLTextAreaElement>(".monaco-editor textarea");
-      if (monacoTextarea) {
-        monacoTextarea.focus();
-        return;
-      }
-      const textarea = el.querySelector<HTMLTextAreaElement>("textarea");
-      if (textarea) {
-        textarea.focus();
-        return;
-      }
-      if (attempts < 10) requestAnimationFrame(() => tryFocus(attempts + 1));
-    };
-    requestAnimationFrame(() => tryFocus(0));
-  }, []);
-
   const scrollToCell = useCallback((cellId: string) => {
     const el = cellRefsMap.current.get(cellId);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
   // Keyboard shortcuts (only for the active notebook tab):
@@ -755,16 +780,8 @@ export function NotebookView({
   }, [updateNotebook]);
 
   const toolbarProps = {
-    onAddSqlCell: () => {
-      const id = addCell("sql");
-      scrollToBottom();
-      focusCell(id);
-    },
-    onAddMarkdownCell: () => {
-      const id = addCell("markdown");
-      scrollToBottom();
-      focusCell(id);
-    },
+    onAddSqlCell: () => addCell("sql"),
+    onAddMarkdownCell: () => addCell("markdown"),
     onRunAll: runAll,
     onExport: handleExport,
     onExportHtml: handleExportHtml,
@@ -821,8 +838,8 @@ export function NotebookView({
         placement === "top" ? "-top-1.5" : "-bottom-1.5"
       } left-0 right-0 z-10 flex items-center gap-1`}
     >
-      <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.7)]" />
-      <span className="h-0.5 flex-1 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.7)]" />
+      <span className="h-2 w-2 shrink-0 rounded-full bg-accent-primary shadow-[0_0_6px_var(--accent-primary)]" />
+      <span className="h-0.5 flex-1 rounded-full bg-accent-primary shadow-[0_0_6px_var(--accent-primary)]" />
     </div>
   );
 
@@ -884,14 +901,14 @@ export function NotebookView({
         />
         {cells.map((cell, index) => (
           <div
-            key={`${cell.id}-${index}`}
+            key={cell.id}
             ref={(el) => {
               if (el) cellRefsMap.current.set(cell.id, el);
               else cellRefsMap.current.delete(cell.id);
             }}
             onDragOver={handleDragOver(index)}
             onDrop={handleDrop(index)}
-            className="relative"
+            className="relative scroll-mt-4"
           >
             {showLineAt(index) && renderDropLine("top")}
             <NotebookCellWrapper
@@ -914,6 +931,15 @@ export function NotebookView({
               }}
               onRun={() => runCell(cell.id)}
               connectionId={connectionId}
+              explainQuery={
+                cell.type === "sql" && cell.isQueryPlanVisible
+                  ? resolveQueryVariables(
+                      resolveParams(cell.content.trim(), params).sql,
+                      cells,
+                      variableOptions,
+                    )
+                  : undefined
+              }
               activeSchema={cell.schema || effectiveSchema || undefined}
               selectedDatabases={isMultiDb ? selectedDatabases : undefined}
               onSchemaChange={

@@ -108,7 +108,7 @@ describe("SidebarViewItem", () => {
     expect(screen.queryByText("columns")).not.toBeInTheDocument();
 
     // Click expand button
-    const expandButton = screen.getByRole("button");
+    const expandButton = screen.getByRole("button", { name: "sidebar.expandView" });
     fireEvent.click(expandButton);
 
     // Should show loading or columns
@@ -124,7 +124,7 @@ describe("SidebarViewItem", () => {
     render(<SidebarViewItem {...defaultProps} />);
 
     // Click expand button
-    const expandButton = screen.getByRole("button");
+    const expandButton = screen.getByRole("button", { name: "sidebar.expandView" });
     fireEvent.click(expandButton);
 
     // Wait for columns to load
@@ -155,7 +155,7 @@ describe("SidebarViewItem", () => {
   it("collapses when expand button is clicked again", async () => {
     render(<SidebarViewItem {...defaultProps} />);
 
-    const expandButton = screen.getByRole("button");
+    const expandButton = screen.getByRole("button", { name: "sidebar.expandView" });
     
     // Expand
     fireEvent.click(expandButton);
@@ -173,7 +173,7 @@ describe("SidebarViewItem", () => {
   it("displays column count in folder header", async () => {
     render(<SidebarViewItem {...defaultProps} />);
 
-    const expandButton = screen.getByRole("button");
+    const expandButton = screen.getByRole("button", { name: "sidebar.expandView" });
     fireEvent.click(expandButton);
 
     await waitFor(() => {
@@ -189,7 +189,7 @@ describe("SidebarViewItem", () => {
     
     render(<SidebarViewItem {...defaultProps} />);
 
-    const expandButton = screen.getByRole("button");
+    const expandButton = screen.getByRole("button", { name: "sidebar.expandView" });
     fireEvent.click(expandButton);
 
     await waitFor(() => {
@@ -210,7 +210,7 @@ describe("SidebarViewItem", () => {
       vi.mocked(invoke).mockImplementation(mockMaterializedInvoke);
 
       render(<SidebarViewItem {...defaultProps} materialized />);
-      fireEvent.click(screen.getByRole("button"));
+      fireEvent.click(screen.getByRole("button", { name: "sidebar.expandView" }));
 
       await waitFor(() => {
         expect(invoke).toHaveBeenCalledWith("get_materialized_view_columns", {
@@ -224,7 +224,7 @@ describe("SidebarViewItem", () => {
       vi.mocked(invoke).mockImplementation(mockMaterializedInvoke);
 
       render(<SidebarViewItem {...defaultProps} materialized />);
-      fireEvent.click(screen.getByRole("button"));
+      fireEvent.click(screen.getByRole("button", { name: "sidebar.expandView" }));
 
       await waitFor(() => {
         expect(invoke).toHaveBeenCalledWith("get_indexes", {

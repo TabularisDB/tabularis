@@ -46,6 +46,37 @@ async fn test_get_columns_pk_detection() {
 
 #[tokio::test]
 #[ignore]
+async fn test_table_and_column_comments() {
+    require_pg!();
+    let params = pg_params();
+
+    let tables = postgres::get_tables(&params, "test_schema")
+        .await
+        .expect("get_tables should succeed");
+    let table = tables
+        .iter()
+        .find(|table| table.name == "all_types")
+        .expect("all_types table should exist");
+    assert_eq!(
+        table.comment.as_deref(),
+        Some("PostgreSQL metadata integration fixture")
+    );
+
+    let columns = postgres::get_columns(&params, "all_types", "test_schema")
+        .await
+        .expect("get_columns should succeed");
+    let text_column = columns
+        .iter()
+        .find(|column| column.name == "col_text")
+        .expect("col_text column should exist");
+    assert_eq!(
+        text_column.comment.as_deref(),
+        Some("Free-form text used by metadata tests")
+    );
+}
+
+#[tokio::test]
+#[ignore]
 async fn test_get_columns_nullable_detection() {
     require_pg!();
     let params = pg_params();

@@ -8,6 +8,15 @@ npm create @tabularis/plugin@latest my-driver
 
 (Works the same with `pnpm create @tabularis/plugin@latest my-driver` or `yarn create @tabularis/plugin my-driver`.)
 
+## Declarative themes
+
+The separate `tabularis-theme` entry point scaffolds, validates and packages themes
+without changing the driver command's defaults. Generated theme repositories work
+offline with their bundled Node tool. See [the theme author guide](./THEMES.md) for
+local preview, VS Code conversion, licensing, version gates and GitHub/Tabularium
+publishing. This new entry point requires the updated tooling package or a local
+source build; it is not assumed available in an older published version.
+
 ## What you get
 
 A runnable Rust project with:

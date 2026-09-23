@@ -36,6 +36,9 @@ vi.mock("lucide-react", () => ({
   Activity: () => null,
   Sparkles: () => null,
   Share2: () => null,
+  AlertTriangle: () => null,
+  ArrowUpCircle: () => null,
+  RefreshCw: () => null,
 }));
 
 vi.mock("react-i18next", () => ({

@@ -82,7 +82,7 @@ function ScopeCard({
     <div className="rounded-lg border border-default bg-elevated p-3 space-y-2.5">
       <div className="flex items-center gap-2">
         {scope.database === null ? (
-          <Globe size={13} className="text-blue-400 shrink-0" />
+          <Globe size={13} className="text-accent shrink-0" />
         ) : (
           <Table2 size={13} className="text-muted shrink-0" />
         )}
@@ -101,7 +101,7 @@ function ScopeCard({
           <button
             onClick={() => void onApply(scope, toGrant, toRevoke)}
             disabled={!dirty || busy}
-            className="px-2.5 py-1 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-[11px] transition-colors"
+            className="px-2.5 py-1 rounded-md bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-40 text-inverse text-[11px] transition-colors"
           >
             {t("userManagement.apply")}
           </button>
@@ -117,7 +117,7 @@ function ScopeCard({
               className={clsx(
                 "flex items-center gap-2 text-xs cursor-pointer select-none",
                 changed
-                  ? "text-amber-300"
+                  ? "text-accent-warning"
                   : "text-secondary hover:text-primary",
               )}
             >
@@ -429,7 +429,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
               onChange={(e) => setFilter(e.target.value)}
               placeholder={t("userManagement.filterPlaceholder")}
               spellCheck={false}
-              className="w-full pl-7 pr-2 py-1.5 bg-elevated border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
+              className="w-full pl-7 pr-2 py-1.5 bg-elevated border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-focus focus:outline-none"
             />
           </div>
           <button
@@ -445,7 +445,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
               setActionError(null);
             }}
             title={t("userManagement.newUser")}
-            className="p-1.5 rounded-md text-blue-400 hover:text-blue-300 hover:bg-surface-secondary transition-colors"
+            className="p-1.5 rounded-md text-accent hover:bg-surface-secondary transition-colors"
           >
             <Plus size={14} />
           </button>
@@ -453,7 +453,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
 
         <div className="flex-1 overflow-y-auto py-1">
           {loadError && (
-            <p className="text-xs text-red-400 px-3 py-2 break-words">
+            <p className="text-xs text-accent-error px-3 py-2 break-words">
               {t("userManagement.loadError")} {loadError}
             </p>
           )}
@@ -476,7 +476,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                 className={clsx(
                   "w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors",
                   isSel
-                    ? "bg-blue-500/15 text-primary"
+                    ? "bg-accent-primary/15 text-primary"
                     : "text-secondary hover:bg-surface-secondary",
                 )}
               >
@@ -488,7 +488,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                 {u.locked && (
                   <Lock
                     size={11}
-                    className="text-amber-400 shrink-0"
+                    className="text-accent-warning shrink-0"
                     aria-label={t("userManagement.locked")}
                   />
                 )}
@@ -522,7 +522,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                 placeholder={t("userManagement.userPlaceholder")}
                 autoFocus
                 spellCheck={false}
-                className="flex-1 px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
+                className="flex-1 px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-focus focus:outline-none"
               />
               <span className="text-muted text-xs">@</span>
               <input autoCorrect="off" autoCapitalize="off" autoComplete="off"
@@ -531,7 +531,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                 onChange={(e) => setNewHost(e.target.value)}
                 placeholder="%"
                 spellCheck={false}
-                className="w-28 px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
+                className="w-28 px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-focus focus:outline-none"
               />
             </div>
             <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
@@ -539,7 +539,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder={t("userManagement.passwordPlaceholder")}
-              className="w-full max-w-md px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
+              className="w-full max-w-md px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-focus focus:outline-none"
             />
 
             {/* Initial privileges (optional) */}
@@ -570,7 +570,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                   list="user-mgmt-databases"
                   placeholder={t("userManagement.scopePlaceholder")}
                   spellCheck={false}
-                  className="flex-1 px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
+                  className="flex-1 px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-focus focus:outline-none"
                 />
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-1.5">
@@ -604,7 +604,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
               <button
                 onClick={() => void handleCreate()}
                 disabled={busy || !newUser.trim()}
-                className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs transition-colors"
+                className="px-3 py-1.5 rounded-md bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse text-xs transition-colors"
               >
                 {t("userManagement.create")}
               </button>
@@ -629,7 +629,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                 <span className="text-muted">@{selected.host}</span>
               </h2>
               {selected.locked && (
-                <span className="flex items-center gap-1 text-[11px] text-amber-400">
+                <span className="flex items-center gap-1 text-[11px] text-accent-warning">
                   <Lock size={11} /> {t("userManagement.locked")}
                 </span>
               )}
@@ -648,7 +648,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                 <button
                   onClick={() => void handleDrop(selected)}
                   disabled={busy}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-red-400 hover:text-red-300 hover:bg-red-900/30 border border-default transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-accent-error hover:bg-accent-error/15 border border-default transition-colors disabled:opacity-50"
                 >
                   <Trash2 size={12} />
                   {t("userManagement.dropUser")}
@@ -664,12 +664,12 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={t("userManagement.newPasswordPlaceholder")}
                   autoFocus
-                  className="flex-1 px-2 py-1.5 bg-elevated border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
+                  className="flex-1 px-2 py-1.5 bg-elevated border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-focus focus:outline-none"
                 />
                 <button
                   onClick={() => void handleChangePassword()}
                   disabled={busy || password.length === 0}
-                  className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs transition-colors"
+                  className="px-3 py-1.5 rounded-md bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse text-xs transition-colors"
                 >
                   {t("common.save")}
                 </button>
@@ -687,7 +687,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                 )}
                 <button
                   onClick={() => setAddingScope((v) => !v)}
-                  className="ml-auto flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 transition-colors"
+                  className="ml-auto flex items-center gap-1 text-[11px] text-accent transition-colors"
                 >
                   <Plus size={11} />
                   {t("userManagement.addScope")}
@@ -704,7 +704,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                     placeholder={t("userManagement.databasePlaceholder")}
                     autoFocus
                     spellCheck={false}
-                    className="w-44 px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
+                    className="w-44 px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-focus focus:outline-none"
                   />
                   <span className="text-muted text-xs">.</span>
                   <input autoCorrect="off" autoCapitalize="off" autoComplete="off"
@@ -713,7 +713,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                     onChange={(e) => setAddTable(e.target.value)}
                     placeholder={t("userManagement.tablePlaceholder")}
                     spellCheck={false}
-                    className="w-44 px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
+                    className="w-44 px-2 py-1.5 bg-base border border-strong rounded-md text-xs text-primary placeholder:text-muted focus:border-focus focus:outline-none"
                   />
                   <button
                     onClick={() => {
@@ -730,7 +730,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
                       setAddingScope(false);
                     }}
                     disabled={!addDb.trim()}
-                    className="px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs transition-colors"
+                    className="px-2.5 py-1.5 rounded-md bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse text-xs transition-colors"
                   >
                     {t("userManagement.add")}
                   </button>
@@ -740,7 +740,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
               {grantsLoading ? (
                 <Loader2 size={16} className="animate-spin text-muted" />
               ) : grantsError ? (
-                <p className="text-xs text-red-400 break-words">
+                <p className="text-xs text-accent-error break-words">
                   {grantsError}
                 </p>
               ) : (
@@ -786,7 +786,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
         </datalist>
 
         {actionError && (
-          <p className="text-xs text-red-400 break-words">{actionError}</p>
+          <p className="text-xs text-accent-error break-words">{actionError}</p>
         )}
       </div>
     </div>

@@ -5,7 +5,7 @@
 # tabularis
 
 <p align="center">
-  <strong>Tabularis is an open-source desktop SQL workspace for PostgreSQL, MySQL/MariaDB, SQLite and 15+ more databases like DuckDB, ClickHouse, Redis and Firestore.<br />
+  <strong>Tabularis is an open-source desktop SQL workspace with 3 built-in database drivers and 16 shipped plugins, including DuckDB, ClickHouse, Redis and Firestore.<br />
   Its built-in MCP server lets Claude, Cursor and Devin (formerly Windsurf) read your schema and run queries in the same app you already use.</strong>
 </p>
 
@@ -55,13 +55,13 @@
 
 ```bash
 winget install Debba.Tabularis                                   # Windows
-brew tap TabularisDB/tabularis && brew install --cask tabularis  # macOS
+brew install --cask tabularis  # macOS
 sudo snap install tabularis                                      # Linux
 ```
 
 Or grab an installer directly:
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis_0.20.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis_0.20.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis_0.20.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis_0.20.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis_0.20.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis-0.20.0-1.x86_64.rpm)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis_0.25.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis_0.25.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis_0.25.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis_0.25.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis_0.25.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis-0.25.0-1.x86_64.rpm)
 
 The app UI is available in English, Italian, Spanish, Chinese (Simplified), French, German, Japanese, Russian, Tagalog and Portuguese (Brazilian).
 
@@ -121,7 +121,7 @@ The app UI is available in English, Italian, Spanish, Chinese (Simplified), Fren
 
 PostgreSQL, MySQL/MariaDB and SQLite ship built in. Everything else is a plugin. Current coverage, mirroring the [driver & plugin coverage](https://tabularis.dev/#driver-coverage) on the website:
 
-[ClickHouse](https://github.com/TabularisDB/tabularis-clickhouse-plugin) (shipped), [Cloudflare D1](https://github.com/josejorge/tabularis_cloudflare_d1_plugin) (shipped), [DM / Dameng](https://github.com/haos666/tabularis-dameng-plugin) (shipped), [DuckDB](https://github.com/TabularisDB/tabularis-duckdb-plugin) (shipped), [DynamoDB](https://github.com/TabularisDB/tabularis-dynamodb-plugin) (shipped), [Elasticsearch](https://github.com/TabularisDB/tabularis-elasticsearch-plugin) (shipped), [Firestore](https://codeberg.org/NewtTheWolf/firestore-tabularis) (shipped), [IBM Db2](https://github.com/TabularisDB/tabularis-db2-plugin) (shipped), [IBM Informix](https://github.com/danielnuld/tabularis-informix-plugin) (shipped), [MongoDB](https://github.com/danielnuld/tabularis-mongodb-plugin) (shipped), Redis (shipped, in [Go](https://github.com/gzamboni/tabularis-redis-plugin-go) and [Rust](https://github.com/nicholas-papachriston/tabularis-redis-plugin)), [CSV Folder](https://github.com/TabularisDB/tabularis-csv-plugin) (shipped), [Google Sheets](https://github.com/TabularisDB/tabularis-google-sheets-plugin) (shipped), [HackerNews](https://github.com/TabularisDB/tabularis-hackernews-plugin) (shipped), Google BigQuery (claimed), [LibSQL / Turso](https://github.com/TabularisDB/tabularis-libsql-plugin) (claimed), Meilisearch (claimed), [Oracle](https://github.com/TabularisDB/tabularis-oracle-plugin) (claimed), [SQL Server](https://github.com/TabularisDB/tabularis-sqlserver-plugin) (claimed), Amazon Redshift (scoped), CockroachDB (scoped), TiDB (scoped), Snowflake (coming soon), Cassandra (open), Etcd (open), Firebird (open), ScyllaDB (open), SQL Anywhere (open), SurrealDB (open), Trino / Presto (open).
+[ClickHouse](https://github.com/TabularisDB/tabularis-clickhouse-plugin) (shipped), [Cloudflare D1](https://github.com/josejorge/tabularis_cloudflare_d1_plugin) (shipped), [DM / Dameng](https://github.com/haos666/tabularis-dameng-plugin) (shipped), [DuckDB](https://github.com/TabularisDB/tabularis-duckdb-plugin) (shipped), [DynamoDB](https://github.com/TabularisDB/tabularis-dynamodb-plugin) (shipped), [Elasticsearch](https://github.com/TabularisDB/tabularis-elasticsearch-plugin) (shipped), [Firestore](https://codeberg.org/NewtTheWolf/firestore-tabularis) (shipped), [IBM Db2](https://github.com/TabularisDB/tabularis-db2-plugin) (shipped), [IBM Informix](https://github.com/danielnuld/tabularis-informix-plugin) (shipped), [MongoDB](https://github.com/danielnuld/tabularis-mongodb-plugin) (shipped), Redis (shipped, in [Go](https://github.com/gzamboni/tabularis-redis-plugin-go) and [Rust](https://github.com/nicholas-papachriston/tabularis-redis-plugin)), [CSV Folder](https://github.com/TabularisDB/tabularis-csv-plugin) (shipped), [Google Sheets](https://github.com/TabularisDB/tabularis-google-sheets-plugin) (shipped), [HackerNews](https://github.com/TabularisDB/tabularis-hackernews-plugin) (shipped), Google BigQuery (claimed), [LibSQL / Turso](https://github.com/TabularisDB/tabularis-libsql-plugin) (claimed), Meilisearch (claimed), [Oracle](https://github.com/TabularisDB/tabularis-oracle-plugin) (claimed), [SQL Server](https://github.com/TabularisDB/tabularis-sqlserver-plugin) (shipped), Amazon Redshift (scoped), CockroachDB (scoped), TiDB (scoped), Snowflake (coming soon), Cassandra (open), Etcd (open), Firebird (open), ScyllaDB (open), SQL Anywhere (open), SurrealDB (open), Trino / Presto (open).
 
 > **Shipped** drivers are installable from the [plugin registry](https://tabularis.dev/plugins). Everything else is on the [bounty board](https://tabularis.dev/plugins/bounties): claim one, sponsor one, or [request a database](https://github.com/TabularisDB/tabularis/discussions). The SQL Server driver is in active development in its own repository, [tabularis-sqlserver-plugin](https://github.com/TabularisDB/tabularis-sqlserver-plugin).
 
@@ -149,14 +149,6 @@ Follow the on-screen instructions to complete the installation.
 
 #### Homebrew (Recommended)
 
-To add our tap, run:
-
-```bash
-brew tap TabularisDB/tabularis
-```
-
-Then install:
-
 ```bash
 brew install --cask tabularis
 ```
@@ -176,7 +168,10 @@ The notes below only apply to **older releases (before v0.13.1)** downloaded dir
 
 ```bash
 sudo snap install tabularis
+sudo snap connect tabularis:password-manager-service   # allow keychain access for saved credentials
 ```
+
+The `password-manager-service` interface is not auto-connected by the Snap Store yet. Without it, saving a connection fails with a `Platform secure storage failure` error.
 
 [![Snap Store](https://img.shields.io/badge/snap-tabularis-blue?logo=snapcraft)](https://snapcraft.io/tabularis)
 
@@ -241,6 +236,7 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 - **Monaco Editor** with syntax highlighting and auto-completion, in a tabbed interface with isolated connections per tab and resizable **split view**.
 - **Multi-Statement Execution:** Run All, Run Selected, or pick individual queries. Results appear in separate tabs with independent pagination.
 - **Smart Query Splitting:** Correctly handles stored procedures, functions, and `$$`-delimited blocks.
+- **SQL Files:** Open, edit, and save `.sql`, `.psql`, and `.pgsql` files in editor tabs without executing them.
 - **Saved Queries** and an **AI assist overlay** directly in the editor.
 
 ### SQL Notebooks
@@ -299,6 +295,7 @@ Tabularis is **hackable with an external plugin system**. Plugins are standalone
 - **Any Database:** Add support for DuckDB, MongoDB, or any other database by writing or installing a plugin.
 - **Plugin Registry:** Official plugins are listed in [`plugins/registry.json`](./plugins/registry.json).
 - **Developer Guide:** See [`plugins/PLUGIN_GUIDE.md`](./plugins/PLUGIN_GUIDE.md) to build your own driver in any language.
+- **Declarative themes (development):** **Settings → Appearance → Manage themes** supports local packages, previews and personal/VS Code imports without executable plugin activation. See the [theme author guide](./packages/create-plugin/THEMES.md) for the separate `tabularis-theme` CLI, packaging and release gates; public runtime/tooling rollout is not implied by this development feature.
 
 ### Logging
 
@@ -310,7 +307,11 @@ Tabularis is **hackable with an external plugin system**. Plugins are standalone
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/configuration)
 
-Configuration is stored in `~/.config/tabularis/` (Linux), `~/Library/Application Support/tabularis/` (macOS), or `%APPDATA%\tabularis\` (Windows): connection profiles, saved queries, app settings (`config.json`), custom themes, and per-connection editor preferences. Tabs and queries are restored when you reopen a connection. The wiki covers the full file layout and every `config.json` option, including custom AI model overrides.
+Configuration is stored in `~/.config/tabularis/` (Linux), `~/Library/Application Support/tabularis/` (macOS), or `%APPDATA%\tabularis\` (Windows): connection profiles, saved queries, app settings (`config.json`), custom themes, and per-connection editor preferences. You can move this folder from **Settings > Storage** (or with the `TABULARIS_DATA_DIR` environment variable), for example to an iCloud Drive or Dropbox folder to sync connections across machines; installed plugins always stay local. Tabs and queries are restored when you reopen a connection. The wiki covers the full file layout and every `config.json` option, including custom AI model overrides.
+
+On Linux, **Follow System** reads the XDG desktop settings portal's `org.freedesktop.appearance/color-scheme` preference and follows its live updates, including GNOME's dark-mode toggle with the standard Adwaita GTK theme. The resolved light/dark theme is applied explicitly to GTK window decorations and the webview. A portal value of `0` (no preference) resolves to light, so switching back to the desktop default cannot reuse the app's previously forced dark theme. If the portal is unavailable or returns an unsupported value, Tabularis falls back to the native window theme, then the browser media query. The default window capability grants `core:window:allow-set-theme` to allow native theme changes. macOS and Windows use native theme notifications. See [the portal specification](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Settings.html).
+
+Portal command reads reuse one cached D-Bus connection, while the live watcher keeps its own connection. Failed reads discard the cached connection so the next request can reconnect; failed connection attempts are not cached. The existing two-second command timeout also bounds concurrent requests waiting for the cache.
 
 ### AI Features (Optional)
 
@@ -341,6 +342,8 @@ Once connected, your AI agent can:
 | `list_tables` | List tables in a connection (with optional schema filter) |
 | `describe_table` | Get full schema: columns, indexes, foreign keys |
 | `run_query` | Execute any SQL query and return results |
+
+Every tool accepts an optional `output_format` argument. JSON is the default, preserving the existing response format for all clients. You can choose JSON or [TOON](https://toonformat.dev/) as the default under **Settings → MCP Server Integration**; a tool call's `output_format` argument overrides that preference. TOON is especially compact for tabular query results passed to an LLM. MCP transport remains JSON-RPC in either mode; only the text inside the tool result changes.
 
 #### Example prompts
 

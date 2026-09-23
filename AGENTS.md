@@ -8,6 +8,8 @@ Adhere to the rules defined in the [rules directory](./.rules/):
 - [React Rules](./.rules/react.md)
 - [Modal Styling Rules](./.rules/modals.md) (Modal component structure and styling)
 - [Testing Conventions](./.rules/testing.md) (Test file organization and structure)
+- [Design Token Rules](./.rules/design.md) (Theme tokens for colors, radii and fonts; see also [DESIGN.md](./DESIGN.md))
+- [Accessibility Rules](./.rules/accessibility.md) (jsx-a11y lint, keyboard access, dialogs, focus)
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

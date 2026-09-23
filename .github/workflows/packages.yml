@@ -1,0 +1,139 @@
+name: Packages
+
+# Tests, builds and checks the library packages under packages/*. Each
+# package owns its vitest (node environment); the host app (packages/web-ui)
+# is not in the matrix: its jsdom vitest runs through the root `pnpm test`. Runs only when a package, or a host file a package
+# imports, changes, and only for the packages actually affected: a `changes`
+# job maps changed paths to packages and builds the matrix from that. The
+# lockfile and this workflow count as shared and re-run every package.
+
+concurrency:
+  group: packages-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'packages/web-ui/src/pluginApi.ts' # plugin-api check:sync
+      - 'packages/web-ui/src/schemas/theme*' # imported by create-plugin
+      - 'packages/web-ui/src/types/theme*'
+      - 'packages/web-ui/src/utils/theme*'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/packages.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'packages/web-ui/src/pluginApi.ts'
+      - 'packages/web-ui/src/schemas/theme*'
+      - 'packages/web-ui/src/types/theme*'
+      - 'packages/web-ui/src/utils/theme*'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/packages.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect changed packages
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      any: ${{ steps.matrix.outputs.any }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Filters mirror the `on.paths` list above, split per package. A path
+      # that a package imports from the host belongs to that package's filter.
+      - name: Map changed paths to packages
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            shared:
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/packages.yml'
+            plugin-api:
+              - 'packages/plugin-api/**'
+              - 'packages/web-ui/src/pluginApi.ts'
+            explain:
+              - 'packages/explain/**'
+            create-plugin:
+              - 'packages/create-plugin/**'
+              - 'packages/web-ui/src/schemas/theme*'
+              - 'packages/web-ui/src/types/theme*'
+              - 'packages/web-ui/src/utils/theme*'
+
+      - name: Build the package matrix
+        id: matrix
+        shell: bash
+        env:
+          SHARED: ${{ steps.filter.outputs.shared }}
+          PLUGIN_API: ${{ steps.filter.outputs.plugin-api }}
+          EXPLAIN: ${{ steps.filter.outputs.explain }}
+          CREATE_PLUGIN: ${{ steps.filter.outputs.create-plugin }}
+        run: |
+          set -euo pipefail
+          matrix=$(jq -cn \
+            --arg shared "$SHARED" --arg api "$PLUGIN_API" \
+            --arg explain "$EXPLAIN" --arg create "$CREATE_PLUGIN" '
+            [
+              { name: "@tabularis/plugin-api", steps: "build check:sync", changed: ($api == "true") },
+              { name: "@tabularis/explain", steps: "typecheck test build", changed: ($explain == "true") },
+              { name: "@tabularis/create-plugin", steps: "test build smoke smoke:theme", changed: ($create == "true") }
+            ]
+            | map(select($shared == "true" or .changed) | del(.changed))')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "any=$(jq -r 'length > 0' <<<"$matrix")" >> "$GITHUB_OUTPUT"
+          {
+            echo '| Package | Run |'
+            echo '| --- | --- |'
+            jq -r '.[] | "| \(.name) | \(.steps) |"' <<<"$matrix"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  packages:
+    name: ${{ matrix.package.name }}
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      # create-plugin's smoke scaffolds a Rust driver and runs `cargo check`.
+      - name: Setup Rust
+        if: matrix.package.name == '@tabularis/create-plugin'
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run package scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in ${{ matrix.package.steps }}; do
+            echo "::group::pnpm --filter ${{ matrix.package.name }} $script"
+            pnpm --filter '${{ matrix.package.name }}' "$script"
+            echo "::endgroup::"
+          done

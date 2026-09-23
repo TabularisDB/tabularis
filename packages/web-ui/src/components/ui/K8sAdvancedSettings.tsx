@@ -62,9 +62,9 @@ export function K8sAdvancedSettings({
                 autoCapitalize="off"
                 autoComplete="off"
                 spellCheck={false}
-                className={`w-full px-3 py-2 pr-9 bg-base border rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors ${
+                className={`w-full px-3 py-2 pr-9 bg-base border rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-focus focus:outline-none transition-colors ${
                   pathOverrides.kubectlValidation.status === "error"
-                    ? "border-red-500"
+                    ? "border-accent-error"
                     : "border-strong"
                 }`}
               />
@@ -72,14 +72,14 @@ export function K8sAdvancedSettings({
                 {pathOverrides.kubectlValidation.status === "validating" ? (
                   <Loader2 size={14} className="animate-spin text-muted" aria-hidden="true" />
                 ) : pathOverrides.kubectlValidation.status === "valid" ? (
-                  <Check size={14} className="text-green-400" aria-hidden="true" />
+                  <Check size={14} className="text-accent-success" aria-hidden="true" />
                 ) : pathOverrides.kubectlValidation.status === "error" ? (
-                  <XCircle size={14} className="text-red-400" aria-hidden="true" />
+                  <XCircle size={14} className="text-accent-error" aria-hidden="true" />
                 ) : null}
               </span>
             </div>
             {pathOverrides.kubectlValidation.error && (
-              <p role="alert" className="mt-1 text-xs text-red-400">
+              <p role="alert" className="mt-1 text-xs text-accent-error">
                 {pathOverrides.kubectlValidation.error}
               </p>
             )}
@@ -108,9 +108,9 @@ export function K8sAdvancedSettings({
                 autoCapitalize="off"
                 autoComplete="off"
                 spellCheck={false}
-                className={`w-full px-3 py-2 pr-9 bg-base border rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors ${
+                className={`w-full px-3 py-2 pr-9 bg-base border rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-focus focus:outline-none transition-colors ${
                   pathOverrides.kubeconfigValidation.status === "error"
-                    ? "border-red-500"
+                    ? "border-accent-error"
                     : "border-strong"
                 }`}
               />
@@ -118,14 +118,14 @@ export function K8sAdvancedSettings({
                 {pathOverrides.kubeconfigValidation.status === "validating" ? (
                   <Loader2 size={14} className="animate-spin text-muted" aria-hidden="true" />
                 ) : pathOverrides.kubeconfigValidation.status === "valid" ? (
-                  <Check size={14} className="text-green-400" aria-hidden="true" />
+                  <Check size={14} className="text-accent-success" aria-hidden="true" />
                 ) : pathOverrides.kubeconfigValidation.status === "error" ? (
-                  <XCircle size={14} className="text-red-400" aria-hidden="true" />
+                  <XCircle size={14} className="text-accent-error" aria-hidden="true" />
                 ) : null}
               </span>
             </div>
             {pathOverrides.kubeconfigValidation.error && (
-              <p role="alert" className="mt-1 text-xs text-red-400">
+              <p role="alert" className="mt-1 text-xs text-accent-error">
                 {pathOverrides.kubeconfigValidation.error}
               </p>
             )}

@@ -1,13 +1,21 @@
 pub mod commands;
 pub mod compat; // COMPAT(registry-ga): remove with the BC layer
+pub mod connection_metadata;
 pub mod deep_link;
 pub mod driver;
+pub mod force_install;
+#[cfg(test)]
+mod force_install_tests;
 pub mod install_cancellation;
 pub mod installer;
 pub mod integrity;
+pub(crate) mod layout;
 pub mod manager;
+pub(crate) mod package_kind;
 pub mod registry;
+mod registry_kind;
 pub mod rpc;
+pub mod runtime_version;
 pub mod tabularium;
 
 #[cfg(test)]

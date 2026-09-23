@@ -113,18 +113,61 @@ pub async fn fetch_plugin_registry(
     let remote =
         crate::plugins::compat::resolve_registry(&base_url, &legacy_url, &installed_ids).await?;
     let platform = registry::get_current_platform();
+    // Themes are declarative packages tracked by the theme catalog, never by
+    // the executable plugin installer. Read the catalog once for the whole list.
+    let themes = InstalledThemes::load(runtime);
 
     Ok(remote
         .plugins
         .into_iter()
+        // Unknown or ambiguous kinds have no install path; keep them out of the
+        // Plugin Center so the kind filter only ever offers drivers and themes.
+        .filter(|plugin| matches!(plugin.kind.as_deref(), None | Some("driver") | Some("theme")))
         .map(|plugin| {
-            let installed_version = installed
-                .iter()
-                .find(|installed| installed.id == plugin.id)
-                .map(|installed| installed.version.clone());
-            to_plugin_with_status(plugin, installed_version, &platform)
+            let (installed_version, platform) = if plugin.kind.as_deref() == Some("theme") {
+                (themes.version_of(&plugin.id), "universal")
+            } else {
+                (
+                    installed
+                        .iter()
+                        .find(|installed| installed.id == plugin.id)
+                        .map(|installed| installed.version.clone()),
+                    platform.as_str(),
+                )
+            };
+            to_plugin_with_status(plugin, installed_version, platform)
         })
         .collect())
+}
+
+/// Installed declarative theme packages, resolved from the
+/// host-owned theme catalog so theme status never touches driver discovery.
+struct InstalledThemes {
+    catalog: crate::theme_packages::ThemeCatalog,
+}
+
+impl InstalledThemes {
+    fn load(runtime: &RuntimeContext) -> Self {
+        Self {
+            catalog: crate::theme_packages::read_theme_catalog(
+                runtime.paths.config_dir(),
+                &crate::paths::get_default_app_data_dir(),
+                env!("CARGO_PKG_VERSION"),
+            ),
+        }
+    }
+
+    fn version_of(&self, package_name: &str) -> Option<String> {
+        self.catalog
+            .themes
+            .iter()
+            .find(|entry| {
+                entry.origin["kind"] == "installed"
+                    && entry.origin["identity"]["packageName"] == package_name
+            })
+            .and_then(|entry| entry.origin["packageVersion"].as_str())
+            .map(str::to_string)
+    }
 }
 
 pub async fn install_plugin(
@@ -156,7 +199,11 @@ pub async fn install_plugin(
     } else {
         match resolve_api_install_asset(&base, &plugin_id, version.as_deref(), &platform).await {
             Ok(resolved) => resolved,
-            Err(api_error) if has_selected_registry => return Err(api_error),
+            Err(api_error)
+                if has_selected_registry || api_error == crate::plugins::package_kind::KIND_ERROR =>
+            {
+                return Err(api_error)
+            }
             Err(api_error) => {
                 let legacy_url = crate::plugins::compat::legacy_registry_url(&config);
                 match crate::plugins::compat::fetch_static_asset(
@@ -187,10 +234,12 @@ pub async fn install_plugin(
     .await?;
 
     let (interpreter_override, settings) = plugin_configuration(&config, &plugin_id);
-    let plugin_dir = plugins_dir.join(&plugin_id);
+    let plugin_dir = crate::plugins::layout::resolve_driver(&plugins_dir, &plugin_id)?;
     crate::plugins::manager::load_plugin_from_dir(&plugin_dir, interpreter_override, settings)
         .await
-        .map_err(|error| format!("Plugin installed but failed to load: {error}"))
+        .map_err(|error| format!("Plugin installed but failed to load: {error}"))?;
+    notify_plugin_reload(runtime, &plugin_id);
+    Ok(())
 }
 
 pub fn cancel_plugin_install(plugin_id: String) -> Result<bool, String> {
@@ -219,7 +268,9 @@ pub async fn disable_plugin(plugin_id: String) -> Result<(), String> {
 pub async fn enable_plugin(runtime: &RuntimeContext, plugin_id: String) -> Result<(), String> {
     validate_plugin_id(&plugin_id)?;
     let config = super::persistence::load_config(runtime);
-    load_plugin(runtime, &config, &plugin_id).await
+    load_plugin(runtime, &config, &plugin_id).await?;
+    notify_plugin_reload(runtime, &plugin_id);
+    Ok(())
 }
 
 pub fn get_plugin_manifest(
@@ -227,7 +278,7 @@ pub fn get_plugin_manifest(
     plugin_id: String,
 ) -> Result<PluginManifest, String> {
     validate_plugin_id(&plugin_id)?;
-    let plugin_dir = runtime.paths.plugins_dir().join(&plugin_id);
+    let plugin_dir = crate::plugins::layout::resolve_driver(&runtime.paths.plugins_dir(), &plugin_id)?;
     let config: ConfigManifest = installer::read_manifest(&plugin_dir)
         .map_err(|error| format!("Failed to read manifest for '{plugin_id}': {error}"))?;
     Ok(plugin_manifest(config))
@@ -252,11 +303,22 @@ pub async fn fetch_plugin_preview(
     let mut plugin = crate::plugins::tabularium::fetch_plugin_detail(&base, &slug).await?;
     plugin.registry_base_url = Some(base.trim_end_matches('/').to_string());
 
-    let installed_version = get_installed_plugins(runtime)
-        .into_iter()
-        .find(|installed| installed.id == slug)
-        .map(|installed| installed.version);
-    let platform = registry::get_current_platform();
+    // Declarative previews must not traverse driver discovery/startup paths.
+    let (installed_version, platform) = if plugin.kind.as_deref() == Some("theme") {
+        crate::theme_packages::registry_key(&base)?;
+        (
+            InstalledThemes::load(runtime).version_of(&slug),
+            "universal".to_string(),
+        )
+    } else {
+        (
+            get_installed_plugins(runtime)
+                .into_iter()
+                .find(|installed| installed.id == slug)
+                .map(|installed| installed.version),
+            registry::get_current_platform(),
+        )
+    };
     let target = version
         .as_deref()
         .filter(|value| !value.is_empty())
@@ -301,7 +363,18 @@ pub async fn restart_plugin_process(
     let config = super::persistence::load_config(runtime);
     load_plugin(runtime, &config, &plugin_id)
         .await
-        .map_err(|error| format!("Failed to restart plugin '{plugin_id}': {error}"))
+        .map_err(|error| format!("Failed to restart plugin '{plugin_id}': {error}"))?;
+    notify_plugin_reload(runtime, &plugin_id);
+    Ok(())
+}
+
+/// Tells the frontend that connection metadata derived from this driver may
+/// have changed (see `crate::plugins::connection_metadata::notify_plugin_reload`).
+fn notify_plugin_reload(runtime: &RuntimeContext, plugin_id: &str) {
+    let _ = runtime.events.emit(
+        "connection-metadata-invalidated",
+        serde_json::json!({ "driverId": plugin_id }),
+    );
 }
 
 fn registry_base_url(config: &AppConfig) -> &str {
@@ -369,10 +442,7 @@ async fn load_plugin(
     config: &AppConfig,
     plugin_id: &str,
 ) -> Result<(), String> {
-    let plugin_dir = runtime.paths.plugins_dir().join(plugin_id);
-    if !plugin_dir.exists() {
-        return Err(format!("Plugin '{plugin_id}' is not installed"));
-    }
+    let plugin_dir = crate::plugins::layout::resolve_driver(&runtime.paths.plugins_dir(), plugin_id)?;
     let (interpreter_override, settings) = plugin_configuration(config, plugin_id);
     crate::plugins::manager::load_plugin_from_dir(&plugin_dir, interpreter_override, settings).await
 }
@@ -393,7 +463,11 @@ fn plugin_manifest(config: ConfigManifest) -> PluginManifest {
         icon: config.icon,
         settings: config.settings,
         ui_extensions: config.ui_extensions,
+        explain_parsers: config.explain_parsers,
         type_mappings: config.type_mappings,
+        // `deprecated` is a built-in-only concept stamped at registration;
+        // external plugins read from disk are never deprecated by the app.
+        deprecated: None,
     }
 }
 
@@ -452,10 +526,13 @@ async fn resolve_api_install_asset(
     version: Option<&str>,
     platform: &str,
 ) -> Result<(String, Option<String>, String), String> {
+    let detail = crate::plugins::tabularium::fetch_plugin_detail(base, plugin_id).await?;
+    if !matches!(detail.kind.as_deref(), None | Some("driver")) {
+        return Err(crate::plugins::package_kind::KIND_ERROR.into());
+    }
     let target_version = match version {
         Some(version) => version.to_string(),
         None => {
-            let detail = crate::plugins::tabularium::fetch_plugin_detail(base, plugin_id).await?;
             if !detail.latest_version.is_empty() {
                 detail.latest_version
             } else {

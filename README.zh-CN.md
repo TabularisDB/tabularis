@@ -54,13 +54,13 @@
 
 ```bash
 winget install Debba.Tabularis                                   # Windows
-brew tap TabularisDB/tabularis && brew install --cask tabularis  # macOS
+brew install --cask tabularis  # macOS
 sudo snap install tabularis                                      # Linux
 ```
 
 或直接下载安装包：
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis_0.20.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis_0.20.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis_0.20.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis_0.20.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis_0.20.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.20.0/tabularis-0.20.0-1.x86_64.rpm)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis_0.25.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis_0.25.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis_0.25.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis_0.25.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis_0.25.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.25.0/tabularis-0.25.0-1.x86_64.rpm)
 
 应用界面支持英语、意大利语、西班牙语、简体中文、法语、德语、日语、俄语和他加禄语。
 
@@ -99,7 +99,6 @@ winget install Debba.Tabularis
 ### macOS
 
 ```bash
-brew tap TabularisDB/tabularis
 brew install --cask tabularis
 ```
 

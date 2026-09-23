@@ -37,9 +37,9 @@ export const CreateForeignKeyModal = ({
 }: CreateForeignKeyModalProps) => {
   const client = useTabularisClient();
   const { t } = useTranslation();
-  const { activeSchema } = useDatabase();
+  const { activeSchema, connectionDataMap } = useDatabase();
   const { allDrivers } = useDrivers();
-  const canCreateFk = supportsCreateForeignKeys(getCapabilitiesForDriver(driver, allDrivers));
+  const canCreateFk = supportsCreateForeignKeys(connectionDataMap[connectionId]?.capabilities ?? getCapabilitiesForDriver(driver, allDrivers));
   const [fkName, setFkName] = useState('');
   const [localColumn, setLocalColumn] = useState('');
   const [refTable, setRefTable] = useState('');
@@ -160,7 +160,7 @@ export const CreateForeignKeyModal = ({
       }
   };
 
-  const selectClass = "w-full bg-base border border-strong rounded-lg px-3 py-2 text-primary text-sm focus:border-blue-500 focus:outline-none appearance-none cursor-pointer hover:bg-elevated transition-colors";
+  const selectClass = "w-full bg-base border border-strong rounded-lg px-3 py-2 text-primary text-sm focus:border-focus focus:outline-none appearance-none cursor-pointer hover:bg-elevated transition-colors";
   const selectStyle = {
     backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
     backgroundPosition: `right 0.5rem center`,
@@ -175,8 +175,8 @@ export const CreateForeignKeyModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="bg-purple-900/30 p-2 rounded-lg">
-              <Link size={20} className="text-purple-400" />
+            <div className="bg-accent-secondary/15 p-2 rounded-lg">
+              <Link size={20} className="text-accent-secondary" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">{t('createFk.title')}</h2>
@@ -203,7 +203,7 @@ export const CreateForeignKeyModal = ({
                     value={fkName}
                     onChange={(e) => { setFkName(e.target.value); setError(''); }}
                     autoFocus
-                    className={`w-full bg-base border rounded-lg px-3 py-2 text-primary text-sm focus:border-blue-500 focus:outline-none font-mono ${!fkName.trim() && error ? 'border-red-500' : 'border-strong'}`}
+                    className={`w-full bg-base border rounded-lg px-3 py-2 text-primary text-sm focus:border-focus focus:outline-none font-mono ${!fkName.trim() && error ? 'border-accent-error' : 'border-strong'}`}
                 />
             </div>
 
@@ -275,7 +275,7 @@ export const CreateForeignKeyModal = ({
            <button
              onClick={handleCreate}
              disabled={loading || !canCreateFk || !fkName.trim()}
-             className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
+             className="bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-inverse px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-accent-primary/20 transition-all"
            >
              {loading && <Loader2 size={16} className="animate-spin" />}
              <Save size={16} /> {t('createFk.create')}

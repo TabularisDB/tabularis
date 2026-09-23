@@ -36,7 +36,7 @@ export function ModeToggle({ value, onChange }: ModeToggleProps) {
             onClick={() => onChange(id)}
             className={`group relative flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-all ${
               active
-                ? 'border-indigo-500/60 bg-indigo-500/10 shadow-[0_0_0_1px_rgba(99,102,241,0.15)]'
+                ? 'border-accent-primary/60 bg-accent-primary/10 shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_15%,transparent)]'
                 : 'border-default bg-base/50 hover:bg-base hover:border-strong'
             }`}
           >
@@ -44,7 +44,7 @@ export function ModeToggle({ value, onChange }: ModeToggleProps) {
               <div
                 className={`p-1.5 rounded-md transition-colors ${
                   active
-                    ? 'bg-indigo-500/20 text-indigo-300'
+                    ? 'bg-accent-primary/20 text-accent'
                     : 'bg-surface-secondary/50 text-muted group-hover:text-secondary'
                 }`}
               >

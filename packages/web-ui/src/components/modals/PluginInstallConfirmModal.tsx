@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { Modal } from "../ui/Modal";
+import { ThemeDeepLinkInstall } from "./ThemeDeepLinkInstall";
 import type { RegistryPluginWithStatus } from "../../types/plugins";
 import type { DeepLinkInstallRequest } from "../../hooks/useDeepLinkInstall";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
@@ -91,6 +92,7 @@ export const PluginInstallConfirmModal = ({
   }, [client, request]);
 
   if (!request) return null;
+  if (preview?.kind === "theme") return <ThemeDeepLinkInstall request={request} preview={preview} onClose={onCancel} />;
 
   const requestedRegistry = request.registry ?? null;
   const showsRegistryMismatch =
@@ -131,8 +133,8 @@ export const PluginInstallConfirmModal = ({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-default bg-base">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 bg-blue-900/30 rounded-lg">
-              <Download size={18} className="text-blue-400" />
+            <div className="p-2 bg-accent-primary/15 rounded-lg">
+              <Download size={18} className="text-accent" />
             </div>
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-primary">
@@ -165,7 +167,7 @@ export const PluginInstallConfirmModal = ({
                     type="button"
                     onClick={() => void platform.openExternalUrl(pluginPageUrl)}
                     title={pluginPageUrl}
-                    className="inline-flex min-w-0 items-center gap-1 text-left text-base font-semibold text-primary cursor-pointer hover:underline underline-offset-4 decoration-blue-500/60"
+                    className="inline-flex min-w-0 items-center gap-1 text-left text-base font-semibold text-primary cursor-pointer hover:underline underline-offset-4 decoration-accent-primary/60"
                   >
                     <span className="truncate">{displayName}</span>
                     <ExternalLink size={12} className="shrink-0 text-muted" />
@@ -193,11 +195,11 @@ export const PluginInstallConfirmModal = ({
                 {request.slug}
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
-                <span className="rounded-md border border-blue-700/30 bg-blue-900/20 px-1.5 py-px text-blue-300 font-medium">
+                <span className="rounded-md border border-accent-primary/15 bg-accent-primary/10 px-1.5 py-px text-accent font-medium">
                   v{targetVersion ?? "—"}
                 </span>
                 {kind && (
-                  <span className="rounded-md border border-blue-700/30 bg-blue-900/20 px-1.5 py-px text-blue-300">
+                  <span className="rounded-md border border-accent-primary/15 bg-accent-primary/10 px-1.5 py-px text-accent">
                     {kind}
                   </span>
                 )}
@@ -326,7 +328,7 @@ export const PluginInstallConfirmModal = ({
                     })
                   : undefined
               }
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+              className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
             >
               {busy ? (
                 <>
@@ -473,9 +475,9 @@ function Banner({
   children: React.ReactNode;
 }) {
   const cls = {
-    amber: "bg-amber-900/20 border-amber-700/40 text-amber-300",
-    red: "bg-red-900/20 border-red-700/40 text-red-300",
-    green: "bg-emerald-900/20 border-emerald-700/40 text-emerald-300",
+    amber: "bg-accent-warning/10 border-accent-warning/20 text-accent-warning",
+    red: "bg-accent-error/10 border-accent-error/20 text-accent-error",
+    green: "bg-accent-success/10 border-accent-success/20 text-accent-success",
     neutral: "bg-base border-default text-secondary",
   }[tone];
   return (

@@ -20,28 +20,28 @@ export function RunAllSummary({
     <div
       className={`mx-4 mb-3 rounded-lg border ${
         hasErrors
-          ? "border-red-500/30 bg-red-500/5"
-          : "border-green-500/30 bg-green-500/5"
+          ? "border-accent-error/30 bg-accent-error/5"
+          : "border-accent-success/30 bg-accent-success/5"
       }`}
     >
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-2 text-xs">
           {hasErrors ? (
-            <AlertTriangle size={14} className="text-red-400" />
+            <AlertTriangle size={14} className="text-accent-error" />
           ) : (
-            <CheckCircle2 size={14} className="text-green-400" />
+            <CheckCircle2 size={14} className="text-accent-success" />
           )}
-          <span className={hasErrors ? "text-red-400" : "text-green-400"}>
+          <span className={hasErrors ? "text-accent-error" : "text-accent-success"}>
             {t("editor.notebook.runAllComplete")}
           </span>
           <span className="text-muted">
             {result.succeeded > 0 && (
-              <span className="text-green-400">
+              <span className="text-accent-success">
                 {result.succeeded} {t("editor.notebook.succeeded")}
               </span>
             )}
             {result.failed > 0 && (
-              <span className="text-red-400">
+              <span className="text-accent-error">
                 {result.succeeded > 0 && ", "}
                 {result.failed} {t("editor.notebook.failed")}
               </span>
@@ -73,7 +73,7 @@ export function RunAllSummary({
               <button
                 type="button"
                 onClick={() => onScrollToCell?.(err.cellId)}
-                className="text-red-400 hover:text-red-300 underline whitespace-nowrap shrink-0"
+                className="text-accent-error underline whitespace-nowrap shrink-0"
               >
                 Cell #{err.cellIndex + 1}
               </button>

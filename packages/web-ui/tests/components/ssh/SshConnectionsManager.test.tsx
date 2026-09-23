@@ -111,6 +111,24 @@ describe("SshConnectionsManager", () => {
     ).toBeInTheDocument();
   });
 
+  it("themes create, edit, save, update, focus and checkboxes without changing delete semantics", async () => {
+    render(<SshConnectionsManager />);
+    await screen.findByText("Prod bastion");
+    const create = screen.getByRole("button", { name: "sshConnections.createNew" });
+    expect(create).toHaveClass("bg-accent-primary", "hover:bg-accent-primary/90", "text-inverse");
+    expect(screen.getByTitle("sshConnections.edit")).toHaveClass("text-accent", "hover:bg-accent-primary/10");
+    expect(screen.getByTitle("sshConnections.delete")).toHaveClass("text-accent-error");
+    fireEvent.click(create);
+    expect(screen.getByPlaceholderText("sshConnections.namePlaceholder")).toHaveClass("focus:border-focus");
+    expect(screen.getByRole("button", { name: "sshConnections.save" })).toHaveClass("bg-accent-primary", "text-inverse");
+    for (const checkbox of screen.getAllByRole("checkbox")) expect(checkbox).toHaveClass("accent-accent-primary");
+    fireEvent.click(screen.getByRole("button", { name: "sshConnections.cancel" }));
+    fireEvent.click(screen.getByTitle("sshConnections.edit"));
+    expect(screen.getByRole("button", { name: "sshConnections.update" })).toHaveClass("bg-accent-primary", "text-inverse");
+    expect(sshMocks.saveSshConnection).not.toHaveBeenCalled();
+    expect(sshMocks.updateSshConnection).not.toHaveBeenCalled();
+  });
+
   it("asks for confirmation before deleting and deletes on confirm", async () => {
     render(<SshConnectionsManager />);
     await screen.findByText("Prod bastion");

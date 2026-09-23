@@ -255,7 +255,7 @@ describe("MultiResultPanel", () => {
       />,
     );
     // Summary badge shows succeeded count with green color
-    const greenSpan = container.querySelector(".text-green-400");
+    const greenSpan = container.querySelector(".text-accent-success");
     expect(greenSpan).not.toBeNull();
     expect(greenSpan?.textContent).toContain("1");
   });

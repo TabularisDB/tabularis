@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS test_schema.all_types (
     col_interval    INTERVAL
 );
 
+COMMENT ON TABLE test_schema.all_types IS 'PostgreSQL metadata integration fixture';
+COMMENT ON COLUMN test_schema.all_types.col_text IS 'Free-form text used by metadata tests';
+
 -- Seed rows for query/extraction tests
 INSERT INTO test_schema.all_types (
     col_text, col_varchar, col_int, col_bigint, col_smallint,

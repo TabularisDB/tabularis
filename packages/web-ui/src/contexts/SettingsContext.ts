@@ -1,6 +1,10 @@
 import { createContext } from "react";
 import type { AppLanguage } from "../i18n/config";
 import { DEFAULT_MASKING_PATTERNS } from "../utils/columnMasking";
+import type {
+  GlobalProxySettings,
+  ProxyOverride,
+} from "../types/proxy";
 
 export type { AppLanguage };
 export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
@@ -12,11 +16,34 @@ export type AiProvider =
   | "custom-openai"
   | "minimax";
 export type ERDiagramLayout = "LR" | "TB";
+export type WindowDecorationsMode =
+  | "automatic"
+  | "alwaysShow"
+  | "alwaysHide";
 
 export interface PluginConfig {
   interpreter?: string;
   settings?: Record<string, unknown>;
 }
+
+/** One entry in the append-only driver-migration history. Kept even after an
+ * undo so a filed issue has the before/after to attach. */
+export interface DriverMigrationRecord {
+  /** Connection that was migrated. */
+  connectionId: string;
+  /** Driver id migrated from (e.g. the built-in "postgres"). */
+  fromDriver: string;
+  /** Driver id migrated to (e.g. the plugin "postgresql"). */
+  toDriver: string;
+  /** ISO-8601 timestamp of the migration. */
+  migratedAt: string;
+  /** Whether the post-migration "Switched — Undo" toast was dismissed. */
+  toastDismissed?: boolean;
+}
+
+/** Whether a built-in driver's migration is opt-in or forced. Flipping to
+ * "forced" is a separate, later decision; the default everywhere is "opt-in". */
+export type MigrationMode = "opt-in" | "forced";
 
 export interface Settings {
   resultPageSize: number; // Changed from queryLimit to match backend config
@@ -31,6 +58,8 @@ export interface Settings {
   resultTypeColors?: Record<string, string>;
   /** Keep the result grid's column headers pinned to the top while scrolling. Default: true. */
   stickyColumnHeaders?: boolean;
+  /** Font used for query result cells. A font name from AVAILABLE_FONTS, a custom family, or RESULT_FONT_INHERIT to follow the interface font. Default: "JetBrains Mono". */
+  resultFontFamily?: string;
   aiEnabled: boolean;
   aiProvider: AiProvider | null;
   aiModel: string | null;
@@ -39,6 +68,8 @@ export interface Settings {
   aiCustomOpenaiUrl?: string;
   aiCustomOpenaiModel?: string;
   autoCheckUpdatesOnStartup?: boolean;
+  /** Last plugin release shown in a startup notification, keyed by plugin id. */
+  notifiedPluginVersions?: Record<string, string>;
   releaseChannel?: "stable" | "nightly";
   loggingEnabled?: boolean;
   maxLogEntries?: number;
@@ -81,10 +112,13 @@ export interface Settings {
   autoConnectLastConnection?: boolean;
   /** Maximize the window on startup. Default: false. */
   startMaximized?: boolean;
+  /** Controls whether Tauri uses native window decorations. */
+  windowDecorations?: WindowDecorationsMode;
   // AI / MCP safety
   aiAuditEnabled?: boolean;
   aiAuditMaxEntries?: number;
   aiSessionGapMinutes?: number;
+  mcpOutputFormat?: "json" | "toon";
   mcpReadonlyDefault?: boolean;
   mcpReadonlyConnections?: string[];
   mcpApprovalMode?: "off" | "writes_only" | "all";
@@ -117,14 +151,53 @@ export interface Settings {
     string,
     { include?: string[]; exclude?: string[] }
   >;
+  // Built-in driver migration
+  /** Whether the user has dismissed the PostgreSQL-plugin migration banner.
+   * Absent/undefined → banner is eligible to show. Resurfaces automatically
+   * if a builtin-postgres connection appears that wasn't in
+   * `postgresPluginMigrationBannerDismissedFor` at dismissal time — the same
+   * "did-the-condition-change" gating `WhatsNewModal` uses for its own
+   * version comparison. */
+  postgresPluginMigrationBannerDismissed?: boolean;
+  /** Connection ids that existed (on the builtin driver) at the moment the
+   * banner was dismissed. A builtin connection id not in this list means the
+   * trigger condition changed since the dismissal, so the banner shows again. */
+  postgresPluginMigrationBannerDismissedFor?: string[];
+  /** Append-only record of every connection migrated between built-in and
+   * plugin drivers. Kept even after an undo. */
+  driverMigrationHistory?: DriverMigrationRecord[];
+  /** Map of pluginId → list of capability-gap feature names already reported,
+   * so the same user isn't prompted to re-report a gap already filed. */
+  knownCapabilityGaps?: Record<string, string[]>;
+  /** Per built-in driver id → migration mode. Defaults to "opt-in" when unset;
+   * flipping an entry to "forced" is a separate, later decision. */
+  migrationModeByDriver?: Record<string, MigrationMode>;
+  /** Global HTTP/SOCKS5 proxy and opt-in traffic scopes. */
+  proxy?: GlobalProxySettings;
+  /** Per AI-provider proxy overrides. */
+  aiProviderProxies?: Partial<Record<AiProvider, ProxyOverride>>;
 }
 
 export interface SettingsContextType {
   settings: Settings;
-  updateSetting: <K extends keyof Settings>(
-    key: K,
-    value: Settings[K],
-  ) => Promise<void>;
+  /** Overloaded: pass a plain value, or an updater that receives the
+   * *current* value at the moment the state update actually runs (React's
+   * functional-setState pattern) rather than whatever was in scope when
+   * `updateSetting` was called. Needed for any read-then-append onto a
+   * setting — e.g. a migration-history array — from inside an async loop
+   * that calls `updateSetting` more than once: a caller that captures
+   * `settings.foo` once, before the loop starts, and reuses that same
+   * snapshot on every iteration only ever appends onto that first snapshot,
+   * so every write but the last is silently overwritten by the one after it.
+   * No `Settings` field is itself function-typed, so the two signatures
+   * don't collide at any call site. */
+  updateSetting: {
+    <K extends keyof Settings>(key: K, value: Settings[K]): Promise<void>;
+    <K extends keyof Settings>(
+      key: K,
+      updater: (prev: Settings[K]) => Settings[K],
+    ): Promise<void>;
+  };
   isLoading: boolean;
   isLanguageReady: boolean;
   isLanguageSettled: boolean;
@@ -143,6 +216,7 @@ export const DEFAULT_SETTINGS: Settings = {
   resultColorByType: false,
   resultTypeColors: {},
   stickyColumnHeaders: true,
+  resultFontFamily: "JetBrains Mono",
   aiEnabled: false,
   aiProvider: null,
   aiModel: null,
@@ -176,9 +250,11 @@ export const DEFAULT_SETTINGS: Settings = {
   queryHistoryMaxEntries: 500,
   autoConnectLastConnection: true,
   startMaximized: false,
+  windowDecorations: "automatic",
   aiAuditEnabled: true,
   aiAuditMaxEntries: 5000,
   aiSessionGapMinutes: 10,
+  mcpOutputFormat: "json",
   mcpReadonlyDefault: false,
   mcpReadonlyConnections: [],
   mcpApprovalMode: "writes_only",

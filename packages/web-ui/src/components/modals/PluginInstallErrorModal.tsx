@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "../ui/Modal";
 import { X, AlertTriangle, Copy, Check, FolderOpen, RefreshCw, Loader2 } from "lucide-react";
+import { useCopyFeedback } from "../../hooks/useCopyFeedback";
 
 interface PluginInstallErrorModalProps {
   isOpen: boolean;
@@ -25,14 +26,10 @@ export const PluginInstallErrorModal = ({
   onReload,
 }: PluginInstallErrorModalProps) => {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyFeedback();
   const [reloading, setReloading] = useState(false);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(error);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const handleCopy = () => copy(error);
 
   const handleReload = async () => {
     if (!onReload) return;
@@ -52,8 +49,8 @@ export const PluginInstallErrorModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-900/30 rounded-lg">
-              <AlertTriangle size={20} className="text-red-400" />
+            <div className="p-2 bg-accent-error/15 rounded-lg">
+              <AlertTriangle size={20} className="text-accent-error" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
@@ -84,8 +81,8 @@ export const PluginInstallErrorModal = ({
               >
                 {copied ? (
                   <>
-                    <Check size={13} className="text-green-400" />
-                    <span className="text-green-400">{t("settings.plugins.installError.copied")}</span>
+                    <Check size={13} className="text-accent-success" />
+                    <span className="text-accent-success">{t("settings.plugins.installError.copied")}</span>
                   </>
                 ) : (
                   <>
@@ -95,7 +92,7 @@ export const PluginInstallErrorModal = ({
                 )}
               </button>
             </div>
-            <pre className="w-full px-3 py-3 bg-base border border-strong rounded-lg text-xs text-red-300 font-mono whitespace-pre-wrap break-all overflow-y-auto max-h-[240px]">
+            <pre className="w-full px-3 py-3 bg-base border border-strong rounded-lg text-xs text-accent-error font-mono whitespace-pre-wrap break-all overflow-y-auto max-h-[240px]">
               {error}
             </pre>
           </div>
@@ -131,7 +128,7 @@ export const PluginInstallErrorModal = ({
             )}
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors"
             >
               {t("common.close")}
             </button>

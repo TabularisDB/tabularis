@@ -8,6 +8,7 @@ export interface ConnectionStatus {
   host?: string;
   sshEnabled: boolean;
   k8sEnabled: boolean;
+  ssmEnabled: boolean;
   isOpen: boolean;
   isActive: boolean;
   isConnecting: boolean;
@@ -30,6 +31,7 @@ export function buildConnectionStatus(
     host: conn.params.host,
     sshEnabled: conn.params.ssh_enabled ?? false,
     k8sEnabled: conn.params.k8s_enabled ?? false,
+    ssmEnabled: conn.params.ssm_enabled ?? false,
     isOpen,
     isActive,
     isConnecting: data?.isConnecting ?? false,
@@ -54,14 +56,14 @@ export function getConnectionItemClass(isActive: boolean): string {
   // Active state is conveyed by the enlarged driver badge + rail indicator,
   // not by a button background
   return isActive
-    ? 'text-blue-400'
+    ? 'text-accent'
     : 'text-secondary hover:text-primary';
 }
 
 /** CSS class for the status dot inside the connection button */
 export function getStatusDotClass(isActive: boolean, hasError: boolean): string {
-  if (hasError) return 'bg-red-400';
-  return isActive ? 'bg-green-400' : 'bg-green-400/70';
+  if (hasError) return 'bg-accent-error';
+  return isActive ? 'bg-accent-success' : 'bg-accent-success/70';
 }
 
 /**

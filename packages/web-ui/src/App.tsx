@@ -1,22 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { MainLayout } from "./components/layout/MainLayout";
 import { ConnectionLayoutProvider } from "./contexts/ConnectionLayoutProvider";
 import { RightSidebarProvider } from "./contexts/RightSidebarProvider";
 import { KeybindingsProvider } from "./contexts/KeybindingsProvider";
 import { PluginSlotProvider } from "./contexts/PluginSlotProvider";
+import { PluginRuntimeWarningToasts } from "./components/plugins/PluginRuntimeWarningToasts";
 import { PluginModalProvider } from "./contexts/PluginModalProvider";
 import { AlertProvider } from "./contexts/AlertProvider";
 import { Connections } from "./pages/Connections";
-import { ConnectionEditorRoute } from "./pages/ConnectionEditorRoute";
-import { McpPage } from "./pages/McpPage";
-import { Settings } from "./pages/Settings";
-import { SchemaDiagramPage } from "./pages/SchemaDiagramPage";
-import { TaskManagerPage } from "./pages/TaskManagerPage";
-import { VisualExplainPage } from "./pages/VisualExplainPage";
-import { JsonViewerPage } from "./pages/JsonViewerPage";
-import { ResultsWindowPage } from "./pages/ResultsWindowPage";
-import { PluginInstallRoutePage } from "./pages/PluginInstallRoutePage";
+import { LoadingState } from "./components/ui/LoadingState";
 import { ConnectionHealthMonitor } from "./components/ConnectionHealthMonitor";
 import { UpdateNotificationModal } from "./components/modals/UpdateNotificationModal";
 import { CommunityModal } from "./components/modals/CommunityModal";
@@ -36,6 +29,17 @@ import { useTabularisClient } from "./hooks/useTabularisClient";
 import { BROWSER_ROUTES, WEB_UI_BASE_PATH } from "./routing";
 
 const WHATS_NEW_VERSION_KEY = "tabularis_last_seen_version";
+
+// The editor route owns the Editor import, so lazy-loading it keeps Editor in its own chunk.
+const ConnectionEditorRoute = lazy(() => import("./pages/ConnectionEditorRoute").then((m) => ({ default: m.ConnectionEditorRoute })));
+const McpPage = lazy(() => import("./pages/McpPage").then((m) => ({ default: m.McpPage })));
+const Settings = lazy(() => import("./pages/Settings").then((m) => ({ default: m.Settings })));
+const SchemaDiagramPage = lazy(() => import("./pages/SchemaDiagramPage").then((m) => ({ default: m.SchemaDiagramPage })));
+const TaskManagerPage = lazy(() => import("./pages/TaskManagerPage").then((m) => ({ default: m.TaskManagerPage })));
+const VisualExplainPage = lazy(() => import("./pages/VisualExplainPage").then((m) => ({ default: m.VisualExplainPage })));
+const JsonViewerPage = lazy(() => import("./pages/JsonViewerPage").then((m) => ({ default: m.JsonViewerPage })));
+const ResultsWindowPage = lazy(() => import("./pages/ResultsWindowPage").then((m) => ({ default: m.ResultsWindowPage })));
+const PluginInstallRoutePage = lazy(() => import("./pages/PluginInstallRoutePage").then((m) => ({ default: m.PluginInstallRoutePage })));
 
 export function App() {
   const client = useTabularisClient();
@@ -58,7 +62,7 @@ export function App() {
     () => lastSeenVersion !== null && isVersionNewer(APP_VERSION, lastSeenVersion),
   );
 
-  const { entries: allEntries, isLoading: isChangelogLoading } = useChangelog();
+  const { entries: allEntries, isLoading: isChangelogLoading } = useChangelog(isWhatsNewOpen);
 
   const whatsNewEntries = useMemo(() => {
     if (!lastSeenVersion) return [];
@@ -119,11 +123,13 @@ export function App() {
         <BrowserPlatformDialogs />
         <BrowserRouter basename={WEB_UI_BASE_PATH}>
           <ConnectionHealthMonitor />
+          <PluginRuntimeWarningToasts />
           <KeybindingsProvider>
             <PluginSlotProvider>
               <PluginModalProvider>
                 <ConnectionLayoutProvider>
                   <RightSidebarProvider>
+                  <Suspense fallback={<LoadingState />}>
                   <Routes>
                     <Route path={BROWSER_ROUTES.root} element={<MainLayout />}>
                       <Route
@@ -158,6 +164,7 @@ export function App() {
                       element={<PluginInstallRoutePage />}
                     />
                   </Routes>
+                  </Suspense>
                   </RightSidebarProvider>
                 </ConnectionLayoutProvider>
               </PluginModalProvider>

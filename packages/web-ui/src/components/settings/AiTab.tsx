@@ -21,6 +21,13 @@ import { getProviderLabel } from "../../utils/settingsUI";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { Select } from "../ui/Select";
 import { SettingSection, SettingRow, SettingToggle } from "./SettingControls";
+import { ProxyOverrideEditor } from "./ProxyFields";
+import {
+  defaultProxyOverride,
+  normalizeProxyOverride,
+  proxyKeychainAi,
+  type ProxyOverride,
+} from "../../types/proxy";
 import {
   OpenAIIcon,
   AnthropicIcon,
@@ -254,7 +261,7 @@ export function AiTab() {
                   className={clsx(
                     "relative flex items-center gap-2.5 px-4 py-3 rounded-lg text-sm font-medium transition-all border",
                     isSelected
-                      ? "bg-blue-600/10 border-blue-500 text-blue-400 ring-1 ring-blue-500/30"
+                      ? "bg-accent-primary/10 border-accent-primary text-accent ring-1 ring-accent-primary/30"
                       : "bg-base border-default text-secondary hover:border-strong hover:text-primary",
                   )}
                 >
@@ -265,7 +272,7 @@ export function AiTab() {
                       size={14}
                       className={clsx(
                         "shrink-0 ml-auto",
-                        isSelected ? "text-blue-400" : "text-green-400",
+                        isSelected ? "text-accent" : "text-accent-success",
                       )}
                     />
                   )}
@@ -284,13 +291,13 @@ export function AiTab() {
             <div className="flex items-center gap-2 py-3">
               {aiKeyStatus[settings.aiProvider]?.configured ? (
                 <>
-                  <span className="text-green-400 flex items-center gap-1 text-xs bg-green-900/10 px-2 py-0.5 rounded-full border border-green-900/20">
+                  <span className="text-accent-success flex items-center gap-1 text-xs bg-accent-success/5 px-2 py-0.5 rounded-full border border-accent-success/10">
                     <CheckCircle2 size={12} />{" "}
                     {t("settings.ai.configured")}
                   </span>
                   {aiKeyStatus[settings.aiProvider]?.fromEnv && (
                     <span
-                      className="text-blue-400 flex items-center gap-1 text-xs bg-blue-900/10 px-2 py-0.5 rounded-full border border-blue-900/20"
+                      className="text-accent flex items-center gap-1 text-xs bg-accent-primary/5 px-2 py-0.5 rounded-full border border-accent-primary/10"
                       title={t("settings.ai.fromEnvTooltip")}
                     >
                       <Code2 size={12} /> {t("settings.ai.fromEnv")}
@@ -321,7 +328,7 @@ export function AiTab() {
                     <div className="flex items-center gap-3 bg-base border border-default rounded-lg px-4 py-3">
                       <Lock
                         size={14}
-                        className="text-green-400 shrink-0"
+                        className="text-accent-success shrink-0"
                       />
                       <span className="flex-1 text-sm text-primary font-mono tracking-widest">
                         ••••••••••••••••
@@ -359,7 +366,7 @@ export function AiTab() {
                                   });
                                 }
                               }}
-                              className="px-3 py-1 text-xs font-medium text-secondary hover:text-red-400 bg-surface-secondary hover:bg-red-900/20 border border-strong hover:border-red-900/30 rounded-md transition-colors"
+                              className="px-3 py-1 text-xs font-medium text-secondary hover:text-accent-error bg-surface-secondary hover:bg-accent-error/10 border border-strong hover:border-accent-error/15 rounded-md transition-colors"
                               title={t("settings.ai.resetKey")}
                             >
                               {t("settings.ai.reset")}
@@ -369,7 +376,7 @@ export function AiTab() {
                       </div>
                     </div>
                     {aiKeyStatus[settings.aiProvider]?.fromEnv && (
-                      <p className="text-xs text-blue-400 flex items-center gap-1.5">
+                      <p className="text-xs text-accent flex items-center gap-1.5">
                         <Info size={12} />
                         {t("settings.ai.envVariableDetected")}
                       </p>
@@ -385,7 +392,7 @@ export function AiTab() {
                           placeholder={t("settings.ai.enterKey", {
                             provider: getProviderLabel(settings.aiProvider),
                           })}
-                          className="w-full bg-base border border-strong rounded-lg pl-3 pr-10 py-2 text-primary text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                          className="w-full bg-base border border-strong rounded-lg pl-3 pr-10 py-2 text-primary text-sm focus:outline-none focus:border-focus transition-colors"
                           onChange={(e) => setKeyInput(e.target.value)}
                           autoFocus={editingKey}
                         />
@@ -402,7 +409,7 @@ export function AiTab() {
                           handleSaveKey(settings.aiProvider!)
                         }
                         disabled={!keyInput.trim()}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-surface-secondary disabled:text-muted text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+                        className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:bg-surface-secondary disabled:text-muted text-inverse rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
                       >
                         {t("common.save")}
                       </button>
@@ -440,7 +447,7 @@ export function AiTab() {
                     updateSetting("aiCustomOpenaiUrl", e.target.value)
                   }
                   placeholder="https://api.example.com/v1"
-                  className="w-full bg-base border border-strong rounded-lg px-3 py-2 text-primary text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-base border border-strong rounded-lg px-3 py-2 text-primary text-sm focus:outline-none focus:border-focus transition-colors"
                 />
                 <p className="text-xs text-muted">
                   {t("settings.ai.endpointUrlDesc")}
@@ -459,8 +466,8 @@ export function AiTab() {
                       availableModels["ollama"] ||
                       []
                     ).length > 0
-                      ? "bg-green-900/10 border-green-900/20 text-green-400"
-                      : "bg-red-900/10 border-red-900/20 text-red-400",
+                      ? "bg-accent-success/5 border-accent-success/10 text-accent-success"
+                      : "bg-accent-error/5 border-accent-error/10 text-accent-error",
                   )}
                 >
                   {(
@@ -504,10 +511,48 @@ export function AiTab() {
                         parseInt(e.target.value) || 11434,
                       )
                     }
-                    className="w-24 bg-base border border-strong rounded-lg px-2 py-1.5 text-sm text-primary focus:outline-none focus:border-blue-500 transition-colors"
+                    className="w-24 bg-base border border-strong rounded-lg px-2 py-1.5 text-sm text-primary focus:outline-none focus:border-focus transition-colors"
                   />
                   <p className="text-xs text-muted">(Default: 11434)</p>
                 </div>
+              </div>
+            )}
+
+            {settings.aiProvider && (
+              <div className="border-t border-default pt-4 space-y-2">
+                <label className="block text-sm font-medium text-secondary">
+                  {t("settings.network.providerProxy")}
+                </label>
+                <p className="text-xs text-muted">
+                  {t("settings.network.providerProxyDesc")}
+                </p>
+                <ProxyOverrideEditor
+                  key={settings.aiProvider}
+                  value={
+                    settings.aiProviderProxies?.[settings.aiProvider] ??
+                    defaultProxyOverride("inherit")
+                  }
+                  onChange={(next) => {
+                    const provider = settings.aiProvider;
+                    if (!provider) return;
+                    const normalized = normalizeProxyOverride(next);
+                    const current = {
+                      ...(settings.aiProviderProxies ?? {}),
+                    } as Partial<Record<AiProvider, ProxyOverride>>;
+                    if (!normalized) {
+                      delete current[provider];
+                    } else {
+                      current[provider] = normalized;
+                    }
+                    void updateSetting(
+                      "aiProviderProxies",
+                      Object.keys(current).length > 0
+                        ? current
+                        : {},
+                    );
+                  }}
+                  passwordSlot={proxyKeychainAi(settings.aiProvider)}
+                />
               </div>
             )}
 
@@ -555,7 +600,7 @@ export function AiTab() {
                       </button>
                     </div>
                     {!isModelValid && settings.aiModel && (
-                      <div className="flex items-center gap-1.5 mt-2 text-xs text-red-400 bg-red-900/10 p-2 rounded-lg border border-red-900/20">
+                      <div className="flex items-center gap-1.5 mt-2 text-xs text-accent-error bg-accent-error/5 p-2 rounded-lg border border-accent-error/10">
                         <AlertTriangle
                           size={12}
                           className="shrink-0"
@@ -636,7 +681,7 @@ export function AiTab() {
                     <textarea autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
-                      className="w-full h-36 bg-base border border-strong rounded-lg p-3 text-primary text-sm font-mono focus:outline-none focus:border-blue-500 transition-colors resize-y"
+                      className="w-full h-36 bg-base border border-strong rounded-lg p-3 text-primary text-sm font-mono focus:outline-none focus:border-focus transition-colors resize-y"
                       placeholder={t(
                         `settings.ai.enter${type === "system" ? "System" : type === "explain" ? "Explain" : type === "cellname" ? "Cellname" : "Tabrename"}Prompt`,
                       )}
@@ -650,7 +695,7 @@ export function AiTab() {
                       </button>
                       <button
                         onClick={() => handleSavePrompt(type)}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+                        className="px-3 py-1.5 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors"
                       >
                         {t("settings.ai.savePrompt")}
                       </button>

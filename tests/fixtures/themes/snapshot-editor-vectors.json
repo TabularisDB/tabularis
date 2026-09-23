@@ -1,0 +1,18 @@
+[
+  {"name":"minimal","valid":true,"editor":{"base":"vs-dark","inherit":true}},
+  {"name":"nullable legacy fields","valid":true,"editor":{"base":"hc-black","inherit":false,"themeName":null,"rules":null,"colors":null}},
+  {"name":"empty reset and aliases","valid":true,"editor":{"base":"vs","inherit":true,"themeName":"","rules":[{"token":"string.sql","foreground":"","background":null,"fontStyle":"","font_style":null}]}},
+  {"name":"hex alpha","valid":true,"editor":{"base":"vs-dark","inherit":true,"rules":[{"token":"string.sql","foreground":"#1234","background":"12345678"}]}},
+  {"name":"opaque editor metadata","valid":true,"editor":{"base":"vs","inherit":true,"opaque":{"kept":true}}},
+  {"name":"missing base","valid":false,"editor":{"inherit":true}},
+  {"name":"missing inherit","valid":false,"editor":{"base":"vs-dark"}},
+  {"name":"wrong inherit type","valid":false,"editor":{"base":"vs-dark","inherit":"true"}},
+  {"name":"unsupported base","valid":false,"editor":{"base":"hc-light","inherit":true}},
+  {"name":"named asset","valid":false,"editor":{"base":"vs-dark","inherit":true,"themeName":"nord"}},
+  {"name":"malformed foreground","valid":false,"editor":{"base":"vs-dark","inherit":true,"rules":[{"token":"string.sql","foreground":"red"}]}},
+  {"name":"malformed background","valid":false,"editor":{"base":"vs-dark","inherit":true,"rules":[{"token":"string.sql","background":"12345"}]}},
+  {"name":"wrong token type","valid":false,"editor":{"base":"vs-dark","inherit":true,"rules":[{"token":3}]}},
+  {"name":"wrong color type","valid":false,"editor":{"base":"vs-dark","inherit":true,"colors":{"editor.background":false}}},
+  {"name":"wrong camel style type","valid":false,"editor":{"base":"vs-dark","inherit":true,"rules":[{"token":"string.sql","fontStyle":true}]}},
+  {"name":"wrong native style type","valid":false,"editor":{"base":"vs-dark","inherit":true,"rules":[{"token":"string.sql","font_style":true}]}}
+]

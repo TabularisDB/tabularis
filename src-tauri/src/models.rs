@@ -255,6 +255,18 @@ pub struct ConnectionParams {
     pub k8s_kubectl_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub k8s_kubeconfig_path: Option<String>,
+    // AWS SSM port forwarding (mutually exclusive with SSH and Kubernetes).
+    // Forwards to `host`:`port` the same way the SSH tunnel does; a loopback
+    // host means the managed node itself.
+    #[serde(default)]
+    pub ssm_enabled: Option<bool>,
+    /// Managed node the session is opened against, e.g. `i-0abc...`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssm_target: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssm_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssm_region: Option<String>,
     /// SQL run on every new physical connection in the pool (e.g. `SET` /
     /// `set_config` for session-scoped settings such as bypassing RLS).
     /// Statements are separated by `;`. Runs per pooled connection so the
@@ -270,6 +282,13 @@ pub struct ConnectionParams {
     /// Absent from the JSON when empty.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub extra: HashMap<String, String>,
+    /// Optional proxy override for this connection (database / SSH traffic).
+    /// Absent or `inherit` falls back to the global proxy scopes.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::proxy::types::skip_optional_proxy_override"
+    )]
+    pub proxy: Option<crate::proxy::ProxyOverride>,
     // Connection ID for stable pooling (not persisted, set at runtime)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
@@ -417,6 +436,8 @@ pub struct TestConnectionRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TableInfo {
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -432,6 +453,8 @@ pub struct TableColumn {
     pub default_value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub character_maximum_length: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -535,10 +558,9 @@ pub struct RawExplainOutput {
     pub original_query: String,
 }
 
-/// What `explain_query` hands to the frontend: a raw payload from a built-in
-/// driver, or a plan a plugin driver already parsed. Plugins know engines the
-/// core parsers do not, so their JSON-RPC `explain_query` result passes
-/// through untouched.
+/// What `explain_query` hands to the frontend: a raw payload for a registered
+/// parser, or a plan a plugin driver already parsed. Both plugin result shapes
+/// remain supported for backwards compatibility.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ExplainQueryOutput {

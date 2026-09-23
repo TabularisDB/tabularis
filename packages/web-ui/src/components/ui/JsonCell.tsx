@@ -14,10 +14,10 @@ interface JsonCellProps {
 }
 
 const TOKEN_CLASS: Record<JsonToken["type"], string> = {
-  key: "text-blue-300",
-  string: "text-emerald-300",
-  number: "text-amber-300",
-  boolean: "text-purple-300",
+  key: "text-accent",
+  string: "text-accent-success",
+  number: "text-accent-warning",
+  boolean: "text-accent-secondary",
   null: "text-muted italic",
   punct: "text-secondary",
   whitespace: "",

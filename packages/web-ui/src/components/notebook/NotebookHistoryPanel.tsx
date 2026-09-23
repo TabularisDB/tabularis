@@ -80,13 +80,13 @@ export function NotebookHistoryPanel({
                 }}
                 className={`w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors ${
                   isCurrent
-                    ? "bg-blue-500/10 text-primary cursor-default"
+                    ? "bg-accent-primary/10 text-primary cursor-default"
                     : "text-secondary hover:bg-surface-secondary hover:text-primary"
                 }`}
               >
                 <span className="w-4 shrink-0 text-center">
                   {isCurrent ? (
-                    <Check size={12} className="text-blue-400" />
+                    <Check size={12} className="text-accent" />
                   ) : (
                     <span className="text-[10px] text-muted">{index + 1}</span>
                   )}

@@ -213,7 +213,7 @@ export function NotebooksSection({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("sidebar.notebooks.search")}
-            className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-blue-500/50"
+            className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-focus/50"
           />
         </div>
         <button
@@ -270,17 +270,17 @@ export function NotebooksSection({
                   if (e.key === "Escape") setEditingId(null);
                 }}
                 placeholder={t("sidebar.notebooks.renamePlaceholder")}
-                className="w-full px-1.5 py-0.5 text-[13px] bg-base border border-blue-500/50 rounded text-primary focus:outline-none"
+                className="w-full px-1.5 py-0.5 text-[13px] bg-base border border-accent-primary/50 rounded text-primary focus:outline-none"
               />
             ) : (
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <BookOpen size={12} className="text-orange-400 shrink-0" />
+                  <BookOpen size={12} className="text-accent-warning shrink-0" />
                   <span className="text-[13px] font-medium text-primary truncate tracking-tight">
                     {nb.title}
                   </span>
                   {openNotebookIds.has(nb.id) && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent-success shrink-0" />
                   )}
                 </div>
                 {nb.updatedAt && (

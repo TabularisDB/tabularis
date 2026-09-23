@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { useEffect, useSyncExternalStore } from "react";
+import type { TabularisClient } from "../api/client";
+import { createAsyncResource } from "../utils/asyncResource";
 
 import type { InstalledPluginInfo, PluginManifest } from "../types/plugins";
 import { useSettings } from "./useSettings";
@@ -15,6 +18,15 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
     default_username: "postgres",
     color: "#3b82f6",
     icon: "postgres",
+    settings: [
+      {
+        key: "poolMaxSize",
+        label: "Pool Max Size",
+        type: "number",
+        default: 10,
+        description: "Maximum number of PostgreSQL connections kept in the pool.",
+      },
+    ],
     capabilities: {
       schemas: true,
       views: true,
@@ -122,6 +134,68 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
   },
 ];
 
+type DriverData = {
+  allDrivers: PluginManifest[];
+  installedPlugins: InstalledPluginInfo[];
+};
+
+function createDriverStore(client: TabularisClient) {
+  const resource = createAsyncResource<DriverData>(
+    { allDrivers: FALLBACK_DRIVERS, installedPlugins: [] },
+    async () => {
+      const [allDrivers, installedPlugins] = await Promise.all([
+        client.call("get_registered_drivers", undefined),
+        client.call("get_installed_plugins", undefined),
+      ]);
+      return { allDrivers, installedPlugins };
+    },
+  );
+
+  let subscribers = 0;
+  let stopListening: (() => void) | undefined;
+
+  const subscribe = (listener: () => void): (() => void) => {
+    const unsubscribe = resource.subscribe(listener);
+    if (++subscribers === 1) {
+      let disposed = false;
+      let unlisten: (() => void) | undefined;
+      void listen("tabularis://plugin-activated", () => {
+        void resource.refresh();
+      }).then((cleanup) => {
+        if (disposed) cleanup();
+        else unlisten = cleanup;
+      }).catch((error: unknown) => {
+        console.warn("Failed to subscribe to plugin activation:", error);
+      });
+      stopListening = () => {
+        disposed = true;
+        unlisten?.();
+      };
+    }
+    return () => {
+      unsubscribe();
+      if (--subscribers === 0) {
+        stopListening?.();
+        stopListening = undefined;
+      }
+    };
+  };
+
+  return { ...resource, subscribe };
+}
+
+// One shared store per client, so concurrent readers share requests and refreshes.
+const driverStores = new WeakMap<TabularisClient, ReturnType<typeof createDriverStore>>();
+
+function getDriverStore(client: TabularisClient) {
+  let store = driverStores.get(client);
+  if (!store) {
+    store = createDriverStore(client);
+    driverStores.set(client, store);
+  }
+  return store;
+}
+
 export function useDrivers(): {
   drivers: PluginManifest[];
   allDrivers: PluginManifest[];
@@ -130,43 +204,15 @@ export function useDrivers(): {
   error: string | null;
   refresh: () => void;
 } {
-  const [allDrivers, setAllDrivers] =
-    useState<PluginManifest[]>(FALLBACK_DRIVERS);
-  const [installedPlugins, setInstalledPlugins] = useState<InstalledPluginInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { settings } = useSettings();
   const client = useTabularisClient();
-
-  const load = useCallback(() => {
-    Promise.all([
-      client.call("get_registered_drivers", undefined),
-      client.call("get_installed_plugins", undefined),
-    ])
-      .then(([drivers, installed]) => {
-        setAllDrivers(drivers);
-        setInstalledPlugins(installed);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        setError(String(err));
-      })
-      .finally(() => setLoading(false));
-  }, [client]);
-
-  const refresh = useCallback(() => {
-    setLoading(true);
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const activeExt = settings.activeExternalDrivers || [];
-  const active = allDrivers.filter(
-    (d) => d.is_builtin === true || activeExt.includes(d.id),
+  const driverStore = getDriverStore(client);
+  const { data, loading, error } = useSyncExternalStore(driverStore.subscribe, driverStore.getSnapshot);
+  const { settings } = useSettings();
+  useEffect(() => { void driverStore.load(); }, [driverStore]);
+  const activeExt = settings.activeExternalDrivers;
+  // Match the backend: an absent preference enables installed external drivers.
+  const drivers = data.allDrivers.filter(
+    (driver) => driver.is_builtin === true || activeExt == null || activeExt.includes(driver.id),
   );
-
-  return { drivers: active, allDrivers, installedPlugins, loading, error, refresh };
+  return { ...data, drivers, loading, error, refresh: driverStore.refresh };
 }

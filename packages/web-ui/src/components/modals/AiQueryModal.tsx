@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useId } from "react";
 import { X, Sparkles, Loader2 } from "lucide-react";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { useDatabase } from "../../hooks/useDatabase";
@@ -34,6 +34,7 @@ export const AiQueryModal = ({
   const schemaKey = `${resolvedConnectionId ?? ""}:${resolvedSchema ?? ""}`;
   
   const [prompt, setPrompt] = useState("");
+  const promptId = useId();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [schemaLoad, setSchemaLoad] = useState<SchemaLoadState>({
@@ -138,7 +139,7 @@ export const AiQueryModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default">
           <div className="flex items-center gap-2 text-primary font-medium">
-            <Sparkles size={18} className="text-yellow-400" />
+            <Sparkles size={18} className="text-accent-warning" />
             <span>AI Query Assist</span>
           </div>
           <button onClick={onClose} className="text-secondary hover:text-primary transition-colors">
@@ -155,11 +156,11 @@ export const AiQueryModal = ({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-secondary mb-2">
+            <label htmlFor={promptId} className="block text-sm font-medium text-secondary mb-2">
               Describe your query in natural language
             </label>
             {/* Prose field: natural-language input, so spellcheck/autocorrect stay ON; only the WebKit autofill pill is disabled. */}
-            <textarea autoComplete="off" spellCheck={true}
+            <textarea id={promptId} autoComplete="off" spellCheck={true}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="e.g. Find all users who signed up last month and ordered a 'Premium' plan..."
@@ -198,7 +199,7 @@ export const AiQueryModal = ({
           <button
             onClick={handleGenerate}
             disabled={isLoading || !prompt.trim() || !settings.aiProvider}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-primary rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-inverse rounded-lg text-sm font-medium transition-colors"
           >
             {isLoading ? (
               <>

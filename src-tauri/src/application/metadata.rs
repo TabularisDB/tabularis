@@ -195,7 +195,7 @@ async fn driver_and_params(
 ) -> Result<(Arc<dyn DatabaseDriver>, ConnectionParams), String> {
     let runtime_for_resolution = runtime.clone();
     let connection_id_for_resolution = connection_id.to_string();
-    let (driver_id, params) = tokio::task::spawn_blocking(move || {
+    let (_driver_id, params) = tokio::task::spawn_blocking(move || {
         crate::application::connections::resolve_saved_connection_params(
             &runtime_for_resolution,
             session_id,
@@ -204,9 +204,7 @@ async fn driver_and_params(
     })
     .await
     .map_err(|error| error.to_string())??;
-    let driver = crate::drivers::registry::get_driver(&driver_id)
-        .await
-        .ok_or_else(|| format!("Driver not found: {driver_id}"))?;
+    let driver = crate::drivers::registry::get_connection_driver(&params).await?;
     Ok((driver, params))
 }
 

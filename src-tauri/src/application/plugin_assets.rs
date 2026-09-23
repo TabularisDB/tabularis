@@ -17,7 +17,7 @@ pub fn read_plugin_asset(
 ) -> Result<PluginAsset, String> {
     super::plugins::validate_plugin_id(plugin_id)?;
     let normalized_path = normalize_relative_path(asset_path)?;
-    let plugin_dir = plugins_dir.join(plugin_id);
+    let plugin_dir = crate::plugins::layout::resolve_driver(plugins_dir, plugin_id)?;
     let manifest: ConfigManifest = installer::read_manifest(&plugin_dir)
         .map_err(|error| format!("Failed to read manifest for '{plugin_id}': {error}"))?;
     let content_type = authorized_content_type(&manifest, &normalized_path)?;

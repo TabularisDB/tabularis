@@ -195,13 +195,13 @@ pub async fn delete_record(
         table
     );
     reject_server_file_refs(session_id, pk_map.values())?;
-    let (driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
+    let (_driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
         runtime,
         session_id,
         connection_id,
     )?;
     apply_database(&mut params.database, database);
-    driver_for(&driver_id)
+    driver_for(&params)
         .await?
         .delete_record(&params, &table, &pk_map, schema.as_deref())
         .await
@@ -233,13 +233,13 @@ pub async fn update_record(
         &mut new_val,
         max_blob_size,
     )?;
-    let (driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
+    let (_driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
         runtime,
         session_id,
         connection_id,
     )?;
     apply_database(&mut params.database, database);
-    let result = driver_for(&driver_id)
+    let result = driver_for(&params)
         .await?
         .update_record(
             &params,
@@ -279,13 +279,13 @@ pub async fn insert_record(
             uploads.push(upload);
         }
     }
-    let (driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
+    let (_driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
         runtime,
         session_id,
         connection_id,
     )?;
     apply_database(&mut params.database, database);
-    let result = driver_for(&driver_id)
+    let result = driver_for(&params)
         .await?
         .insert_record(&params, &table, data, schema.as_deref(), max_blob_size)
         .await;
@@ -306,13 +306,13 @@ pub async fn fetch_blob(
     policy: BlobFetchPolicy,
 ) -> Result<BlobFetchResponse, String> {
     reject_server_file_refs(session_id, pk_map.values())?;
-    let (driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
+    let (_driver_id, mut params) = crate::application::connections::resolve_saved_connection_params(
         runtime,
         session_id,
         connection_id,
     )?;
     apply_database(&mut params.database, database);
-    let wire_value = driver_for(&driver_id)
+    let wire_value = driver_for(&params)
         .await?
         .fetch_blob_as_data_url(&params, &table, &col_name, &pk_map, schema.as_deref())
         .await?;
@@ -407,10 +407,12 @@ pub fn detect_mime_type(header_base64: &str) -> Result<String, String> {
     Ok(detect_mime(&bytes).to_string())
 }
 
-async fn driver_for(driver_id: &str) -> Result<std::sync::Arc<dyn DatabaseDriver>, String> {
-    crate::drivers::registry::get_driver(driver_id)
-        .await
-        .ok_or_else(|| format!("Unsupported driver: {driver_id}"))
+/// Per-connection driver: plugins with connection metadata may specialise
+/// themselves for the resolved connection.
+async fn driver_for(
+    params: &crate::models::ConnectionParams,
+) -> Result<std::sync::Arc<dyn DatabaseDriver>, String> {
+    crate::drivers::registry::get_connection_driver(params).await
 }
 
 fn apply_database(selection: &mut DatabaseSelection, database: Option<String>) {

@@ -6,6 +6,7 @@ export interface TableColumn {
   is_auto_increment: boolean;
   is_generated?: boolean;
   character_maximum_length?: number;
+  comment?: string | null;
 }
 
 export interface ForeignKey {

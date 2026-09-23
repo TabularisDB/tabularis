@@ -1,0 +1,1127 @@
+[
+  {
+    "id": "tabularis-dark",
+    "name": "Tabularis Dark",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#020617",
+        "elevated": "#0f172a",
+        "overlay": "#1e293b",
+        "input": "#0f172a",
+        "tooltip": "#1e293b"
+      },
+      "surface": {
+        "primary": "#1e293b",
+        "secondary": "#334155",
+        "tertiary": "#475569",
+        "hover": "#334155",
+        "active": "#3b82f6",
+        "disabled": "#1e293b"
+      },
+      "text": {
+        "primary": "#f8fafc",
+        "secondary": "#abb7c7",
+        "muted": "#a2acbf",
+        "disabled": "#475569",
+        "accent": "#7dacf9",
+        "inverse": "#020617"
+      },
+      "accent": {
+        "primary": "#3b82f6",
+        "secondary": "#9063f6",
+        "success": "#22c55e",
+        "warning": "#f59e0b",
+        "error": "#ef4444",
+        "info": "#06b6d4"
+      },
+      "border": {
+        "subtle": "#1e293b",
+        "default": "#334155",
+        "strong": "#5b6b82",
+        "focus": "#3b82f6"
+      },
+      "semantic": {
+        "string": "#f87171",
+        "number": "#60a5fa",
+        "boolean": "#a78bfa",
+        "date": "#4ade80",
+        "null": "#718199",
+        "primaryKey": "#fbbf24",
+        "foreignKey": "#22d3ee",
+        "index": "#c084fc",
+        "connectionActive": "#22c55e",
+        "connectionInactive": "#64748b",
+        "modified": "#3b82f6",
+        "deleted": "#ef4444",
+        "new": "#22c55e"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif",
+        "mono": "JetBrains Mono, Fira Code, Monaco, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs-dark",
+      "inherit": true,
+      "themeName": "GitHub Dark"
+    }
+  },
+  {
+    "id": "tabularis-light",
+    "name": "Tabularis Light",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#ffffff",
+        "elevated": "#f8fafc",
+        "overlay": "#f1f5f9",
+        "input": "#ffffff",
+        "tooltip": "#f1f5f9"
+      },
+      "surface": {
+        "primary": "#f1f5f9",
+        "secondary": "#e2e8f0",
+        "tertiary": "#cbd5e1",
+        "hover": "#e2e8f0",
+        "active": "#3b82f6",
+        "disabled": "#f1f5f9"
+      },
+      "text": {
+        "primary": "#0f172a",
+        "secondary": "#475569",
+        "muted": "#5b697e",
+        "disabled": "#94a3b8",
+        "accent": "#0b5ee7",
+        "inverse": "#ffffff"
+      },
+      "accent": {
+        "primary": "#1e6ff5",
+        "secondary": "#8250f5",
+        "success": "#17843f",
+        "warning": "#a06707",
+        "error": "#e51414",
+        "info": "#047e92"
+      },
+      "border": {
+        "subtle": "#f1f5f9",
+        "default": "#e2e8f0",
+        "strong": "#cbd5e1",
+        "focus": "#3b82f6"
+      },
+      "semantic": {
+        "string": "#dc2626",
+        "number": "#2563eb",
+        "boolean": "#7c3aed",
+        "date": "#12853c",
+        "null": "#64748b",
+        "primaryKey": "#ae5f05",
+        "foreignKey": "#077d9a",
+        "index": "#9333ea",
+        "connectionActive": "#22c55e",
+        "connectionInactive": "#64748b",
+        "modified": "#186bf4",
+        "deleted": "#e51414",
+        "new": "#17843f"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif",
+        "mono": "JetBrains Mono, Fira Code, Monaco, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs",
+      "inherit": true,
+      "themeName": "GitHub Light"
+    }
+  },
+  {
+    "id": "monokai",
+    "name": "Monokai",
+    "author": "Wimer Hazenberg",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#272822",
+        "elevated": "#1e1f1c",
+        "overlay": "#3e3d32",
+        "input": "#272822",
+        "tooltip": "#3e3d32"
+      },
+      "surface": {
+        "primary": "#3e3d32",
+        "secondary": "#49483e",
+        "tertiary": "#575654",
+        "hover": "#49483e",
+        "active": "#66d9ef",
+        "disabled": "#3e3d32"
+      },
+      "text": {
+        "primary": "#f8f8f2",
+        "secondary": "#c5c2b1",
+        "muted": "#b8b6a9",
+        "disabled": "#49483e",
+        "accent": "#66d9ef",
+        "inverse": "#272822"
+      },
+      "accent": {
+        "primary": "#66d9ef",
+        "secondary": "#ae81ff",
+        "success": "#a6e22e",
+        "warning": "#e6db74",
+        "error": "#fa4989",
+        "info": "#66d9ef"
+      },
+      "border": {
+        "subtle": "#3e3d32",
+        "default": "#49483e",
+        "strong": "#575654",
+        "focus": "#66d9ef"
+      },
+      "semantic": {
+        "string": "#e6db74",
+        "number": "#ae81ff",
+        "boolean": "#ae81ff",
+        "date": "#a6e22e",
+        "null": "#928e78",
+        "primaryKey": "#fd971f",
+        "foreignKey": "#66d9ef",
+        "index": "#ae81ff",
+        "connectionActive": "#a6e22e",
+        "connectionInactive": "#75715e",
+        "modified": "#66d9ef",
+        "deleted": "#fa4989",
+        "new": "#a6e22e"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, sans-serif",
+        "mono": "Monaco, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs-dark",
+      "inherit": true,
+      "themeName": "Monokai"
+    }
+  },
+  {
+    "id": "one-dark-pro",
+    "name": "One Dark Pro",
+    "author": "BinaryFy",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#282c34",
+        "elevated": "#21252b",
+        "overlay": "#2c313a",
+        "input": "#1e2227",
+        "tooltip": "#21252b"
+      },
+      "surface": {
+        "primary": "#21252b",
+        "secondary": "#2c313a",
+        "tertiary": "#373d48",
+        "hover": "#2c313a",
+        "active": "#3e4451",
+        "disabled": "#21252b"
+      },
+      "text": {
+        "primary": "#b0b7c3",
+        "secondary": "#a3a8b2",
+        "muted": "#8f99a5",
+        "disabled": "#4b5263",
+        "accent": "#61afef",
+        "inverse": "#282c34"
+      },
+      "accent": {
+        "primary": "#61afef",
+        "secondary": "#c678dd",
+        "success": "#98c379",
+        "warning": "#e5c07b",
+        "error": "#e17079",
+        "info": "#56b6c2"
+      },
+      "border": {
+        "subtle": "#21252b",
+        "default": "#3e4451",
+        "strong": "#5c6370",
+        "focus": "#61afef"
+      },
+      "semantic": {
+        "string": "#e17079",
+        "number": "#d19a66",
+        "boolean": "#c678dd",
+        "date": "#98c379",
+        "null": "#8c93a0",
+        "primaryKey": "#e5c07b",
+        "foreignKey": "#56b6c2",
+        "index": "#c678dd",
+        "connectionActive": "#98c379",
+        "connectionInactive": "#5c6370",
+        "modified": "#61afef",
+        "deleted": "#e17079",
+        "new": "#98c379"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, sans-serif",
+        "mono": "Fira Code, Monaco, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs-dark",
+      "inherit": true,
+      "themeName": "One Dark Pro"
+    }
+  },
+  {
+    "id": "nord",
+    "name": "Nord",
+    "author": "Arctic Ice Studio",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#2e3440",
+        "elevated": "#3b4252",
+        "overlay": "#434c5e",
+        "input": "#2e3440",
+        "tooltip": "#434c5e"
+      },
+      "surface": {
+        "primary": "#3b4252",
+        "secondary": "#434c5e",
+        "tertiary": "#4c566a",
+        "hover": "#434c5e",
+        "active": "#5e81ac",
+        "disabled": "#3b4252"
+      },
+      "text": {
+        "primary": "#d8dee9",
+        "secondary": "#baccdd",
+        "muted": "#a6bed7",
+        "disabled": "#4c566a",
+        "accent": "#8fc4d3",
+        "inverse": "#2e3440"
+      },
+      "accent": {
+        "primary": "#88c0d0",
+        "secondary": "#c3a5be",
+        "success": "#a3be8c",
+        "warning": "#ebcb8b",
+        "error": "#d89fa4",
+        "info": "#96b1cc"
+      },
+      "border": {
+        "subtle": "#3b4252",
+        "default": "#434c5e",
+        "strong": "#4c566a",
+        "focus": "#88c0d0"
+      },
+      "semantic": {
+        "string": "#d89fa4",
+        "number": "#c3a5be",
+        "boolean": "#c3a5be",
+        "date": "#a3be8c",
+        "null": "#a6aebf",
+        "primaryKey": "#ebcb8b",
+        "foreignKey": "#88c0d0",
+        "index": "#c3a5be",
+        "connectionActive": "#a3be8c",
+        "connectionInactive": "#4c566a",
+        "modified": "#88c0d0",
+        "deleted": "#d89fa4",
+        "new": "#a3be8c"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, sans-serif",
+        "mono": "Fira Code, Monaco, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs-dark",
+      "inherit": true,
+      "themeName": "Nord"
+    }
+  },
+  {
+    "id": "dracula",
+    "name": "Dracula",
+    "author": "Zeno Rocha",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#282a36",
+        "elevated": "#44475a",
+        "overlay": "#535774",
+        "input": "#282a36",
+        "tooltip": "#44475a"
+      },
+      "surface": {
+        "primary": "#44475a",
+        "secondary": "#535774",
+        "tertiary": "#5d6180",
+        "hover": "#535774",
+        "active": "#bd93f9",
+        "disabled": "#44475a"
+      },
+      "text": {
+        "primary": "#f8f8f2",
+        "secondary": "#d3d9f0",
+        "muted": "#c8cfe1",
+        "disabled": "#6c7290",
+        "accent": "#dcc6fc",
+        "inverse": "#282a36"
+      },
+      "accent": {
+        "primary": "#bd93f9",
+        "secondary": "#ff93d1",
+        "success": "#50fa7b",
+        "warning": "#f1fa8c",
+        "error": "#ff9a9a",
+        "info": "#8be9fd"
+      },
+      "border": {
+        "subtle": "#44475a",
+        "default": "#6272a4",
+        "strong": "#6c7290",
+        "focus": "#bd93f9"
+      },
+      "semantic": {
+        "string": "#f1fa8c",
+        "number": "#caa8fa",
+        "boolean": "#ff93d1",
+        "date": "#50fa7b",
+        "null": "#aeb6d0",
+        "primaryKey": "#ffb86c",
+        "foreignKey": "#8be9fd",
+        "index": "#ff93d1",
+        "connectionActive": "#50fa7b",
+        "connectionInactive": "#6272a4",
+        "modified": "#caa8fa",
+        "deleted": "#ff9a9a",
+        "new": "#50fa7b"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, sans-serif",
+        "mono": "Fira Code, Monaco, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs-dark",
+      "inherit": true,
+      "themeName": "Dracula"
+    }
+  },
+  {
+    "id": "github-dark",
+    "name": "GitHub Dark",
+    "author": "GitHub",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#24292e",
+        "elevated": "#1f2428",
+        "overlay": "#2f363d",
+        "input": "#24292e",
+        "tooltip": "#1f2428"
+      },
+      "surface": {
+        "primary": "#1f2428",
+        "secondary": "#2f363d",
+        "tertiary": "#444d56",
+        "hover": "#2f363d",
+        "active": "#0366d6",
+        "disabled": "#1f2428"
+      },
+      "text": {
+        "primary": "#f6f8fa",
+        "secondary": "#a6adb3",
+        "muted": "#969ea6",
+        "disabled": "#444d56",
+        "accent": "#4ea0fd",
+        "inverse": "#24292e"
+      },
+      "accent": {
+        "primary": "#2f8ffc",
+        "secondary": "#b392f0",
+        "success": "#28a745",
+        "warning": "#fb8532",
+        "error": "#ed606e",
+        "info": "#79b8ff"
+      },
+      "border": {
+        "subtle": "#1f2428",
+        "default": "#444d56",
+        "strong": "#6a737d",
+        "focus": "#036de4"
+      },
+      "semantic": {
+        "string": "#79b8ff",
+        "number": "#c8e1ff",
+        "boolean": "#b392f0",
+        "date": "#7bcc72",
+        "null": "#879099",
+        "primaryKey": "#fb8532",
+        "foreignKey": "#79b8ff",
+        "index": "#b392f0",
+        "connectionActive": "#28a745",
+        "connectionInactive": "#6a737d",
+        "modified": "#2f8ffc",
+        "deleted": "#e16a75",
+        "new": "#28a745"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif",
+        "mono": "SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs-dark",
+      "inherit": true,
+      "themeName": "GitHub Dark"
+    }
+  },
+  {
+    "id": "solarized-dark",
+    "name": "Solarized Dark",
+    "author": "Ethan Schoonover",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#002b36",
+        "elevated": "#073642",
+        "overlay": "#0b4452",
+        "input": "#002b36",
+        "tooltip": "#073642"
+      },
+      "surface": {
+        "primary": "#073642",
+        "secondary": "#0b4452",
+        "tertiary": "#135262",
+        "hover": "#0b4452",
+        "active": "#268bd2",
+        "disabled": "#073642"
+      },
+      "text": {
+        "primary": "#d6dcdc",
+        "secondary": "#c6d3d6",
+        "muted": "#b0bfc2",
+        "disabled": "#657b83",
+        "accent": "#66b0e3",
+        "inverse": "#002b36"
+      },
+      "accent": {
+        "primary": "#2f93d9",
+        "secondary": "#8f93d2",
+        "success": "#8da200",
+        "warning": "#c09200",
+        "error": "#e87674",
+        "info": "#2ca9a0"
+      },
+      "border": {
+        "subtle": "#073642",
+        "default": "#586e75",
+        "strong": "#657b83",
+        "focus": "#268bd2"
+      },
+      "semantic": {
+        "string": "#c09200",
+        "number": "#2ca9a0",
+        "boolean": "#e175a9",
+        "date": "#8da200",
+        "null": "#859ca3",
+        "primaryKey": "#eb7849",
+        "foreignKey": "#479fde",
+        "index": "#e175a9",
+        "connectionActive": "#859900",
+        "connectionInactive": "#586e75",
+        "modified": "#479fde",
+        "deleted": "#e87674",
+        "new": "#8da200"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, sans-serif",
+        "mono": "Menlo, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs-dark",
+      "inherit": true,
+      "themeName": "Solarized-dark"
+    }
+  },
+  {
+    "id": "solarized-light",
+    "name": "Solarized Light",
+    "author": "Ethan Schoonover",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#fdf6e3",
+        "elevated": "#eee8d5",
+        "overlay": "#e3dcc6",
+        "input": "#fdf6e3",
+        "tooltip": "#eee8d5"
+      },
+      "surface": {
+        "primary": "#eee8d5",
+        "secondary": "#e3dcc6",
+        "tertiary": "#d8cfb3",
+        "hover": "#e3dcc6",
+        "active": "#268bd2",
+        "disabled": "#eee8d5"
+      },
+      "text": {
+        "primary": "#3a474b",
+        "secondary": "#3a5058",
+        "muted": "#485e65",
+        "disabled": "#839496",
+        "accent": "#1c6599",
+        "inverse": "#fdf6e3"
+      },
+      "accent": {
+        "primary": "#2076b3",
+        "secondary": "#5a5fbd",
+        "success": "#606f00",
+        "warning": "#836300",
+        "error": "#ca2522",
+        "info": "#1e736d"
+      },
+      "border": {
+        "subtle": "#eee8d5",
+        "default": "#93a1a1",
+        "strong": "#839496",
+        "focus": "#268bd2"
+      },
+      "semantic": {
+        "string": "#836300",
+        "number": "#1e736d",
+        "boolean": "#bf2a72",
+        "date": "#606f00",
+        "null": "#5d6b6b",
+        "primaryKey": "#b64314",
+        "foreignKey": "#1e6da5",
+        "index": "#bf2a72",
+        "connectionActive": "#859900",
+        "connectionInactive": "#93a1a1",
+        "modified": "#1e6da5",
+        "deleted": "#ca2522",
+        "new": "#606f00"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, sans-serif",
+        "mono": "Menlo, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs",
+      "inherit": true,
+      "themeName": "Solarized-light"
+    }
+  },
+  {
+    "id": "high-contrast",
+    "name": "High Contrast",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#000000",
+        "elevated": "#1a1a1a",
+        "overlay": "#2a2a2a",
+        "input": "#000000",
+        "tooltip": "#1a1a1a"
+      },
+      "surface": {
+        "primary": "#1a1a1a",
+        "secondary": "#2a2a2a",
+        "tertiary": "#3a3a3a",
+        "hover": "#2a2a2a",
+        "active": "#ffffff",
+        "disabled": "#1a1a1a"
+      },
+      "text": {
+        "primary": "#ffffff",
+        "secondary": "#e0e0e0",
+        "muted": "#a0a0a0",
+        "disabled": "#808080",
+        "accent": "#ffffff",
+        "inverse": "#000000"
+      },
+      "accent": {
+        "primary": "#ffffff",
+        "secondary": "#ffff00",
+        "success": "#00ff00",
+        "warning": "#ffff00",
+        "error": "#ff1c1c",
+        "info": "#00ffff"
+      },
+      "border": {
+        "subtle": "#1a1a1a",
+        "default": "#808080",
+        "strong": "#ffffff",
+        "focus": "#ffffff"
+      },
+      "semantic": {
+        "string": "#ffff00",
+        "number": "#00ffff",
+        "boolean": "#ff00ff",
+        "date": "#00ff00",
+        "null": "#828282",
+        "primaryKey": "#ff8000",
+        "foreignKey": "#00ffff",
+        "index": "#ff00ff",
+        "connectionActive": "#00ff00",
+        "connectionInactive": "#808080",
+        "modified": "#ffffff",
+        "deleted": "#ff1c1c",
+        "new": "#00ff00"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, sans-serif",
+        "mono": "Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0",
+        "base": "0",
+        "lg": "0",
+        "xl": "0"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "hc-black",
+      "inherit": true,
+      "themeName": "Night Owl"
+    }
+  },
+  {
+    "id": "gruvbox-material-dark",
+    "name": "Gruvbox Material Dark",
+    "author": "sainnhe",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#292828",
+        "elevated": "#32302f",
+        "overlay": "#3c3836",
+        "input": "#292828",
+        "tooltip": "#32302f"
+      },
+      "surface": {
+        "primary": "#32302f",
+        "secondary": "#3c3836",
+        "tertiary": "#45403d",
+        "hover": "#383432",
+        "active": "#504945",
+        "disabled": "#32302f"
+      },
+      "text": {
+        "primary": "#e2d3b9",
+        "secondary": "#ddc7a1",
+        "muted": "#aea08c",
+        "disabled": "#7c6f64",
+        "accent": "#7daea3",
+        "inverse": "#292828"
+      },
+      "accent": {
+        "primary": "#7daea3",
+        "secondary": "#a9b665",
+        "success": "#a9b665",
+        "warning": "#d8a657",
+        "error": "#eb736c",
+        "info": "#89b482"
+      },
+      "border": {
+        "subtle": "#3c3836",
+        "default": "#45403d",
+        "strong": "#5a524c",
+        "focus": "#7daea3"
+      },
+      "semantic": {
+        "string": "#d8a657",
+        "number": "#d3869b",
+        "boolean": "#d3869b",
+        "date": "#89b482",
+        "null": "#a2968c",
+        "primaryKey": "#e78a4e",
+        "foreignKey": "#7daea3",
+        "index": "#d3869b",
+        "connectionActive": "#a9b665",
+        "connectionInactive": "#7c6f64",
+        "modified": "#7daea3",
+        "deleted": "#eb736c",
+        "new": "#a9b665"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, sans-serif",
+        "mono": "Menlo, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs-dark",
+      "inherit": true,
+      "themeName": "Gruvbox Material Dark"
+    }
+  },
+  {
+    "id": "gruvbox-material-light",
+    "name": "Gruvbox Material Light",
+    "author": "sainnhe",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#fbf1c7",
+        "elevated": "#f2e5bc",
+        "overlay": "#ebdbb2",
+        "input": "#fbf1c7",
+        "tooltip": "#f2e5bc"
+      },
+      "surface": {
+        "primary": "#f2e5bc",
+        "secondary": "#ebdbb2",
+        "tertiary": "#e0cfa9",
+        "hover": "#eee0b7",
+        "active": "#d5c4a1",
+        "disabled": "#f2e5bc"
+      },
+      "text": {
+        "primary": "#463125",
+        "secondary": "#4f3829",
+        "muted": "#6a5f56",
+        "disabled": "#a89984",
+        "accent": "#5c6627",
+        "inverse": "#fbf1c7"
+      },
+      "accent": {
+        "primary": "#68732c",
+        "secondary": "#436d77",
+        "success": "#616c29",
+        "warning": "#915b07",
+        "error": "#b43e3e",
+        "info": "#436d77"
+      },
+      "border": {
+        "subtle": "#ebdbb2",
+        "default": "#e0cfa9",
+        "strong": "#c9b99a",
+        "focus": "#6c782e"
+      },
+      "semantic": {
+        "string": "#915b07",
+        "number": "#895777",
+        "boolean": "#895777",
+        "date": "#467055",
+        "null": "#736552",
+        "primaryKey": "#a34f08",
+        "foreignKey": "#436d77",
+        "index": "#895777",
+        "connectionActive": "#6c782e",
+        "connectionInactive": "#a89984",
+        "modified": "#436d77",
+        "deleted": "#b43e3e",
+        "new": "#616c29"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, sans-serif",
+        "mono": "Menlo, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs",
+      "inherit": true,
+      "themeName": "Gruvbox Material Light"
+    }
+  }
+]

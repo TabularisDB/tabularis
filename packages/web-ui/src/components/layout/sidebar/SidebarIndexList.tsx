@@ -32,7 +32,7 @@ export const SidebarIndexList = ({
         }}
         onContextMenu={onFolderContextMenu}
       >
-        <Folder size={12} className="text-green-400/70" />
+        <Folder size={12} className="text-accent-success/70" />
         <span>{t("sidebar.indexes")}</span>
         <span className="ml-auto text-[10px] opacity-50">{indexes.length}</span>
       </button>
@@ -47,7 +47,7 @@ export const SidebarIndexList = ({
                 onIndexContextMenu ? (e) => onIndexContextMenu(e, idx.name) : undefined
               }
             >
-              <List size={12} className={idx.is_unique ? "text-blue-400" : "text-green-400"} />
+              <List size={12} className={idx.is_unique ? "text-accent" : "text-accent-success"} />
               <span className="truncate flex-1">
                 {idx.name}{" "}
                 <span className="text-muted">({idx.columns.join(", ")})</span>

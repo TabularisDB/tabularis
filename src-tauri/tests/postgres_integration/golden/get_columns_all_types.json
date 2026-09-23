@@ -13,7 +13,8 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "comment": "Free-form text used by metadata tests"
   },
   {
     "name": "col_varchar",

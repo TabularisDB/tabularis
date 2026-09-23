@@ -392,6 +392,63 @@ describe('sqlGenerator utils', () => {
       expect(result).toContain('PRIMARY KEY ("id")');
     });
 
+    it('should preserve MySQL table and column comments', () => {
+      const commentedColumns: TableColumn[] = [
+        {
+          ...columns[1],
+          comment: "Customer's display name",
+        },
+      ];
+      const result = generateCreateTableSQL(
+        'users',
+        commentedColumns,
+        [],
+        [],
+        'mysql',
+        "Application's users",
+      );
+      expect(result).toContain("`name` VARCHAR(100) NOT NULL COMMENT 'Customer''s display name'");
+      expect(result).toContain(") COMMENT='Application''s users';");
+    });
+
+    it('should preserve PostgreSQL table and column comments', () => {
+      const commentedColumns: TableColumn[] = [
+        {
+          ...columns[1],
+          comment: "Customer's display name",
+        },
+      ];
+      const result = generateCreateTableSQL(
+        'users',
+        commentedColumns,
+        [],
+        [],
+        'postgresql',
+        "Application's users",
+      );
+      expect(result).toContain(
+        "COMMENT ON TABLE \"users\" IS 'Application''s users';",
+      );
+      expect(result).toContain(
+        "COMMENT ON COLUMN \"users\".\"name\" IS 'Customer''s display name';",
+      );
+    });
+
+    it('should not emit unsupported comment syntax for SQLite', () => {
+      const commentedColumns: TableColumn[] = [
+        { ...columns[1], comment: 'Display name' },
+      ];
+      const result = generateCreateTableSQL(
+        'users',
+        commentedColumns,
+        [],
+        [],
+        'sqlite',
+        'Application users',
+      );
+      expect(result).not.toContain('COMMENT');
+    });
+
     it('should generate complete SQL for SQLite', () => {
       const result = generateCreateTableSQL('users', columns, [], [], 'sqlite');
       expect(result).toContain('CREATE TABLE "users" (');

@@ -1,6 +1,6 @@
 {
   "name": "@tabularis/explain",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Parse, analyse and visualise a database EXPLAIN plan. Takes raw EXPLAIN output; never runs a query.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/TabularisDB/tabularis/tree/main/packages/explain",
@@ -37,6 +37,7 @@
     "build": "tsup",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "prepublishOnly": "pnpm run clean && pnpm run build"
   },
   "publishConfig": {
@@ -84,6 +85,7 @@
     "react": "^19.2.4",
     "react-i18next": "^16.6.6",
     "tsup": "^8.3.5",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.2"
   }
 }

@@ -142,7 +142,7 @@ export const OpenConnectionItem = ({
       <div className="relative group w-full flex flex-col items-center mb-1">
         {/* Drop indicator - above */}
         {dropIndicator === 'above' && (
-          <div className="absolute -top-0.5 left-2 right-2 h-0.5 bg-blue-400 rounded-full z-30" />
+          <div className="absolute -top-0.5 left-2 right-2 h-0.5 bg-accent-primary rounded-full z-30" />
         )}
 
         <RailIndicator isActive={isCurrentView} />
@@ -153,12 +153,12 @@ export const OpenConnectionItem = ({
           onContextMenu={handleContextMenu}
           className={`flex items-center justify-center w-12 h-12 rounded-lg transition-all relative ${
             isSelected
-              ? 'ring-2 ring-blue-400 bg-blue-500/20 text-blue-400'
+              ? 'ring-2 ring-accent-primary bg-accent-primary/20 text-accent'
               : getConnectionItemClass(isActive)
           }`}
         >
           {isConnecting ? (
-            <Loader2 size={20} className="animate-spin text-blue-400" />
+            <Loader2 size={20} className="animate-spin text-accent" />
           ) : (
             <div
               className="w-11 h-11 rounded-lg flex items-center justify-center text-white shadow-md"
@@ -177,26 +177,36 @@ export const OpenConnectionItem = ({
 
           {/* Production ring: unmistakable red outline around the icon */}
           {savedConnection?.environment === "production" && (
-            <div className="absolute inset-0.5 rounded-lg ring-2 ring-red-500/70 pointer-events-none" />
+            <div className="absolute inset-0.5 rounded-lg ring-2 ring-accent-error/70 pointer-events-none" />
           )}
 
           {/* SSH badge */}
-          {sshEnabled && !showShortcutHint && !connection.k8sEnabled && (
+          {sshEnabled &&
+            !showShortcutHint &&
+            !connection.k8sEnabled &&
+            !connection.ssmEnabled && (
             <div className="absolute top-1 right-1">
-              <Shield size={9} className="text-emerald-400 fill-emerald-400/20" />
+              <Shield size={9} className="text-accent-success fill-accent-success/20" />
             </div>
           )}
 
           {/* K8s badge */}
           {connection.k8sEnabled && !showShortcutHint && (
             <div className="absolute top-1 right-1">
-              <Shield size={9} className="text-blue-400 fill-blue-400/20" />
+              <Shield size={9} className="text-accent fill-accent-primary/20" />
+            </div>
+          )}
+
+          {/* AWS SSM badge */}
+          {connection.ssmEnabled && !connection.k8sEnabled && !showShortcutHint && (
+            <div className="absolute top-1 right-1">
+              <Shield size={9} className="text-accent-warning fill-accent-warning/20" />
             </div>
           )}
 
           {/* Shortcut hint badge */}
           {showShortcutHint && shortcutIndex !== undefined && (
-            <div className="absolute -top-1 -left-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-white text-[9px] font-bold z-20 shadow-sm">
+            <div className="absolute -top-1 -left-1 w-4 h-4 bg-accent-primary rounded-full flex items-center justify-center text-inverse text-[9px] font-bold z-20 shadow-sm">
               {shortcutIndex}
             </div>
           )}
@@ -204,13 +214,13 @@ export const OpenConnectionItem = ({
           {/* Error indicator */}
           {hasError && !isConnecting && (
             <div className="absolute -top-0.5 -left-0.5">
-              <AlertCircle size={12} className="text-red-400" />
+              <AlertCircle size={12} className="text-accent-error" />
             </div>
           )}
 
           {/* Selection indicator */}
           {isSelected && (
-            <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
+            <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-accent-primary rounded-full flex items-center justify-center">
               <Check size={8} className="text-white" />
             </div>
           )}
@@ -222,7 +232,7 @@ export const OpenConnectionItem = ({
             e.stopPropagation();
             onDisconnect();
           }}
-          className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-elevated border border-default rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-900/50 hover:text-red-400 text-muted z-10"
+          className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-elevated border border-default rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent-error/20 hover:text-accent-error text-muted z-10"
           title={t("connections.disconnect")}
         >
           <X size={8} />
@@ -233,14 +243,14 @@ export const OpenConnectionItem = ({
           <div className="font-medium">{name}</div>
           <div className="text-muted text-[10px]">{database}</div>
           {isSelected && (
-            <div className="text-blue-400 text-[10px] mt-0.5">Selected (Ctrl+click to deselect)</div>
+            <div className="text-accent text-[10px] mt-0.5">Selected (Ctrl+click to deselect)</div>
           )}
-          {hasError && <div className="text-red-400 text-[10px] mt-0.5 max-w-[180px] truncate">{error}</div>}
+          {hasError && <div className="text-accent-error text-[10px] mt-0.5 max-w-[180px] truncate">{error}</div>}
         </div>
 
         {/* Drop indicator - below */}
         {dropIndicator === 'below' && (
-          <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 bg-blue-400 rounded-full z-30" />
+          <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 bg-accent-primary rounded-full z-30" />
         )}
       </div>
 

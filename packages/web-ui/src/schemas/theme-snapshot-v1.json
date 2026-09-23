@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tabularis.dev/schemas/theme-snapshot-v1.json",
+  "title": "Portable independent legacy theme snapshot",
+  "description": "A standalone JSON container, not a package definition. Historical JSON exports remain unchanged. The source string is independently legacy-validated (4 MiB, 128 levels); the entire container is bounded to 8 MiB and 262144 nodes. Editor metadata has legacy visual-data semantics, never provenance or executable authority. Older clients reject this container rather than applying the old generated-editor algorithm to an exact snapshot.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["themeSnapshotVersion", "source", "editor"],
+  "properties": {
+    "themeSnapshotVersion": { "const": 1 },
+    "source": { "type": "string", "maxLength": 4194304 },
+    "editor": {
+      "type": "object",
+      "required": ["base", "inherit"],
+      "properties": {
+        "base": { "enum": ["vs", "vs-dark", "hc-black"] },
+        "inherit": { "type": "boolean" },
+        "themeName": { "enum": [null, ""] },
+        "colors": { "type": ["object", "null"], "additionalProperties": { "type": "string" } },
+        "rules": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object", "required": ["token"],
+            "properties": {
+              "token": { "type": "string" },
+              "foreground": { "type": ["string", "null"], "pattern": "^$|^#?(?:[a-fA-F0-9]{3}|[a-fA-F0-9]{4}|[a-fA-F0-9]{6}|[a-fA-F0-9]{8})$" },
+              "background": { "type": ["string", "null"], "pattern": "^$|^#?(?:[a-fA-F0-9]{3}|[a-fA-F0-9]{4}|[a-fA-F0-9]{6}|[a-fA-F0-9]{8})$" },
+              "fontStyle": { "type": ["string", "null"] },
+              "font_style": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

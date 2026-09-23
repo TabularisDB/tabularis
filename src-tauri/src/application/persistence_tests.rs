@@ -22,8 +22,8 @@ fn editor_preferences(title: &str) -> EditorPreferences {
     }
 }
 
-fn custom_theme(id: &str) -> Theme {
-    serde_json::from_value(serde_json::json!({
+fn custom_theme(id: &str) -> Value {
+    serde_json::json!({
         "id": id,
         "name": "Custom",
         "isPreset": false,
@@ -45,8 +45,7 @@ fn custom_theme(id: &str) -> Theme {
             "spacing": {"xs": "2px", "sm": "4px", "base": "8px", "lg": "12px", "xl": "16px"}
         },
         "monacoTheme": {"base": "vs-dark", "inherit": true}
-    }))
-    .unwrap()
+    })
 }
 
 #[tokio::test]
@@ -274,11 +273,12 @@ fn persists_and_deletes_custom_themes_in_the_shared_config_directory() {
     let runtime = runtime(temp.path());
     let theme = custom_theme("custom-test");
 
-    save_custom_theme(&runtime, &theme).unwrap();
-    assert_eq!(get_all_themes(&runtime).len(), 1);
-    assert_eq!(get_all_themes(&runtime)[0].id, "custom-test");
+    save_custom_theme(&runtime, theme).unwrap();
+    let themes = get_all_themes(&runtime).unwrap();
+    assert_eq!(themes.len(), 1);
+    assert_eq!(themes[0]["id"], "custom-test");
     delete_custom_theme(&runtime, "custom-test").unwrap();
-    assert!(get_all_themes(&runtime).is_empty());
+    assert!(get_all_themes(&runtime).unwrap().is_empty());
 }
 
 #[test]

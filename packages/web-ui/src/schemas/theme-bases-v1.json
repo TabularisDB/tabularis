@@ -1,0 +1,281 @@
+{
+  "dark": {
+    "id": "tabularis-dark",
+    "name": "Tabularis Dark",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#020617",
+        "elevated": "#0f172a",
+        "overlay": "#1e293b",
+        "input": "#0f172a",
+        "tooltip": "#1e293b"
+      },
+      "surface": {
+        "primary": "#1e293b",
+        "secondary": "#334155",
+        "tertiary": "#475569",
+        "hover": "#334155",
+        "active": "#3b82f6",
+        "disabled": "#1e293b"
+      },
+      "text": {
+        "primary": "#f8fafc",
+        "secondary": "#94a3b8",
+        "muted": "#7583a0",
+        "disabled": "#475569",
+        "accent": "#3b82f6",
+        "inverse": "#020617"
+      },
+      "accent": {
+        "primary": "#3b82f6",
+        "secondary": "#8b5cf6",
+        "success": "#22c55e",
+        "warning": "#f59e0b",
+        "error": "#ef4444",
+        "info": "#06b6d4"
+      },
+      "border": {
+        "subtle": "#1e293b",
+        "default": "#334155",
+        "strong": "#5b6b82",
+        "focus": "#3b82f6"
+      },
+      "semantic": {
+        "string": "#f87171",
+        "number": "#60a5fa",
+        "boolean": "#a78bfa",
+        "date": "#4ade80",
+        "null": "#64748b",
+        "primaryKey": "#fbbf24",
+        "foreignKey": "#22d3ee",
+        "index": "#c084fc",
+        "connectionActive": "#22c55e",
+        "connectionInactive": "#64748b",
+        "modified": "#3b82f6",
+        "deleted": "#ef4444",
+        "new": "#22c55e"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif",
+        "mono": "JetBrains Mono, Fira Code, Monaco, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs-dark",
+      "inherit": true,
+      "themeName": "GitHub Dark"
+    }
+  },
+  "light": {
+    "id": "tabularis-light",
+    "name": "Tabularis Light",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#ffffff",
+        "elevated": "#f8fafc",
+        "overlay": "#f1f5f9",
+        "input": "#ffffff",
+        "tooltip": "#f1f5f9"
+      },
+      "surface": {
+        "primary": "#f1f5f9",
+        "secondary": "#e2e8f0",
+        "tertiary": "#cbd5e1",
+        "hover": "#e2e8f0",
+        "active": "#3b82f6",
+        "disabled": "#f1f5f9"
+      },
+      "text": {
+        "primary": "#0f172a",
+        "secondary": "#475569",
+        "muted": "#64748b",
+        "disabled": "#94a3b8",
+        "accent": "#3b82f6",
+        "inverse": "#ffffff"
+      },
+      "accent": {
+        "primary": "#3b82f6",
+        "secondary": "#8b5cf6",
+        "success": "#22c55e",
+        "warning": "#f59e0b",
+        "error": "#ef4444",
+        "info": "#06b6d4"
+      },
+      "border": {
+        "subtle": "#f1f5f9",
+        "default": "#e2e8f0",
+        "strong": "#cbd5e1",
+        "focus": "#3b82f6"
+      },
+      "semantic": {
+        "string": "#dc2626",
+        "number": "#2563eb",
+        "boolean": "#7c3aed",
+        "date": "#16a34a",
+        "null": "#64748b",
+        "primaryKey": "#d97706",
+        "foreignKey": "#0891b2",
+        "index": "#9333ea",
+        "connectionActive": "#22c55e",
+        "connectionInactive": "#64748b",
+        "modified": "#3b82f6",
+        "deleted": "#ef4444",
+        "new": "#22c55e"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif",
+        "mono": "JetBrains Mono, Fira Code, Monaco, Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0.25rem",
+        "base": "0.5rem",
+        "lg": "0.75rem",
+        "xl": "1rem"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "vs",
+      "inherit": true,
+      "themeName": "GitHub Light"
+    }
+  },
+  "high-contrast": {
+    "id": "high-contrast",
+    "name": "High Contrast",
+    "isPreset": true,
+    "isReadOnly": true,
+    "colors": {
+      "bg": {
+        "base": "#000000",
+        "elevated": "#1a1a1a",
+        "overlay": "#2a2a2a",
+        "input": "#000000",
+        "tooltip": "#1a1a1a"
+      },
+      "surface": {
+        "primary": "#1a1a1a",
+        "secondary": "#2a2a2a",
+        "tertiary": "#3a3a3a",
+        "hover": "#2a2a2a",
+        "active": "#ffffff",
+        "disabled": "#1a1a1a"
+      },
+      "text": {
+        "primary": "#ffffff",
+        "secondary": "#e0e0e0",
+        "muted": "#a0a0a0",
+        "disabled": "#808080",
+        "accent": "#ffffff",
+        "inverse": "#000000"
+      },
+      "accent": {
+        "primary": "#ffffff",
+        "secondary": "#ffff00",
+        "success": "#00ff00",
+        "warning": "#ffff00",
+        "error": "#ff0000",
+        "info": "#00ffff"
+      },
+      "border": {
+        "subtle": "#1a1a1a",
+        "default": "#808080",
+        "strong": "#ffffff",
+        "focus": "#ffffff"
+      },
+      "semantic": {
+        "string": "#ffff00",
+        "number": "#00ffff",
+        "boolean": "#ff00ff",
+        "date": "#00ff00",
+        "null": "#808080",
+        "primaryKey": "#ff8000",
+        "foreignKey": "#00ffff",
+        "index": "#ff00ff",
+        "connectionActive": "#00ff00",
+        "connectionInactive": "#808080",
+        "modified": "#ffffff",
+        "deleted": "#ff0000",
+        "new": "#00ff00"
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "base": "Inter, system-ui, sans-serif",
+        "mono": "Consolas, monospace"
+      },
+      "fontSize": {
+        "xs": "0.75rem",
+        "sm": "0.875rem",
+        "base": "1rem",
+        "lg": "1.125rem",
+        "xl": "1.25rem"
+      }
+    },
+    "layout": {
+      "borderRadius": {
+        "sm": "0",
+        "base": "0",
+        "lg": "0",
+        "xl": "0"
+      },
+      "spacing": {
+        "xs": "0.25rem",
+        "sm": "0.5rem",
+        "base": "1rem",
+        "lg": "1.5rem",
+        "xl": "2rem"
+      }
+    },
+    "monacoTheme": {
+      "base": "hc-black",
+      "inherit": true,
+      "themeName": "Night Owl"
+    }
+  }
+}

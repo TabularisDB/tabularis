@@ -88,7 +88,18 @@ pub async fn get_tables(params: &ConnectionParams, schema: &str) -> Result<Vec<T
     let pool = get_postgres_pool(params).await?;
     let rows = query_all(
         &pool,
-        "SELECT table_name::text as name FROM information_schema.tables WHERE table_schema = $1 AND table_type = 'BASE TABLE' ORDER BY table_name ASC",
+        r#"
+        SELECT t.table_name::text AS name, d.description::text AS comment
+        FROM information_schema.tables t
+        JOIN pg_namespace n ON n.nspname = t.table_schema
+        JOIN pg_class c ON c.relnamespace = n.oid AND c.relname = t.table_name
+        LEFT JOIN pg_description d
+            ON d.objoid = c.oid
+            AND d.classoid = 'pg_class'::regclass
+            AND d.objsubid = 0
+        WHERE t.table_schema = $1 AND t.table_type = 'BASE TABLE'
+        ORDER BY t.table_name ASC
+        "#,
         &[&schema],
     )
     .await?;
@@ -96,6 +107,7 @@ pub async fn get_tables(params: &ConnectionParams, schema: &str) -> Result<Vec<T
         .iter()
         .map(|r| TableInfo {
             name: r.try_get("name").unwrap_or_default(),
+            comment: r.try_get("comment").ok(),
         })
         .collect();
     log::debug!(
@@ -129,6 +141,7 @@ pub async fn get_columns(
             c.column_default::text,
             c.is_identity::text,
             c.character_maximum_length,
+            d.description::text AS comment,
             (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
              FROM pg_enum e
              JOIN pg_type t ON t.oid = e.enumtypid
@@ -136,6 +149,13 @@ pub async fn get_columns(
              WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
             {}
         FROM information_schema.columns c
+        JOIN pg_namespace n ON n.nspname = c.table_schema
+        JOIN pg_class pc ON pc.relnamespace = n.oid AND pc.relname = c.table_name
+        JOIN pg_attribute a ON a.attrelid = pc.oid AND a.attname = c.column_name
+        LEFT JOIN pg_description d
+            ON d.objoid = pc.oid
+            AND d.classoid = 'pg_class'::regclass
+            AND d.objsubid = a.attnum
         WHERE c.table_schema = $1 AND c.table_name = $2
         ORDER BY c.ordinal_position
     "#,
@@ -185,6 +205,7 @@ pub async fn get_columns(
                 is_generated: false,
                 default_value,
                 character_maximum_length,
+                comment: r.try_get("comment").ok(),
             }
         })
         .collect())
@@ -277,6 +298,7 @@ pub async fn get_all_columns_batch(
             c.column_default,
             c.is_identity,
             c.character_maximum_length,
+            d.description::text AS comment,
             (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
              FROM pg_enum e
              JOIN pg_type t ON t.oid = e.enumtypid
@@ -284,6 +306,13 @@ pub async fn get_all_columns_batch(
              WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
             {}
         FROM information_schema.columns c
+        JOIN pg_namespace n ON n.nspname = c.table_schema
+        JOIN pg_class pc ON pc.relnamespace = n.oid AND pc.relname = c.table_name
+        JOIN pg_attribute a ON a.attrelid = pc.oid AND a.attname = c.column_name
+        LEFT JOIN pg_description d
+            ON d.objoid = pc.oid
+            AND d.classoid = 'pg_class'::regclass
+            AND d.objsubid = a.attnum
         WHERE c.table_schema = $1
         ORDER BY c.table_name, c.ordinal_position
     "#,
@@ -331,6 +360,7 @@ pub async fn get_all_columns_batch(
             is_generated: false,
             default_value,
             character_maximum_length,
+            comment: row.try_get("comment").ok(),
         };
 
         result
@@ -1330,6 +1360,7 @@ pub async fn get_view_columns(
                 is_generated: false,
                 default_value,
                 character_maximum_length,
+                comment: None,
             }
         })
         .collect())
@@ -1396,6 +1427,7 @@ pub async fn get_materialized_view_columns(
             is_generated: false,
             default_value: None,
             character_maximum_length: None,
+            comment: None,
         })
         .collect())
 }
@@ -1739,7 +1771,10 @@ pub async fn drop_trigger(
 // Plugin wrapper
 // ============================================================
 
-use crate::drivers::driver_trait::{DatabaseDriver, DriverCapabilities, PluginManifest, SqlDialect};
+use crate::drivers::driver_trait::{
+    deprecation_for_builtin, DatabaseDriver, DriverCapabilities, PluginManifest,
+    PluginSettingDefinition, SqlDialect,
+};
 use async_trait::async_trait;
 use std::collections::HashMap;
 
@@ -1791,9 +1826,24 @@ impl PostgresDriver {
                 default_username: "postgres".to_string(),
                 color: "#3b82f6".to_string(),
                 icon: "postgres".to_string(),
-                settings: vec![],
+                settings: vec![PluginSettingDefinition {
+                    key: "poolMaxSize".to_string(),
+                    label: "Pool Max Size".to_string(),
+                    setting_type: "number".to_string(),
+                    default: Some(serde_json::json!(crate::pool_manager::DEFAULT_POSTGRES_POOL_MAX_SIZE)),
+                    description: Some(
+                        "Maximum number of PostgreSQL connections kept in the pool.".to_string(),
+                    ),
+                    required: false,
+                    options: vec![],
+                }],
                 ui_extensions: None,
+                explain_parsers: None,
                 type_mappings: std::collections::HashMap::new(),
+                // The built-in postgres driver is deprecated in favour of the
+                // standalone `postgresql` plugin; the decision lives in the
+                // single `deprecation_for_builtin` table.
+                deprecated: deprecation_for_builtin("postgres"),
             },
         }
     }
@@ -1858,6 +1908,28 @@ impl DatabaseDriver for PostgresDriver {
             .get()
             .await
             .map_err(|e| crate::pool_manager::format_error_chain(&e))?;
+        client
+            .simple_query("SELECT 1")
+            .await
+            .map_err(|e| crate::pool_manager::format_error_chain(&e))?;
+        Ok(())
+    }
+
+    async fn test_connection(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<(), String> {
+        let cfg = crate::pool_manager::build_postgres_configurations(params);
+        let tls_connector = crate::pool_manager::build_postgres_tls_connector(params)?;
+        let (client, connection) = cfg
+            .connect(tls_connector)
+            .await
+            .map_err(|e| crate::pool_manager::format_error_chain(&e))?;
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                log::debug!("Postgres test_connection connection background task ended: {e}");
+            }
+        });
         client
             .simple_query("SELECT 1")
             .await

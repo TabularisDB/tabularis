@@ -1,6 +1,6 @@
 {
   "name": "@tabularis/create-plugin",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Scaffold a new Tabularis database driver plugin in seconds.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/TabularisDB/tabularis/tree/main/packages/create-plugin",
@@ -22,19 +22,23 @@
   ],
   "type": "module",
   "bin": {
-    "tabularis-create-plugin": "./dist/cli.js"
+    "tabularis-create-plugin": "./dist/cli.js",
+    "tabularis-theme": "./dist/theme.js"
   },
   "files": [
     "dist",
     "templates",
     "README.md",
-    "LICENSE"
+    "THEMES.md",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.txt"
   ],
   "scripts": {
     "build": "tsup",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "smoke": "tsx scripts/smoke.ts",
+    "smoke:theme": "tsx scripts/theme-smoke.ts",
     "prepublishOnly": "pnpm run clean && pnpm run build"
   },
   "dependencies": {

@@ -168,15 +168,21 @@ pub async fn execute_for_session(
             params,
             detect_json_in_text_columns,
             environment,
-        } => json(update_connection(
-            runtime,
-            state,
-            id,
-            name,
-            params,
-            detect_json_in_text_columns,
-            environment,
-        )?),
+        } => {
+            let previous_driver = find_connection(&load_file(runtime)?, &id)?.params.driver;
+            let updated = update_connection(
+                runtime,
+                state,
+                id.clone(),
+                name,
+                params,
+                detect_json_in_text_columns,
+                environment,
+            )?;
+            invalidate_connection_metadata(runtime, &id, [&previous_driver, &updated.params.driver])
+                .await;
+            json(updated)
+        }
         ConnectionCommand::DeleteConnection { id } => {
             delete_connection(runtime, state, &id)?;
             Ok(Value::Null)
@@ -287,7 +293,12 @@ pub async fn execute_for_session(
         ConnectionCommand::GetDriverManifest { driver_id } => {
             let manifest = crate::drivers::registry::get_driver(&driver_id)
                 .await
-                .map(|driver| driver.manifest().clone());
+                .map(
+                    |driver| crate::plugins::connection_metadata::DriverManifestDetails {
+                        manifest: driver.manifest().clone(),
+                        connection_metadata: driver.has_connection_metadata().then_some(true),
+                    },
+                );
             json(manifest)
         }
         ConnectionCommand::GetActiveConnections => {
@@ -499,7 +510,21 @@ fn merge_and_persist_update_secrets(
     params.connection_uri = None;
 
     if keychain {
-        set_optional_secret(runtime, id, DB_SECRET_SUFFIX, params.password.as_ref())?;
+        match crate::keychain_utils::stored_password_change(params.password.as_deref()) {
+            crate::keychain_utils::StoredPasswordChange::Store(password) => {
+                runtime
+                    .secrets
+                    .set(&secret_account(id, DB_SECRET_SUFFIX), password)?;
+            }
+            // An explicit empty password (a plugin hid the login inputs) must
+            // not leave the previous secret behind for the next connect.
+            crate::keychain_utils::StoredPasswordChange::Delete => {
+                runtime
+                    .secrets
+                    .delete(&secret_account(id, DB_SECRET_SUFFIX))?;
+            }
+            crate::keychain_utils::StoredPasswordChange::Keep => {}
+        }
         set_optional_secret(runtime, id, SSH_SECRET_SUFFIX, params.ssh_password.as_ref())?;
         set_optional_secret(
             runtime,
@@ -617,6 +642,30 @@ fn save_connection(
     file.connections.push(connection.clone());
     save_file(runtime, state, &file)?;
     Ok(redact_connection(connection))
+}
+
+/// Drops cached plugin connection metadata for both the old and the new driver
+/// of an edited connection, and tells the frontend when any was dropped.
+async fn invalidate_connection_metadata(
+    runtime: &RuntimeContext,
+    connection_id: &str,
+    driver_ids: [&String; 2],
+) {
+    let mut metadata_changed = false;
+    for driver_id in driver_ids {
+        if let Some(driver) = crate::drivers::registry::get_driver(driver_id).await {
+            if driver.has_connection_metadata() {
+                driver.invalidate_connection_metadata(Some(connection_id)).await;
+                metadata_changed = true;
+            }
+        }
+    }
+    if metadata_changed {
+        let _ = runtime.events.emit(
+            "connection-metadata-invalidated",
+            serde_json::json!({ "connectionId": connection_id }),
+        );
+    }
 }
 
 fn update_connection(
@@ -1008,6 +1057,13 @@ pub async fn disconnect_connection(
 
     if !still_owned {
         crate::health_check::unregister_connection(connection_id).await;
+        if let Ok(saved) = find_connection(&load_file(runtime)?, connection_id) {
+            if let Some(driver) = crate::drivers::registry::get_driver(&saved.params.driver).await {
+                driver
+                    .invalidate_connection_metadata(Some(connection_id))
+                    .await;
+            }
+        }
         let (_, params) = resolve_saved_connection_params(runtime, session_id, connection_id)?;
         crate::pool_manager::close_pool_with_id(&params, Some(connection_id)).await;
     }
@@ -1043,6 +1099,8 @@ async fn test_connection(
         Some("sshTunnel")
     } else if expanded.k8s_enabled.unwrap_or(false) {
         Some("k8sForward")
+    } else if expanded.ssm_enabled.unwrap_or(false) {
+        Some("ssmForward")
     } else {
         None
     };
@@ -1060,6 +1118,8 @@ async fn test_connection(
                     expanded.ssh_host.as_deref().unwrap_or("?"),
                     expanded.ssh_port.unwrap_or(22),
                 ))
+            } else if step == "ssmForward" {
+                expanded.ssm_target.clone()
             } else {
                 expanded.k8s_resource_name.clone()
             },
@@ -1067,8 +1127,12 @@ async fn test_connection(
     }
 
     let runtime_for_tunnel = runtime.clone();
-    let expanded_for_tunnel = expanded.clone();
-    let mut resolved = tokio::task::spawn_blocking(move || {
+    let mut expanded_for_tunnel = expanded.clone();
+    // Per-connection proxy overrides are keyed by id, so set it before resolving.
+    if let Some(connection_id) = request.connection_id.as_deref() {
+        expanded_for_tunnel.connection_id = Some(connection_id.to_string());
+    }
+    let resolved = tokio::task::spawn_blocking(move || {
         crate::application::tunnels::resolve_connection_params(
             &runtime_for_tunnel,
             &expanded_for_tunnel,
@@ -1086,9 +1150,6 @@ async fn test_connection(
             error,
         )
     })?;
-    if let Some(connection_id) = request.connection_id.as_deref() {
-        resolved.connection_id = Some(connection_id.to_string());
-    }
     if let Some(step) = tunnel_step {
         emit_test_progress(
             runtime,
@@ -1136,6 +1197,9 @@ async fn test_connection(
             error,
         )
     })?;
+    driver
+        .invalidate_connection_metadata(resolved.connection_id.as_deref())
+        .await;
     emit_test_progress(
         runtime,
         session_id,

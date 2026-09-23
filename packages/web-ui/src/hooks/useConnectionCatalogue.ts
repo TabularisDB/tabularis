@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useDrivers } from './useDrivers';
+import { useSettings } from './useSettings';
+import { useTabularisClient } from './useTabularisClient';
+import type { TabularisClient } from '../api/client';
+import { createAsyncResource } from '../utils/asyncResource';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 
-import type { PluginManifest, RegistryPluginWithStatus } from '../types/plugins';
+import type { RegistryPluginWithStatus } from '../types/plugins';
 import {
   builtinToCatalogueDriver,
   groupByEngine,
@@ -10,7 +15,6 @@ import {
   type EngineGroup,
   type ParadigmFacet,
 } from '../utils/connectionCatalogue';
-import { useTabularisClient } from './useTabularisClient';
 
 const BUILTIN_META: Record<string, { engine: string; paradigms: string[] }> = {
   postgres: { engine: 'postgres', paradigms: ['sql'] },
@@ -23,45 +27,44 @@ export interface ConnectionCatalogue {
   facets: ParadigmFacet[];
   loading: boolean;
   registryOffline: boolean;
+  /** Raw registry catalogue entries, e.g. for resolving a plugin's repo_url. */
+  registry: RegistryPluginWithStatus[];
   refresh: () => void;
 }
 
-export function useConnectionCatalogue(): ConnectionCatalogue {
-  const client = useTabularisClient();
-  const [registry, setRegistry] = useState<RegistryPluginWithStatus[]>([]);
-  const [registered, setRegistered] = useState<PluginManifest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [registryOffline, setRegistryOffline] = useState(false);
-  const [nonce, setNonce] = useState(0);
+type CatalogueResource = ReturnType<typeof createCatalogue>;
 
+// One cache per client (host), keyed by registry URL within it.
+const catalogues = new WeakMap<TabularisClient, Map<string, CatalogueResource>>();
+
+function createCatalogue(client: TabularisClient) {
+  return createAsyncResource<RegistryPluginWithStatus[]>([], () =>
+    client.call("fetch_plugin_registry", undefined),
+  );
+}
+
+export function useConnectionCatalogue(enabled = true): ConnectionCatalogue {
+  const client = useTabularisClient();
+  const { settings } = useSettings();
+  const { allDrivers: registered } = useDrivers();
+  const registryKey = settings.tabulariumRegistryUrl ?? "default";
+  const resource = useMemo(() => {
+    let byRegistry = catalogues.get(client);
+    if (!byRegistry) {
+      byRegistry = new Map();
+      catalogues.set(client, byRegistry);
+    }
+    let resource = byRegistry.get(registryKey);
+    if (!resource) {
+      resource = createCatalogue(client);
+      byRegistry.set(registryKey, resource);
+    }
+    return resource;
+  }, [client, registryKey]);
+  const { data: registry, loading, error } = useSyncExternalStore(resource.subscribe, resource.getSnapshot);
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      // setLoading lives inside the async IIFE (not the synchronous effect body)
-      // to avoid a cascading render on refresh() per .rules/react.md #2.
-      setLoading(true);
-      try {
-        const drivers = await client.call('get_registered_drivers', undefined);
-        if (!cancelled) setRegistered(drivers);
-      } catch {
-        /* built-ins always have a fallback in useDrivers; ignore here */
-      }
-      try {
-        const cat = await client.call('fetch_plugin_registry', undefined);
-        if (!cancelled) {
-          setRegistry(cat);
-          setRegistryOffline(false);
-        }
-      } catch {
-        if (!cancelled) setRegistryOffline(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [client, nonce]);
+    if (enabled) void resource.load();
+  }, [enabled, resource]);
 
   const groups = useMemo(() => {
     const builtinDrivers = registered
@@ -89,7 +92,7 @@ export function useConnectionCatalogue(): ConnectionCatalogue {
   }, [registered, registry]);
 
   const facets = useMemo(() => paradigmFacets(groups), [groups]);
-  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+  const refresh = resource.refresh;
 
-  return { groups, facets, loading, registryOffline, refresh };
+  return { groups, facets, loading: enabled && loading, registryOffline: error !== null, registry, refresh };
 }

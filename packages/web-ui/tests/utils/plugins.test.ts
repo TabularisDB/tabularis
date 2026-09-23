@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canUpdateToLatest, parseAuthor, versionGte } from '../../src/utils/plugins';
+import { canUpdateToLatest, matchesPluginKind, parseAuthor, parsePluginKindFilter, pluginKind, versionGte } from '../../src/utils/plugins';
 
 describe('plugins', () => {
   describe('parseAuthor', () => {
@@ -124,6 +124,30 @@ describe('plugins', () => {
         });
       expect(canUpdateToLatest(needs('0.16.0'), '0.15.0')).toBe(false);
       expect(canUpdateToLatest(needs('0.15.0'), '0.15.0')).toBe(true);
+    });
+  });
+
+  describe('pluginKind', () => {
+    it('treats an absent or driver kind as a driver and only "theme" as a theme', () => {
+      expect(pluginKind({})).toBe('driver');
+      expect(pluginKind({ kind: null })).toBe('driver');
+      expect(pluginKind({ kind: 'driver' })).toBe('driver');
+      expect(pluginKind({ kind: 'theme' })).toBe('theme');
+      expect(pluginKind({ kind: 'unsupported:ambiguous-kind' })).toBe('driver');
+    });
+
+    it('matches every kind for "all" and one bucket otherwise', () => {
+      expect(matchesPluginKind({ kind: 'theme' }, 'all')).toBe(true);
+      expect(matchesPluginKind({ kind: 'theme' }, 'theme')).toBe(true);
+      expect(matchesPluginKind({ kind: 'theme' }, 'driver')).toBe(false);
+      expect(matchesPluginKind({}, 'driver')).toBe(true);
+    });
+
+    it('falls back to "all" for unknown URL values', () => {
+      expect(parsePluginKindFilter('theme')).toBe('theme');
+      expect(parsePluginKindFilter('driver')).toBe('driver');
+      expect(parsePluginKindFilter(null)).toBe('all');
+      expect(parsePluginKindFilter('plugin')).toBe('all');
     });
   });
 });

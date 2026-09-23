@@ -571,6 +571,24 @@ describe("connectionStringParser", () => {
       }
     });
 
+    it("should accept a MongoDB replica-set URI with multiple hosts", () => {
+      const uri =
+        "mongodb://user:pass@server1.example.com:27017,server2.example.com:27018,server3.example.com:27019/mydatabase?replicaSet=rs0&authSource=admin";
+      const result = parseConnectionString(uri, URI_PASSTHROUGH_DRIVERS);
+
+      expect(result.success).toBe(true);
+      expect(looksLikeConnectionString(uri, URI_PASSTHROUGH_DRIVERS)).toBe(true);
+      if (result.success) {
+        expect(result.params.driver).toBe("mongodb");
+        expect(result.params.host).toBe("server1.example.com");
+        expect(result.params.port).toBe(27017);
+        expect(result.params.username).toBe("user");
+        expect(result.params.database).toBe("mydatabase");
+        expect(result.params.password).toBeUndefined();
+        expect(result.params.connection_uri).toBe(uri);
+      }
+    });
+
     it("should not require a database path", () => {
       const result = parseConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS);
 

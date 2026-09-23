@@ -32,14 +32,14 @@ export function ResultEntryContent({
     if (compact) {
       return (
         <div className="flex items-center gap-2 px-3 py-4 text-muted text-xs">
-          <div className="w-3 h-3 border-2 border-surface-secondary border-t-blue-500 rounded-full animate-spin" />
+          <div className="w-3 h-3 border-2 border-surface-secondary border-t-accent-primary rounded-full animate-spin" />
           <span>{t("editor.executingQuery")}</span>
         </div>
       );
     }
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted">
-        <div className="w-12 h-12 border-4 border-surface-secondary border-t-blue-500 rounded-full animate-spin mb-4" />
+        <div className="w-12 h-12 border-4 border-surface-secondary border-t-accent-primary rounded-full animate-spin mb-4" />
         <p className="text-sm">{t("editor.executingQuery")}</p>
       </div>
     );
@@ -77,7 +77,7 @@ export function ResultEntryContent({
     if (compact) {
       return (
         <div className="flex items-center gap-2 px-3 py-3 text-xs">
-          <CheckCircle2 size={14} className="text-green-500 shrink-0" />
+          <CheckCircle2 size={14} className="text-accent-success shrink-0" />
           <span className="text-primary">{t("editor.queryExecuted")}</span>
           {affected > 0 && (
             <span className="text-secondary">
@@ -91,7 +91,7 @@ export function ResultEntryContent({
 
     return (
       <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 text-center px-4">
-        <CheckCircle2 size={32} className="text-green-500" />
+        <CheckCircle2 size={32} className="text-accent-success" />
         <p className="text-sm font-medium text-primary">
           {t("editor.queryExecuted")}
         </p>

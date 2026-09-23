@@ -27,6 +27,50 @@ async fn driver_for(
         .ok_or_else(|| format!("Unsupported driver: {}", id))
 }
 
+async fn driver_for_params(
+    params: &ConnectionParams,
+) -> Result<Arc<dyn crate::drivers::driver_trait::DatabaseDriver>, String> {
+    crate::drivers::registry::get_connection_driver(params).await
+}
+
+/// Pure SQL builders still need no credentials for static drivers. Only
+/// discovery-enabled plugins resolve credentials and tunnels here.
+async fn driver_for_saved<R: Runtime>(
+    app: &AppHandle<R>,
+    saved: &SavedConnection,
+) -> Result<Arc<dyn crate::drivers::driver_trait::DatabaseDriver>, String> {
+    let driver = driver_for(&saved.params.driver).await?;
+    if !driver.has_connection_metadata() {
+        return Ok(driver);
+    }
+    let expanded = expand_ssh_connection_params(app, &saved.params).await?;
+    let expanded = expand_k8s_connection_params(app, &expanded).await?;
+    let params = resolve_connection_params_with_id(&expanded, &saved.id)?;
+    driver_for_params(&params).await
+}
+
+#[tauri::command]
+pub async fn get_connection_metadata<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+) -> Result<Option<crate::plugins::connection_metadata::ConnectionMetadata>, String> {
+    let saved = find_connection_by_id(&app, &connection_id)?;
+    if !driver_for(&saved.params.driver)
+        .await?
+        .has_connection_metadata()
+    {
+        return Ok(None);
+    }
+    let driver = driver_for_saved(&app, &saved).await?;
+    Ok(Some(
+        crate::plugins::connection_metadata::ConnectionMetadata {
+            capabilities: driver.manifest().capabilities.clone(),
+            data_types: driver.get_data_types(),
+            type_mappings: driver.manifest().type_mappings.clone(),
+        },
+    ))
+}
+
 const DEFAULT_MYSQL_PORT: u16 = 3306;
 const DEFAULT_POSTGRES_PORT: u16 = 5432;
 
@@ -176,7 +220,12 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
 
 #[cfg(test)]
 fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
-    crate::application::tunnels::resolve_expanded_connection_params(params, None)
+    crate::application::tunnels::resolve_k8s_params(params)
+}
+
+#[cfg(test)]
+fn resolve_ssm_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
+    crate::application::tunnels::resolve_ssm_params(params)
 }
 
 /// Resolve connection params and set connection_id for stable pooling
@@ -184,21 +233,21 @@ pub fn resolve_connection_params_with_id(
     params: &ConnectionParams,
     connection_id: &str,
 ) -> Result<ConnectionParams, String> {
-    let mut resolved = resolve_connection_params(params)?;
-    resolved.connection_id = Some(connection_id.to_string());
-    Ok(resolved)
+    let mut with_id = params.clone();
+    with_id.connection_id = Some(connection_id.to_string());
+    resolve_connection_params(&with_id)
 }
 
-pub fn get_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+pub fn get_config_path<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let config_dir = crate::paths::get_app_config_dir();
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     }
     Ok(crate::paths::resolve_connections_path(&config_dir))
 }
 
-pub fn get_ssh_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+pub fn get_ssh_config_path<R: Runtime>(_app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let config_dir = crate::paths::get_app_config_dir();
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     }
@@ -672,7 +721,7 @@ pub async fn get_ai_schema_context<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let driver = driver_for(&saved_conn.params.driver).await?;
+    let driver = driver_for_params(&params).await?;
     let identifier_quote = driver.manifest().capabilities.identifier_quote.as_str();
     let context = driver
         .get_ai_schema_context(
@@ -709,9 +758,15 @@ pub async fn save_connection<R: Runtime>(
 
     if params.save_in_keychain.unwrap_or(false) {
         log::debug!("Storing passwords in keychain for connection: {}", name);
-        if let Some(pwd) = &params.password {
-            keychain_utils::set_db_password(&id, pwd)?;
-            credential_cache::set_db_password_cached(&cache, &id, pwd);
+        match keychain_utils::stored_password_change(params.password.as_deref()) {
+            keychain_utils::StoredPasswordChange::Store(pwd) => {
+                keychain_utils::set_db_password(&id, pwd)?;
+                credential_cache::set_db_password_cached(&cache, &id, pwd);
+            }
+            // A fresh id has nothing to delete; an empty password is simply
+            // not stored (keyutils would reject it anyway).
+            keychain_utils::StoredPasswordChange::Keep
+            | keychain_utils::StoredPasswordChange::Delete => {}
         }
         if params.ssh_enabled.unwrap_or(false) {
             if let Some(ssh_pwd) = &params.ssh_password {
@@ -798,7 +853,8 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
     credential_cache::invalidate_all_for_connection(&cache, &id);
 
     // Cascade-delete the custom icon file if the connection used one.
-    if let Ok(app_data) = app.path().app_data_dir() {
+    {
+        let app_data = crate::paths::get_app_data_dir();
         let _ = crate::connection_appearance::cascade_delete_if_image(
             &app_data,
             appearance_to_delete.as_ref(),
@@ -844,7 +900,8 @@ pub async fn update_connection<R: Runtime>(
         .unwrap_or(false);
     // A stored URI belongs to the driver that produced it. Switching drivers
     // must drop it rather than hand one driver's credentials to another.
-    let same_driver = conn_file.connections[conn_idx].params.driver == params.driver;
+    let previous_driver_id = conn_file.connections[conn_idx].params.driver.clone();
+    let same_driver = previous_driver_id == params.driver;
     let connection_uri = runtime_connection_uri(&params).map(str::to_owned);
     // The frontend sends the URI back only when the user retyped it. An edit
     // that leaves the field untouched must keep the stored secret; an edit that
@@ -864,9 +921,19 @@ pub async fn update_connection<R: Runtime>(
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     if params.save_in_keychain.unwrap_or(false) {
-        if let Some(pwd) = &params.password {
-            keychain_utils::set_db_password(&id, pwd)?;
-            credential_cache::set_db_password_cached(&cache, &id, pwd);
+        match keychain_utils::stored_password_change(params.password.as_deref()) {
+            keychain_utils::StoredPasswordChange::Store(pwd) => {
+                keychain_utils::set_db_password(&id, pwd)?;
+                credential_cache::set_db_password_cached(&cache, &id, pwd);
+            }
+            // The frontend sends an explicit empty password when a plugin hid
+            // the login inputs. The previous secret must not survive, or the
+            // next connect would hand a stale login to the driver.
+            keychain_utils::StoredPasswordChange::Delete => {
+                keychain_utils::delete_db_password(&id)?;
+                credential_cache::invalidate_db_password(&cache, &id);
+            }
+            keychain_utils::StoredPasswordChange::Keep => {}
         }
         if params.ssh_enabled.unwrap_or(false) {
             if let Some(ssh_pwd) = &params.ssh_password {
@@ -925,6 +992,22 @@ pub async fn update_connection<R: Runtime>(
     persist_connection_uri_change(&cache, &id, existing_uri_in_keychain, uri_change, || {
         save_connections_and_invalidate(&app, &path, &conn_file)
     })?;
+
+    let mut metadata_changed = false;
+    for driver_id in [&previous_driver_id, &updated.params.driver] {
+        if let Some(driver) = crate::drivers::registry::get_driver(driver_id).await {
+            if driver.has_connection_metadata() {
+                driver.invalidate_connection_metadata(Some(&id)).await;
+                metadata_changed = true;
+            }
+        }
+    }
+    if metadata_changed {
+        let _ = app.emit(
+            "connection-metadata-invalidated",
+            serde_json::json!({"connectionId": id}),
+        );
+    }
 
     // On single→multi transition, associate existing favorites/history (with no
     // database set) to the original single database name.
@@ -1072,24 +1155,17 @@ pub async fn duplicate_connection<R: Runtime>(
         let mut app_earance = original.appearance.clone();
         if let Some(ref mut a) = app_earance {
             if let Some(crate::models::IconOverride::Image { ref path }) = a.icon.clone() {
-                if let Ok(app_data) = app.path().app_data_dir() {
-                    match crate::connection_appearance::copy_icon_for_duplicate(&app_data, path, &new_id) {
-                        Ok(new_path) => {
-                            a.icon = Some(crate::models::IconOverride::Image { path: new_path });
-                        }
-                        Err(_) => {
-                            // Couldn't copy — drop the icon to avoid sharing
-                            a.icon = None;
-                            if a.accent_color.is_none() {
-                                app_earance = None;
-                            }
-                        }
+                let app_data = crate::paths::get_app_data_dir();
+                match crate::connection_appearance::copy_icon_for_duplicate(&app_data, path, &new_id) {
+                    Ok(new_path) => {
+                        a.icon = Some(crate::models::IconOverride::Image { path: new_path });
                     }
-                } else {
-                    // Can't determine app_data_dir — drop icon to avoid sharing
-                    a.icon = None;
-                    if a.accent_color.is_none() {
-                        app_earance = None;
+                    Err(_) => {
+                        // Couldn't copy — drop the icon to avoid sharing
+                        a.icon = None;
+                        if a.accent_color.is_none() {
+                            app_earance = None;
+                        }
                     }
                 }
             }
@@ -1482,6 +1558,32 @@ pub async fn validate_k8s_path_cmd<R: Runtime>(
     crate::k8s_tunnel::validate_k8s_path(&path, &kind)
 }
 
+// ---------------------------------------------------------------------------
+// AWS SSM
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn test_ssm_connection_cmd<R: Runtime>(
+    _app: AppHandle<R>,
+    target: String,
+    profile: Option<String>,
+    region: Option<String>,
+    host: String,
+    port: u16,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        crate::ssm_tunnel::test_ssm_connection(
+            &target,
+            profile.as_deref(),
+            region.as_deref(),
+            &host,
+            port,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Expand K8s connection params by loading saved config and creating/reusing a tunnel.
 pub async fn expand_k8s_connection_params<R: Runtime>(
     app: &AppHandle<R>,
@@ -1553,10 +1655,13 @@ pub async fn test_connection<R: Runtime>(
 
     let ssh_enabled = expanded_params.ssh_enabled.unwrap_or(false);
     let k8s_enabled = expanded_params.k8s_enabled.unwrap_or(false);
+    let ssm_enabled = expanded_params.ssm_enabled.unwrap_or(false);
     let tunnel_step = if ssh_enabled {
         Some("sshTunnel")
     } else if k8s_enabled {
         Some("k8sForward")
+    } else if ssm_enabled {
+        Some("ssmForward")
     } else {
         None
     };
@@ -1581,6 +1686,14 @@ pub async fn test_connection<R: Runtime>(
             "k8sForward",
             "start",
             expanded_params.k8s_resource_name.clone(),
+        );
+    } else if ssm_enabled {
+        emit_test_progress(
+            &app,
+            progress_id,
+            "ssmForward",
+            "start",
+            expanded_params.ssm_target.clone(),
         );
     }
 
@@ -1638,6 +1751,9 @@ pub async fn test_connection<R: Runtime>(
         emit_test_failure(&app, progress_id, "dbConnect", e)
     })?;
 
+    drv.invalidate_connection_metadata(resolved_params.connection_id.as_deref())
+        .await;
+
     emit_test_progress(&app, progress_id, "dbConnect", "ok", None);
     log::info!(
         "Connection test successful for database: {}",
@@ -1692,6 +1808,34 @@ mod tests {
             database: DatabaseSelection::Single("testdb".to_string()),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn resolve_leaves_network_database_names_untouched() {
+        let params = ConnectionParams {
+            database: DatabaseSelection::Single("'quoted_schema'".to_string()),
+            ..base_params()
+        };
+
+        let resolved = resolve_connection_params(&params).expect("resolve");
+        assert_eq!(resolved.database.primary(), "'quoted_schema'");
+    }
+
+    #[test]
+    fn resolve_sanitizes_local_path_driver_databases() {
+        let driver = "__test_resolve_local_path_driver__";
+        crate::drivers::registry::set_local_path_driver(driver, true);
+        let params = ConnectionParams {
+            driver: driver.to_string(),
+            host: None,
+            port: None,
+            database: DatabaseSelection::Single(r#""file:///tmp/my%20data.db""#.to_string()),
+            ..Default::default()
+        };
+
+        let resolved = resolve_connection_params(&params);
+        crate::drivers::registry::set_local_path_driver(driver, false);
+        assert_eq!(resolved.expect("resolve").database.primary(), "/tmp/my data.db");
     }
 
     #[test]
@@ -2339,6 +2483,63 @@ mod tests {
             let result = resolve_connection_params(&params);
             assert!(result.is_err());
             assert!(result.unwrap_err().contains("SSH User"));
+        }
+    }
+
+    mod resolve_ssm_params_tests {
+        use super::*;
+
+        fn create_ssm_params(target: &str) -> ConnectionParams {
+            ConnectionParams {
+                driver: "mysql".to_string(),
+                host: Some("db.internal".to_string()),
+                port: Some(3306),
+                username: Some("root".to_string()),
+                database: DatabaseSelection::Single("testdb".to_string()),
+                ssm_enabled: Some(true),
+                ssm_target: Some(target.to_string()),
+                ..Default::default()
+            }
+        }
+
+        #[test]
+        fn test_ssm_requires_target() {
+            let mut params = create_ssm_params("i-0abc");
+            params.ssm_target = Some("   ".to_string());
+            let result = resolve_ssm_params(&params);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().contains("AWS SSM target"));
+        }
+
+        #[test]
+        fn test_ssm_and_ssh_mutual_exclusion() {
+            let mut params = create_ssm_params("i-0abc");
+            params.ssh_enabled = Some(true);
+            let result = resolve_connection_params(&params);
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .contains("SSH and AWS SSM tunnels cannot both be enabled"));
+        }
+
+        #[test]
+        fn test_ssm_and_k8s_mutual_exclusion() {
+            let mut params = create_ssm_params("i-0abc");
+            params.k8s_enabled = Some(true);
+            let result = resolve_connection_params(&params);
+            assert!(result.is_err());
+            assert!(result
+                .unwrap_err()
+                .contains("Kubernetes and AWS SSM tunnels cannot both be enabled"));
+        }
+
+        #[test]
+        fn test_disabled_ssm_leaves_params_untouched() {
+            let mut params = create_ssm_params("i-0abc");
+            params.ssm_enabled = Some(false);
+            let result = resolve_connection_params(&params).unwrap();
+            assert_eq!(result.host, Some("db.internal".to_string()));
+            assert_eq!(result.port, Some(3306));
         }
     }
 
@@ -3005,7 +3206,7 @@ pub async fn save_blob_to_file<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
+    let drv = driver_for_params(&params).await?;
     drv.save_blob_to_file(
         &params,
         &table,
@@ -3469,6 +3670,7 @@ pub async fn open_er_diagram_window(
         .title(&title)
         .inner_size(1200.0, 800.0)
         .center()
+        .decorations(crate::window_decorations::native_decorations_enabled())
         .build()
         .map_err(|e| format!("Failed to create ER Diagram window: {}", e))?;
 
@@ -4040,11 +4242,21 @@ pub async fn get_data_types(driver: String) -> Result<crate::models::DataTypeReg
 /// Maps generic inferred types (emitted by the clipboard parser) to
 /// driver-specific type names. Returns names in the same order as `kinds`.
 #[tauri::command]
-pub async fn map_inferred_column_types(
+pub async fn map_inferred_column_types<R: Runtime>(
+    app: AppHandle<R>,
     driver: String,
     kinds: Vec<String>,
+    connection_id: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let drv = driver_for(&driver).await?;
+    let drv = if let Some(id) = connection_id {
+        let saved = find_connection_by_id(&app, &id)?;
+        if saved.params.driver != driver {
+            return Err("Connection driver does not match the requested driver".into());
+        }
+        driver_for_saved(&app, &saved).await?
+    } else {
+        driver_for(&driver).await?
+    };
     Ok(kinds.iter().map(|k| drv.map_inferred_type(k)).collect())
 }
 
@@ -4222,10 +4434,15 @@ pub async fn save_keybindings<R: Runtime>(
 #[tauri::command]
 pub async fn get_driver_manifest(
     driver_id: String,
-) -> Option<crate::drivers::driver_trait::PluginManifest> {
+) -> Option<crate::plugins::connection_metadata::DriverManifestDetails> {
     crate::drivers::registry::get_driver(&driver_id)
         .await
-        .map(|d| d.manifest().clone())
+        .map(
+            |d| crate::plugins::connection_metadata::DriverManifestDetails {
+                manifest: d.manifest().clone(),
+                connection_metadata: d.has_connection_metadata().then_some(true),
+            },
+        )
 }
 
 // ==================== Connection Groups Management ====================

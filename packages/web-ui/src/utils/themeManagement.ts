@@ -115,20 +115,6 @@ export function migrateThemeFromLocalStorage(
   }
 }
 
-export function detectSystemTheme(): 'dark' | 'light' {
-  if (typeof window === 'undefined') {
-    return 'dark';
-  }
-  
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light';
-}
-
-export function getDefaultThemeIdForSystem(): string {
-  return detectSystemTheme() === 'dark' ? 'tabularis-dark' : 'tabularis-light';
-}
-
 export function findThemeById(
   themeId: string,
   presetThemes: Theme[],
@@ -189,4 +175,13 @@ export function getSystemThemeId(
   settings: ThemeSettings
 ): string {
   return isDark ? settings.darkThemeId : settings.lightThemeId;
+}
+
+export function resolveActiveThemeId(
+  settings: ThemeSettings,
+  systemIsDark: boolean
+): string {
+  return settings.followSystemTheme
+    ? getSystemThemeId(systemIsDark, settings)
+    : settings.activeThemeId;
 }

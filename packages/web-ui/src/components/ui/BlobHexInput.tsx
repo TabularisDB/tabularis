@@ -49,7 +49,7 @@ export const BlobHexInput = ({
       spellCheck={false}
       aria-invalid={!isValid}
       className={`w-full min-h-24 px-3 py-2 bg-base border rounded-lg text-primary font-mono text-sm resize-y focus:outline-none ${
-        isValid ? "border-strong focus:border-blue-500" : "border-red-500"
+        isValid ? "border-strong focus:border-focus" : "border-accent-error"
       } ${className}`}
     />
   );

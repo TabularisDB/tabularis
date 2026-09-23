@@ -7,24 +7,23 @@
  * parsers back the desktop app and any standalone visualiser fed a pasted or
  * uploaded plan.
  *
- * Plugin drivers know engines this package does not, so they keep returning a
- * fully-parsed plan; `resolveExplainOutput` accepts both shapes.
+ * Plugin drivers can register parsers for formats this package does not know;
+ * `resolveExplainOutput` also accepts their historical fully-parsed shape.
  */
 
+import { getExplainParser } from "./registry";
 import type { ExplainPlan } from "./types";
-import { parseMysqlJson, parseMysqlText, parseMysqlTabularRows } from "./parsers/mysql";
-import type { MysqlTabularRow } from "./parsers/mysql";
-import { parsePostgresJson } from "./parsers/postgres";
-import { parseSqliteEqpRows } from "./parsers/sqlite";
-import type { SqliteEqpRow } from "./parsers/sqlite";
 
-/** Wire formats a built-in driver can hand over. */
-export type RawExplainFormat =
+/** Wire formats supplied by Tabularis built-in drivers. */
+export type BuiltinRawExplainFormat =
   | "postgres-json"
   | "mysql-json"
   | "mysql-analyze-text"
   | "mysql-tabular-rows"
   | "sqlite-eqp-rows";
+
+/** Wire format supplied by a built-in or registered plugin driver. */
+export type RawExplainFormat = BuiltinRawExplainFormat | (string & {});
 
 /** Raw EXPLAIN output produced by a built-in driver, parsed on this side. */
 export interface RawExplainOutput {
@@ -46,7 +45,15 @@ export type ExplainQueryOutput =
 
 /** Parse a driver's raw EXPLAIN payload into a plan. */
 export function parseRawExplain(raw: RawExplainOutput): ExplainPlan {
-  const plan = parseRawPayload(raw);
+  const parser = getExplainParser(raw.format);
+  if (parser === null) {
+    throw new Error(
+      `No EXPLAIN parser registered for format '${raw.format}' (engine '${raw.engine}'). ` +
+        `Import the parser package for '${raw.engine}' before parsing.`,
+    );
+  }
+
+  const plan = parser.parse(raw.payload);
   return {
     ...plan,
     driver: raw.engine,
@@ -57,32 +64,4 @@ export function parseRawExplain(raw: RawExplainOutput): ExplainPlan {
 /** Normalise either shape of `ExplainQueryOutput` into a plan. */
 export function resolveExplainOutput(output: ExplainQueryOutput): ExplainPlan {
   return output.kind === "plan" ? output.plan : parseRawExplain(output.raw);
-}
-
-function parseRawPayload(raw: RawExplainOutput): ExplainPlan {
-  switch (raw.format) {
-    case "postgres-json":
-      return parsePostgresJson(raw.payload);
-    case "mysql-json":
-      return parseMysqlJson(raw.payload);
-    case "mysql-analyze-text":
-      return parseMysqlText(raw.payload);
-    case "mysql-tabular-rows":
-      return parseMysqlTabularRows(parseJsonRows<MysqlTabularRow>(raw));
-    case "sqlite-eqp-rows":
-      return parseSqliteEqpRows(parseJsonRows<SqliteEqpRow>(raw));
-  }
-}
-
-function parseJsonRows<T>(raw: RawExplainOutput): T[] {
-  let value: unknown;
-  try {
-    value = JSON.parse(raw.payload);
-  } catch (err) {
-    throw new Error(`Failed to parse EXPLAIN rows: ${String(err)}`);
-  }
-  if (!Array.isArray(value)) {
-    throw new Error(`EXPLAIN rows payload for '${raw.format}' must be a JSON array`);
-  }
-  return value as T[];
 }

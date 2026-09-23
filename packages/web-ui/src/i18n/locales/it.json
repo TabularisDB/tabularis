@@ -57,6 +57,7 @@
   "common": {
     "save": "Salva",
     "close": "Chiudi",
+    "resizeColumn": "Ridimensiona colonna",
     "cancel": "Annulla",
     "delete": "Elimina",
     "edit": "Modifica",
@@ -75,7 +76,8 @@
     "copied": "Copiato!",
     "showDetails": "Mostra dettagli",
     "hideDetails": "Nascondi dettagli",
-    "beta": "Beta"
+    "beta": "Beta",
+    "dismiss": "Chiudi"
   },
   "sidebar": {
     "connections": "Connessioni",
@@ -113,6 +115,8 @@
     "noTables": "Nessuna tabella trovata",
     "expandTable": "Espandi tabella {{name}}",
     "collapseTable": "Comprimi tabella {{name}}",
+    "expandView": "Espandi vista {{name}}",
+    "collapseView": "Comprimi vista {{name}}",
     "columns": "colonne",
     "parameters": "parametri",
     "noParameters": "Nessun parametro",
@@ -181,6 +185,7 @@
     "splitHorizontal": "Dividi Orizzontale",
     "separateConnections": "Separa Connessioni",
     "splitGroup": "Gruppo Diviso",
+    "resizePanels": "Ridimensiona pannelli",
     "filterTables": "Filtra tabelle...",
     "noTablesMatch": "Nessuna tabella trovata",
     "filterDatabases": "Filtra database...",
@@ -271,6 +276,11 @@
       "activity": "Attività",
       "safety": "Sicurezza"
     },
+    "output": {
+      "title": "Output degli strumenti",
+      "formatLabel": "Formato di output predefinito",
+      "formatDescription": "Usato quando una chiamata a uno strumento MCP non specifica output_format. JSON mantiene la compatibilità; TOON può ridurre l’uso di token."
+    },
     "safety": {
       "readOnlyTitle": "Modalità sola lettura",
       "readOnlyDefault": "Rendi tutte le query MCP di sola lettura",
@@ -298,6 +308,9 @@
   "connections": {
     "title": "Connessioni",
     "addConnection": "Aggiungi Connessione",
+    "deprecated": "Deprecato",
+    "deprecatedTooltip": "Questo driver integrato viene sostituito dal plugin {{replacement}}.",
+    "deprecatedTooltipDate": "Questo driver integrato viene sostituito dal plugin {{replacement}}, provvisoriamente entro {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Nuovo database SQLite…",
       "dialogTitle": "Nuovo database SQLite",
@@ -431,6 +444,47 @@
     "title": "Impostazioni",
     "general": "Generali",
     "privacy": "Privacy",
+    "network": {
+      "tab": "Network",
+      "title": "Proxy",
+      "description": "Route selected application traffic through an HTTP or SOCKS5 proxy. Connection and AI provider overrides take priority over these global settings.",
+      "enabled": "Enable proxy",
+      "enabledDesc": "Turn on the global proxy. Individual scopes below must also be checked for traffic to use it.",
+      "protocol": "Protocol",
+      "protocolDesc": "HTTP CONNECT or SOCKS5.",
+      "host": "Proxy host",
+      "hostDesc": "Hostname or IP of the proxy server.",
+      "port": "Proxy port",
+      "portDesc": "TCP port of the proxy server.",
+      "username": "Username",
+      "usernameDesc": "Optional proxy authentication username.",
+      "password": "Password",
+      "passwordDesc": "Optional proxy password. Stored in the OS keychain, never in config.json.",
+      "passwordReplaceDesc": "A password is already stored. Enter a new one to replace it.",
+      "clearPassword": "Clear",
+      "applyTo": "Apply proxy to",
+      "applyToDesc": "Opt-in traffic categories. Unchecked categories never use the global proxy.",
+      "scopes": {
+        "appHttp": "App network requests",
+        "appHttpDesc": "Plugin downloads (including legacy raw.githubusercontent.com registry.json), Tabularium registry API, update checks, and WebDAV backup uploads.",
+        "database": "Database connections",
+        "databaseDesc": "Direct TCP connections to databases (skipped when already on a local SSH/K8s tunnel).",
+        "ai": "AI / LLM endpoints",
+        "aiDesc": "Requests to configured AI providers. Per-provider overrides can still customize or disable.",
+        "sshTunnel": "SSH tunnels",
+        "sshTunnelDesc": "Outbound connection to the SSH bastion before port-forwarding to the database."
+      },
+      "overrideMode": "Proxy mode",
+      "overrideModeDesc": "Inherit the global proxy, set a custom proxy, or disable proxying for this target.",
+      "modeInherit": "Inherit",
+      "modeCustom": "Custom",
+      "modeDisabled": "Disabled",
+      "providerProxy": "Provider proxy",
+      "providerProxyDesc": "Override the global AI proxy for this provider only.",
+      "connectionProxy": "Proxy",
+      "connectionProxyDesc": "Override the global proxy for this connection’s database and SSH traffic. When an SSH tunnel is used, the proxy applies to the bastion hop; the local tunnel leg is not re-proxied.",
+      "passwordAfterSave": "Save the connection first to store a proxy password in the keychain."
+    },
     "columnMasking": "Mascheramento colonne",
     "columnMaskingDesc": "Nasconde il contenuto delle colonne sensibili (password, email, token…) nella griglia dei risultati. La copia e l'esportazione usano comunque i valori reali.",
     "columnMaskingEnabled": "Maschera colonne sensibili",
@@ -476,9 +530,15 @@
     "themeSelection": "Selezione Tema",
     "importTheme": "Importa tema",
     "exportTheme": "Esporta tema",
+    "themeMode": "Modalità tema",
+    "themeModeDesc": "Scegli un tema fisso o segui l'aspetto chiaro/scuro del sistema.",
+    "themeModeStatic": "Statico",
+    "themeModeSystem": "Segui sistema",
+    "lightTheme": "Tema chiaro",
+    "darkTheme": "Tema scuro",
     "fontFamily": "Famiglia Font",
     "fonts": {
-      "system": "Sistema",
+      "system": "Predefinito del tema",
       "systemDesc": "Usa il font di default del sistema",
       "custom": "Font Personalizzato",
       "customPlaceholder": "es. Comic Sans MS",
@@ -489,6 +549,14 @@
     "fontSizeDesc": "Regola la dimensione base del font usata nell'applicazione (10-20px).",
     "preview": "Anteprima",
     "fontPreviewText": "La volpe marrone salta sopra il cane pigro",
+    "dataGrid": {
+      "title": "Griglia dati",
+      "stickyHeaders": "Intestazioni colonne fisse",
+      "stickyHeadersDesc": "Mantieni le intestazioni delle colonne visibili in alto mentre scorri i risultati.",
+      "fontFamily": "Font dei risultati",
+      "fontFamilyDesc": "Font usato nelle celle dei risultati delle query. Il monospaziato mantiene i valori allineati; scegli \"Come interfaccia\" per riutilizzare il font dell'applicazione.",
+      "fontSameAsInterface": "Come interfaccia"
+    },
     "appearance_general": "Generali",
     "appearance_sqlEditor": "Editor SQL",
     "appearance_editorTheme": "Tema dell'Editor",
@@ -671,6 +739,11 @@
     "autoConnectLastConnectionDesc": "Riconnette alle connessioni aperte alla chiusura dell'app.",
     "startMaximized": "Avvia ingrandita",
     "startMaximizedDesc": "Apre la finestra ingrandita per riempire lo schermo all'avvio.",
+    "windowDecorations": "Decorazioni finestra",
+    "windowDecorationsDesc": "Nasconde automaticamente le decorazioni native quando rileva un window manager tiling, oppure usa il comportamento scelto.",
+    "windowDecorationsAutomatic": "Automatiche",
+    "windowDecorationsAlwaysShow": "Mostra sempre",
+    "windowDecorationsAlwaysHide": "Nascondi sempre",
     "erDiagram": "Diagramma ER",
     "erDiagramDefaultLayout": "Layout Predefinito",
     "erDiagramDefaultLayoutDesc": "Scegli la direzione di default per i diagrammi ER",
@@ -688,18 +761,30 @@
       "loadingRegistry": "Caricamento registro plugin...",
       "registryError": "Impossibile caricare il registro",
       "installed": "Installato",
+      "latest": "Più recente",
       "by": "di",
       "platformNotSupported": "Non disponibile per la tua piattaforma",
       "update": "Aggiorna",
       "install": "Installa",
       "upToDate": "Aggiornato",
       "downgrade": "Effettua downgrade a",
+      "deprecated": "Deprecato",
+      "deprecatedTooltip": "Questo driver integrato viene sostituito dal plugin {{replacement}}.",
+      "deprecatedTooltipDate": "Questo driver integrato viene sostituito dal plugin {{replacement}}, provvisoriamente entro {{date}}.",
+      "migrationProgress": "{{migrated}} di {{total}} migrate",
       "olderVersions": "Versioni precedenti",
       "noPlugins": "Nessun plugin disponibile nel registro.",
       "searchPlaceholder": "Cerca plugin…",
       "filterAll": "Tutti",
       "filterInstalled": "Installati",
       "filterUpdates": "Aggiornamenti",
+      "kindFilter": "Filtra per tipo",
+      "kindAll": "Tutti i tipi",
+      "kindDrivers": "Driver",
+      "kindThemes": "Temi",
+      "kindTheme": "Tema",
+      "kindDriver": "Driver",
+      "manageThemes": "Gestisci in Aspetto",
       "searchNoResults": "Nessun plugin corrisponde alla ricerca.",
       "version": "Versione",
       "requiresVersion": "Richiede Tabularis ≥ {{version}}",
@@ -723,6 +808,9 @@
         "title": "Disinstallazione fallita",
         "subtitle": "Si è verificato un errore durante la disinstallazione del plugin. Vedi i dettagli qui sotto."
       },
+      "devRuntimeWarning": {
+        "title": "Build di sviluppo: il plugin \"{{plugin}}\" ha saltato il controllo di versione di Tabularis"
+      },
       "startError": {
         "title": "Plugin non avviato",
         "subtitle": "Impossibile avviare il processo del plugin. Controlla i dettagli dell'errore.",
@@ -741,6 +829,7 @@
         "fieldRequired": "{{label}} è obbligatorio",
         "saved": "Salvato",
         "resetToDefault": "Ripristina predefinito",
+        "reportIssue": "Segnala un problema del plugin",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -759,6 +848,12 @@
               "label": "Fuso Orario",
               "description": "Fuso orario della sessione inviato a MySQL dopo la connessione."
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "Dimensione Massima del Pool",
+              "description": "Numero massimo di connessioni PostgreSQL mantenute nel pool."
+            }
           }
         }
       },
@@ -770,7 +865,8 @@
       "categories": {
         "editor": "Editor",
         "navigation": "Navigazione",
-        "data_grid": "Griglia dati"
+        "data_grid": "Griglia dati",
+        "notebook": "Notebook"
       },
       "runQuery": "Esegui query",
       "runQueryEditor": "Esegui query (nell'editor)",
@@ -782,6 +878,9 @@
       "toggleRightSidebar": "Attiva/disattiva barra laterale destra",
       "focusTableFilter": "Focalizza il filtro tabelle",
       "openConnections": "Apri connessioni",
+      "openSettings": "Apri impostazioni",
+      "conflict": "Questa scorciatoia è in conflitto con “{{shortcut}}”.",
+      "needsModifier": "Aggiungi un tasto modificatore, come Ctrl o Alt.",
       "newConnection": "Nuova connessione",
       "newTab": "Nuovo tab",
       "closeTab": "Chiudi tab",
@@ -798,9 +897,41 @@
       "commandPaletteActions": "Cerca azioni",
       "triggerSuggestions": "Mostra suggerimenti",
       "formatSql": "Formatta SQL",
-      "refreshTable": "Aggiorna tabella"
+      "refreshTable": "Aggiorna tabella",
+      "extendCellRange": "Estendi intervallo di celle",
+      "jumpToEdge": "Salta al bordo della griglia",
+      "extendCellRangeToEdge": "Estendi intervallo fino al bordo",
+      "selectRow": "Seleziona riga",
+      "selectColumn": "Seleziona colonna"
     },
     "aiActivity": "Attività AI",
+    "storage": {
+      "title": "Archiviazione",
+      "locations": "Percorsi",
+      "dataFolder": "Cartella dati",
+      "dataFolderDesc": "Connessioni, impostazioni, query salvate, temi, notebook e cronologia delle query vengono salvati qui. Scegli una cartella sincronizzata (iCloud Drive, Dropbox, …) per condividerli tra più computer. I plugin installati restano sempre in locale.",
+      "sourceDefault": "Percorso predefinito",
+      "sourceCustom": "Percorso personalizzato",
+      "sourceEnv": "Impostato da TABULARIS_DATA_DIR",
+      "envHint": "La cartella è controllata dalla variabile d'ambiente TABULARIS_DATA_DIR. Rimuovila per cambiare il percorso da qui.",
+      "envVar": "Variabile d'ambiente",
+      "envVarDesc": "Imposta TABULARIS_DATA_DIR su un percorso assoluto per sostituire la cartella dati per un avvio o un'installazione. Ha la precedenza sulla cartella scelta sopra, vale anche per il server MCP ed è utile per installazioni portabili, script e sviluppo.",
+      "envVarExample": "TABULARIS_DATA_DIR=/percorso/della/cartella tabularis",
+      "changeFolder": "Cambia cartella…",
+      "openFolder": "Apri cartella",
+      "resetToDefault": "Usa percorso predefinito",
+      "concurrencyWarning": "Tabularis legge questa cartella all'avvio. Evita di eseguire due istanze sulla stessa cartella contemporaneamente, ad esempio su due computer durante la sincronizzazione.",
+      "newFolder": "Nuova cartella",
+      "modeExisting": "Usa i dati già presenti in questa cartella",
+      "modeExistingDesc": "Questa cartella contiene già dati di Tabularis, ad esempio sincronizzati da un altro computer.",
+      "modeCopy": "Copia i miei dati attuali in questa cartella",
+      "modeCopyDesc": "I file già presenti nella cartella vengono mantenuti. I plugin installati non vengono copiati.",
+      "modeEmpty": "Inizia con una cartella vuota",
+      "apply": "Applica",
+      "restartRequired": "Riavvio necessario",
+      "restartRequiredDesc": "Tabularis userà {{path}} dopo il riavvio.",
+      "restartNow": "Riavvia ora"
+    },
     "backup": {
       "title": "Backup",
       "directory": "Cartella di backup",
@@ -852,6 +983,25 @@
     }
   },
   "update": {
+    "badges": {
+      "morePlugins": "Altri {{count}} — apri Plugins per vedere tutti gli aggiornamenti",
+      "driverUpdate": "Aggiornamento driver disponibile",
+      "themeUpdate": "Aggiornamento tema disponibile",
+      "tag": "Aggiornamento",
+      "driverTooltip": "{{name}} {{version}} è disponibile. Questo plugin è condiviso tra le connessioni. Apri Plugins → Aggiornamenti per gestirlo.",
+      "core_one": "{{count}} aggiornamento core disponibile",
+      "core_other": "{{count}} aggiornamenti core disponibili",
+      "plugins_one": "{{count}} aggiornamento plugin disponibile",
+      "plugins_other": "{{count}} aggiornamenti plugins disponibili",
+      "coreDetails": "Tabularis {{version}} è disponibile. Apri Info per consultare l’aggiornamento del core.",
+      "pluginDetails_one": "Aggiornamento disponibile per: {{plugins}}",
+      "pluginDetails_other": "Aggiornamenti disponibili per: {{plugins}}",
+      "toastTitle": "Aggiornamenti dei plugin disponibili",
+      "openPlugins": "Apri Plugins",
+      "core_many": "{{count}} aggiornamenti core disponibili",
+      "plugins_many": "{{count}} aggiornamenti plugins disponibili",
+      "pluginDetails_many": "Aggiornamenti disponibili per: {{plugins}}"
+    },
     "newVersionAvailable": "Nuova Versione Disponibile",
     "version": "Versione",
     "releaseNotes": "Note di Rilascio",
@@ -894,6 +1044,17 @@
     "configError": "Configura il provider AI nelle Impostazioni e inserisci un prompt."
   },
   "newConnection": {
+    "ssmForwardHint": "Si risolve in {{document}}: inoltra a {{host}}:{{port}} attraverso il nodo gestito. Modifica l'indirizzo di destinazione nella scheda Generale; un host di loopback indica il nodo stesso.",
+    "ssmIamHint": "Richiede ssm:StartSession sul target e sul documento risolto.",
+    "ssmNotAvailable": "AWS SSM non è disponibile per questo driver.",
+    "ssmPortRequired": "Imposta prima una porta valida nella scheda Generale.",
+    "ssmProfile": "Profilo AWS",
+    "ssmRegion": "Regione AWS",
+    "ssmTarget": "Nodo gestito",
+    "ssmTargetRequired": "Indica il nodo gestito attraverso cui connettersi.",
+    "testSsm": "Testa SSM",
+    "testSsmHint": "Apre una vera sessione di port forwarding e la richiude, senza connettersi al database.",
+    "useSsm": "Usa il port forwarding AWS SSM",
     "titleNew": "Nuova Connessione",
     "titleEdit": "Modifica Connessione",
     "subtitle": "Configura le impostazioni di connessione al database",
@@ -1047,6 +1208,7 @@
   },
   "dataGrid": {
     "noRowIdentity": "Impossibile modificare le righe: \"{{table}}\" non ha una chiave primaria, quindi la modifica richiede che il risultato includa tutte le colonne della tabella. Seleziona tutte le colonne (es. SELECT *) o aggiungi una chiave primaria.",
+    "resizeRelatedPanel": "Trascina per ridimensionare il pannello",
     "keylessRowNotFound": "Nessuna riga corrisponde ai valori originali durante l'aggiornamento di \"{{column}}\". La tabella non ha una chiave primaria e i dati potrebbero essere cambiati: aggiorna e riprova.",
     "keylessDeleteNotFound": "Nessuna riga corrisponde ai valori originali durante l'eliminazione. La tabella non ha una chiave primaria e i dati potrebbero essere cambiati: aggiorna e riprova.",
     "newRow": "NUOVA",
@@ -1233,6 +1395,21 @@
     "failedProcessInsertions": "Impossibile processare gli inserimenti: ",
     "fieldRequired": "Questo campo è obbligatorio",
     "newNotebook": "Nuovo Notebook",
+    "openSqlFile": "Apri file SQL…",
+    "openSqlFileError": "Impossibile aprire il file SQL",
+    "sqlFileFilter": "File SQL",
+    "saveSqlFile": "Salva file SQL",
+    "saveSqlFileAs": "Salva file SQL con nome…",
+    "saveSqlFileError": "Impossibile salvare il file SQL",
+    "sqlFileSaved": "File SQL salvato",
+    "unsavedSqlFileTitle": "Scartare le modifiche non salvate?",
+    "unsavedSqlFileMessage": "Uno o più file SQL contengono modifiche non salvate. Chiudendo queste schede, le modifiche verranno perse.",
+    "discardSqlFileChanges": "Scarta modifiche",
+    "saveFile": "Salva",
+    "saveFileAs": "Salva con nome…",
+    "saveOptions": "Opzioni di salvataggio",
+    "addToSavedQueries": "Aggiungi alle query salvate…",
+    "sqlFileNotSaved": "Non ancora salvato su file",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Piano Query",
@@ -1361,6 +1538,7 @@
       "addSqlCell": "Aggiungi Cella SQL",
       "addMarkdownCell": "Aggiungi Cella Markdown",
       "addCell": "Aggiungi",
+      "resizeResult": "Ridimensiona risultato",
       "runAll": "Esegui Tutto",
       "runAllTooltip": "Esegui tutte le celle SQL dall'alto in basso",
       "runCell": "Esegui Cella",
@@ -1377,6 +1555,7 @@
       "invalidFile": "Formato file notebook non valido",
       "importSuccess": "Notebook importato con successo",
       "exportSuccess": "Notebook esportato con successo",
+      "resultExportSuccess": "Risultato esportato con successo",
       "convertToConsole": "Converti in Console",
       "runningAll": "Esecuzione di tutte le celle...",
       "cellResult": "{{count}} righe · {{time}}ms",
@@ -1405,6 +1584,13 @@
       "sectionQuery": "Query",
       "sectionResults": "Risultati",
       "sectionChart": "Grafico",
+      "sectionQueryPlan": "Piano di query",
+      "queryPlanOutdated": "La query o la connessione è cambiata. Esegui di nuovo per aggiornare il piano.",
+      "queryPlanUnresolved": "Esegui correttamente le celle referenziate prima di spiegare questa query: {{refs}}",
+      "explainPopout": "Apri in vista completa",
+      "toggleQueryPlan": "Mostra piano di query",
+      "hideQueryPlan": "Nascondi piano di query",
+      "exportError": "Esportazione non riuscita",
       "collapseSection": "Comprimi Sezione",
       "expandSection": "Espandi Sezione",
       "collapseAll": "Comprimi Tutto",
@@ -1505,6 +1691,7 @@
     "colType": "Tipo",
     "colNullable": "Nullable",
     "colKey": "Chiave",
+    "colDescription": "Descrizione",
     "yes": "SÌ",
     "no": "NO"
   },
@@ -1632,6 +1819,13 @@
     "dismiss": "Forse più tardi"
   },
   "whatsNew": {
+    "supportTitle": "Ciao sono Andrea, il creatore di Tabularis",
+    "supportStarAction": "Lascia una stella su GitHub",
+    "supportDescription": "Ho creato Tabularis con un obiettivo: mantenerlo open source per sempre. Se ti è utile, anche una piccola donazione su GitHub Sponsors mi aiuta a dedicare tempo alle prossime funzionalità e a migliorarlo per tutti.",
+    "supportThanks": "Grazie per far parte di questo progetto!",
+    "supportNeverShow": "Non mostrare mai più",
+    "supportHideError": "Non riesco a salvare la preferenza. Riprova.",
+    "supportAction": "Sostieni su GitHub Sponsors",
     "title": "Novità",
     "subtitle": "Versione {{version}}",
     "features": "Nuove Funzionalità",
@@ -2108,6 +2302,55 @@
     "updateConfirm": "Aggiorna a v{{version}}",
     "alreadyInstalled": "La versione {{version}} è già installata."
   },
+  "migration": {
+    "banner": {
+      "nudge": "Prova il nuovo plugin PostgreSQL — il driver integrato PostgreSQL è in fase di ritiro. Il plugin ha le stesse funzionalità e si aggiorna più velocemente.",
+      "nudgeWithDate": "Prova il nuovo plugin PostgreSQL — il driver integrato PostgreSQL è in fase di ritiro (provvisoriamente il {{date}}). Il plugin ha le stesse funzionalità e si aggiorna più velocemente.",
+      "offline": "Il plugin PostgreSQL non è stato scaricato — riproveremo al prossimo avvio. Controlla la connessione o la rete se il problema persiste.",
+      "reviewConnections": "Rivedi connessioni"
+    },
+    "switchToPlugin": "Passa al plugin",
+    "switchToBuiltin": "Torna al driver integrato",
+    "confirm": {
+      "title": "Passare al plugin?",
+      "message": "Passare {{name}} al plugin PostgreSQL? Se è attualmente connesso, verrà disconnesso e riaperto usando il plugin.",
+      "uriMessage": "Passare {{name}} al plugin PostgreSQL? La stringa di connessione salvata nel portachiavi non verrà trasferita — dovrai reinserirla per riconnetterti.",
+      "confirmLabel": "Passa",
+      "confirmLabelUri": "Passa e reinserisci più tardi",
+      "undoTitle": "Tornare al driver integrato?",
+      "undoMessage": "Far tornare {{name}} al driver PostgreSQL integrato? Se è attualmente connesso, verrà disconnesso e riaperto usando il driver integrato.",
+      "undoConfirmLabel": "Torna"
+    },
+    "toast": {
+      "success": "{{name}} è stato passato al plugin PostgreSQL.",
+      "connectionFailure": "Impossibile connettersi a {{name}} usando il plugin: {{error}}",
+      "connectionFailurePreexisting": "Impossibile connettersi a {{name}} con entrambi i driver: {{error}}. Non è un problema del plugin — il passaggio al plugin è stato mantenuto.",
+      "processFailureWithError": "Il plugin PostgreSQL non si è avviato: {{error}}. Non riguarda specificamente {{name}} — non è stata tentata alcuna connessione.",
+      "processFailure": "Il plugin PostgreSQL non si è avviato. Non riguarda specificamente {{name}} — non è stata tentata alcuna connessione.",
+      "failed": "Impossibile passare {{name}} al plugin: {{error}}",
+      "undo": "Annulla",
+      "undoFailed": "Impossibile riportare {{name}} al driver integrato: {{error}}",
+      "reportIssue": "Segnala un problema"
+    },
+    "checklist": {
+      "title": "Rivedi connessioni",
+      "subtitle_one": "{{count}} connessione ancora sul driver integrato",
+      "subtitle_other": "{{count}} connessioni ancora sul driver integrato",
+      "migrateSelected_one": "Migra {{count}} selezionata",
+      "migrateSelected_other": "Migra {{count}} selezionate",
+      "reportThisGap": "Segnala questo problema",
+      "alreadyReported": "Segnalato",
+      "testing": "Test della connessione…",
+      "uriWarning": "La stringa di connessione salvata nel portachiavi non verrà trasferita — dovrai reinserirla dopo la migrazione.",
+      "noGaps": "Nessuna connessione da rivedere.",
+      "close": "Chiudi",
+      "migratingNotice": "La migrazione continua anche se chiudi questa finestra.",
+      "gap": {
+        "ssl": "Usa SSL/TLS, non ancora supportato dal plugin",
+        "connection_uri": "Usa una stringa di connessione, non ancora supportata dal plugin"
+      }
+    }
+  },
   "connectionCatalogue": {
     "searchPlaceholder": "Cerca database…",
     "clearSearch": "Cancella ricerca",
@@ -2123,6 +2366,8 @@
     "connectTo": "Connetti a {{name}}",
     "unavailableOnPlatform": "Non disponibile sulla tua piattaforma",
     "unavailable": "Non disponibile",
+    "deprecated": "Deprecato",
+    "deprecatedTooltip": "Questo driver integrato viene sostituito da un plugin",
     "backToCatalogue": "Torna al catalogo",
     "pickDriver": "Più driver si connettono a {{name}}. Scegline uno:",
     "latestVersion": "Ultima v{{version}}",
@@ -2153,6 +2398,10 @@
     "ssh": {
       "summary": "Tunnel SSH fallito",
       "recovery": "Controlla le impostazioni nella scheda SSH."
+    },
+    "ssm": {
+      "summary": "Sessione AWS SSM non riuscita",
+      "recovery": "Apri i dettagli per l'errore AWS esatto. Verifica che la CLI di AWS e il plugin Session Manager siano installati, che le credenziali siano valide e che il nodo gestito sia online."
     },
     "db-auth": {
       "summary": "Autenticazione al database fallita",
@@ -2191,6 +2440,11 @@
         "ok": "Port-forward pronto",
         "error": "Port-forward Kubernetes fallito"
       },
+      "ssmForward": {
+        "start": "Avvio del port forwarding AWS SSM",
+        "ok": "Port forwarding pronto",
+        "error": "Port forwarding AWS SSM non riuscito"
+      },
       "dbConnect": {
         "start": "Connessione al database",
         "ok": "Connessione al database stabilita",
@@ -2199,5 +2453,13 @@
     },
     "title": "Log del test di connessione",
     "showLog": "Mostra log"
+  },
+  "themePackages": {
+    "import": "Importa tema",
+    "registryMismatch": "Il pacchetto appartiene a un altro registro. Modifica esplicitamente il registro configurato prima di aggiornarlo.",
+    "importedTheme": "Tema importato", "manage": "Gestisci temi", "importJSON": "Importa JSON Tabularis", "importVSCode": "Importa da VS Code", "edit": "Modifica tema personale", "localPackage": "Pacchetto locale", "installTitle": "Installa pacchetto tema", "installSubtitle": "Tema dichiarativo dal registro configurato. Nessun codice viene eseguito.", "discover": "Sfoglia i temi in Plugin", "refresh": "Aggiorna elenco", "preview": "Anteprima", "apply": "Applica", "confirm": "Conferma", "duplicate": "Duplica come personale", "exportJSON": "Esporta JSON autonomo", "exportPackage": "Esporta pacchetto autore", "remove": "Elimina", "update": "Aggiorna pacchetto", "disable": "Disabilita pacchetto", "enable": "Abilita pacchetto", "removePackage": "Disinstalla pacchetto", "disabled": "Disabilitato", "file": "File del tema", "name": "Nome del tema", "mode": "Modalità / base", "detectMode": "Rileva (scegli se ambiguo)", "source": "JSON del tema", "search": "Cerca temi", "loading": "Caricamento…", "noThemes": "Nessun tema disponibile nel registro.", "details": "Dettagli / installazione", "readme": "README / schermate", "version": "Versione del pacchetto", "latest": "Ultima versione", "install": "Installa / sostituisci pacchetto", "chooseArchive": "Scegli archivio ZIP", "screenshots": "Schermate (apertura esterna)", "externalMedia": "Immagini e altri contenuti remoti non vengono caricati automaticamente. I collegamenti si aprono nel browser.", "snapshotEditor": "JSON esatto dell’editor", "snapshotEditorHelp": "Questo snapshot indipendente controlla i colori SQL al posto dell’alias legacy. Le modifiche vengono mostrate in anteprima e salvate verificando la revisione originale.", "recover": "Recupera installazioni interrotte", "recoveryExplanation": "Controlla e recupera esplicitamente le operazioni sui temi rimaste incomplete. Può ripristinare installazioni interrotte, senza selezionare temi né cambiare le preferenze salvate.", "recoveryDone": "Controlli di recupero completati. Esamina gli eventuali problemi riportati sotto.", "catalogIssues": "Diagnostica del catalogo", "fileTooLarge": "Il file supera il limite di importazione.", "previewHint": "L'anteprima è temporanea. Annulla ripristina il tema salvato; Applica salva la scelta.", "previewReady": "Anteprima attiva. Controlla applicazione ed editor prima di confermare.", "licenseNotice": "Importare o esportare non concede diritti di redistribuzione. Conserva l'attribuzione e verifica la licenza prima di pubblicare.", "acknowledge": "Comprendo e accetto i limiti di conversione elencati.", "applyAfterSave": "Applica dopo il salvataggio", "savedNotApplied": "Tema salvato, ma selezione fallita. Non importarlo di nuovo: seleziona il tema salvato.", "installHint": "L'installazione sostituisce l'intero pacchetto senza scegliere una variante. Anteprima, importazione locale e selezione non contano come download.", "installedHint": "Pacchetto installato. Chiudi e scegli esplicitamente una variante in Aspetto.", "committedRefreshFailed": "Operazione completata, ma aggiornamento del catalogo fallito. Aggiorna l'elenco prima di riprovare.", "missing": "Selezione salvata non disponibile: {{id}}. Uso un tema offline senza modificare la preferenza.", "downloads": "Download: {{count}}", "downloadsUnavailable": "Conteggio download non disponibile", "installedVersion": "Installata: {{version}}", "minimumVersion": "Richiede Tabularis {{version}} o successivo", "incompatible": "Versione incompatibile o priva di un unico archivio universale.", "packageWarning": "L'operazione riguarda tutte le varianti. Le selezioni salvate vengono conservate e ripristinate quando nuovamente disponibili.", "deleteWarning": "Eliminare il tema personale? Le sue selezioni salvate useranno i temi predefiniti.", "duplicateHint": "Crea una copia personale indipendente e modificabile, senza attivarla.", "exportError": "Esportazione del pacchetto fallita; resta disponibile il JSON autonomo.", "runtimeWarning": "Inserisci la prima versione realmente compatibile. Il numero di una build di sviluppo non garantisce la compatibilità dei vecchi client.", "packageName": "Identificatore del pacchetto (minuscolo)", "minimumRuntime": "Versione minima di Tabularis", "license": "Testo di licenza e attribuzione", "rightsAcknowledged": "Ho verificato i diritti di redistribuzione e l'attribuzione.",
+    "groups": { "builtin": "Integrati · offline", "installed": "Pacchetti installati", "personal": "Temi personali" }, "modes": { "light": "Chiaro", "dark": "Scuro", "high-contrast": "Alto contrasto" },
+    "importErrors": { "unrecognized": "Tema VS Code non riconosciuto.", "modeRequired": "Scegli una modalità e ripeti l'anteprima.", "includeOnly": "I temi con soli riferimenti include non sono importabili. Fornisci i colori effettivi.", "noSupportedData": "Nessun colore o regola SQL supportati.", "invalidColor": "Un colore supportato ha un valore non valido.", "invalidRules": "Regole dei token non valide o eccessive." },
+    "diagnostics": { "unsupportedKey": "Campo non supportato", "unsupportedColor": "Colore non supportato", "unsupportedScope": "Ambito non supportato", "scopeApproximation": "Mappatura SQL approssimata", "unsupportedStyle": "Stile non supportato", "ignoredInclude": "Include non caricato", "ignoredSemanticTokens": "Token semantici ignorati", "unsupportedReference": "Riferimento esterno non caricato", "unsupportedSetting": "Impostazione non supportata", "tokenAlphaFlattened": "Opacità dei token calcolata sullo sfondo di base", "modeApproximation": "Modalità sostituita o approssimata", "diagnosticsTruncated": "Ulteriori diagnostiche omesse" }
   }
 }

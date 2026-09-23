@@ -6,6 +6,7 @@ import {
   AlertCircle,
   GripHorizontal,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { MiniResultGrid } from './MiniResultGrid';
 import { useReferencedRecord } from '../../hooks/useReferencedRecord';
 import type { ForeignKey } from '../../types/editor';
@@ -38,6 +39,7 @@ export function RelatedRecordsPanel({
   onClose,
   onNavigateToTab,
 }: RelatedRecordsPanelProps) {
+  const { t } = useTranslation();
   const { fk, value, sourceColumnType } = activeFkQuery;
 
   const { result, error, isLoading, loadRecord } = useReferencedRecord({
@@ -92,14 +94,18 @@ export function RelatedRecordsPanel({
       style={{ height: `${height}px` }}
     >
       {/* Resizing Drag Handle */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- mouse-only drag handle; jsx-a11y models separator as non-interactive even though it is the correct role */}
       <div
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label={t("dataGrid.resizeRelatedPanel")}
         onMouseDown={handleMouseDown}
         className="group absolute top-0 left-0 right-0 h-1.5 cursor-row-resize z-50 border-t-2 border-transparent hover:border-accent-primary active:border-accent-primary transition-colors flex items-center justify-center"
-        title="Drag to resize panel"
+        title={t("dataGrid.resizeRelatedPanel")}
       >
         <GripHorizontal
           size={14}
-          className="opacity-0 group-hover:opacity-100 group-active:opacity-100 text-accent-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity duration-150"
+          className="opacity-0 group-hover:opacity-100 group-active:opacity-100 text-accent absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity duration-150"
         />
       </div>
 
@@ -132,7 +138,7 @@ export function RelatedRecordsPanel({
           >
             <RefreshCw
               size={14}
-              className={isLoading ? 'animate-spin text-accent-primary' : ''}
+              className={isLoading ? 'animate-spin text-accent' : ''}
             />
           </button>
 
@@ -164,7 +170,7 @@ export function RelatedRecordsPanel({
       <div className="flex-1 min-h-0 overflow-hidden relative bg-base/30">
         {isLoading ? (
           <div className="absolute inset-0 flex items-center justify-center text-muted gap-2.5">
-            <RefreshCw size={18} className="animate-spin text-accent-primary" />
+            <RefreshCw size={18} className="animate-spin text-accent" />
             <span className="text-sm font-medium animate-pulse">
               Fetching related records...
             </span>

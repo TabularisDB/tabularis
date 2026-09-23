@@ -47,6 +47,10 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
   }, [queries, selectedIndices, onRunSelected]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // A focused button activates itself on Enter/Space; do not run the
+    // list shortcut on top of it.
+    const onButton = e.target instanceof Element && e.target.closest('button') !== null;
+    if (onButton && (e.key === ' ' || (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.shiftKey))) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setFocusedIndex(prev => Math.min(prev + 1, queries.length - 1));
@@ -87,14 +91,14 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-default">
         <div>
-          <h3 className="text-base font-semibold text-white">{t('editor.querySelection.title')}</h3>
+          <h3 className="text-base font-semibold text-primary">{t('editor.querySelection.title')}</h3>
           <p className="text-xs text-muted mt-0.5">
             {t('editor.querySelection.queriesFound', { count: queries.length })}
           </p>
         </div>
         <button
           onClick={onClose}
-          className="text-muted hover:text-white transition-colors p-1 rounded hover:bg-surface-secondary"
+          className="text-muted hover:text-primary transition-colors p-1 rounded hover:bg-surface-secondary"
         >
           <X size={18} />
         </button>
@@ -112,7 +116,7 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
               onMouseEnter={() => setFocusedIndex(i)}
               className={`group flex items-start gap-3 px-3 py-2.5 rounded-lg mb-1 cursor-pointer transition-all ${
                 isSelected
-                  ? 'bg-blue-500/10 border border-blue-500/40'
+                  ? 'bg-accent-primary/10 border border-accent-primary/40'
                   : isFocused
                     ? 'bg-surface-secondary border border-transparent'
                     : 'border border-transparent hover:bg-surface-secondary/60'
@@ -123,8 +127,8 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
                 onClick={(e) => toggleSelection(i, e)}
                 className={`w-[22px] h-[22px] mt-0.5 shrink-0 rounded-md border-2 flex items-center justify-center transition-all ${
                   isSelected
-                    ? 'bg-blue-500 border-blue-500 text-white scale-100'
-                    : 'border-strong/60 text-transparent hover:border-blue-400 group-hover:border-blue-400/60'
+                    ? 'bg-accent-primary border-accent-primary text-inverse scale-100'
+                    : 'border-strong/60 text-transparent hover:border-accent-primary group-hover:border-accent-primary/60'
                 }`}
               >
                 <Check size={13} strokeWidth={3} />
@@ -132,22 +136,27 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
 
               {/* Index badge */}
               <span className={`w-5 h-5 mt-0.5 shrink-0 flex items-center justify-center rounded text-[11px] font-bold tabular-nums ${
-                isFocused || isSelected ? 'text-blue-400' : 'text-muted'
+                isFocused || isSelected ? 'text-accent' : 'text-muted'
               }`}>
                 {i + 1}
               </span>
 
               {/* SQL + run-single on click */}
-              <div className="flex-1 min-w-0" onClick={() => onSelect(q)}>
-                <pre className="text-[13px] font-mono text-secondary leading-relaxed overflow-hidden whitespace-pre-wrap break-all line-clamp-3 group-hover:text-primary transition-colors">
+              <button
+                type="button"
+                className="flex-1 min-w-0 text-left rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                onClick={() => onSelect(q)}
+                onFocus={() => setFocusedIndex(i)}
+              >
+                <span className="block text-[13px] font-mono text-secondary leading-relaxed overflow-hidden whitespace-pre-wrap break-all line-clamp-3 group-hover:text-primary transition-colors">
                   {statementLabel(q)}
-                </pre>
-              </div>
+                </span>
+              </button>
 
               {/* Inline run button — visible on hover */}
               <button
                 onClick={(e) => { e.stopPropagation(); onSelect(q); }}
-                className="mt-0.5 shrink-0 p-1.5 rounded-md text-muted opacity-0 group-hover:opacity-100 hover:bg-blue-500/20 hover:text-blue-400 transition-all"
+                className="mt-0.5 shrink-0 p-1.5 rounded-md text-muted opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-accent-primary/20 hover:text-accent transition-all"
                 title={t('editor.querySelection.runSingle')}
               >
                 <Play size={13} fill="currentColor" />
@@ -163,7 +172,7 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
         <div className="flex items-center gap-2">
           <button
             onClick={() => onRunAll(queries)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-xs font-semibold rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 bg-accent-success hover:bg-accent-success/90 text-on-accent-success text-xs font-semibold rounded-lg transition-colors"
           >
             <Play size={12} fill="currentColor" />
             {t('editor.querySelection.runAll')}
@@ -172,7 +181,7 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
           <button
             onClick={handleRunSelected}
             disabled={!hasSelection}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse text-xs font-semibold rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <ListChecks size={13} />
             {t('editor.querySelection.runSelected', { count: selectedIndices.size })}

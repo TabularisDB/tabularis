@@ -52,6 +52,7 @@ pub async fn open_task_manager_window(app: AppHandle) -> Result<(), String> {
     .inner_size(900.0, 600.0)
     .min_inner_size(700.0, 450.0)
     .center()
+    .decorations(crate::window_decorations::native_decorations_enabled())
     .build()
     .map_err(|error| format!("Failed to create task manager window: {error}"))?;
 

@@ -28,10 +28,13 @@ struct InstalledPluginManifest {
     /// The registry guarantees `version` in the manifest (`.tabularium`).
     version: String,
     description: String,
+    /// First Tabularis release this plugin can run on, if it declares one.
+    #[serde(default)]
+    min_runtime_version: Option<String>,
 }
 
 pub fn get_plugins_dir() -> Result<PathBuf, String> {
-    let plugins_dir = crate::paths::get_app_data_dir().join("plugins");
+    let plugins_dir = crate::paths::get_plugins_dir();
     if !plugins_dir.exists() {
         fs::create_dir_all(&plugins_dir)
             .map_err(|e| format!("Failed to create plugins directory: {}", e))?;
@@ -101,7 +104,7 @@ pub fn migrate_legacy_plugins_dir() {
     let Some(legacy) = legacy_plugins_dir() else {
         return;
     };
-    let target = crate::paths::get_app_data_dir().join("plugins");
+    let target = crate::paths::get_plugins_dir();
     let moved = migrate_plugins_between(&legacy, &target);
     if moved > 0 {
         log::info!(
@@ -127,23 +130,30 @@ pub fn has_manifest(dir: &Path) -> bool {
 
 /// Reads and deserialises a plugin bundle's `.tabularium` manifest (JSON).
 pub fn read_manifest<T: serde::de::DeserializeOwned>(dir: &Path) -> Result<T, String> {
-    let path = dir.join(MANIFEST_FILE);
+    let mut path = dir.join(MANIFEST_FILE);
     if !path.exists() {
-        // COMPAT(registry-ga): fall back to legacy manifest.json.
-        if let Some(legacy) = crate::plugins::compat::read_legacy_manifest::<T>(dir) {
-            log::warn!(
-                "Using legacy manifest.json in {:?} — republish as .tabularium",
-                dir
-            );
-            return legacy;
+        // COMPAT(registry-ga): preserve the legacy path, but validate kind before
+        // typed deserialization can discard it and before any plugin activation.
+        if crate::plugins::compat::has_legacy_manifest(dir) {
+            path = dir.join("manifest.json");
+            log::warn!("Using legacy manifest.json in {:?} — republish as .tabularium", dir);
+        } else {
+            return Err(format!("No .tabularium manifest in {:?}", dir));
         }
-        return Err(format!(
-            "No .tabularium manifest in {:?} — this plugin bundle must ship a .tabularium (JSON)",
-            dir
-        ));
     }
-    let manifest_str = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read plugin manifest {:?}: {}", path, e))?;
+    let mut manifest_str = String::new();
+    fs::File::open(&path)
+        .map_err(|e| e.to_string())?
+        .take(4 * 1024 * 1024 + 1)
+        .read_to_string(&mut manifest_str)
+        .map_err(|e| e.to_string())?;
+    super::package_kind::require_driver_kind(manifest_str.as_bytes()).map_err(|error| {
+        if error == super::package_kind::KIND_ERROR {
+            error
+        } else {
+            format!("Failed to parse plugin manifest {:?}: {}", path, error)
+        }
+    })?;
     serde_json::from_str(&manifest_str)
         .map_err(|e| format!("Failed to parse plugin manifest {:?}: {}", path, e))
 }
@@ -188,10 +198,10 @@ pub async fn download_and_install_into(
     cancellation: &InstallCancellation,
 ) -> Result<(), String> {
     cancellation.check()?;
-    fs::create_dir_all(plugins_dir)
-        .map_err(|e| format!("Failed to create plugins directory: {}", e))?;
-    let tmp_dir = plugins_dir.join(format!(".tmp-{}", plugin_id));
-    let final_dir = plugins_dir.join(plugin_id);
+    let final_dir = super::layout::driver_destination(plugins_dir, plugin_id)?;
+    let kind_dir = final_dir.parent().ok_or("Missing driver directory")?;
+    fs::create_dir_all(kind_dir).map_err(|e| e.to_string())?;
+    let tmp_dir = kind_dir.join(format!(".tmp-{}", plugin_id));
 
     // Clean up any leftover temp dir
     if tmp_dir.exists() {
@@ -201,10 +211,12 @@ pub async fn download_and_install_into(
 
     // Download ZIP to memory
     log::info!("Downloading plugin '{}' from: {}", plugin_id, download_url);
+    let client = crate::proxy::app_http_client()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
     let response = tokio::select! {
         biased;
         _ = cancellation.cancelled() => return Err(INSTALL_CANCELLED_ERROR.to_string()),
-        result = reqwest::get(download_url) => {
+        result = client.get(download_url).send() => {
             result.map_err(|e| format!("Failed to download plugin: {}", e))?
         }
     };
@@ -300,6 +312,13 @@ pub async fn download_and_install_into(
         )
     })?;
 
+    // Never apply permissions or extract a theme through the executable path.
+    if let Err(error) = super::package_kind::validate_archive_kind(&mut archive) {
+        drop(archive);
+        fs::remove_dir_all(&tmp_dir).ok();
+        return Err(error);
+    }
+
     for i in 0..archive.len() {
         if cancellation.is_cancelled() {
             drop(archive);
@@ -392,6 +411,16 @@ pub async fn download_and_install_into(
             ));
         }
     }
+    // The marketplace hides incompatible releases, but archives can also be
+    // installed by URL or from a local file, so gate the host version here
+    // while the bundle is still in the temp dir.
+    if let Err(e) = super::runtime_version::enforce_min_runtime_version(
+        &manifest_id,
+        manifest.min_runtime_version.as_deref(),
+    ) {
+        fs::remove_dir_all(&tmp_dir).ok();
+        return Err(e);
+    }
 
     // Cancellation remains safe until this commit point: the existing plugin
     // is still registered and its files have not been touched.
@@ -404,18 +433,30 @@ pub async fn download_and_install_into(
     // replacing files, otherwise the OS may keep them locked. Once this short
     // commit phase starts, installation is completed atomically rather than
     // leaving the existing plugin disabled.
-    if final_dir.exists() {
+    let previous = super::layout::driver_candidates(plugins_dir)?
+        .into_iter()
+        .filter(|path| super::layout::driver_identity(path).as_deref() == Some(plugin_id))
+        .collect::<Vec<_>>();
+    if !previous.is_empty() || final_dir.exists() {
         crate::drivers::registry::unregister_driver(plugin_id).await;
         crate::drivers::registry::unregister_manifest(plugin_id).await;
         sleep(Duration::from_millis(500)).await;
-        fs::remove_dir_all(&final_dir)
-            .map_err(|e| format!("Failed to remove existing plugin: {}", e))?;
+        if final_dir.exists() {
+            fs::remove_dir_all(&final_dir)
+                .map_err(|e| format!("Failed to remove existing plugin: {}", e))?;
+        }
     }
 
     // Rename temp to final
     fs::rename(&tmp_dir, &final_dir)
         .map_err(|e| format!("Failed to finalize plugin installation: {}", e))?;
 
+    // Retire flat/renamed copies only after the kind-scoped install succeeds.
+    for path in previous.into_iter().filter(|path| path != &final_dir) {
+        if let Err(error) = fs::remove_dir_all(&path) {
+            log::warn!("Installed driver but could not remove fallback {:?}: {}", path, error);
+        }
+    }
     log::info!("Plugin '{}' installed successfully", plugin_id);
     Ok(())
 }
@@ -426,45 +467,22 @@ pub fn uninstall(plugin_id: &str) -> Result<(), String> {
 }
 
 pub fn uninstall_from(plugins_dir: &Path, plugin_id: &str) -> Result<(), String> {
-    let mut plugin_dir = plugins_dir.join(plugin_id);
-
-    // The directory normally matches the plugin id, but manually copied or
-    // legacy bundles may live in a folder named differently from the manifest
-    // id — those still show up as installed (list_installed reads manifests),
-    // so resolve them by scanning manifests before giving up.
-    if !plugin_dir.exists() {
-        plugin_dir = find_plugin_dir_by_id(&plugins_dir, plugin_id)
-            .ok_or_else(|| format!("Plugin '{}' is not installed", plugin_id))?;
+    super::layout::resolve_driver(plugins_dir, plugin_id)?;
+    // Remove fallback copies first so uninstall cannot resurrect an older bundle.
+    for path in super::layout::driver_candidates(plugins_dir)?.into_iter().rev() {
+        if super::layout::driver_identity(&path).as_deref() == Some(plugin_id) {
+            fs::remove_dir_all(&path)
+                .map_err(|e| format!("Failed to remove plugin '{}': {}", plugin_id, e))?;
+        }
     }
-
-    fs::remove_dir_all(&plugin_dir)
-        .map_err(|e| format!("Failed to remove plugin '{}': {}", plugin_id, e))?;
 
     log::info!("Plugin '{}' uninstalled successfully", plugin_id);
     Ok(())
 }
 
-/// Scans the plugins directory for a bundle whose manifest id matches
-/// `plugin_id`, regardless of the directory name.
-fn find_plugin_dir_by_id(plugins_dir: &Path, plugin_id: &str) -> Option<PathBuf> {
-    let entries = fs::read_dir(plugins_dir).ok()?;
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() || !has_manifest(&path) {
-            continue;
-        }
-        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-            if name.starts_with(".tmp-") {
-                continue;
-            }
-        }
-        if let Ok(info) = read_plugin_info_from_dir(&path) {
-            if info.id == plugin_id {
-                return Some(path);
-            }
-        }
-    }
-    None
+/// Resolve kind-scoped bundles first, then flat bundles (including renamed ones).
+pub fn resolve_plugin_dir(plugin_id: &str) -> Result<PathBuf, String> {
+    super::layout::resolve_driver(&get_plugins_dir()?, plugin_id)
 }
 
 pub fn list_installed() -> Result<Vec<InstalledPluginInfo>, String> {
@@ -475,28 +493,10 @@ pub fn list_installed() -> Result<Vec<InstalledPluginInfo>, String> {
 pub fn list_installed_from(plugins_dir: &Path) -> Vec<InstalledPluginInfo> {
     let mut plugins = Vec::new();
 
-    let entries = match fs::read_dir(plugins_dir) {
-        Ok(e) => e,
-        Err(_) => return plugins,
+    let Ok(paths) = super::layout::driver_directories(plugins_dir) else {
+        return plugins;
     };
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-
-        // Skip temp directories
-        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-            if name.starts_with(".tmp-") {
-                continue;
-            }
-        }
-
-        if !has_manifest(&path) {
-            continue;
-        }
-
+    for path in paths {
         if let Ok(plugin) = read_plugin_info_from_dir(&path) {
             plugins.push(plugin);
         }

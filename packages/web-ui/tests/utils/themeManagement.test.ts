@@ -9,8 +9,6 @@ import {
   importTheme,
   exportTheme,
   migrateThemeFromLocalStorage,
-  detectSystemTheme,
-  getDefaultThemeIdForSystem,
   findThemeById,
   filterPresetThemes,
   filterCustomThemes,
@@ -21,6 +19,7 @@ import {
   canEditTheme,
   isActiveTheme,
   getSystemThemeId,
+  resolveActiveThemeId,
   type ThemeMigrationResult,
 } from '../../src/utils/themeManagement';
 import type { Theme, ThemeSettings } from '../../src/types/theme';
@@ -266,58 +265,6 @@ describe('themeManagement', () => {
     });
   });
 
-  describe('detectSystemTheme', () => {
-    it('should return dark when system prefers dark', () => {
-      vi.stubGlobal('window', {
-        matchMedia: vi.fn().mockReturnValue({ matches: true }),
-      });
-      
-      const result = detectSystemTheme();
-      
-      expect(result).toBe('dark');
-    });
-
-    it('should return light when system prefers light', () => {
-      vi.stubGlobal('window', {
-        matchMedia: vi.fn().mockReturnValue({ matches: false }),
-      });
-      
-      const result = detectSystemTheme();
-      
-      expect(result).toBe('light');
-    });
-
-    it('should default to dark on server', () => {
-      vi.stubGlobal('window', undefined);
-      
-      const result = detectSystemTheme();
-      
-      expect(result).toBe('dark');
-    });
-  });
-
-  describe('getDefaultThemeIdForSystem', () => {
-    it('should return tabularis-dark for dark mode', () => {
-      vi.stubGlobal('window', {
-        matchMedia: vi.fn().mockReturnValue({ matches: true }),
-      });
-      
-      const result = getDefaultThemeIdForSystem();
-      
-      expect(result).toBe('tabularis-dark');
-    });
-
-    it('should return tabularis-light for light mode', () => {
-      vi.stubGlobal('window', {
-        matchMedia: vi.fn().mockReturnValue({ matches: false }),
-      });
-      
-      const result = getDefaultThemeIdForSystem();
-      
-      expect(result).toBe('tabularis-light');
-    });
-  });
-
   describe('findThemeById', () => {
     const presets: Theme[] = [
       createMockTheme({ id: 'preset-1', name: 'Preset 1', isPreset: true }),
@@ -476,6 +423,31 @@ describe('themeManagement', () => {
       const result = getSystemThemeId(false, settings);
       
       expect(result).toBe('light-custom');
+    });
+  });
+
+  describe('resolveActiveThemeId', () => {
+    const base: ThemeSettings = {
+      activeThemeId: 'monokai',
+      followSystemTheme: false,
+      lightThemeId: 'solarized-light',
+      darkThemeId: 'dracula',
+      customThemes: [],
+    };
+
+    it('returns activeThemeId when followSystemTheme is false', () => {
+      expect(resolveActiveThemeId(base, true)).toBe('monokai');
+      expect(resolveActiveThemeId(base, false)).toBe('monokai');
+    });
+
+    it('returns darkThemeId when following a dark system', () => {
+      const s = { ...base, followSystemTheme: true };
+      expect(resolveActiveThemeId(s, true)).toBe('dracula');
+    });
+
+    it('returns lightThemeId when following a light system', () => {
+      const s = { ...base, followSystemTheme: true };
+      expect(resolveActiveThemeId(s, false)).toBe('solarized-light');
     });
   });
 });

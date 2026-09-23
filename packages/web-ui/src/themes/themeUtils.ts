@@ -1,6 +1,8 @@
 import type { Theme, MonacoThemeDefinition } from "../types/theme";
 import type * as monaco from "monaco-editor";
 import { lighten } from "./colorUtils";
+import { getResolvedEditorTheme, getMonacoThemeId } from "./themeRuntime";
+import { saveThemeBootCache } from "../utils/themeBoot";
 
 // Static imports for monaco-themes (copied locally for Vite compatibility)
 import MonokaiTheme from "./monaco/Monokai.json";
@@ -30,8 +32,18 @@ const MONACO_THEMES_MAP: Record<string, unknown> = {
   "Gruvbox Material Light": GruvboxMaterialLightTheme,
 };
 
-// Track which themes have been defined
-const definedThemes = new Set<string>();
+// Monaco modules can be independently instantiated. Cache actual definitions,
+// not only IDs, so same-ID personal edits and package revisions are refreshed.
+const definedThemes = new WeakMap<typeof monaco, Map<string, string>>();
+
+export function getMonacoThemeDefinition(theme: Theme): MonacoThemeDefinition {
+  const resolved = getResolvedEditorTheme(theme);
+  if (resolved) return resolved;
+  const name = theme.monacoTheme.themeName;
+  return name && Object.hasOwn(MONACO_THEMES_MAP, name)
+    ? MONACO_THEMES_MAP[name] as MonacoThemeDefinition
+    : generateMonacoTheme(theme);
+}
 
 /**
  * Loads and applies a Monaco Editor theme from the monaco-themes package
@@ -41,33 +53,20 @@ export function loadMonacoTheme(
   theme: Theme,
   monacoInstance: typeof monaco,
 ): void {
-  const themeName = theme.monacoTheme.themeName;
-
   try {
-    // If theme has a themeName, use the predefined Monaco theme
-    if (themeName && MONACO_THEMES_MAP[themeName]) {
-      const themeData = MONACO_THEMES_MAP[themeName];
-
-      // Define the theme with our theme ID if not already defined
-      if (!definedThemes.has(theme.id)) {
-        monacoInstance.editor.defineTheme(theme.id, themeData as monaco.editor.IStandaloneThemeData);
-        definedThemes.add(theme.id);
-      }
-
-      // Set it as the active theme
-      monacoInstance.editor.setTheme(theme.id);
-    } else {
-      // No themeName or not found, use fallback generated theme
-      const fallbackTheme = generateMonacoTheme(theme);
-      if (!definedThemes.has(theme.id)) {
-        monacoInstance.editor.defineTheme(
-          theme.id,
-          fallbackTheme as monaco.editor.IStandaloneThemeData,
-        );
-        definedThemes.add(theme.id);
-      }
-      monacoInstance.editor.setTheme(theme.id);
+    const definition = getMonacoThemeDefinition(theme);
+    const editorId = getMonacoThemeId(theme.id);
+    const fingerprint = JSON.stringify(definition);
+    let cache = definedThemes.get(monacoInstance);
+    if (!cache) {
+      cache = new Map();
+      definedThemes.set(monacoInstance, cache);
     }
+    if (cache.get(theme.id) !== fingerprint) {
+      monacoInstance.editor.defineTheme(editorId, definition as monaco.editor.IStandaloneThemeData);
+      cache.set(theme.id, fingerprint);
+    }
+    monacoInstance.editor.setTheme(editorId);
   } catch (error) {
     console.error(`Failed to load Monaco theme for "${theme.name}":`, error);
     // Final fallback to vs-dark
@@ -141,6 +140,9 @@ export function applyThemeToCSS(theme: Theme): void {
   // Color scheme
   const colorScheme = theme.monacoTheme.base === "vs" ? "light" : "dark";
   root.style.setProperty("color-scheme", colorScheme);
+
+  // Let the next startup paint this theme before React mounts (see index.html).
+  saveThemeBootCache({ bg: theme.colors.bg.base, fg: theme.colors.text.primary, scheme: colorScheme });
 }
 
 export function generateMonacoTheme(theme: Theme): MonacoThemeDefinition {

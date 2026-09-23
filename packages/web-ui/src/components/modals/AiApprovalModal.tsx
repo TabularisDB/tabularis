@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
@@ -13,9 +13,10 @@ import {
   ShieldAlert,
   X,
 } from "lucide-react";
-import Editor from "@monaco-editor/react";
+import { MonacoEditor as Editor } from "../ui/LazyMonaco";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
+import { getMonacoThemeId } from "../../themes/themeRuntime";
 import type { ExplainPlan, ExplainPlanSummary } from "@tabularis/explain";
 import {
   formatCost,
@@ -53,6 +54,7 @@ export function AiApprovalModal({
   const [viewMode, setViewMode] = useState<ExplainViewMode>("graph");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [planExpanded, setPlanExpanded] = useState(false);
+  const planTitleId = useId();
 
   // Reset local state if a new pending arrives.
   useEffect(() => {
@@ -122,12 +124,12 @@ export function AiApprovalModal({
           <div className="flex items-center gap-3 min-w-0">
             <div
               className={`p-2 rounded-lg ${
-                destructive ? "bg-red-900/30" : "bg-purple-900/30"
+                destructive ? "bg-accent-error/15" : "bg-accent-secondary/15"
               }`}
             >
               <ShieldAlert
                 size={20}
-                className={destructive ? "text-red-400" : "text-purple-400"}
+                className={destructive ? "text-accent-error" : "text-accent-secondary"}
               />
             </div>
             <div className="min-w-0">
@@ -185,7 +187,7 @@ export function AiApprovalModal({
               <Editor
                 height="180px"
                 defaultLanguage="sql"
-                theme={editorTheme.id}
+                theme={getMonacoThemeId(editorTheme.id)}
                 value={editing ? editedQuery : approval.query}
                 onChange={(v) => setEditedQuery(v ?? "")}
                 beforeMount={(monaco) => loadMonacoTheme(editorTheme, monaco)}
@@ -240,7 +242,7 @@ export function AiApprovalModal({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder={t("aiApproval.reasonPlaceholder")}
-              className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-sm text-primary focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-sm text-primary focus:outline-none focus:border-focus"
               autoFocus
             />
           </section>
@@ -251,7 +253,7 @@ export function AiApprovalModal({
           <button
             onClick={handleDeny}
             disabled={submitting}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-accent-error hover:bg-accent-error/90 disabled:opacity-50 text-on-accent-error rounded-lg text-sm font-medium transition-colors"
           >
             <X size={14} />
             {t("aiApproval.deny")}
@@ -267,7 +269,7 @@ export function AiApprovalModal({
             <button
               onClick={handleApprove}
               disabled={submitting}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-accent-success hover:bg-accent-success/90 disabled:opacity-50 text-on-accent-success rounded-lg text-sm font-medium transition-colors"
             >
               <Check size={14} />
               {t("aiApproval.approve")}
@@ -278,15 +280,20 @@ export function AiApprovalModal({
 
       {planExpanded && explainPlan && (
         <div
+          role="presentation"
           className="fixed inset-0 bg-black/70 flex items-center justify-center z-[130] backdrop-blur-sm"
-          onClick={() => setPlanExpanded(false)}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPlanExpanded(false);
+          }}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={planTitleId}
             className="bg-elevated border border-strong rounded-xl shadow-2xl w-[95vw] h-[90vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-3 border-b border-default bg-base">
-              <h3 className="text-sm font-semibold text-primary">
+              <h3 id={planTitleId} className="text-sm font-semibold text-primary">
                 {t("aiApproval.preflightPlan")}
               </h3>
               <button
@@ -341,7 +348,7 @@ function PlanSummaryBox({ plan, summary }: PlanSummaryBoxProps) {
         summary.highestCostNode.relation,
       ),
       icon: Layers2,
-      iconClass: "text-blue-400",
+      iconClass: "text-accent",
     },
     summary.slowestNode && {
       key: "slowest-step",
@@ -352,7 +359,7 @@ function PlanSummaryBox({ plan, summary }: PlanSummaryBoxProps) {
         summary.slowestNode.relation,
       ),
       icon: Clock3,
-      iconClass: "text-amber-400",
+      iconClass: "text-accent-warning",
     },
     summary.largestRowMismatchNode?.ratio != null && {
       key: "estimate-gap",
@@ -364,7 +371,7 @@ function PlanSummaryBox({ plan, summary }: PlanSummaryBoxProps) {
           : "editor.visualExplain.underEstimate",
       ),
       icon: AlertTriangle,
-      iconClass: "text-red-400",
+      iconClass: "text-accent-error",
     },
     summary.sequentialScans > 0 && {
       key: "sequential-scans",
@@ -372,7 +379,7 @@ function PlanSummaryBox({ plan, summary }: PlanSummaryBoxProps) {
       value: String(summary.sequentialScans),
       description: t("editor.visualExplain.scanOperations"),
       icon: ScanSearch,
-      iconClass: "text-amber-400",
+      iconClass: "text-accent-warning",
     },
     summary.tempOperations > 0 && {
       key: "temp-operations",
@@ -380,7 +387,7 @@ function PlanSummaryBox({ plan, summary }: PlanSummaryBoxProps) {
       value: String(summary.tempOperations),
       description: t("editor.visualExplain.sortOrTempOperations"),
       icon: Database,
-      iconClass: "text-fuchsia-400",
+      iconClass: "text-accent-secondary",
     },
   ].filter(Boolean);
 

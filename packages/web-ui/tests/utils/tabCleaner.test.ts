@@ -20,6 +20,9 @@ describe('tabCleaner', () => {
         limitClause: 100,
         pageSize: 51,
         queryParams: { param1: 'value1' },
+        sourceFilePath: '/tmp/my-query.sql',
+        sourceFileContent: 'SELECT 1;',
+        sourceFileDirty: true,
         // Temporary fields that should be excluded
         result: { columns: ['id'], rows: [[1]], affected_rows: 0 },
         error: 'Some error',
@@ -47,6 +50,9 @@ describe('tabCleaner', () => {
       expect(cleaned.limitClause).toBe(100);
       expect(cleaned.pageSize).toBe(51);
       expect(cleaned.queryParams).toEqual({ param1: 'value1' });
+      expect(cleaned.sourceFilePath).toBe('/tmp/my-query.sql');
+      expect(cleaned.sourceFileContent).toBe('SELECT 1;');
+      expect(cleaned.sourceFileDirty).toBe(true);
 
       // Should NOT include temporary fields
       expect(cleaned).not.toHaveProperty('result');
@@ -264,6 +270,9 @@ describe('tabCleaner', () => {
         sortClause: 'id DESC',
         limitClause: 25,
         queryParams: { startDate: '2024-01-01' },
+        sourceFilePath: '/tmp/orders.sql',
+        sourceFileContent: 'SELECT * FROM orders;',
+        sourceFileDirty: true,
       };
 
       const restored = restoreTabFromStorage(cleanedTab);
@@ -272,6 +281,9 @@ describe('tabCleaner', () => {
       expect(restored.sortClause).toBe('id DESC');
       expect(restored.limitClause).toBe(25);
       expect(restored.queryParams).toEqual({ startDate: '2024-01-01' });
+      expect(restored.sourceFilePath).toBe('/tmp/orders.sql');
+      expect(restored.sourceFileContent).toBe('SELECT * FROM orders;');
+      expect(restored.sourceFileDirty).toBe(true);
     });
 
     it('should restore notebook tab with notebookId and no notebookState', () => {

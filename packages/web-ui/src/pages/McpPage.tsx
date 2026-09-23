@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
-import Editor from "@monaco-editor/react";
+import { MonacoEditor as Editor } from "../components/ui/LazyMonaco";
 import {
   Activity,
   Check,
@@ -20,10 +20,12 @@ import {
 import { AiActivityPanel } from "../components/settings/AiActivityPanel";
 import { McpSafetySection } from "../components/modals/mcp/McpSafetySection";
 import { useAlert } from "../hooks/useAlert";
+import { useCopyFeedback } from "../hooks/useCopyFeedback";
 import { useEditorTheme } from "../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../themes/themeUtils";
 import { useTabularisClient } from "../hooks/useTabularisClient";
 import type { McpClientStatus } from "../types/mcp";
+import { getMonacoThemeId } from "../themes/themeRuntime";
 
 type McpPageTab = "setup" | "activity" | "safety";
 
@@ -39,9 +41,9 @@ const ClientIcon = ({
     case "claude_code":
       return <AnthropicIcon size={size} />;
     case "cursor":
-      return <CursorIcon size={size} className="text-white" />;
+      return <CursorIcon size={size} className="text-primary" />;
     case "windsurf":
-      return <WindsurfIcon size={size} className="text-white" />;
+      return <WindsurfIcon size={size} className="text-primary" />;
     case "antigravity":
       return <AntigravityIcon size={size} />;
     case "codex":
@@ -70,7 +72,7 @@ export function McpPage() {
       <div className="mx-auto flex max-w-6xl flex-col gap-6 p-8">
         <header className="flex flex-col gap-3 border-b border-default pb-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-900/30 text-purple-400">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-secondary/15 text-accent-secondary">
               <Cpu size={20} />
             </div>
             <div className="min-w-0">
@@ -93,7 +95,7 @@ export function McpPage() {
               className={clsx(
                 "-mb-px flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors",
                 tab === id
-                  ? "border-blue-500 text-primary"
+                  ? "border-accent-primary text-primary"
                   : "border-transparent text-muted hover:text-primary",
               )}
             >
@@ -122,8 +124,8 @@ function McpSetupPanel() {
   const client = useTabularisClient();
   const [clients, setClients] = useState<McpClientStatus[]>([]);
   const [loading, setLoading] = useState(true);
-  const [copiedJson, setCopiedJson] = useState(false);
-  const [copiedCmd, setCopiedCmd] = useState(false);
+  const { copied: copiedJson, copy: copyJson } = useCopyFeedback();
+  const { copied: copiedCmd, copy: copyCmd } = useCopyFeedback();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   const selectedClient = useMemo(
@@ -216,7 +218,7 @@ function McpSetupPanel() {
               className={clsx(
                 "flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors",
                 selectedClient?.client_id === client.client_id
-                  ? "border-purple-500/50 bg-purple-900/10"
+                  ? "border-accent-secondary/50 bg-accent-secondary/5"
                   : "border-default bg-base hover:border-strong",
               )}
             >
@@ -237,7 +239,7 @@ function McpSetupPanel() {
                 </div>
               </div>
               {client.installed ? (
-                <div className="ml-3 flex shrink-0 items-center gap-2 rounded-full border border-green-900/50 bg-green-900/20 px-3 py-1 text-xs font-medium text-green-400">
+                <div className="ml-3 flex shrink-0 items-center gap-2 rounded-full border border-accent-success/25 bg-accent-success/10 px-3 py-1 text-xs font-medium text-accent-success">
                   <Check size={12} />
                   <span>{t("mcp.installed")}</span>
                 </div>
@@ -247,7 +249,7 @@ function McpSetupPanel() {
                     e.stopPropagation();
                     handleInstall(client.client_id);
                   }}
-                  className="ml-3 shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-lg shadow-blue-900/20 transition-colors hover:bg-blue-500"
+                  className="ml-3 shrink-0 rounded-lg bg-accent-primary px-3 py-1.5 text-xs font-medium text-inverse shadow-lg shadow-accent-primary/20 transition-colors hover:bg-accent-primary/90"
                 >
                   {t("mcp.install")}
                 </button>
@@ -271,15 +273,11 @@ function McpSetupPanel() {
                   {cliCommand}
                 </div>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(cliCommand);
-                    setCopiedCmd(true);
-                    setTimeout(() => setCopiedCmd(false), 2000);
-                  }}
+                  onClick={() => copyCmd(cliCommand)}
                   className="absolute right-2 top-2 rounded bg-surface-secondary p-1.5 text-secondary opacity-0 transition-all hover:text-primary group-hover:opacity-100"
                 >
                   {copiedCmd ? (
-                    <Check size={13} className="text-green-400" />
+                    <Check size={13} className="text-accent-success" />
                   ) : (
                     <Copy size={13} />
                   )}
@@ -290,7 +288,7 @@ function McpSetupPanel() {
                 <Editor
                   height="220px"
                   defaultLanguage="json"
-                  theme={editorTheme.id}
+                  theme={getMonacoThemeId(editorTheme.id)}
                   value={jsonValue}
                   beforeMount={(monaco) => loadMonacoTheme(editorTheme, monaco)}
                   options={{
@@ -307,15 +305,11 @@ function McpSetupPanel() {
                   }}
                 />
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(jsonValue);
-                    setCopiedJson(true);
-                    setTimeout(() => setCopiedJson(false), 2000);
-                  }}
+                  onClick={() => copyJson(jsonValue)}
                   className="absolute right-2 top-2 z-10 rounded bg-surface-secondary p-2 text-secondary opacity-0 transition-all hover:text-primary group-hover:opacity-100"
                 >
                   {copiedJson ? (
-                    <Check size={14} className="text-green-400" />
+                    <Check size={14} className="text-accent-success" />
                   ) : (
                     <Copy size={14} />
                   )}

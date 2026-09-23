@@ -630,7 +630,7 @@ struct SaveKeybindingsRequest {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SaveThemeRequest {
-    theme: crate::theme_models::Theme,
+    theme: Value,
 }
 
 #[derive(Debug, Deserialize)]

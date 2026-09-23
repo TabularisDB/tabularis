@@ -1,4 +1,5 @@
 import type { Theme } from '../types/theme';
+import { resolveLegacyTheme } from '../utils/themeResolver';
 import { tabularisDark } from './presets/tabularisDark';
 import { tabularisLight } from './presets/tabularisLight';
 import { monokai } from './presets/monokai';
@@ -31,7 +32,13 @@ class ThemeRegistry {
   }
 
   private registerPreset(theme: Theme): void {
-    this.presets.set(theme.id, theme);
+    const contribution = resolveLegacyTheme(theme, {
+      id: theme.id,
+      name: theme.name,
+      revision: 'builtin-v1',
+      origin: { kind: 'builtin' },
+    });
+    this.presets.set(theme.id, contribution.theme);
   }
 
   getPreset(id: string): Theme | undefined {

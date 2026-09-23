@@ -39,18 +39,18 @@ export function DriverVersionPicker({ group, onChoose, onBack }: DriverVersionPi
               }}
               className={
                 'flex w-full cursor-pointer items-center justify-between rounded-md border px-3 py-2 text-left transition-colors ' +
-                (d.slug === selectedSlug ? 'border-blue-500 bg-blue-500/10' : 'border-default hover:border-blue-500/40')
+                (d.slug === selectedSlug ? 'border-accent-primary bg-accent-primary/10' : 'border-default hover:border-accent-primary/40')
               }
             >
               <span className="flex items-center gap-2">
                 <span className="font-medium text-primary">{d.name}</span>
                 {d.verified && (
-                  <span className="text-[10px] text-blue-400">
+                  <span className="text-[10px] text-accent">
                     ✓ {t('connectionCatalogue.verified', { defaultValue: 'Verified' })}
                   </span>
                 )}
                 {d.installed && (
-                  <span className="text-[10px] text-emerald-400">
+                  <span className="text-[10px] text-accent-success">
                     ● {t('connectionCatalogue.installed', { defaultValue: 'Installed' })}
                   </span>
                 )}
@@ -72,7 +72,7 @@ export function DriverVersionPicker({ group, onChoose, onBack }: DriverVersionPi
         <button
           type="button"
           onClick={() => selected && onChoose(selected, selected.latestVersion)}
-          className="ml-auto cursor-pointer rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
+          className="ml-auto cursor-pointer rounded-md bg-accent-primary px-3 py-1.5 text-sm font-medium text-inverse hover:bg-accent-primary/90"
         >
           {t('connectionCatalogue.continue', { defaultValue: 'Continue' })}
         </button>

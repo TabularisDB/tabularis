@@ -1,24 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FileJson, FolderOpen, Loader2, RefreshCw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import type { ExplainPlan, ExplainQueryOutput } from "@tabularis/explain";
-import {
-  parseExplain,
-  resolveExplainOutput,
-  withSourceLabel,
-} from "@tabularis/explain";
+import type { ExplainPlan } from "@tabularis/explain";
+import { parseExplain, withSourceLabel } from "@tabularis/explain";
 import { VisualExplainView } from "../components/explain/VisualExplainView";
-import type { ExplainViewMode } from "@tabularis/explain/react";
 import {
   getExplainFileName,
   parseExplainFileParam,
 } from "../utils/explainImport";
 import { parseVisualExplainDeepLink } from "../utils/aiActivity";
 import { useSettings } from "../hooks/useSettings";
-import { useTabularisClient } from "../hooks/useTabularisClient";
+import { useExplainPlan } from "../hooks/useExplainPlan";
 import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
+import type { ChosenInputFile } from "../platform/capabilities";
 
 export interface VisualExplainPageProps {
   /// When provided, render in embedded mode: skip the page header, use the
@@ -33,7 +29,6 @@ export const VisualExplainPage = ({
   compactMode = false,
 }: VisualExplainPageProps = {}) => {
   const { t } = useTranslation();
-  const client = useTabularisClient();
   const platform = usePlatformCapabilities();
   const { settings } = useSettings();
   const { search } = useLocation();
@@ -42,90 +37,79 @@ export const VisualExplainPage = ({
   const isDeepLink = !!deepLink.query && !!deepLink.connectionId;
 
   const [filePath, setFilePath] = useState<string | null>(initialParamPath);
-  const [plan, setPlan] = useState<ExplainPlan | null>(initialPlan);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ExplainViewMode>("graph");
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
-    initialPlan?.root.id ?? null,
-  );
+  const sourceVersion = useRef(0);
+  const pickerVersion = useRef(0);
+  // A picked file is re-read through the platform reference on reload: its
+  // display name is not a loadable path (and a browser has no path at all).
+  const pickedFile = useRef<ChosenInputFile | null>(null);
+  const {
+    plan,
+    isLoading,
+    error,
+    viewMode,
+    setViewMode,
+    selectedNodeId,
+    setSelectedNodeId,
+    runExplain,
+    loadPlan,
+    invalidate,
+  } = useExplainPlan(initialPlan);
 
-  const loadPlan = useCallback(async (path: string) => {
-    setIsLoading(true);
-    setError(null);
-    setPlan(null);
-    setSelectedNodeId(null);
-    try {
+  const loadFile = useCallback(
+    (path: string) => loadPlan(async () => {
       const file = await invoke<{ content: string; display_name: string }>(
         "load_explain_from_file",
         { path },
       );
-      const parsedPlan = withSourceLabel(parseExplain(file.content), file.display_name);
-      setPlan(parsedPlan);
-      setSelectedNodeId(parsedPlan.root.id);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const runExplainForDeepLink = useCallback(
-    async (connectionId: string, query: string) => {
-      setIsLoading(true);
-      setError(null);
-      setPlan(null);
-      setSelectedNodeId(null);
-      try {
-        const result: ExplainQueryOutput = await client.call(
-          "explain_query_plan",
-          {
-            connectionId,
-            query,
-            analyze: false,
-          },
-        );
-        const parsedPlan = resolveExplainOutput(result);
-        setPlan(parsedPlan);
-        setSelectedNodeId(parsedPlan.root.id);
-      } catch (err) {
-        setError(String(err));
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [client],
+      return withSourceLabel(parseExplain(file.content), file.display_name);
+    }),
+    [loadPlan],
   );
 
   // On mount: prefer initialPlan (embedded mode), then deep link, then file
   // path, then any pending CLI handoff.
   useEffect(() => {
-    if (initialPlan) return;
     let cancelled = false;
+    const source = sourceVersion;
+    const version = ++source.current;
 
     const bootstrap = async () => {
+      await Promise.resolve();
+      if (cancelled || version !== source.current || initialPlan) return;
       if (isDeepLink) {
-        await runExplainForDeepLink(deepLink.connectionId!, deepLink.query!);
+        await runExplain({
+          connectionId: deepLink.connectionId!,
+          query: deepLink.query!,
+          analyze: false,
+          schema: null,
+        });
         return;
       }
       if (initialParamPath) {
-        await loadPlan(initialParamPath);
+        await loadFile(initialParamPath);
         return;
       }
       try {
         const pending = await invoke<string | null>("get_pending_explain_file");
-        if (!cancelled && pending) {
+        if (!cancelled && version === source.current && pending) {
+          pickedFile.current = null;
           setFilePath(pending);
-          await loadPlan(pending);
+          await loadFile(pending);
         }
       } catch (err) {
-        if (!cancelled) setError(String(err));
+        if (!cancelled && version === source.current) {
+          await loadPlan(async () => {
+            throw err;
+          });
+        }
       }
     };
 
-    bootstrap();
+    void bootstrap();
     return () => {
       cancelled = true;
+      ++source.current;
+      invalidate();
     };
   }, [
     initialPlan,
@@ -133,42 +117,56 @@ export const VisualExplainPage = ({
     isDeepLink,
     deepLink.connectionId,
     deepLink.query,
+    loadFile,
     loadPlan,
-    runExplainForDeepLink,
+    runExplain,
+    invalidate,
   ]);
 
-  const handlePickFile = useCallback(async () => {
-    const selected = await platform.chooseInputFile({
-      filters: [
-        { name: "Explain", extensions: ["json", "txt"] },
-        { name: "All files", extensions: ["*"] },
-      ],
-    });
-    if (!selected) return;
-
-    setIsLoading(true);
-    setError(null);
-    setPlan(null);
-    setSelectedNodeId(null);
-    try {
+  const loadPickedFile = useCallback(
+    (selected: ChosenInputFile) => loadPlan(async () => {
       const contents = await platform.readInputFile(selected.reference);
-      const parsedPlan = withSourceLabel(
+      return withSourceLabel(
         parseExplain(new TextDecoder().decode(contents)),
         selected.name,
       );
+    }),
+    [loadPlan, platform],
+  );
+
+  const handlePickFile = useCallback(async () => {
+    const version = sourceVersion.current;
+    const picker = ++pickerVersion.current;
+    try {
+      const selected = await platform.chooseInputFile({
+        filters: [
+          { name: "Explain", extensions: ["json", "txt"] },
+          { name: "All files", extensions: ["*"] },
+        ],
+      });
+      if (version !== sourceVersion.current || picker !== pickerVersion.current) return;
+      if (!selected) return;
+      ++sourceVersion.current;
+      pickedFile.current = selected;
       setFilePath(selected.name);
-      setPlan(parsedPlan);
-      setSelectedNodeId(parsedPlan.root.id);
+      await loadPickedFile(selected);
     } catch (err) {
-      setError(String(err));
-    } finally {
-      setIsLoading(false);
+      if (version === sourceVersion.current && picker === pickerVersion.current) {
+        ++sourceVersion.current;
+        await loadPlan(async () => {
+          throw err;
+        });
+      }
     }
-  }, [platform]);
+  }, [loadPickedFile, loadPlan, platform]);
 
   const handleReload = useCallback(() => {
-    if (filePath) loadPlan(filePath);
-  }, [filePath, loadPlan]);
+    if (filePath) {
+      ++sourceVersion.current;
+      if (pickedFile.current) void loadPickedFile(pickedFile.current);
+      else void loadFile(filePath);
+    }
+  }, [filePath, loadFile, loadPickedFile]);
 
   const fileLabel = filePath ? getExplainFileName(filePath) : null;
   const containerClass = compactMode
@@ -180,8 +178,8 @@ export const VisualExplainPage = ({
       {!compactMode && (
         <div className="flex items-center justify-between px-4 py-3 border-b border-default bg-elevated shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 bg-green-900/30 rounded-lg">
-              <FileJson size={18} className="text-green-400" />
+            <div className="p-2 bg-accent-success/15 rounded-lg">
+              <FileJson size={18} className="text-accent-success" />
             </div>
             <div className="min-w-0">
               <h1 className="text-base font-semibold text-primary truncate">
@@ -225,13 +223,13 @@ export const VisualExplainPage = ({
       )}
 
       <div className="flex-1 min-h-0">
-        {!compactMode && !filePath && !plan && !isLoading ? (
+        {!compactMode && !filePath && !plan && !isLoading && !error ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted">
             <FileJson size={32} className="opacity-30" />
             <p className="text-sm">{t("visualExplainPage.emptyHint")}</p>
             <button
               onClick={handlePickFile}
-              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 bg-accent-success hover:bg-accent-success/90 text-on-accent-success rounded-lg text-sm font-medium transition-colors"
             >
               <FolderOpen size={14} />
               {t("visualExplainPage.openFile")}

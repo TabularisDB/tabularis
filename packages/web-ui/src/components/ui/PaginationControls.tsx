@@ -31,7 +31,7 @@ export function PaginationControls({
       <button
         disabled={isFirstPage || isLoading}
         onClick={() => onPageChange(1)}
-        className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+        className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed"
         title={t("pagination.firstPage")}
         aria-label={t("pagination.firstPage")}
       >
@@ -40,7 +40,7 @@ export function PaginationControls({
       <button
         disabled={isFirstPage || isLoading}
         onClick={() => onPageChange(pagination.page - 1)}
-        className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed @[420px]:border-l border-strong"
+        className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed @[420px]:border-l border-strong"
         title={t("pagination.previousPage")}
         aria-label={t("pagination.previousPage")}
       >
@@ -59,7 +59,7 @@ export function PaginationControls({
       <button
         disabled={!pagination.has_more || isLoading}
         onClick={() => onPageChange(pagination.page + 1)}
-        className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
+        className="p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
         title={t("pagination.nextPage")}
         aria-label={t("pagination.nextPage")}
       >
@@ -70,7 +70,7 @@ export function PaginationControls({
         onClick={() => {
           if (totalPages !== null) onPageChange(totalPages);
         }}
-        className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
+        className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
         title={t("pagination.lastPage")}
         aria-label={t("pagination.lastPage")}
       >

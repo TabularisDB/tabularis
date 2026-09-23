@@ -4,6 +4,7 @@ import type { QueryResult } from "../../types/editor";
 import { resultToCsv, resultToJson } from "../../utils/notebookExport";
 import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { downloadTextFile } from "../../utils/fileDownloads";
+import { useAlert } from "../../hooks/useAlert";
 
 interface ResultToolbarProps {
   result: QueryResult;
@@ -17,22 +18,23 @@ interface ResultToolbarProps {
 export function ResultToolbar({ result, executionTime }: ResultToolbarProps) {
   const { t } = useTranslation();
   const platform = usePlatformCapabilities();
+  const { showAlert } = useAlert();
 
-  const handleExportCsv = () =>
-    downloadTextFile(platform, {
-      fileName: "result.csv",
-      contents: resultToCsv(result),
-      mimeType: "text/csv",
-      filters: [{ name: "CSV", extensions: ["csv"] }],
-    });
-
-  const handleExportJson = () =>
-    downloadTextFile(platform, {
-      fileName: "result.json",
-      contents: resultToJson(result),
-      mimeType: "application/json",
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
+  const handleExport = async (format: "csv" | "json") => {
+    try {
+      const downloaded = await downloadTextFile(platform, {
+        fileName: `result.${format}`,
+        contents: format === "json" ? resultToJson(result) : resultToCsv(result),
+        mimeType: format === "json" ? "application/json" : "text/csv",
+        filters: [{ name: format.toUpperCase(), extensions: [format] }],
+      });
+      if (!downloaded) return;
+      showAlert(t("editor.notebook.resultExportSuccess"), { kind: "info" });
+    } catch (e) {
+      console.error(`${format.toUpperCase()} export failed:`, e);
+      showAlert(t("editor.notebook.exportError"), { kind: "error" });
+    }
+  };
 
   return (
     <>
@@ -45,7 +47,7 @@ export function ResultToolbar({ result, executionTime }: ResultToolbarProps) {
       <div className="flex items-center gap-0.5">
         <button
           type="button"
-          onClick={handleExportCsv}
+          onClick={() => handleExport("csv")}
           className="p-1 text-muted hover:text-secondary hover:bg-surface-secondary rounded transition-colors"
           title={t("editor.notebook.exportCsv")}
         >
@@ -56,7 +58,7 @@ export function ResultToolbar({ result, executionTime }: ResultToolbarProps) {
         </button>
         <button
           type="button"
-          onClick={handleExportJson}
+          onClick={() => handleExport("json")}
           className="p-1 text-muted hover:text-secondary hover:bg-surface-secondary rounded transition-colors"
           title={t("editor.notebook.exportJson")}
         >

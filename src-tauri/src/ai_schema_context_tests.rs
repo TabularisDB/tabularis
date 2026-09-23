@@ -11,6 +11,7 @@ fn column(name: &str, data_type: &str, is_pk: bool, is_nullable: bool) -> TableC
         is_generated: false,
         default_value: None,
         character_maximum_length: None,
+        comment: None,
     }
 }
 

@@ -4,6 +4,7 @@ import clsx from "clsx";
 import {X, Loader2, Copy, Check, FileCode, List, Table2, PenLine, Trash2, Play} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDatabase } from "../../hooks/useDatabase";
+import { useCopyFeedback } from "../../hooks/useCopyFeedback";
 import { Modal } from "../ui/Modal";
 import { SqlPreview } from "../ui/SqlPreview";
 import { useAlert } from "../../hooks/useAlert";
@@ -52,7 +53,7 @@ export const GenerateSQLModal = ({
   const [sql, setSql] = useState<string>("");
   const [columns, setColumns] = useState<TableColumn[]>([]);
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { copied, copy: copyText } = useCopyFeedback();
 
   useEffect(() => {
     if (!isOpen || !connectionId || !tableName) return;
@@ -66,7 +67,7 @@ export const GenerateSQLModal = ({
       setLoading(true);
       try {
         const schemaParam = schema ? { schema } : {};
-        const [columnMetadata, foreignKeys, indexes] = await Promise.all([
+        const [columnMetadata, foreignKeys, indexes, tables] = await Promise.all([
           client.call("get_columns", {
             connectionId,
             tableName,
@@ -82,6 +83,10 @@ export const GenerateSQLModal = ({
             tableName,
             ...schemaParam,
           }),
+          client.call("get_tables", {
+            connectionId,
+            ...schemaParam,
+          }),
         ]);
 
         const fetchedColumns: TableColumn[] = columnMetadata.map((column) => ({
@@ -95,6 +100,7 @@ export const GenerateSQLModal = ({
           foreignKeys,
           indexes,
           dialect,
+          tables.find((table) => table.name === tableName)?.comment,
         );
         setSql(generatedSQL);
       } catch (err) {
@@ -162,11 +168,7 @@ export const GenerateSQLModal = ({
     onClose();
   };
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(displayedSql);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const handleCopy = () => copyText(displayedSql);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -174,8 +176,8 @@ export const GenerateSQLModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-900/30 rounded-lg">
-              <FileCode size={20} className="text-blue-400" />
+            <div className="p-2 bg-accent-primary/15 rounded-lg">
+              <FileCode size={20} className="text-accent" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
@@ -228,7 +230,7 @@ export const GenerateSQLModal = ({
               className={clsx(
                 "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
                 tab === tabId
-                  ? "text-primary border-blue-500"
+                  ? "text-primary border-accent-primary"
                   : "text-muted border-transparent hover:text-primary",
               )}
             >
@@ -243,7 +245,7 @@ export const GenerateSQLModal = ({
           {dialectError ? (
             <div
               role="alert"
-              className="rounded-lg border border-red-500/40 bg-red-950/20 px-4 py-3 text-sm text-red-400"
+              className="rounded-lg border border-accent-error/40 bg-accent-error/10 px-4 py-3 text-sm text-accent-error"
             >
               {dialectError}
             </div>
@@ -278,7 +280,7 @@ export const GenerateSQLModal = ({
             </button>
             <button
               onClick={handleCopy}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
               {copied ? t("generateSQL.copied") : t("generateSQL.copy")}

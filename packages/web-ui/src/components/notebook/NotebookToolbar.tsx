@@ -177,7 +177,7 @@ export function NotebookToolbar({
           {isRunning ? (
             <Loader2 size={14} className="animate-spin" />
           ) : (
-            <Play size={14} className="text-green-400" />
+            <Play size={14} className="text-accent-success" />
           )}
           <span className="hidden @[440px]:inline">
             {t("editor.notebook.runAll")}
@@ -190,7 +190,7 @@ export function NotebookToolbar({
           title={t("editor.notebook.stopOnErrorTooltip")}
           className={`flex items-center gap-1 px-1.5 py-1 text-[10px] rounded transition-colors shrink-0 ${
             stopOnError
-              ? "bg-red-500/15 text-red-400 font-semibold"
+              ? "bg-accent-error/15 text-accent-error font-semibold"
               : "text-muted hover:text-secondary hover:bg-surface-secondary"
           }`}
         >

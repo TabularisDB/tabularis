@@ -14,6 +14,8 @@ const SSH_SECRET_SUFFIX: &str = "ssh";
 const SSH_PASSPHRASE_SUFFIX: &str = "ssh_passphrase";
 const WEB_ASKPASS_TIMEOUT: Duration = Duration::from_secs(120);
 const DESKTOP_ASKPASS_TIMEOUT: Duration = Duration::from_secs(300);
+/// Fallback remote port when a connection omits one (MySQL's default).
+const DEFAULT_REMOTE_PORT: u16 = 3306;
 
 #[derive(Debug)]
 pub enum TunnelCommand {
@@ -469,18 +471,87 @@ pub fn resolve_expanded_connection_params(
     params: &ConnectionParams,
     askpass_server: Option<crate::askpass::AskpassServer>,
 ) -> Result<ConnectionParams, String> {
-    if params.k8s_enabled.unwrap_or(false) && params.ssh_enabled.unwrap_or(false) {
-        return Err(
-            "Kubernetes and SSH tunnel cannot both be enabled for the same connection".to_string(),
-        );
+    let mut resolved = resolve_connection_transport(params, askpass_server)?;
+    // Only file/folder drivers store a path in `database`; for network drivers
+    // it is a schema name and must be passed through untouched.
+    if crate::drivers::registry::is_local_path_driver(&resolved.driver) {
+        resolved.database = crate::fs_path::sanitize_database_selection(&resolved.database);
     }
+    Ok(resolved)
+}
+
+/// SSH, Kubernetes and AWS SSM each rewrite host/port to a local tunnel, so at
+/// most one of them can be active for a connection.
+pub(crate) fn ensure_single_tunnel(params: &ConnectionParams) -> Result<(), String> {
+    let enabled: Vec<&str> = [
+        ("SSH", params.ssh_enabled),
+        ("Kubernetes", params.k8s_enabled),
+        ("AWS SSM", params.ssm_enabled),
+    ]
+    .into_iter()
+    .filter(|(_, on)| on.unwrap_or(false))
+    .map(|(name, _)| name)
+    .collect();
+
+    if enabled.len() > 1 {
+        return Err(format!(
+            "{} tunnels cannot both be enabled for the same connection",
+            enabled.join(" and ")
+        ));
+    }
+    Ok(())
+}
+
+/// Resolve the tunnel / proxy transport for a connection (K8s, SSM, SSH or a
+/// database-scope proxy) and return params pointing at the local endpoint.
+fn resolve_connection_transport(
+    params: &ConnectionParams,
+    askpass_server: Option<crate::askpass::AskpassServer>,
+) -> Result<ConnectionParams, String> {
+    ensure_single_tunnel(params)?;
+
+    // K8s results are already on localhost; do not re-proxy.
     if params.k8s_enabled.unwrap_or(false) {
         return resolve_k8s_params(params);
     }
-    if !params.ssh_enabled.unwrap_or(false) {
-        return Ok(params.clone());
+    if params.ssm_enabled.unwrap_or(false) {
+        return resolve_ssm_params(params);
     }
-    resolve_ssh_params(params, askpass_server)
+    if params.ssh_enabled.unwrap_or(false) {
+        return resolve_ssh_params(params, askpass_server);
+    }
+
+    // Direct DB connection — apply database-scope proxy when configured.
+    let mut resolved = params.clone();
+    if let Some(proxy) = crate::proxy::resolve_for_connection(
+        crate::proxy::SCOPE_DATABASE,
+        params.connection_id.as_deref(),
+        params.proxy.as_ref(),
+    ) {
+        let host = resolved
+            .host
+            .as_deref()
+            .unwrap_or("localhost")
+            .to_string();
+        let port = resolved.port.unwrap_or(DEFAULT_REMOTE_PORT);
+        if !is_loopback_host(&host) {
+            let fwd_port = crate::proxy::ensure_forward(&proxy, &host, port)?;
+            log::info!(
+                "Database {}:{} reached via proxy forward on 127.0.0.1:{}",
+                host,
+                port,
+                fwd_port
+            );
+            resolved.host = Some("127.0.0.1".to_string());
+            resolved.port = Some(fwd_port);
+        }
+    }
+    Ok(resolved)
+}
+
+fn is_loopback_host(host: &str) -> bool {
+    let h = host.trim().to_ascii_lowercase();
+    h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "[::1]"
 }
 
 fn resolve_ssh_params(
@@ -491,16 +562,53 @@ fn resolve_ssh_params(
     let ssh_port = params.ssh_port.unwrap_or(22);
     let ssh_user = params.ssh_user.as_deref().ok_or("Missing SSH User")?;
     let remote_host = params.host.as_deref().unwrap_or("localhost");
-    let remote_port = params.port.unwrap_or(3306);
-    let key =
+    let remote_port = params.port.unwrap_or(DEFAULT_REMOTE_PORT);
+
+    let proxy = crate::proxy::resolve_for_connection(
+        crate::proxy::SCOPE_SSH_TUNNEL,
+        params.connection_id.as_deref(),
+        params.proxy.as_ref(),
+    );
+    let base_key =
         crate::ssh_tunnel::build_tunnel_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port);
+    let key = match &proxy {
+        Some(p) => {
+            let proto = match p.protocol {
+                crate::proxy::ProxyProtocol::Http => "http",
+                crate::proxy::ProxyProtocol::Socks5 => "socks5",
+            };
+            let user = p.username.as_deref().unwrap_or("");
+            format!("{base_key}|px:{proto}:{}:{}:{user}", p.host.trim(), p.port)
+        }
+        None => base_key,
+    };
     if let Some(tunnel) = crate::ssh_tunnel::get_tunnels().lock().unwrap().get(&key) {
+        log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
         let mut resolved = params.clone();
         resolved.host = Some("127.0.0.1".to_string());
         resolved.port = Some(tunnel.local_port);
         return Ok(resolved);
     }
 
+    let (tcp_host, tcp_port) = if let Some(proxy) = proxy {
+        let fwd_port = crate::proxy::ensure_forward(&proxy, ssh_host, ssh_port)?;
+        log::info!(
+            "SSH bastion {}:{} reached via proxy forward on 127.0.0.1:{}",
+            ssh_host,
+            ssh_port,
+            fwd_port
+        );
+        (Some("127.0.0.1".to_string()), Some(fwd_port))
+    } else {
+        (None, None)
+    };
+
+    log::info!(
+        "Creating new SSH tunnel for {}@{}:{}",
+        ssh_user,
+        ssh_host,
+        ssh_port
+    );
     let allow_prompt = params.ssh_allow_passphrase_prompt.unwrap_or(false);
     let tunnel = crate::ssh_tunnel::SshTunnel::new_with_askpass(
         ssh_host,
@@ -513,8 +621,15 @@ fn resolve_ssh_params(
         remote_host,
         remote_port,
         askpass_server,
-    )?;
+        tcp_host.as_deref(),
+        tcp_port,
+    )
+    .map_err(|e| {
+        eprintln!("[Connection Error] SSH Tunnel setup failed: {}", e);
+        e
+    })?;
     let local_port = tunnel.local_port;
+    log::info!("SSH tunnel created successfully on port {}", local_port);
     crate::ssh_tunnel::get_tunnels()
         .lock()
         .unwrap()
@@ -523,6 +638,72 @@ fn resolve_ssh_params(
     resolved.host = Some("127.0.0.1".to_string());
     resolved.port = Some(local_port);
     Ok(resolved)
+}
+
+/// Resolve AWS SSM tunnel params synchronously. Like SSH, the session forwards
+/// to the connection's own host/port; unlike SSH there is no saved-connection
+/// indirection, so every field is inline.
+pub(crate) fn resolve_ssm_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
+    let target = params
+        .ssm_target
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .ok_or("Missing AWS SSM target")?;
+    let profile = params.ssm_profile.as_deref();
+    let region = params.ssm_region.as_deref();
+    let remote_host = params.host.as_deref().unwrap_or("localhost");
+    let remote_port = params.port.unwrap_or(DEFAULT_REMOTE_PORT);
+
+    let map_key =
+        crate::ssm_tunnel::build_tunnel_key(target, profile, region, remote_host, remote_port);
+
+    {
+        let mut tunnels = crate::ssm_tunnel::get_tunnels().lock().unwrap();
+        if let Some(tunnel) = tunnels.get(&map_key) {
+            if tunnel.is_alive() {
+                log::debug!("Reusing existing SSM tunnel on port {}", tunnel.local_port);
+                let mut new_params = params.clone();
+                new_params.ssm_enabled = Some(false);
+                new_params.host = Some("127.0.0.1".to_string());
+                new_params.port = Some(tunnel.local_port);
+                return Ok(new_params);
+            }
+            log::info!(
+                "Discarding dead SSM tunnel on port {}; the session ended",
+                tunnel.local_port
+            );
+            tunnels.remove(&map_key);
+        }
+    }
+
+    log::info!(
+        "Creating new SSM tunnel to {}:{} via {}",
+        remote_host,
+        remote_port,
+        target
+    );
+
+    let tunnel =
+        crate::ssm_tunnel::SsmTunnel::new(target, profile, region, remote_host, remote_port)
+            .map_err(|e| {
+                eprintln!("[Connection Error] SSM Tunnel setup failed: {}", e);
+                e
+            })?;
+
+    let local_port = tunnel.local_port;
+    log::info!("SSM tunnel created successfully on port {}", local_port);
+
+    crate::ssm_tunnel::get_tunnels()
+        .lock()
+        .unwrap()
+        .insert(map_key, tunnel);
+
+    let mut new_params = params.clone();
+    new_params.ssm_enabled = Some(false);
+    new_params.host = Some("127.0.0.1".to_string());
+    new_params.port = Some(local_port);
+    Ok(new_params)
 }
 
 fn scoped_askpass(
@@ -545,7 +726,7 @@ fn scoped_askpass(
     .map(Some)
 }
 
-fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
+pub(crate) fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
     let context = params.k8s_context.as_deref().ok_or("Missing K8s context")?;
     let namespace = params
         .k8s_namespace

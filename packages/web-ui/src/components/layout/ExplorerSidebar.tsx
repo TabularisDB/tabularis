@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { quoteTableRef } from "../../utils/identifiers";
@@ -39,6 +39,7 @@ import {
 import { bindPlatformConfirm } from "../../platform/dialogs";
 import { toErrorMessage } from "../../utils/errors";
 import { useAlert } from "../../hooks/useAlert";
+import { useEscapeKey } from "../../hooks/useEscapeKey";
 import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useEditor } from "../../hooks/useEditor";
@@ -77,6 +78,7 @@ import { QueryHistorySection } from "./sidebar/QueryHistorySection";
 import { NotebooksSection } from "./sidebar/NotebooksSection";
 import { renameNotebook, deleteNotebook, listNotebooks, NOTEBOOKS_CHANGED_EVENT } from "../../utils/notebookStore";
 import { useConnectionLayoutContext } from "../../hooks/useConnectionLayoutContext";
+import { useCopyFeedback } from "../../hooks/useCopyFeedback";
 import { useDrivers } from "../../hooks/useDrivers";
 import { useDatabaseObjectNavigation } from "../../hooks/useDatabaseObjectNavigation";
 import { getConnectionAccent } from "../../utils/driverUI";
@@ -207,7 +209,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [schemaVersion, setSchemaVersion] = useState(0);
   const sidebarBodyRef = useRef<HTMLDivElement>(null);
   const [schemaErrorExpanded, setSchemaErrorExpanded] = useState(false);
-  const [schemaErrorCopied, setSchemaErrorCopied] = useState(false);
+  const { copied: schemaErrorCopied, copy: copySchemaError } = useCopyFeedback(1500);
 
   const { splitView, isSplitVisible, explorerConnectionId, setExplorerConnectionId } = useConnectionLayoutContext();
 
@@ -280,6 +282,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [pendingDbSelection, setPendingDbSelection] = useState<Set<string>>(new Set());
   const [allAvailableDatabases, setAllAvailableDatabases] = useState<string[]>([]);
   const [isLoadingAllDbs, setIsLoadingAllDbs] = useState(false);
+  const closeActionsDropdown = useCallback(() => setIsActionsDropdownOpen(false), []);
+  const closeSchemaFilter = useCallback(() => setIsSchemaFilterOpen(false), []);
+  const closeDbManager = useCallback(() => setIsDbManagerOpen(false), []);
+  useEscapeKey(isActionsDropdownOpen, closeActionsDropdown);
+  useEscapeKey(isSchemaFilterOpen, closeSchemaFilter);
+  useEscapeKey(isDbManagerOpen, closeDbManager);
   const [isRefreshingDbList, setIsRefreshingDbList] = useState(false);
   // Guards against toast spam on rapid repeated clicks: isRefreshingDbList only
   // blocks calls that overlap in flight, so several quick, individually-fast
@@ -546,9 +554,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         style={{ width: sidebarWidth }}
       >
         {/* Resize Handle */}
+        {/* Mouse-only drag handle (no keyboard resize available), hidden from assistive tech. */}
         <div
+          aria-hidden="true"
           onMouseDown={startResize}
-          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500/50 z-30 transition-colors"
+          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent-primary/50 z-30 transition-colors"
         />
 
         {/* Tab switcher for split view */}
@@ -584,7 +594,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
 
         <div className="p-4 border-b border-default font-semibold text-sm text-primary flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <Database size={16} className="text-blue-400 shrink-0" />
+            <Database size={16} className="text-accent shrink-0" />
             <div className="flex flex-col min-w-0">
               <span>{t("sidebar.explorer")}</span>
               {activeConnectionName && (
@@ -606,8 +616,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                 {isActionsDropdownOpen && (
                   <>
                     <div
+                      role="presentation"
                       className="fixed inset-0 z-40"
-                      onClick={() => setIsActionsDropdownOpen(false)}
+                      onClick={closeActionsDropdown}
                     />
                     <div className="absolute left-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-1 min-w-[200px]">
                       <button
@@ -617,7 +628,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         }}
                         className="w-full flex items-center gap-3 px-3 py-2 text-sm text-secondary hover:bg-surface-secondary hover:text-primary transition-colors text-left whitespace-nowrap"
                       >
-                        <Upload size={16} className="text-green-400 shrink-0" />
+                        <Upload size={16} className="text-accent-success shrink-0" />
                         <span>{t("dump.importDatabase")}</span>
                       </button>
                       <button
@@ -627,7 +638,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         }}
                         className="w-full flex items-center gap-3 px-3 py-2 text-sm text-secondary hover:bg-surface-secondary hover:text-primary transition-colors text-left whitespace-nowrap"
                       >
-                        <Download size={16} className="text-blue-400 shrink-0" />
+                        <Download size={16} className="text-accent shrink-0" />
                         <span>{t("dump.dumpDatabase")}</span>
                       </button>
                       <button
@@ -646,7 +657,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         }}
                         className="w-full flex items-center gap-3 px-3 py-2 text-sm text-secondary hover:bg-surface-secondary hover:text-primary transition-colors text-left whitespace-nowrap"
                       >
-                        <Network size={16} className="rotate-90 text-orange-400 shrink-0" />
+                        <Network size={16} className="rotate-90 text-accent-warning shrink-0" />
                         <span>View Schema Diagram</span>
                       </button>
                       {activeCapabilities?.user_management === true && (
@@ -657,7 +668,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm text-secondary hover:bg-surface-secondary hover:text-primary transition-colors text-left whitespace-nowrap"
                         >
-                          <UsersRound size={16} className="text-emerald-400 shrink-0" />
+                          <UsersRound size={16} className="text-accent-success shrink-0" />
                           <span>{t("userManagement.tabTitle")}</span>
                         </button>
                       )}
@@ -669,14 +680,14 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
               <>
                 <button
                   onClick={() => handleImportDatabase()}
-                  className="text-muted hover:text-green-400 transition-colors p-1 hover:bg-surface-secondary rounded"
+                  className="text-muted hover:text-accent-success transition-colors p-1 hover:bg-surface-secondary rounded"
                   title={t("dump.importDatabase")}
                 >
                   <Upload size={16} />
                 </button>
                 <button
                   onClick={() => setDumpModal({ database: activeDatabaseName ?? "" })}
-                  className="text-muted hover:text-blue-400 transition-colors p-1 hover:bg-surface-secondary rounded"
+                  className="text-muted hover:text-accent transition-colors p-1 hover:bg-surface-secondary rounded"
                   title={t("dump.dumpDatabase")}
                 >
                   <Download size={16} />
@@ -694,7 +705,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       console.error("Failed to open ER Diagram window:", e);
                     }
                   }}
-                  className="text-muted hover:text-orange-400 transition-colors p-1 hover:bg-surface-secondary rounded"
+                  className="text-muted hover:text-accent-warning transition-colors p-1 hover:bg-surface-secondary rounded"
                   title="View Schema Diagram"
                 >
                   <Network size={16} className="rotate-90" />
@@ -702,7 +713,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                 {activeCapabilities?.user_management === true && (
                   <button
                     onClick={openUserManagement}
-                    className="text-muted hover:text-emerald-400 transition-colors p-1 hover:bg-surface-secondary rounded"
+                    className="text-muted hover:text-accent-success transition-colors p-1 hover:bg-surface-secondary rounded"
                     title={t("userManagement.tabTitle")}
                   >
                     <UsersRound size={16} />
@@ -715,7 +726,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             {isMultiDb && activeCapabilities?.user_management === true && (
               <button
                 onClick={openUserManagement}
-                className="text-muted hover:text-emerald-400 transition-colors p-1 hover:bg-surface-secondary rounded"
+                className="text-muted hover:text-accent-success transition-colors p-1 hover:bg-surface-secondary rounded"
                 title={t("userManagement.tabTitle")}
               >
                 <UsersRound size={16} />
@@ -758,7 +769,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                   </span>
                 )}
                 {isActive && (
-                  <div className="absolute bottom-0 left-1 right-1 h-0.5 bg-blue-500 rounded-full" />
+                  <div className="absolute bottom-0 left-1 right-1 h-0.5 bg-accent-primary rounded-full" />
                 )}
               </button>
             );
@@ -796,7 +807,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       value={favoritesFilter}
                       onChange={(e) => setFavoritesFilter(e.target.value)}
                       placeholder={t("sidebar.searchFavorites")}
-                      className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-blue-500/50"
+                      className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-focus/50"
                     />
                   </div>
                 </div>
@@ -816,14 +827,24 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         {t(`sidebar.${groupKey}`)}
                       </div>
                       {items.map((q) => (
-                        <div
+                        <button
+                          type="button"
                           key={q.id}
+                          aria-pressed={selectedFavoriteId === q.id}
                           onClick={() => setSelectedFavoriteId(q.id)}
                           onDoubleClick={() => runQuery(q.sql, q.name, false, q.database ?? undefined)}
+                          onKeyDown={(e) => {
+                            // Enter runs the query like a double click; Space keeps selecting it.
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              setSelectedFavoriteId(q.id);
+                              runQuery(q.sql, q.name, false, q.database ?? undefined);
+                            }
+                          }}
                           onContextMenu={(e) =>
                             handleContextMenu(e, "query", q.id, q.name, q)
                           }
-                          className={`pl-3 pr-3 py-1.5 cursor-pointer group transition-colors border-b border-default/30 ${
+                          className={`block w-full text-left pl-3 pr-3 py-1.5 cursor-pointer group transition-colors border-b border-default/30 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
                             selectedFavoriteId === q.id
                               ? "bg-surface-secondary"
                               : "hover:bg-surface-secondary"
@@ -845,7 +866,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             </div>
                           </div>
                           <SqlHighlight sql={q.sql} />
-                        </div>
+                        </button>
                       ))}
                     </div>
                   ))
@@ -900,8 +921,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
               {/* Schema fetch failed: surface the error instead of a silently empty tree */}
               {schemaLoadError ? (
                 <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
-                  <AlertCircle size={18} className="text-red-500" />
-                  <span className="text-sm font-medium text-red-500">{t("sidebar.schemaLoadError")}</span>
+                  <AlertCircle size={18} className="text-accent-error" />
+                  <span className="text-sm font-medium text-accent-error">{t("sidebar.schemaLoadError")}</span>
                   <span className="text-xs text-muted break-words line-clamp-2">{schemaLoadError.split("\n\n")[0]}</span>
                   <button
                     onClick={() => setSchemaErrorExpanded((v) => !v)}
@@ -916,15 +937,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         {schemaLoadError}
                       </pre>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(schemaLoadError);
-                          setSchemaErrorCopied(true);
-                          setTimeout(() => setSchemaErrorCopied(false), 1500);
-                        }}
+                        onClick={() => copySchemaError(schemaLoadError)}
                         title={t("sidebar.copyError")}
                         className="absolute top-1.5 right-1.5 p-1 rounded hover:bg-surface-tertiary text-muted hover:text-secondary transition-colors"
                       >
-                        {schemaErrorCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                        {schemaErrorCopied ? <Check size={12} className="text-accent-success" /> : <Copy size={12} />}
                       </button>
                     </div>
                   )}
@@ -954,8 +971,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           {schemas.map((schemaName) => {
                             const isSelected = pendingSchemaSelection.has(schemaName);
                             return (
-                              <div
+                              <button
+                                type="button"
                                 key={schemaName}
+                                aria-pressed={isSelected}
                                 onClick={() => {
                                   const next = new Set(pendingSchemaSelection);
                                   if (isSelected) {
@@ -965,7 +984,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   }
                                   setPendingSchemaSelection(next);
                                 }}
-                                className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
+                                className={`flex w-full text-left items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
                                   isSelected
                                     ? "text-primary hover:bg-surface-secondary"
                                     : "text-muted hover:bg-surface-secondary"
@@ -973,7 +992,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               >
                                 <div
                                   className={`w-4 h-4 flex items-center justify-center shrink-0 ${
-                                    isSelected ? "text-blue-500" : "text-muted"
+                                    isSelected ? "text-accent" : "text-muted"
                                   }`}
                                 >
                                   {isSelected ? (
@@ -985,7 +1004,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 <span className="text-sm truncate select-none">
                                   {schemaName}
                                 </span>
-                              </div>
+                              </button>
                             );
                           })}
                         </div>
@@ -999,7 +1018,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               setPendingSchemaSelection(new Set(schemas));
                             }
                           }}
-                          className="text-xs text-blue-500 hover:underline"
+                          className="text-xs text-accent hover:underline"
                         >
                           {pendingSchemaSelection.size === schemas.length
                             ? t("sidebar.deselectAll")
@@ -1015,7 +1034,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           disabled={pendingSchemaSelection.size === 0}
                           className={`ml-auto flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
                             pendingSchemaSelection.size > 0
-                              ? "bg-blue-500 text-white hover:bg-blue-600"
+                              ? "bg-accent-primary text-inverse hover:bg-accent-primary/90"
                               : "bg-surface-secondary text-muted cursor-not-allowed"
                           }`}
                         >
@@ -1039,7 +1058,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             }}
                             className={`p-1 rounded transition-colors mr-1.5 ${
                               selectedSchemas.length < schemas.length
-                                ? "text-blue-400 hover:text-blue-300 bg-blue-500/10"
+                                ? "text-accent bg-accent-primary/10"
                                 : "text-muted hover:text-secondary hover:bg-surface-secondary"
                             }`}
                             title={t("sidebar.editSchemas")}
@@ -1049,8 +1068,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           {isSchemaFilterOpen && (
                             <>
                               <div
+                                role="presentation"
                                 className="fixed inset-0 z-40"
-                                onClick={() => setIsSchemaFilterOpen(false)}
+                                onClick={closeSchemaFilter}
                               />
                               <div className="absolute right-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-2 min-w-[200px] max-h-[300px] flex flex-col">
                                 <div className="flex items-center justify-between px-3 pb-2 border-b border-default">
@@ -1065,7 +1085,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         setPendingSchemaSelection(new Set(schemas));
                                       }
                                     }}
-                                    className="text-xs text-blue-500 hover:underline"
+                                    className="text-xs text-accent hover:underline"
                                   >
                                     {pendingSchemaSelection.size === schemas.length
                                       ? t("sidebar.deselectAll")
@@ -1076,8 +1096,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   {schemas.map((schemaName) => {
                                     const isSelected = pendingSchemaSelection.has(schemaName);
                                     return (
-                                      <div
+                                      <button
+                                        type="button"
                                         key={schemaName}
+                                        aria-pressed={isSelected}
                                         onClick={() => {
                                           const next = new Set(pendingSchemaSelection);
                                           if (isSelected) {
@@ -1087,7 +1109,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                           }
                                           setPendingSchemaSelection(next);
                                         }}
-                                        className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
+                                        className={`flex w-full text-left items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
                                           isSelected
                                             ? "text-primary hover:bg-surface-secondary"
                                             : "text-muted hover:bg-surface-secondary"
@@ -1095,7 +1117,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       >
                                         <div
                                           className={`w-4 h-4 flex items-center justify-center shrink-0 ${
-                                            isSelected ? "text-blue-500" : "text-muted"
+                                            isSelected ? "text-accent" : "text-muted"
                                           }`}
                                         >
                                           {isSelected ? (
@@ -1107,7 +1129,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         <span className="text-sm truncate select-none">
                                           {schemaName}
                                         </span>
-                                      </div>
+                                      </button>
                                     );
                                   })}
                                 </div>
@@ -1122,7 +1144,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     disabled={pendingSchemaSelection.size === 0}
                                     className={`w-full flex items-center justify-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
                                       pendingSchemaSelection.size > 0
-                                        ? "bg-blue-500 text-white hover:bg-blue-600"
+                                        ? "bg-accent-primary text-inverse hover:bg-accent-primary/90"
                                         : "bg-surface-secondary text-muted cursor-not-allowed"
                                     }`}
                                   >
@@ -1253,7 +1275,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         }}
                         className={`p-1 rounded transition-colors ${
                           selectedDatabases.length < allAvailableDatabases.length && allAvailableDatabases.length > 0
-                            ? "text-blue-400 hover:text-blue-300 bg-blue-500/10"
+                            ? "text-accent bg-accent-primary/10"
                             : "text-muted hover:text-secondary hover:bg-surface-secondary"
                         }`}
                         title={t("sidebar.manageDatabases")}
@@ -1263,8 +1285,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       {isDbManagerOpen && (
                         <>
                           <div
+                            role="presentation"
                             className="fixed inset-0 z-40"
-                            onClick={() => setIsDbManagerOpen(false)}
+                            onClick={closeDbManager}
                           />
                           <div className="absolute right-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-2 min-w-[200px] max-h-[320px] flex flex-col">
                             <div className="flex items-center justify-between px-3 pb-2 border-b border-default">
@@ -1279,7 +1302,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     setPendingDbSelection(new Set(allAvailableDatabases));
                                   }
                                 }}
-                                className="text-xs text-blue-500 hover:underline"
+                                className="text-xs text-accent hover:underline"
                               >
                                 {pendingDbSelection.size === allAvailableDatabases.length
                                   ? t("sidebar.deselectAll")
@@ -1295,8 +1318,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               ) : allAvailableDatabases.map((dbName) => {
                                 const isSelected = pendingDbSelection.has(dbName);
                                 return (
-                                  <div
+                                  <button
+                                    type="button"
                                     key={dbName}
+                                    aria-pressed={isSelected}
                                     onClick={() => {
                                       const next = new Set(pendingDbSelection);
                                       if (isSelected) {
@@ -1306,15 +1331,15 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       }
                                       setPendingDbSelection(next);
                                     }}
-                                    className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
+                                    className={`flex w-full text-left items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
                                       isSelected ? "text-primary hover:bg-surface-secondary" : "text-muted hover:bg-surface-secondary"
                                     }`}
                                   >
-                                    <div className={`w-4 h-4 flex items-center justify-center shrink-0 ${isSelected ? "text-blue-500" : "text-muted"}`}>
+                                    <div className={`w-4 h-4 flex items-center justify-center shrink-0 ${isSelected ? "text-accent" : "text-muted"}`}>
                                       {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
                                     </div>
                                     <span className="text-sm truncate select-none">{dbName}</span>
-                                  </div>
+                                  </button>
                                 );
                               })}
                             </div>
@@ -1329,7 +1354,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 disabled={pendingDbSelection.size === 0}
                                 className={`w-full flex items-center justify-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
                                   pendingDbSelection.size > 0
-                                    ? "bg-blue-500 text-white hover:bg-blue-600"
+                                    ? "bg-accent-primary text-inverse hover:bg-accent-primary/90"
                                     : "bg-surface-secondary text-muted cursor-not-allowed"
                                 }`}
                               >
@@ -1359,7 +1384,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         }
                       }}
                       disabled={isRefreshingDbList}
-                      className="p-1 rounded transition-colors text-green-400 hover:text-green-300 hover:bg-green-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-1 rounded transition-colors text-accent-success hover:bg-accent-success/10 disabled:opacity-50 disabled:cursor-not-allowed"
                       title={t("sidebar.refreshDatabaseList")}
                     >
                       {isRefreshingDbList ? (
@@ -1380,7 +1405,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         value={dbFilter}
                         onChange={(e) => setDbFilter(e.target.value)}
                         placeholder={t("sidebar.filterDatabases")}
-                        className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-focus/50"
                       />
                       {dbFilter && (
                         <button
@@ -1500,7 +1525,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       : activeDatabaseName;
                     return dbLabel ? (
                       <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-default">
-                        <Database size={14} className="text-blue-400 shrink-0" />
+                        <Database size={14} className="text-accent shrink-0" />
                         <span className="text-sm font-medium text-secondary truncate">
                           {dbLabel}
                         </span>
@@ -1558,7 +1583,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             value={tableFilter}
                             onChange={(e) => setTableFilter(e.target.value)}
                             placeholder={t("sidebar.filterTables")}
-                            className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-blue-500/50"
+                            className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-focus/50"
                           />
                           {tableFilter && (
                             <button
@@ -1744,7 +1769,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               value={triggerFilterFlat}
                               onChange={(e) => setTriggerFilterFlat(e.target.value)}
                               placeholder={t("sidebar.filterTriggers")}
-                              className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
+                              className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-focus/50"
                               onClick={(e) => e.stopPropagation()}
                             />
                             {triggerFilterFlat && (

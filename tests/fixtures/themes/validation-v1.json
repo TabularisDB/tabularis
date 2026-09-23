@@ -1,0 +1,291 @@
+[
+  {
+    "name": "definition-schema-hint",
+    "kind": "definition",
+    "valid": true,
+    "source": "{\"$schema\":\"https://raw.githubusercontent.com/TabularisDB/tabularis/main/src/schemas/theme-definition-v1.json\",\"schemaVersion\":1,\"mode\":\"dark\"}"
+  },
+  {
+    "name": "schema-hint-never-fetched",
+    "kind": "definition",
+    "valid": true,
+    "source": "{\"$schema\":\"https://unreachable.invalid/schema.json\",\"schemaVersion\":1,\"mode\":\"dark\"}"
+  },
+  {
+    "name": "schema-hint-cannot-bypass-validation",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"$schema\":\"https://unreachable.invalid/allow-all.json\",\"schemaVersion\":1,\"mode\":\"dark\",\"colors\":{\"accent\":{\"primary\":\"not-a-color\"}}}"
+  },
+  {
+    "name": "schema-hint-must-be-string",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"$schema\":{},\"schemaVersion\":1,\"mode\":\"dark\"}"
+  },
+  {
+    "name": "schema-hint-must-not-be-empty",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"$schema\":\"\",\"schemaVersion\":1,\"mode\":\"dark\"}"
+  },
+  {
+    "name": "manifest-schema-hint",
+    "kind": "manifest",
+    "valid": true,
+    "source": "{\"$schema\":\"https://registry.tabularis.dev/manifest.schema.json?kind=theme\",\"name\":\"fixture-theme\",\"version\":\"1.0.0\",\"kind\":\"theme\",\"min_runtime_version\":\"0.99.0\",\"theme_schema_version\":1,\"theme_variants\":[{\"id\":\"dark\",\"name\":\"Dark\",\"file\":\"themes/dark.json\"}]}"
+  },
+  {
+    "name": "manifest-schema-hint-cannot-bypass-validation",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"$schema\":\"https://unreachable.invalid/allow-all.json\",\"name\":\"fixture-theme\",\"version\":\"1.0.0\",\"kind\":\"theme\",\"min_runtime_version\":\"0.99.0\",\"theme_schema_version\":1,\"theme_variants\":[]}"
+  },
+  {
+    "name": "manifest-schema-hint-must-be-string",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"$schema\":42,\"name\":\"fixture-theme\",\"version\":\"1.0.0\",\"kind\":\"theme\",\"min_runtime_version\":\"0.99.0\",\"theme_schema_version\":1,\"theme_variants\":[{\"id\":\"dark\",\"name\":\"Dark\",\"file\":\"themes/dark.json\"}]}"
+  },
+  {
+    "name": "light",
+    "kind": "definition",
+    "valid": true,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"light\"}"
+  },
+  {
+    "name": "dark",
+    "kind": "definition",
+    "valid": true,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\"}"
+  },
+  {
+    "name": "high-contrast",
+    "kind": "definition",
+    "valid": true,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"high-contrast\"}"
+  },
+  {
+    "name": "alpha",
+    "kind": "definition",
+    "valid": true,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\", \"colors\": {\"bg\": {\"base\": \"#12345680\"}}}"
+  },
+  {
+    "name": "font-and-radius",
+    "kind": "definition",
+    "valid": true,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\", \"typography\": {\"fontFamily\": {\"base\": [\"Inter\", \"sans-serif\"]}}, \"layout\": {\"borderRadius\": {\"base\": 3.5}}}"
+  },
+  {
+    "name": "ordered-rules",
+    "kind": "definition",
+    "valid": true,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\", \"editor\": {\"rules\": [{\"token\": \"string.sql\", \"foreground\": \"#112233\"}, {\"token\": \"string.sql\", \"foreground\": \"#445566\"}]}}"
+  },
+  {
+    "name": "author-ownership",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\", \"isReadOnly\": false}"
+  },
+  {
+    "name": "cross-inheritance",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\", \"base\": \"other-theme\"}"
+  },
+  {
+    "name": "unused-token",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\", \"colors\": {\"semantic\": {\"connectionActive\": \"#123456\"}}}"
+  },
+  {
+    "name": "unknown-editor-color",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\", \"editor\": {\"colors\": {\"gitlens.gutterBackgroundColor\": \"#123456\"}}}"
+  },
+  {
+    "name": "unsupported-rule",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\", \"editor\": {\"rules\": [{\"token\": \"unknown.scope\"}]}}"
+  },
+  {
+    "name": "unsupported-token-background",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\", \"editor\": {\"rules\": [{\"token\": \"string\", \"background\": \"#123456\"}]}}"
+  },
+  {
+    "name": "remote-font",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\", \"typography\": {\"fontFamily\": {\"base\": [\"url(https://example.test/font)\"]}}}"
+  },
+  {
+    "name": "unknown-version",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\": 2, \"mode\": \"dark\"}"
+  },
+  {
+    "name": "malformed-color",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\": 1, \"mode\": \"dark\", \"colors\": {\"bg\": {\"base\": \"#xyz\"}}}"
+  },
+  {
+    "name": "duplicates",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\":1,\"mode\":\"dark\",\"mode\":\"light\"}"
+  },
+  {
+    "name": "escaped-duplicate",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\":1,\"mode\":\"dark\",\"\\u006dode\":\"light\"}"
+  },
+  {
+    "name": "trailing-comma",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\":1,\"mode\":\"dark\",}"
+  },
+  {
+    "name": "comments",
+    "kind": "definition",
+    "valid": false,
+    "source": "{/*comment*/\"schemaVersion\":1,\"mode\":\"dark\"}"
+  },
+  {
+    "name": "lone-surrogate",
+    "kind": "definition",
+    "valid": false,
+    "source": "{\"schemaVersion\":1,\"mode\":\"dark\",\"attribution\":\"\\ud800\"}"
+  },
+  {
+    "name": "root-array",
+    "kind": "definition",
+    "valid": false,
+    "source": "[]"
+  },
+  {
+    "name": "manifest",
+    "kind": "manifest",
+    "valid": true,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}]}"
+  },
+  {
+    "name": "build-metadata",
+    "kind": "manifest",
+    "valid": true,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0-beta.1+build.42\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}]}"
+  },
+  {
+    "name": "missing-kind",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0\", \"kind\": null, \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}]}"
+  },
+  {
+    "name": "driver-kind",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0\", \"kind\": \"driver\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}]}"
+  },
+  {
+    "name": "unknown-metadata-tolerated",
+    "kind": "manifest",
+    "valid": true,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}], \"executable\": \"theme.sh\"}",
+    "note": "Catalog metadata is owned by the registry; unknown manifest keys never grant files or execution."
+  },
+  {
+    "name": "range-floor",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"^0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}]}"
+  },
+  {
+    "name": "numeric-prerelease-leading-zero",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0-01\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}]}"
+  },
+  {
+    "name": "reserved-slug",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"con\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}]}"
+  },
+  {
+    "name": "id-with-display-name",
+    "kind": "manifest",
+    "valid": true,
+    "source": "{\"name\": \"Ember Theme for Tabularis\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}], \"id\": \"ember-theme\"}"
+  },
+  {
+    "name": "display-name-without-id",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"Ember Theme for Tabularis\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}]}"
+  },
+  {
+    "name": "id-reserved",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"Console\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}], \"id\": \"con\"}"
+  },
+  {
+    "name": "id-uppercase",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"Ember\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}], \"id\": \"Ember\"}"
+  },
+  {
+    "name": "id-not-string",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"Ember\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}], \"id\": 7}"
+  },
+  {
+    "name": "id-empty",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"Ember\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}], \"id\": \"\"}"
+  },
+  {
+    "name": "duplicate-variant",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}, {\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}]}"
+  },
+  {
+    "name": "device-path",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/CON.json\"}]}"
+  },
+  {
+    "name": "traversal-path",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/../dark.json\"}]}"
+  },
+  {
+    "name": "trailing-dot-path",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/folder./dark.json\"}]}"
+  },
+  {
+    "name": "case-collision",
+    "kind": "manifest",
+    "valid": false,
+    "source": "{\"name\": \"fixture-theme\", \"version\": \"1.0.0\", \"kind\": \"theme\", \"min_runtime_version\": \"0.99.0\", \"theme_schema_version\": 1, \"theme_variants\": [{\"id\": \"dark\", \"name\": \"Dark\", \"file\": \"themes/dark.json\"}, {\"id\": \"light\", \"name\": \"Light\", \"file\": \"themes/DARK.json\"}]}"
+  }
+]

@@ -4,6 +4,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -11,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
+  ArrowUpCircle,
   RefreshCw,
   Loader2,
   AlertTriangle,
@@ -27,296 +29,51 @@ import {
   Power,
   Boxes,
   Search,
-  Home,
   FolderOpen,
-  BookOpen,
   CircleStop,
+  Palette,
 } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
 import { useDrivers } from "../../hooks/useDrivers";
+import { useTheme } from "../../hooks/useTheme";
 import { usePluginRegistry } from "../../hooks/usePluginRegistry";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { useSearchParams } from "react-router-dom";
 import { useDatabase } from "../../hooks/useDatabase";
-import { canUpdateToLatest, parseAuthor, versionGte } from "../../utils/plugins";
+import { PluginCard, PLUGIN_ICON_BUTTON_CLASS } from "../plugins/PluginCard";
+import { getPluginVersionState } from "../../utils/pluginVersions";
+import { mergeLocalThemePlugins } from "../../utils/localThemePlugins";
+import { getPluginUpdates } from "../../utils/pluginUpdates";
+import {
+  matchesPluginKind,
+  parsePluginKindFilter,
+  pluginKind,
+  type PluginKindFilter,
+} from "../../utils/plugins";
 import { removePluginConfig } from "../../utils/pluginConfig";
 import { findConnectionsForDrivers } from "../../utils/connectionManager";
 import { APP_VERSION } from "../../version";
-import type { PluginManifest } from "../../types/plugins";
+import type { PluginManifest, RegistryPluginWithStatus } from "../../types/plugins";
 import { PluginInstallErrorModal } from "../modals/PluginInstallErrorModal";
 import { PluginReadmeModal } from "../modals/PluginReadmeModal";
 import { PluginRemoveModal } from "../modals/PluginRemoveModal";
 import { PluginStartErrorModal } from "../modals/PluginStartErrorModal";
 import { SlotAnchor } from "../ui/SlotAnchor";
 import { PLUGIN_INSTALL_DEADLINE_MS } from "../../api/pluginLifecycle";
+import { Chip } from "../ui/Chip";
+import { TONE_SOFT_BG_CLASS, TONE_TEXT_CLASS, type Tone } from "../../utils/tones";
+import { CountBadge } from "../ui/CountBadge";
 
 /* ── Types ── */
 
-type CardAccent = "green" | "amber" | "blue" | null;
 type AvailableFilter = "all" | "installed" | "updates";
 
 const INSTALL_CANCELLED_ERROR = "PLUGIN_INSTALL_CANCELLED";
 
-/* ── Band palette (deterministic per plugin name) ── */
-
-const BAND_PALETTES = [
-  { bg: "bg-blue-900/30", text: "text-blue-400/40" },
-  { bg: "bg-purple-900/30", text: "text-purple-400/40" },
-  { bg: "bg-emerald-900/30", text: "text-emerald-400/40" },
-  { bg: "bg-rose-900/30", text: "text-rose-400/40" },
-  { bg: "bg-cyan-900/30", text: "text-cyan-400/40" },
-  { bg: "bg-orange-900/30", text: "text-orange-400/40" },
-  { bg: "bg-teal-900/30", text: "text-teal-400/40" },
-  { bg: "bg-indigo-900/30", text: "text-indigo-400/40" },
-] as const;
-
-function nameBandIndex(name: string): number {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) {
-    h = (h * 31 + name.charCodeAt(i)) & 0xffff;
-  }
-  return h % BAND_PALETTES.length;
-}
-
-/* ── Plugin card ── */
-
-interface PluginCardProps {
-  name: string;
-  description: string;
-  version?: string;
-  author?: string;
-  /** Upstream homepage / repo (shown as secondary link icon when registryPageUrl is also set). */
-  homepage?: string;
-  /** Registry detail page. Priority target for the name button. */
-  registryPageUrl?: string | null;
-  /** Square logo URL surfaced by the Tabularium registry. Falls back to the letter band when missing/broken. */
-  iconUrl?: string | null;
-  /** Aggregate download count — surfaces as a small badge if > 0. */
-  downloads?: number | null;
-  status?: ReactNode;
-  meta?: ReactNode;
-  actions: ReactNode;
-  dimmed?: boolean;
-  accent?: CardAccent;
-  pulse?: boolean;
-  showBand?: boolean;
-  /** Opens the WordPress-style README/details modal. Absent for plugins the registry doesn't know. */
-  onShowReadme?: () => void;
-}
-
-function PluginCard({
-  name,
-  description,
-  version,
-  author,
-  homepage,
-  registryPageUrl,
-  iconUrl,
-  downloads,
-  status,
-  meta,
-  actions,
-  dimmed,
-  accent,
-  pulse,
-  showBand,
-  onShowReadme,
-}: PluginCardProps) {
-  const platform = usePlatformCapabilities();
-  const { t } = useTranslation();
-  const parsedAuthor = author ? parseAuthor(author) : null;
-  const band = BAND_PALETTES[nameBandIndex(name)];
-
-  // Name button: registry detail page wins; falls back to upstream homepage.
-  const primaryHref = registryPageUrl ?? homepage ?? null;
-  // Show a second small homepage icon when BOTH targets exist and they
-  // point at different places (so the user can still reach the repo).
-  const secondaryHomepage =
-    homepage && registryPageUrl && stripTrailingSlash(homepage) !== stripTrailingSlash(registryPageUrl)
-      ? homepage
-      : null;
-
-  return (
-    <div
-      className={clsx(
-        "group relative flex h-full flex-col overflow-hidden rounded-2xl bg-elevated",
-        "transition-all duration-200 ease-out",
-        "hover:-translate-y-0.5",
-        !accent &&
-          "border border-default hover:border-strong hover:shadow-xl hover:shadow-black/20",
-        accent === "green" && [
-          "border border-default border-l-[3px] border-l-green-500/80",
-          "hover:border-strong hover:shadow-lg hover:shadow-green-900/30",
-        ],
-        accent === "amber" && [
-          "border border-default border-l-[3px] border-l-amber-500/80",
-          "hover:border-strong hover:shadow-lg hover:shadow-amber-900/30",
-        ],
-        accent === "blue" && [
-          "border border-default border-l-[3px] border-l-blue-600/80",
-          "hover:border-strong hover:shadow-lg hover:shadow-blue-900/30",
-        ],
-        dimmed && "opacity-55",
-      )}
-    >
-      {/* Header band with logo (Tabularium icon) or first-letter fallback. */}
-      {showBand && (
-        <div
-          className={clsx(
-            "relative flex h-[72px] shrink-0 items-center justify-center overflow-hidden",
-            band.bg,
-          )}
-        >
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-black/25" />
-          <div className="pointer-events-none absolute -top-12 left-1/2 h-24 w-40 -translate-x-1/2 rounded-full bg-white/[0.06] blur-2xl" />
-          <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-base/35 shadow-lg shadow-black/15 backdrop-blur-sm transition-transform duration-200 group-hover:scale-105">
-            {iconUrl ? (
-              <img
-                src={iconUrl}
-                alt=""
-                loading="lazy"
-                className="h-9 w-9 object-contain drop-shadow-md"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            ) : (
-              <span
-                className={clsx(
-                  "select-none text-2xl font-bold leading-none",
-                  band.text,
-                )}
-              >
-                {name.trim().charAt(0).toUpperCase()}
-              </span>
-            )}
-          </div>
-          {!!downloads && downloads > 0 && (
-            <span className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full border border-white/10 bg-black/30 px-2 py-1 text-[10px] font-semibold text-white/75 shadow-sm backdrop-blur-md">
-              <Download size={10} />
-              {formatCount(downloads)}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Pulsing update indicator */}
-      {pulse && (
-        <div
-          className={clsx(
-            "absolute z-10 flex h-2 w-2",
-            showBand ? "top-1.5 right-1.5" : "top-2.5 right-2.5",
-          )}
-        >
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-60" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
-        </div>
-      )}
-
-      <div className="flex flex-1 flex-col gap-3 p-5">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              {primaryHref ? (
-                <button
-                  type="button"
-                  onClick={() => void platform.openExternalUrl(primaryHref)}
-                  title={primaryHref}
-                  className="inline-flex min-w-0 items-center gap-1.5 text-left text-[15px] font-semibold tracking-tight text-primary transition-colors hover:text-blue-300"
-                >
-                  <span className="truncate">{name}</span>
-                  <ExternalLink size={12} className="shrink-0 text-muted" />
-                </button>
-              ) : (
-                <span className="block truncate text-[15px] font-semibold tracking-tight text-primary">
-                  {name}
-                </span>
-              )}
-              {secondaryHomepage && (
-                <button
-                  type="button"
-                  onClick={() => void platform.openExternalUrl(secondaryHomepage)}
-                  title={secondaryHomepage}
-                  aria-label={t("settings.plugins.openHomepage", {
-                    defaultValue: "Open homepage",
-                  })}
-                  className="rounded-md p-0.5 text-muted transition-colors hover:bg-surface-secondary hover:text-primary"
-                >
-                  <Home size={12} />
-                </button>
-              )}
-              {onShowReadme && (
-                <button
-                  type="button"
-                  onClick={onShowReadme}
-                  title={t("connectionCatalogue.viewDetails", {
-                    defaultValue: "More details",
-                  })}
-                  aria-label={t("connectionCatalogue.viewDetails", {
-                    defaultValue: "More details",
-                  })}
-                  className="rounded-md p-0.5 text-muted transition-colors hover:bg-surface-secondary hover:text-primary"
-                >
-                  <BookOpen size={12} />
-                </button>
-              )}
-              {version && (
-                <span className="shrink-0 rounded-md border border-default bg-base px-1.5 py-px font-mono text-[10px] text-muted">
-                  v{version}
-                </span>
-              )}
-            </div>
-            {parsedAuthor && (
-              <p className="mt-1 text-[11px] text-muted">
-                {t("settings.plugins.by")}{" "}
-                {parsedAuthor.url ?? homepage ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void platform.openExternalUrl((parsedAuthor.url ?? homepage)!)
-                    }
-                    className="cursor-pointer underline-offset-2 transition-colors hover:text-secondary hover:underline"
-                  >
-                    {parsedAuthor.name}
-                  </button>
-                ) : (
-                  parsedAuthor.name
-                )}
-              </p>
-            )}
-          </div>
-          {status && <div className="shrink-0 mt-0.5">{status}</div>}
-        </div>
-
-        <p className="line-clamp-2 flex-1 text-[13px] leading-5 text-secondary">
-          {description}
-        </p>
-
-        {meta && (
-          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted">
-            {meta}
-          </div>
-        )}
-      </div>
-
-      <div className="flex min-h-14 w-full items-center gap-2 border-t border-default bg-base/40 px-4 py-3">
-        {actions}
-      </div>
-    </div>
-  );
-}
-
-function stripTrailingSlash(s: string): string {
-  return s.replace(/\/+$/, "");
-}
-
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
-}
+const FOOTER_ICON_DANGER =
+  "p-1.5 rounded-lg text-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:text-accent-error hover:bg-accent-error/10";
 
 /* ── Version dropdown ── */
 
@@ -332,28 +89,85 @@ function VersionDropdown({
   onChange,
   isDowngrade,
   label,
+  disabled = false,
+  attached = false,
+  attachedClassName,
 }: {
   options: VersionOption[];
   value: string;
   onChange: (v: string) => void;
   isDowngrade: boolean;
   label: string;
+  disabled?: boolean;
+  /** Render as the right segment of a split button instead of a standalone picker. */
+  attached?: boolean;
+  /** Colour classes of the primary segment, so both halves read as one control. */
+  attachedClassName?: string;
 }) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0, minWidth: 0 });
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; minWidth: number; maxHeight: number }>({
+    left: 0, minWidth: 0, maxHeight: 288,
+  });
+  const [activeIndex, setActiveIndex] = useState(-1);
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
-  const updatePos = () => {
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      setPos({
-        top: r.bottom + 4,
-        left: r.left,
-        minWidth: Math.max(r.width, 160),
-      });
+  // Anchor below the trigger, or above it when the list would run past the
+  // viewport; the height is capped to the free space so the list scrolls
+  // instead of being clipped.
+  const updatePos = useCallback(() => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const margin = 8;
+    const below = window.innerHeight - r.bottom - margin;
+    const above = r.top - margin;
+    const openUp = below < 200 && above > below;
+    const room = Math.max(120, Math.min(320, (openUp ? above : below) - 4));
+    setPos({
+      ...(openUp ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
+      left: Math.max(margin, Math.min(r.left, window.innerWidth - 232)),
+      minWidth: Math.max(r.width, 224),
+      maxHeight: room,
+    });
+  }, []);
+
+  const openList = () => {
+    updatePos();
+    setActiveIndex(Math.max(0, options.findIndex((opt) => opt.version === value)));
+    setIsOpen(true);
+  };
+  const choose = (version: string) => {
+    onChange(version);
+    setIsOpen(false);
+    btnRef.current?.focus();
+  };
+  const onTriggerKeyDown = (e: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (!isOpen) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openList();
+      }
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      setActiveIndex((i) => (i + step + options.length) % options.length);
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (activeIndex >= 0) choose(options[activeIndex].version);
+    } else if (e.key === "Tab") {
+      setIsOpen(false);
     }
   };
+
+  useEffect(() => {
+    if (!isOpen || activeIndex < 0) return;
+    dropRef.current
+      ?.querySelectorAll<HTMLElement>("[role='option']")[activeIndex]
+      ?.scrollIntoView({ block: "nearest" });
+  }, [isOpen, activeIndex]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -370,40 +184,65 @@ function VersionDropdown({
     };
     document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", updatePos);
+    window.addEventListener("scroll", updatePos, true);
     return () => {
       document.removeEventListener("mousedown", onMouseDown);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", updatePos);
+      window.removeEventListener("scroll", updatePos, true);
     };
-  }, [isOpen]);
+  }, [isOpen, updatePos]);
 
   return (
     <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={() => {
-          updatePos();
-          setIsOpen((o) => !o);
-        }}
-        className={clsx(
-          "flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] bg-surface-tertiary transition-colors cursor-pointer select-none",
-          isDowngrade
-            ? "border-amber-500/30 text-amber-400/80 hover:border-amber-500/60 hover:text-amber-400"
-            : isOpen
-              ? "border-blue-500/60 text-primary"
-              : "border-surface-quaternary text-secondary hover:border-blue-500/50 hover:text-primary",
-        )}
-      >
-        <RotateCcw size={9} />
-        <span>{label}</span>
-        <ChevronDown
-          size={9}
+      {attached ? (
+        <button
+          ref={btnRef}
+          type="button"
+          disabled={disabled}
+          aria-label={label}
+          title={label}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          onClick={() => (isOpen ? setIsOpen(false) : openList())}
+          onKeyDown={onTriggerKeyDown}
           className={clsx(
-            "transition-transform duration-150",
-            isOpen && "rotate-180",
+            "flex h-7 items-center justify-center rounded-r-md border border-l-0 px-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+            attachedClassName,
           )}
-        />
-      </button>
+        >
+          <ChevronDown
+            size={11}
+            className={clsx("transition-transform duration-150", isOpen && "rotate-180")}
+          />
+        </button>
+      ) : (
+        <button
+          ref={btnRef}
+          type="button"
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          onClick={() => (isOpen ? setIsOpen(false) : openList())}
+          onKeyDown={onTriggerKeyDown}
+          className={clsx(
+            "flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] transition-colors cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed",
+            isDowngrade
+              ? "text-accent-warning hover:bg-accent-warning/10"
+              : isOpen
+                ? "bg-surface-secondary text-primary"
+                : "text-muted hover:bg-surface-secondary/60 hover:text-primary",
+          )}
+        >
+          <RotateCcw size={11} />
+          <span>{label}</span>
+          <ChevronDown
+            size={11}
+            className={clsx("transition-transform duration-150", isOpen && "rotate-180")}
+          />
+        </button>
+      )}
 
       {isOpen &&
         createPortal(
@@ -411,59 +250,200 @@ function VersionDropdown({
             ref={dropRef}
             style={{
               top: pos.top,
+              bottom: pos.bottom,
               left: pos.left,
               minWidth: pos.minWidth,
+              maxHeight: pos.maxHeight,
             }}
-            className="fixed z-[200] bg-elevated border border-strong rounded-lg shadow-xl overflow-hidden"
+            role="listbox"
+            aria-label={label}
+            className="custom-scrollbar fixed z-[200] flex flex-col overflow-y-auto overscroll-contain rounded-lg border border-strong bg-elevated py-1 shadow-xl"
           >
-            {options.map((opt) => (
-              <button
-                key={opt.version}
-                type="button"
-                onClick={() => {
-                  onChange(opt.version);
-                  setIsOpen(false);
-                }}
-                className={clsx(
-                  "w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors",
-                  opt.isInstalled
-                    ? "bg-green-500/10 hover:bg-green-500/20"
-                    : opt.version === value
-                      ? "bg-surface-secondary"
-                      : "hover:bg-surface-secondary",
-                )}
-              >
-                <span className="w-3 shrink-0 flex items-center justify-center">
-                  {opt.isInstalled && (
-                    <Check size={10} className="text-green-400" />
-                  )}
-                </span>
-                <span
+            {options.map((opt, index) => {
+              const isSelected = opt.version === value;
+              const isPrerelease = opt.version.includes("-");
+              return (
+                <button
+                  key={opt.version}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  tabIndex={-1}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => choose(opt.version)}
                   className={clsx(
-                    "font-mono",
-                    opt.isInstalled ? "text-green-300" : "text-primary",
+                    "mx-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+                    index === activeIndex ? "bg-surface-secondary" : "hover:bg-surface-secondary/60",
                   )}
                 >
-                  v{opt.version}
-                </span>
-                <span className="ml-auto flex items-center gap-1">
-                  {opt.isInstalled && (
-                    <span className="text-[9px] font-medium bg-green-500/20 text-green-400 px-1.5 py-px rounded">
-                      installed
-                    </span>
-                  )}
-                  {opt.isLatest && (
-                    <span className="text-[9px] font-medium bg-blue-500/20 text-blue-400 px-1.5 py-px rounded">
-                      latest
-                    </span>
-                  )}
-                </span>
-              </button>
-            ))}
+                  <span className="flex w-3.5 shrink-0 items-center justify-center">
+                    {isSelected && <Check size={12} className="text-accent" />}
+                  </span>
+                  <span
+                    className={clsx(
+                      "font-mono tabular-nums",
+                      isSelected ? "text-primary font-semibold" : isPrerelease ? "text-secondary" : "text-primary",
+                    )}
+                  >
+                    v{opt.version}
+                  </span>
+                  <span className="ml-auto flex items-center gap-1 pl-3">
+                    {opt.isInstalled && (
+                      <Chip tone="success" size="sm">{t("settings.plugins.installed")}</Chip>
+                    )}
+                    {opt.isLatest && (
+                      <Chip tone="update" size="sm">{t("settings.plugins.latest")}</Chip>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
           </div>,
           document.body,
         )}
     </>
+  );
+}
+
+/* ── Shared install / version controls ── */
+
+function PluginVersionActions({
+  plugin,
+  selectedVersion,
+  installingPluginId,
+  cancellingPluginId,
+  onSelectVersion,
+  onInstall,
+  onCancelInstall,
+}: {
+  plugin: RegistryPluginWithStatus;
+  selectedVersion?: string;
+  installingPluginId: string | null;
+  cancellingPluginId: string | null;
+  onSelectVersion: (version: string) => void;
+  onInstall: (pluginId: string, version: string) => void;
+  onCancelInstall: (pluginId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const version = getPluginVersionState(plugin, selectedVersion, APP_VERSION);
+  const isInstalling = installingPluginId === plugin.id;
+  const isCancelling = cancellingPluginId === plugin.id;
+  const hasPicker = version.options.length > 1;
+  const pickerLabel = version.isDefaultSelection
+    ? t("settings.plugins.olderVersions")
+    : `v${version.selectedVersion}`;
+  const actionLabel = `${t(
+    version.isDowngrade
+      ? "settings.plugins.downgrade"
+      : version.isUpdate
+        ? "settings.plugins.update"
+        : "settings.plugins.install",
+  )} v${version.selectedVersion}`;
+
+  // Nothing to do: the chip row already says "up to date"; an explicit pick of
+  // the installed release gets a short note, plus the picker to move on.
+  if (version.isSelectedInstalled) {
+    return (
+      <>
+        {!version.isDefaultSelection && (
+          <span className="flex items-center gap-1.5 text-xs text-muted">
+            <CheckCircle2 size={12} className="text-accent-success" />
+            {`${t("settings.plugins.installed")} v${version.selectedVersion}`}
+          </span>
+        )}
+        {hasPicker && (
+          <VersionDropdown
+            options={version.options}
+            value={version.selectedVersion}
+            onChange={onSelectVersion}
+            isDowngrade={false}
+            label={pickerLabel}
+          />
+        )}
+      </>
+    );
+  }
+
+  if (!version.platformSupported) {
+    return (
+      <>
+        <span className="text-xs text-muted italic">
+          {t("settings.plugins.platformNotSupported")}
+        </span>
+        {hasPicker && (
+          <VersionDropdown
+            options={version.options}
+            value={version.selectedVersion}
+            onChange={onSelectVersion}
+            isDowngrade={version.isDowngrade}
+            label={pickerLabel}
+          />
+        )}
+      </>
+    );
+  }
+
+  // Soft (tinted) buttons keep a grid of cards light. Colour encodes risk, not
+  // verb: install/update are routine (primary), downgrade needs care (warning),
+  // cancel aborts (danger).
+  const toneClass = !version.isCompatible
+    ? "cursor-not-allowed border-default bg-surface-tertiary/60 text-muted"
+    : isInstalling
+      ? "border-accent-error/30 bg-accent-error/12 text-accent-error hover:bg-accent-error/20"
+      : version.isDowngrade
+        ? "border-accent-warning/30 bg-accent-warning/12 text-accent-warning hover:bg-accent-warning/20"
+        : "border-accent-primary/30 bg-accent-primary/12 text-accent hover:bg-accent-primary/20";
+  const disabled =
+    !version.isCompatible ||
+    (installingPluginId !== null && !isInstalling) ||
+    isCancelling;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="inline-flex rounded-md">
+        <button
+          onClick={() => isInstalling
+            ? onCancelInstall(plugin.id)
+            : onInstall(plugin.id, version.selectedVersion)}
+          disabled={disabled}
+          title={!version.isCompatible
+            ? t("settings.plugins.requiresVersion", { version: version.minVersion })
+            : undefined}
+          className={clsx(
+            "flex h-7 min-w-0 items-center justify-center gap-1.5 border px-2.5 text-[11px] font-semibold transition-colors disabled:opacity-50",
+            hasPicker && !isInstalling ? "rounded-l-md" : "rounded-md",
+            toneClass,
+          )}
+        >
+          {isCancelling ? <Loader2 size={11} className="animate-spin" />
+            : isInstalling ? <CircleStop size={11} />
+              : version.isDowngrade ? <RotateCcw size={11} />
+                : version.isUpdate ? <RefreshCw size={11} />
+                  : <Download size={11} />}
+          {isInstalling ? t("common.cancel") : actionLabel}
+        </button>
+        {hasPicker && !isInstalling && (
+          // Split button: the arrow opens the release list, so the version
+          // choice lives on the action itself instead of a second control.
+          <VersionDropdown
+            attached
+            attachedClassName={toneClass}
+            options={version.options}
+            value={version.selectedVersion}
+            onChange={onSelectVersion}
+            isDowngrade={version.isDowngrade}
+            // Stays usable when the target is incompatible, so another release can be picked.
+            disabled={installingPluginId !== null || isCancelling}
+            label={pickerLabel}
+          />
+        )}
+      </div>
+      {!version.isCompatible && (
+        <span className="text-[10px] font-medium text-accent-warning/90">
+          {t("settings.plugins.requiresVersion", { version: version.minVersion })}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -473,30 +453,36 @@ function PluginToggle({
   enabled,
   disabled,
   onToggle,
+  label,
+  title,
 }: {
   enabled: boolean;
   disabled?: boolean;
   onToggle: () => void;
+  label?: string;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onToggle}
       disabled={disabled}
-      aria-label={enabled ? "Disable plugin" : "Enable plugin"}
+      aria-label={label ?? (enabled ? "Disable plugin" : "Enable plugin")}
+      aria-pressed={enabled}
+      title={title}
       className={clsx(
         "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent",
         "transition-colors duration-200 ease-in-out",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
-        enabled ? "bg-blue-600" : "bg-surface-tertiary",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+        enabled ? "bg-accent-primary" : "bg-surface-tertiary",
         disabled ? "cursor-not-allowed" : "cursor-pointer",
       )}
     >
       <span
         className={clsx(
-          "pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow",
+          "pointer-events-none inline-block h-4 w-4 rounded-full shadow",
           "transition duration-200 ease-in-out",
-          enabled ? "translate-x-4" : "translate-x-0",
+          enabled ? "translate-x-4 bg-inverse" : "translate-x-0 bg-primary",
         )}
       />
     </button>
@@ -509,34 +495,42 @@ function StatCard({
   icon,
   value,
   label,
-  colorClass,
-  bgClass,
-  valueColorClass,
-  glowClass,
+  tone = "neutral",
+  onClick,
+  active = false,
 }: {
   icon: ReactNode;
   value: number;
   label: string;
-  colorClass: string;
-  bgClass: string;
-  valueColorClass?: string;
-  glowClass?: string;
+  tone?: Tone;
+  /** When given, the tile doubles as a filter shortcut for the list below. */
+  onClick?: () => void;
+  active?: boolean;
 }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      aria-pressed={onClick ? active : undefined}
       className={clsx(
-        "p-4 flex items-center gap-3 transition-colors",
-        glowClass,
+        "relative flex items-center gap-3 p-4 text-left transition-colors",
+        onClick && "cursor-pointer hover:bg-surface-secondary/30 focus:outline-none focus-visible:bg-surface-secondary/30",
+        active && "bg-surface-secondary/40",
       )}
     >
-      <div className={clsx("p-2.5 rounded-lg shrink-0", bgClass, colorClass)}>
+      {active && (
+        // Same underline as the active filter tab: the tile and the tab are one filter.
+        <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-accent-primary" />
+      )}
+      <div className={clsx("p-2.5 rounded-lg shrink-0", TONE_SOFT_BG_CLASS[tone], TONE_TEXT_CLASS[tone])}>
         {icon}
       </div>
       <div className="min-w-0">
         <div
           className={clsx(
             "text-2xl font-bold leading-none tabular-nums",
-            valueColorClass ?? "text-primary",
+            tone === "neutral" ? "text-primary" : TONE_TEXT_CLASS[tone],
           )}
         >
           {value}
@@ -545,7 +539,7 @@ function StatCard({
           {label}
         </div>
       </div>
-    </div>
+    </Tag>
   );
 }
 
@@ -575,13 +569,19 @@ export function PluginsTab({
     installedPlugins,
     refresh: refreshDrivers,
   } = useDrivers();
+  const { catalog, refreshCatalog } = useTheme();
   const {
-    plugins: registryPlugins,
+    plugins: remotePlugins,
     loading: registryLoading,
     error: registryError,
     refresh: refreshRegistry,
   } = usePluginRegistry();
-  const { openConnectionIds, connectionDataMap, disconnect } = useDatabase();
+  const registryPlugins = useMemo(
+    () => mergeLocalThemePlugins(remotePlugins, catalog.themes.map(({ entry }) => entry)),
+    [remotePlugins, catalog.themes],
+  );
+  const pluginUpdates = useMemo(() => getPluginUpdates(registryPlugins, APP_VERSION), [registryPlugins]);
+  const { openConnectionIds, connectionDataMap, disconnect, connections } = useDatabase();
 
   const [installingPluginId, setInstallingPluginId] = useState<string | null>(
     null,
@@ -610,8 +610,61 @@ export function PluginsTab({
     pluginName: string;
     onConfirm: () => Promise<void>;
   } | null>(null);
+  const [togglingThemeId, setTogglingThemeId] = useState<string | null>(null);
+  const [themeToggleError, setThemeToggleError] = useState<string | null>(null);
+  const [themeRemoveConfirm, setThemeRemoveConfirm] = useState<{
+    packageName: string;
+    registryKey: string;
+    displayName: string;
+    busy?: boolean;
+    committed?: boolean;
+    error?: string;
+    warnings?: string[];
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<AvailableFilter>("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterParam = searchParams.get("filter");
+  const activeFilter: AvailableFilter =
+    filterParam === "updates" || filterParam === "installed" ? filterParam : "all";
+  const setActiveFilter = (filter: AvailableFilter) => {
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        next.set("filter", filter);
+        return next;
+      },
+      { replace: true },
+    );
+  };
+  // Kind (drivers / themes) is orthogonal to the status filter above and lives
+  // in the URL too, so Appearance can deep-link straight to the theme list.
+  const activeKind = parsePluginKindFilter(searchParams.get("kind"));
+  const setActiveKind = (kind: PluginKindFilter) => {
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (kind === "all") next.delete("kind");
+        else next.set("kind", kind);
+        return next;
+      },
+      { replace: true },
+    );
+  };
+  const openAppearance = () => {
+    setSearchParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        next.set("tab", "appearance");
+        next.delete("filter");
+        next.delete("kind");
+        return next;
+      },
+      { replace: true },
+    );
+  };
+  // Theme installs run through the theme package installer, which is keyed by
+  // registry + package; the key is resolved at install time and kept for cancel.
+  const themeRegistryKeys = useRef(new Map<string, string>());
   const [readmePlugin, setReadmePlugin] = useState<{
     slug: string;
     name: string;
@@ -635,19 +688,40 @@ export function PluginsTab({
     () => allDrivers.filter((driver) => driver.is_builtin !== true),
     [allDrivers],
   );
-  const updateCount = useMemo(
-    () => registryPlugins.filter((plugin) => plugin.update_available).length,
+  const kindPlugins = useMemo(
+    () => registryPlugins.filter((p) => matchesPluginKind(p, activeKind)),
+    [registryPlugins, activeKind],
+  );
+  const kindUpdates = useMemo(
+    () => pluginUpdates.filter((p) => matchesPluginKind(p, activeKind)),
+    [pluginUpdates, activeKind],
+  );
+  const kindCounts = useMemo(
+    () => ({
+      all: registryPlugins.length,
+      driver: registryPlugins.filter((p) => pluginKind(p) === "driver").length,
+      theme: registryPlugins.filter((p) => pluginKind(p) === "theme").length,
+    }),
     [registryPlugins],
   );
+  // Local and registry themes share the list, but never driver manifests.
+  const installedThemes = useMemo(
+    () =>
+      activeKind === "driver"
+        ? []
+        : registryPlugins.filter(
+            (p) => pluginKind(p) === "theme" && !!p.installed_version,
+          ),
+    [registryPlugins, activeKind],
+  );
+  const updateCount = kindUpdates.length;
 
   const filteredPlugins = useMemo(() => {
-    let list = registryPlugins;
-    if (activeFilter === "all") {
-      list = list.filter((p) => !p.installed_version);
-    } else if (activeFilter === "installed") {
+    let list = kindPlugins;
+    if (activeFilter === "installed") {
       list = list.filter((p) => !!p.installed_version);
     } else if (activeFilter === "updates") {
-      list = list.filter((p) => p.update_available);
+      list = kindUpdates;
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -659,17 +733,14 @@ export function PluginsTab({
       );
     }
     return list;
-  }, [registryPlugins, activeFilter, searchQuery]);
+  }, [kindPlugins, kindUpdates, activeFilter, searchQuery]);
 
-  // Refresh the catalogue + drivers when a deep-link install succeeds at
-  // app level — without this the user has to manually click Refresh after
-  // the confirm modal closes.
+  // The shared registry refreshes itself; refresh this tab's driver list too.
   useEffect(() => {
     let cleanup: UnlistenFn | null = null;
     let mounted = true;
     listen("tabularis://plugin-installed", () => {
       if (!mounted) return;
-      refreshRegistry();
       refreshDrivers();
     })
       .then((u) => {
@@ -683,7 +754,7 @@ export function PluginsTab({
       mounted = false;
       cleanup?.();
     };
-  }, [refreshRegistry, refreshDrivers]);
+  }, [refreshDrivers]);
 
   useEffect(() => {
     client.call("get_plugin_startup_errors", undefined)
@@ -726,22 +797,43 @@ export function PluginsTab({
   const doInstall = useCallback(
     async (pluginId: string, version: string) => {
       setInstallingPluginId(pluginId);
-      try {
-        await client.call(
-          "install_plugin",
-          { pluginId, version },
-          { deadlineMs: PLUGIN_INSTALL_DEADLINE_MS },
-        );
-        // The picked version is spent once installed. Keeping it would pin the
-        // card to what's now on disk, which reads as neither "up to date" (it
-        // isn't latest) nor updatable (it is installed) — and the picker hides
-        // itself once only one other release is left, leaving no way out.
+      // The picked version is spent once installed. Keeping it would pin the
+      // card to what's now on disk, which reads as neither "up to date" (it
+      // isn't latest) nor updatable (it is installed) — and the picker hides
+      // itself once only one other release is left, leaving no way out.
+      const forgetSelection = () =>
         setSelectedVersions((prev) => {
           if (!(pluginId in prev)) return prev;
           const next = { ...prev };
           delete next[pluginId];
           return next;
         });
+      const registryPlugin = registryPlugins.find((plugin) => plugin.id === pluginId);
+      try {
+        if (registryPlugin && pluginKind(registryPlugin) === "theme") {
+          // Declarative package: same button, different installer. Nothing is
+          // activated as a driver and the theme catalog is what changes.
+          const snapshot = await invoke<{ registryKey: string }>(
+            "fetch_theme_registry",
+            { packageName: pluginId },
+          );
+          themeRegistryKeys.current.set(pluginId, snapshot.registryKey);
+          await invoke("install_registry_theme", {
+            packageName: pluginId,
+            expectedRegistryKey: snapshot.registryKey,
+            version,
+          });
+          forgetSelection();
+          await refreshCatalog();
+          refreshRegistry();
+          return;
+        }
+        await client.call(
+          "install_plugin",
+          { pluginId, version },
+          { deadlineMs: PLUGIN_INSTALL_DEADLINE_MS },
+        );
+        forgetSelection();
         await updateSettingRef.current(
           "activeExternalDrivers",
           Array.from(
@@ -767,17 +859,23 @@ export function PluginsTab({
           });
         }
       } finally {
+        themeRegistryKeys.current.delete(pluginId);
         setInstallingPluginId(null);
         setCancellingPluginId(null);
       }
     },
-    [client, refreshRegistry, refreshDrivers, onPluginsChanged, registryPlugins],
+    [client, refreshRegistry, refreshDrivers, refreshCatalog, onPluginsChanged, registryPlugins],
   );
 
   const doCancelInstall = useCallback(async (pluginId: string) => {
     setCancellingPluginId(pluginId);
     try {
-      await client.call("cancel_plugin_install", { pluginId });
+      const registryKey = themeRegistryKeys.current.get(pluginId);
+      if (registryKey) {
+        await invoke<boolean>("cancel_theme_install", { registryKey, packageName: pluginId });
+      } else {
+        await client.call("cancel_plugin_install", { pluginId });
+      }
     } catch (err) {
       setCancellingPluginId(null);
       setPluginInstallError({
@@ -871,15 +969,190 @@ export function PluginsTab({
     [activeExternalDrivers, updateSetting, refreshDrivers, client],
   );
 
+  const doToggleTheme = useCallback(
+    async (packageName: string, registryKey: string, enabled: boolean) => {
+      setTogglingThemeId(packageName);
+      setThemeToggleError(null);
+      try {
+        // A package toggle applies to every variant. Saved theme selections and
+        // driver preferences are retained; the refreshed catalog decides fallback.
+        await invoke("set_theme_package_enabled", { packageName, registryKey, enabled });
+        try {
+          await refreshCatalog();
+        } catch (error) {
+          setThemeToggleError(`${t("themePackages.committedRefreshFailed")} ${String(error)}`);
+        }
+      } catch (error) {
+        setThemeToggleError(`${packageName}: ${String(error)}`);
+      } finally {
+        setTogglingThemeId(null);
+      }
+    },
+    [refreshCatalog, t],
+  );
+
+  const doRemoveTheme = async () => {
+    if (!themeRemoveConfirm || themeRemoveConfirm.busy || themeRemoveConfirm.committed) return;
+    const { registryKey, packageName } = themeRemoveConfirm;
+    setThemeRemoveConfirm({ ...themeRemoveConfirm, busy: true, error: undefined });
+    try {
+      const result = await invoke<{ warnings: string[] }>("uninstall_theme_package", {
+        registryKey, packageName,
+      });
+      setThemeRemoveConfirm((current) => current && { ...current, committed: true, warnings: result.warnings });
+      try {
+        await Promise.all([refreshCatalog(), refreshRegistry()]);
+      } catch (failure) {
+        setThemeRemoveConfirm((current) => current && {
+          ...current, error: `${t("themePackages.committedRefreshFailed")} ${String(failure)}`,
+        });
+        return;
+      }
+      if (result.warnings.length === 0) setThemeRemoveConfirm(null);
+    } catch (failure) {
+      setThemeRemoveConfirm((current) => current && { ...current, error: String(failure) });
+    } finally {
+      setThemeRemoveConfirm((current) => current && { ...current, busy: false });
+    }
+  };
+
+  const renderVersionActions = (plugin: RegistryPluginWithStatus) => (
+    <PluginVersionActions
+      plugin={plugin}
+      selectedVersion={selectedVersions[plugin.id]}
+      installingPluginId={installingPluginId}
+      cancellingPluginId={cancellingPluginId}
+      onSelectVersion={(version) => setSelectedVersions((previous) => ({
+        ...previous,
+        [plugin.id]: version,
+      }))}
+      onInstall={doInstall}
+      onCancelInstall={doCancelInstall}
+    />
+  );
+
+  // One card for every registry entry, whatever its kind: only the install
+  // path differs (driver installer vs. theme package dialog).
+  const renderRegistryCard = (plugin: RegistryPluginWithStatus) => {
+    const isTheme = pluginKind(plugin) === "theme";
+    const themeEntry = isTheme ? catalog.themes.find(({ entry }) =>
+      entry.origin.kind === "installed" && entry.origin.identity.packageName === plugin.id,
+    )?.entry : undefined;
+    const themeIdentity = themeEntry?.origin.kind === "installed" ? themeEntry.origin.identity : undefined;
+    const isLocalOnly = !remotePlugins.some((remote) => remote.id === plugin.id && pluginKind(remote) === pluginKind(plugin));
+      const installedBadge = plugin.installed_version ? (
+        <Chip>
+          {t("settings.plugins.installed")} v
+          {plugin.installed_version}
+        </Chip>
+      ) : undefined;
+
+      // Tags from the Tabularium catalogue, as ghost tokens so they never
+      // compete with the status chips. The kind itself is a first-class chip
+      // on the card (driver vs theme), so it is not repeated here.
+      const remainingTags = (plugin.tags ?? []).filter(
+        (t) => t && t !== plugin.kind && t !== "driver" && t !== "theme",
+      );
+      const tagMeta =
+        remainingTags.length > 0 ? (
+          <>
+            {remainingTags.slice(0, 4).map((tag) => (
+              <Chip key={tag} variant="ghost">{tag}</Chip>
+            ))}
+          </>
+        ) : undefined;
+
+      // If we know which registry served this plugin, link the
+      // card title to its detail page on that registry (highest
+      // priority); the upstream homepage becomes a small icon.
+      const registryPageUrl = plugin.registry_base_url
+        ? `${plugin.registry_base_url.replace(/\/+$/, "")}/plugins/${plugin.id}`
+        : null;
+
+      return (
+        <PluginCard
+          key={`${pluginKind(plugin)}:${plugin.id}`}
+          kind={isTheme ? "theme" : "driver"}
+          name={plugin.name}
+          description={plugin.description}
+          author={plugin.author}
+          homepage={plugin.homepage}
+          registryPageUrl={registryPageUrl}
+          iconUrl={plugin.icon}
+          downloads={plugin.downloads}
+          manifest={isTheme ? undefined : allDrivers.find((driver) => driver.id === plugin.id)}
+          version={plugin.installed_version ? undefined : plugin.latest_version}
+          updateVersion={pluginUpdates.find((update) => update.id === plugin.id && pluginKind(update) === pluginKind(plugin))?.latest_version}
+          upToDate={!isLocalOnly && !!plugin.installed_version && plugin.installed_version === plugin.latest_version}
+          status={<>
+            {installedBadge}
+            {themeEntry && !themeEntry.available && <Chip>{t("themePackages.disabled")}</Chip>}
+          </>}
+          control={themeEntry && themeIdentity ? (
+            <PluginToggle
+              enabled={themeEntry.available}
+              disabled={togglingThemeId !== null || installingPluginId === plugin.id}
+              label={t(themeEntry.available ? "themePackages.disable" : "themePackages.enable")}
+              title={t("themePackages.packageWarning")}
+              onToggle={() => void doToggleTheme(
+                themeIdentity.packageName, themeIdentity.registryKey, !themeEntry.available,
+              )}
+            />
+          ) : undefined}
+          meta={tagMeta}
+          onShowReadme={isLocalOnly ? undefined : () =>
+            setReadmePlugin({
+              slug: plugin.id,
+              name: plugin.name,
+              registryUrl: plugin.registry_base_url ?? null,
+            })
+          }
+          actions={isLocalOnly ? undefined : renderVersionActions(plugin)}
+          secondaryActions={
+            isTheme && plugin.installed_version ? (
+              <>
+                <button
+                  type="button"
+                  onClick={openAppearance}
+                  className={PLUGIN_ICON_BUTTON_CLASS}
+                  aria-label={t("settings.plugins.manageThemes")}
+                  title={t("settings.plugins.manageThemes")}
+                >
+                  <Palette size={14} />
+                </button>
+                {themeIdentity && (
+                  <button
+                    type="button"
+                    onClick={() => setThemeRemoveConfirm({
+                      packageName: themeIdentity.packageName,
+                      registryKey: themeIdentity.registryKey,
+                      displayName: plugin.name,
+                    })}
+                    disabled={togglingThemeId !== null || installingPluginId !== null}
+                    aria-label={t("themePackages.removePackage")}
+                    title={t("themePackages.removePackage")}
+                    className={FOOTER_ICON_DANGER}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </>
+            ) : undefined
+          }
+        />
+      );
+  };
+
   return (
     <>
       <div className="space-y-8">
-        {/* Overview panel */}
-        <div className="rounded-lg border border-default bg-elevated overflow-hidden">
+        {/* Overview panel: identity + toolbar on top, metric tiles below.
+            The tiles double as filter shortcuts for the list further down. */}
+        <div className="rounded-2xl border border-strong bg-elevated overflow-hidden">
           <div className="p-5 border-b border-default bg-surface-secondary/50">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400 shrink-0">
+                <div className="p-2 rounded-lg bg-accent-primary/10 text-accent shrink-0">
                   <Plug size={18} />
                 </div>
                 <div className="min-w-0">
@@ -891,53 +1164,69 @@ export function PluginsTab({
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => refreshRegistry()}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-default bg-base text-xs text-secondary hover:text-primary hover:border-strong transition-colors"
-              >
-                <RefreshCw size={13} />
-                {t("settings.plugins.refresh")}
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {platform.negotiation.environment === "tauri" && (
+                  <button
+                    type="button"
+                    onClick={openPluginsFolder}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs text-muted hover:text-primary hover:bg-surface-secondary/60 transition-colors"
+                  >
+                    <FolderOpen size={13} />
+                    {t("settings.plugins.openFolder")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    refreshRegistry();
+                    refreshDrivers();
+                    void refreshCatalog();
+                  }}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-default bg-base text-xs text-secondary hover:text-primary hover:border-strong transition-colors"
+                >
+                  <RefreshCw size={13} className={clsx(registryLoading && "animate-spin")} />
+                  {t("settings.plugins.refresh")}
+                </button>
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-default">
             <StatCard
               icon={<PackageCheck size={15} />}
-              value={installedPlugins.length}
+              value={
+                (activeKind === "theme" ? 0 : installedPlugins.length) +
+                installedThemes.length
+              }
               label={t("settings.plugins.installedMetric")}
-              colorClass="text-green-400"
-              bgClass="bg-green-500/10"
+              onClick={() => setActiveFilter("installed")}
+              active={activeFilter === "installed"}
             />
             <StatCard
               icon={<Power size={15} />}
               value={externalDrivers.length}
               label={t("settings.plugins.enabledMetric")}
-              colorClass="text-blue-400"
-              bgClass="bg-blue-500/10"
+              tone="success"
             />
             <StatCard
               icon={<Boxes size={15} />}
-              value={registryPlugins.length}
+              value={kindPlugins.length}
               label={t("settings.plugins.registryMetric")}
-              colorClass="text-purple-400"
-              bgClass="bg-purple-500/10"
+              onClick={() => setActiveFilter("all")}
+              active={activeFilter === "all"}
             />
             <StatCard
-              icon={<RefreshCw size={15} />}
+              icon={<ArrowUpCircle size={15} />}
               value={updateCount}
               label={t("settings.plugins.updatesMetric")}
-              colorClass={updateCount > 0 ? "text-amber-400" : "text-muted"}
-              bgClass={
-                updateCount > 0 ? "bg-amber-500/10" : "bg-surface-secondary"
-              }
-              valueColorClass={updateCount > 0 ? "text-amber-400" : undefined}
-              glowClass={
-                updateCount > 0 ? "bg-amber-500/[0.04]" : undefined
-              }
+              tone={updateCount > 0 ? "update" : "neutral"}
+              onClick={() => setActiveFilter("updates")}
+              active={activeFilter === "updates"}
             />
           </div>
         </div>
+
+        {themeToggleError && <p role="alert" className="text-sm text-accent-error">{themeToggleError}</p>}
 
         {/* Available */}
         <div className="mb-8">
@@ -961,30 +1250,31 @@ export function PluginsTab({
                 placeholder={t("settings.plugins.searchPlaceholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-44 rounded-lg border border-default bg-base py-1.5 pl-7 pr-3 text-xs text-primary placeholder:text-muted transition-all focus:w-56 focus:border-blue-500 focus:outline-none"
+                className="w-44 rounded-lg border border-default bg-base py-1.5 pl-7 pr-3 text-xs text-primary placeholder:text-muted transition-all focus:w-56 focus:border-focus focus:outline-none"
               />
             </div>
           </div>
 
-          {/* Filter tabs */}
-          <div className="flex items-center justify-between border-b border-default">
+          {/* Filter tabs (status) + kind selector */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-default">
             <div className="flex items-center gap-0.5">
               {(
                 [
                   {
                     id: "all" as const,
                     label: t("settings.plugins.filterAll"),
-                    count: registryPlugins.filter((p) => !p.installed_version)
-                      .length,
+                    count: kindPlugins.length,
                   },
                   {
                     id: "installed" as const,
                     label: t("settings.plugins.filterInstalled"),
                     count:
-                      allDrivers.length +
-                      installedPlugins.filter(
-                        (p) => !allDrivers.some((d) => d.id === p.id),
-                      ).length,
+                      (activeKind === "theme"
+                        ? 0
+                        : allDrivers.length +
+                          installedPlugins.filter(
+                            (p) => !allDrivers.some((d) => d.id === p.id),
+                          ).length) + installedThemes.length,
                   },
                   {
                     id: "updates" as const,
@@ -1004,45 +1294,60 @@ export function PluginsTab({
                   className={clsx(
                     "flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-colors -mb-px",
                     activeFilter === id
-                      ? "border-blue-500 text-primary"
+                      ? "border-accent-primary text-primary"
                       : "border-transparent text-muted hover:text-secondary",
                   )}
                 >
                   {label}
-                  {count > 0 && (
-                    <span
-                      className={clsx(
-                        "rounded-full px-1.5 py-px text-[9px] font-semibold",
-                        id === "updates" && count > 0
-                          ? "bg-amber-500/20 text-amber-400"
-                          : "bg-surface-secondary text-muted",
-                      )}
-                    >
-                      {count}
-                    </span>
-                  )}
+                  <CountBadge count={count} tone={id === "updates" ? "update" : "neutral"} />
                 </button>
               ))}
             </div>
-            <div className="mb-px flex items-center gap-4">
-              {platform.negotiation.environment === "tauri" && (
+            <div
+              role="group"
+              aria-label={t("settings.plugins.kindFilter")}
+              className="mb-1.5 inline-flex items-center gap-0.5 rounded-lg border border-default bg-base p-0.5"
+            >
+              {(
+                [
+                  {
+                    id: "all" as const,
+                    label: t("settings.plugins.kindAll"),
+                    icon: <Boxes size={11} />,
+                  },
+                  {
+                    id: "driver" as const,
+                    label: t("settings.plugins.kindDrivers"),
+                    icon: <Plug size={11} />,
+                  },
+                  {
+                    id: "theme" as const,
+                    label: t("settings.plugins.kindThemes"),
+                    icon: <Palette size={11} />,
+                  },
+                ] satisfies Array<{
+                  id: PluginKindFilter;
+                  label: string;
+                  icon: ReactNode;
+                }>
+              ).map(({ id, label, icon }) => (
                 <button
+                  key={id}
                   type="button"
-                  onClick={openPluginsFolder}
-                  className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-primary"
+                  aria-pressed={activeKind === id}
+                  onClick={() => setActiveKind(id)}
+                  className={clsx(
+                    "inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors",
+                    activeKind === id
+                      ? "bg-accent-primary/12 text-accent"
+                      : "text-muted hover:bg-surface-secondary/60 hover:text-secondary",
+                  )}
                 >
-                  <FolderOpen size={12} />
-                  {t("settings.plugins.openFolder")}
+                  {icon}
+                  {label}
+                  {id !== "all" && <CountBadge count={kindCounts[id]} />}
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => refreshRegistry()}
-                className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-primary"
-              >
-                <RefreshCw size={12} />
-                {t("settings.plugins.refresh")}
-              </button>
+              ))}
             </div>
           </div>
 
@@ -1051,22 +1356,23 @@ export function PluginsTab({
               /* ── Installed tab ── */
               (() => {
                 const sq = searchQuery.toLowerCase().trim();
-                const activeDrivers = sq
-                  ? allDrivers.filter(
-                      (d) =>
-                        d.name.toLowerCase().includes(sq) ||
-                        d.description.toLowerCase().includes(sq),
-                    )
-                  : allDrivers;
-                const disabledPlugins = installedPlugins
-                  .filter((p) => !allDrivers.some((d) => d.id === p.id))
-                  .filter(
-                    (p) =>
-                      !sq ||
-                      p.name.toLowerCase().includes(sq) ||
-                      p.description.toLowerCase().includes(sq),
-                  );
-                const isEmpty = activeDrivers.length === 0 && disabledPlugins.length === 0;
+                const matchesSearch = (item: { name: string; description: string }) =>
+                  !sq ||
+                  item.name.toLowerCase().includes(sq) ||
+                  item.description.toLowerCase().includes(sq);
+                const kindDrivers = activeKind === "theme" ? [] : allDrivers;
+                const activeDrivers = kindDrivers.filter(matchesSearch);
+                const disabledPlugins =
+                  activeKind === "theme"
+                    ? []
+                    : installedPlugins
+                        .filter((p) => !allDrivers.some((d) => d.id === p.id))
+                        .filter(matchesSearch);
+                const visibleThemes = installedThemes.filter(matchesSearch);
+                const isEmpty =
+                  activeDrivers.length === 0 &&
+                  disabledPlugins.length === 0 &&
+                  visibleThemes.length === 0;
                 return (
                   <div className="grid gap-4 xl:grid-cols-2 lg:grid-cols-2 sm:grid-cols-1">
                     {activeDrivers.map((driver: PluginManifest) => {
@@ -1075,19 +1381,48 @@ export function PluginsTab({
                       const registryPlugin = registryPlugins.find(
                         (p) => p.id === driver.id,
                       );
-                      const canUpdate =
-                        !isBuiltin &&
-                        canUpdateToLatest(registryPlugin, APP_VERSION);
                       const isEnabled =
                         isBuiltin || activeExternalDrivers.includes(driver.id);
-                      const accent: CardAccent = isBuiltin
-                        ? null
-                        : isEnabled
-                          ? "blue"
-                          : null;
                       const statusNode = isBuiltin ? (
-                        <span className="text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-px rounded-md">
-                          Built-in
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <Chip tone="primary">Built-in</Chip>
+                          {driver.deprecated && (
+                            <Chip
+                              tone="warning"
+                              title={driver.deprecated.removal_date
+                                ? t("settings.plugins.deprecatedTooltipDate", {
+                                    replacement: driver.deprecated.replacement_id ?? "",
+                                    date: driver.deprecated.removal_date,
+                                  })
+                                : t("settings.plugins.deprecatedTooltip", {
+                                    replacement: driver.deprecated.replacement_id ?? "",
+                                  })}
+                            >
+                              {t("settings.plugins.deprecated", { defaultValue: "Deprecated" })}
+                            </Chip>
+                          )}
+                          {driver.deprecated?.replacement_id && (() => {
+                            // "N of M connections migrated" — derived from the
+                            // connections on this builtin vs its replacement.
+                            const repl = driver.deprecated.replacement_id;
+                            const onBuiltin = connections.filter(
+                              (c) => c.params.driver === driver.id,
+                            ).length;
+                            const onPlugin = connections.filter(
+                              (c) => c.params.driver === repl,
+                            ).length;
+                            const total = onBuiltin + onPlugin;
+                            if (total === 0) return null;
+                            return (
+                              <span className="text-[10px] font-medium text-muted">
+                                {t("settings.plugins.migrationProgress", {
+                                  migrated: onPlugin,
+                                  total,
+                                  defaultValue: "{{migrated}} of {{total}} migrated",
+                                })}
+                              </span>
+                            );
+                          })()}
                         </span>
                       ) : (
                         <PluginToggle
@@ -1109,8 +1444,12 @@ export function PluginsTab({
                           homepage={
                             !isBuiltin ? registryPlugin?.homepage : undefined
                           }
-                          accent={accent}
-                          status={statusNode}
+                          manifest={driver}
+                          iconUrl={registryPlugin?.icon}
+                          downloads={registryPlugin?.downloads}
+                          updateVersion={isBuiltin ? undefined : pluginUpdates.find((plugin) => plugin.id === driver.id)?.latest_version}
+                          status={isBuiltin ? statusNode : undefined}
+                          control={isBuiltin ? undefined : statusNode}
                           onShowReadme={
                             !isBuiltin && registryPlugin
                               ? () =>
@@ -1122,8 +1461,14 @@ export function PluginsTab({
                                   })
                               : undefined
                           }
+                          upToDate={!isBuiltin && !!registryPlugin && registryPlugin.latest_version === driver.version}
                           actions={
-                            <div className="flex items-center justify-end gap-3 w-full">
+                            !isBuiltin && registryPlugin
+                              ? renderVersionActions({ ...registryPlugin, installed_version: driver.version })
+                              : undefined
+                          }
+                          secondaryActions={
+                            <>
                               {!isBuiltin && (
                                 <SlotAnchor
                                   name="settings.plugin.actions"
@@ -1136,36 +1481,15 @@ export function PluginsTab({
                                   onClick={() =>
                                     handleOpenPluginSettings(driver.id)
                                   }
-                                  className="p-1.5 text-secondary hover:text-primary transition-colors"
+                                  className={PLUGIN_ICON_BUTTON_CLASS}
                                   title={t(
                                     "settings.plugins.pluginSettings.title",
                                   )}
                                 >
-                                  <SettingsIcon size={15} />
+                                  <SettingsIcon size={14} />
                                 </button>
                               )}
-                              {canUpdate && registryPlugin && (
-                                <button
-                                  onClick={() =>
-                                    doInstall(
-                                      driver.id,
-                                      registryPlugin.latest_version,
-                                    )
-                                  }
-                                  disabled={installingPluginId === driver.id}
-                                  className="flex items-center gap-1 text-[11px] text-green-500/80 hover:text-green-400 disabled:opacity-50 transition-colors"
-                                >
-                                  {installingPluginId === driver.id ? (
-                                    <Loader2
-                                      size={11}
-                                      className="animate-spin"
-                                    />
-                                  ) : (
-                                    <RefreshCw size={11} />
-                                  )}
-                                  {`${t("settings.plugins.update")} v${registryPlugin.latest_version}`}
-                                </button>
-                              )}
+
                               {!isBuiltin && (
                                 <button
                                   onClick={() =>
@@ -1174,17 +1498,18 @@ export function PluginsTab({
                                   disabled={
                                     uninstallingPluginId === driver.id
                                   }
-                                  className="flex items-center gap-1 text-[11px] text-red-500/70 hover:text-red-400 disabled:opacity-50 transition-colors"
+                                  aria-label={t("settings.plugins.remove")}
+                                  title={t("settings.plugins.remove")}
+                                  className={FOOTER_ICON_DANGER}
                                 >
                                   {uninstallingPluginId === driver.id ? (
-                                    <Loader2 size={11} className="animate-spin" />
+                                    <Loader2 size={14} className="animate-spin" />
                                   ) : (
-                                    <Trash2 size={11} />
+                                    <Trash2 size={14} />
                                   )}
-                                  {t("settings.plugins.remove")}
                                 </button>
                               )}
-                            </div>
+                            </>
                           }
                         />
                       );
@@ -1202,7 +1527,9 @@ export function PluginsTab({
                           version={plugin.version}
                           author={registryPlugin?.author}
                           homepage={registryPlugin?.homepage}
-                          accent={null}
+                          iconUrl={registryPlugin?.icon}
+                          downloads={registryPlugin?.downloads}
+                          updateVersion={pluginUpdates.find((update) => update.id === plugin.id)?.latest_version}
                           onShowReadme={
                             registryPlugin
                               ? () =>
@@ -1214,7 +1541,7 @@ export function PluginsTab({
                                   })
                               : undefined
                           }
-                          status={
+                          control={
                             <PluginToggle
                               enabled={false}
                               onToggle={async () => {
@@ -1242,8 +1569,14 @@ export function PluginsTab({
                               }}
                             />
                           }
+                          upToDate={!!registryPlugin && registryPlugin.latest_version === plugin.version}
                           actions={
-                            <div className="flex items-center justify-end gap-3 w-full">
+                            registryPlugin
+                              ? renderVersionActions({ ...registryPlugin, installed_version: plugin.version })
+                              : undefined
+                          }
+                          secondaryActions={
+                            <>
                               <SlotAnchor
                                 name="settings.plugin.actions"
                                 context={{ targetPluginId: plugin.id }}
@@ -1253,32 +1586,35 @@ export function PluginsTab({
                                 onClick={() =>
                                   handleOpenPluginSettings(plugin.id)
                                 }
-                                className="p-1.5 text-secondary hover:text-primary transition-colors"
+                                className={PLUGIN_ICON_BUTTON_CLASS}
                                 title={t(
                                   "settings.plugins.pluginSettings.title",
                                 )}
                               >
-                                <SettingsIcon size={15} />
+                                <SettingsIcon size={14} />
                               </button>
                               <button
                                 onClick={() =>
                                   doRemove(plugin.id, plugin.name)
                                 }
                                 disabled={uninstallingPluginId === plugin.id}
-                                className="flex items-center gap-1 text-[11px] text-red-500/70 hover:text-red-400 disabled:opacity-50 transition-colors"
+                                aria-label={t("settings.plugins.remove")}
+                                title={t("settings.plugins.remove")}
+                                className={FOOTER_ICON_DANGER}
                               >
                                 {uninstallingPluginId === plugin.id ? (
-                                  <Loader2 size={11} className="animate-spin" />
+                                  <Loader2 size={14} className="animate-spin" />
                                 ) : (
-                                  <Trash2 size={11} />
+                                  <Trash2 size={14} />
                                 )}
-                                {t("settings.plugins.remove")}
                               </button>
-                            </div>
+                            </>
                           }
                         />
                       );
                     })}
+
+                    {visibleThemes.map(renderRegistryCard)}
 
                     {isEmpty && (
                       <p className="col-span-full text-sm text-muted py-4">
@@ -1301,268 +1637,22 @@ export function PluginsTab({
                 )}
 
                 {registryError && (
-                  <div className="bg-red-900/20 border border-red-900/50 text-red-400 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                  <div className="bg-accent-error/10 border border-accent-error/30 text-accent-error px-4 py-3 rounded-lg text-sm flex items-center gap-2">
                     <AlertTriangle size={16} />
                     {t("settings.plugins.registryError")}: {registryError}
                   </div>
                 )}
 
-                {!registryLoading && !registryError && (
+                {(filteredPlugins.length > 0 || (!registryLoading && !registryError)) && (
                   <div className="grid gap-4 xl:grid-cols-2 lg:grid-cols-2 sm:grid-cols-1">
-                    {filteredPlugins.map((plugin) => {
-                  const platformReleases = plugin.releases.filter(
-                    (r) => r.platform_supported,
-                  );
-                  const installableReleases = platformReleases.filter(
-                    (r) => r.version !== plugin.installed_version,
-                  );
-                  const isAtLatest =
-                    !!plugin.installed_version &&
-                    plugin.installed_version === plugin.latest_version;
-                  const defaultVer = isAtLatest
-                    ? plugin.latest_version
-                    : (installableReleases.find(
-                        (r) => r.version === plugin.latest_version,
-                      )?.version ??
-                      installableReleases[0]?.version ??
-                      plugin.latest_version);
-                  const selectedVer =
-                    selectedVersions[plugin.id] ?? defaultVer;
-                  const selectedRelease = plugin.releases.find(
-                    (r) => r.version === selectedVer,
-                  );
-                  const selectedPlatformSupported =
-                    selectedRelease?.platform_supported ?? false;
-                  const isSelectedInstalled =
-                    plugin.installed_version === selectedVer;
-                  const minVersion =
-                    selectedRelease?.min_tabularis_version ?? null;
-                  const isCompatible =
-                    !minVersion || versionGte(APP_VERSION, minVersion);
-                  const isUpdate =
-                    !!plugin.installed_version && !isSelectedInstalled;
-                  const isDowngrade =
-                    isUpdate &&
-                    !versionGte(selectedVer, plugin.installed_version!);
-                  const showVersionPicker = isAtLatest
-                    ? installableReleases.length >= 1
-                    : installableReleases.length > 1;
+                    {filteredPlugins.map(renderRegistryCard)}
 
-                  const accent: CardAccent = plugin.update_available
-                    ? "amber"
-                    : plugin.installed_version
-                      ? "green"
-                      : null;
-
-                  const installedBadge = plugin.installed_version ? (
-                    <span
-                      className={clsx(
-                        "text-[10px] font-medium px-1.5 py-px rounded-md border",
-                        plugin.update_available
-                          ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
-                          : "bg-green-500/10 text-green-400 border-green-500/25",
-                      )}
-                    >
-                      {t("settings.plugins.installed")} v
-                      {plugin.installed_version}
-                    </span>
-                  ) : undefined;
-
-                  // Tags + kind chips from the Tabularium catalogue. Kind is
-                  // shown as a distinct pill since it drives admin taxonomies;
-                  // remaining tags become muted chips.
-                  const remainingTags = (plugin.tags ?? []).filter(
-                    (t) => t && t !== plugin.kind,
-                  );
-                  const tagMeta =
-                    plugin.kind || remainingTags.length > 0 ? (
-                      <>
-                        {plugin.kind && (
-                          <span className="rounded-full border border-blue-700/30 bg-blue-900/20 px-2 py-0.5 font-medium text-blue-300">
-                            {plugin.kind}
-                          </span>
-                        )}
-                        {remainingTags.slice(0, 4).map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-full border border-default bg-base px-2 py-0.5"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </>
-                    ) : undefined;
-
-                  // If we know which registry served this plugin, link the
-                  // card title to its detail page on that registry (highest
-                  // priority); the upstream homepage becomes a small icon.
-                  const registryPageUrl = plugin.registry_base_url
-                    ? `${plugin.registry_base_url.replace(/\/+$/, "")}/plugins/${plugin.id}`
-                    : null;
-
-                  return (
-                    <PluginCard
-                      key={plugin.id}
-                      name={plugin.name}
-                      description={plugin.description}
-                      author={plugin.author}
-                      homepage={plugin.homepage}
-                      registryPageUrl={registryPageUrl}
-                      iconUrl={plugin.icon}
-                      downloads={plugin.downloads}
-                      accent={accent}
-                      pulse={plugin.update_available}
-                      showBand
-                      status={installedBadge}
-                      meta={tagMeta}
-                      onShowReadme={() =>
-                        setReadmePlugin({
-                          slug: plugin.id,
-                          name: plugin.name,
-                          registryUrl: plugin.registry_base_url ?? null,
-                        })
-                      }
-                      actions={
-                        !selectedPlatformSupported ? (
-                          <span className="text-xs text-muted italic text-right">
-                            {t("settings.plugins.platformNotSupported")}
-                          </span>
-                        ) : (
-                          <>
-                            {isSelectedInstalled &&
-                              selectedVer === plugin.latest_version && (
-                                <div className="flex items-center justify-center gap-1.5">
-                                  <CheckCircle2
-                                    size={12}
-                                    className="text-green-400"
-                                  />
-                                  <span className="text-xs text-green-400 font-medium">
-                                    {t("settings.plugins.upToDate")}
-                                  </span>
-                                </div>
-                              )}
-
-                            {!isSelectedInstalled &&
-                              (isCompatible ? (
-                                <button
-                                  onClick={() =>
-                                    installingPluginId === plugin.id
-                                      ? doCancelInstall(plugin.id)
-                                      : doInstall(plugin.id, selectedVer)
-                                  }
-                                  disabled={
-                                    (installingPluginId !== null &&
-                                      installingPluginId !== plugin.id) ||
-                                    cancellingPluginId === plugin.id
-                                  }
-                                  className={clsx(
-                                    "flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors disabled:opacity-50",
-                                    installingPluginId === plugin.id
-                                      ? "bg-red-600 hover:bg-red-500"
-                                      : isDowngrade
-                                        ? "bg-amber-600 hover:bg-amber-500"
-                                        : isUpdate
-                                          ? "bg-green-600 hover:bg-green-500"
-                                          : "bg-blue-600 hover:bg-blue-500",
-                                  )}
-                                >
-                                  {cancellingPluginId === plugin.id ? (
-                                    <Loader2
-                                      size={12}
-                                      className="animate-spin"
-                                    />
-                                  ) : installingPluginId === plugin.id ? (
-                                    <CircleStop size={12} />
-                                  ) : isDowngrade ? (
-                                    <RotateCcw size={12} />
-                                  ) : isUpdate ? (
-                                    <RefreshCw size={12} />
-                                  ) : (
-                                    <Download size={12} />
-                                  )}
-                                  {installingPluginId === plugin.id
-                                    ? t("common.cancel")
-                                    : isDowngrade
-                                      ? `${t("settings.plugins.downgrade")} v${selectedVer}`
-                                      : isUpdate
-                                        ? `${t("settings.plugins.update")} v${selectedVer}`
-                                        : `${t("settings.plugins.install")} v${selectedVer}`}
-                                </button>
-                              ) : (
-                                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                                  <button
-                                    disabled
-                                    title={t(
-                                      "settings.plugins.requiresVersion",
-                                      { version: minVersion },
-                                    )}
-                                    className="flex min-h-8 w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-lg border border-default bg-surface-tertiary px-4 py-1.5 text-xs font-medium text-muted opacity-60"
-                                  >
-                                    <Download size={12} />
-                                    {t("settings.plugins.install")} v
-                                    {selectedVer}
-                                  </button>
-                                  <span className="truncate text-center text-[10px] font-medium text-amber-400/90">
-                                    {t("settings.plugins.requiresVersion", {
-                                      version: minVersion,
-                                    })}
-                                  </span>
-                                </div>
-                              ))}
-
-                            {showVersionPicker &&
-                              (() => {
-                                const dropdownOptions: VersionOption[] = [
-                                  ...(isAtLatest
-                                    ? [
-                                        {
-                                          version: plugin.latest_version!,
-                                          isInstalled: true,
-                                          isLatest: true,
-                                        },
-                                      ]
-                                    : []),
-                                  ...[...installableReleases]
-                                    .reverse()
-                                    .map((r) => ({
-                                      version: r.version,
-                                      isInstalled: false,
-                                      isLatest:
-                                        r.version === plugin.latest_version,
-                                    })),
-                                ];
-                                return (
-                                  <VersionDropdown
-                                    options={dropdownOptions}
-                                    value={selectedVer}
-                                    onChange={(v) =>
-                                      setSelectedVersions((prev) => ({
-                                        ...prev,
-                                        [plugin.id]: v,
-                                      }))
-                                    }
-                                    isDowngrade={isDowngrade}
-                                    label={
-                                      isAtLatest && isSelectedInstalled
-                                        ? t("settings.plugins.olderVersions")
-                                        : `v${selectedVer}`
-                                    }
-                                  />
-                                );
-                              })()}
-                          </>
-                        )
-                      }
-                    />
-                  );
-                })}
-
-                {filteredPlugins.length === 0 && registryPlugins.length > 0 && (
+                {filteredPlugins.length === 0 && kindPlugins.length > 0 && (
                   <p className="col-span-full text-sm text-muted py-4">
                     {t("settings.plugins.searchNoResults")}
                   </p>
                 )}
-                {registryPlugins.length === 0 && (
+                {kindPlugins.length === 0 && (
                   <p className="col-span-full text-sm text-muted py-4">
                     {t("settings.plugins.noPlugins")}
                   </p>
@@ -1593,6 +1683,20 @@ export function PluginsTab({
       </div>
 
       {/* Modals */}
+      {themeRemoveConfirm && (
+        <PluginRemoveModal
+          isOpen
+          pluginName={themeRemoveConfirm.displayName}
+          onClose={() => setThemeRemoveConfirm(null)}
+          onConfirm={() => void doRemoveTheme()}
+          busy={themeRemoveConfirm.busy}
+          committed={themeRemoveConfirm.committed}
+        >
+          <p className="text-sm text-secondary leading-relaxed">{t("themePackages.packageWarning")}</p>
+          {!!themeRemoveConfirm.warnings?.length && <p role="status" className="text-sm text-accent-warning whitespace-pre-wrap break-words">{themeRemoveConfirm.warnings.join("\n")}</p>}
+          {themeRemoveConfirm.error && <p role="alert" className="text-sm text-accent-error whitespace-pre-wrap break-words">{themeRemoveConfirm.error}</p>}
+        </PluginRemoveModal>
+      )}
       <PluginInstallErrorModal
         isOpen={pluginInstallError !== null}
         onClose={() => setPluginInstallError(null)}

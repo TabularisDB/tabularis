@@ -47,7 +47,7 @@ export const SidebarTriggerItem = ({
     >
       <Zap
         size={13}
-        className="text-muted group-hover:text-yellow-400 shrink-0"
+        className="text-muted group-hover:text-accent-warning shrink-0"
       />
       <span className="truncate flex-1">{trigger.name}</span>
       {badge && (

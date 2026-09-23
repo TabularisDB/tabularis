@@ -34,6 +34,8 @@ import { useTranslation } from "react-i18next";
 import { ContextMenu } from "./ContextMenu";
 import { useSearchParams } from "react-router-dom";
 import { useSettings } from "../../hooks/useSettings";
+import { useTheme } from "../../hooks/useTheme";
+import { withThemeAlpha } from "../../utils/themeColor";
 import { DEFAULT_SETTINGS } from "../../contexts/SettingsContext";
 import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { downloadTextFile } from "../../utils/fileDownloads";
@@ -126,6 +128,7 @@ const SchemaDiagramContent = ({
   const { showAlert } = useAlert();
   const { settings } = useSettings();
   const platform = usePlatformCapabilities();
+  const { currentTheme } = useTheme();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView, zoomIn, zoomOut } = useReactFlow();
@@ -297,7 +300,7 @@ const SchemaDiagramContent = ({
                 sourceHandle: fk.column_name,
                 targetHandle: fk.ref_column,
                 animated: initialEdges.length < ANIMATION_THRESHOLD, // Conditional animation
-                style: { stroke: "#6366f1", strokeWidth: 1.5 },
+                style: { stroke: "var(--accent-primary)", strokeWidth: 1.5 },
                 type: "smoothstep",
               });
             }
@@ -401,7 +404,7 @@ const SchemaDiagramContent = ({
       {loading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-base/80 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-3 text-secondary">
-            <Loader2 size={32} className="animate-spin text-indigo-500" />
+            <Loader2 size={32} className="animate-spin text-accent" />
             <span>Generating Diagram...</span>
           </div>
         </div>
@@ -448,7 +451,7 @@ const SchemaDiagramContent = ({
         {selectedTable && (
           <button
             onClick={handleResetView}
-            className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg border border-indigo-500 transition-colors shadow-lg text-sm font-medium"
+            className="flex items-center gap-2 px-3 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg border border-accent-primary transition-colors shadow-lg text-sm font-medium"
             title={t("erDiagram.showAllTables")}
           >
             <Maximize2 size={16} />
@@ -458,7 +461,7 @@ const SchemaDiagramContent = ({
       </div>
 
       {selectedTable && (
-        <div className="absolute top-4 right-4 z-10 px-4 py-2 bg-indigo-600 text-white rounded-lg border border-indigo-500 shadow-lg text-sm font-medium">
+        <div className="absolute top-4 right-4 z-10 px-4 py-2 bg-accent-primary text-inverse rounded-lg border border-accent-primary shadow-lg text-sm font-medium">
           {t("erDiagram.focusedOn")}: {selectedTable}
         </div>
       )}
@@ -484,7 +487,7 @@ const SchemaDiagramContent = ({
         zoomOnDoubleClick={false}
         panOnDrag={true}
       >
-        <Background gap={20} size={1} color="#334155" />
+        <Background gap={20} size={1} color={currentTheme.colors.border.default} />
         <Controls
           className="!bg-surface-secondary !border-strong !shadow-xl"
           showInteractive={false}
@@ -502,8 +505,8 @@ const SchemaDiagramContent = ({
         </Controls>
         {shouldShowMiniMap && (
           <MiniMap
-            nodeColor={() => "#6366f1"}
-            maskColor="rgba(15, 23, 42, 0.9)"
+            nodeColor={() => currentTheme.colors.accent.primary}
+            maskColor={withThemeAlpha(currentTheme.colors.bg.base, 0.9)}
             className="!bg-elevated !border !border-default !shadow-xl"
             style={{ height: 120, width: 200 }}
           />

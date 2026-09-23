@@ -9,6 +9,7 @@ import {
 } from "../../utils/dropdownPosition";
 
 interface SelectProps {
+  id?: string;
   value: string | null;
   options: string[];
   onChange: (value: string) => void;
@@ -25,6 +26,7 @@ interface SelectProps {
 }
 
 export const Select = ({
+  id,
   value,
   options,
   onChange,
@@ -120,7 +122,7 @@ export const Select = ({
     >
       {searchable && (
         <div className="p-2 border-b border-default bg-elevated">
-          <div className="flex items-center gap-2 bg-base border border-strong rounded px-2 py-1.5 focus-within:border-blue-500 transition-colors">
+          <div className="flex items-center gap-2 bg-base border border-strong rounded px-2 py-1.5 focus-within:border-focus transition-colors">
             <Search size={14} className="text-muted shrink-0" />
             <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
               ref={searchInputRef}
@@ -157,7 +159,7 @@ export const Select = ({
                   "w-full text-left py-2 pr-3 text-sm rounded transition-colors flex items-center gap-1",
                   depth === 0 ? "px-3" : "pl-0",
                   value === option
-                    ? "bg-blue-600/10 text-blue-400 font-medium"
+                    ? "bg-accent-primary/10 text-accent font-medium"
                     : "text-primary hover:bg-surface-secondary"
                 )}
                 title={getLabel(option)}
@@ -190,6 +192,7 @@ export const Select = ({
   return (
     <div className={clsx("relative", className)} ref={containerRef}>
       <button
+        id={id}
         ref={buttonRef}
         type="button"
         onClick={handleToggle}
@@ -199,17 +202,17 @@ export const Select = ({
           disabled
             ? "opacity-50 cursor-not-allowed border-default"
             : hasError
-              ? "border-red-500 hover:border-red-400"
-              : "border-strong hover:border-blue-500 cursor-pointer",
-          isOpen && !disabled && !hasError ? "border-blue-500 ring-1 ring-blue-500" : ""
+              ? "border-accent-error hover:border-accent-error"
+              : "border-strong hover:border-accent-primary cursor-pointer",
+          isOpen && !disabled && !hasError ? "border-accent-primary ring-1 ring-accent-primary" : ""
         )}
       >
-        <span className={clsx("truncate", !value && "text-muted", hasError && "text-red-400")}>
+        <span className={clsx("truncate", !value && "text-muted", hasError && "text-accent-error")}>
           {value ? getLabel(value) : placeholder}
         </span>
         <ChevronDown
           size={16}
-          className={clsx("shrink-0 ml-2", hasError ? "text-red-400" : "text-secondary")}
+          className={clsx("shrink-0 ml-2", hasError ? "text-accent-error" : "text-secondary")}
         />
       </button>
 

@@ -30,52 +30,53 @@ export interface BadgeStyle {
 
 const STATUS_STYLES: Record<AiActivityStatus, BadgeStyle> = {
   success: {
-    bg: "bg-green-900/20",
-    text: "text-green-400",
-    border: "border-green-900/40",
+    bg: "bg-accent-success/10",
+    text: "text-accent-success",
+    border: "border-accent-success/20",
   },
   blocked_readonly: {
-    bg: "bg-yellow-900/20",
-    text: "text-yellow-400",
-    border: "border-yellow-900/40",
+    bg: "bg-accent-warning/10",
+    text: "text-accent-warning",
+    border: "border-accent-warning/20",
   },
   blocked_pending_approval: {
-    bg: "bg-purple-900/20",
-    text: "text-purple-400",
-    border: "border-purple-900/40",
+    bg: "bg-accent-secondary/10",
+    text: "text-accent-secondary",
+    border: "border-accent-secondary/20",
   },
   denied: {
-    bg: "bg-red-900/20",
-    text: "text-red-400",
-    border: "border-red-900/40",
+    bg: "bg-accent-error/10",
+    text: "text-accent-error",
+    border: "border-accent-error/20",
   },
   error: {
-    bg: "bg-red-900/20",
-    text: "text-red-400",
-    border: "border-red-900/40",
+    bg: "bg-accent-error/10",
+    text: "text-accent-error",
+    border: "border-accent-error/20",
   },
   timeout: {
-    bg: "bg-orange-900/20",
-    text: "text-orange-400",
-    border: "border-orange-900/40",
+    bg: "bg-accent-warning/10",
+    text: "text-accent-warning",
+    border: "border-accent-warning/20",
   },
 };
 
 const QUERY_KIND_STYLES: Record<AiQueryKind, BadgeStyle> = {
   select: {
-    bg: "bg-blue-900/20",
-    text: "text-blue-400",
-    border: "border-blue-900/40",
+    bg: "bg-accent-primary/10",
+    text: "text-accent",
+    border: "border-accent-primary/20",
   },
   write: {
-    bg: "bg-yellow-900/20",
-    text: "text-yellow-400",
-    border: "border-yellow-900/40",
+    bg: "bg-accent-warning/10",
+    text: "text-accent-warning",
+    border: "border-accent-warning/20",
   },
   ddl: {
-    bg: "bg-orange-900/20",
-    text: "text-orange-400",
-    border: "border-orange-900/40",
+    // Schema changes get the secondary accent so they never read as ordinary writes.
+    bg: "bg-accent-secondary/10",
+    text: "text-accent-secondary",
+    border: "border-accent-secondary/20",
   },
   unknown: {
     bg: "bg-surface-secondary",

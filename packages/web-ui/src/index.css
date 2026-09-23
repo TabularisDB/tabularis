@@ -72,6 +72,25 @@
   --color-semantic-modified: var(--semantic-modified);
   --color-semantic-deleted: var(--semantic-deleted);
   --color-semantic-new: var(--semantic-new);
+
+  /* Label color over a solid accent fill. text.inverse is only guaranteed
+     readable on accent.primary, so the other fills derive black or white
+     from their own lightness (see :root below). */
+  --color-on-accent-secondary: var(--text-on-accent-secondary);
+  --color-on-accent-success: var(--text-on-accent-success);
+  --color-on-accent-warning: var(--text-on-accent-warning);
+  --color-on-accent-error: var(--text-on-accent-error);
+  --color-on-accent-info: var(--text-on-accent-info);
+
+  /* Tailwind radius tokens follow the theme's layout.borderRadius. `rounded-sm`,
+     `rounded-lg` and `rounded-xl` already share their names with the theme
+     variables; the remaining steps are aliased here so a theme with square
+     corners (High Contrast, Spreadsheet 97...) squares every element. */
+  --radius-xs: var(--radius-sm);
+  --radius-md: var(--radius-base);
+  --radius-2xl: var(--radius-xl);
+  --radius-3xl: var(--radius-xl);
+  --radius-4xl: var(--radius-xl);
 }
 
 :root {
@@ -79,6 +98,7 @@
   --font-base: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   --font-size-base: 14px;
   --font-mono: "JetBrains Mono", "Consolas", "Courier New", monospace;
+  --font-result: var(--font-mono);
 
   /* Apply immediately */
   font-family: var(--font-base);
@@ -100,39 +120,47 @@
   --surface-disabled: #1e293b;
   
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #7583a0;
+  --text-secondary: #abb7c7;
+  --text-muted: #a2acbf;
   --text-disabled: #475569;
-  --text-accent: #3b82f6;
+  --text-accent: #7dacf9;
   --text-inverse: #020617;
   
   --accent-primary: #3b82f6;
-  --accent-secondary: #8b5cf6;
+  --accent-secondary: #9063f6;
   --accent-success: #22c55e;
   --accent-warning: #f59e0b;
   --accent-error: #ef4444;
   --accent-info: #06b6d4;
 
-  /* Status colors - extended variants for UI states */
-  --color-error: #ef4444;
-  --color-error-text: #f87171;
-  --color-error-bg: rgba(127, 29, 29, 0.2);
-  --color-error-border: rgba(127, 29, 29, 0.5);
+  /* Status colors - derived from the theme accents so every palette,
+     light or dark, tints its banners with its own colors. Never hardcode. */
+  --color-error: var(--accent-error);
+  --color-error-text: var(--accent-error);
+  --color-error-bg: color-mix(in srgb, var(--accent-error) 12%, transparent);
+  --color-error-border: color-mix(in srgb, var(--accent-error) 35%, transparent);
 
-  --color-success: #22c55e;
-  --color-success-text: #4ade80;
-  --color-success-bg: rgba(20, 83, 45, 0.2);
-  --color-success-border: rgba(20, 83, 45, 0.5);
+  --color-success: var(--accent-success);
+  --color-success-text: var(--accent-success);
+  --color-success-bg: color-mix(in srgb, var(--accent-success) 12%, transparent);
+  --color-success-border: color-mix(in srgb, var(--accent-success) 35%, transparent);
 
-  --color-warning: #f59e0b;
-  --color-warning-text: #fbbf24;
-  --color-warning-bg: rgba(120, 53, 15, 0.2);
-  --color-warning-border: rgba(161, 98, 7, 0.5);
+  --color-warning: var(--accent-warning);
+  --color-warning-text: var(--accent-warning);
+  --color-warning-bg: color-mix(in srgb, var(--accent-warning) 12%, transparent);
+  --color-warning-border: color-mix(in srgb, var(--accent-warning) 35%, transparent);
 
-  --color-info: #3b82f6;
-  --color-info-text: #60a5fa;
-  --color-info-bg: rgba(29, 78, 216, 0.2);
-  --color-info-border: rgba(29, 78, 216, 0.5);
+  --color-info: var(--accent-info);
+  --color-info-text: var(--accent-info);
+  --color-info-bg: color-mix(in srgb, var(--accent-info) 12%, transparent);
+  --color-info-border: color-mix(in srgb, var(--accent-info) 35%, transparent);
+
+  /* Fallback when relative color syntax is unavailable: the theme's inverse text. */
+  --text-on-accent-secondary: var(--text-inverse);
+  --text-on-accent-success: var(--text-inverse);
+  --text-on-accent-warning: var(--text-inverse);
+  --text-on-accent-error: var(--text-inverse);
+  --text-on-accent-info: var(--text-inverse);
 
   --border-subtle: #1e293b;
   --border-default: #334155;
@@ -143,7 +171,7 @@
   --semantic-number: #60a5fa;
   --semantic-boolean: #a78bfa;
   --semantic-date: #4ade80;
-  --semantic-null: #64748b;
+  --semantic-null: #718199;
   --semantic-pk: #fbbf24;
   --semantic-fk: #22d3ee;
   --semantic-index: #c084fc;
@@ -155,6 +183,18 @@
   --radius-base: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
+}
+
+/* Black or white label depending on the fill's lightness: L* above ~49 (relative
+   luminance ~0.18, the WCAG crossover) snaps to black, below to white. */
+@supports (color: lch(from red calc((49.44 - l) * infinity) 0 0)) {
+  :root {
+    --text-on-accent-secondary: lch(from var(--accent-secondary) calc((49.44 - l) * infinity) 0 0);
+    --text-on-accent-success: lch(from var(--accent-success) calc((49.44 - l) * infinity) 0 0);
+    --text-on-accent-warning: lch(from var(--accent-warning) calc((49.44 - l) * infinity) 0 0);
+    --text-on-accent-error: lch(from var(--accent-error) calc((49.44 - l) * infinity) 0 0);
+    --text-on-accent-info: lch(from var(--accent-info) calc((49.44 - l) * infinity) 0 0);
+  }
 }
 
 html,
@@ -234,7 +274,7 @@ code {
   .text-accent { color: var(--text-accent); }
   .text-inverse { color: var(--text-inverse); }
   
-  .text-accent-primary { color: var(--accent-primary); }
+  /* Accent-colored text uses .text-accent (theme text.accent), never the accent fill. */
   .text-accent-secondary { color: var(--accent-secondary); }
   .text-accent-success { color: var(--accent-success); }
   .text-accent-warning { color: var(--accent-warning); }
@@ -254,12 +294,23 @@ code {
   .bg-accent-info { background-color: var(--accent-info); }
   
   .font-mono-theme { font-family: var(--font-mono); }
+  /* Query result cells: follows the "Result font" setting */
+  .font-result { font-family: var(--font-result); }
   
   /* Fix for font-mono + truncate on Windows */
-  .font-mono.truncate {
+  .font-mono.truncate,
+  .font-result.truncate {
     min-width: 0;
   }
   
+  /* Tailwind compiles the bare `rounded*` utilities to a literal 0.25rem;
+     route them through the theme so square-corner themes apply everywhere. */
+  .rounded { border-radius: var(--radius-sm); }
+  .rounded-t { border-top-left-radius: var(--radius-sm); border-top-right-radius: var(--radius-sm); }
+  .rounded-b { border-bottom-left-radius: var(--radius-sm); border-bottom-right-radius: var(--radius-sm); }
+  .rounded-l { border-top-left-radius: var(--radius-sm); border-bottom-left-radius: var(--radius-sm); }
+  .rounded-r { border-top-right-radius: var(--radius-sm); border-bottom-right-radius: var(--radius-sm); }
+
   .rounded-theme-sm { border-radius: var(--radius-sm); }
   .rounded-theme { border-radius: var(--radius-base); }
   .rounded-theme-lg { border-radius: var(--radius-lg); }
@@ -311,11 +362,8 @@ code {
   .focus-border-focus:focus { border-color: var(--border-focus); }
 }
 
-/* Fix select dropdown options visibility - CRITICAL for dark theme */
-select {
-  color-scheme: dark !important;
-}
-
+/* Native select popups follow the theme's color-scheme (set on :root by
+   applyThemeToCSS); the option colors below keep them readable everywhere. */
 select,
 select option {
   background-color: var(--bg-input) !important;
@@ -410,7 +458,7 @@ select option:active {
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: var(--surface-secondary);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -479,7 +527,7 @@ select option:active {
   max-width: min(620px, calc(100vw - 24px));
   overflow: hidden;
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   background: var(--bg-base);
   box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
   pointer-events: auto;
@@ -547,12 +595,12 @@ select option:active {
   --epr-category-label-text-color: var(--text-muted, #94a3b8);
   --epr-skin-tone-picker-menu-color: var(--bg-elevated);
   border: none;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-base);
   font-family: var(--font-base);
 }
 
 .emoji-picker-wrap .EmojiPickerReact .epr-search-container input.epr-search {
-  border-radius: 0.375rem;
+  border-radius: var(--radius-base);
   font-size: 0.8125rem;
 }
 

@@ -45,21 +45,21 @@ export const ExportConnectionsModal = ({
     {
       value: "encrypted",
       icon: Lock,
-      color: "text-green-400",
+      color: "text-accent-success",
       label: t("connections.exportModal.encrypted"),
       description: t("connections.exportModal.encryptedDesc"),
     },
     {
       value: "noSecrets",
       icon: EyeOff,
-      color: "text-blue-400",
+      color: "text-accent",
       label: t("connections.exportModal.noSecrets"),
       description: t("connections.exportModal.noSecretsDesc"),
     },
     {
       value: "plaintext",
       icon: FileWarning,
-      color: "text-yellow-400",
+      color: "text-accent-warning",
       label: t("connections.exportModal.plaintext"),
       description: t("connections.exportModal.plaintextDesc"),
     },
@@ -94,8 +94,8 @@ export const ExportConnectionsModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-900/30 rounded-lg">
-              <Download size={20} className="text-blue-400" />
+            <div className="p-2 bg-accent-primary/15 rounded-lg">
+              <Download size={20} className="text-accent" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
@@ -128,7 +128,7 @@ export const ExportConnectionsModal = ({
                   key={option.value}
                   className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
                     mode === option.value
-                      ? "border-blue-500 bg-blue-900/10"
+                      ? "border-accent-primary bg-accent-primary/5"
                       : "border-default bg-base hover:border-strong"
                   }`}
                 >
@@ -138,7 +138,7 @@ export const ExportConnectionsModal = ({
                     value={option.value}
                     checked={mode === option.value}
                     onChange={() => setMode(option.value)}
-                    className="mt-1 accent-blue-500"
+                    className="mt-1 accent-accent-primary"
                   />
                   <Icon size={18} className={`mt-0.5 shrink-0 ${option.color}`} />
                   <div>
@@ -181,15 +181,15 @@ export const ExportConnectionsModal = ({
           )}
 
           {mode === "plaintext" && (
-            <div className="bg-yellow-900/20 border border-yellow-900/50 rounded-lg p-3">
-              <p className="text-xs text-yellow-400 leading-relaxed">
+            <div className="bg-accent-warning/10 border border-accent-warning/25 rounded-lg p-3">
+              <p className="text-xs text-accent-warning leading-relaxed">
                 {t("connections.exportWarning")}
               </p>
             </div>
           )}
 
           {validationError && (
-            <p className="text-xs text-red-400">{validationError}</p>
+            <p className="text-xs text-accent-error">{validationError}</p>
           )}
         </div>
 
@@ -204,7 +204,7 @@ export const ExportConnectionsModal = ({
           <button
             onClick={handleExport}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
             {t("connections.exportModal.export")}

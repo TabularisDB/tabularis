@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Monitor, Code2, Download, Upload } from "lucide-react";
+import { Monitor, Code2 } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
 import { useTheme } from "../../hooks/useTheme";
-import { getFontCSS } from "../../utils/settings";
+import {
+  DEFAULT_RESULT_FONT_FAMILY,
+  RESULT_FONT_INHERIT,
+  getFontCSS,
+} from "../../utils/settings";
 import {
   SettingSection,
   SettingRow,
@@ -15,52 +19,14 @@ import {
 } from "./SettingControls";
 import { FontPicker } from "./FontPicker";
 import { ThemePicker } from "./ThemePicker";
+import { ThemeManager } from "./ThemeManager";
 import { ResultColorsSection } from "./ResultColorsSection";
-import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
-import { useAlert } from "../../hooks/useAlert";
-import { downloadTextFile } from "../../utils/fileDownloads";
 
 export function AppearanceTab() {
   const { t } = useTranslation();
   const { settings, updateSetting } = useSettings();
-  const {
-    currentTheme,
-    allThemes,
-    setTheme,
-    importTheme,
-    exportTheme,
-  } = useTheme();
-  const platform = usePlatformCapabilities();
-  const { showAlert } = useAlert();
+  const { allThemes } = useTheme();
   const [subTab, setSubTab] = useState<"general" | "editor">("general");
-
-  const handleImportTheme = async () => {
-    try {
-      const selected = await platform.chooseInputFile({
-        filters: [{ name: "Tabularis Theme", extensions: ["json"] }],
-      });
-      if (!selected) return;
-      const contents = await platform.readInputFile(selected.reference);
-      const theme = await importTheme(new TextDecoder().decode(contents));
-      await setTheme(theme.id);
-    } catch (error) {
-      showAlert(String(error), { kind: "error", title: t("common.error") });
-    }
-  };
-
-  const handleExportTheme = async () => {
-    try {
-      const contents = await exportTheme(currentTheme.id);
-      await downloadTextFile(platform, {
-        fileName: `${currentTheme.id}.json`,
-        contents,
-        mimeType: "application/json",
-        filters: [{ name: "Tabularis Theme", extensions: ["json"] }],
-      });
-    } catch (error) {
-      showAlert(String(error), { kind: "error", title: t("common.error") });
-    }
-  };
 
   return (
     <div>
@@ -95,33 +61,7 @@ export function AppearanceTab() {
       {/* General sub-tab */}
       {subTab === "general" && (
         <>
-          <SettingSection title={t("settings.themeSelection")}>
-            <div className="py-3">
-              <ThemePicker
-                value={currentTheme.id}
-                onChange={setTheme}
-                themes={allThemes}
-              />
-              <div className="mt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={handleImportTheme}
-                  className="flex items-center gap-2 rounded-lg border border-strong bg-surface-secondary px-3 py-2 text-sm text-secondary transition-colors hover:bg-surface-tertiary hover:text-primary"
-                >
-                  <Upload size={15} />
-                  {t("settings.importTheme", { defaultValue: "Import theme" })}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportTheme}
-                  className="flex items-center gap-2 rounded-lg border border-strong bg-surface-secondary px-3 py-2 text-sm text-secondary transition-colors hover:bg-surface-tertiary hover:text-primary"
-                >
-                  <Download size={15} />
-                  {t("settings.exportTheme", { defaultValue: "Export theme" })}
-                </button>
-              </div>
-            </div>
-          </SettingSection>
+          <ThemeManager />
 
           <SettingSection title={t("settings.fontFamily")}>
             <div className="py-3">
@@ -130,7 +70,7 @@ export function AppearanceTab() {
                 onChange={(f) => updateSetting("fontFamily", f)}
                 getPreviewCSS={(name) =>
                   name === "System"
-                    ? "system-ui, -apple-system, sans-serif"
+                    ? "var(--font-base)"
                     : `"${name}", ${name}`
                 }
                 inputId="custom-font-input"
@@ -175,6 +115,25 @@ export function AppearanceTab() {
                 onChange={(v) => updateSetting("stickyColumnHeaders", v)}
               />
             </SettingRow>
+            <div className="py-3">
+              <p className="text-sm text-primary">
+                {t("settings.dataGrid.fontFamily")}
+              </p>
+              <p className="text-xs text-muted mb-3">
+                {t("settings.dataGrid.fontFamilyDesc")}
+              </p>
+              <FontPicker
+                value={settings.resultFontFamily ?? DEFAULT_RESULT_FONT_FAMILY}
+                onChange={(f) => updateSetting("resultFontFamily", f)}
+                getPreviewCSS={getFontCSS}
+                inputId="custom-result-font-input"
+                inheritOption={{
+                  value: RESULT_FONT_INHERIT,
+                  label: t("settings.dataGrid.fontSameAsInterface"),
+                  previewCSS: "var(--font-base)",
+                }}
+              />
+            </div>
           </SettingSection>
 
           <ResultColorsSection />

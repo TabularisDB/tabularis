@@ -28,9 +28,8 @@ describe("NavItem", () => {
       </MemoryRouter>,
     );
 
-    // Check for the green dot (bg-green-500)
-    // We can use a query selector for the class
-    const indicator = container.querySelector(".bg-green-500");
+    // The connected dot uses the shared success tone
+    const indicator = container.querySelector(".bg-accent-success");
     expect(indicator).toBeInTheDocument();
   });
 
@@ -46,7 +45,7 @@ describe("NavItem", () => {
       </MemoryRouter>,
     );
 
-    const indicator = container.querySelector(".bg-green-500");
+    const indicator = container.querySelector(".bg-accent-success");
     expect(indicator).not.toBeInTheDocument();
   });
 });

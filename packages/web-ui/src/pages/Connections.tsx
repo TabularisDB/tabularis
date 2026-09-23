@@ -1,14 +1,15 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { restoreSession } from "../utils/restoreSession";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { NewConnectionModal } from "../components/modals/NewConnectionModal";
+import { LoadingState } from "../components/ui/LoadingState";
 import { ConfirmModal } from "../components/modals/ConfirmModal";
 import {
   ExportConnectionsModal,
   type ExportMode,
 } from "../components/modals/ExportConnectionsModal";
-import { ImportFromAppModal } from "../components/modals/ImportFromAppModal";
 import {
   Database,
   Plus,
@@ -25,6 +26,7 @@ import {
   FolderTree,
   ChevronDown,
   AppWindow,
+  ArrowLeftRight,
   Loader2,
 } from "lucide-react";
 import { useDatabase } from "../hooks/useDatabase";
@@ -35,6 +37,7 @@ import { ContextMenu } from "../components/ui/ContextMenu";
 import type { SavedConnection } from "../contexts/DatabaseContext";
 import { flattenGroupTree } from "../utils/groupTree";
 import { toErrorMessage } from "../utils/errors";
+import { migrationDirectionForDriver } from "../utils/connections";
 import { fuzzyFilter } from "../utils/fuzzy";
 import { useOpenConnectionInNewWindow } from "../hooks/useOpenConnectionInNewWindow";
 import { useConnectionTags } from "../hooks/useConnectionTags";
@@ -42,20 +45,38 @@ import { GroupHeader } from "../components/connections/GroupHeader";
 import { ConnectionCard } from "../components/connections/ConnectionCard";
 import { ConnectionListItem } from "../components/connections/ConnectionListItem";
 import { ConnectionErrorBanner } from "../components/ConnectionErrorBanner";
+import { PostgresPluginMigrationBanner } from "../components/banners/PostgresPluginMigrationBanner";
 import { BetaBadge } from "../components/ui/BetaBadge";
 import { useCreateSqliteDatabase } from "../hooks/useCreateSqliteDatabase";
 import { useTabularisClient } from "../hooks/useTabularisClient";
 import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
 import { saveGeneratedFile } from "../utils/connectionFiles";
 import { buildEditorRoute } from "../routing";
+import {
+  useBuiltinPostgresMigration,
+  type MigrationOutcome,
+} from "../hooks/useBuiltinDriverMigration";
+import { useConnectionCatalogue } from "../hooks/useConnectionCatalogue";
+import { useToast } from "../hooks/useToast";
+import { useEscapeKey } from "../hooks/useEscapeKey";
+import { buildPluginIssueUrl, resolvePluginRepoUrl } from "../utils/pluginIssueReport";
+import { APP_VERSION } from "../version";
+import { detectPlatformEnvironment } from "../platform/environment";
 
+const NewConnectionModal = lazy(() => import("../components/modals/NewConnectionModal").then((m) => ({ default: m.NewConnectionModal })));
+const ImportFromAppModal = lazy(() => import("../components/modals/ImportFromAppModal").then((m) => ({ default: m.ImportFromAppModal })));
+const MigrationChecklistModal = lazy(() => import("../components/modals/MigrationChecklistModal").then((m) => ({ default: m.MigrationChecklistModal })));
+
+// Browser sessions have no native windows; they behave like the main window.
+const windowLabel =
+  detectPlatformEnvironment() === "tauri" ? getCurrentWindow().label : "main";
 let autoConnectAttempted = false;
 
 export const Connections = () => {
   const { t } = useTranslation();
   const client = useTabularisClient();
   const platform = usePlatformCapabilities();
-  const { settings } = useSettings();
+  const { settings, isLoading: isSettingsLoading } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
   const {
@@ -75,16 +96,22 @@ export const Connections = () => {
     loadConnections,
     connections: contextConnections,
   } = useDatabase();
-  const { drivers, allDrivers } = useDrivers();
+  const { drivers, allDrivers, installedPlugins } = useDrivers();
   const { tags, refresh: refreshTags } = useConnectionTags();
   const openConnectionInNewWindow = useOpenConnectionInNewWindow();
   const { createSqliteDatabase, isCreating: isCreatingSqliteDatabase } =
     useCreateSqliteDatabase();
+  const migration = useBuiltinPostgresMigration();
+  const { registry: catalogueRegistry } = useConnectionCatalogue(false);
+  const { showToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportAppModalOpen, setIsImportAppModalOpen] = useState(false);
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
+  const [isMigrationChecklistOpen, setIsMigrationChecklistOpen] = useState(false);
   const importMenuBtnRef = useRef<HTMLButtonElement>(null);
   const [importMenuPos, setImportMenuPos] = useState({ top: 0, right: 0 });
+  const closeImportMenu = useCallback(() => setIsImportMenuOpen(false), []);
+  useEscapeKey(isImportMenuOpen, closeImportMenu);
 
   // The header clips its overflow, so the dropup menu is portaled to the body
   // and positioned just under the trigger button.
@@ -142,11 +169,152 @@ export const Connections = () => {
   const [bulkMoveMenu, setBulkMoveMenu] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    void loadConnections();
+    void loadConnections({ ifNeeded: true });
   }, [loadConnections]);
+
+  // Surface the migration outcome as a toast per the design's post-migration
+  // spec: success gets an Undo action; failures (connection- or process-level)
+  // get both Undo and Report an issue. The toast is the courtesy nudge, not
+  // the only way back — the per-connection action stays bidirectional even
+  // after this toast is dismissed.
+  //
+  // Called directly where migrateConnection resolves (in handleMigrate's
+  // onConfirm below), not from a useEffect watching a "lastOutcome" piece of
+  // hook state — `migrateConnection` already resolves with the outcome, so
+  // routing it through state just to re-derive a toast from it on the next
+  // render violated .rules/react.md #2 (no synchronous setState-in-effect)
+  // for no benefit. It also meant every migrateConnection call anywhere —
+  // including MigrationChecklistModal's bulk "Migrate N selected" loop,
+  // which has its own per-row status UI — set that same shared state and
+  // fired this toast a second time on top of the checklist's own feedback.
+  const { builtinId, pluginId: defaultPluginId, undoMigration } = migration;
+  const showMigrationOutcomeToast = useCallback(
+    (outcome: MigrationOutcome) => {
+      const handleUndo = () => {
+        void undoMigration(outcome.connectionId).then((result) => {
+          if (!result.ok) {
+            showToast(
+              t("migration.toast.undoFailed", {
+                name: outcome.connectionName,
+                error: result.error ?? "unknown error",
+              }),
+              { kind: "error", duration: 0 },
+            );
+          }
+        });
+      };
+
+      const handleReportIssue = (failureMode: "connection" | "process") => {
+        const pluginId = outcome.pluginId ?? defaultPluginId;
+        const registryEntry = catalogueRegistry.find((p) => p.id === pluginId);
+        const repoUrl = resolvePluginRepoUrl(pluginId, registryEntry?.repo_url);
+        if (!repoUrl) {
+          // No registry entry and no known fallback — nothing to link to; the
+          // toast action simply has nowhere to send the user.
+          return;
+        }
+        const installed = installedPlugins.find((p) => p.id === pluginId);
+        const url = buildPluginIssueUrl({
+          pluginId,
+          pluginVersion: installed?.version ?? registryEntry?.installed_version ?? "unknown",
+          repoUrl,
+          appVersion: APP_VERSION,
+          os: navigator.platform,
+          template: "migration-failure",
+          failureMode,
+          error: outcome.error ?? outcome.startupError ?? "unknown error",
+          migratedFromDriver: builtinId,
+        });
+        void platform.openExternalUrl(url);
+      };
+
+      if (outcome.status === "ok") {
+        showToast(
+          t("migration.toast.success", { name: outcome.connectionName }),
+          {
+            kind: "success",
+            duration: 0,
+            actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
+          },
+        );
+      } else if (outcome.status === "connection" && outcome.preexisting) {
+        // The built-in driver couldn't reach this host either — not a
+        // plugin regression, so no "Report an issue" action.
+        showToast(
+          t("migration.toast.connectionFailurePreexisting", {
+            name: outcome.connectionName,
+            error: outcome.error,
+          }),
+          {
+            kind: "warning",
+            duration: 0,
+            actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
+          },
+        );
+      } else if (outcome.status === "connection") {
+        showToast(
+          t("migration.toast.connectionFailure", {
+            name: outcome.connectionName,
+            error: outcome.error,
+          }),
+          {
+            kind: "error",
+            duration: 0,
+            actions: [
+              { label: t("migration.toast.undo"), onClick: handleUndo },
+              {
+                label: t("migration.toast.reportIssue"),
+                onClick: () => handleReportIssue("connection"),
+              },
+            ],
+          },
+        );
+      } else if (outcome.status === "process") {
+        showToast(
+          outcome.startupError
+            ? t("migration.toast.processFailureWithError", {
+                name: outcome.connectionName,
+                error: outcome.startupError,
+              })
+            : t("migration.toast.processFailure", { name: outcome.connectionName }),
+          {
+            kind: "error",
+            duration: 0,
+            actions: [
+              { label: t("migration.toast.undo"), onClick: handleUndo },
+              {
+                label: t("migration.toast.reportIssue"),
+                onClick: () => handleReportIssue("process"),
+              },
+            ],
+          },
+        );
+      } else {
+        // status === "failed": something unexpected happened before the driver
+        // flip could even be confirmed (e.g. the connection vanished
+        // concurrently, or the write itself errored) — Undo is still offered
+        // since flipping back to the built-in driver is safe either way.
+        showToast(
+          t("migration.toast.failed", {
+            name: outcome.connectionName,
+            error: outcome.error ?? "unknown error",
+          }),
+          {
+            kind: "error",
+            duration: 0,
+            actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
+          },
+        );
+      }
+    },
+    [builtinId, defaultPluginId, undoMigration, catalogueRegistry, installedPlugins, platform, showToast, t],
+  );
 
   useEffect(() => {
     if (autoConnectAttempted) return;
+    // Dedicated connection windows have their own URL-driven restore flow.
+    if (windowLabel && windowLabel !== "main") return;
+    if (isSettingsLoading) return;
     if (connections.length === 0) return;
     if (settings.autoConnectLastConnection === false) return;
     autoConnectAttempted = true;
@@ -160,23 +328,21 @@ export const Connections = () => {
           (id) => connections.some((c) => c.id === id) && !isConnectionOpen(id),
         );
         if (toRestore.length === 0) return;
-        const connected: string[] = [];
-        for (const id of toRestore) {
-          setConnectingId(id);
-          try {
-            await connect(id);
-            connected.push(id);
-          } catch (e) {
-            console.error(`Auto-connect to connection ${id} failed:`, e);
-          }
-        }
-        if (connected.length === 0) return;
-        const target =
-          activeId && connected.includes(activeId)
-            ? activeId
-            : connected[connected.length - 1];
-        switchConnection(target);
-        navigate(buildEditorRoute(target));
+        let foregroundId: string | null = null;
+        await restoreSession({
+          connectionIds: toRestore,
+          activeId,
+          connect,
+          onForegroundStart: (id) => {
+            foregroundId = id;
+            setConnectingId(id);
+          },
+          onForegroundReady: () => {
+            setConnectingId(null);
+            if (foregroundId) navigate(buildEditorRoute(foregroundId));
+          },
+          onError: (id, error) => console.error(`Auto-connect to connection ${id} failed:`, error),
+        });
       } catch (e) {
         console.error("Auto-connect to last connections failed:", e);
       } finally {
@@ -187,9 +353,9 @@ export const Connections = () => {
     client,
     connections,
     settings.autoConnectLastConnection,
+    isSettingsLoading,
     isConnectionOpen,
     connect,
-    switchConnection,
     navigate,
   ]);
 
@@ -525,6 +691,51 @@ export const Connections = () => {
     });
   };
 
+  // Bidirectional built-in <-> plugin migration confirm. A connection-URI
+  // connection gets an extra warning: the driver flip drops the stored URI
+  // (by design), so re-entering it after switching is the tradeoff being
+  // confirmed, not a surprise discovered after the fact.
+  const handleMigrate = (conn: SavedConnection, direction: "to-plugin" | "to-builtin") => {
+    const isUriBased = conn.params.connection_uri_in_keychain === true;
+    if (direction === "to-plugin") {
+      setConfirmModal({
+        title: t("migration.confirm.title"),
+        message: isUriBased
+          ? t("migration.confirm.uriMessage", { name: conn.name })
+          : t("migration.confirm.message", { name: conn.name }),
+        confirmLabel: isUriBased
+          ? t("migration.confirm.confirmLabelUri")
+          : t("migration.confirm.confirmLabel"),
+        variant: isUriBased ? "warning" : "info",
+        onConfirm: () => {
+          setConfirmModal(null);
+          void migration.migrateConnection(conn.id).then(showMigrationOutcomeToast);
+        },
+      });
+    } else {
+      setConfirmModal({
+        title: t("migration.confirm.undoTitle"),
+        message: t("migration.confirm.undoMessage", { name: conn.name }),
+        confirmLabel: t("migration.confirm.undoConfirmLabel"),
+        variant: "info",
+        onConfirm: () => {
+          setConfirmModal(null);
+          void migration.undoMigration(conn.id).then((result) => {
+            if (!result.ok) {
+              showToast(
+                t("migration.toast.undoFailed", {
+                  name: conn.name,
+                  error: result.error ?? "unknown error",
+                }),
+                { kind: "error", duration: 0 },
+              );
+            }
+          });
+        },
+      });
+    }
+  };
+
   const openEdit = async (conn: SavedConnection) => {
     if (isConnectionOpenAnywhere(conn.id)) {
       await disconnect(conn.id);
@@ -606,6 +817,10 @@ export const Connections = () => {
     selected: selectedIds.has(conn.id),
     selectionActive: selectedIds.size > 0,
     onToggleSelect: () => toggleSelect(conn.id),
+    onMigrate: () => {
+      const direction = migrationDirectionForDriver(conn.params.driver, allDrivers);
+      if (direction) handleMigrate(conn, direction);
+    },
   });
 
   const handleConnectionMouseDown = (e: React.MouseEvent, connId: string, currentGroupId: string | undefined) => {
@@ -765,9 +980,8 @@ export const Connections = () => {
             <div
               className="flex items-center gap-2"
               style={{ paddingLeft: 24 + indentPx }}
-              onClick={(e) => e.stopPropagation()}
             >
-              <FolderPlus size={12} className="text-amber-400 shrink-0" />
+              <FolderPlus size={12} className="text-accent-warning shrink-0" />
               <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
                 type="text"
                 value={subgroupInputValue}
@@ -785,13 +999,13 @@ export const Connections = () => {
                 }}
                 placeholder="Subfolder name (use / for nested)"
                 autoFocus
-                className="flex-1 px-2 py-1 bg-elevated border border-strong rounded text-sm text-primary placeholder:text-muted focus:border-amber-500/70 focus:outline-none"
+                className="flex-1 px-2 py-1 bg-elevated border border-strong rounded text-sm text-primary placeholder:text-muted focus:border-accent-warning/70 focus:outline-none"
               />
               <button
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => void confirmInlineSubgroupInput()}
                 disabled={!subgroupInputValue.trim()}
-                className="p-1 rounded bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="p-1 rounded bg-accent-warning hover:bg-accent-warning/90 text-on-accent-warning disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Plus size={12} />
               </button>
@@ -872,13 +1086,13 @@ export const Connections = () => {
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="relative flex items-center justify-between px-8 pt-7 pb-6 border-b border-default bg-elevated shrink-0 overflow-hidden">
         {/* Decorative gradients */}
-        <div className="absolute top-0 right-0 w-72 h-full bg-gradient-to-bl from-blue-600/10 via-blue-600/3 to-transparent pointer-events-none" />
-        <div className="absolute top-0 right-0 w-32 h-full bg-gradient-to-l from-indigo-600/6 to-transparent pointer-events-none" />
+        <div className="absolute top-0 right-0 w-72 h-full bg-gradient-to-bl from-accent-primary/10 via-accent-primary/3 to-transparent pointer-events-none" />
+        <div className="absolute top-0 right-0 w-32 h-full bg-gradient-to-l from-accent-primary/6 to-transparent pointer-events-none" />
 
         <div className="relative">
           <div className="flex items-center gap-1.5 mb-2">
-            <Database size={12} className="text-blue-400" />
-            <span className="text-[10px] font-bold text-blue-400/80 uppercase tracking-[0.15em]">
+            <Database size={12} className="text-accent" />
+            <span className="text-[10px] font-bold text-accent/80 uppercase tracking-[0.15em]">
               Database Manager
             </span>
           </div>
@@ -896,8 +1110,8 @@ export const Connections = () => {
             {openCount > 0 && (
               <>
                 <span className="w-1 h-1 rounded-full bg-default" />
-                <span className="flex items-center gap-1.5 text-xs text-green-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                <span className="flex items-center gap-1.5 text-xs text-accent-success">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent-success animate-pulse" />
                   {openCount} active
                 </span>
               </>
@@ -905,13 +1119,13 @@ export const Connections = () => {
           </div>
         </div>
 
-        <div className="relative flex items-stretch shadow-lg shadow-blue-500/20 rounded-xl">
+        <div className="relative flex items-stretch shadow-lg shadow-accent-primary/20 rounded-xl">
           <button
             onClick={() => {
               setEditingConnection(null);
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white pl-4 pr-3.5 py-2.5 rounded-l-xl font-semibold text-sm transition-colors duration-150"
+            className="flex items-center gap-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse pl-4 pr-3.5 py-2.5 rounded-l-xl font-semibold text-sm transition-colors duration-150"
           >
             <Plus size={15} />
             {t("connections.addConnection")}
@@ -919,7 +1133,7 @@ export const Connections = () => {
           <button
             ref={importMenuBtnRef}
             onClick={toggleImportMenu}
-            className="flex items-center bg-blue-600 hover:bg-blue-500 text-white px-2 rounded-r-xl border-l border-blue-400/40 transition-colors duration-150"
+            className="flex items-center bg-accent-primary hover:bg-accent-primary/90 text-inverse px-2 rounded-r-xl border-l border-inverse/20 transition-colors duration-150"
             title={t("connections.addConnection")}
             aria-haspopup="menu"
             aria-expanded={isImportMenuOpen}
@@ -933,8 +1147,9 @@ export const Connections = () => {
             createPortal(
               <>
                 <div
+                  role="presentation"
                   className="fixed inset-0 z-[200]"
-                  onClick={() => setIsImportMenuOpen(false)}
+                  onClick={closeImportMenu}
                 />
                 <div
                   style={{ top: importMenuPos.top, right: importMenuPos.right }}
@@ -946,9 +1161,9 @@ export const Connections = () => {
                     className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
                   >
                     {isCreatingSqliteDatabase ? (
-                      <Loader2 size={15} className="shrink-0 text-blue-400 animate-spin" />
+                      <Loader2 size={15} className="shrink-0 text-accent animate-spin" />
                     ) : (
-                      <Database size={15} className="shrink-0 text-blue-400" />
+                      <Database size={15} className="shrink-0 text-accent" />
                     )}
                     <span className="flex-1">
                       {t("connections.newSqliteDatabase.menuLabel")}
@@ -962,7 +1177,7 @@ export const Connections = () => {
                     }}
                     className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-left"
                   >
-                    <FolderInput size={15} className="shrink-0 text-blue-400" />
+                    <FolderInput size={15} className="shrink-0 text-accent" />
                     <span className="flex-1">{t("connections.importFromApp.menuLabel")}</span>
                     <BetaBadge />
                   </button>
@@ -982,10 +1197,20 @@ export const Connections = () => {
         />
       )}
 
+      {/* ── Built-in → plugin migration banner ────────────────────────────── */}
+      {migration.banner?.visible && (
+        <PostgresPluginMigrationBanner
+          variant={migration.banner.variant}
+          removalDate={allDrivers.find((d) => d.id === migration.builtinId)?.deprecated?.removal_date}
+          onDismiss={migration.dismissBanner}
+          onReview={() => setIsMigrationChecklistOpen(true)}
+        />
+      )}
+
       {/* ── Selection bar (bulk actions) ──────────────────────────────────── */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-2.5 px-6 py-2.5 bg-elevated border-b border-blue-500/40 shadow-sm shrink-0">
-          <span className="text-sm font-semibold text-blue-300">
+        <div className="flex items-center gap-2.5 px-6 py-2.5 bg-elevated border-b border-accent-primary/40 shadow-sm shrink-0">
+          <span className="text-sm font-semibold text-accent">
             {t("connections.selectedCount", { count: selectedIds.size })}
           </span>
           <div className="flex-1" />
@@ -994,7 +1219,7 @@ export const Connections = () => {
               setExportSelectionOnly(true);
               setIsExportModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-blue-400 hover:border-blue-500/50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-accent hover:border-accent-primary/50 transition-colors"
           >
             <Download size={14} />
             {t("connections.exportSelected")}
@@ -1004,14 +1229,14 @@ export const Connections = () => {
               const r = e.currentTarget.getBoundingClientRect();
               setBulkMoveMenu({ x: r.left, y: r.bottom + 4 });
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-amber-400 hover:border-amber-500/50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-accent-warning hover:border-accent-warning/50 transition-colors"
           >
             <FolderInput size={14} />
             {t("connections.moveSelected")}
           </button>
           <button
             onClick={handleBulkDelete}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400 hover:bg-red-500/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-error/10 border border-accent-error/30 text-sm text-accent-error hover:bg-accent-error/20 transition-colors"
           >
             <Trash2 size={14} />
             {t("connections.deleteSelected")}
@@ -1035,8 +1260,8 @@ export const Connections = () => {
               <div className="w-20 h-20 rounded-2xl bg-elevated border border-default flex items-center justify-center shadow-sm">
                 <Database size={32} className="text-muted" />
               </div>
-              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg">
-                <Plus size={14} className="text-white" />
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-accent-primary flex items-center justify-center shadow-lg">
+                <Plus size={14} className="text-inverse" />
               </div>
             </div>
             <p className="text-base font-bold text-primary mb-1.5">
@@ -1051,7 +1276,7 @@ export const Connections = () => {
                   setEditingConnection(null);
                   setIsModalOpen(true);
                 }}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/20 hover:-translate-y-px"
+                className="flex items-center gap-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg shadow-accent-primary/20 hover:-translate-y-px"
               >
                 <Plus size={14} />
                 {t("connections.createFirst")}
@@ -1059,7 +1284,7 @@ export const Connections = () => {
               <button
                 onClick={() => void handleCreateSqliteDatabase()}
                 disabled={isCreatingSqliteDatabase}
-                className="flex items-center gap-2 bg-elevated border border-strong hover:border-blue-500/50 text-secondary hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
+                className="flex items-center gap-2 bg-elevated border border-strong hover:border-accent-primary/50 text-secondary hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
               >
                 {isCreatingSqliteDatabase ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -1070,7 +1295,7 @@ export const Connections = () => {
               </button>
               <button
                 onClick={() => setIsImportAppModalOpen(true)}
-                className="flex items-center gap-2 bg-elevated border border-strong hover:border-blue-500/50 text-secondary hover:text-blue-400 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
+                className="flex items-center gap-2 bg-elevated border border-strong hover:border-accent-primary/50 text-secondary hover:text-accent px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
               >
                 <FolderInput size={14} />
                 {t("connections.importFromApp.menuLabel")}
@@ -1092,7 +1317,7 @@ export const Connections = () => {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={t("connections.searchPlaceholder")}
-                  className="w-full pl-10 pr-9 py-2.5 bg-elevated border border-strong rounded-xl text-sm text-primary placeholder:text-muted focus:border-blue-500/70 focus:outline-none transition-colors"
+                  className="w-full pl-10 pr-9 py-2.5 bg-elevated border border-strong rounded-xl text-sm text-primary placeholder:text-muted focus:border-focus/70 focus:outline-none transition-colors"
                 />
                 {search && (
                   <button
@@ -1122,12 +1347,12 @@ export const Connections = () => {
                       defaultValue: "Group name (use / for nested)",
                     })}
                     autoFocus
-                    className="w-40 px-3 py-2 bg-elevated border border-strong rounded-xl text-sm text-primary placeholder:text-muted focus:border-amber-500/70 focus:outline-none transition-colors"
+                    className="w-40 px-3 py-2 bg-elevated border border-strong rounded-xl text-sm text-primary placeholder:text-muted focus:border-accent-warning/70 focus:outline-none transition-colors"
                   />
                   <button
                     onClick={() => void handleCreateGroup()}
                     disabled={!newGroupName.trim()}
-                    className="p-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-2 rounded-lg bg-accent-warning hover:bg-accent-warning/90 text-on-accent-warning disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Plus size={14} />
                   </button>
@@ -1144,7 +1369,7 @@ export const Connections = () => {
               ) : (
                 <button
                   onClick={() => setIsCreatingGroup(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-elevated border border-strong rounded-xl text-sm text-muted hover:text-amber-400 hover:border-amber-500/50 transition-colors shrink-0"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-elevated border border-strong rounded-xl text-sm text-muted hover:text-accent-warning hover:border-accent-warning/50 transition-colors shrink-0"
                   title={t("groups.newGroup")}
                 >
                   <FolderPlus size={14} />
@@ -1161,7 +1386,7 @@ export const Connections = () => {
                     setExportSelectionOnly(false);
                     setIsExportModalOpen(true);
                   }}
-                  className="p-1.5 rounded-lg text-muted hover:text-blue-400 hover:bg-blue-500/10 transition-all duration-150"
+                  className="p-1.5 rounded-lg text-muted hover:text-accent hover:bg-accent-primary/10 transition-all duration-150"
                   title={t("connections.export")}
                 >
                   <Download size={14} />
@@ -1175,7 +1400,7 @@ export const Connections = () => {
                   className={clsx(
                     "p-1.5 rounded-lg transition-all duration-150",
                     viewMode === "grid"
-                      ? "bg-blue-500/15 text-blue-400 shadow-sm"
+                      ? "bg-accent-primary/15 text-accent shadow-sm"
                       : "text-muted hover:text-secondary hover:bg-surface-secondary",
                   )}
                   title={t("connections.gridView")}
@@ -1187,7 +1412,7 @@ export const Connections = () => {
                   className={clsx(
                     "p-1.5 rounded-lg transition-all duration-150",
                     viewMode === "list"
-                      ? "bg-blue-500/15 text-blue-400 shadow-sm"
+                      ? "bg-accent-primary/15 text-accent shadow-sm"
                       : "text-muted hover:text-secondary hover:bg-surface-secondary",
                   )}
                   title={t("connections.listView")}
@@ -1284,29 +1509,49 @@ export const Connections = () => {
         )}
       </div>
 
-      <NewConnectionModal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setEditingConnection(null);
-          // Tag renames/deletions apply immediately, even when the modal is
-          // cancelled, so re-fetch for the chips and the search filter.
-          void refreshTags();
-        }}
-        onSave={handleSave}
-        initialConnection={editingConnection}
-      />
-      <ExportConnectionsModal
-        isOpen={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
-        onExport={handleExport}
-        selectedCount={exportSelectionOnly ? selectedIds.size : 0}
-      />
-      <ImportFromAppModal
-        isOpen={isImportAppModalOpen}
-        onClose={() => setIsImportAppModalOpen(false)}
-        onImported={() => void loadConnections()}
-      />
+      <Suspense fallback={<LoadingState />}>
+        {isModalOpen && <NewConnectionModal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setEditingConnection(null);
+            // Tag renames/deletions apply immediately, even when the modal is
+            // cancelled, so re-fetch for the chips and the search filter.
+            void refreshTags();
+          }}
+          onSave={handleSave}
+          initialConnection={editingConnection}
+        />}
+        <ExportConnectionsModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          onExport={handleExport}
+          selectedCount={exportSelectionOnly ? selectedIds.size : 0}
+        />
+        {isImportAppModalOpen && <ImportFromAppModal
+          isOpen={isImportAppModalOpen}
+          onClose={() => setIsImportAppModalOpen(false)}
+          onImported={() => void loadConnections()}
+        />}
+        {isMigrationChecklistOpen && (
+          <MigrationChecklistModal
+            isOpen={isMigrationChecklistOpen}
+            onClose={() => setIsMigrationChecklistOpen(false)}
+            connections={migration.builtinConnections}
+            manifest={allDrivers.find((d) => d.id === migration.pluginId)}
+            repoUrl={resolvePluginRepoUrl(
+              migration.pluginId,
+              catalogueRegistry.find((p) => p.id === migration.pluginId)?.repo_url,
+            )}
+            pluginVersion={
+              installedPlugins.find((p) => p.id === migration.pluginId)?.version ??
+              catalogueRegistry.find((p) => p.id === migration.pluginId)?.installed_version ??
+              "unknown"
+            }
+            migrateConnection={migration.migrateConnection}
+          />
+        )}
+      </Suspense>
       <ConfirmModal
         isOpen={confirmModal !== null}
         onClose={() => setConfirmModal(null)}
@@ -1388,6 +1633,26 @@ export const Connections = () => {
                     if (conn) void handleOpenInNewWindow(conn);
                   },
                 },
+                // Bidirectional "Switch to plugin" / "Switch back to builtin"
+                // per-connection action. Direction is driven by the current
+                // driver — always available, even after the banner is
+                // dismissed. Uses the same confirm flow as the card button.
+                ...(() => {
+                  if (!conn) return [];
+                  const direction = migrationDirectionForDriver(conn.params.driver, allDrivers);
+                  if (!direction) return [];
+                  return [
+                    { separator: true as const },
+                    {
+                      label:
+                        direction === "to-plugin"
+                          ? t("migration.switchToPlugin")
+                          : t("migration.switchToBuiltin"),
+                      icon: ArrowLeftRight,
+                      action: () => handleMigrate(conn, direction),
+                    },
+                  ];
+                })(),
                 ...(hasAvailableGroups
                   ? [
                       { separator: true as const },

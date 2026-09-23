@@ -11,10 +11,27 @@
       html, body, #root {
         margin: 0;
         padding: 0;
-        background: #020617;
-        color: #f8fafc;
+        background: var(--bg-base, #020617);
+        color: var(--text-primary, #f8fafc);
       }
     </style>
+    <!-- Paint the last applied theme before React mounts (see src/utils/themeBoot.ts),
+         so light themes do not flash the dark default on startup. -->
+    <script>
+      try {
+        var boot = JSON.parse(localStorage.getItem("tabularis-theme-boot") || "null");
+        if (boot && typeof boot.bg === "string" && typeof boot.fg === "string") {
+          var root = document.documentElement;
+          root.style.setProperty("--bg-base", boot.bg);
+          root.style.setProperty("--text-primary", boot.fg);
+          if (boot.scheme === "light" || boot.scheme === "dark") {
+            root.style.setProperty("color-scheme", boot.scheme);
+          }
+        }
+      } catch (e) {
+        /* storage unavailable: keep the built-in dark default */
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

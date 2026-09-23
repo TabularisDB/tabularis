@@ -15,12 +15,12 @@ export const SchemaTableNodeComponent = memo(({ data }: NodeProps<SchemaTableNod
 
   return (
     <div
-      className="bg-elevated border border-strong rounded shadow-xl min-w-[220px] overflow-hidden cursor-pointer hover:border-indigo-500 transition-colors"
+      className="bg-elevated border border-strong rounded shadow-xl min-w-[220px] overflow-hidden cursor-pointer hover:border-accent-primary transition-colors"
       onMouseEnter={() => setShowHandles(true)}
       onMouseLeave={() => setShowHandles(false)}
     >
       <div className="bg-base px-3 py-2 text-sm font-bold text-primary border-b border-default flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+        <div className="w-2 h-2 rounded-full bg-accent-primary shadow-[0_0_8px_var(--accent-primary)]" />
         {data.label}
       </div>
       <div className="flex flex-col">
@@ -29,14 +29,14 @@ export const SchemaTableNodeComponent = memo(({ data }: NodeProps<SchemaTableNod
             key={col.name} 
             className={clsx(
               "flex items-center justify-between text-xs py-1.5 px-3 border-b border-default/50 last:border-0 relative group",
-              col.isPk ? "bg-yellow-500/5 text-yellow-100" : "text-secondary"
+              col.isPk ? "bg-semantic-pk/5 text-semantic-pk" : "text-secondary"
             )}
           >
             <div className="flex items-center gap-2 flex-1 min-w-0">
               {col.isPk ? (
-                <Key size={10} className="text-yellow-500 shrink-0" />
+                <Key size={10} className="text-semantic-pk shrink-0" />
               ) : col.isFk ? (
-                <Link size={10} className="text-purple-400 shrink-0" />
+                <Link size={10} className="text-semantic-fk shrink-0" />
               ) : (
                 <Columns size={10} className="text-surface-tertiary shrink-0" />
               )}
@@ -54,7 +54,7 @@ export const SchemaTableNodeComponent = memo(({ data }: NodeProps<SchemaTableNod
               position={Position.Right}
               id={col.name}
               className={showHandles
-                ? "!w-2 !h-2 !bg-indigo-500 !border-strong !right-0"
+                ? "!w-2 !h-2 !bg-accent-primary !border-strong !right-0"
                 : "!w-1 !h-1 !bg-transparent !border-none !right-0"
               }
             />
@@ -63,7 +63,7 @@ export const SchemaTableNodeComponent = memo(({ data }: NodeProps<SchemaTableNod
               position={Position.Left}
               id={col.name}
               className={showHandles
-                ? "!w-2 !h-2 !bg-indigo-500 !border-strong !left-0"
+                ? "!w-2 !h-2 !bg-accent-primary !border-strong !left-0"
                 : "!w-1 !h-1 !bg-transparent !border-none !left-0"
               }
             />

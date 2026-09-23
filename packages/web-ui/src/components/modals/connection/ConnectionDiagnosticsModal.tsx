@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCopyFeedback } from "../../../hooks/useCopyFeedback";
 import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
@@ -30,8 +30,8 @@ interface ConnectionDiagnosticsModalProps {
 
 const STATUS_ICONS = {
   start: <Circle size={12} className="text-muted" />,
-  ok: <CheckCircle2 size={12} className="text-green-400" />,
-  error: <XCircle size={12} className="text-red-400" />,
+  ok: <CheckCircle2 size={12} className="text-accent-success" />,
+  error: <XCircle size={12} className="text-accent-error" />,
   cancelled: <Square size={12} className="text-muted" />,
 } as const;
 
@@ -48,7 +48,7 @@ export const ConnectionDiagnosticsModal = ({
   log,
 }: ConnectionDiagnosticsModalProps) => {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyFeedback();
 
   if (!isOpen) return null;
 
@@ -61,19 +61,12 @@ export const ConnectionDiagnosticsModal = ({
   );
 
   const copyReport = async () => {
-    const report = formatDiagnosticsReport({
+    await copy(formatDiagnosticsReport({
       summary: title,
       recovery: error?.recoveryKey ? t(error.recoveryKey) : null,
       logLines,
       detail: error?.detail || null,
-    });
-    try {
-      await navigator.clipboard.writeText(report);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy diagnostics:", err);
-    }
+    }));
   };
 
   return (
@@ -89,14 +82,14 @@ export const ConnectionDiagnosticsModal = ({
             className={clsx(
               "w-9 h-9 rounded-lg border flex items-center justify-center shrink-0",
               error
-                ? "bg-red-500/10 border-red-500/20"
-                : "bg-blue-500/10 border-blue-500/20",
+                ? "bg-accent-error/10 border-accent-error/20"
+                : "bg-accent-primary/10 border-accent-primary/20",
             )}
           >
             {error ? (
-              <AlertCircle size={18} className="text-red-400" />
+              <AlertCircle size={18} className="text-accent-error" />
             ) : (
-              <Plug size={18} className="text-blue-400" />
+              <Plug size={18} className="text-accent" />
             )}
           </div>
           <div className="flex-1 min-w-0">
@@ -158,7 +151,7 @@ export const ConnectionDiagnosticsModal = ({
               <h3 className="text-xs uppercase font-bold text-muted mb-2">
                 {t("connectionTest.rawError")}
               </h3>
-              <pre className="p-2.5 max-h-48 overflow-auto rounded-lg bg-base border border-strong text-[11px] leading-relaxed text-red-300/90 font-mono whitespace-pre-wrap break-words select-text">
+              <pre className="p-2.5 max-h-48 overflow-auto rounded-lg bg-base border border-strong text-[11px] leading-relaxed text-accent-error/90 font-mono whitespace-pre-wrap break-words select-text">
                 {error.detail}
               </pre>
             </div>
@@ -178,7 +171,7 @@ export const ConnectionDiagnosticsModal = ({
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition-colors"
+            className="px-4 py-1.5 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-md text-sm font-medium transition-colors"
           >
             {t("common.close")}
           </button>

@@ -1,18 +1,18 @@
 import type { MouseEvent } from 'react';
-import { Shield, PlugZap, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import type { SavedConnection } from '../../contexts/DatabaseContext';
 import type { PluginManifest } from '../../types/plugins';
 import type { ConnectionTag } from '../../types/tags';
 import { useDatabase } from '../../hooks/useDatabase';
+import { CompactCard, CompactCardHeader, CompactCardFooter } from '../ui/CompactCard';
 import { getConnectionAccent, getConnectionIcon } from '../../utils/driverUI';
 import { getCapabilitiesForDriver } from '../../utils/driverCapabilities';
-import { connectionSubtitle, getCardClass } from '../../utils/connections';
+import { connectionSubtitle, getCardClass, migrationDirectionForDriver } from '../../utils/connections';
 import { StatusBadge } from './StatusBadge';
 import { ActionButtons } from './ActionButtons';
-import { TagChips } from './TagChips';
-import { EnvironmentBadge } from './EnvironmentBadge';
+import { ConnectionChips } from './ConnectionChips';
+import { SelectionCheckbox } from './SelectionCheckbox';
 
 export interface ConnectionCardProps {
   conn: SavedConnection;
@@ -34,6 +34,8 @@ export interface ConnectionCardProps {
   selectionActive?: boolean;
   /** Toggles this connection's selection. Enables the checkbox when provided. */
   onToggleSelect?: () => void;
+  /** Called when the migration button is clicked; omitted outside the migration window. */
+  onMigrate?: () => void;
 }
 
 export const ConnectionCard = ({
@@ -52,6 +54,7 @@ export const ConnectionCard = ({
   selected = false,
   selectionActive = false,
   onToggleSelect,
+  onMigrate,
 }: ConnectionCardProps) => {
   const { t } = useTranslation();
   const { activeConnectionId, isConnectionOpenAnywhere } = useDatabase();
@@ -68,86 +71,54 @@ export const ConnectionCard = ({
       t("connections.databaseCount", { count, defaultValue: "{{count}} databases" }),
   });
   const driverColor = getConnectionAccent(conn, driverManifest);
+  const migrationDirection = migrationDirectionForDriver(conn.params.driver, allDrivers);
 
   return (
-    <div
+    <CompactCard
       onDoubleClick={() => isDriverEnabled && !isConnecting && onConnect()}
       onContextMenu={onContextMenu}
       onMouseDown={onMouseDown}
       className={clsx(
-        'group relative flex flex-col rounded-2xl border transition-all duration-150 cursor-pointer select-none overflow-hidden',
+        'cursor-pointer select-none',
         !isDriverEnabled && 'opacity-60 cursor-not-allowed',
         isConnecting && 'pointer-events-none',
-        selected && 'ring-2 ring-blue-500/70',
+        selected && 'ring-2 ring-accent-primary/70',
         getCardClass(conn.id, activeConnectionId, isConnectionOpenAnywhere),
       )}
     >
       {onToggleSelect && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSelect();
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onDoubleClick={(e) => e.stopPropagation()}
-          aria-pressed={selected}
-          className={clsx(
-            'absolute top-2.5 left-2.5 z-10 w-5 h-5 rounded-md border flex items-center justify-center transition-all duration-150',
-            selected
-              ? 'bg-blue-600 border-blue-500 text-white opacity-100'
-              : clsx(
-                  'bg-elevated/90 border-strong text-transparent hover:border-blue-400',
-                  selectionActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
-                ),
-          )}
-        >
-          <Check size={12} />
-        </button>
+        <SelectionCheckbox
+          selected={selected}
+          selectionActive={selectionActive}
+          onToggle={onToggleSelect}
+          className="absolute top-2.5 left-2.5 z-10"
+        />
       )}
-      <div className="flex items-start gap-3.5 px-4 pt-4 pb-3">
-        <div
-          className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md"
-          style={{ backgroundColor: driverColor }}
-        >
-          {getConnectionIcon(conn, driverManifest, 20)}
-        </div>
-        <div className="flex-1 min-w-0 pt-0.5">
-          <div className="flex items-start justify-between gap-2 mb-1.5">
-            <span className="font-bold text-sm text-primary leading-snug truncate">{conn.name}</span>
-            <div className="shrink-0">
-              <StatusBadge
-                isActive={activeConnectionId === conn.id}
-                isOpen={isOpen}
-                isConnecting={isConnecting}
-              />
-            </div>
+      <CompactCardHeader
+        icon={getConnectionIcon(conn, driverManifest, 20)}
+        iconColor={driverColor}
+      >
+        <div className="flex items-start justify-between gap-2 mb-1.5">
+          <span className="font-bold text-sm text-primary leading-snug truncate">{conn.name}</span>
+          <div className="shrink-0">
+            <StatusBadge
+              isActive={activeConnectionId === conn.id}
+              isOpen={isOpen}
+              isConnecting={isConnecting}
+            />
           </div>
-          <div className="flex items-center gap-1.5 flex-wrap mb-2">
-            <span className="text-[10px] font-semibold text-secondary bg-surface-secondary border border-strong/40 px-1.5 py-0.5 rounded-md capitalize">
-              {conn.params.driver}
-            </span>
-            <EnvironmentBadge environment={conn.environment} />
-            <TagChips tagIds={conn.tag_ids} tags={tags} />
-            {conn.params.ssh_enabled && (
-              <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded-md">
-                <Shield size={8} /> SSH
-              </span>
-            )}
-            {conn.params.k8s_enabled && (
-              <span className="flex items-center gap-0.5 text-[10px] font-bold text-blue-400 bg-blue-400/10 border border-blue-400/20 px-1.5 py-0.5 rounded-md">
-                <Shield size={8} /> K8s
-              </span>
-            )}
-            {!isDriverEnabled && (
-              <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-1.5 py-0.5 rounded-md">
-                <PlugZap size={8} /> {t('connections.pluginDisabled')}
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-muted truncate">{subtitle}</p>
         </div>
-      </div>
-      <div className="flex items-center justify-end gap-0.5 px-3 py-2 border-t border-default/50 mt-auto opacity-40 group-hover:opacity-100 transition-opacity duration-150">
+        <div className="flex items-center gap-1.5 flex-wrap mb-2">
+          <ConnectionChips
+            conn={conn}
+            driverManifest={driverManifest}
+            isDriverEnabled={isDriverEnabled}
+            tags={tags}
+          />
+        </div>
+        <p className="text-[11px] text-muted truncate">{subtitle}</p>
+      </CompactCardHeader>
+      <CompactCardFooter className="gap-0.5 opacity-40 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150">
         <ActionButtons
           conn={conn}
           isOpen={isOpen}
@@ -157,8 +128,10 @@ export const ConnectionCard = ({
           onEdit={onEdit}
           onDuplicate={onDuplicate}
           onDelete={onDelete}
+          migrationDirection={migrationDirection}
+          onMigrate={onMigrate}
         />
-      </div>
-    </div>
+      </CompactCardFooter>
+    </CompactCard>
   );
 };

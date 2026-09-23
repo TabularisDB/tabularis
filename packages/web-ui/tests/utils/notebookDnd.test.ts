@@ -228,8 +228,8 @@ describe("notebookDnd", () => {
       });
       const sqlBadge = sql.querySelector("span");
       const mdBadge = md.querySelector("span");
-      expect(sqlBadge?.className).toContain("text-blue-500");
-      expect(mdBadge?.className).toContain("text-purple-500");
+      expect(sqlBadge?.className).toContain("text-accent");
+      expect(mdBadge?.className).toContain("text-accent-secondary");
     });
 
     it("should be removable from the DOM by the caller", () => {

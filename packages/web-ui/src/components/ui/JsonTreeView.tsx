@@ -115,7 +115,7 @@ export const JsonTreeView = ({
     return (
       <div className="flex flex-col gap-2 h-full min-h-0">
         {!externalSearchProvided && (
-          <div className="flex items-center gap-2 bg-base border border-strong rounded px-2 py-1.5 focus-within:border-blue-500 transition-colors flex-shrink-0">
+          <div className="flex items-center gap-2 bg-base border border-strong rounded px-2 py-1.5 focus-within:border-focus transition-colors flex-shrink-0">
             <Search size={14} className="text-muted shrink-0" />
             <input autoCorrect="off" autoCapitalize="off" autoComplete="off"
               type="text"
@@ -164,7 +164,7 @@ export const JsonTreeView = ({
   return (
     <div className="space-y-2">
       {!externalSearchProvided && (
-        <div className="flex items-center gap-2 bg-base border border-strong rounded px-2 py-1.5 focus-within:border-blue-500 transition-colors">
+        <div className="flex items-center gap-2 bg-base border border-strong rounded px-2 py-1.5 focus-within:border-focus transition-colors">
           <Search size={14} className="text-muted shrink-0" />
           <input autoCorrect="off" autoCapitalize="off" autoComplete="off"
             type="text"

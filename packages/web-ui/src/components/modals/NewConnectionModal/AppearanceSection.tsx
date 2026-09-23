@@ -175,8 +175,8 @@ export function AppearanceSection({
                   "relative w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150",
                   "shadow-[inset_0_-1px_0_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.18)]",
                   selected
-                    ? "scale-110 ring-2 ring-white/95 ring-offset-2 ring-offset-elevated"
-                    : "ring-1 ring-white/10 hover:scale-110 hover:ring-white/30",
+                    ? "scale-110 ring-2 ring-primary ring-offset-2 ring-offset-elevated"
+                    : "ring-1 ring-primary/10 hover:scale-110 hover:ring-primary/30",
                 )}
                 style={{ background: c }}
               >
@@ -194,7 +194,7 @@ export function AppearanceSection({
             className={clsx(
               "ml-1 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors",
               customOpen
-                ? "bg-blue-500/15 border-blue-500/40 text-blue-400"
+                ? "bg-accent-primary/15 border-accent-primary/40 text-accent"
                 : "bg-elevated border-strong text-secondary hover:text-primary hover:bg-surface-secondary",
             )}
           >
@@ -212,7 +212,7 @@ export function AppearanceSection({
             />
             <div className="flex items-center gap-2">
               <div
-                className="w-7 h-7 rounded-md shrink-0 ring-1 ring-white/10 shadow-inner"
+                className="w-7 h-7 rounded-md shrink-0 ring-1 ring-primary/10 shadow-inner"
                 style={{ background: value.accentColor ?? "#64748b" }}
               />
               <span className="text-muted text-sm font-mono">#</span>
@@ -222,7 +222,7 @@ export function AppearanceSection({
                 placeholder="rrggbb"
                 prefixed={false}
                 aria-label="custom hex input"
-                className="px-3 py-1.5 bg-elevated border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors font-mono w-28 uppercase"
+                className="px-3 py-1.5 bg-elevated border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-focus focus:outline-none transition-colors font-mono w-28 uppercase"
               />
             </div>
           </div>
@@ -253,7 +253,7 @@ export function AppearanceSection({
                 className={clsx(
                   "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
                   isActive
-                    ? "bg-blue-600 text-white"
+                    ? "bg-accent-primary text-inverse"
                     : "text-secondary hover:text-primary hover:bg-surface-secondary",
                 )}
               >
@@ -287,7 +287,7 @@ export function AppearanceSection({
               autoCapitalize="off"
               autoComplete="off"
               spellCheck={false}
-              className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors"
+              className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-focus focus:outline-none transition-colors"
             />
             {(() => {
               const q = iconSearch.toLowerCase().trim();
@@ -313,7 +313,7 @@ export function AppearanceSection({
                           className={clsx(
                             "aspect-square flex items-center justify-center rounded-md transition-all",
                             selected
-                              ? "bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/50 shadow-[0_0_0_2px_rgba(59,130,246,0.15)]"
+                              ? "bg-accent-primary/20 text-accent ring-1 ring-accent-primary/50 shadow-[0_0_0_2px_rgba(59,130,246,0.15)]"
                               : "text-secondary hover:bg-surface-secondary hover:text-primary",
                           )}
                         >
@@ -367,7 +367,7 @@ export function AppearanceSection({
                   type="button"
                   aria-label="clear emoji"
                   onClick={() => setIcon(undefined)}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-xs text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors shrink-0"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs text-muted hover:text-accent-error hover:bg-accent-error/10 rounded-md transition-colors shrink-0"
                 >
                   <Trash2 size={12} />
                   <span>{t("connectionAppearance.removeEmoji", { defaultValue: "Clear" })}</span>
@@ -429,7 +429,7 @@ export function AppearanceSection({
                       type="button"
                       aria-label="remove image"
                       onClick={removeImage}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-md transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-accent-error hover:bg-accent-error/10 rounded-md transition-colors"
                     >
                       <Trash2 size={12} />
                       <span>{t("connectionAppearance.removeImage")}</span>
@@ -439,7 +439,7 @@ export function AppearanceSection({
               </div>
             </div>
             {imageError && (
-              <div role="alert" className="text-xs text-rose-400 flex items-center gap-1">
+              <div role="alert" className="text-xs text-accent-error flex items-center gap-1">
                 {imageError}
               </div>
             )}

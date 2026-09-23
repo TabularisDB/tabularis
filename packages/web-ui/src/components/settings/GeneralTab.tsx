@@ -1,6 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { useSettings } from "../../hooks/useSettings";
-import { DEFAULT_SETTINGS, type CopyFormat, type ERDiagramLayout } from "../../contexts/SettingsContext";
+import {
+  DEFAULT_SETTINGS,
+  type CopyFormat,
+  type ERDiagramLayout,
+  type WindowDecorationsMode,
+} from "../../contexts/SettingsContext";
 import {
   SettingSection,
   SettingRow,
@@ -43,6 +48,34 @@ export function GeneralTab() {
           <SettingToggle
             checked={settings.startMaximized === true}
             onChange={(v) => updateSetting("startMaximized", v)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t("settings.windowDecorations")}
+          description={t("settings.windowDecorationsDesc")}
+        >
+          <SettingButtonGroup<WindowDecorationsMode>
+            value={
+              settings.windowDecorations ??
+              DEFAULT_SETTINGS.windowDecorations ??
+              "automatic"
+            }
+            onChange={(value) => updateSetting("windowDecorations", value)}
+            options={[
+              {
+                value: "automatic",
+                label: t("settings.windowDecorationsAutomatic"),
+              },
+              {
+                value: "alwaysShow",
+                label: t("settings.windowDecorationsAlwaysShow"),
+              },
+              {
+                value: "alwaysHide",
+                label: t("settings.windowDecorationsAlwaysHide"),
+              },
+            ]}
           />
         </SettingRow>
       </SettingSection>

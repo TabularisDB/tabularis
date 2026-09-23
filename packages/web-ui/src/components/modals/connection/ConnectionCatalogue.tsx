@@ -78,7 +78,7 @@ export function ConnectionCatalogue({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("connectionCatalogue.searchPlaceholder", { defaultValue: "Search databases…" })}
-            className="w-full rounded-lg border border-default bg-surface-secondary py-2.5 pl-9 pr-9 text-sm text-primary outline-none transition-colors focus:border-blue-500 focus:bg-base"
+            className="w-full rounded-lg border border-default bg-surface-secondary py-2.5 pl-9 pr-9 text-sm text-primary outline-none transition-colors focus:border-focus focus:bg-base"
           />
           {search && (
             <button
@@ -103,12 +103,12 @@ export function ConnectionCatalogue({
                 className={clsx(
                   "cursor-pointer rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                   active
-                    ? "border-blue-500 bg-blue-500/15 text-blue-400"
-                    : "border-default text-secondary hover:border-blue-500/40 hover:text-primary",
+                    ? "border-accent-primary bg-accent-primary/15 text-accent"
+                    : "border-default text-secondary hover:border-accent-primary/40 hover:text-primary",
                 )}
               >
                 {f.label}
-                <span className={clsx("ml-1", active ? "text-blue-400/70" : "text-muted")}>{f.count}</span>
+                <span className={clsx("ml-1", active ? "text-accent/70" : "text-muted")}>{f.count}</span>
               </button>
             );
           })}
@@ -121,7 +121,7 @@ export function ConnectionCatalogue({
             className={clsx(
               "flex cursor-pointer items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
               verifiedOnly
-                ? "border-blue-500 bg-blue-500/15 text-blue-400"
+                ? "border-accent-primary bg-accent-primary/15 text-accent"
                 : "border-default text-secondary hover:text-primary",
             )}
           >
@@ -133,7 +133,7 @@ export function ConnectionCatalogue({
             className={clsx(
               "flex cursor-pointer items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
               installedOnly
-                ? "border-emerald-500 bg-emerald-500/15 text-emerald-400"
+                ? "border-accent-success bg-accent-success/15 text-accent-success"
                 : "border-default text-secondary hover:text-primary",
             )}
           >
@@ -155,7 +155,7 @@ export function ConnectionCatalogue({
       {/* ── scrollable results ── */}
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         {registryOffline && (
-          <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+          <p className="mb-3 rounded-lg border border-accent-warning/30 bg-accent-warning/10 px-3 py-2 text-xs text-accent-warning">
             {t("connectionCatalogue.registryOffline", {
               defaultValue: "Registry unreachable — showing installed and built-in drivers only.",
             })}
@@ -178,7 +178,7 @@ export function ConnectionCatalogue({
               <button
                 type="button"
                 onClick={clearFilters}
-                className="cursor-pointer text-xs font-medium text-blue-400 hover:text-blue-300"
+                className="cursor-pointer text-xs font-medium text-accent"
               >
                 {t("connectionCatalogue.clearFilters", { defaultValue: "Clear filters" })}
               </button>

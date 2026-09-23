@@ -7,22 +7,22 @@ interface Props {
   fallback: React.ReactNode;
 }
 
-export function ConnectionIconImage({ path, size, fallback }: Props) {
+/**
+ * Outer wrapper that keys on `path` so React unmounts/remounts the inner
+ * component whenever the path changes — cleanly resetting all internal
+ * state without calling setState during render or inside an effect body.
+ */
+export function ConnectionIconImage(props: Props) {
+  return <ConnectionIconImageInner key={props.path} {...props} />;
+}
+
+function ConnectionIconImageInner({ path, size, fallback }: Props) {
   const platform = usePlatformCapabilities();
-  // Reset src/failed when path changes by keying state to the current path.
-  // This avoids calling setState inside an effect body (react-hooks/set-state-in-effect).
-  const [loadedPath, setLoadedPath] = useState<string>(path);
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const mountedRef = useRef(true);
 
   useEffect(() => () => { mountedRef.current = false; }, []);
-
-  if (loadedPath !== path) {
-    setLoadedPath(path);
-    setSrc(null);
-    setFailed(false);
-  }
 
   useEffect(() => {
     let cancelled = false;

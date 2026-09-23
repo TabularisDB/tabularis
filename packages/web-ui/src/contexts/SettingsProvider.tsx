@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { listen } from "@tauri-apps/api/event";
+import { loadStartupConfig } from "../utils/startupConfig";
+import { detectAiDefaults } from "../utils/aiDefaults";
 import {
   SettingsContext,
   DEFAULT_SETTINGS,
   type Settings,
 } from "./SettingsContext";
-import { getFontCSS, stripSessionFields } from "../utils/settings";
+import { applyResultFontToDocument, stripSessionFields, applyFontToDocument } from "../utils/settings";
 import { useTabularisClient } from "../hooks/useTabularisClient";
 
 const LANGUAGE_APPLICATION_TIMEOUT_MS = 3000;
@@ -133,7 +136,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     const loadSettings = async () => {
       try {
-        const config = await client.call("get_config", undefined);
+        const config = await loadStartupConfig(client);
 
         // Migration logic: Check localStorage if backend is empty/default
         const savedLocal = localStorage.getItem("tabularis_settings");
@@ -179,70 +182,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        // Smart detect AI Provider and Model if aiEnabled but provider/model not set
-        if (
-          finalSettings.aiEnabled &&
-          (!finalSettings.aiProvider || !finalSettings.aiModel)
-        ) {
-          // First, detect which provider has an API key
-          let detectedProvider: string | null = null;
-          const hasOpenAI = await client.call("check_ai_key", {
-            provider: "openai",
-          });
-          if (hasOpenAI) {
-            detectedProvider = "openai";
-          } else {
-            const hasAnthropic = await client.call("check_ai_key", {
-              provider: "anthropic",
-            });
-            if (hasAnthropic) {
-              detectedProvider = "anthropic";
-            } else {
-              const hasOpenRouter = await client.call("check_ai_key", {
-                provider: "openrouter",
-              });
-              if (hasOpenRouter) detectedProvider = "openrouter";
-            else {
-              const hasMiniMax = await client.call("check_ai_key", {
-                provider: "minimax",
-              });
-              if (hasMiniMax) detectedProvider = "minimax";
-            }
-            }
-          }
-
-          if (detectedProvider) {
-            // Get available models for the detected provider
-            const models = await client.call("get_ai_models", {
-              forceRefresh: false,
-            });
-            const providerModels = models[detectedProvider] || [];
-            const firstModel = providerModels[0] || null;
-
-            // Only set provider if not already set
-            if (!finalSettings.aiProvider) {
-              finalSettings.aiProvider = detectedProvider as "openai" | "anthropic" | "openrouter" | "minimax";
-            }
-            // Only set model if not already set AND we have a model available
-            if (!finalSettings.aiModel && firstModel) {
-              finalSettings.aiModel = firstModel;
-            }
-          }
-        }
-
         // IMMEDIATELY apply font settings from backend config BEFORE setting state
-        // This prevents flash if localStorage cache was stale
-        const fontFamily = getFontCSS(finalSettings.fontFamily);
-        const fontSize = finalSettings.fontSize || 14;
-
-        // Apply immediately to override any stale cache from pre-load script
-        document.documentElement.style.setProperty("--font-base", fontFamily);
-        document.documentElement.style.setProperty(
-          "--font-size-base",
-          `${fontSize}px`,
-        );
-        document.body.style.fontFamily = fontFamily;
-        document.body.style.fontSize = `${fontSize}px`;
+        // This prevents flash if localStorage cache was stale. The default
+        // choice leaves the base font to the theme.
+        applyFontToDocument(finalSettings.fontFamily, finalSettings.fontSize || 14);
+        applyResultFontToDocument(finalSettings.resultFontFamily);
 
         const languageAlreadyApplied = isLanguageApplied(finalSettings.language);
         if (languageAlreadyApplied) {
@@ -251,6 +195,17 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         }
 
         setSettings(finalSettings);
+        // Discovery can perform network requests. Publish persisted settings first,
+        // and never overwrite a selection made while discovery was in flight.
+        void detectAiDefaults(client, finalSettings).then((defaults) => {
+          if (!defaults.aiProvider) return;
+          setSettings((current) => {
+            if (!current.aiEnabled ||
+                current.aiProvider !== finalSettings.aiProvider ||
+                current.aiModel !== finalSettings.aiModel) return current;
+            return { ...current, ...defaults };
+          });
+        }).catch((error: unknown) => console.warn("Failed to detect AI defaults:", error));
         setLanguageState({
           language: finalSettings.language,
           ready: languageAlreadyApplied,
@@ -269,6 +224,48 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     loadSettings();
   }, [client, isLanguageApplied, queueLanguageApplication]);
+
+  // The backend's force-install flow (`ensure_plugin_installed`) can persist
+  // `activeExternalDrivers` from a spawned background task, well after this
+  // provider already loaded its settings snapshot. Without this listener,
+  // `updateSetting` would resend that now-stale in-memory snapshot on the
+  // next unrelated call (it always forwards the whole settings object) and
+  // silently overwrite the backend's write. Re-reading only this one field
+  // from the backend and merging it into local state — rather than trusting
+  // the event payload — keeps this correct even if the write raced with
+  // something else and ended up different from what was requested.
+  useEffect(() => {
+    let mounted = true;
+    let cleanup: (() => void) | null = null;
+    listen("tabularis://plugin-activated", () => {
+      if (!mounted) return;
+      client.call("get_config", undefined)
+        .then((config) => {
+          if (!mounted) return;
+          setSettings((prev) => ({
+            ...prev,
+            activeExternalDrivers: config.activeExternalDrivers,
+          }));
+        })
+        .catch((err) => {
+          console.error("Failed to refresh settings after plugin activation:", err);
+        });
+    })
+      .then((unlisten) => {
+        if (mounted) {
+          cleanup = unlisten;
+        } else {
+          unlisten();
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to subscribe to tabularis://plugin-activated:", err);
+      });
+    return () => {
+      mounted = false;
+      cleanup?.();
+    };
+  }, [client]);
 
   // Update i18n when language changes
   useEffect(() => {
@@ -315,13 +312,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   // Apply font family
   useEffect(() => {
-    const fontFamily = getFontCSS(settings.fontFamily);
-
-    // Apply to CSS variable
-    document.documentElement.style.setProperty("--font-base", fontFamily);
-
-    // ALSO apply directly to body as fallback
-    document.body.style.fontFamily = fontFamily;
+    if (isLoading) return;
+    applyFontToDocument(settings.fontFamily, settings.fontSize);
 
     // Cache for next startup
     try {
@@ -335,10 +327,17 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     } catch (e) {
       console.warn("Failed to cache font settings:", e);
     }
-  }, [settings.fontFamily, settings.fontSize]);
+  }, [isLoading, settings.fontFamily, settings.fontSize]);
+
+  // Apply query result font
+  useEffect(() => {
+    if (isLoading) return;
+    applyResultFontToDocument(settings.resultFontFamily);
+  }, [isLoading, settings.resultFontFamily]);
 
   // Apply font size
   useEffect(() => {
+    if (isLoading) return;
     const size = settings.fontSize || 14;
 
     // Apply to CSS variable
@@ -346,38 +345,52 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     // ALSO apply directly to body as fallback
     document.body.style.fontSize = `${size}px`;
-  }, [settings.fontSize]);
+  }, [isLoading, settings.fontSize]);
 
   const updateSetting = <K extends keyof Settings>(
     key: K,
-    value: Settings[K],
+    valueOrUpdater: Settings[K] | ((prev: Settings[K]) => Settings[K]),
   ): Promise<void> => {
     let persistPromise = Promise.resolve();
 
-    if (key === "language") {
-      const nextLanguage = value as Settings["language"];
-      const languageAlreadyApplied = isLanguageApplied(nextLanguage);
+    setSettings((prev) => {
+      // No `Settings` field is itself function-typed (checked at the
+      // `updateSetting` type definition), so this is an unambiguous way to
+      // tell the two overloads apart at runtime. Resolving against `prev`
+      // here — inside the functional setState updater — rather than against
+      // the `settings` from this closure's render is what makes the updater
+      // form actually see the latest value: a caller invoking
+      // `updateSetting` several times in a row (e.g. a bulk-migration loop
+      // appending one history record per iteration) gets each call's own
+      // fresh `prev`, not the same pre-loop snapshot every time.
+      const nextValue =
+        typeof valueOrUpdater === "function"
+          ? (valueOrUpdater as (prev: Settings[K]) => Settings[K])(prev[key])
+          : valueOrUpdater;
 
-      if (languageAlreadyApplied) {
-        appliedLanguageRef.current = nextLanguage;
-        requestedLanguageRef.current = nextLanguage;
+      if (key === "language") {
+        const nextLanguage = nextValue as Settings["language"];
+        const languageAlreadyApplied = isLanguageApplied(nextLanguage);
+
+        if (languageAlreadyApplied) {
+          appliedLanguageRef.current = nextLanguage;
+          requestedLanguageRef.current = nextLanguage;
+        }
+
+        setLanguageState({
+          language: nextLanguage,
+          ready: languageAlreadyApplied,
+          settled: languageAlreadyApplied,
+        });
       }
 
-      setLanguageState({
-        language: nextLanguage,
-        ready: languageAlreadyApplied,
-        settled: languageAlreadyApplied,
-      });
-    }
-
-    setSettings((prev) => {
-      const newSettings = { ...prev, [key]: value };
+      const newSettings = { ...prev, [key]: nextValue };
 
       // Persist only the changed user preference. Sending the full snapshot
       // would let concurrent browser sessions overwrite one another's changes;
       // session restore state is owned by DatabaseProvider's dedicated commands.
       persistPromise = client.call("save_config", {
-        config: stripSessionFields({ [key]: value }),
+        config: stripSessionFields({ [key]: nextValue }),
       }).catch((err) => {
         console.error("Failed to save settings:", err);
       });

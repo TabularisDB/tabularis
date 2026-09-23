@@ -1,358 +1,241 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { loadStartupConfig } from "../utils/startupConfig";
+import { useTranslation } from "react-i18next";
 import { ThemeContext } from "./ThemeContext";
 import { themeRegistry } from "../themes/themeRegistry";
 import { applyThemeToCSS } from "../themes/themeUtils";
-import type { Theme, ThemeSettings } from "../types/theme";
+import { isLinuxDesktop } from "../utils/systemTheme";
+import { builtinCatalog, hydrateThemePreferences, resolveCatalogEntry, resolveNativeCatalog, selectEffectiveTheme } from "../utils/themeCatalog";
+import { editThemeDefinition } from "../utils/themeDefinitionEditing";
+import { getSystemIsDark, listenForSystemThemeChanges } from "../utils/themeSystemEvents";
+import { resolveLegacyTheme, resolveThemeDefinition } from "../utils/themeResolver";
+import { DEFAULT_THEME_SETTINGS, type Theme, type ThemeSettings, type MonacoThemeDefinition } from "../types/theme";
+import type { NativeThemeCatalog, NativeThemeContribution } from "../types/themeCatalog";
 import { useTabularisClient } from "../hooks/useTabularisClient";
+import { detectPlatformEnvironment } from "../platform/environment";
 
-const DEFAULT_THEME_SETTINGS: ThemeSettings = {
-  activeThemeId: "tabularis-dark",
-  followSystemTheme: false,
-  lightThemeId: "tabularis-light",
-  darkThemeId: "tabularis-dark",
-  customThemes: [],
-};
+type SettingsPatch = Partial<ThemeSettings> | ((previous: ThemeSettings) => Partial<ThemeSettings>);
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
+  const { t } = useTranslation();
   const client = useTabularisClient();
-  const [currentTheme, setCurrentTheme] = useState<Theme>(() =>
-    themeRegistry.getDefault(),
-  );
-  const [settings, setSettings] = useState<ThemeSettings>(
-    DEFAULT_THEME_SETTINGS,
-  );
-  const [customThemes, setCustomThemes] = useState<Theme[]>([]);
+  const [catalog, setCatalog] = useState(builtinCatalog);
+  const [settings, setSettings] = useState(DEFAULT_THEME_SETTINGS);
+  const [systemDark, setSystemDark] = useState(true);
+  const [preview, setPreview] = useState<Theme>();
   const [isLoading, setIsLoading] = useState(true);
+  const catalogRef = useRef(catalog);
+  const settingsRef = useRef(settings);
+  const catalogRequest = useRef({ version: 0 });
+  const previewRevision = useRef(0);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
-  // Combine all themes
-  const allThemes = useMemo(() => {
-    const presets = themeRegistry.getAllPresets();
-    return [...presets, ...customThemes];
-  }, [customThemes]);
+  const refreshCatalog = useCallback(async () => {
+    const request = ++catalogRequest.current.version;
+    const native = await invoke<NativeThemeCatalog>("get_theme_catalog");
+    const resolved = resolveNativeCatalog(native, catalogRef.current);
+    if (request === catalogRequest.current.version) { catalogRef.current = resolved; setCatalog(resolved); }
+    return resolved;
+  }, []);
 
-  // Load theme settings and custom themes on mount
   useEffect(() => {
-    const loadThemes = async () => {
+    let disposed = false;
+    const requests = catalogRequest.current;
+    let stopCatalog: (() => void) | undefined;
+    // Subscribe before reading. Out-of-order reads cannot undo a later refresh.
+    void listen("theme-catalog-changed", () => {
+      if (!disposed) void refreshCatalog().catch((error) => console.error("Failed to refresh themes:", error));
+    }).then((stop) => { if (disposed) stop(); else stopCatalog = stop; }).catch((error) => console.error("Failed to subscribe to theme changes:", error));
+    void (async () => {
       try {
-        // Load theme from backend config
-        const config = await client.call("get_config", undefined);
+        const startup = Promise.all([loadStartupConfig(client), getSystemIsDark()]);
+        const catalogReady = refreshCatalog().catch((error) => console.error("Failed to load theme catalog:", error));
+        const [config, dark] = await startup;
+        if (disposed) return;
+        const hydrated = hydrateThemePreferences(config, localStorage.getItem("tabularis_theme_settings"), dark);
+        // Apply known builtin colors without waiting for package disk reads.
+        // Selection and persistence remain governed by the complete catalog.
+        const startupThemeId = hydrated.followSystemTheme
+          ? dark ? hydrated.darkThemeId : hydrated.lightThemeId
+          : hydrated.activeThemeId;
+        const preset = themeRegistry.getPreset(startupThemeId);
+        if (preset) applyThemeToCSS(preset);
+        await catalogReady;
+        if (disposed) return;
+        settingsRef.current = hydrated;
+        setSettings(hydrated);
+        setSystemDark(dark);
+      } catch (error) { console.error("Failed to load themes:", error); }
+      finally { if (!disposed) setIsLoading(false); }
+    })();
+    return () => { disposed = true; ++requests.version; stopCatalog?.(); };
+  }, [client, refreshCatalog]);
 
-        // Migration: check localStorage for old theme settings
-        const oldLocalSettings = localStorage.getItem(
-          "tabularis_theme_settings",
-        );
-        let activeThemeId = config.theme;
-
-        if (oldLocalSettings && !config.theme) {
-          // Migrate from localStorage to config.json
-          try {
-            const oldSettings = JSON.parse(oldLocalSettings);
-            activeThemeId = oldSettings.activeThemeId;
-
-            // Save to backend
-            await client.call("save_config", {
-              config: { theme: activeThemeId },
-            });
-
-            // Clean up old localStorage
-            localStorage.removeItem("tabularis_theme_settings");
-          } catch (e) {
-            console.error("Failed to migrate theme settings:", e);
-          }
-        }
-
-        // If still no theme, detect from system preferences
-        if (!activeThemeId) {
-          const prefersDark = window.matchMedia(
-            "(prefers-color-scheme: dark)",
-          ).matches;
-          activeThemeId = prefersDark ? "tabularis-dark" : "tabularis-light";
-
-          // Save the detected theme
-          await client.call("save_config", {
-            config: { theme: activeThemeId },
-          });
-        }
-
-        // Load custom themes from backend
-        const loadedCustomThemes = await client.call(
-          "get_all_themes",
-          undefined,
-        ).catch(() => [] as Theme[]);
-        setCustomThemes(loadedCustomThemes.filter((t) => !t.isPreset));
-
-        // Set initial theme
-        const allAvailableThemes = [
-          ...themeRegistry.getAllPresets(),
-          ...loadedCustomThemes,
-        ];
-        const initialTheme =
-          allAvailableThemes.find((t) => t.id === activeThemeId) ||
-          themeRegistry.getDefault();
-
-        setCurrentTheme(initialTheme);
-        setSettings({
-          ...DEFAULT_THEME_SETTINGS,
-          activeThemeId: initialTheme.id,
-        });
-      } catch (error) {
-        console.error("Failed to load themes:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadThemes();
-  }, [client]);
-
-  // Apply theme to CSS when currentTheme changes
-  useEffect(() => {
-    if (currentTheme) {
-      applyThemeToCSS(currentTheme);
-    }
-  }, [currentTheme]);
-
-  // Save theme to config.json when it changes (not on initial load)
-  useEffect(() => {
-    if (!isLoading && currentTheme) {
-      client.call("save_config", {
-        config: { theme: currentTheme.id },
-      }).catch((error) => {
-        console.error("Failed to save theme to config:", error);
-      });
-    }
-  }, [client, currentTheme, isLoading]);
-
-  // Optional: Listen for system theme changes and auto-switch if using system theme
   useEffect(() => {
     if (!settings.followSystemTheme) return;
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    void listenForSystemThemeChanges((dark) => { if (!disposed) setSystemDark(dark); }).then((unsubscribe) => {
+      if (disposed) unsubscribe(); else stop = unsubscribe;
+    });
+    return () => { disposed = true; stop?.(); };
+  }, [settings.followSystemTheme]);
 
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleChange = (e: MediaQueryListEvent) => {
-      const newThemeId = e.matches ? "tabularis-dark" : "tabularis-light";
-      const newTheme = allThemes.find((t) => t.id === newThemeId);
-      if (newTheme) {
-        setCurrentTheme(newTheme);
-        setSettings((prev) => ({ ...prev, activeThemeId: newThemeId }));
+  const allThemes = useMemo(() => catalog.themes.filter(({ entry }) => entry.available).map(({ resolved }) => resolved.theme), [catalog]);
+  const selection = useMemo(() => selectEffectiveTheme(settings, allThemes, systemDark, preview), [settings, allThemes, systemDark, preview]);
+  const currentTheme = selection.theme;
+
+  useEffect(() => {
+    if (isLoading) return;
+    applyThemeToCSS(currentTheme);
+    // Native window chrome only exists in the desktop host.
+    if (detectPlatformEnvironment() !== "tauri") return;
+    getCurrentWindow().setTheme(settings.followSystemTheme && !preview && !isLinuxDesktop() ? null : themeRegistry.isDarkTheme(currentTheme) ? "dark" : "light")
+      .catch((error) => console.error("Failed to set window theme:", error));
+  }, [currentTheme, isLoading, settings.followSystemTheme, preview]);
+
+  // Persistence only follows explicit user actions, never hydration, system
+  // changes, preview, package refresh, or missing-package fallback.
+  const updateSettings = useCallback(async (patch: SettingsPatch) => {
+    if (isLoading) throw new Error("Theme preferences are still loading");
+    const previewAtRequest = previewRevision.current;
+    const task = saveQueue.current.catch(() => undefined).then(async () => {
+      const previous = settingsRef.current;
+      const merged = { ...previous, ...(typeof patch === "function" ? patch(previous) : patch) };
+      await client.call("save_config", { config: { theme: merged.activeThemeId, followSystemTheme: merged.followSystemTheme, lightThemeId: merged.lightThemeId, darkThemeId: merged.darkThemeId } });
+      settingsRef.current = merged;
+      setSettings(merged);
+      try { localStorage.removeItem("tabularis_theme_settings"); }
+      catch (error) { console.warn("Theme preference saved; legacy browser storage cleanup failed:", error); }
+      if (previewAtRequest === previewRevision.current) setPreview(undefined);
+    });
+    saveQueue.current = task;
+    return task;
+  }, [client, isLoading]);
+
+  const setTheme = useCallback(async (themeId: string) => {
+    if (isLoading) throw new Error("Theme preferences are still loading");
+    if (!catalogRef.current.themes.some(({ entry }) => entry.id === themeId && entry.available)) throw new Error(`Theme ${themeId} is unavailable`);
+    await updateSettings({ activeThemeId: themeId, followSystemTheme: false });
+  }, [isLoading, updateSettings]);
+
+  const previewTheme = useCallback((theme: string | NativeThemeContribution) => {
+    const resolved = typeof theme === "string" ? catalogRef.current.themes.find(({ entry }) => entry.id === theme && entry.available) : resolveCatalogEntry(theme);
+    if (!resolved) throw new Error("Theme is unavailable");
+    ++previewRevision.current;
+    setPreview(resolved.resolved.theme);
+  }, []);
+
+  const previewDefinition = useCallback((source: string, name: string) => {
+    const resolved = resolveThemeDefinition(source, { id: "theme:preview-definition", name, revision: source, origin: { kind: "personal" } });
+    ++previewRevision.current;
+    setPreview(resolved.theme);
+  }, []);
+
+  const cancelPreview = useCallback(() => { ++previewRevision.current; setPreview(undefined); }, []);
+
+  const refreshAfterCommit = useCallback(async () => {
+    const request = catalogRequest.current.version + 1;
+    try { await refreshCatalog(); }
+    catch (error) {
+      // The native write already committed. Do not report it as a failed
+      // creation and tempt the caller to retry with another personal identity.
+      console.warn("Theme change committed; catalog refresh failed:", error);
+      if (request === catalogRequest.current.version) {
+        const previous = catalogRef.current;
+        const next = { ...previous, issues: [...previous.issues, { location: "", message: `Theme change committed; refresh failed: ${String(error)}` }] };
+        catalogRef.current = next;
+        setCatalog(next);
       }
-    };
-
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [settings.followSystemTheme, allThemes]);
-
-  const setTheme = useCallback(
-    async (themeId: string) => {
-      const theme = allThemes.find((t) => t.id === themeId);
-      if (!theme) {
-        throw new Error(`Theme ${themeId} not found`);
-      }
-
-      setCurrentTheme(theme);
-      setSettings((prev) => ({ ...prev, activeThemeId: themeId }));
-    },
-    [allThemes],
-  );
-
-  const createCustomTheme = useCallback(
-    async (baseThemeId: string, name: string): Promise<Theme> => {
-      const baseTheme = allThemes.find((t) => t.id === baseThemeId);
-      if (!baseTheme) {
-        throw new Error("Base theme not found");
-      }
-
-      const newTheme: Theme = {
-        ...baseTheme,
-        id: `custom-${Date.now()}`,
-        name,
-        isPreset: false,
-        isReadOnly: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      await client.call("save_custom_theme", { theme: newTheme });
-
-      setCustomThemes((prev) => [...prev, newTheme]);
-      setSettings((prev) => ({
-        ...prev,
-        customThemes: [...prev.customThemes, newTheme.id],
-      }));
-
-      return newTheme;
-    },
-    [allThemes, client],
-  );
-
-  const updateCustomTheme = useCallback(
-    async (theme: Theme) => {
-      if (theme.isPreset) {
-        throw new Error("Cannot modify preset themes");
-      }
-
-      const updatedTheme: Theme = {
-        ...theme,
-        updatedAt: new Date().toISOString(),
-      };
-
-      await client.call("save_custom_theme", { theme: updatedTheme });
-
-      setCustomThemes((prev) =>
-        prev.map((t) => (t.id === updatedTheme.id ? updatedTheme : t)),
-      );
-
-      // Update current theme if it's the one being edited
-      if (currentTheme.id === updatedTheme.id) {
-        setCurrentTheme(updatedTheme);
-      }
-    },
-    [client, currentTheme.id],
-  );
-
-  const deleteCustomTheme = useCallback(
-    async (themeId: string) => {
-      const theme = allThemes.find((t) => t.id === themeId);
-      if (!theme || theme.isPreset) {
-        throw new Error("Cannot delete preset themes");
-      }
-
-      await client.call("delete_custom_theme", { themeId });
-
-      setCustomThemes((prev) => prev.filter((t) => t.id !== themeId));
-      setSettings((prev) => ({
-        ...prev,
-        customThemes: prev.customThemes.filter((id) => id !== themeId),
-      }));
-
-      // If the deleted theme was active, switch to default
-      if (currentTheme.id === themeId) {
-        const defaultTheme = themeRegistry.getDefault();
-        setCurrentTheme(defaultTheme);
-        setSettings((prev) => ({ ...prev, activeThemeId: defaultTheme.id }));
-      }
-    },
-    [allThemes, client, currentTheme.id],
-  );
-
-  const duplicateTheme = useCallback(
-    async (themeId: string, newName: string): Promise<Theme> => {
-      const baseTheme = allThemes.find((t) => t.id === themeId);
-      if (!baseTheme) {
-        throw new Error("Theme not found");
-      }
-
-      const duplicatedTheme: Theme = {
-        ...baseTheme,
-        id: `custom-${Date.now()}`,
-        name: newName,
-        isPreset: false,
-        isReadOnly: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      await client.call("save_custom_theme", { theme: duplicatedTheme });
-
-      setCustomThemes((prev) => [...prev, duplicatedTheme]);
-      setSettings((prev) => ({
-        ...prev,
-        customThemes: [...prev.customThemes, duplicatedTheme.id],
-      }));
-
-      return duplicatedTheme;
-    },
-    [allThemes, client],
-  );
-
-  const importTheme = useCallback(async (themeJson: string): Promise<Theme> => {
-    let importedTheme: Theme;
-    try {
-      importedTheme = JSON.parse(themeJson) as Theme;
-    } catch (e) {
-      throw new Error(`Invalid theme JSON: ${e instanceof Error ? e.message : String(e)}`);
     }
+  }, [refreshCatalog]);
 
-    // Ensure it's marked as custom
-    const customTheme: Theme = {
-      ...importedTheme,
-      id: `custom-${Date.now()}`,
-      isPreset: false,
-      isReadOnly: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+  const duplicateTheme = useCallback(async (themeId: string, newName: string): Promise<Theme> => {
+    const base = catalogRef.current.themes.find(({ entry }) => entry.id === themeId && entry.available);
+    if (!base) throw new Error("Theme is unavailable");
+    const entry = await invoke<NativeThemeContribution>("duplicate_personal_theme", { themeId, name: newName, editor: base.entry.format === "legacy" ? base.resolved.editor : null });
+    await refreshAfterCommit();
+    return resolveCatalogEntry(entry).resolved.theme;
+  }, [refreshAfterCommit]);
+  const createCustomTheme = duplicateTheme;
 
-    await client.call("save_custom_theme", { theme: customTheme });
+  const updatePersonalSource = useCallback(async (themeId: string, name: string, source: string, expectedRevision?: string, editor?: MonacoThemeDefinition): Promise<Theme> => {
+    const previous = catalogRef.current.themes.find(({ entry }) => entry.id === themeId);
+    if (!previous || previous.entry.origin.kind !== "personal") throw new Error("Theme is not an editable personal definition");
+    const snapshot = previous.entry.format === "legacy" && !!previous.entry.editor;
+    if (previous.entry.format !== "v1" && (!snapshot || !editor)) throw new Error("An independent snapshot requires its exact editor definition");
+    const request = { themeId, name, source, expectedRevision: expectedRevision ?? previous.entry.revision };
+    const entry = snapshot
+      ? await invoke<NativeThemeContribution>("update_personal_snapshot", { ...request, editor })
+      : await invoke<NativeThemeContribution>("update_personal_theme", request);
+    await refreshAfterCommit();
+    return resolveCatalogEntry(entry).resolved.theme;
+  }, [refreshAfterCommit]);
 
-    setCustomThemes((prev) => [...prev, customTheme]);
-    setSettings((prev) => ({
-      ...prev,
-      customThemes: [...prev.customThemes, customTheme.id],
-    }));
+  const updateCustomTheme = useCallback(async (theme: Theme) => {
+    const previous = catalogRef.current.themes.find(({ entry }) => entry.id === theme.id);
+    if (!previous || previous.entry.origin.kind !== "personal") throw new Error("Cannot modify preset or installed themes");
+    if (previous.entry.format === "v1") {
+      await updatePersonalSource(theme.id, theme.name, editThemeDefinition(previous.entry.source, previous.resolved.theme, theme));
+    } else {
+      await client.call("save_custom_theme", { theme });
+      await refreshAfterCommit();
+    }
+  }, [client, refreshAfterCommit, updatePersonalSource]);
 
-    return customTheme;
-  }, [client]);
+  const deleteCustomTheme = useCallback(async (themeId: string) => {
+    const previous = catalogRef.current.themes.find(({ entry }) => entry.id === themeId);
+    if (!previous || previous.entry.origin.kind !== "personal") throw new Error("Cannot delete preset or installed themes");
+    await client.call("delete_custom_theme", { themeId });
+    await refreshAfterCommit();
+    // Preserve the explicit legacy personal-delete behavior. Package removal
+    // does NOT use this operation and never changes the user's saved choices.
+    try {
+      await updateSettings((value) => ({ activeThemeId: value.activeThemeId === themeId ? "tabularis-dark" : value.activeThemeId,
+        lightThemeId: value.lightThemeId === themeId ? "tabularis-light" : value.lightThemeId,
+        darkThemeId: value.darkThemeId === themeId ? "tabularis-dark" : value.darkThemeId }));
+    } catch (error) {
+      const previous = catalogRef.current;
+      const next = { ...previous, issues: [...previous.issues, { location: themeId, message: `Personal theme deleted; preference update failed: ${String(error)}` }] };
+      catalogRef.current = next; setCatalog(next);
+    }
+  }, [client, refreshAfterCommit, updateSettings]);
 
-  const exportTheme = useCallback(
-    async (themeId: string): Promise<string> => {
-      const theme = allThemes.find((t) => t.id === themeId);
-      if (!theme) {
-        throw new Error("Theme not found");
-      }
+  const importTheme = useCallback(async (themeJson: string, name?: string): Promise<Theme> => {
+    const parsed: unknown = JSON.parse(themeJson);
+    if (parsed && typeof parsed === "object" && "themeSnapshotVersion" in parsed && !("colors" in parsed)) {
+      const entry = await invoke<NativeThemeContribution>("create_personal_snapshot", { name: name ?? t("themePackages.importedTheme"), source: themeJson });
+      await refreshAfterCommit();
+      return resolveCatalogEntry(entry).resolved.theme;
+    }
+    // monacoTheme is required by the legacy format; its schemaVersion may be opaque metadata.
+    if (parsed && typeof parsed === "object" && "schemaVersion" in parsed && !("monacoTheme" in parsed)) {
+      const entry = await invoke<NativeThemeContribution>("create_personal_theme", { name: name ?? t("themePackages.importedTheme"), source: themeJson });
+      await refreshAfterCommit();
+      return resolveCatalogEntry(entry).resolved.theme;
+    }
+    const legacy = await invoke<Theme>("import_theme", name === undefined ? { themeJson } : { themeJson, name });
+    await refreshAfterCommit();
+    const imported = catalogRef.current.themes.find(({ entry }) => entry.id === legacy.id);
+    // This fallback is only the returned runtime object, never the raw export
+    // source or persisted data. A later refresh reads original native bytes.
+    return imported?.resolved.theme ?? resolveLegacyTheme(legacy, { id: legacy.id, name: legacy.name, revision: "native-commit", origin: { kind: "personal" } }).theme;
+  }, [refreshAfterCommit, t]);
 
-      return JSON.stringify(theme, null, 2);
-    },
-    [allThemes],
-  );
+  const exportTheme = useCallback(async (themeId: string): Promise<string> => {
+    const theme = catalogRef.current.themes.find(({ entry }) => entry.id === themeId);
+    if (!theme) throw new Error("Theme is unavailable");
+    if (theme.entry.origin.kind === "personal") return invoke<string>("export_theme", { themeId });
+    return theme.entry.source;
+  }, []);
 
-  const updateSettings = useCallback(
-    async (newSettings: Partial<ThemeSettings>) => {
-      setSettings((prev) => ({ ...prev, ...newSettings }));
-
-      // If followSystemTheme is enabled, we would need to set up a media query listener
-      // This is handled separately in a dedicated effect
-    },
-    [],
-  );
-
-  const value = useMemo(
-    () => ({
-      currentTheme,
-      settings,
-      allThemes,
-      isLoading,
-      setTheme,
-      createCustomTheme,
-      updateCustomTheme,
-      deleteCustomTheme,
-      duplicateTheme,
-      importTheme,
-      exportTheme,
-      updateSettings,
-    }),
-    [
-      currentTheme,
-      settings,
-      allThemes,
-      isLoading,
-      setTheme,
-      createCustomTheme,
-      updateCustomTheme,
-      deleteCustomTheme,
-      duplicateTheme,
-      importTheme,
-      exportTheme,
-      updateSettings,
-    ],
-  );
-
-  return (
-    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
-  );
+  const value = useMemo(() => ({ currentTheme, settings, allThemes, isLoading, catalog, selection, setTheme, createCustomTheme,
+    updateCustomTheme, deleteCustomTheme, duplicateTheme, importTheme, exportTheme, updateSettings, refreshCatalog,
+    previewTheme, previewDefinition, cancelPreview, updatePersonalSource }),
+  [currentTheme, settings, allThemes, isLoading, catalog, selection, setTheme, createCustomTheme, updateCustomTheme,
+    deleteCustomTheme, duplicateTheme, importTheme, exportTheme, updateSettings, refreshCatalog, previewTheme, previewDefinition, cancelPreview, updatePersonalSource]);
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };

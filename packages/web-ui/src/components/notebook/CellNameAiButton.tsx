@@ -46,7 +46,7 @@ export function CellNameAiButton({
       type="button"
       onClick={handleGenerate}
       disabled={isLoading || !content.trim()}
-      className="p-0.5 text-muted hover:text-purple-300 transition-colors rounded disabled:opacity-30 disabled:pointer-events-none"
+      className="p-0.5 text-muted hover:text-accent-secondary transition-colors rounded disabled:opacity-30 disabled:pointer-events-none"
       title={isLoading ? t("editor.notebook.generatingName") : t("editor.notebook.aiGenerateName")}
     >
       {isLoading ? (

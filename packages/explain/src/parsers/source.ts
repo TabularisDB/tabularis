@@ -9,15 +9,21 @@
  * inspects them.
  */
 
+import {
+  getExplainParser,
+  listExplainParsers,
+  type RegisteredExplainParser,
+} from "../registry";
 import type { ExplainPlan } from "../types";
-import { parseMysqlJson, parseMysqlText } from "./mysql";
-import { parsePostgresJson, parsePostgresText } from "./postgres";
+
+/** Engines whose source detection is built into this package. */
+export type BuiltinExplainEngine = "postgres" | "mysql" | "sqlite";
 
 /** The engine that produced an EXPLAIN payload, when the caller knows it. */
-export type ExplainEngine = "postgres" | "mysql" | "sqlite";
+export type ExplainEngine = BuiltinExplainEngine | (string & {});
 
-/** Supported source formats that a host may hand to `parseExplainFor`. */
-export type ExplainSourceFormat =
+/** Source formats whose detection is built into this package. */
+export type BuiltinExplainSourceFormat =
   /** Postgres `EXPLAIN (FORMAT JSON [, ANALYZE, BUFFERS])` output. */
   | "postgres-json"
   /**
@@ -33,29 +39,25 @@ export type ExplainSourceFormat =
   /** MySQL `EXPLAIN ANALYZE` / MariaDB `ANALYZE FORMAT=TEXT` indented tree. */
   | "mysql-text";
 
-/**
- * A parser for one serialised EXPLAIN payload format.
- *
- * Every engine exposes its formats through this same interface so dispatch,
- * sniffing and hosts handle them uniformly.
- */
-export interface ExplainSourceParser {
+/** Supported source format supplied by a built-in or registered parser. */
+export type ExplainSourceFormat = BuiltinExplainSourceFormat | (string & {});
+
+/** A parser for one serialised EXPLAIN payload format. */
+export interface ExplainSourceParser extends RegisteredExplainParser {
   readonly engine: ExplainEngine;
   readonly format: ExplainSourceFormat;
-  /** Turn a raw payload into a plan; throws `Error` when the payload does not fit. */
-  parse(raw: string): ExplainPlan;
 }
 
-const SOURCE_PARSERS: readonly ExplainSourceParser[] = [
-  { engine: "postgres", format: "postgres-json", parse: parsePostgresJson },
-  { engine: "postgres", format: "postgres-text", parse: parsePostgresText },
-  { engine: "mysql", format: "mysql-json", parse: parseMysqlJson },
-  { engine: "mysql", format: "mysql-text", parse: parseMysqlText },
-];
+const BUILTIN_SOURCE_FORMATS: ReadonlySet<string> = new Set([
+  "postgres-json",
+  "postgres-text",
+  "mysql-json",
+  "mysql-text",
+]);
 
 function parserFor(format: ExplainSourceFormat): ExplainSourceParser {
-  const parser = SOURCE_PARSERS.find((candidate) => candidate.format === format);
-  if (parser === undefined) {
+  const parser = getExplainParser(format);
+  if (parser === null) {
     throw new Error(`No parser registered for format '${format}'`);
   }
   return parser;
@@ -70,7 +72,8 @@ function parserFor(format: ExplainSourceFormat): ExplainSourceParser {
  * unrecognised driver degrades to sniffing rather than failing.
  */
 export function explainEngineFromDriverName(name: string): ExplainEngine | null {
-  switch (name.trim().toLowerCase()) {
+  const normalizedName = name.trim().toLowerCase();
+  switch (normalizedName) {
     case "postgres":
     case "postgresql":
     case "pg":
@@ -81,16 +84,18 @@ export function explainEngineFromDriverName(name: string): ExplainEngine | null 
     case "sqlite":
     case "sqlite3":
       return "sqlite";
-    default:
-      return null;
   }
+
+  const parser = listExplainParsers().find(
+    (candidate) => candidate.engine.trim().toLowerCase() === normalizedName,
+  );
+  return parser?.engine ?? null;
 }
 
 /**
  * Detect the format of a payload of unknown origin.
  *
- * Recognises the two Postgres shapes only; pass an engine to
- * `detectFormatFor` to reach the others.
+ * Recognises the two Postgres shapes before trying registered custom sniffers.
  */
 export function detectFormat(raw: string): ExplainSourceFormat {
   return detectFormatFor(raw, null);
@@ -100,10 +105,8 @@ export function detectFormat(raw: string): ExplainSourceFormat {
  * Detect the format of a payload, given what the caller knows about its
  * origin.
  *
- * With an engine the choice is between that engine's own formats. Without
- * one, behaviour is unchanged from `detectFormat`: JSON is recognised by the
- * leading `[` or `{`, and the text form by a Postgres cost header
- * (`cost=X..Y rows=N width=W`).
+ * Built-in hints retain their historical decisions. Custom parsers are tried
+ * in registry order and only through their side-effect-free sniffers.
  */
 export function detectFormatFor(
   raw: string,
@@ -111,12 +114,7 @@ export function detectFormatFor(
 ): ExplainSourceFormat {
   switch (engine) {
     case "postgres":
-    case null:
-      if (looksLikeJson(raw)) return "postgres-json";
-      if (looksLikePostgresText(raw)) return "postgres-text";
-      throw new Error(
-        "Unsupported EXPLAIN file format: expected Postgres JSON or text output",
-      );
+      return detectPostgresFormat(raw);
     case "mysql":
       if (looksLikeJson(raw)) return "mysql-json";
       if (raw.trim() === "") {
@@ -128,7 +126,67 @@ export function detectFormatFor(
         "SQLite EXPLAIN QUERY PLAN has no text form here: pass its " +
           "(id, parent, detail) rows to buildSqliteTree",
       );
+    case null: {
+      const builtinFormat = detectPostgresFormatOrNull(raw);
+      if (builtinFormat !== null) return builtinFormat;
+
+      const customFormat = sniffRegisteredFormat(raw, null);
+      if (customFormat !== null) return customFormat;
+
+      throw new Error(
+        "Unsupported EXPLAIN file format: expected Postgres JSON or text output",
+      );
+    }
+    default: {
+      const format = sniffRegisteredFormat(raw, engine);
+      if (format !== null) return format;
+      throw new Error(`Unsupported EXPLAIN file format for engine '${engine}'`);
+    }
   }
+}
+
+function detectPostgresFormat(raw: string): BuiltinExplainSourceFormat {
+  const format = detectPostgresFormatOrNull(raw);
+  if (format !== null) return format;
+  throw new Error(
+    "Unsupported EXPLAIN file format: expected Postgres JSON or text output",
+  );
+}
+
+function detectPostgresFormatOrNull(
+  raw: string,
+): BuiltinExplainSourceFormat | null {
+  if (looksLikeJson(raw)) return "postgres-json";
+  if (looksLikePostgresText(raw)) return "postgres-text";
+  return null;
+}
+
+function sniffRegisteredFormat(
+  raw: string,
+  engine: ExplainEngine | null,
+): ExplainSourceFormat | null {
+  const normalizedEngine = engine?.trim().toLowerCase() ?? null;
+
+  for (const parser of listExplainParsers()) {
+    if (normalizedEngine === null && BUILTIN_SOURCE_FORMATS.has(parser.format)) {
+      continue;
+    }
+    if (
+      normalizedEngine !== null &&
+      parser.engine.trim().toLowerCase() !== normalizedEngine
+    ) {
+      continue;
+    }
+    if (parser.sniff === undefined) continue;
+
+    try {
+      if (parser.sniff(raw)) return parser.format;
+    } catch {
+      // A sniffer is advisory; one broken parser must not block later parsers.
+    }
+  }
+
+  return null;
 }
 
 function looksLikeJson(raw: string): boolean {

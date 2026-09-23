@@ -75,7 +75,20 @@ describe("table target modals", () => {
   });
 
   it("should inspect metadata through the target connection and schema", async () => {
-    invokeMock.mockResolvedValueOnce([]);
+    invokeMock
+      .mockResolvedValueOnce([
+        {
+          name: "status",
+          data_type: "text",
+          is_pk: false,
+          is_nullable: false,
+          is_auto_increment: false,
+          comment: "Current order status",
+        },
+      ])
+      .mockResolvedValueOnce([
+        { name: "orders", comment: "Customer orders" },
+      ]);
 
     render(
       <SchemaModal
@@ -97,6 +110,9 @@ describe("table target modals", () => {
       }),
     );
     await screen.findByRole("table");
+    expect(screen.getByText("Customer orders")).toBeInTheDocument();
+    expect(screen.getByText("Current order status")).toBeInTheDocument();
+    expect(screen.getByText("schema.colDescription")).toBeInTheDocument();
   });
 
   it("should generate metadata and open a console in the target connection", async () => {

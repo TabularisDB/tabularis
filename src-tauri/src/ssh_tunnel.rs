@@ -122,9 +122,16 @@ impl SshTunnel {
             remote_host,
             remote_port,
             None,
+            None,
+            None,
         )
     }
 
+    /// Like [`Self::new`], but with an optional askpass bridge for interactive
+    /// passphrase prompts and an optional `tcp_host:tcp_port` to dial instead
+    /// of `ssh_host:ssh_port` (used when an HTTP/SOCKS proxy forward is in
+    /// front of the bastion). Host-key checks still use the logical `ssh_host`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_askpass(
         ssh_host: &str,
         ssh_port: u16,
@@ -136,11 +143,15 @@ impl SshTunnel {
         remote_host: &str,
         remote_port: u16,
         askpass_server: Option<crate::askpass::AskpassServer>,
+        tcp_host: Option<&str>,
+        tcp_port: Option<u16>,
     ) -> Result<Self, String> {
         let use_system_ssh = should_use_system_ssh(ssh_password);
+        let connect_host = tcp_host.unwrap_or(ssh_host);
+        let connect_port = tcp_port.unwrap_or(ssh_port);
         eprintln!(
-            "[SSH Tunnel] New Request: Host={}, Port={}, User={}, UseSystemSSH={}, AllowPrompt={}",
-            ssh_host, ssh_port, ssh_user, use_system_ssh, ssh_allow_passphrase_prompt
+            "[SSH Tunnel] New Request: Host={}, Port={}, Connect={}:{}, User={}, UseSystemSSH={}, AllowPrompt={}",
+            ssh_host, ssh_port, connect_host, connect_port, ssh_user, use_system_ssh, ssh_allow_passphrase_prompt
         );
 
         let local_port = {
@@ -164,6 +175,8 @@ impl SshTunnel {
                 remote_port,
                 local_port,
                 askpass_server,
+                connect_host,
+                connect_port,
             )
             .map_err(|e| {
                 eprintln!("[SSH Tunnel Error] System SSH failed: {}", e);
@@ -180,6 +193,8 @@ impl SshTunnel {
                 remote_host,
                 remote_port,
                 local_port,
+                connect_host,
+                connect_port,
             )
             .map_err(|e| {
                 eprintln!("[SSH Tunnel Error] Russh failed: {}", e);
@@ -198,29 +213,38 @@ impl SshTunnel {
         remote_port: u16,
         local_port: u16,
         askpass_server: Option<crate::askpass::AskpassServer>,
+        connect_host: &str,
+        connect_port: u16,
     ) -> Result<Self, String> {
-        let mut args = Vec::with_capacity(16); // Pre-allocate for typical argument count
+        let mut args = Vec::with_capacity(20);
 
         #[cfg(debug_assertions)]
-        args.push("-v".to_string()); // Verbose mode only in debug
+        args.push("-v".to_string());
 
-        args.push("-N".to_string()); // No remote command
+        args.push("-N".to_string());
         args.push("-L".to_string());
-        // Explicitly bind to 127.0.0.1 to avoid ambiguity or public binding
         args.push(format!(
             "127.0.0.1:{}:{}:{}",
             local_port, remote_host, remote_port
         ));
 
+        let via_proxy_forward = connect_host != ssh_host || connect_port != ssh_port;
         let destination = if !ssh_user.trim().is_empty() {
-            format!("{}@{}", ssh_user, ssh_host)
+            format!("{}@{}", ssh_user, connect_host)
         } else {
-            ssh_host.to_string()
+            connect_host.to_string()
         };
 
-        if ssh_port != DEFAULT_SSH_PORT {
+        if connect_port != DEFAULT_SSH_PORT {
             args.push("-p".to_string());
-            args.push(ssh_port.to_string());
+            args.push(connect_port.to_string());
+        }
+
+        if via_proxy_forward {
+            // Dial the local proxy forward, but look up host keys under the
+            // real bastion name.
+            args.push("-o".to_string());
+            args.push(format!("HostKeyAlias={}", ssh_host));
         }
 
         if let Some(key) = ssh_key_file.filter(|k| !k.trim().is_empty()) {
@@ -370,8 +394,13 @@ impl SshTunnel {
         remote_host: &str,
         remote_port: u16,
         local_port: u16,
+        connect_host: &str,
+        connect_port: u16,
     ) -> Result<Self, String> {
-        eprintln!("[SSH Tunnel] Russh connecting to {}:{}", ssh_host, ssh_port);
+        eprintln!(
+            "[SSH Tunnel] Russh connecting to {}:{} (logical host {}:{})",
+            connect_host, connect_port, ssh_host, ssh_port
+        );
         let listener = TcpListener::bind(format!("127.0.0.1:{}", local_port)).map_err(|e| {
             let err = format!("Failed to bind local port {}: {}", local_port, e);
             eprintln!("[SSH Tunnel Error] {}", err);
@@ -392,6 +421,7 @@ impl SshTunnel {
         let ssh_key_file = ssh_key_file.map(|p| p.to_string());
         let ssh_key_passphrase = ssh_key_passphrase.map(|p| p.to_string());
         let remote_host = remote_host.to_string();
+        let connect_host = connect_host.to_string();
 
         let (ready_tx, ready_rx) = mpsc::channel();
 
@@ -409,7 +439,7 @@ impl SshTunnel {
             let ready_tx_inner = ready_tx.clone();
             let result = runtime.block_on(async move {
                 let config = Arc::new(client::Config::default());
-                let addr = format!("{}:{}", ssh_host, ssh_port);
+                let addr = format!("{}:{}", connect_host, connect_port);
 
                 let mut handle = client::connect(
                     config,

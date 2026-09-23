@@ -13,10 +13,14 @@ import {
   computeLayoutGeometry,
   getPanelDropEdge,
   getSplitNodeAt,
+  MIN_SPLIT_PANE_SIZE,
   resizeSplitSizes,
 } from '../../utils/connectionLayout';
 import type { DividerGeometry, SplitEdge, SplitView } from '../../utils/connectionLayout';
 import { rectContains, startPointerDrag } from '../../utils/pointerDrag';
+
+/** Percentage points a divider moves per arrow key press. */
+const DIVIDER_KEYBOARD_STEP = 5;
 
 const EDGE_OVERLAY_CLASS: Record<SplitEdge, string> = {
   left: 'left-0 top-0 bottom-0 w-1/2',
@@ -143,6 +147,31 @@ export const SplitPaneLayout = ({ layout, connectionIds }: SplitView) => {
     });
   };
 
+  // Keyboard resize for a focused divider: arrow keys move it by a fixed step.
+  const handleDividerKeyDown = (divider: DividerGeometry, e: React.KeyboardEvent) => {
+    const isVertical = divider.mode === 'vertical';
+    const decrease = isVertical ? 'ArrowLeft' : 'ArrowUp';
+    const increase = isVertical ? 'ArrowRight' : 'ArrowDown';
+    if (e.key !== decrease && e.key !== increase) return;
+    e.preventDefault();
+    const node = getSplitNodeAt(layout, divider.path);
+    if (!node || node.type !== 'split') return;
+    const step = e.key === increase ? DIVIDER_KEYBOARD_STEP : -DIVIDER_KEYBOARD_STEP;
+    resizeSplitNode(divider.path, resizeSplitSizes(node.sizes, divider.index, step));
+  };
+
+  const dividerValue = (divider: DividerGeometry) => {
+    const node = getSplitNodeAt(layout, divider.path);
+    if (!node || node.type !== 'split') return null;
+    const before = node.sizes[divider.index] ?? 0;
+    const after = node.sizes[divider.index + 1] ?? 0;
+    return {
+      now: Math.round(before),
+      min: MIN_SPLIT_PANE_SIZE,
+      max: Math.round(before + after - MIN_SPLIT_PANE_SIZE),
+    };
+  };
+
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden">
       {stableIds.map((connId) => {
@@ -173,7 +202,7 @@ export const SplitPaneLayout = ({ layout, connectionIds }: SplitView) => {
             {isDropCandidate && dropTarget?.connId === connId && (
               <div
                 className={clsx(
-                  'absolute z-20 pointer-events-none bg-blue-500/20 border-2 border-blue-400/60 rounded-sm',
+                  'absolute z-20 pointer-events-none bg-accent-primary/20 border-2 border-accent-primary/60 rounded-sm',
                   EDGE_OVERLAY_CLASS[dropTarget.edge],
                 )}
               />
@@ -192,6 +221,8 @@ export const SplitPaneLayout = ({ layout, connectionIds }: SplitView) => {
             >
               <div className="flex items-center gap-1.5 min-w-0">
                 <div
+                  // Mouse-only drag grip; hidden from assistive tech since it cannot be operated from the keyboard.
+                  aria-hidden="true"
                   onMouseDown={(e) => startPanelMove(connId, connectionDataMap[connId]?.connectionName ?? connId, e)}
                   className="shrink-0 cursor-grab active:cursor-grabbing text-muted hover:text-primary"
                   title={t('sidebar.movePanel')}
@@ -227,12 +258,23 @@ export const SplitPaneLayout = ({ layout, connectionIds }: SplitView) => {
       })}
 
       {/* Dividers overlay the pane boundaries */}
-      {geometry.dividers.map((divider) => (
+      {geometry.dividers.map((divider) => {
+        const value = dividerValue(divider);
+        /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- a focusable separator is an ARIA widget (value + arrow keys), but jsx-a11y classifies every separator as static */
+        return (
         <div
           key={`${divider.path.join('.')}:${divider.index}`}
+          role="separator"
+          tabIndex={0}
+          aria-orientation={divider.mode === 'vertical' ? 'vertical' : 'horizontal'}
+          aria-label={t('sidebar.resizePanels')}
+          aria-valuenow={value?.now}
+          aria-valuemin={value?.min}
+          aria-valuemax={value?.max}
           onMouseDown={(e) => startDividerResize(divider, e)}
+          onKeyDown={(e) => handleDividerKeyDown(divider, e)}
           className={clsx(
-            'absolute bg-default hover:bg-blue-500/50 transition-colors z-10',
+            'absolute bg-default hover:bg-accent-primary/50 transition-colors z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
             divider.mode === 'vertical' ? 'cursor-col-resize' : 'cursor-row-resize',
           )}
           style={
@@ -251,7 +293,9 @@ export const SplitPaneLayout = ({ layout, connectionIds }: SplitView) => {
                 }
           }
         />
-      ))}
+        );
+        /* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
+      })}
     </div>
   );
 };

@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 
@@ -6,8 +7,10 @@ import { printCreated, printError, printHelp, printMigrated } from "./print";
 import { scaffold } from "./scaffold";
 import { titleCase, validateDbType, validateName, validateQuote } from "./validate";
 
-const PACKAGE_VERSION = "0.1.0";
-const PLUGIN_API_VERSION = "0.1.1";
+// Resolved at runtime so `--version` can never drift from package.json again.
+const PACKAGE_VERSION = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
+// Caret range written into scaffolded plugins; bump alongside packages/plugin-api.
+const PLUGIN_API_VERSION = "0.2.0";
 const MIN_TABULARIS_VERSION = "0.9.20";
 
 function main(argv: string[]): number {

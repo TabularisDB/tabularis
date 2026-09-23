@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod tests {
     use crate::models::{
-        single_db_before_multi_transition, ConnectionParams, DatabaseSelection,
+        single_db_before_multi_transition, ConnectionParams, DatabaseSelection, TableColumn,
+        TableInfo,
     };
 
     #[test]
@@ -181,6 +182,31 @@ mod tests {
             restored.extra.get("endpoint").map(String::as_str),
             Some("http://localhost:8000")
         );
+    }
+
+    #[test]
+    fn table_metadata_comments_are_backwards_compatible() {
+        let legacy_table: TableInfo =
+            serde_json::from_str(r#"{"name":"users"}"#).expect("legacy table metadata");
+        assert!(legacy_table.comment.is_none());
+
+        let table: TableInfo = serde_json::from_str(
+            r#"{"name":"users","comment":"Application users"}"#,
+        )
+        .expect("commented table metadata");
+        assert_eq!(table.comment.as_deref(), Some("Application users"));
+
+        let legacy_column: TableColumn = serde_json::from_str(
+            r#"{"name":"id","data_type":"integer","is_pk":true,"is_nullable":false,"is_auto_increment":true}"#,
+        )
+        .expect("legacy column metadata");
+        assert!(legacy_column.comment.is_none());
+
+        let column: TableColumn = serde_json::from_str(
+            r#"{"name":"status","data_type":"text","is_pk":false,"is_nullable":false,"is_auto_increment":false,"comment":"Current status"}"#,
+        )
+        .expect("commented column metadata");
+        assert_eq!(column.comment.as_deref(), Some("Current status"));
     }
 
     /// An empty `extra` map is omitted from the persisted JSON so legacy

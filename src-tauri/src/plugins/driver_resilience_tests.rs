@@ -12,6 +12,8 @@ async fn crashed_plugin_process_fails_pending_calls_without_hanging() {
         next_id: AtomicU64::new(1),
         shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
         pid: None,
+        initialization_settings: None,
+        initialized: OnceCell::new(),
     };
 
     let result = tokio::time::timeout(

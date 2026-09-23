@@ -47,6 +47,9 @@ pub mod export;
 pub mod export_crypto;
 #[cfg(test)]
 pub mod export_import_tests;
+pub mod fs_path;
+#[cfg(test)]
+pub mod fs_path_tests;
 pub mod health_check;
 #[cfg(test)]
 pub mod group_tree_tests;
@@ -55,8 +58,13 @@ pub mod heartbeat;
 pub mod heartbeat_tests;
 pub mod json_viewer;
 pub mod keychain_utils;
+#[cfg(test)]
+pub mod keychain_utils_tests;
 pub mod results_window;
 pub mod runtime;
+pub mod sandbox;
+#[cfg(test)]
+pub mod sandbox_tests;
 pub mod k8s_tunnel;
 pub mod log_commands;
 pub mod logger;
@@ -68,31 +76,46 @@ pub mod notebooks;
 pub mod paths; // Added
 #[cfg(test)]
 pub mod paths_tests;
+pub mod storage_location;
+#[cfg(test)]
+pub mod storage_location_tests;
 pub mod persistence;
+#[cfg(test)]
+pub mod persistence_tests;
 pub mod plugins;
 pub mod pool_manager;
 #[cfg(test)]
 pub mod pool_manager_tests;
 pub mod preferences;
+pub mod proxy;
 pub mod query_history;
 #[cfg(test)]
 pub mod query_history_tests;
 pub mod sql_database_statements;
+pub mod sql_file;
+#[cfg(test)]
+pub mod sql_file_tests;
 pub mod saved_queries;
 #[cfg(test)]
 pub mod saved_queries_tests;
 pub mod ssh_tunnel;
+pub mod ssm_tunnel;
 pub mod sqlite_database;
 #[cfg(test)]
 pub mod sqlite_database_tests;
+mod system_theme;
 pub mod task_manager;
 pub mod theme_commands;
 pub mod theme_models;
+pub mod theme_packages;
 pub mod transport;
 pub mod updater;
+pub mod window_decorations;
 pub mod drivers {
     pub mod common;
     pub mod driver_trait;
+    #[cfg(test)]
+    pub mod driver_trait_tests;
     pub mod mysql;
     pub mod postgres;
     pub mod registry;
@@ -221,8 +244,10 @@ pub fn run() {
     let application_state = runtime::state::ApplicationState::default();
     let shutdown_hooks = runtime::lifecycle::ShutdownHooks::default();
     shutdown_hooks.register(|| {
-        log::info!("Application exiting, stopping all active SSH tunnels...");
+        log::info!("Application exiting, stopping all active tunnels...");
         crate::ssh_tunnel::stop_all_tunnels();
+        crate::proxy::stop_all_forwards();
+        crate::ssm_tunnel::stop_all_tunnels();
     });
     let run_shutdown_hooks = shutdown_hooks.clone();
 
@@ -267,12 +292,37 @@ pub fn run() {
         .manage(application_state.results_window_store)
         .manage(application_state.query_history_state)
         .setup(move |app| {
+            #[cfg(target_os = "linux")]
+            system_theme::watch(app.handle().clone());
+            // The asset protocol scope in tauri.conf.json only covers the
+            // default data directory; when the user moved the storage folder
+            // the connection icons live there instead.
+            if crate::storage_location::active_override().is_some() {
+                let icons_dir = crate::paths::get_connection_icons_dir();
+                let _ = std::fs::create_dir_all(&icons_dir);
+                if let Err(e) = app.asset_protocol_scope().allow_directory(&icons_dir, true) {
+                    log::warn!("Failed to allow asset access to {:?}: {}", icons_dir, e);
+                }
+                log::info!(
+                    "Using custom storage location: {}",
+                    crate::paths::get_app_config_dir().display()
+                );
+            }
+
+            // Apply the persisted decoration policy as early as possible. The
+            // main window is created from tauri.conf.json before this hook.
+            let startup_config = crate::config::load_config_internal(&app.handle());
+            crate::window_decorations::apply_to_all_windows(
+                &app.handle(),
+                startup_config.window_decorations.as_ref(),
+            );
+
             // Allow the SSH tunnel code (which runs without a Tauri context)
             // to bridge askpass prompts to the frontend.
             askpass::set_app_handle(app.handle().clone());
 
             let app_paths = runtime::paths::FixedRuntimePaths::new(
-                app.path().app_config_dir()?,
+                crate::paths::get_app_config_dir(),
                 crate::paths::get_app_data_dir(),
             );
             let runtime_context = runtime::RuntimeContext::new(
@@ -294,6 +344,26 @@ pub fn run() {
             .map_err(std::io::Error::other)?;
             app.manage(bootstrapped.context);
 
+            // Ensure replacement plugins are installed for any built-in
+            // driver a saved connection still depends on (e.g. install the
+            // `postgresql` plugin when a `postgres` connection exists). Spawned,
+            // not `block_on`, so a slow or failed registry fetch never delays
+            // window creation — same pattern as the health-check spawn below.
+            // See `.github/planning/postgres-plugin-force-install.md`.
+            for (builtin_id, plugin_id) in crate::plugins::force_install::MIGRATABLE_DRIVERS {
+                let handle = app.handle().clone();
+                let builtin_id = builtin_id.to_string();
+                let plugin_id = plugin_id.to_string();
+                tauri::async_runtime::spawn(async move {
+                    crate::plugins::force_install::ensure_plugin_installed_if_needed(
+                        &handle,
+                        &builtin_id,
+                        &plugin_id,
+                    )
+                    .await;
+                });
+            }
+
             // Subscribe to `tabularis://` deep links so a registry's
             // "Open in App" button can hand us a plugin slug + version.
             // The handler emits a frontend event; the React side opens the
@@ -306,13 +376,26 @@ pub fn run() {
             // entry pointing at the current binary so Firefox & friends can
             // route `tabularis://...` to us. The call is a no-op on macOS
             // (handled by Info.plist) and idempotent across restarts.
+            //
+            // Inside Snap/Flatpak the exported `.desktop` entry already
+            // carries `MimeType=x-scheme-handler/tabularis`, and the sandbox
+            // has neither `xdg-mime` nor write access to the host's
+            // mimeapps.list — so skip the call instead of logging a failure.
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 let handle = app.handle().clone();
                 let deep_link = app.deep_link();
                 #[cfg(any(target_os = "linux", all(debug_assertions, target_os = "windows")))]
-                if let Err(e) = deep_link.register("tabularis") {
-                    log::warn!("Failed to register tabularis:// scheme: {}", e);
+                match crate::sandbox::current() {
+                    Some(sandbox) => log::info!(
+                        "Skipping tabularis:// scheme registration: handled by the {} desktop entry",
+                        sandbox.name()
+                    ),
+                    None => {
+                        if let Err(e) = deep_link.register("tabularis") {
+                            log::warn!("Failed to register tabularis:// scheme: {}", e);
+                        }
+                    }
                 }
                 deep_link.on_open_url({
                     let handle = handle.clone();
@@ -343,7 +426,7 @@ pub fn run() {
             );
 
             // Maximize the window on startup if the user enabled it.
-            if crate::config::load_config_internal(&app.handle())
+            if startup_config
                 .start_maximized
                 .unwrap_or(false)
             {
@@ -383,11 +466,13 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            system_theme::get_linux_system_theme,
             is_debug_mode,
             open_devtools,
             close_devtools,
             commands::get_registered_drivers,
             commands::get_driver_manifest,
+            commands::get_connection_metadata,
             commands::get_keybindings,
             commands::save_keybindings,
             commands::test_connection,
@@ -423,6 +508,8 @@ pub fn run() {
             commands::get_k8s_resources_cmd,
             commands::get_k8s_resource_ports_cmd,
             commands::validate_k8s_path_cmd,
+            // AWS SSM
+            commands::test_ssm_connection_cmd,
             // Connection Groups
             commands::get_connection_groups,
             commands::get_connections_with_groups,
@@ -496,6 +583,8 @@ pub fn run() {
             explain_import::open_visual_explain_window,
             export::export_query_to_file,
             export::cancel_export,
+            sql_file::read_sql_file,
+            sql_file::write_sql_file,
             saved_queries::get_saved_queries,
             saved_queries::save_query,
             saved_queries::update_saved_query,
@@ -518,10 +607,19 @@ pub fn run() {
             config::get_config_json,
             config::save_config_json,
             config::relaunch_app,
+            storage_location::get_storage_location,
+            storage_location::inspect_storage_location,
+            storage_location::set_storage_location,
+            storage_location::reset_storage_location,
+            storage_location::open_storage_location,
+            storage_location::get_app_data_dir,
             config::set_ai_key,
             config::delete_ai_key,
             config::check_ai_key,
             config::check_ai_key_status,
+            proxy::set_proxy_password,
+            proxy::proxy_password_is_set,
+            proxy::delete_proxy_password,
             config::get_system_prompt,
             config::save_system_prompt,
             config::reset_system_prompt,
@@ -593,6 +691,22 @@ pub fn run() {
             ai_commands::list_pending_approvals,
             ai_commands::decide_pending_approval,
             // Themes
+            theme_packages::commands::preview_theme_document,
+            theme_packages::commands::preview_local_theme_package,
+            theme_packages::commands::install_local_theme_package,
+            theme_packages::commands::fetch_theme_registry,
+            theme_packages::commands::fetch_theme_package_detail,
+            theme_packages::commands::install_registry_theme,
+            theme_packages::commands::cancel_theme_install,
+            theme_packages::commands::set_theme_package_enabled,
+            theme_packages::commands::uninstall_theme_package,
+            theme_packages::commands::recover_theme_packages,
+            theme_commands::get_theme_catalog,
+            theme_commands::create_personal_theme,
+            theme_commands::create_personal_snapshot,
+            theme_commands::update_personal_theme,
+            theme_commands::update_personal_snapshot,
+            theme_commands::duplicate_personal_theme,
             theme_commands::get_all_themes,
             theme_commands::get_theme,
             theme_commands::save_custom_theme,
@@ -645,6 +759,7 @@ pub fn run() {
             plugins::commands::fetch_plugin_readme,
             plugins::deep_link::consume_pending_deep_link_install,
             plugins::manager::get_plugin_startup_errors,
+            plugins::runtime_version::get_plugin_runtime_warnings,
             // JSON Viewer
             json_viewer::open_json_viewer_window,
             json_viewer::get_json_viewer_session,

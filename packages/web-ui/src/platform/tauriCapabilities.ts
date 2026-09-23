@@ -1,6 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { join } from "@tauri-apps/api/path";
 import {
   ask as askDialog,
   message as messageDialog,
@@ -49,6 +49,7 @@ import {
   extractBlobMetadata,
   parseBlobFileRef,
 } from "../utils/blob";
+import { getAppDataDir } from "../utils/storageLocation";
 
 export interface TauriPlatformOperations {
   chooseInputPath(
@@ -246,9 +247,10 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
   ): Promise<ChosenInputFile | null> {
     this.require("chooseInputFile");
     const selected = await this.operations.chooseInputPath(options);
-    const reference = Array.isArray(selected) ? selected[0] : selected;
-    return reference
-      ? { name: selectedFileName(reference), reference }
+    // The dialog is single-select: anything but a non-blank path (a cancelled
+    // dialog, a blank value or an unexpected multi-selection) selects nothing.
+    return typeof selected === "string" && selected.trim().length > 0
+      ? { name: selectedFileName(selected), reference: selected }
       : null;
   }
 
@@ -345,7 +347,7 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
   }
 
   async resolveAppAsset(relativePath: string): Promise<string> {
-    return convertFileSrc(await join(await appDataDir(), relativePath));
+    return convertFileSrc(await join(await getAppDataDir(), relativePath));
   }
 
   async readClipboard(): Promise<string> {

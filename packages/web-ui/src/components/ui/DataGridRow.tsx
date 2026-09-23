@@ -25,6 +25,7 @@ import { isLongTextCellTarget, truncateCellPreview } from "../../utils/text";
 import { getForeignKeyForPreview } from "../../utils/foreignKeys";
 import { getDateInputMode } from "../../utils/dateInput";
 import { renderDefaultCellContent } from "../../utils/dataGridCell";
+import { resolveResultFontFamily } from "../../utils/settings";
 import { GeometryInput } from "./GeometryInput";
 import { DateInput } from "./DateInput";
 import { JsonCell } from "./JsonCell";
@@ -254,11 +255,11 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
         style={{ height: DATA_GRID_ROW_HEIGHT }}
         className={`transition-colors group ${
           isSelected
-            ? "bg-blue-900/20 border-l-4 border-blue-400"
+            ? "bg-accent-primary/10 border-l-4 border-accent-primary"
             : isInsertion
-              ? "bg-green-500/8 border-l-4 border-green-400"
+              ? "bg-semantic-new/8 border-l-4 border-semantic-new"
               : isPendingDelete
-                ? "bg-red-900/20 opacity-60"
+                ? "bg-semantic-deleted/10 opacity-60"
                 : "hover:bg-surface-secondary/50"
         }`}
       >
@@ -276,12 +277,12 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
           className={`px-2 py-1.5 text-xs text-center border-b border-r border-default sticky left-0 z-10 cursor-pointer select-none w-[50px] min-w-[50px] ${
             isInsertion
               ? isSelected
-                ? "bg-blue-900/40 text-blue-200 font-bold"
-                : "bg-green-950/30 text-green-300 font-bold"
+                ? "bg-accent-primary/20 text-accent font-bold"
+                : "bg-semantic-new/15 text-semantic-new font-bold"
               : isPendingDelete
-                ? "bg-red-950/50 text-red-500 line-through"
+                ? "bg-semantic-deleted/25 text-semantic-deleted line-through"
                 : isSelected
-                  ? "bg-blue-900/40 text-blue-200 font-bold"
+                  ? "bg-accent-primary/20 text-accent font-bold"
                   : "bg-base text-muted hover:bg-surface-secondary"
           }`}
         >
@@ -432,7 +433,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
               onContextMenu={(e) =>
                 handleContextMenu(e, rowOriginal, rowIndex, colIndex, colName)
               }
-              className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-mono ${isEditing ? "relative" : "whitespace-nowrap truncate max-w-[300px]"} ${fkForPreview ? "cursor-pointer" : "cursor-text"} ${stateClass} ${selectedColIndices.has(colIndex) || (rangeColBounds !== null && colIndex >= rangeColBounds.minCol && colIndex <= rangeColBounds.maxCol) ? "bg-blue-500/15" : ""} ${isFocused ? "ring-2 ring-inset ring-blue-400" : ""}`}
+              className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? "relative" : "whitespace-nowrap truncate max-w-[300px]"} ${fkForPreview ? "cursor-pointer" : "cursor-text"} ${stateClass} ${selectedColIndices.has(colIndex) || (rangeColBounds !== null && colIndex >= rangeColBounds.minCol && colIndex <= rangeColBounds.maxCol) ? "bg-accent-primary/15" : ""} ${isFocused ? "ring-2 ring-inset ring-accent-primary" : ""}`}
               title={
                 // The hover tooltip would leak the real value of a masked cell.
                 !isEditing && !isMasked
@@ -485,7 +486,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                             // Open sidebar with the current row
                             openInSidebar(rowIndex, colName);
                           }}
-                          className="w-full bg-base text-primary border-none outline-none p-0 m-0 font-mono"
+                          className="w-full bg-base text-primary border-none outline-none p-0 m-0 font-result"
                         />
                       );
                     }
@@ -552,8 +553,10 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                     const canvas = document.createElement("canvas");
                     const ctx = canvas.getContext("2d");
                     if (ctx) {
-                      ctx.font =
-                        "14px ui-monospace, SFMono-Regular, monospace";
+                      // Measure with the same font the textarea renders in
+                      // (the "Result font" setting), otherwise a proportional
+                      // font would be sized with monospace metrics.
+                      ctx.font = `14px ${resolveResultFontFamily()}`;
                     }
                     const longestLineWidth = ctx
                       ? Math.max(
@@ -597,7 +600,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                           }}
                           onBlur={handleEditCommit}
                           onKeyDown={handleKeyDown}
-                          className="absolute left-0 top-0 max-w-[400px] max-h-[120px] bg-base text-primary border border-blue-500 rounded shadow-lg p-2 font-mono text-sm resize-none z-50 outline-none"
+                          className="absolute left-0 top-0 max-w-[400px] max-h-[120px] bg-base text-primary border border-accent-primary rounded shadow-lg p-2 font-result text-sm resize-none z-50 outline-none"
                         />
                       </>
                     );
@@ -722,7 +725,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                               e.stopPropagation();
                               onForeignKeyNavigate(fkForPreview, rawCellValue);
                             }}
-                            className="opacity-0 group-hover/fkcell:opacity-100 transition-opacity p-0.5 rounded text-muted hover:text-blue-400 hover:bg-surface-tertiary flex-shrink-0"
+                            className="opacity-0 group-hover/fkcell:opacity-100 transition-opacity p-0.5 rounded text-muted hover:text-accent hover:bg-surface-tertiary flex-shrink-0"
                             title={t("dataGrid.openReferenced", {
                               table: fkForPreview.ref_table,
                             })}

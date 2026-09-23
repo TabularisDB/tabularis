@@ -53,16 +53,38 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 19,
-    "literalCallSiteCount": 24,
+    "literalCommandCount": 52,
+    "literalCallSiteCount": 64,
     "dynamicCallSiteCount": 0,
-    "handlerRegistrationCount": 258,
-    "registeredCommandCount": 258,
+    "handlerRegistrationCount": 289,
+    "registeredCommandCount": 289,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 239
+    "registeredCommandsWithoutFrontendCall": 237
   },
   "commands": [
+    {
+      "name": "cancel_theme_install",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/LocalThemePackageModal.tsx",
+          "line": 56
+        },
+        {
+          "file": "packages/web-ui/src/components/modals/ThemeRegistryInstall.tsx",
+          "line": 78
+        },
+        {
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
+          "line": 875
+        }
+      ]
+    },
     {
       "name": "check_for_updates",
       "featureGroup": "application",
@@ -73,7 +95,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
-          "line": 57
+          "line": 58
         }
       ]
     },
@@ -92,6 +114,48 @@
       ]
     },
     {
+      "name": "create_personal_snapshot",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
+          "line": 210
+        }
+      ]
+    },
+    {
+      "name": "create_personal_theme",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
+          "line": 216
+        }
+      ]
+    },
+    {
+      "name": "delete_proxy_password",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/settings/ProxyFields.tsx",
+          "line": 95
+        }
+      ]
+    },
+    {
       "name": "download_and_install_update",
       "featureGroup": "application",
       "eventUse": "event-coordinated",
@@ -101,7 +165,21 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
-          "line": 99
+          "line": 101
+        }
+      ]
+    },
+    {
+      "name": "duplicate_personal_theme",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
+          "line": 159
         }
       ]
     },
@@ -115,7 +193,21 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
-          "line": 307
+          "line": 308
+        }
+      ]
+    },
+    {
+      "name": "export_theme",
+      "featureGroup": "themes",
+      "eventUse": "none",
+      "filesystemUse": "write",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
+          "line": 231
         }
       ]
     },
@@ -129,7 +221,67 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 332
+          "line": 334
+        }
+      ]
+    },
+    {
+      "name": "fetch_theme_package_detail",
+      "featureGroup": "themes",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/ThemeRegistryInstall.tsx",
+          "line": 47
+        }
+      ]
+    },
+    {
+      "name": "fetch_theme_registry",
+      "featureGroup": "themes",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/ThemeDeepLinkInstall.tsx",
+          "line": 23
+        },
+        {
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
+          "line": 816
+        }
+      ]
+    },
+    {
+      "name": "get_app_data_dir",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/utils/storageLocation.ts",
+          "line": 52
+        }
+      ]
+    },
+    {
+      "name": "get_connection_metadata",
+      "featureGroup": "metadata",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
+          "line": 743
         }
       ]
     },
@@ -143,7 +295,21 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useDataTypes.ts",
-          "line": 30
+          "line": 25
+        }
+      ]
+    },
+    {
+      "name": "get_linux_system_theme",
+      "featureGroup": "themes",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/utils/themeSystemEvents.ts",
+          "line": 9
         }
       ]
     },
@@ -157,7 +323,109 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
-          "line": 116
+          "line": 93
+        }
+      ]
+    },
+    {
+      "name": "get_plugin_runtime_warnings",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/plugins/PluginRuntimeWarningToasts.tsx",
+          "line": 36
+        }
+      ]
+    },
+    {
+      "name": "get_storage_location",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/settings/StorageTab.tsx",
+          "line": 46
+        }
+      ]
+    },
+    {
+      "name": "get_theme_catalog",
+      "featureGroup": "themes",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
+          "line": 38
+        }
+      ]
+    },
+    {
+      "name": "import_theme",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "read",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
+          "line": 220
+        }
+      ]
+    },
+    {
+      "name": "inspect_storage_location",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/settings/StorageTab.tsx",
+          "line": 62
+        }
+      ]
+    },
+    {
+      "name": "install_local_theme_package",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "read",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/LocalThemePackageModal.tsx",
+          "line": 45
+        }
+      ]
+    },
+    {
+      "name": "install_registry_theme",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "read",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/ThemeRegistryInstall.tsx",
+          "line": 64
+        },
+        {
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
+          "line": 821
         }
       ]
     },
@@ -171,7 +439,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 1610
+          "line": 1750
         }
       ]
     },
@@ -185,7 +453,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 309
+          "line": 311
         }
       ]
     },
@@ -199,7 +467,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
-          "line": 59
+          "line": 60
         }
       ]
     },
@@ -213,11 +481,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 262
+          "line": 268
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 783
+          "line": 809
         }
       ]
     },
@@ -245,7 +513,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 182
+          "line": 183
         }
       ]
     },
@@ -259,7 +527,63 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
-          "line": 714
+          "line": 785
+        }
+      ]
+    },
+    {
+      "name": "open_storage_location",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/settings/StorageTab.tsx",
+          "line": 100
+        }
+      ]
+    },
+    {
+      "name": "preview_local_theme_package",
+      "featureGroup": "themes",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/LocalThemePackageModal.tsx",
+          "line": 36
+        }
+      ]
+    },
+    {
+      "name": "preview_theme_document",
+      "featureGroup": "themes",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/ThemeDocumentModal.tsx",
+          "line": 50
+        }
+      ]
+    },
+    {
+      "name": "proxy_password_is_set",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/settings/ProxyFields.tsx",
+          "line": 57
         }
       ]
     },
@@ -273,7 +597,35 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 317
+          "line": 319
+        }
+      ]
+    },
+    {
+      "name": "read_sql_file",
+      "featureGroup": "files",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/pages/Editor.tsx",
+          "line": 524
+        }
+      ]
+    },
+    {
+      "name": "recover_theme_packages",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/ThemeRecoveryModal.tsx",
+          "line": 21
         }
       ]
     },
@@ -287,11 +639,29 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/ConfigJsonModal.tsx",
-          "line": 57
+          "line": 59
+        },
+        {
+          "file": "packages/web-ui/src/components/settings/StorageTab.tsx",
+          "line": 236
         },
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 198
+          "line": 199
+        }
+      ]
+    },
+    {
+      "name": "reset_storage_location",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "read-write",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/settings/StorageTab.tsx",
+          "line": 91
         }
       ]
     },
@@ -305,7 +675,21 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 300
+          "line": 302
+        }
+      ]
+    },
+    {
+      "name": "set_proxy_password",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/settings/ProxyFields.tsx",
+          "line": 78
         }
       ]
     },
@@ -319,15 +703,47 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 254
+          "line": 260
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 638
+          "line": 644
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 775
+          "line": 801
+        }
+      ]
+    },
+    {
+      "name": "set_storage_location",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "read-write",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/settings/StorageTab.tsx",
+          "line": 76
+        }
+      ]
+    },
+    {
+      "name": "set_theme_package_enabled",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
+          "line": 979
+        },
+        {
+          "file": "packages/web-ui/src/components/settings/ThemeManager.tsx",
+          "line": 170
         }
       ]
     },
@@ -341,11 +757,85 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 151
+          "line": 157
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 527
+          "line": 614
+        }
+      ]
+    },
+    {
+      "name": "test_ssm_connection_cmd",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/utils/ssm.ts",
+          "line": 22
+        }
+      ]
+    },
+    {
+      "name": "uninstall_theme_package",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
+          "line": 999
+        },
+        {
+          "file": "packages/web-ui/src/components/settings/ThemeManager.tsx",
+          "line": 169
+        }
+      ]
+    },
+    {
+      "name": "update_personal_snapshot",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
+          "line": 172
+        }
+      ]
+    },
+    {
+      "name": "update_personal_theme",
+      "featureGroup": "themes",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
+          "line": 173
+        }
+      ]
+    },
+    {
+      "name": "write_sql_file",
+      "featureGroup": "files",
+      "eventUse": "none",
+      "filesystemUse": "write",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/pages/Editor.tsx",
+          "line": 567
         }
       ]
     }
@@ -423,7 +913,6 @@
     "export_connections_payload",
     "export_logs",
     "export_query_to_file",
-    "export_theme",
     "fetch_blob_as_data_url",
     "fetch_plugin_readme",
     "fetch_plugin_registry",
@@ -511,7 +1000,6 @@
     "get_views",
     "import_connections_payload",
     "import_database",
-    "import_theme",
     "insert_record",
     "install_mcp_config",
     "install_plugin",

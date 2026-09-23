@@ -127,8 +127,8 @@ describe('ContextMenu', () => {
     );
 
     const buttons = screen.getAllByRole('button');
-    expect(buttons[0]).toHaveClass('text-red-400');
-    expect(buttons[1]).not.toHaveClass('text-red-400');
+    expect(buttons[0]).toHaveClass('text-accent-error');
+    expect(buttons[1]).not.toHaveClass('text-accent-error');
   });
 
   it('positions menu at provided coordinates', () => {

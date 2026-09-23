@@ -1,8 +1,7 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Info, AlertCircle, X, Copy, Check } from "lucide-react";
 import { Modal } from "../ui/Modal";
-import { copyTextToClipboard } from "../../utils/clipboard";
+import { useCopyFeedback } from "../../hooks/useCopyFeedback";
 import type { AlertKind } from "../../contexts/AlertContext";
 
 interface AlertModalProps {
@@ -14,26 +13,22 @@ interface AlertModalProps {
 }
 
 const iconConfig: Record<AlertKind, { Icon: typeof Info; bgClass: string; textClass: string }> = {
-  error: { Icon: AlertCircle, bgClass: "bg-red-900/30", textClass: "text-red-400" },
-  warning: { Icon: AlertTriangle, bgClass: "bg-yellow-900/30", textClass: "text-yellow-400" },
-  info: { Icon: Info, bgClass: "bg-blue-900/30", textClass: "text-blue-400" },
+  error: { Icon: AlertCircle, bgClass: "bg-accent-error/15", textClass: "text-accent-error" },
+  warning: { Icon: AlertTriangle, bgClass: "bg-accent-warning/15", textClass: "text-accent-warning" },
+  info: { Icon: Info, bgClass: "bg-accent-primary/15", textClass: "text-accent" },
 };
 
 export const AlertModal = ({ isOpen, onClose, title, message, kind }: AlertModalProps) => {
   const { t } = useTranslation();
   const { Icon, bgClass, textClass } = iconConfig[kind];
-  const [copied, setCopied] = useState(false);
+  const { copied, copy, reset } = useCopyFeedback(1500);
 
   const handleClose = () => {
-    setCopied(false);
+    reset();
     onClose();
   };
 
-  const handleCopy = async () => {
-    await copyTextToClipboard(message);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
+  const handleCopy = () => copy(message);
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose}>
@@ -62,12 +57,12 @@ export const AlertModal = ({ isOpen, onClose, title, message, kind }: AlertModal
             onClick={handleCopy}
             className="flex items-center gap-2 px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
-            {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+            {copied ? <Check size={14} className="text-accent-success" /> : <Copy size={14} />}
             {copied ? t("common.copied") : t("common.copy")}
           </button>
           <button
             onClick={handleClose}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors"
           >
             {t("common.ok", "OK")}
           </button>

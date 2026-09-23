@@ -197,7 +197,7 @@ export const FieldEditor = ({
       value={String(value ?? "")}
       onChange={(e) => onChange(e.target.value)}
       placeholder={defaultPlaceholder}
-      className={`w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary font-mono resize-none min-h-[80px] focus:border-blue-500 focus:outline-none ${className}`}
+      className={`w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary font-mono resize-none min-h-[80px] focus:border-focus focus:outline-none ${className}`}
     />
   );
 
@@ -215,7 +215,7 @@ export const FieldEditor = ({
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="px-2 py-1 text-xs bg-purple-900/20 text-purple-400 rounded border border-purple-900/50 hover:bg-purple-900/30 transition-colors flex items-center gap-1"
+            className="px-2 py-1 text-xs bg-accent-secondary/10 text-accent-secondary rounded border border-accent-secondary/25 hover:bg-accent-secondary/15 transition-colors flex items-center gap-1"
             title={t("dataGrid.setGenerate")}
           >
             <Sparkles size={12} />
@@ -237,7 +237,7 @@ export const FieldEditor = ({
           <button
             type="button"
             onClick={() => onChange(isInsertion ? null : USE_DEFAULT_SENTINEL)}
-            className="px-2 py-1 text-xs bg-blue-900/20 text-blue-400 rounded border border-blue-900/50 hover:bg-blue-900/30 transition-colors flex items-center gap-1"
+            className="px-2 py-1 text-xs bg-accent-primary/10 text-accent rounded border border-accent-primary/25 hover:bg-accent-primary/15 transition-colors flex items-center gap-1"
             title={t("dataGrid.setDefault")}
           >
             <FileDigit size={12} />

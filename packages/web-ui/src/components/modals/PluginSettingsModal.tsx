@@ -106,7 +106,7 @@ export const PluginSettingsModal = ({
   const renderField = (def: PluginSettingDefinition) => {
     const value = dynamicValues[def.key];
     const inputClass =
-      "bg-base border-default text-primary placeholder:text-muted focus:border-blue-500/50 focus:outline-none";
+      "bg-base border-default text-primary placeholder:text-muted focus:border-focus/50 focus:outline-none";
     const canReset = def.default !== undefined;
     const isDefaultValue = canReset && Object.is(value, def.default);
 
@@ -130,7 +130,7 @@ export const PluginSettingsModal = ({
             type="checkbox"
             checked={typeof value === "boolean" ? value : false}
             onChange={(e) => handleDynamicChange(def.key, e.target.checked)}
-            className="w-4 h-4 accent-blue-500"
+            className="w-4 h-4 accent-accent-primary"
           />
           {resetButton}
         </div>
@@ -186,8 +186,8 @@ export const PluginSettingsModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-900/30 rounded-lg">
-              <Settings size={20} className="text-blue-400" />
+            <div className="p-2 bg-accent-primary/15 rounded-lg">
+              <Settings size={20} className="text-accent" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
@@ -217,7 +217,7 @@ export const PluginSettingsModal = ({
                 value={interpreter}
                 placeholder={t("settings.plugins.pluginSettings.interpreterPlaceholder")}
                 onChange={(e) => setInterpreter(e.target.value)}
-                className="flex-1 bg-base border border-default rounded-lg px-3 py-2 text-sm text-primary placeholder:text-muted focus:outline-none focus:border-blue-500/50"
+                className="flex-1 bg-base border border-default rounded-lg px-3 py-2 text-sm text-primary placeholder:text-muted focus:outline-none focus:border-focus/50"
                 autoFocus
               />
               <button
@@ -242,14 +242,14 @@ export const PluginSettingsModal = ({
             <div key={def.key} className="space-y-1.5">
               <label className="text-sm font-medium text-primary flex items-center gap-1">
                 {getSettingLabel(def)}
-                {def.required && <span className="text-red-400">*</span>}
+                {def.required && <span className="text-accent-error">*</span>}
               </label>
               {getSettingDescription(def) && (
                 <p className="text-xs text-secondary">{getSettingDescription(def)}</p>
               )}
               {renderField(def)}
               {errors[def.key] && (
-                <p className="text-xs text-red-400">{errors[def.key]}</p>
+                <p className="text-xs text-accent-error">{errors[def.key]}</p>
               )}
             </div>
           ))}
@@ -265,7 +265,7 @@ export const PluginSettingsModal = ({
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors"
           >
             {t("common.save")}
           </button>

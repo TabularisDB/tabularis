@@ -8,6 +8,10 @@ Tabularis supports extending its capabilities via a JSON-RPC based external plug
 
 This guide details how to implement and register a custom external plugin.
 
+Plugins that connect to more than one database engine can opt in to
+[connection metadata discovery](./CONNECTION_METADATA.md) to report capabilities
+and data types for each connection. Existing plugins keep their static manifests.
+
 ---
 
 ## 1. Plugin Architecture
@@ -37,21 +41,28 @@ A Tabularis plugin is distributed as a `.zip` file. When extracted into the plug
 
 ```text
 plugins/
-└── duckdb/
-    ├── .tabularium  (or legacy manifest.json)
-    └── duckdb-plugin  (or duckdb-plugin.exe on Windows)
+└── drivers/
+    └── duckdb/
+        ├── .tabularium  (or legacy manifest.json)
+        └── duckdb-plugin  (or duckdb-plugin.exe on Windows)
 ```
+
+Installations and updates always use `plugins/<kind-folder>/<name>/`, mapping `theme` to `themes`, `driver` to `drivers`, and otherwise keeping the kind unchanged. Legacy or manually copied `plugins/<name>/` bundles are a discovery fallback; the kind-scoped copy wins. An absent manifest `kind` means `driver`; declarative themes use `theme` and are never started as drivers.
 
 ### The `.tabularium` manifest
 
-One manifest tells Tabularis everything about your plugin — and, when you publish, tells the Tabularium registry how to list it. Its canonical name is **`.tabularium`**; the host still reads a legacy `manifest.json` as a fallback. In a `.tabularium`, `name` is the lowercase slug that identifies the plugin (legacy manifests may keep a separate `id` and a display `name`). When publishing, the registry resolves the manifest from your **release assets** — upload `.tabularium` as a standalone asset (GitHub silently renames the dotfile to `default.tabularium`; the registry accepts both names).
+One manifest tells Tabularis everything about your plugin — and, when you publish, tells the Tabularium registry how to list it. Its canonical name is **`.tabularium`**; the host still reads a legacy `manifest.json` as a fallback. With Tabularium 0.14.0+, use `id` as the stable lowercase identifier and `name` as the human-readable display name. Existing manifests without `id` remain supported: their `name` continues to supply the identifier. When publishing, the registry resolves the manifest from your **release assets** — upload `.tabularium` as a standalone asset (GitHub silently renames the dotfile to `default.tabularium`; the registry accepts both names).
 
 > **JSON Schema available:** point `$schema` at the registry's live merged schema (as below) for IDE autocompletion and validation, or at the local [`plugins/manifest.schema.json`](./manifest.schema.json) for legacy `manifest.json` files.
 
 ```json
 {
   "$schema": "https://registry.tabularis.dev/manifest.schema.json?kind=driver",
-  "name": "duckdb",
+  "id": "duckdb",
+  "name": "DuckDB",
+  "kind": "driver",
+  "engine": "duckdb",
+  "paradigms": ["sql"],
   "version": "1.0.0",
   "description": "DuckDB file-based analytical database",
   "default_port": null,
@@ -86,8 +97,9 @@ One manifest tells Tabularis everything about your plugin — and, when you publ
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Lowercase slug identifying the plugin (e.g., `"duckdb"`). Must match the folder name and the registry pattern `^[a-z][a-z0-9-]*$`; it becomes the registry slug and is pinned at first submit. |
-| `id` | string | Legacy identifier from `manifest.json`-era plugins. Optional — when absent, identity falls back to `name`. Omit in new `.tabularium` manifests; the registry ignores it. |
+| `name` | string | Human-readable display name (e.g., `"SQLite JDBC"`, 1–120 characters). Without `id`, this remains the legacy lowercase identifier (1–64 characters). |
+| `id` | string | Stable identifier used in saved connections, the plugin folder and registry URLs; 1–64 characters matching `^[a-z][a-z0-9-]*$`. Recommended for new manifests. Must equal the existing registry slug when migrating. |
+| `engine` | string | Shared database engine (e.g., `"sqlite"` for `"jdbc-sqlite"`). Groups alternative drivers under the same engine; omit only when the plugin should form its own group. |
 | `version` | string | Plugin version (semver, **no leading `v`**). Must equal the release tag with any `v` prefix stripped — the registry rejects tag/manifest mismatches. |
 | `description` | string | Short description shown in the plugins list. Optional for the registry; max **280 chars**. |
 | `default_port` | number \| null | Default TCP port. Use `null` for file-based databases. |
@@ -95,6 +107,10 @@ One manifest tells Tabularis everything about your plugin — and, when you publ
 | `capabilities` | object | Feature flags (see below). |
 | `data_types` | array | List of supported data types (see below). |
 | `type_mappings` | object \| null | Optional map of generic inferred type names to driver-specific types. Used during paste/import to map generic types (e.g. `DATETIME`) to driver-native equivalents (e.g. `TIMESTAMP`). See [Type Mappings](#type-mappings) below. |
+
+### Migrating display names
+
+Upgrade the registry before publishing the new format. Add `id` equal to the **existing registry slug**, then change `name` to the display name. Do not rename installed-plugin folders, saved driver IDs or registry entries, and do not rewrite historical release archives. For JDBC, use `id: "jdbc-sqlite"`, `name: "SQLite JDBC"`, `engine: "sqlite"` in both the source manifest and generator. Known/shared engine cards retain their engine title; standalone plugin cards use the display name.
 
 ### Capabilities
 
@@ -342,7 +358,7 @@ Add an optional `ui_extensions` array to your manifest:
 | `settings.plugin.actions` | Per-plugin actions in Settings modal | `targetPluginId` | Diagnostics, re-auth buttons |
 | `settings.plugin.before_settings` | Content above plugin settings form | `targetPluginId` | OAuth panels, status banners |
 | `connection-modal.connection_content` | Inside the connection form | `driver` | Custom connection fields |
-| `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField` | Plugin-specific connection fields (e.g. AWS region) |
+| `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField`, `credentialFieldsHidden`, `setCredentialFieldsHidden` | Plugin-specific connection fields (e.g. AWS region). `setCredentialFieldsHidden(true)` hides and clears the host username/password inputs for drivers that authenticate without a login; while hidden the host also ignores the login of an imported connection string and drops the stored password on save |
 
 ### SlotContext
 
@@ -531,6 +547,70 @@ For the full specification, see [`plugin-ui-extensions-spec.md`](https://tabular
 
 ---
 
+## 3c. Plugin-owned EXPLAIN parsers
+
+A plugin that returns the raw `explain_query` shape can ship the matching
+TypeScript parser as an IIFE bundle. Declare each parser in the optional
+`explain_parsers` manifest array:
+
+```json
+{
+  "explain_parsers": [
+    {
+      "engine": "example-db",
+      "format": "example-db-plan-text",
+      "label": "Example DB plan",
+      "module": "explain/dist/index.iife.js"
+    }
+  ]
+}
+```
+
+`engine`, `format`, and `module` are required non-empty strings. `label` is
+optional. The module path is relative to the installed plugin directory and
+must not be absolute or contain `..`.
+
+Build the module as an IIFE named `__tabularis_explain_parser__`, externalize
+`@tabularis/explain` to `__TABULARIS_EXPLAIN__`, and default-export either one
+`RegisteredExplainParser` or an array. The host reads each declared module
+once, matches exports by exact `engine` and `format`, applies the manifest
+label, and calls `registerExplainParser`. For example:
+
+```ts
+import type { RegisteredExplainParser } from "@tabularis/explain";
+import { parseExamplePlan } from "./parser";
+
+const parser: RegisteredExplainParser = {
+  engine: "example-db",
+  format: "example-db-plan-text",
+  label: "Example DB plan",
+  parse: parseExamplePlan,
+  sniff: (payload) => payload.startsWith("EXAMPLE PLAN"),
+};
+
+export default parser;
+```
+
+Use a separate IIFE entry that only exports the descriptor. Do not
+self-register in that entry because the desktop loader performs registration.
+A package entry intended for npm may register itself when imported. Bundle
+read, evaluation, and descriptor failures are isolated per plugin; parser
+exceptions during actual parsing propagate to Visual EXPLAIN's normal error
+handling.
+
+When enabled plugins change, Tabularis removes the formats loaded by the
+previous pass and reloads enabled plugin manifests in sorted plugin-id order.
+This makes disable and re-enable cycles deterministic. The plugin's minimum
+runtime version must be the first Tabularis release that supports both raw
+plugin EXPLAIN output and parser bundles. The host enforces
+`min_runtime_version` at install and load time: an older Tabularis refuses the
+plugin with a message naming both versions instead of failing later in Visual
+EXPLAIN. Development builds of Tabularis load the plugin anyway and show the
+mismatch as a warning toast, so a plugin can be tested against unreleased host
+features.
+
+---
+
 ## 4. Implementing the JSON-RPC Interface
 
 Your plugin must run an event loop that:
@@ -688,6 +768,8 @@ Get column information for a table.
 ]
 ```
 
+> **Metadata comments:** `comment` is optional in both `get_tables` and `get_columns`. Older plugins may omit it or return `null`; Tabularis treats both forms as “description unavailable”. This is an additive response field and does not require a manifest capability or `min_runtime_version`. When present, the host displays it in the schema inspector, explorer tooltips, and table-browse grid headers.
+>
 > **JSON / JSONB columns:** Set `data_type` to `"JSON"` or `"JSONB"` (matched case-insensitively) to make Tabularis render the cell with syntax highlighting and expose the JSON editor window. In `execute_query` row data, send the cell as either a native JSON value (object/array/scalar) or a JSON-formatted string — both are accepted. For text-typed columns that hold JSON, end users can opt in per connection via the **Detect JSON in text columns** setting; no plugin change required.
 
 ---
@@ -961,6 +1043,76 @@ Execute a SQL query and return results.
 
 ---
 
+#### `explain_query`
+
+Run EXPLAIN or EXPLAIN ANALYZE for a query. Plugins may return either the
+historical parsed plan shape or a raw payload for a parser registered with the
+host.
+
+**Params:**
+
+```json
+{
+  "params": "ConnectionParams",
+  "query": "SELECT * FROM users WHERE id = 42",
+  "analyze": false,
+  "schema": "public"
+}
+```
+
+**Parsed plan result:**
+
+```json
+{
+  "root": {
+    "id": "node-0",
+    "node_type": "Index Scan",
+    "relation": "users",
+    "startup_cost": 0.15,
+    "total_cost": 8.17,
+    "plan_rows": 1,
+    "actual_rows": null,
+    "actual_time_ms": null,
+    "actual_loops": null,
+    "buffers_hit": null,
+    "buffers_read": null,
+    "filter": null,
+    "index_condition": "id = 42",
+    "join_type": null,
+    "hash_condition": null,
+    "extra": {},
+    "children": []
+  },
+  "planning_time_ms": 0.12,
+  "execution_time_ms": null,
+  "original_query": "SELECT * FROM users WHERE id = 42",
+  "driver": "example-db",
+  "has_analyze_data": false,
+  "raw_output": null
+}
+```
+
+**Raw result:**
+
+```json
+{
+  "engine": "example-db",
+  "format": "example-db-plan-text",
+  "payload": "raw plan payload",
+  "original_query": "SELECT * FROM users WHERE id = 42"
+}
+```
+
+The raw shape is detected only when `engine`, `format`, and `payload` are all
+strings. `original_query` may be omitted or `null`; the host then fills it from
+the request. Use a `format` registered by the plugin's EXPLAIN parser bundle.
+A plugin returning the raw shape requires a Tabularis host new enough to
+understand raw plugin output and load that bundle, so set `min_runtime_version`
+to the first compatible host release. Older parsed-plan plugins remain
+supported permanently.
+
+---
+
 ### CRUD Operations
 
 #### `insert_record`
@@ -1158,7 +1310,7 @@ Return foreign keys for all tables at once.
 
 ### DDL Generation
 
-These methods generate SQL statements. Tabularis may display the SQL to the user before executing it.
+These methods generate SQL statements. Tabularis may display the SQL to the user before executing it. When `get_tables` / `get_columns` return comments, the host preserves them in generated inspection SQL for MySQL-family dialects and dialects that use `COMMENT ON` (currently PostgreSQL and Oracle). Other dialects continue to receive the existing DDL without comments; no manifest change is required.
 
 #### `get_create_table_sql`
 
@@ -1347,9 +1499,9 @@ You should see a valid JSON-RPC response on stdout.
 ### Installing Locally
 
 1. Create the plugin directory in Tabularis's data folder:
-   - **Linux:** `~/.local/share/tabularis/plugins/myplugin/`
-   - **macOS:** `~/Library/Application Support/tabularis/plugins/myplugin/`
-   - **Windows:** `%APPDATA%\tabularis\plugins\myplugin\`
+   - **Linux:** `~/.local/share/tabularis/plugins/drivers/myplugin/`
+   - **macOS:** `~/Library/Application Support/tabularis/plugins/drivers/myplugin/`
+   - **Windows:** `%APPDATA%\tabularis\plugins\drivers\myplugin\`
 2. Place your `.tabularium` (or legacy `manifest.json`) and the compiled executable in that directory.
 3. On Linux/macOS, make the executable runnable: `chmod +x myplugin`
 4. Restart Tabularis (or install via Settings to hot-reload without restart).

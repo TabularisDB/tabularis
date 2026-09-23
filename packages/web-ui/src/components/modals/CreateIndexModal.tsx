@@ -124,8 +124,8 @@ export const CreateIndexModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="bg-green-900/30 p-2 rounded-lg">
-              <ListTree size={20} className="text-green-400" />
+            <div className="bg-accent-success/15 p-2 rounded-lg">
+              <ListTree size={20} className="text-accent-success" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">{t('createIndex.title')}</h2>
@@ -144,7 +144,7 @@ export const CreateIndexModal = ({
                 <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
                     value={indexName}
                     onChange={(e) => { setIndexName(e.target.value); setError(''); }}
-                    className={`w-full bg-base border rounded-lg px-3 py-2 text-primary text-sm focus:border-blue-500 focus:outline-none font-mono ${!indexName.trim() && error ? 'border-red-500' : 'border-strong'}`}
+                    className={`w-full bg-base border rounded-lg px-3 py-2 text-primary text-sm focus:border-focus focus:outline-none font-mono ${!indexName.trim() && error ? 'border-accent-error' : 'border-strong'}`}
                     placeholder="idx_table_column"
                     autoFocus
                 />
@@ -164,9 +164,9 @@ export const CreateIndexModal = ({
                                     type="checkbox"
                                     checked={selectedColumns.includes(col.name)}
                                     onChange={() => toggleColumn(col.name)}
-                                    className="accent-blue-500"
+                                    className="accent-accent-primary"
                                 />
-                                <span className={`text-sm font-mono ${selectedColumns.includes(col.name) ? 'text-accent-primary' : 'text-secondary'}`}>
+                                <span className={`text-sm font-mono ${selectedColumns.includes(col.name) ? 'text-accent' : 'text-secondary'}`}>
                                     {col.name}
                                 </span>
                             </label>
@@ -181,7 +181,7 @@ export const CreateIndexModal = ({
                     id="isUnique"
                     checked={isUnique}
                     onChange={(e) => setIsUnique(e.target.checked)}
-                    className="accent-blue-500"
+                    className="accent-accent-primary"
                 />
                 <label htmlFor="isUnique" className="text-sm text-secondary select-none cursor-pointer">
                     {t('createIndex.unique')}
@@ -210,7 +210,7 @@ export const CreateIndexModal = ({
            <button
              onClick={handleCreate}
              disabled={loading || selectedColumns.length === 0 || !indexName.trim()}
-             className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
+             className="bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-inverse px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-accent-primary/20 transition-all"
            >
              {loading && <Loader2 size={16} className="animate-spin" />}
              <Save size={16} /> {t('createIndex.create')}

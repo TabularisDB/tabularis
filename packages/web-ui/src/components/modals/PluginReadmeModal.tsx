@@ -35,7 +35,7 @@ const README_PROSE =
   "[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 " +
   "[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 " +
   "[&_li]:mb-1 " +
-  "[&_a]:text-blue-400 [&_a]:underline [&_a]:cursor-pointer " +
+  "[&_a]:text-accent [&_a]:underline [&_a]:cursor-pointer " +
   "[&_blockquote]:border-l-2 [&_blockquote]:border-muted [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted " +
   "[&_hr]:border-default [&_hr]:my-4 " +
   "[&_img]:max-w-full [&_img]:rounded " +
@@ -128,8 +128,8 @@ export function PluginReadmeModal({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 bg-blue-900/30 rounded-lg">
-              <BookOpen size={18} className="text-blue-400" />
+            <div className="p-2 bg-accent-primary/15 rounded-lg">
+              <BookOpen size={18} className="text-accent" />
             </div>
             <div className="min-w-0">
               <h2 className="truncate text-lg font-semibold capitalize text-primary">
@@ -174,7 +174,10 @@ export function PluginReadmeModal({
               })}
             </div>
           ) : safeHtml ? (
+            // Delegates clicks from the README's <a> elements, which stay
+            // focusable and fire click on Enter, so the wrapper needs no role.
             <div
+              role="presentation"
               className={README_PROSE}
               onClick={handleContentClick}
               dangerouslySetInnerHTML={{ __html: safeHtml }}
@@ -208,7 +211,7 @@ export function PluginReadmeModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
+            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors cursor-pointer"
           >
             {t("common.close")}
           </button>

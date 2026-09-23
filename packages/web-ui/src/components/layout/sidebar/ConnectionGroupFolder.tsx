@@ -69,7 +69,7 @@ export const ConnectionGroupFolder = ({
       <div
         className={clsx(
           "relative group w-full flex flex-col items-center mb-0.5",
-          isDragOver && "ring-2 ring-blue-400 rounded-lg"
+          isDragOver && "ring-2 ring-accent-primary rounded-lg"
         )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -84,9 +84,9 @@ export const ConnectionGroupFolder = ({
         >
           <div className="relative">
             {group.collapsed ? (
-              <Folder size={20} className="text-amber-400/70" />
+              <Folder size={20} className="text-accent-warning/70" />
             ) : (
-              <FolderOpen size={20} className="text-amber-400" />
+              <FolderOpen size={20} className="text-accent-warning" />
             )}
             {/* Connection count badge */}
             {connections.length > 0 && (

@@ -42,17 +42,23 @@ fn normalise_platform_key(raw: &str) -> String {
 }
 
 /// Build a fresh SDK client against the operator-configured base URL.
-/// The client is cheap to construct (wraps a `reqwest::Client`), so callers
-/// don't need to cache it for one-shot fetches.
-fn make_client(base_url: &str) -> Client {
-    Client::new(normalise_base(base_url))
+///
+/// `tabularium-sdk` pins reqwest 0.12, so we inject [`crate::proxy::app_http_client_012`]
+/// (same `app_http` scope / proxy URL as plugin ZIP downloads and the legacy
+/// `raw.githubusercontent.com` registry). Proxy build failures are surfaced
+/// rather than silently falling back to a direct client.
+fn make_client(base_url: &str) -> Result<Client, String> {
+    let base = normalise_base(base_url);
+    let http = crate::proxy::app_http_client_012()?;
+    Ok(Client::new_with_client(base, http))
 }
 
 /// Fetch the first page of plugins. The SDK exposes pagination via
 /// `limit(...).page(...)`; we ask for the maximum the registry serves
 /// (200 fits the typical Tabularis install in one round-trip).
 pub async fn fetch_plugin_list(base_url: &str) -> Result<Vec<RegistryPlugin>, String> {
-    let client = make_client(base_url);
+    let client = make_client(base_url)?;
+    let kinds = fetch_kind_keys(&client).await?;
     let resp = client
         .list_plugins()
         .limit("200")
@@ -60,7 +66,61 @@ pub async fn fetch_plugin_list(base_url: &str) -> Result<Vec<RegistryPlugin>, St
         .await
         .map_err(|e| format!("Tabularium list_plugins failed: {}", e))?;
     let body = resp.into_inner();
-    Ok(body.plugins.into_iter().map(list_item_to_plugin).collect())
+    Ok(body
+        .plugins
+        .into_iter()
+        .map(|item| {
+            let mut plugin = list_item_to_plugin(item);
+            plugin.kind = super::registry_kind::classify(&plugin.tags, &kinds);
+            plugin
+        })
+        .collect())
+}
+
+async fn fetch_kind_keys(client: &Client) -> Result<Vec<String>, String> {
+    let response = client
+        .list_kinds()
+        .send()
+        .await
+        .map_err(|e| format!("Tabularium list_kinds failed: {e}"))?
+        .into_inner();
+    if response.kinds.len() > 128 {
+        return Err("Registry kind count exceeds limit".into());
+    }
+    Ok(response.kinds.into_iter().map(|kind| kind.key).collect())
+}
+
+/// Theme discovery uses the registry's kind filter and bounded pagination;
+/// drivers cannot consume the first page and hide all themes from discovery.
+pub async fn fetch_theme_list(base_url: &str) -> Result<Vec<RegistryPlugin>, String> {
+    let client = make_client(base_url)?;
+    let kinds = fetch_kind_keys(&client).await?;
+    let mut plugins = Vec::new();
+    let mut ids = std::collections::HashSet::new();
+    for page in 1..=10 {
+        let response = client
+            .list_plugins()
+            .kind("theme")
+            .limit("100")
+            .page(page.to_string())
+            .send()
+            .await
+            .map_err(|e| format!("Tabularium theme list failed: {e}"))?
+            .into_inner();
+        let count = response.plugins.len();
+        let total = response.total;
+        for item in response.plugins {
+            let mut plugin = list_item_to_plugin(item);
+            plugin.kind = super::registry_kind::classify(&plugin.tags, &kinds);
+            if plugin.kind.as_deref() == Some("theme") && ids.insert(plugin.id.clone()) {
+                plugins.push(plugin);
+            }
+        }
+        if count == 0 || (page * 100) as f64 >= total {
+            return Ok(plugins);
+        }
+    }
+    Err("Theme registry exceeds the discovery limit of 1000 entries".into())
 }
 
 /// Fetch full detail for one plugin (releases + per-asset sha256/url).
@@ -68,14 +128,58 @@ pub async fn fetch_plugin_detail(
     base_url: &str,
     slug: &str,
 ) -> Result<RegistryPlugin, String> {
-    let client = make_client(base_url);
+    let client = make_client(base_url)?;
     let resp = client
         .get_plugin()
         .slug(slug)
         .send()
         .await
         .map_err(|e| format!("Tabularium get_plugin '{}' failed: {}", slug, e))?;
-    Ok(detail_to_plugin(resp.into_inner()))
+    let kinds = fetch_kind_keys(&client).await?;
+    Ok(detail_to_plugin(resp.into_inner(), &kinds))
+}
+
+#[derive(serde::Serialize)]
+pub struct ThemeRegistryDetail {
+    #[serde(flatten)]
+    pub plugin: RegistryPlugin,
+    pub screenshots: Vec<tabularium_sdk::types::GetPluginResponseScreenshotsItem>,
+}
+
+/// Theme-only detail keeps bounded screenshot metadata without changing the
+/// existing driver DTO or fetching screenshot/download assets.
+pub async fn fetch_theme_detail(base_url: &str, slug: &str) -> Result<ThemeRegistryDetail, String> {
+    let client = make_client(base_url)?;
+    let detail = client
+        .get_plugin()
+        .slug(slug)
+        .send()
+        .await
+        .map_err(|e| format!("Tabularium theme detail failed: {e}"))?
+        .into_inner();
+    let kinds = fetch_kind_keys(&client).await?;
+    let screenshots = detail
+        .screenshots
+        .iter()
+        .take(16)
+        .filter(|image| {
+            image.url.len() <= 2048
+                && image.alt.as_ref().map_or(true, |text| text.len() <= 2048)
+                && image
+                    .caption
+                    .as_ref()
+                    .map_or(true, |text| text.len() <= 2048)
+        })
+        .cloned()
+        .collect();
+    let plugin = detail_to_plugin(detail, &kinds);
+    if plugin.kind.as_deref() != Some("theme") {
+        return Err("Registry package is not a theme".into());
+    }
+    Ok(ThemeRegistryDetail {
+        plugin,
+        screenshots,
+    })
 }
 
 /// Fetch a plugin's README from the registry, asking for a specific locale.
@@ -87,7 +191,7 @@ pub async fn fetch_plugin_readme(
     slug: &str,
     locale: Option<&str>,
 ) -> Result<PluginReadme, String> {
-    let client = make_client(base_url);
+    let client = make_client(base_url)?;
     let mut request = client.get_plugin().slug(slug);
     if let Some(locale) = locale.filter(|l| !l.is_empty()) {
         request = request.locale(locale);
@@ -155,7 +259,7 @@ pub async fn resolve_asset(
     version: &str,
     platform: &str,
 ) -> Result<AssetResolution, String> {
-    let client = make_client(base_url);
+    let client = make_client(base_url)?;
     let raw = client
         .get_plugin()
         .slug(slug)
@@ -224,7 +328,7 @@ async fn resolve_expected_sha(
 ) -> Result<Option<String>, String> {
     use tabularium_sdk::types::GetReleaseIntegrityResponse as Integ;
 
-    let client = make_client(base_url);
+    let client = make_client(base_url)?;
     let integ = match client
         .get_release_integrity()
         .slug(slug)
@@ -291,7 +395,18 @@ pub async fn check_release_signature(
     use crate::plugins::registry::SignatureStatus;
     use tabularium_sdk::types::GetReleaseIntegrityResponse as Integ;
 
-    let client = make_client(base_url);
+    let client = match make_client(base_url) {
+        Ok(c) => c,
+        Err(e) => {
+            log::warn!(
+                "Integrity probe client failed for {}@{}: {}",
+                slug,
+                version,
+                e
+            );
+            return SignatureStatus::Unknown;
+        }
+    };
     let integ = match client
         .get_release_integrity()
         .slug(slug)
@@ -376,7 +491,10 @@ fn list_item_to_plugin(item: tabularium_sdk::types::ListPluginsResponsePluginsIt
     }
 }
 
-fn detail_to_plugin(detail: tabularium_sdk::types::GetPluginResponse) -> RegistryPlugin {
+fn detail_to_plugin(
+    detail: tabularium_sdk::types::GetPluginResponse,
+    kinds: &[String],
+) -> RegistryPlugin {
     let latest = detail.latest_version.clone().unwrap_or_else(|| {
         detail
             .releases
@@ -385,15 +503,7 @@ fn detail_to_plugin(detail: tabularium_sdk::types::GetPluginResponse) -> Registr
             .unwrap_or_default()
     });
 
-    // `kind` is folded into `tags` by the registry (Tabularium spec) so the
-    // SDK doesn't expose a separate field. Recover it as the first tag that
-    // matches the registry's kind pattern (`^[a-z0-9][a-z0-9-]*$`) — best
-    // effort, falls back to None when the heuristic doesn't match.
-    let kind = detail
-        .tags
-        .iter()
-        .find(|t| !t.is_empty() && t.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'))
-        .cloned();
+    let kind = super::registry_kind::classify(&detail.tags, kinds);
 
     let facets = serde_json::to_value(&detail).unwrap_or(serde_json::Value::Null);
     let (engine, paradigms, verified) = extract_driver_facets(&facets);
@@ -405,7 +515,34 @@ fn detail_to_plugin(detail: tabularium_sdk::types::GetPluginResponse) -> Registr
         author: detail.author,
         homepage: choose_homepage(detail.homepage.clone(), detail.repo_url.clone()),
         latest_version: latest,
-        releases: detail.releases.iter().map(release_to_legacy).collect(),
+        // Theme asset cardinality is exact. Do not normalize platform aliases
+        // or silently drop malformed extra assets before the theme validator.
+        releases: if kind.as_deref() == Some("theme") {
+            detail
+                .releases
+                .iter()
+                .map(|release| PluginRelease {
+                    version: release.version.clone(),
+                    min_tabularis_version: release.min_runtime_version.clone(),
+                    assets: release
+                        .assets
+                        .iter()
+                        .map(|(key, value)| {
+                            (
+                                key.clone(),
+                                value
+                                    .get("url")
+                                    .and_then(serde_json::Value::as_str)
+                                    .unwrap_or("")
+                                    .to_string(),
+                            )
+                        })
+                        .collect(),
+                })
+                .collect()
+        } else {
+            detail.releases.iter().map(release_to_legacy).collect()
+        },
         icon: detail.icon_url,
         repo_url: nonempty(detail.repo_url),
         kind,

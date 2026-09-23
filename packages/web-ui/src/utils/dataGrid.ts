@@ -194,6 +194,107 @@ export function calculateSelectionRange(
   return range;
 }
 
+/** Normalized rectangular cell range (inclusive bounds). */
+export interface CellRangeRect {
+  minRow: number;
+  maxRow: number;
+  minCol: number;
+  maxCol: number;
+}
+
+export interface CellPosition {
+  rowIndex: number;
+  colIndex: number;
+}
+
+/** Arrow keys that extend a cell range when pressed with Shift. */
+export type RangeExtendKey =
+  | "ArrowUp"
+  | "ArrowDown"
+  | "ArrowLeft"
+  | "ArrowRight";
+
+/**
+ * Returns the corner of a range opposite to the anchor — the cell that moves
+ * when the range is extended with Shift+Arrow (Google Sheets semantics: the
+ * anchor stays put, the active corner walks).
+ */
+export function getRangeCursor(
+  anchor: CellPosition,
+  range: CellRangeRect | null,
+): CellPosition {
+  if (!range) return anchor;
+  return {
+    rowIndex: anchor.rowIndex === range.minRow ? range.maxRow : range.minRow,
+    colIndex: anchor.colIndex === range.minCol ? range.maxCol : range.minCol,
+  };
+}
+
+/** Builds the normalized rectangle spanning two cells. */
+export function buildCellRange(
+  a: CellPosition,
+  b: CellPosition,
+): CellRangeRect {
+  return {
+    minRow: Math.min(a.rowIndex, b.rowIndex),
+    maxRow: Math.max(a.rowIndex, b.rowIndex),
+    minCol: Math.min(a.colIndex, b.colIndex),
+    maxCol: Math.max(a.colIndex, b.colIndex),
+  };
+}
+
+/**
+ * Moves a cell position in the direction of an arrow key, clamped to the grid.
+ * With `toEdge` the position jumps straight to the first/last row or column
+ * (spreadsheet Ctrl+Arrow); otherwise it moves a single step.
+ */
+export function moveCellPosition(
+  pos: CellPosition,
+  key: RangeExtendKey,
+  totalRows: number,
+  totalCols: number,
+  toEdge = false,
+): CellPosition {
+  let { rowIndex, colIndex } = pos;
+  switch (key) {
+    case "ArrowUp":
+      rowIndex = toEdge ? 0 : Math.max(0, rowIndex - 1);
+      break;
+    case "ArrowDown":
+      rowIndex = toEdge ? totalRows - 1 : Math.min(totalRows - 1, rowIndex + 1);
+      break;
+    case "ArrowLeft":
+      colIndex = toEdge ? 0 : Math.max(0, colIndex - 1);
+      break;
+    case "ArrowRight":
+      colIndex = toEdge ? totalCols - 1 : Math.min(totalCols - 1, colIndex + 1);
+      break;
+  }
+  return { rowIndex, colIndex };
+}
+
+/**
+ * Extends (or shrinks) a cell range from its moving corner while keeping the
+ * anchor fixed — one step by default, straight to the grid edge with `toEdge`
+ * (Shift+Arrow vs Ctrl+Shift+Arrow). Returns the new range and cursor, or
+ * null when the cursor is already at the grid edge in that direction.
+ */
+export function extendCellRange(
+  anchor: CellPosition,
+  range: CellRangeRect | null,
+  key: RangeExtendKey,
+  totalRows: number,
+  totalCols: number,
+  toEdge = false,
+): { range: CellRangeRect; cursor: CellPosition } | null {
+  const cursor = getRangeCursor(anchor, range);
+  const next = moveCellPosition(cursor, key, totalRows, totalCols, toEdge);
+  if (next.rowIndex === cursor.rowIndex && next.colIndex === cursor.colIndex) {
+    return null;
+  }
+  return { range: buildCellRange(anchor, next), cursor: next };
+}
+
 /**
  * Toggles a value in a Set (adds if not present, removes if present)
  * @param set - The Set to modify
@@ -347,31 +448,31 @@ export function getCellStateClass(params: CellClassParams): string {
   const isPlaceholder = isAutoIncrementPlaceholder || isDefaultValuePlaceholder;
 
   if (isPendingDelete) {
-    return "text-red-400/60 line-through decoration-red-500/30";
+    return "text-semantic-deleted/60 line-through decoration-semantic-deleted/30";
   }
 
   if (isSelected && isInsertion) {
     if (isPlaceholder) return "text-muted italic select-none";
     if (isModified)
       return isJsonCell
-        ? "bg-blue-500/40 border-l-2 border-l-blue-400"
-        : "bg-blue-600/20 text-blue-200 italic font-medium";
-    return isJsonCell ? "bg-blue-900/20" : "bg-blue-900/20 text-secondary italic";
+        ? "bg-semantic-modified/25 border-l-2 border-l-semantic-modified"
+        : "bg-semantic-modified/20 text-semantic-modified italic font-medium";
+    return isJsonCell ? "bg-accent-primary/10" : "bg-accent-primary/10 text-secondary italic";
   }
 
   if (isInsertion) {
     if (isPlaceholder) return "text-muted italic select-none";
     if (isModified)
       return isJsonCell
-        ? "bg-green-500/40 border-l-2 border-l-green-400"
-        : "bg-green-500/15 text-green-200 italic";
-    return isJsonCell ? "bg-green-500/5" : "bg-green-500/5 text-secondary italic";
+        ? "bg-semantic-new/25 border-l-2 border-l-semantic-new"
+        : "bg-semantic-new/15 text-semantic-new italic";
+    return isJsonCell ? "bg-semantic-new/5" : "bg-semantic-new/5 text-secondary italic";
   }
 
   if (isModified) {
     return isJsonCell
-      ? "bg-blue-500/40 border-l-2 border-l-blue-400"
-      : "bg-blue-600/30 text-blue-100 italic font-medium";
+      ? "bg-semantic-modified/25 border-l-2 border-l-semantic-modified"
+      : "bg-semantic-modified/30 text-semantic-modified italic font-medium";
   }
 
   return isJsonCell ? "" : "text-secondary";

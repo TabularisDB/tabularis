@@ -119,17 +119,17 @@
       "description": "Tabularis driver plugin for AWS DynamoDB",
       "author": "fuleinist <https://github.com/fuleinist>",
       "homepage": "https://github.com/TabularisDB/tabularis-dynamodb-plugin",
-      "latest_version": "0.1.5",
+      "latest_version": "0.1.7",
       "releases": [
         {
-          "version": "0.1.5",
+          "version": "0.1.7",
           "min_tabularis_version": "0.15.0",
           "assets": {
-            "linux-x64": "https://github.com/TabularisDB/tabularis-dynamodb-plugin/releases/download/v0.1.5/dynamodb-plugin-linux-x64.zip",
-            "linux-arm64": "https://github.com/TabularisDB/tabularis-dynamodb-plugin/releases/download/v0.1.5/dynamodb-plugin-linux-arm64.zip",
-            "darwin-x64": "https://github.com/TabularisDB/tabularis-dynamodb-plugin/releases/download/v0.1.5/dynamodb-plugin-darwin-x64.zip",
-            "darwin-arm64": "https://github.com/TabularisDB/tabularis-dynamodb-plugin/releases/download/v0.1.5/dynamodb-plugin-darwin-arm64.zip",
-            "win-x64": "https://github.com/TabularisDB/tabularis-dynamodb-plugin/releases/download/v0.1.5/dynamodb-plugin-win-x64.zip"
+            "linux-x64": "https://github.com/TabularisDB/tabularis-dynamodb-plugin/releases/download/v0.1.7/dynamodb-plugin-linux-x64.zip",
+            "linux-arm64": "https://github.com/TabularisDB/tabularis-dynamodb-plugin/releases/download/v0.1.7/dynamodb-plugin-linux-arm64.zip",
+            "darwin-x64": "https://github.com/TabularisDB/tabularis-dynamodb-plugin/releases/download/v0.1.7/dynamodb-plugin-darwin-x64.zip",
+            "darwin-arm64": "https://github.com/TabularisDB/tabularis-dynamodb-plugin/releases/download/v0.1.7/dynamodb-plugin-darwin-arm64.zip",
+            "win-x64": "https://github.com/TabularisDB/tabularis-dynamodb-plugin/releases/download/v0.1.7/dynamodb-plugin-win-x64.zip"
           }
         }
       ]

@@ -186,19 +186,19 @@ export const ImportDatabaseModal = ({
             {isImporting && (
               <Loader2
                 size={48}
-                className="animate-spin text-blue-500"
+                className="animate-spin text-accent"
               />
             )}
             {success && (
               <CheckCircle2
                 size={48}
-                className="text-green-500"
+                className="text-accent-success"
               />
             )}
             {error && !isImporting && (
               <XCircle
                 size={48}
-                className="text-red-500"
+                className="text-accent-error"
               />
             )}
           </div>
@@ -211,7 +211,7 @@ export const ImportDatabaseModal = ({
                 <>
                   <div className="w-full bg-surface-secondary rounded-full h-3 overflow-hidden border border-default">
                     <div
-                      className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300 ease-out"
+                      className="h-full bg-gradient-to-r from-accent-primary to-accent-primary transition-all duration-300 ease-out"
                       style={{ width: `${progress.percentage}%` }}
                     />
                   </div>
@@ -233,7 +233,7 @@ export const ImportDatabaseModal = ({
                 <>
                   {/* Indeterminate progress bar when total is unknown */}
                   <div className="w-full bg-surface-secondary rounded-full h-3 overflow-hidden border border-default">
-                    <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 animate-pulse w-full" />
+                    <div className="h-full bg-gradient-to-r from-accent-primary to-accent-primary animate-pulse w-full" />
                   </div>
 
                   {/* Show only executed count */}
@@ -262,7 +262,7 @@ export const ImportDatabaseModal = ({
 
           {/* Success Message */}
           {success && (
-            <div className="text-center text-green-500 font-medium">
+            <div className="text-center text-accent-success font-medium">
               {t("dump.importSuccess")}
             </div>
           )}
@@ -270,13 +270,13 @@ export const ImportDatabaseModal = ({
           {/* Error Message */}
           {error && !isImporting && (
             <div className="space-y-2">
-              <div className="text-center text-red-500 text-sm font-medium">
+              <div className="text-center text-accent-error text-sm font-medium">
                 {error.includes("cancelled")
                   ? t("dump.importCancelled")
                   : t("dump.importFailed")}
               </div>
               {!error.includes("cancelled") && (
-                <div className="max-h-40 overflow-y-auto bg-red-900/10 border border-red-900/40 rounded-lg p-3 text-xs text-red-400 font-mono whitespace-pre-wrap break-words text-left">
+                <div className="max-h-40 overflow-y-auto bg-accent-error/5 border border-accent-error/20 rounded-lg p-3 text-xs text-accent-error font-mono whitespace-pre-wrap break-words text-left">
                   {error}
                 </div>
               )}
@@ -293,7 +293,7 @@ export const ImportDatabaseModal = ({
           {isImporting ? (
             <button
               onClick={handleCancel}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded flex items-center gap-2 transition-colors"
+              className="px-4 py-2 bg-accent-error hover:bg-accent-error/90 text-on-accent-error rounded flex items-center gap-2 transition-colors"
             >
               <X size={16} />
               {t("common.cancel")}

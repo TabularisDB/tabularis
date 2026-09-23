@@ -90,6 +90,7 @@ pub fn spawn_visual_explain_window<R: Runtime, M: Manager<R>>(
     .inner_size(1280.0, 820.0)
     .min_inner_size(900.0, 600.0)
     .center()
+    .decorations(crate::window_decorations::native_decorations_enabled())
     .build()
     .map_err(|e| format!("Failed to create Visual Explain window: {e}"))?;
 

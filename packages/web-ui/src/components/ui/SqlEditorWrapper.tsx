@@ -1,9 +1,11 @@
 import React, { useRef, useCallback, useContext, useEffect } from "react";
-import MonacoEditor, { type OnMount, type BeforeMount } from "@monaco-editor/react";
+import type { OnMount, BeforeMount } from "@monaco-editor/react";
+import { MonacoEditor } from "./LazyMonaco";
 import type * as Monaco from "monaco-editor";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { getMonacoThemeId } from "../../themes/themeRuntime";
 import { useSettings } from "../../hooks/useSettings";
 import { useKeybindings } from "../../hooks/useKeybindings";
 import { CommandPaletteDispatchContext } from "../../contexts/CommandPaletteContext";
@@ -15,6 +17,7 @@ import {
   type Statement,
 } from "../../utils/sqlSplitter";
 import { formatSql } from "../../utils/sqlFormat";
+import { isTextCompositionKeyEvent } from "../../utils/keyboardEvents";
 import type { SqlDialect } from "../../utils/sql";
 import type { RunContext } from "../../utils/runTarget";
 import {
@@ -52,6 +55,9 @@ function isLinux(): boolean {
       .userAgentData?.platform ?? navigator.platform;
   return platform.toUpperCase().includes("LINUX");
 }
+
+/** Debounced onChange emissions remembered until the consumer echoes them back. */
+const MAX_PENDING_ECHOES = 50;
 
 // Internal component that resets when key changes
 const SqlEditorInternal = ({
@@ -113,11 +119,34 @@ const SqlEditorInternal = ({
     };
   }, []);
 
-  // Sync editor value only when initialValue changes externally (e.g., tab switch)
-  // Preserve cursor position to avoid jumping to start during debounced updates
+  // Values handed to onChange that the consumer has not echoed back through
+  // initialValue yet. Bounded because a consumer may drop updates (Editor.tsx
+  // ignores onChange from inactive tabs).
+  const pendingEchoesRef = useRef<string[]>([]);
+
+  // Sync editor value only when initialValue changes externally (e.g., a saved
+  // query loaded into the tab). Preserve cursor position to avoid jumping to
+  // start.
+  //
+  // The debounced onChange flush re-renders the consumer asynchronously, so by
+  // the time initialValue comes back it can already be stale: keystrokes typed
+  // in between are in the editor but not in initialValue. Writing it back with
+  // setValue would drop them (#731), so an echo of our own emission is never
+  // applied. Anything else is an external change and wins over pending edits.
   useEffect(() => {
+    const pendingEchoes = pendingEchoesRef.current;
+    const echoIndex = pendingEchoes.indexOf(initialValue);
+    if (echoIndex !== -1) {
+      pendingEchoes.splice(0, echoIndex + 1);
+      return;
+    }
     const editor = editorRef.current;
     if (editor && initialValue !== editor.getValue()) {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+      pendingEchoes.length = 0;
       const position = editor.getPosition();
       const selections = editor.getSelections();
       editor.setValue(initialValue);
@@ -177,6 +206,10 @@ const SqlEditorInternal = ({
         }
 
         updateTimeoutRef.current = setTimeout(() => {
+          updateTimeoutRef.current = null;
+          const pendingEchoes = pendingEchoesRef.current;
+          pendingEchoes.push(newValue);
+          if (pendingEchoes.length > MAX_PENDING_ECHOES) pendingEchoes.shift();
           onChange(newValue);
         }, 300);
       },
@@ -404,6 +437,8 @@ const SqlEditorInternal = ({
       // Monaco binds Ctrl+Shift+A to block comments on Linux. Handle the
       // user-configurable palette shortcut before Monaco consumes it.
       editor.onKeyDown((e) => {
+        if (isTextCompositionKeyEvent(e.browserEvent)) return;
+
         const togglePalette = togglePaletteRef.current;
         if (
           togglePalette &&
@@ -517,7 +552,7 @@ const SqlEditorInternal = ({
       <MonacoEditor
         height={height}
         defaultLanguage="sql"
-        theme={editorTheme.id}
+        theme={getMonacoThemeId(editorTheme.id)}
         defaultValue={initialValue}
         onChange={handleChange}
         beforeMount={handleBeforeMount}

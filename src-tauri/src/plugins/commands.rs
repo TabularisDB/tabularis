@@ -69,11 +69,7 @@ pub async fn get_plugin_manifest(
 /// Desktop-only: browser RPC deliberately does not expose server filesystem paths.
 #[tauri::command]
 pub fn get_plugin_dir(plugin_id: String) -> Result<String, String> {
-    let plugins_dir = installer::get_plugins_dir()?;
-    let plugin_dir = plugins_dir.join(&plugin_id);
-    if !plugin_dir.exists() {
-        return Err(format!("Plugin '{}' is not installed", plugin_id));
-    }
+    let plugin_dir = installer::resolve_plugin_dir(&plugin_id)?;
     plugin_dir
         .to_str()
         .ok_or_else(|| "Plugin path contains invalid UTF-8".to_string())

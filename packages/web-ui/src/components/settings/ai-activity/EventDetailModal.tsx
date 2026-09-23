@@ -75,7 +75,7 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
               <div className="text-xs text-muted uppercase font-bold mb-1">
                 {t("common.error")}
               </div>
-              <pre className="bg-red-900/10 border border-red-900/30 rounded p-3 text-xs text-red-400 whitespace-pre-wrap break-words">
+              <pre className="bg-accent-error/5 border border-accent-error/15 rounded p-3 text-xs text-accent-error whitespace-pre-wrap break-words">
                 {event.error}
               </pre>
             </div>

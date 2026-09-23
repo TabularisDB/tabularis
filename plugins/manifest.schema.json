@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://tabularis.dev/schemas/plugin-manifest.json",
   "title": "Tabularis Plugin Manifest",
-  "description": "Schema for the manifest.json file required by every Tabularis database driver plugin.",
+  "description": "Runtime schema for a Tabularis driver bundle (.tabularium or legacy manifest.json). For registry publication, use the registry's live merged schema.",
   "type": "object",
   "required": [
     "name",
@@ -16,11 +16,11 @@
     "id": {
       "type": "string",
       "pattern": "^[a-z0-9-]+$",
-      "description": "Legacy driver identifier (lowercase letters, digits, hyphens). Optional — when absent, identity falls back to name. Omit in new .tabularium manifests."
+      "description": "Stable driver identifier used in saved connections and plugin folder names. Optional for legacy compatibility: when absent, identity falls back to name. For registry publication it must match the existing registry slug and ^[a-z][a-z0-9-]*$ (1–64 characters)."
     },
     "name": {
       "type": "string",
-      "description": "Display name shown in the UI (e.g. \"DuckDB\")."
+      "description": "Human-readable display name (e.g. \"DuckDB\") when id is present. Without id, this is also the legacy plugin identifier and must remain a lowercase slug for registry publication."
     },
     "version": {
       "type": "string",
@@ -48,6 +48,11 @@
     "executable": {
       "type": "string",
       "description": "Relative path to the plugin executable inside the plugin folder (without extension on Linux/macOS; Tabularis appends .exe on Windows automatically)."
+    },
+    "connection_metadata": {
+      "type": "boolean",
+      "default": false,
+      "description": "Opt in to get_connection_metadata, which returns connection-specific capabilities, data_types and type_mappings. Static manifest values remain the fallback."
     },
     "capabilities": {
       "type": "object",
@@ -102,6 +107,16 @@
           "type": "boolean",
           "default": true,
           "description": "Optional capability for network drivers. Set false to hide connection string import in the UI."
+        },
+        "connection_uri": {
+          "type": "boolean",
+          "default": false,
+          "description": "Pass the connection URI verbatim to the driver instead of decomposing it into host, port and database fields."
+        },
+        "connection_uri_schemes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional URI schemes handled by this driver, such as jdbc."
         },
         "connectionString": {
           "type": "boolean",
@@ -202,6 +217,37 @@
           "description": { "type": "string" },
           "required": { "type": "boolean", "default": false },
           "options": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "explain_parsers": {
+      "type": "array",
+      "description": "Optional EXPLAIN parser bundles supplied by the plugin.",
+      "items": {
+        "type": "object",
+        "required": ["engine", "format", "module"],
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Canonical database engine identifier handled by this parser."
+          },
+          "format": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Globally unique raw EXPLAIN wire-format tag."
+          },
+          "module": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to the parser IIFE relative to the installed plugin directory."
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional human-readable label for format pickers."
+          }
         }
       }
     },

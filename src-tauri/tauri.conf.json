@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "tabularis",
-  "version": "0.20.0",
+  "version": "0.25.0",
   "identifier": "tabularis",
   "build": {
     "frontendDist": "../packages/web-ui/dist",
@@ -34,6 +34,7 @@
   "bundle": {
     "createUpdaterArtifacts": true,
     "active": true,
+    "category": "DeveloperTool",
     "targets": "all",
     "resources": {
       "../packages/web-ui/dist/": "web-ui/"
@@ -52,7 +53,11 @@
         "depends": [
           "libwebkit2gtk-4.1-0",
           "libsecret-1-0"
-        ]
+        ],
+        "desktopTemplate": "linux/tabularis.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "linux/tabularis.desktop"
       },
       "appimage": {
         "bundleMediaFramework": false

@@ -1,12 +1,12 @@
 {
   "name": "@tabularis/web-ui",
   "private": true,
-  "version": "0.20.0",
+  "version": "0.25.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "cd ../.. && eslint .",
+    "lint": "cd ../.. && eslint . && node scripts/check-theme-tokens.mjs",
     "preview": "vite preview",
     "test": "cd ../.. && vitest --config packages/web-ui/vitest.config.ts",
     "test:contract": "cd ../.. && vitest --config packages/web-ui/vitest.config.ts run packages/web-ui/tests/api/dualTransportContract.test.ts",

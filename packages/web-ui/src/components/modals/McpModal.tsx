@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Check, Copy, Cpu, Terminal } from "lucide-react";
 import { useAlert } from "../../hooks/useAlert";
-import Editor from "@monaco-editor/react";
+import { useCopyFeedback } from "../../hooks/useCopyFeedback";
+import { MonacoEditor as Editor } from "../ui/LazyMonaco";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
+import { getMonacoThemeId } from "../../themes/themeRuntime";
 import { Modal } from "../ui/Modal";
 import {
   AnthropicIcon,
@@ -34,9 +36,9 @@ const ClientIcon = ({
     case "claude_code":
       return <AnthropicIcon size={size} />;
     case "cursor":
-      return <CursorIcon size={size} className="text-white" />;
+      return <CursorIcon size={size} className="text-primary" />;
     case "windsurf":
-      return <WindsurfIcon size={size} className="text-white" />;
+      return <WindsurfIcon size={size} className="text-primary" />;
     case "antigravity":
       return <AntigravityIcon size={size} />;
     case "codex":
@@ -53,8 +55,8 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
   const client = useTabularisClient();
   const [clients, setClients] = useState<McpClientStatus[]>([]);
   const [loading, setLoading] = useState(true);
-  const [copiedJson, setCopiedJson] = useState(false);
-  const [copiedCmd, setCopiedCmd] = useState(false);
+  const { copied: copiedJson, copy: copyJson } = useCopyFeedback();
+  const { copied: copiedCmd, copy: copyCmd } = useCopyFeedback();
   const [selectedClient, setSelectedClient] = useState<McpClientStatus | null>(null);
 
   const jsonValue = useMemo(
@@ -121,8 +123,8 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-900/30 rounded-lg">
-              <Cpu size={20} className="text-purple-400" />
+            <div className="p-2 bg-accent-secondary/15 rounded-lg">
+              <Cpu size={20} className="text-accent-secondary" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">{t("mcp.title")}</h2>
@@ -159,7 +161,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
                       onClick={() => setSelectedClient(client)}
                       className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${
                         selectedClient?.client_id === client.client_id
-                          ? "border-purple-500/50 bg-purple-900/10"
+                          ? "border-accent-secondary/50 bg-accent-secondary/5"
                           : "border-default bg-base hover:border-strong"
                       }`}
                     >
@@ -180,7 +182,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
                         </div>
                       </div>
                       {client.installed ? (
-                        <div className="flex items-center gap-2 text-green-400 bg-green-900/20 px-3 py-1 rounded-full text-xs font-medium border border-green-900/50 shrink-0">
+                        <div className="flex items-center gap-2 text-accent-success bg-accent-success/10 px-3 py-1 rounded-full text-xs font-medium border border-accent-success/25 shrink-0">
                           <Check size={12} />
                           <span>{t("mcp.installed")}</span>
                         </div>
@@ -190,7 +192,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
                             e.stopPropagation();
                             handleInstall(client.client_id);
                           }}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-colors shadow-lg shadow-blue-900/20 shrink-0"
+                          className="px-3 py-1.5 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-xs font-medium transition-colors shadow-lg shadow-accent-primary/20 shrink-0"
                         >
                           {t("mcp.install")}
                         </button>
@@ -216,15 +218,11 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
                         {cliCommand}
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(cliCommand);
-                          setCopiedCmd(true);
-                          setTimeout(() => setCopiedCmd(false), 2000);
-                        }}
+                        onClick={() => copyCmd(cliCommand)}
                         className="absolute top-2 right-2 p-1.5 bg-surface-secondary text-secondary hover:text-primary rounded opacity-0 group-hover:opacity-100 transition-all"
                       >
                         {copiedCmd ? (
-                          <Check size={13} className="text-green-400" />
+                          <Check size={13} className="text-accent-success" />
                         ) : (
                           <Copy size={13} />
                         )}
@@ -237,7 +235,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
                         <Editor
                           height="160px"
                           defaultLanguage="json"
-                          theme={editorTheme.id}
+                          theme={getMonacoThemeId(editorTheme.id)}
                           value={jsonValue}
                           beforeMount={(monaco) => loadMonacoTheme(editorTheme, monaco)}
                           options={{
@@ -255,15 +253,11 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
                         />
                       </div>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(jsonValue);
-                          setCopiedJson(true);
-                          setTimeout(() => setCopiedJson(false), 2000);
-                        }}
+                        onClick={() => copyJson(jsonValue)}
                         className="absolute top-2 right-2 p-2 bg-surface-secondary text-secondary hover:text-primary rounded opacity-0 group-hover:opacity-100 transition-all z-10"
                       >
                         {copiedJson ? (
-                          <Check size={14} className="text-green-400" />
+                          <Check size={14} className="text-accent-success" />
                         ) : (
                           <Copy size={14} />
                         )}

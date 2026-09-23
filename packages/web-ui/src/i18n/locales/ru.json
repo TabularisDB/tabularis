@@ -57,6 +57,7 @@
   "common": {
     "save": "Сохранить",
     "close": "Закрыть",
+    "resizeColumn": "Изменить ширину столбца",
     "cancel": "Отменить",
     "delete": "Удалить",
     "edit": "Изменить",
@@ -75,7 +76,8 @@
     "copied": "Скопировано!",
     "showDetails": "Показать подробности",
     "hideDetails": "Скрыть подробности",
-    "beta": "Бета"
+    "beta": "Бета",
+    "dismiss": "Закрыть"
   },
   "sidebar": {
     "connections": "Подключения",
@@ -113,6 +115,8 @@
     "noTables": "Таблицы не найдены",
     "expandTable": "Развернуть таблицу {{name}}",
     "collapseTable": "Свернуть таблицу {{name}}",
+    "expandView": "Развернуть представление {{name}}",
+    "collapseView": "Свернуть представление {{name}}",
     "columns": "столбцы",
     "parameters": "параметры",
     "noParameters": "Нет параметров",
@@ -194,6 +198,7 @@
     "splitHorizontal": "Разделить горизонтально",
     "separateConnections": "Отдельные подключения",
     "splitGroup": "Разделить группу",
+    "resizePanels": "Изменить размер панелей",
     "filterTables": "Фильтр таблиц...",
     "noTablesMatch": "Таблицы не найдены",
     "filterDatabases": "Фильтр баз данных...",
@@ -264,6 +269,11 @@
       "activity": "Активность",
       "safety": "Безопасность"
     },
+    "output": {
+      "title": "Вывод инструментов",
+      "formatLabel": "Формат вывода по умолчанию",
+      "formatDescription": "Используется, когда вызов инструмента MCP не задаёт output_format. JSON сохраняет совместимость; TOON может сократить расход токенов."
+    },
     "safety": {
       "readOnlyTitle": "Режим только для чтения",
       "readOnlyDefault": "Все MCP-запросы только для чтения",
@@ -291,6 +301,9 @@
   "connections": {
     "title": "Подключения",
     "addConnection": "Добавить подключение",
+    "deprecated": "Устарел",
+    "deprecatedTooltip": "Этот встроенный драйвер заменяется плагином {{replacement}}.",
+    "deprecatedTooltipDate": "Этот встроенный драйвер заменяется плагином {{replacement}}, предварительно до {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Новая база данных SQLite…",
       "dialogTitle": "Новая база данных SQLite",
@@ -401,6 +414,47 @@
     "title": "Настройки",
     "general": "Общие",
     "privacy": "Конфиденциальность",
+    "network": {
+      "tab": "Network",
+      "title": "Proxy",
+      "description": "Route selected application traffic through an HTTP or SOCKS5 proxy. Connection and AI provider overrides take priority over these global settings.",
+      "enabled": "Enable proxy",
+      "enabledDesc": "Turn on the global proxy. Individual scopes below must also be checked for traffic to use it.",
+      "protocol": "Protocol",
+      "protocolDesc": "HTTP CONNECT or SOCKS5.",
+      "host": "Proxy host",
+      "hostDesc": "Hostname or IP of the proxy server.",
+      "port": "Proxy port",
+      "portDesc": "TCP port of the proxy server.",
+      "username": "Username",
+      "usernameDesc": "Optional proxy authentication username.",
+      "password": "Password",
+      "passwordDesc": "Optional proxy password. Stored in the OS keychain, never in config.json.",
+      "passwordReplaceDesc": "A password is already stored. Enter a new one to replace it.",
+      "clearPassword": "Clear",
+      "applyTo": "Apply proxy to",
+      "applyToDesc": "Opt-in traffic categories. Unchecked categories never use the global proxy.",
+      "scopes": {
+        "appHttp": "App network requests",
+        "appHttpDesc": "Plugin downloads (including legacy raw.githubusercontent.com registry.json), Tabularium registry API, update checks, and WebDAV backup uploads.",
+        "database": "Database connections",
+        "databaseDesc": "Direct TCP connections to databases (skipped when already on a local SSH/K8s tunnel).",
+        "ai": "AI / LLM endpoints",
+        "aiDesc": "Requests to configured AI providers. Per-provider overrides can still customize or disable.",
+        "sshTunnel": "SSH tunnels",
+        "sshTunnelDesc": "Outbound connection to the SSH bastion before port-forwarding to the database."
+      },
+      "overrideMode": "Proxy mode",
+      "overrideModeDesc": "Inherit the global proxy, set a custom proxy, or disable proxying for this target.",
+      "modeInherit": "Inherit",
+      "modeCustom": "Custom",
+      "modeDisabled": "Disabled",
+      "providerProxy": "Provider proxy",
+      "providerProxyDesc": "Override the global AI proxy for this provider only.",
+      "connectionProxy": "Proxy",
+      "connectionProxyDesc": "Override the global proxy for this connection’s database and SSH traffic. When an SSH tunnel is used, the proxy applies to the bastion hop; the local tunnel leg is not re-proxied.",
+      "passwordAfterSave": "Save the connection first to store a proxy password in the keychain."
+    },
     "columnMasking": "Маскирование столбцов",
     "columnMaskingDesc": "Скрывает содержимое конфиденциальных столбцов (пароли, e-mail, токены…) в таблице результатов. Копирование и экспорт по-прежнему используют реальные значения.",
     "columnMaskingEnabled": "Маскировать конфиденциальные столбцы",
@@ -446,9 +500,15 @@
     "themeSelection": "Выбор темы",
     "importTheme": "Импортировать тему",
     "exportTheme": "Экспортировать тему",
+    "themeMode": "Режим темы",
+    "themeModeDesc": "Выберите фиксированную тему или следуйте светлому/тёмному оформлению системы.",
+    "themeModeStatic": "Статичная",
+    "themeModeSystem": "Как в системе",
+    "lightTheme": "Светлая тема",
+    "darkTheme": "Тёмная тема",
     "fontFamily": "Шрифт",
     "fonts": {
-      "system": "Системный по умолчанию",
+      "system": "По умолчанию темы",
       "systemDesc": "Использует системный шрифт ОС",
       "custom": "Пользовательский шрифт",
       "customPlaceholder": "например, Comic Sans MS",
@@ -641,6 +701,11 @@
     "autoConnectLastConnectionDesc": "Повторно подключается к соединениям, открытым при последнем закрытии приложения.",
     "startMaximized": "Запускать развёрнутым",
     "startMaximizedDesc": "Открывает окно развёрнутым на весь экран при запуске.",
+    "windowDecorations": "Оформление окон",
+    "windowDecorationsDesc": "Автоматически скрывает системное оформление при обнаружении тайлового оконного менеджера или использует выбранный режим.",
+    "windowDecorationsAutomatic": "Автоматически",
+    "windowDecorationsAlwaysShow": "Всегда показывать",
+    "windowDecorationsAlwaysHide": "Всегда скрывать",
     "erDiagram": "ER-диаграмма",
     "erDiagramDefaultLayout": "Расположение по умолчанию",
     "erDiagramDefaultLayoutDesc": "Направление по умолчанию для ER-диаграмм",
@@ -658,18 +723,30 @@
       "loadingRegistry": "Загрузка реестра плагинов...",
       "registryError": "Не удалось загрузить реестр",
       "installed": "Установлено",
+      "latest": "Последняя",
       "by": "от",
       "platformNotSupported": "Недоступно для вашей платформы",
       "update": "Обновить",
       "install": "Установить",
       "upToDate": "Актуально",
       "downgrade": "Откатить до",
+      "deprecated": "Устарел",
+      "deprecatedTooltip": "Этот встроенный драйвер заменяется плагином {{replacement}}.",
+      "deprecatedTooltipDate": "Этот встроенный драйвер заменяется плагином {{replacement}}, предварительно до {{date}}.",
+      "migrationProgress": "{{migrated}} из {{total}} перенесено",
       "olderVersions": "Старые версии",
       "noPlugins": "В реестре нет доступных плагинов.",
       "searchPlaceholder": "Поиск плагинов…",
       "filterAll": "Все",
       "filterInstalled": "Установленные",
       "filterUpdates": "Обновления",
+      "kindFilter": "Фильтр по типу",
+      "kindAll": "Все типы",
+      "kindDrivers": "Драйверы",
+      "kindThemes": "Темы",
+      "kindTheme": "Тема",
+      "kindDriver": "Драйвер",
+      "manageThemes": "Управлять во «Внешнем виде»",
       "searchNoResults": "Плагины не найдены.",
       "version": "Версия",
       "requiresVersion": "Требуется Tabularis ≥ {{version}}",
@@ -693,6 +770,9 @@
         "title": "Ошибка удаления",
         "subtitle": "При удалении плагина произошла ошибка. Подробности ниже."
       },
+      "devRuntimeWarning": {
+        "title": "Сборка для разработки: плагин \"{{plugin}}\" пропустил проверку версии Tabularis"
+      },
       "startError": {
         "title": "Плагин не запустился",
         "subtitle": "Процесс плагина не удалось запустить. Подробности ниже.",
@@ -711,6 +791,7 @@
         "fieldRequired": "{{label}} обязательно",
         "saved": "Сохранено",
         "resetToDefault": "Сбросить по умолчанию",
+        "reportIssue": "Сообщить о проблеме плагина",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -729,6 +810,12 @@
               "label": "Часовой пояс",
               "description": "Часовой пояс сессии, отправляемый в MySQL после подключения."
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "Максимальный размер пула",
+              "description": "Максимальное количество подключений PostgreSQL, сохраняемых в пуле."
+            }
           }
         }
       }
@@ -738,7 +825,8 @@
       "categories": {
         "editor": "Редактор",
         "navigation": "Навигация",
-        "data_grid": "Таблица данных"
+        "data_grid": "Таблица данных",
+        "notebook": "Блокнот"
       },
       "runQuery": "Выполнить запрос",
       "runQueryEditor": "Выполнить запрос (в редакторе)",
@@ -750,6 +838,9 @@
       "toggleRightSidebar": "Переключить правую боковую панель",
       "focusTableFilter": "Фокус на фильтре таблиц",
       "openConnections": "Открыть подключения",
+      "openSettings": "Открыть настройки",
+      "conflict": "Это сочетание конфликтует с «{{shortcut}}».",
+      "needsModifier": "Добавьте клавишу-модификатор, например Ctrl или Alt.",
       "newConnection": "Новое подключение",
       "newTab": "Новая вкладка",
       "closeTab": "Закрыть вкладку",
@@ -766,9 +857,41 @@
       "commandPaletteActions": "Поиск действий",
       "triggerSuggestions": "Показать подсказки",
       "formatSql": "Форматировать SQL",
-      "refreshTable": "Обновить таблицу"
+      "refreshTable": "Обновить таблицу",
+      "extendCellRange": "Расширить диапазон ячеек",
+      "jumpToEdge": "Перейти к краю таблицы",
+      "extendCellRangeToEdge": "Расширить диапазон до края",
+      "selectRow": "Выделить строку",
+      "selectColumn": "Выделить столбец"
     },
     "aiActivity": "Активность AI",
+    "storage": {
+      "title": "Хранилище",
+      "locations": "Расположения",
+      "dataFolder": "Папка данных",
+      "dataFolderDesc": "Здесь хранятся подключения, настройки, сохранённые запросы, темы, ноутбуки и история запросов. Укажите синхронизируемую папку (iCloud Drive, Dropbox и т. д.), чтобы использовать их на нескольких компьютерах. Установленные плагины всегда остаются локально.",
+      "sourceDefault": "Расположение по умолчанию",
+      "sourceCustom": "Пользовательское расположение",
+      "sourceEnv": "Задано через TABULARIS_DATA_DIR",
+      "envHint": "Папка задаётся переменной окружения TABULARIS_DATA_DIR. Удалите её, чтобы изменить расположение отсюда.",
+      "envVar": "Переменная окружения",
+      "envVarDesc": "Задайте TABULARIS_DATA_DIR как абсолютный путь, чтобы переопределить папку данных для запуска или установки. Она имеет приоритет над папкой, выбранной выше, действует и для сервера MCP и удобна для портативных установок, скриптов и разработки.",
+      "envVarExample": "TABULARIS_DATA_DIR=/путь/к/папке tabularis",
+      "changeFolder": "Изменить папку…",
+      "openFolder": "Открыть папку",
+      "resetToDefault": "Использовать расположение по умолчанию",
+      "concurrencyWarning": "Tabularis читает эту папку при запуске. Не запускайте два экземпляра с одной папкой одновременно, например на двух компьютерах во время синхронизации.",
+      "newFolder": "Новая папка",
+      "modeExisting": "Использовать данные, уже находящиеся в этой папке",
+      "modeExistingDesc": "В этой папке уже есть данные Tabularis, например синхронизированные с другого компьютера.",
+      "modeCopy": "Скопировать мои текущие данные в эту папку",
+      "modeCopyDesc": "Файлы, уже находящиеся в папке, сохраняются. Установленные плагины не копируются.",
+      "modeEmpty": "Начать с пустой папки",
+      "apply": "Применить",
+      "restartRequired": "Требуется перезапуск",
+      "restartRequiredDesc": "После перезапуска Tabularis будет использовать {{path}}.",
+      "restartNow": "Перезапустить сейчас"
+    },
     "backup": {
       "title": "Бэкап",
       "directory": "Папка резервных копий",
@@ -820,6 +943,28 @@
     }
   },
   "update": {
+    "badges": {
+      "morePlugins": "Ещё {{count}} — откройте Плагины, чтобы увидеть все обновления",
+      "driverUpdate": "Доступно обновление драйвера",
+      "themeUpdate": "Доступно обновление темы",
+      "tag": "Обновление",
+      "driverTooltip": "Доступна версия {{name}} {{version}}. Этот плагин используется несколькими подключениями. Откройте Плагины → Обновления, чтобы управлять им.",
+      "core_one": "Доступно {{count}} обновление ядра",
+      "core_other": "Доступно {{count}} обновлений ядра",
+      "plugins_one": "Доступно {{count}} обновление плагина",
+      "plugins_other": "Доступно {{count}} обновлений плагинов",
+      "coreDetails": "Доступен Tabularis {{version}}. Откройте раздел «О программе», чтобы посмотреть обновление ядра.",
+      "pluginDetails_one": "Доступно обновление для: {{plugins}}",
+      "pluginDetails_other": "Доступны обновления для: {{plugins}}",
+      "toastTitle": "Доступны обновления плагинов",
+      "openPlugins": "Открыть плагины",
+      "core_few": "Доступно {{count}} обновления ядра",
+      "core_many": "Доступно {{count}} обновлений ядра",
+      "plugins_few": "Доступно {{count}} обновления плагинов",
+      "plugins_many": "Доступно {{count}} обновлений плагинов",
+      "pluginDetails_few": "Доступны обновления для: {{plugins}}",
+      "pluginDetails_many": "Доступны обновления для: {{plugins}}"
+    },
     "newVersionAvailable": "Доступна новая версия",
     "version": "Версия",
     "releaseNotes": "Что нового",
@@ -862,6 +1007,17 @@
     "configError": "Настройте AI-провайдера в разделе «Настройки» и введите запрос."
   },
   "newConnection": {
+    "ssmForwardHint": "Разрешается в {{document}} - пробрасывает на {{host}}:{{port}} через управляемый узел. Адрес назначения меняется на вкладке «Общие»; локальный хост означает сам узел.",
+    "ssmIamHint": "Требуется ssm:StartSession для цели и для выбранного документа.",
+    "ssmNotAvailable": "AWS SSM недоступен для этого драйвера.",
+    "ssmPortRequired": "Сначала задайте корректный порт на вкладке «Общие».",
+    "ssmProfile": "Профиль AWS",
+    "ssmRegion": "Регион AWS",
+    "ssmTarget": "Управляемый узел",
+    "ssmTargetRequired": "Укажите управляемый узел для подключения.",
+    "testSsm": "Проверить SSM",
+    "testSsmHint": "Открывает настоящий сеанс проброса портов и сразу закрывает его, не подключаясь к базе данных.",
+    "useSsm": "Использовать проброс портов AWS SSM",
     "titleNew": "Новое подключение",
     "titleEdit": "Изменить подключение",
     "subtitle": "Настройте параметры подключения к базе данных",
@@ -1014,6 +1170,7 @@
   },
   "dataGrid": {
     "noRowIdentity": "Строки нельзя редактировать: у \"{{table}}\" нет первичного ключа, поэтому результат должен включать все столбцы таблицы. Выберите все столбцы (например, SELECT *) или добавьте первичный ключ.",
+    "resizeRelatedPanel": "Перетащите, чтобы изменить размер панели",
     "keylessRowNotFound": "При обновлении \"{{column}}\" ни одна строка не совпала с исходными значениями. У таблицы нет первичного ключа, данные могли измениться — обновите и повторите попытку.",
     "keylessDeleteNotFound": "При удалении ни одна строка не совпала с исходными значениями. У таблицы нет первичного ключа, данные могли измениться — обновите и повторите попытку.",
     "newRow": "НОВАЯ",
@@ -1207,6 +1364,21 @@
     "failedProcessInsertions": "Не удалось обработать вставки: ",
     "fieldRequired": "Это поле обязательно",
     "newNotebook": "Новый ноутбук",
+    "openSqlFile": "Открыть SQL-файл…",
+    "openSqlFileError": "Не удалось открыть SQL-файл",
+    "sqlFileFilter": "SQL-файлы",
+    "saveSqlFile": "Сохранить SQL-файл",
+    "saveSqlFileAs": "Сохранить SQL-файл как…",
+    "saveSqlFileError": "Не удалось сохранить SQL-файл",
+    "sqlFileSaved": "SQL-файл сохранён",
+    "unsavedSqlFileTitle": "Отменить несохранённые изменения?",
+    "unsavedSqlFileMessage": "В одном или нескольких SQL-файлах есть несохранённые изменения. При закрытии вкладок они будут потеряны.",
+    "discardSqlFileChanges": "Отменить изменения",
+    "saveFile": "Сохранить",
+    "saveFileAs": "Сохранить как…",
+    "saveOptions": "Параметры сохранения",
+    "addToSavedQueries": "Добавить в сохранённые запросы…",
+    "sqlFileNotSaved": "Ещё не сохранено в файл",
     "visualExplain": {
       "title": "Визуальный Explain",
       "buttonShort": "План выполнения",
@@ -1335,6 +1507,7 @@
       "addSqlCell": "Добавить SQL-ячейку",
       "addMarkdownCell": "Добавить Markdown-ячейку",
       "addCell": "Добавить",
+      "resizeResult": "Изменить размер результата",
       "runAll": "Запустить все",
       "runAllTooltip": "Выполнить все SQL-ячейки сверху вниз",
       "runCell": "Запустить ячейку",
@@ -1351,6 +1524,7 @@
       "invalidFile": "Недопустимый формат файла ноутбука",
       "importSuccess": "Ноутбук импортирован",
       "exportSuccess": "Ноутбук экспортирован",
+      "resultExportSuccess": "Результат экспортирован",
       "convertToConsole": "Преобразовать в консоль",
       "runningAll": "Выполнение всех ячеек...",
       "cellResult_one": "{{count}} строка · {{time}}мс",
@@ -1382,6 +1556,13 @@
       "sectionQuery": "Запрос",
       "sectionResults": "Результаты",
       "sectionChart": "Диаграмма",
+      "sectionQueryPlan": "План запроса",
+      "queryPlanOutdated": "Запрос или подключение изменились. Выполните повторно, чтобы обновить план.",
+      "queryPlanUnresolved": "Перед объяснением этого запроса успешно выполните ячейки, на которые он ссылается: {{refs}}",
+      "explainPopout": "Открыть в полном режиме",
+      "toggleQueryPlan": "Показать план запроса",
+      "hideQueryPlan": "Скрыть план запроса",
+      "exportError": "Ошибка экспорта",
       "collapseSection": "Свернуть раздел",
       "expandSection": "Развернуть раздел",
       "collapseAll": "Свернуть все",
@@ -1488,6 +1669,7 @@
     "colType": "Тип",
     "colNullable": "Nullable",
     "colKey": "Ключ",
+    "colDescription": "Описание",
     "yes": "Да",
     "no": "Нет"
   },
@@ -1643,6 +1825,13 @@
     "dismiss": "Может быть позже"
   },
   "whatsNew": {
+    "supportTitle": "Привет, я Andrea, создатель Tabularis",
+    "supportStarAction": "Поставить звезду на GitHub",
+    "supportDescription": "Я создал Tabularis с одной целью: навсегда сохранить его открытый исходный код. Если он вам полезен, даже небольшое пожертвование через GitHub Sponsors помогает мне уделять время новым функциям и делать проект лучше для всех.",
+    "supportThanks": "Спасибо, что вы — часть этого проекта!",
+    "supportNeverShow": "Больше никогда не показывать",
+    "supportHideError": "Не удалось сохранить настройку. Попробуйте ещё раз.",
+    "supportAction": "Поддержать на GitHub Sponsors",
     "title": "Что нового",
     "subtitle": "Версия {{version}}",
     "features": "Новые функции",
@@ -2161,6 +2350,10 @@
     "tablePlaceholder": "таблица (необязательно)",
     "initialPrivilegesHint": "Необязательно: начальные привилегии, выдаваемые сразу после создания. Выберите базу данных или оставьте поле пустым, чтобы выдать их глобально."
   },
+  "connectionCatalogue": {
+    "deprecated": "Устарел",
+    "deprecatedTooltip": "Этот встроенный драйвер заменяется плагином"
+  },
   "connectionErrors": {
     "ssh-auth": {
       "summary": "Ошибка аутентификации SSH",
@@ -2173,6 +2366,10 @@
     "ssh": {
       "summary": "Сбой SSH-туннеля",
       "recovery": "Проверьте настройки на вкладке SSH."
+    },
+    "ssm": {
+      "summary": "Сбой сеанса AWS SSM",
+      "recovery": "Откройте подробности, чтобы увидеть точную ошибку AWS. Проверьте, установлены ли AWS CLI и подключаемый модуль Session Manager, действительны ли учётные данные и в сети ли управляемый узел."
     },
     "db-auth": {
       "summary": "Ошибка аутентификации в базе данных",
@@ -2211,6 +2408,11 @@
         "ok": "Port-forward готов",
         "error": "Сбой port-forward Kubernetes"
       },
+      "ssmForward": {
+        "start": "Запуск проброса портов AWS SSM",
+        "ok": "Проброс портов готов",
+        "error": "Не удалось выполнить проброс портов AWS SSM"
+      },
       "dbConnect": {
         "start": "Подключение к базе данных",
         "ok": "Подключение к базе данных установлено",
@@ -2219,5 +2421,62 @@
     },
     "title": "Журнал теста подключения",
     "showLog": "Показать журнал"
+  },
+  "migration": {
+    "banner": {
+      "nudge": "Попробуйте новый плагин PostgreSQL — встроенный драйвер PostgreSQL выводится из эксплуатации. Плагин имеет те же функции и обновляется быстрее.",
+      "nudgeWithDate": "Попробуйте новый плагин PostgreSQL — встроенный драйвер PostgreSQL выводится из эксплуатации (предварительно {{date}}). Плагин имеет те же функции и обновляется быстрее.",
+      "offline": "Не удалось загрузить плагин PostgreSQL — повторим при следующем запуске. Проверьте подключение или сеть, если это повторяется.",
+      "reviewConnections": "Просмотреть подключения"
+    },
+    "switchToPlugin": "Перейти на плагин",
+    "switchToBuiltin": "Вернуться к встроенному",
+    "confirm": {
+      "title": "Переключиться на плагин?",
+      "message": "Переключить {{name}} на плагин PostgreSQL? Если подключение активно, оно будет закрыто и переоткрыто через плагин.",
+      "uriMessage": "Переключить {{name}} на плагин PostgreSQL? Строка подключения, сохранённая в keychain, не будет перенесена — потребуется ввести её заново для повторного подключения.",
+      "confirmLabel": "Переключить",
+      "confirmLabelUri": "Переключить и ввести позже",
+      "undoTitle": "Вернуться к встроенному драйверу?",
+      "undoMessage": "Вернуть {{name}} к встроенному драйверу PostgreSQL? Если подключение активно, оно будет закрыто и переоткрыто через встроенный драйвер.",
+      "undoConfirmLabel": "Вернуть"
+    },
+    "toast": {
+      "success": "{{name}} переключено на плагин PostgreSQL.",
+      "connectionFailure": "Не удалось подключиться к {{name}} через плагин: {{error}}",
+      "connectionFailurePreexisting": "Не удалось подключиться к {{name}} ни через один из драйверов: {{error}}. Проблема не в плагине — переключение на плагин сохранено.",
+      "processFailureWithError": "Плагин PostgreSQL не запустился: {{error}}. Это не связано конкретно с {{name}} — подключение не выполнялось.",
+      "processFailure": "Плагин PostgreSQL не запустился. Это не связано конкретно с {{name}} — подключение не выполнялось.",
+      "failed": "Не удалось переключить {{name}} на плагин: {{error}}",
+      "undo": "Отменить",
+      "undoFailed": "Не удалось переключить {{name}} обратно на встроенный драйвер: {{error}}",
+      "reportIssue": "Сообщить о проблеме"
+    },
+    "checklist": {
+      "title": "Просмотреть подключения",
+      "subtitle_one": "{{count}} подключение всё ещё на встроенном драйвере",
+      "subtitle_other": "{{count}} подключений всё ещё на встроенном драйвере",
+      "migrateSelected_one": "Перенести {{count}} выбранное",
+      "migrateSelected_other": "Перенести {{count}} выбранных",
+      "reportThisGap": "Сообщить об этой проблеме",
+      "alreadyReported": "Сообщено",
+      "testing": "Проверка подключения…",
+      "uriWarning": "Строка подключения, сохранённая в keychain, не будет перенесена — потребуется ввести её заново после переноса.",
+      "noGaps": "Нет подключений для просмотра.",
+      "close": "Закрыть",
+      "migratingNotice": "Миграция продолжается, даже если вы закроете это окно.",
+      "gap": {
+        "ssl": "Использует SSL/TLS, пока не поддерживается плагином",
+        "connection_uri": "Использует строку подключения, пока не поддерживается плагином"
+      }
+    }
+  },
+  "themePackages": {
+    "import": "Импортировать тему",
+    "registryMismatch": "Этот пакет относится к другому реестру. Перед обновлением явно измените настроенный реестр.",
+    "importedTheme": "Импортированная тема", "manage": "Управление темами", "importJSON": "Импорт JSON Tabularis", "importVSCode": "Импорт из VS Code", "edit": "Изменить личную тему", "localPackage": "Локальный пакет", "installTitle": "Установить пакет темы", "installSubtitle": "Декларативная тема из настроенного реестра. Код не выполняется.", "discover": "Найти темы в разделе «Плагины»", "refresh": "Обновить список", "preview": "Предпросмотр", "apply": "Применить", "confirm": "Подтвердить", "duplicate": "Создать личную копию", "exportJSON": "Экспорт отдельного JSON", "exportPackage": "Экспорт авторского пакета", "remove": "Удалить", "update": "Обновить пакет", "disable": "Отключить пакет", "enable": "Включить пакет", "removePackage": "Удалить пакет", "disabled": "Отключено", "file": "Файл темы", "name": "Название темы", "mode": "Режим / основа", "detectMode": "Определить (при неоднозначности выбрать)", "source": "JSON темы", "search": "Поиск тем", "loading": "Загрузка…", "noThemes": "В этом реестре нет доступных тем.", "details": "Сведения / установка", "readme": "README / снимки экрана", "version": "Версия пакета", "latest": "Последняя версия", "install": "Установить / заменить пакет", "chooseArchive": "Выбрать ZIP-архив", "screenshots": "Снимки экрана (открыть в браузере)", "externalMedia": "Изображения и другие удалённые медиа не загружаются автоматически. Ссылки открываются в браузере.", "snapshotEditor": "Точный JSON редактора", "snapshotEditorHelp": "Этот независимый снимок управляет цветами SQL вместо старого псевдонима. Изменения показываются в предпросмотре и сохраняются с проверкой исходной ревизии.", "recover": "Восстановить прерванные установки", "recoveryExplanation": "Явно проверить и восстановить незавершённые операции с темами. Это может восстановить прерванные установки, не выбирая тему и не изменяя сохранённые настройки.", "recoveryDone": "Проверка восстановления завершена. Оставшиеся проблемы указаны ниже.", "catalogIssues": "Диагностика каталога", "fileTooLarge": "Файл превышает лимит импорта.", "previewHint": "Предпросмотр временный. Отмена возвращает сохранённую тему; Применить сохраняет выбор.", "previewReady": "Предпросмотр включён. Проверьте приложение и редактор перед подтверждением.", "licenseNotice": "Импорт и экспорт не предоставляют права на распространение. Сохраните авторство и проверьте лицензию перед публикацией.", "acknowledge": "Я понимаю и принимаю указанные ограничения преобразования.", "applyAfterSave": "Применить после сохранения", "savedNotApplied": "Тема сохранена, но выбрать её не удалось. Не импортируйте повторно: выберите сохранённую тему.", "installHint": "Установка заменяет весь пакет, но не выбирает вариант. Предпросмотр, локальный импорт и выбор не считаются загрузками.", "installedHint": "Пакет установлен. Закройте окно и выберите вариант в разделе оформления.", "committedRefreshFailed": "Операция завершена, но каталог не обновлён. Обновите список перед повторной попыткой.", "missing": "Сохранённая тема недоступна: {{id}}. Используется автономная замена без изменения настройки.", "downloads": "Загрузки: {{count}}", "downloadsUnavailable": "Число загрузок недоступно", "installedVersion": "Установлена: {{version}}", "minimumVersion": "Требуется Tabularis {{version}} или новее", "incompatible": "Версия несовместима или не содержит ровно один универсальный архив.", "packageWarning": "Затрагивает все варианты пакета. Сохранённый выбор сохраняется и восстанавливается при повторной доступности.", "deleteWarning": "Удалить личную тему? Её сохранённые выборы будут заменены стандартными темами.", "duplicateHint": "Создать независимую редактируемую личную копию без активации.", "exportError": "Экспорт пакета не удался; отдельный JSON по-прежнему доступен.", "runtimeWarning": "Укажите первую действительно поддерживаемую версию. Номер сборки разработки не доказывает совместимость старых клиентов.", "packageName": "Идентификатор пакета (строчные буквы)", "minimumRuntime": "Минимальная версия Tabularis", "license": "Текст лицензии и авторство", "rightsAcknowledged": "Я проверил права на распространение и указание авторства.",
+    "groups": { "builtin": "Встроенные · автономные", "installed": "Установленные пакеты", "personal": "Личные темы" }, "modes": { "light": "Светлый", "dark": "Тёмный", "high-contrast": "Высокая контрастность" },
+    "importErrors": { "unrecognized": "Тема VS Code не распознана.", "modeRequired": "Выберите режим и повторите предпросмотр.", "includeOnly": "Темы только с include не импортируются. Предоставьте реальные цвета.", "noSupportedData": "Поддерживаемые цвета и правила SQL не найдены.", "invalidColor": "Неверное значение поддерживаемого цвета.", "invalidRules": "Неверные или слишком многочисленные правила токенов." },
+    "diagnostics": { "unsupportedKey": "Неподдерживаемое поле", "unsupportedColor": "Неподдерживаемый цвет", "unsupportedScope": "Неподдерживаемая область", "scopeApproximation": "Приблизительное сопоставление SQL", "unsupportedStyle": "Неподдерживаемый стиль", "ignoredInclude": "Include не загружен", "ignoredSemanticTokens": "Семантические токены пропущены", "unsupportedReference": "Внешняя ссылка не загружена", "unsupportedSetting": "Неподдерживаемая настройка", "tokenAlphaFlattened": "Прозрачность токенов рассчитана относительно базового фона", "modeApproximation": "Режим заменён или приближён", "diagnosticsTruncated": "Дополнительная диагностика пропущена" }
   }
 }

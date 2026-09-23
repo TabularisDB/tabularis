@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useId } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Filter,
@@ -91,6 +91,9 @@ const TableToolbarInternal = ({
   const [sortAcIndex, setSortAcIndex] = useState(0);
   const sortInputRef = useRef<HTMLInputElement>(null);
   const sortAcMouseDown = useRef(false);
+
+  const whereListId = useId();
+  const sortListId = useId();
 
   const panelRef = useRef<HTMLDivElement>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
@@ -421,14 +424,14 @@ const TableToolbarInternal = ({
             title={t("toolbar.toggleFilterPanel")}
             className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs border transition-all shrink-0 ${
               panelOpen
-                ? "bg-blue-600/20 border-blue-500/50 text-blue-300"
-                : "text-muted border-default hover:text-blue-300 hover:border-blue-500/40"
+                ? "bg-accent-primary/20 border-accent-primary/50 text-accent"
+                : "text-muted border-default hover:text-accent hover:border-accent-primary/40"
             }`}
           >
             <SlidersHorizontal size={12} />
             <span className="hidden @[520px]:inline">{t("toolbar.filters")}</span>
             {activeFilterCount > 0 && (
-              <span className="px-1 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[10px] font-semibold bg-blue-500/30 text-blue-300 leading-none">
+              <span className="px-1 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[10px] font-semibold bg-accent-primary/30 text-accent leading-none">
                 {activeFilterCount}
               </span>
             )}
@@ -437,9 +440,9 @@ const TableToolbarInternal = ({
 
         {/* WHERE input — hidden while panel is open */}
         {!panelOpen && (
-          <div className="flex items-center gap-2 flex-1 bg-base border border-default rounded px-2 py-1 focus-within:border-blue-500/50 transition-colors relative">
+          <div className="flex items-center gap-2 flex-1 bg-base border border-default rounded px-2 py-1 focus-within:border-focus/50 transition-colors relative">
             <Filter size={14} className="text-muted shrink-0" />
-            <span className="hidden @[440px]:inline text-xs text-blue-400 font-mono shrink-0">WHERE</span>
+            <span className="hidden @[440px]:inline text-xs text-accent font-mono shrink-0">WHERE</span>
             <input autoComplete="off"
               ref={filterInputRef}
               type="text"
@@ -450,12 +453,20 @@ const TableToolbarInternal = ({
               onChange={handleWhereChange}
               onBlur={handleWhereBlur}
               onKeyDown={handleWhereKeyDown}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={autocompleteOpen && autocompleteItems.length > 0}
+              aria-controls={autocompleteOpen && autocompleteItems.length > 0 ? whereListId : undefined}
+              aria-activedescendant={autocompleteOpen && autocompleteItems.length > 0 ? `${whereListId}-${autocompleteIndex}` : undefined}
               className="bg-transparent border-none outline-none text-xs text-secondary w-full placeholder:text-surface-tertiary font-mono"
               placeholder={`${placeholderColumn} > 5 AND status = 'active'`}
             />
 
             {autocompleteOpen && autocompleteItems.length > 0 && (
               <ul
+                id={whereListId}
+                role="listbox"
+                tabIndex={-1}
                 className="absolute left-0 top-full mt-1 z-50 bg-elevated border border-default rounded-lg shadow-xl min-w-52 max-h-52 overflow-y-auto"
                 onMouseDown={() => { autocompleteMouseDown.current = true; }}
                 onMouseUp={() => { autocompleteMouseDown.current = false; }}
@@ -463,9 +474,12 @@ const TableToolbarInternal = ({
                 {autocompleteItems.map((col, idx) => (
                   <li
                     key={col.name}
+                    id={`${whereListId}-${idx}`}
+                    role="option"
+                    aria-selected={idx === autocompleteIndex}
                     className={`flex items-center justify-between px-3 py-1.5 text-xs cursor-pointer transition-colors first:rounded-t-lg last:rounded-b-lg ${
                       idx === autocompleteIndex
-                        ? "bg-blue-600/25 text-blue-200"
+                        ? "bg-accent-primary/25 text-accent"
                         : "text-secondary hover:bg-surface-secondary"
                     }`}
                     onMouseDown={(e) => { e.preventDefault(); acceptSuggestion(col); }}
@@ -492,9 +506,9 @@ const TableToolbarInternal = ({
         )}
 
         {/* ORDER BY */}
-        <div className="relative flex items-center gap-1.5 flex-1 bg-base border border-default rounded px-2 py-1 focus-within:border-blue-500/50 transition-colors">
+        <div className="relative flex items-center gap-1.5 flex-1 bg-base border border-default rounded px-2 py-1 focus-within:border-focus/50 transition-colors">
           <ArrowUpDown size={14} className="text-muted shrink-0" />
-          <span className="hidden @[440px]:inline text-xs text-blue-400 font-mono shrink-0">ORDER BY</span>
+          <span className="hidden @[440px]:inline text-xs text-accent font-mono shrink-0">ORDER BY</span>
           <input autoComplete="off"
             ref={sortInputRef}
             type="text"
@@ -505,12 +519,20 @@ const TableToolbarInternal = ({
             onChange={handleSortChange}
             onBlur={handleSortBlur}
             onKeyDown={handleSortKeyDown}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={sortAcOpen && sortAcItems.length > 0}
+            aria-controls={sortAcOpen && sortAcItems.length > 0 ? sortListId : undefined}
+            aria-activedescendant={sortAcOpen && sortAcItems.length > 0 ? `${sortListId}-${sortAcIndex}` : undefined}
             className="bg-transparent border-none outline-none text-xs text-secondary w-full placeholder:text-surface-tertiary font-mono"
             placeholder={`${placeholderSort} DESC`}
           />
 
           {sortAcOpen && sortAcItems.length > 0 && (
             <ul
+              id={sortListId}
+              role="listbox"
+              tabIndex={-1}
               className="absolute left-0 top-full mt-1 z-50 bg-elevated border border-default rounded-lg shadow-xl min-w-52 max-h-52 overflow-y-auto"
               onMouseDown={() => { sortAcMouseDown.current = true; }}
               onMouseUp={() => { sortAcMouseDown.current = false; }}
@@ -518,9 +540,12 @@ const TableToolbarInternal = ({
               {sortAcItems.map((col, idx) => (
                 <li
                   key={col.name}
+                  id={`${sortListId}-${idx}`}
+                  role="option"
+                  aria-selected={idx === sortAcIndex}
                   className={`flex items-center justify-between px-3 py-1.5 text-xs cursor-pointer transition-colors first:rounded-t-lg last:rounded-b-lg ${
                     idx === sortAcIndex
-                      ? "bg-blue-600/25 text-blue-200"
+                      ? "bg-accent-primary/25 text-accent"
                       : "text-secondary hover:bg-surface-secondary"
                   }`}
                   onMouseDown={(e) => { e.preventDefault(); acceptSortSuggestion(col); }}
@@ -534,9 +559,9 @@ const TableToolbarInternal = ({
         </div>
 
         {/* LIMIT */}
-        <div className="flex items-center gap-1.5 w-20 @[560px]:w-32 bg-base border border-default rounded px-2 py-1 focus-within:border-blue-500/50 transition-colors shrink-0">
+        <div className="flex items-center gap-1.5 w-20 @[560px]:w-32 bg-base border border-default rounded px-2 py-1 focus-within:border-focus/50 transition-colors shrink-0">
           <ListFilter size={14} className="text-muted shrink-0" />
-          <span className="hidden @[440px]:inline text-xs text-blue-400 font-mono shrink-0">LIMIT</span>
+          <span className="hidden @[440px]:inline text-xs text-accent font-mono shrink-0">LIMIT</span>
           <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
             type="number"
             value={limitInput}
@@ -558,8 +583,11 @@ const TableToolbarInternal = ({
 
       {/* Overlay filter panel */}
       {panelOpen && (
+        // Layout wrapper: onKeyDown only catches Escape bubbling from the
+        // filter controls inside, which carry the semantics.
         <div
           ref={panelRef}
+          role="presentation"
           onKeyDown={handlePanelKeyDown}
           className="absolute top-full left-0 z-50 mt-1 w-full min-w-[min(560px,100cqw)] max-w-4xl bg-elevated border border-default/80 rounded-lg overflow-hidden"
           style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3)" }}
@@ -591,7 +619,7 @@ const TableToolbarInternal = ({
                 <span className="text-xs text-muted">{t("toolbar.noFilters")}</span>
                 <button
                   onClick={handleAddFilter}
-                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  className="text-xs text-accent transition-colors"
                 >
                   {t("toolbar.addFirstFilter")}
                 </button>
@@ -626,14 +654,14 @@ const TableToolbarInternal = ({
             <button
               onClick={closePanel}
               title={t("toolbar.switchToSql")}
-              className="px-2.5 py-1 rounded text-xs text-muted border border-default/70 hover:text-blue-300 hover:border-blue-500/50 transition-colors"
+              className="px-2.5 py-1 rounded text-xs text-muted border border-default/70 hover:text-accent hover:border-accent-primary/50 transition-colors"
             >
               {t("toolbar.sql")}
             </button>
 
             <button
               onClick={handleAddFilter}
-              className="flex items-center gap-1 px-2.5 py-1 rounded text-xs text-muted border border-dashed border-default/70 hover:text-blue-300 hover:border-blue-500/50 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 rounded text-xs text-muted border border-dashed border-default/70 hover:text-accent hover:border-accent-primary/50 transition-colors"
             >
               <Plus size={11} />
               {t("toolbar.addFilter")}
@@ -644,7 +672,7 @@ const TableToolbarInternal = ({
             {/* Apply All — does NOT close panel */}
             <button
               onClick={handleApplyAll}
-              className="px-3 py-1 rounded text-xs font-medium border transition-colors bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30 hover:border-blue-400/70"
+              className="px-3 py-1 rounded text-xs font-medium border transition-colors bg-accent-primary/20 border-accent-primary/50 text-accent hover:bg-accent-primary/30 hover:border-accent-primary/70"
             >
               {t("toolbar.applyAll")}
             </button>

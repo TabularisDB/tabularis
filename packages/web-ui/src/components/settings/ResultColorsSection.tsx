@@ -91,7 +91,7 @@ export function ResultColorsSection() {
                     className="flex items-center gap-2.5 min-w-0"
                   >
                     <span
-                      className="w-5 h-5 rounded-md ring-1 ring-white/10 shrink-0"
+                      className="w-5 h-5 rounded-md ring-1 ring-primary/10 shrink-0"
                       style={{ background: color }}
                     />
                     <span className="text-sm text-primary">
@@ -128,7 +128,7 @@ export function ResultColorsSection() {
                         onChange={(c) => setColor(key, c || undefined)}
                         prefixed={false}
                         aria-label={`${key} hex input`}
-                        className="px-3 py-1.5 bg-elevated border border-strong rounded-md text-sm text-primary focus:border-blue-500 focus:outline-none font-mono w-28 uppercase"
+                        className="px-3 py-1.5 bg-elevated border border-strong rounded-md text-sm text-primary focus:border-focus focus:outline-none font-mono w-28 uppercase"
                       />
                     </div>
                     <div className="flex items-center justify-end gap-2 pt-1">
@@ -145,7 +145,7 @@ export function ResultColorsSection() {
                       <button
                         type="button"
                         onClick={confirm}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-accent-primary hover:bg-accent-primary/90 text-inverse transition-colors"
                       >
                         <Check size={13} />
                         {t("settings.resultColors.confirm", {

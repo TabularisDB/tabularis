@@ -23,6 +23,7 @@ import type { ContextMenuData } from "../../../types/sidebar";
 import { groupRoutinesByType } from "../../../utils/routines";
 import { formatObjectCount } from "../../../utils/schema";
 import { fuzzyFilter } from "../../../utils/fuzzy";
+import { onActivationKey } from "../../../utils/keyboardEvents";
 
 interface SidebarSchemaItemProps {
   schemaName: string;
@@ -146,8 +147,12 @@ export const SidebarSchemaItem = ({
     <div className="flex flex-col">
       {/* Schema header */}
       <div
-        className="flex items-center justify-between px-2 py-1.5 group/schema cursor-pointer hover:bg-surface-secondary transition-colors"
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        className="flex items-center justify-between px-2 py-1.5 group/schema cursor-pointer hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
         onClick={handleToggle}
+        onKeyDown={onActivationKey(handleToggle)}
       >
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {isExpanded ? (
@@ -227,7 +232,7 @@ export const SidebarSchemaItem = ({
                         value={tableFilter}
                         onChange={(e) => setTableFilter(e.target.value)}
                         placeholder={t("sidebar.filterTables")}
-                        className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-focus/50"
                         onClick={(e) => e.stopPropagation()}
                       />
                       {tableFilter && (
@@ -372,7 +377,7 @@ export const SidebarSchemaItem = ({
                           value={triggerFilter}
                           onChange={(e) => setTriggerFilter(e.target.value)}
                           placeholder={t("sidebar.filterTriggers")}
-                          className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
+                          className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-focus/50"
                           onClick={(e) => e.stopPropagation()}
                         />
                         {triggerFilter && (

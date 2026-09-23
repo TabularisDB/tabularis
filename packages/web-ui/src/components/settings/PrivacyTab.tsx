@@ -11,7 +11,7 @@ import { MaskingOverridesEditor } from "./MaskingOverridesEditor";
 import { SettingSection, SettingRow, SettingToggle } from "./SettingControls";
 
 const TEXTAREA_CLASS =
-  "w-full h-28 bg-base border border-strong rounded-lg p-3 text-primary text-sm font-mono focus:outline-none focus:border-blue-500 transition-colors resize-y";
+  "w-full h-28 bg-base border border-strong rounded-lg p-3 text-primary text-sm font-mono focus:outline-none focus:border-focus transition-colors resize-y";
 
 /** Privacy settings: sensitive-column masking in the results grid (#485). */
 export function PrivacyTab() {

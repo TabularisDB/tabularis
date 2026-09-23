@@ -1,0 +1,16 @@
+{
+  "archiveBytes": 8388608,
+  "expandedBytes": 16777216,
+  "archiveEntries": 128,
+  "expansionRatio": 100,
+  "manifestBytes": 65536,
+  "definitionBytes": 262144,
+  "variants": 32,
+  "jsonDepth": 16,
+  "jsonNodes": 32768,
+  "tokenRules": 1024,
+  "labelLength": 128,
+  "pathLength": 240,
+  "pathComponents": 8,
+  "slugLength": 64
+}

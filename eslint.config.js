@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import js from "@eslint/js";
 import globals from "globals";
+import jsxA11y from "eslint-plugin-jsx-a11y";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
@@ -20,6 +21,7 @@ const tauriImportExceptions = [
 export default defineConfig([
   globalIgnores([
     "dist",
+    "packages/create-plugin/dist",
     "packages/web-ui/tests",
     "web-ui-project/tests",
     "tests",
@@ -62,6 +64,14 @@ export default defineConfig([
     files: tauriImportExceptions,
     rules: {
       "no-restricted-imports": "off",
+    },
+  },
+  {
+    files: ["**/*.tsx"],
+    extends: [jsxA11y.flatConfigs.recommended],
+    rules: {
+      // Modals focus their primary field on open (see .rules/modals.md).
+      "jsx-a11y/no-autofocus": "off",
     },
   },
 ]);

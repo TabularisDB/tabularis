@@ -135,10 +135,19 @@ describe("SettingToggle", () => {
     render(
       <SettingToggle checked={false} onChange={() => {}} disabled />,
     );
+    // The native checkbox covers the switch, so it carries the cursor.
     const input = screen.getByRole("checkbox");
-    const label = input.closest("label");
-    expect(label).not.toBeNull();
-    expect(label!.className).toContain("cursor-not-allowed");
+    expect(input.className).toContain("cursor-not-allowed");
+  });
+
+  it("takes its accessible name and description from the enclosing SettingRow", () => {
+    render(
+      <SettingRow label="Show welcome" description="On startup">
+        <SettingToggle checked={false} onChange={() => {}} />
+      </SettingRow>,
+    );
+    const input = screen.getByRole("checkbox", { name: "Show welcome" });
+    expect(input).toHaveAccessibleDescription("On startup");
   });
 });
 
@@ -163,7 +172,8 @@ describe("SettingButtonGroup", () => {
       <SettingButtonGroup value="b" onChange={() => {}} options={options} />,
     );
     const selected = screen.getByText("Beta");
-    expect(selected.className).toContain("bg-blue-600");
+    expect(selected).toHaveClass("bg-accent-primary", "border-accent-primary", "text-inverse");
+    expect(selected).toHaveAttribute("aria-pressed", "true");
   });
 
   it("does not highlight unselected options", () => {
@@ -171,7 +181,8 @@ describe("SettingButtonGroup", () => {
       <SettingButtonGroup value="b" onChange={() => {}} options={options} />,
     );
     const unselected = screen.getByText("Alpha");
-    expect(unselected.className).not.toContain("bg-blue-600");
+    expect(unselected).not.toHaveClass("bg-accent-primary");
+    expect(unselected).toHaveAttribute("aria-pressed", "false");
   });
 
   it("calls onChange with the clicked option value", () => {

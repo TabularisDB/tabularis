@@ -1,7 +1,6 @@
 use crate::config::AppConfig;
 use crate::preferences::EditorPreferences;
 use crate::runtime::{state::ApplicationState, RuntimeContext};
-use crate::theme_models::Theme;
 use once_cell::sync::Lazy;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -12,7 +11,6 @@ use uuid::Uuid;
 
 const CONFIG_FILE: &str = "config.json";
 const KEYBINDINGS_FILE: &str = "keybindings.json";
-const THEMES_DIR: &str = "themes";
 const PREFERENCES_DIR: &str = "preferences";
 
 const DEFAULT_SYSTEM_PROMPT: &str = "You are an expert SQL assistant. Your task is to generate a SQL query based on the user's request and the provided database schema.\nReturn ONLY the SQL query, without any markdown formatting, explanations, or code blocks.\n\nSchema:\n{{SCHEMA}}";
@@ -65,7 +63,7 @@ pub enum PersistenceCommand {
     GetKeybindings,
     SaveKeybindings(Value),
     GetAllThemes,
-    SaveCustomTheme(Theme),
+    SaveCustomTheme(Value),
     DeleteCustomTheme(String),
     GetPrompt(PromptKind),
     SavePrompt(PromptKind, String),
@@ -108,9 +106,9 @@ pub async fn execute(
             save_keybindings(runtime, &keybindings)?;
             Ok(Value::Null)
         }
-        PersistenceCommand::GetAllThemes => json(get_all_themes(runtime)),
+        PersistenceCommand::GetAllThemes => json(get_all_themes(runtime)?),
         PersistenceCommand::SaveCustomTheme(theme) => {
-            save_custom_theme(runtime, &theme)?;
+            save_custom_theme(runtime, theme)?;
             Ok(Value::Null)
         }
         PersistenceCommand::DeleteCustomTheme(theme_id) => {
@@ -164,7 +162,15 @@ pub fn load_config(runtime: &RuntimeContext) -> AppConfig {
 }
 
 pub fn save_config(runtime: &RuntimeContext, update: AppConfig) -> Result<AppConfig, String> {
-    update_config(runtime, |config| merge_config(config, update))
+    let proxy_changed = update.proxy.is_some();
+    let saved = update_config(runtime, |config| merge_config(config, update))?;
+    if proxy_changed {
+        // Drop cached TCP forwards / SSH tunnels that may have been built
+        // with the previous proxy (password rotation, protocol switch, …).
+        crate::proxy::stop_all_forwards();
+        crate::ssh_tunnel::stop_all_tunnels();
+    }
+    Ok(saved)
 }
 
 pub fn set_selected_schemas(
@@ -277,6 +283,9 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
 
     merge_fields!(
         theme,
+        follow_system_theme,
+        light_theme_id,
+        dark_theme_id,
         language,
         result_page_size,
         font_family,
@@ -293,6 +302,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         check_for_updates,
         auto_check_updates_on_startup,
         last_dismissed_version,
+        notified_plugin_versions,
         er_diagram_default_layout,
         schema_preferences,
         selected_schemas,
@@ -305,6 +315,7 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         release_channel,
         plugins,
         editor_theme,
+        result_font_family,
         editor_font_family,
         editor_font_size,
         editor_line_height,
@@ -325,10 +336,12 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         query_history_max_entries,
         show_welcome,
         start_maximized,
+        window_decorations,
         display_timezone,
         ai_audit_enabled,
         ai_audit_max_entries,
         ai_session_gap_minutes,
+        mcp_output_format,
         mcp_readonly_default,
         mcp_readonly_connections,
         mcp_approval_mode,
@@ -345,7 +358,14 @@ fn merge_config(existing: &mut AppConfig, update: AppConfig) {
         backup_webdav_username,
         auto_connect_last_connection,
         last_active_connection_id,
-        last_open_connection_ids
+        last_open_connection_ids,
+        postgres_plugin_migration_banner_dismissed,
+        postgres_plugin_migration_banner_dismissed_for,
+        driver_migration_history,
+        known_capability_gaps,
+        migration_mode_by_driver,
+        proxy,
+        ai_provider_proxies
     );
 }
 
@@ -418,59 +438,42 @@ pub fn save_keybindings(runtime: &RuntimeContext, keybindings: &Value) -> Result
         .map_err(|error| error.to_string())
 }
 
-pub fn get_all_themes(runtime: &RuntimeContext) -> Vec<Theme> {
-    let _guard = PERSISTENCE_WRITE_LOCK
-        .lock()
-        .unwrap_or_else(|error| error.into_inner());
-    let themes_dir = runtime.paths.config_dir().join(THEMES_DIR);
-    let Ok(entries) = fs::read_dir(themes_dir) else {
-        return Vec::new();
-    };
-    entries
-        .flatten()
-        .filter_map(|entry| fs::read_to_string(entry.path()).ok())
-        .filter_map(|content| serde_json::from_str(&content).ok())
-        .collect()
+/// Personal legacy themes, read from the host-owned theme catalog so browser
+/// and desktop sessions see the same themes as `theme_commands::get_all_themes`.
+pub fn get_all_themes(runtime: &RuntimeContext) -> Result<Vec<Value>, String> {
+    crate::theme_packages::read_theme_catalog(
+        runtime.paths.config_dir(),
+        &crate::paths::get_default_app_data_dir(),
+        env!("CARGO_PKG_VERSION"),
+    )
+    .themes
+    .into_iter()
+    .filter(|entry| !entry.read_only && entry.format == "legacy" && entry.editor.is_none())
+    .map(|entry| {
+        let mut value: Value = serde_json::from_str(&entry.source).map_err(|e| e.to_string())?;
+        value["isPreset"] = Value::Bool(false);
+        value["isReadOnly"] = Value::Bool(false);
+        Ok(value)
+    })
+    .collect()
 }
 
-pub fn save_custom_theme(runtime: &RuntimeContext, theme: &Theme) -> Result<(), String> {
-    if theme.is_preset {
-        return Err("Cannot save preset themes".to_string());
-    }
-    let path = theme_path(runtime, &theme.id)?;
-    let _guard = PERSISTENCE_WRITE_LOCK
-        .lock()
-        .unwrap_or_else(|error| error.into_inner());
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-    let content = serde_json::to_string_pretty(theme).map_err(|error| error.to_string())?;
-    fs::write(path, content).map_err(|error| error.to_string())
+pub fn save_custom_theme(runtime: &RuntimeContext, theme: Value) -> Result<(), String> {
+    crate::theme_packages::save_legacy_theme(runtime.paths.config_dir(), theme)?;
+    notify_theme_catalog_changed(runtime);
+    Ok(())
 }
 
 pub fn delete_custom_theme(runtime: &RuntimeContext, theme_id: &str) -> Result<(), String> {
-    let path = theme_path(runtime, theme_id)?;
-    let _guard = PERSISTENCE_WRITE_LOCK
-        .lock()
-        .unwrap_or_else(|error| error.into_inner());
-    if !path.exists() {
-        return Err(format!("Theme {theme_id} not found"));
-    }
-    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-    let theme: Theme = serde_json::from_str(&content).map_err(|error| error.to_string())?;
-    if theme.is_preset {
-        return Err("Cannot delete preset themes".to_string());
-    }
-    fs::remove_file(path).map_err(|error| error.to_string())
+    crate::theme_packages::remove_personal_theme(runtime.paths.config_dir(), theme_id)?;
+    notify_theme_catalog_changed(runtime);
+    Ok(())
 }
 
-fn theme_path(runtime: &RuntimeContext, theme_id: &str) -> Result<PathBuf, String> {
-    validate_storage_key(theme_id, "theme id")?;
-    Ok(runtime
-        .paths
-        .config_dir()
-        .join(THEMES_DIR)
-        .join(format!("{theme_id}.json")))
+fn notify_theme_catalog_changed(runtime: &RuntimeContext) {
+    if let Err(error) = runtime.events.emit("theme-catalog-changed", Value::Null) {
+        log::warn!("Personal theme change committed but refresh delivery failed: {error}");
+    }
 }
 
 pub fn get_prompt(runtime: &RuntimeContext, kind: PromptKind) -> String {

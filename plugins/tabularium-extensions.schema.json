@@ -2,16 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tabularis.dev/schemas/tabularium-extensions.json",
   "title": "Tabularis extensions for the Tabularium manifest",
-  "description": "JSON-Schema fragment that registers Tabularis-specific fields on top of Tabularium's core manifest. Paste this into your Tabularium admin panel under /admin/manifest as the global extension. The registry merges it with the core schema and serves the result at /manifest.schema.json, so plugin authors get autocomplete for the whole manifest from a single URL.\n\nNaming rules enforced by Tabularium:\n  * field names match /^[A-Za-z_][A-Za-z0-9_-]*$/\n  * cannot shadow a core field (name, description, kind, tags, license, icon, screenshots, readme, readmes, documentation_url, homepage, support, min_runtime_version, category)\n  * type whitelist: string | number | integer | boolean | array | object\n  * no $ref, max depth 6, max 32 properties per object\n\nFor the runtime manifest.json that ships inside the plugin zip, see plugins/manifest.schema.json.",
+  "description": "JSON-Schema fragment that registers Tabularis-specific fields on top of Tabularium's core manifest. Paste this into your Tabularium admin panel under /admin/manifest as the global extension. The registry merges it with the core schema and serves the result at /manifest.schema.json, so plugin authors get autocomplete for the whole manifest from a single URL.\n\nNaming rules enforced by Tabularium:\n  * field names match /^[A-Za-z_][A-Za-z0-9_-]*$/\n  * cannot shadow a core field (id, name, version, description, kind, tags, license, icon, screenshots, readme, readmes, documentation_url, homepage, support, min_runtime_version, category)\n  * type whitelist: string | number | integer | boolean | array | object\n  * no $ref, max depth 6, max 32 properties per object\n\nFor the runtime manifest.json that ships inside the plugin zip, see plugins/manifest.schema.json.",
   "type": "object",
   "properties": {
-    "id": {
-      "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9-]*$",
-      "minLength": 1,
-      "maxLength": 64,
-      "description": "Stable driver identifier used as `ConnectionParams.driver` and as the on-disk plugin folder name (e.g. \"duckdb\", \"firestore\"). Must match the registry slug."
-    },
     "version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+].+)?$",
@@ -241,6 +234,42 @@
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
             "description": "@tabularis/plugin-api version used to build the bundle."
+          }
+        }
+      }
+    },
+    "explain_parsers": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "Plugin-owned raw EXPLAIN parser IIFE bundles loaded by Tabularis when the plugin is enabled.",
+      "items": {
+        "type": "object",
+        "required": ["engine", "format", "module"],
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Canonical database engine identifier handled by this parser."
+          },
+          "format": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Globally unique raw EXPLAIN wire-format tag."
+          },
+          "module": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Path to the parser IIFE relative to the installed plugin directory."
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Optional human-readable label for format pickers."
           }
         }
       }

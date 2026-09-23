@@ -1,0 +1,326 @@
+{
+  "baseline_commit": "100f50229362f1d277ceb90da3abf38eefd6d3e9",
+  "branch": "perf/startup-optimization",
+  "platform": "macOS arm64",
+  "methodology": "Production frontend in headless Chromium, fresh incognito context per run, cache disabled, no CPU throttling, empty connections, AI off, auto-connect off, 5ms simulated IPC. Alternating before/after. Not a native Tauri launch benchmark.",
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/152.0.7977.83",
+    "revision": "@79460ebecaa5625e57a5fb679a735659e73dc687",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+    "jsVersion": "15.2.124.21"
+  },
+  "repetitions_per_build": 9,
+  "smoke": {
+    "errors": [],
+    "missing": [],
+    "editorReady": true,
+    "workerConfigured": true,
+    "externalEditorFetches": [],
+    "resources": [
+      "/assets/monacoLoader-C00g26a8.js",
+      "/assets/monacoLoader-1PjsAJQ9.css",
+      "/assets/json.worker-BoL8UZqY.js",
+      "/assets/editor.worker-DEFp6fw-.js"
+    ]
+  },
+  "before": {
+    "assets": {
+      "jsBytes": 8792506,
+      "gzipJsBytes": 2368906,
+      "cssBytes": 344087,
+      "files": [
+        {
+          "file": "assets/index-CHrS6Sfz.js",
+          "bytes": 3960404,
+          "gzipBytes": 1068815
+        },
+        {
+          "file": "assets/xyflow-xOBouvoO.js",
+          "bytes": 268060,
+          "gzipBytes": 90083
+        },
+        {
+          "file": "assets/monaco-editor-3NaIAq8X.js",
+          "bytes": 3796376,
+          "gzipBytes": 981959
+        },
+        {
+          "file": "assets/i18n-DyKRiALK.js",
+          "bytes": 65401,
+          "gzipBytes": 21940
+        },
+        {
+          "file": "assets/react-vendor-aq7tMp-D.js",
+          "bytes": 40824,
+          "gzipBytes": 14589
+        },
+        {
+          "file": "assets/wkx-Bki_rQfa.js",
+          "bytes": 93224,
+          "gzipBytes": 25967
+        },
+        {
+          "file": "assets/recharts-CPVDJqh3.js",
+          "bytes": 385298,
+          "gzipBytes": 111516
+        },
+        {
+          "file": "assets/table-D5HpjTX_.js",
+          "bytes": 65245,
+          "gzipBytes": 17805
+        },
+        {
+          "file": "assets/markdown-B5Il56hR.js",
+          "bytes": 117674,
+          "gzipBytes": 36232
+        }
+      ]
+    },
+    "median_ready_ms": 190.3,
+    "median_fcp_ms": 176,
+    "ipc_commands": {
+      "consume_pending_deep_link_install": 1,
+      "fetch_plugin_registry": 3,
+      "get_active_connections": 1,
+      "get_all_themes": 1,
+      "get_config": 2,
+      "get_connections_with_groups": 4,
+      "get_installed_plugins": 4,
+      "get_keybindings": 1,
+      "get_plugin_runtime_warnings": 1,
+      "get_registered_drivers": 7,
+      "is_debug_mode": 1,
+      "list_connection_tags": 1,
+      "list_pending_approvals": 1,
+      "plugin:event|listen": 17,
+      "plugin:event|unlisten": 1,
+      "plugin:window|set_theme": 1,
+      "save_config": 1,
+      "set_window_title": 1
+    },
+    "runs": [
+      {
+        "ready_ms": 207.6,
+        "fcp_ms": 196,
+        "ipc_calls": 49,
+        "js_requests": 9,
+        "js_bytes": 8792506,
+        "external_fetches": 1,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 181.6,
+        "fcp_ms": 168,
+        "ipc_calls": 49,
+        "js_requests": 9,
+        "js_bytes": 8792506,
+        "external_fetches": 1,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 184.5,
+        "fcp_ms": 172,
+        "ipc_calls": 49,
+        "js_requests": 9,
+        "js_bytes": 8792506,
+        "external_fetches": 1,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 182.2,
+        "fcp_ms": 168,
+        "ipc_calls": 49,
+        "js_requests": 9,
+        "js_bytes": 8792506,
+        "external_fetches": 1,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 190.3,
+        "fcp_ms": 176,
+        "ipc_calls": 49,
+        "js_requests": 9,
+        "js_bytes": 8792506,
+        "external_fetches": 1,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 209.6,
+        "fcp_ms": 184,
+        "ipc_calls": 49,
+        "js_requests": 9,
+        "js_bytes": 8792506,
+        "external_fetches": 1,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 207.1,
+        "fcp_ms": 184,
+        "ipc_calls": 49,
+        "js_requests": 9,
+        "js_bytes": 8792506,
+        "external_fetches": 1,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 180.8,
+        "fcp_ms": 168,
+        "ipc_calls": 49,
+        "js_requests": 9,
+        "js_bytes": 8792506,
+        "external_fetches": 1,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 207.3,
+        "fcp_ms": 184,
+        "ipc_calls": 49,
+        "js_requests": 9,
+        "js_bytes": 8792506,
+        "external_fetches": 1,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      }
+    ]
+  },
+  "after": {
+    "assets": {
+      "jsBytes": 1425258,
+      "gzipJsBytes": 387438,
+      "cssBytes": 181311,
+      "files": [
+        {
+          "file": "assets/index-CFiJmADO.js",
+          "bytes": 1423996,
+          "gzipBytes": 386693
+        },
+        {
+          "file": "assets/runtime-Bpr93w1e.js",
+          "bytes": 1262,
+          "gzipBytes": 745
+        }
+      ]
+    },
+    "median_ready_ms": 85.3,
+    "median_fcp_ms": 68,
+    "ipc_commands": {
+      "consume_pending_deep_link_install": 1,
+      "get_active_connections": 1,
+      "get_all_themes": 1,
+      "get_config": 1,
+      "get_connections_with_groups": 1,
+      "get_installed_plugins": 1,
+      "get_keybindings": 1,
+      "get_plugin_runtime_warnings": 1,
+      "get_registered_drivers": 1,
+      "is_debug_mode": 1,
+      "list_connection_tags": 1,
+      "list_pending_approvals": 1,
+      "plugin:event|listen": 14,
+      "plugin:event|unlisten": 1,
+      "plugin:window|set_theme": 1,
+      "set_window_title": 1
+    },
+    "runs": [
+      {
+        "ready_ms": 92.1,
+        "fcp_ms": 68,
+        "ipc_calls": 29,
+        "js_requests": 2,
+        "js_bytes": 1425258,
+        "external_fetches": 0,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 76.6,
+        "fcp_ms": 64,
+        "ipc_calls": 29,
+        "js_requests": 2,
+        "js_bytes": 1425258,
+        "external_fetches": 0,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 80.8,
+        "fcp_ms": 68,
+        "ipc_calls": 29,
+        "js_requests": 2,
+        "js_bytes": 1425258,
+        "external_fetches": 0,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 93.3,
+        "fcp_ms": 64,
+        "ipc_calls": 29,
+        "js_requests": 2,
+        "js_bytes": 1425258,
+        "external_fetches": 0,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 82,
+        "fcp_ms": 68,
+        "ipc_calls": 29,
+        "js_requests": 2,
+        "js_bytes": 1425258,
+        "external_fetches": 0,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 83.6,
+        "fcp_ms": 64,
+        "ipc_calls": 29,
+        "js_requests": 2,
+        "js_bytes": 1425258,
+        "external_fetches": 0,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 85.3,
+        "fcp_ms": 72,
+        "ipc_calls": 29,
+        "js_requests": 2,
+        "js_bytes": 1425258,
+        "external_fetches": 0,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 92.5,
+        "fcp_ms": 72,
+        "ipc_calls": 29,
+        "js_requests": 2,
+        "js_bytes": 1425258,
+        "external_fetches": 0,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      },
+      {
+        "ready_ms": 92.4,
+        "fcp_ms": 80,
+        "ipc_calls": 29,
+        "js_requests": 2,
+        "js_bytes": 1425258,
+        "external_fetches": 0,
+        "uncaught_errors": 0,
+        "unmocked_commands": 0
+      }
+    ]
+  }
+}

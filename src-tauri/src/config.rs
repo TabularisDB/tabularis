@@ -16,10 +16,26 @@ pub struct PluginConfig {
     pub settings: HashMap<String, serde_json::Value>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum WindowDecorationsMode {
+    #[default]
+    Automatic,
+    AlwaysShow,
+    AlwaysHide,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub theme: Option<String>,
+    /// When true, the app follows the OS light/dark appearance using
+    /// `light_theme_id` / `dark_theme_id`. None/false ⇒ static `theme`.
+    pub follow_system_theme: Option<bool>,
+    /// Theme applied while the OS is in light mode and follow-system is on.
+    pub light_theme_id: Option<String>,
+    /// Theme applied while the OS is in dark mode and follow-system is on.
+    pub dark_theme_id: Option<String>,
     pub language: Option<String>,
     pub result_page_size: Option<u32>,
     pub font_family: Option<String>,
@@ -41,6 +57,8 @@ pub struct AppConfig {
     pub check_for_updates: Option<bool>,
     pub auto_check_updates_on_startup: Option<bool>,
     pub last_dismissed_version: Option<String>,
+    /// Last plugin release shown in a startup notification, keyed by plugin id.
+    pub notified_plugin_versions: Option<HashMap<String, String>>,
     pub er_diagram_default_layout: Option<String>,
     pub schema_preferences: Option<HashMap<String, String>>,
     pub selected_schemas: Option<HashMap<String, Vec<String>>>,
@@ -66,6 +84,8 @@ pub struct AppConfig {
     pub release_channel: Option<String>,
     pub plugins: Option<HashMap<String, PluginConfig>>,
     pub editor_theme: Option<String>,
+    /// Font for query result cells ("inherit" follows the interface font). Default: JetBrains Mono.
+    pub result_font_family: Option<String>,
     pub editor_font_family: Option<String>,
     pub editor_font_size: Option<u32>,
     pub editor_line_height: Option<f32>,
@@ -96,6 +116,9 @@ pub struct AppConfig {
     pub show_welcome: Option<bool>,
     /// Maximize the window on startup. Default: false.
     pub start_maximized: Option<bool>,
+    /// Controls native window decorations. Automatic hides them for recognized
+    /// tiling window managers and keeps them on other desktop environments.
+    pub window_decorations: Option<WindowDecorationsMode>,
     /// IANA timezone name (e.g. `Asia/Tokyo`) used to render timestamps in the
     /// UI and exports. `None` or `"auto"` follows the OS local timezone.
     pub display_timezone: Option<String>,
@@ -108,6 +131,11 @@ pub struct AppConfig {
     /// Inactivity gap (in minutes) after which a new MCP session id is minted.
     /// Default: 10.
     pub ai_session_gap_minutes: Option<u32>,
+
+    // ----- MCP Tool Output -----
+    /// Default text encoding for MCP tool results: `"json"` or `"toon"`.
+    /// Per-call `output_format` arguments override this preference. Default: `"json"`.
+    pub mcp_output_format: Option<String>,
 
     // ----- MCP Read-only Mode -----
     /// Default behaviour for MCP `run_query`: when true, every connection is
@@ -157,12 +185,78 @@ pub struct AppConfig {
     pub last_active_connection_id: Option<String>,
     /// Ids of all connections that were open when the app was last closed.
     pub last_open_connection_ids: Option<Vec<String>>,
+
+    // ----- Built-in driver migration -----
+    /// Whether the user has dismissed the PostgreSQL-plugin migration banner.
+    /// `None`/`false` → banner is eligible to show. All four fields in this
+    /// section are driver-id-generic so future built-in deprecations reuse
+    /// them without new config plumbing.
+    #[serde(default)]
+    pub postgres_plugin_migration_banner_dismissed: Option<bool>,
+    /// Connection ids that existed (on the builtin driver) at the moment the
+    /// banner was dismissed. A builtin connection id not in this list means
+    /// the trigger condition changed since the dismissal, so the banner
+    /// resurfaces — mirrors `WhatsNewModal`'s own version-comparison gating.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub postgres_plugin_migration_banner_dismissed_for: Option<Vec<String>>,
+    /// Append-only record of every connection migrated between built-in and
+    /// plugin drivers. Kept even after an undo, so a filed issue has the
+    /// before/after to attach and a later deprecation pass can see who
+    /// already tried and bounced off a given plugin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver_migration_history: Option<Vec<DriverMigrationRecord>>,
+    /// Map of `plugin_id` → list of capability-gap feature names the user has
+    /// already reported. Prevents re-prompting for a gap already filed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub known_capability_gaps: Option<HashMap<String, Vec<String>>>,
+    /// Per built-in driver id → migration mode. Defaults to `opt-in` when
+    /// unset; flipping an entry to `forced` is a separate, later decision
+    /// gated on adoption signal — never enabled by this field's existence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub migration_mode_by_driver: Option<HashMap<String, MigrationMode>>,
+
+    // ----- Network / Proxy -----
+    /// Global HTTP/SOCKS5 proxy and opt-in traffic scopes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<crate::proxy::GlobalProxySettings>,
+    /// Per AI-provider proxy overrides (`openai`, `anthropic`, …).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ai_provider_proxies:
+        Option<HashMap<String, crate::proxy::ProxyOverride>>,
+}
+
+/// One entry in the append-only driver-migration history.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DriverMigrationRecord {
+    /// Connection that was migrated.
+    pub connection_id: String,
+    /// Driver id migrated from (e.g. the built-in `"postgres"`).
+    pub from_driver: String,
+    /// Driver id migrated to (e.g. the plugin `"postgresql"`).
+    pub to_driver: String,
+    /// ISO-8601 timestamp of the migration.
+    pub migrated_at: String,
+    /// Whether the post-migration "Switched — Undo" toast was dismissed.
+    #[serde(default)]
+    pub toast_dismissed: bool,
+}
+
+/// Whether a built-in driver's migration is opt-in or forced. Flipping to
+/// `Forced` is a separate, later decision; the default everywhere is
+/// `OptIn`.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum MigrationMode {
+    #[default]
+    OptIn,
+    Forced,
 }
 
 static CONFIG_CACHE: Lazy<RwLock<AppConfig>> = Lazy::new(|| RwLock::new(AppConfig::default()));
 
-pub fn get_config_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
-    app.path().app_config_dir().ok()
+pub fn get_config_dir<R: tauri::Runtime>(_app: &AppHandle<R>) -> Option<PathBuf> {
+    Some(crate::paths::get_app_config_dir())
 }
 
 pub(crate) fn cache_config(config: &AppConfig) {
@@ -182,6 +276,7 @@ pub fn get_cached_config() -> AppConfig {
 pub const DEFAULT_AI_AUDIT_ENABLED: bool = true;
 pub const DEFAULT_AI_AUDIT_MAX_ENTRIES: u32 = 5000;
 pub const DEFAULT_AI_SESSION_GAP_MINUTES: u32 = 10;
+pub const DEFAULT_MCP_OUTPUT_FORMAT: &str = "json";
 pub const DEFAULT_MCP_READONLY_DEFAULT: bool = false;
 pub const DEFAULT_MCP_APPROVAL_MODE: &str = "writes_only";
 pub const DEFAULT_MCP_APPROVAL_TIMEOUT_SECONDS: u32 = 120;
@@ -252,12 +347,16 @@ pub fn get_config(app: AppHandle) -> AppConfig {
 #[tauri::command]
 pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     let runtime = app.state::<crate::runtime::RuntimeContext>();
-    let previous_ping_interval =
-        crate::application::persistence::load_config(&runtime).ping_interval;
+    let previous = crate::application::persistence::load_config(&runtime);
     let requested_ping_interval = config.ping_interval;
+    let window_decorations_changed = config.window_decorations.is_some()
+        && config.window_decorations != previous.window_decorations;
     let saved = crate::application::persistence::save_config(&runtime, config)?;
 
-    if requested_ping_interval.is_some() && saved.ping_interval != previous_ping_interval {
+    if window_decorations_changed {
+        crate::window_decorations::apply_to_all_windows(&app, saved.window_decorations.as_ref());
+    }
+    if requested_ping_interval.is_some() && saved.ping_interval != previous.ping_interval {
         let interval = saved
             .ping_interval
             .unwrap_or(crate::health_check::DEFAULT_PING_INTERVAL);
@@ -620,8 +719,29 @@ pub fn save_config_json(app: AppHandle, json: String) -> Result<(), String> {
 }
 
 #[cfg(test)]
+#[path = "config/plugin_notification_tests.rs"]
+mod plugin_notification_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn app_config_deserializes_system_theme_fields() {
+        let json = r#"{"theme":"tabularis-dark","followSystemTheme":true,"lightThemeId":"tabularis-light","darkThemeId":"dracula"}"#;
+        let config: AppConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.follow_system_theme, Some(true));
+        assert_eq!(config.light_theme_id.as_deref(), Some("tabularis-light"));
+        assert_eq!(config.dark_theme_id.as_deref(), Some("dracula"));
+    }
+
+    #[test]
+    fn app_config_defaults_system_theme_fields_to_none() {
+        let config: AppConfig = serde_json::from_str("{}").unwrap();
+        assert!(config.follow_system_theme.is_none());
+        assert!(config.light_theme_id.is_none());
+        assert!(config.dark_theme_id.is_none());
+    }
 
     #[test]
     fn selected_schemas_default_is_none() {
@@ -695,6 +815,7 @@ mod tests {
         let config = AppConfig::default();
         assert!(config.safety_confirmation_delay_enabled.is_none());
         assert!(config.editor_theme.is_none());
+        assert!(config.result_font_family.is_none());
         assert!(config.editor_font_family.is_none());
         assert!(config.editor_font_size.is_none());
         assert!(config.editor_line_height.is_none());
@@ -708,6 +829,7 @@ mod tests {
     fn editor_fields_serialize_with_camel_case() {
         let mut config = AppConfig::default();
         config.editor_font_family = Some("JetBrains Mono".to_string());
+        config.result_font_family = Some("inherit".to_string());
         config.editor_font_size = Some(16);
         config.editor_line_height = Some(1.5);
         config.editor_tab_size = Some(4);
@@ -719,6 +841,7 @@ mod tests {
 
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("editorFontFamily"));
+        assert!(json.contains("resultFontFamily"));
         assert!(json.contains("editorFontSize"));
         assert!(json.contains("editorLineHeight"));
         assert!(json.contains("editorTabSize"));
@@ -729,6 +852,7 @@ mod tests {
         assert!(json.contains("safetyConfirmationDelayEnabled"));
         // snake_case must not appear
         assert!(!json.contains("editor_font_family"));
+        assert!(!json.contains("result_font_family"));
         assert!(!json.contains("editor_accept_suggestion_on_enter"));
         assert!(!json.contains("safety_confirmation_delay_enabled"));
     }
@@ -737,6 +861,7 @@ mod tests {
     fn editor_fields_round_trip() {
         let json = r#"{
             "editorFontFamily": "Hack",
+            "resultFontFamily": "Open Sans",
             "editorFontSize": 14,
             "editorLineHeight": 1.8,
             "editorTabSize": 2,
@@ -749,6 +874,7 @@ mod tests {
 
         let config: AppConfig = serde_json::from_str(json).unwrap();
         assert_eq!(config.editor_font_family.as_deref(), Some("Hack"));
+        assert_eq!(config.result_font_family.as_deref(), Some("Open Sans"));
         assert_eq!(config.editor_font_size, Some(14));
         assert_eq!(config.editor_tab_size, Some(2));
         assert_eq!(config.editor_word_wrap, Some(true));
@@ -772,6 +898,7 @@ mod tests {
         assert!(config.ai_audit_enabled.is_none());
         assert!(config.ai_audit_max_entries.is_none());
         assert!(config.ai_session_gap_minutes.is_none());
+        assert!(config.mcp_output_format.is_none());
         assert!(config.mcp_readonly_default.is_none());
         assert!(config.mcp_readonly_connections.is_none());
         assert!(config.mcp_approval_mode.is_none());
@@ -787,6 +914,7 @@ mod tests {
         config.ai_audit_enabled = Some(true);
         config.ai_audit_max_entries = Some(1000);
         config.ai_session_gap_minutes = Some(5);
+        config.mcp_output_format = Some("toon".into());
         config.mcp_readonly_default = Some(true);
         config.mcp_readonly_connections = Some(vec!["c1".into()]);
         config.mcp_approval_mode = Some("all".into());
@@ -799,6 +927,7 @@ mod tests {
         assert!(json.contains("aiAuditEnabled"));
         assert!(json.contains("aiAuditMaxEntries"));
         assert!(json.contains("aiSessionGapMinutes"));
+        assert!(json.contains("mcpOutputFormat"));
         assert!(json.contains("mcpReadonlyDefault"));
         assert!(json.contains("mcpReadonlyConnections"));
         assert!(json.contains("mcpApprovalMode"));
@@ -814,6 +943,7 @@ mod tests {
             "aiAuditEnabled": false,
             "aiAuditMaxEntries": 2000,
             "aiSessionGapMinutes": 30,
+            "mcpOutputFormat": "toon",
             "mcpReadonlyDefault": true,
             "mcpReadonlyConnections": ["a", "b"],
             "mcpApprovalMode": "writes_only",
@@ -826,6 +956,7 @@ mod tests {
         assert_eq!(config.ai_audit_enabled, Some(false));
         assert_eq!(config.ai_audit_max_entries, Some(2000));
         assert_eq!(config.ai_session_gap_minutes, Some(30));
+        assert_eq!(config.mcp_output_format.as_deref(), Some("toon"));
         assert_eq!(config.mcp_readonly_default, Some(true));
         assert_eq!(
             config.mcp_readonly_connections.as_deref(),

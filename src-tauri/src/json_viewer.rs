@@ -125,6 +125,7 @@ pub async fn open_json_viewer_window(
     let mut builder = WebviewWindowBuilder::new(&app, &window_label, WebviewUrl::App(url.into()))
         .title(&title)
         .min_inner_size(600.0, 400.0)
+        .decorations(crate::window_decorations::native_decorations_enabled())
         .background_color(tauri::webview::Color(2, 6, 23, 255));
 
     builder = match remembered {

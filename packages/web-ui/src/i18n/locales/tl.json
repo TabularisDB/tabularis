@@ -57,6 +57,7 @@
   "common": {
     "save": "I-save",
     "close": "Isara",
+    "resizeColumn": "Baguhin ang laki ng column",
     "cancel": "Kanselahin",
     "delete": "Burahin",
     "edit": "I-edit",
@@ -75,7 +76,8 @@
     "copied": "Nakopya!",
     "showDetails": "Ipakita ang detalye",
     "hideDetails": "Itago ang detalye",
-    "beta": "Beta"
+    "beta": "Beta",
+    "dismiss": "Isara"
   },
   "sidebar": {
     "connections": "Mga Koneksyon",
@@ -113,6 +115,8 @@
     "noTables": "Walang nahanap na table",
     "expandTable": "I-expand ang table na {{name}}",
     "collapseTable": "I-collapse ang table na {{name}}",
+    "expandView": "I-expand ang view na {{name}}",
+    "collapseView": "I-collapse ang view na {{name}}",
     "columns": "mga column",
     "parameters": "mga parameter",
     "noParameters": "Walang parameter",
@@ -194,6 +198,7 @@
     "splitHorizontal": "Hatiin nang Pahiga",
     "separateConnections": "Paghiwalayin ang mga Koneksyon",
     "splitGroup": "Hatiin ang Grupo",
+    "resizePanels": "Baguhin ang laki ng mga panel",
     "filterTables": "I-filter ang mga table...",
     "noTablesMatch": "Walang table na tumugma",
     "filterDatabases": "I-filter ang mga database...",
@@ -264,6 +269,11 @@
       "activity": "Aktibidad",
       "safety": "Kaligtasan"
     },
+    "output": {
+      "title": "Output ng tool",
+      "formatLabel": "Default na format ng output",
+      "formatDescription": "Ginagamit kapag hindi tinukoy ng MCP tool call ang output_format. Pinapanatili ng JSON ang compatibility; maaaring bawasan ng TOON ang paggamit ng token."
+    },
     "safety": {
       "readOnlyTitle": "Read-only mode",
       "readOnlyDefault": "Gawing read-only ang lahat ng MCP query",
@@ -291,6 +301,9 @@
   "connections": {
     "title": "Mga Koneksyon",
     "addConnection": "Magdagdag ng Koneksyon",
+    "deprecated": "Deprecated",
+    "deprecatedTooltip": "This built-in driver is being replaced by the {{replacement}} plugin.",
+    "deprecatedTooltipDate": "This built-in driver is being replaced by the {{replacement}} plugin, tentatively by {{date}}.",
     "newSqliteDatabase": {
       "menuLabel": "Bagong SQLite Database…",
       "dialogTitle": "Bagong SQLite Database",
@@ -424,6 +437,47 @@
     "title": "Mga Setting",
     "general": "Pangkalahatan",
     "privacy": "Privacy",
+    "network": {
+      "tab": "Network",
+      "title": "Proxy",
+      "description": "Route selected application traffic through an HTTP or SOCKS5 proxy. Connection and AI provider overrides take priority over these global settings.",
+      "enabled": "Enable proxy",
+      "enabledDesc": "Turn on the global proxy. Individual scopes below must also be checked for traffic to use it.",
+      "protocol": "Protocol",
+      "protocolDesc": "HTTP CONNECT or SOCKS5.",
+      "host": "Proxy host",
+      "hostDesc": "Hostname or IP of the proxy server.",
+      "port": "Proxy port",
+      "portDesc": "TCP port of the proxy server.",
+      "username": "Username",
+      "usernameDesc": "Optional proxy authentication username.",
+      "password": "Password",
+      "passwordDesc": "Optional proxy password. Stored in the OS keychain, never in config.json.",
+      "passwordReplaceDesc": "A password is already stored. Enter a new one to replace it.",
+      "clearPassword": "Clear",
+      "applyTo": "Apply proxy to",
+      "applyToDesc": "Opt-in traffic categories. Unchecked categories never use the global proxy.",
+      "scopes": {
+        "appHttp": "App network requests",
+        "appHttpDesc": "Plugin downloads (including legacy raw.githubusercontent.com registry.json), Tabularium registry API, update checks, and WebDAV backup uploads.",
+        "database": "Database connections",
+        "databaseDesc": "Direct TCP connections to databases (skipped when already on a local SSH/K8s tunnel).",
+        "ai": "AI / LLM endpoints",
+        "aiDesc": "Requests to configured AI providers. Per-provider overrides can still customize or disable.",
+        "sshTunnel": "SSH tunnels",
+        "sshTunnelDesc": "Outbound connection to the SSH bastion before port-forwarding to the database."
+      },
+      "overrideMode": "Proxy mode",
+      "overrideModeDesc": "Inherit the global proxy, set a custom proxy, or disable proxying for this target.",
+      "modeInherit": "Inherit",
+      "modeCustom": "Custom",
+      "modeDisabled": "Disabled",
+      "providerProxy": "Provider proxy",
+      "providerProxyDesc": "Override the global AI proxy for this provider only.",
+      "connectionProxy": "Proxy",
+      "connectionProxyDesc": "Override the global proxy for this connection’s database and SSH traffic. When an SSH tunnel is used, the proxy applies to the bastion hop; the local tunnel leg is not re-proxied.",
+      "passwordAfterSave": "Save the connection first to store a proxy password in the keychain."
+    },
     "columnMasking": "Pag-mask ng mga column",
     "columnMaskingDesc": "Itinatago ang nilalaman ng mga sensitibong column (mga password, email, token…) sa results grid. Gumagamit pa rin ng totoong mga value ang pag-copy at pag-export.",
     "columnMaskingEnabled": "I-mask ang mga sensitibong column",
@@ -469,9 +523,15 @@
     "themeSelection": "Pagpili ng Theme",
     "importTheme": "Mag-import ng theme",
     "exportTheme": "Mag-export ng theme",
+    "themeMode": "Mode ng Theme",
+    "themeModeDesc": "Pumili ng nakapirming theme, o sundin ang light/dark na hitsura ng system.",
+    "themeModeStatic": "Static",
+    "themeModeSystem": "Sundin ang System",
+    "lightTheme": "Light na Theme",
+    "darkTheme": "Dark na Theme",
     "fontFamily": "Font Family",
     "fonts": {
-      "system": "System Default",
+      "system": "Default ng tema",
       "systemDesc": "Ginagamit ang default font ng iyong OS",
       "custom": "Custom Font",
       "customPlaceholder": "hal., Comic Sans MS",
@@ -679,6 +739,11 @@
     "autoConnectLastConnectionDesc": "Muling kumonekta sa mga koneksyong bukas noong huling isinara ang app.",
     "startMaximized": "Magsimula nang Maximized",
     "startMaximizedDesc": "Buksan ang window nang maximized para punuin ang screen sa startup.",
+    "windowDecorations": "Mga Dekorasyon ng Window",
+    "windowDecorationsDesc": "Awtomatikong itago ang native na dekorasyon kapag may natukoy na tiling window manager, o piliin ang tiyak na behavior.",
+    "windowDecorationsAutomatic": "Awtomatiko",
+    "windowDecorationsAlwaysShow": "Palaging ipakita",
+    "windowDecorationsAlwaysHide": "Palaging itago",
     "erDiagram": "ER Diagram",
     "erDiagramDefaultLayout": "Default Layout",
     "erDiagramDefaultLayoutDesc": "Piliin ang default layout direction para sa ER diagrams",
@@ -696,18 +761,30 @@
       "loadingRegistry": "Naglo-load ng plugin registry...",
       "registryError": "Hindi na-load ang registry",
       "installed": "Naka-install",
+      "latest": "Pinakabago",
       "by": "ni",
       "platformNotSupported": "Hindi available para sa iyong platform",
       "update": "I-update",
       "install": "I-install",
       "upToDate": "Updated na",
       "downgrade": "I-downgrade sa",
+      "deprecated": "Deprecated",
+      "deprecatedTooltip": "This built-in driver is being replaced by the {{replacement}} plugin.",
+      "deprecatedTooltipDate": "This built-in driver is being replaced by the {{replacement}} plugin, tentatively by {{date}}.",
+      "migrationProgress": "{{migrated}} of {{total}} migrated",
       "olderVersions": "Mas lumang bersyon",
       "noPlugins": "Walang available na plugin sa registry.",
       "searchPlaceholder": "Maghanap ng plugin…",
       "filterAll": "Lahat",
       "filterInstalled": "Naka-install",
       "filterUpdates": "Mga Update",
+      "kindFilter": "I-filter ayon sa uri",
+      "kindAll": "Lahat ng uri",
+      "kindDrivers": "Mga driver",
+      "kindThemes": "Mga tema",
+      "kindTheme": "Tema",
+      "kindDriver": "Driver",
+      "manageThemes": "Pamahalaan sa Hitsura",
       "searchNoResults": "Walang plugin na tumutugma sa iyong paghahanap.",
       "version": "Bersyon",
       "requiresVersion": "Nangangailangan ng Tabularis ≥ {{version}}",
@@ -731,6 +808,9 @@
         "title": "Nabigo ang Pag-uninstall",
         "subtitle": "May error habang ina-uninstall ang plugin. Tingnan ang mga detalye sa ibaba."
       },
+      "devRuntimeWarning": {
+        "title": "Development build: nilaktawan ng plugin na \"{{plugin}}\" ang pagsuri ng bersyon ng Tabularis"
+      },
       "startError": {
         "title": "Nabigo ang Pagsisimula ng Plugin",
         "subtitle": "Hindi ma-launch ang plugin process. Tingnan ang mga detalye ng error sa ibaba.",
@@ -749,6 +829,7 @@
         "fieldRequired": "Kailangan ang {{label}}",
         "saved": "Na-save",
         "resetToDefault": "I-reset sa default",
+        "reportIssue": "I-report ang isyu sa plugin",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -767,6 +848,12 @@
               "label": "Timezone",
               "description": "Session timezone na ipinapadala sa MySQL pagkatapos kumonekta."
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "Pool Max Size",
+              "description": "Maximum na bilang ng PostgreSQL connections na pinapanatili sa pool."
+            }
           }
         }
       }
@@ -776,7 +863,8 @@
       "categories": {
         "editor": "Editor",
         "navigation": "Navigation",
-        "data_grid": "Data Grid"
+        "data_grid": "Data Grid",
+        "notebook": "Kuwaderno"
       },
       "runQuery": "Patakbuhin ang query",
       "runQueryEditor": "Patakbuhin ang query (sa editor)",
@@ -788,6 +876,9 @@
       "toggleRightSidebar": "I-toggle ang kanang sidebar",
       "focusTableFilter": "Tumuon sa table filter",
       "openConnections": "Buksan ang mga koneksyon",
+      "openSettings": "Buksan ang settings",
+      "conflict": "Sumasalungat ang shortcut na ito sa “{{shortcut}}”.",
+      "needsModifier": "Magdagdag ng modifier key, gaya ng Ctrl o Alt.",
       "newConnection": "Bagong koneksyon",
       "newTab": "Bagong tab",
       "closeTab": "Isara ang tab",
@@ -803,9 +894,41 @@
       "pasteImportClipboard": "I-import mula sa Clipboard",
       "quickNavigator": "Quick Navigator",
       "formatSql": "I-format ang SQL",
+      "extendCellRange": "Palawakin ang cell range",
+      "jumpToEdge": "Tumalon sa gilid ng grid",
+      "extendCellRangeToEdge": "Palawakin ang range hanggang sa gilid",
+      "selectRow": "Piliin ang row",
+      "selectColumn": "Piliin ang column",
       "commandPaletteActions": "Maghanap ng mga aksyon"
     },
     "aiActivity": "AI Activity",
+    "storage": {
+      "title": "Storage",
+      "locations": "Mga lokasyon",
+      "dataFolder": "Folder ng data",
+      "dataFolderDesc": "Dito nakaimbak ang mga koneksyon, setting, naka-save na query, tema, notebook at kasaysayan ng query. Ituro ito sa isang naka-sync na folder (iCloud Drive, Dropbox, …) para maibahagi sa iba't ibang makina. Laging nananatiling lokal ang mga naka-install na plugin.",
+      "sourceDefault": "Default na lokasyon",
+      "sourceCustom": "Custom na lokasyon",
+      "sourceEnv": "Itinakda ng TABULARIS_DATA_DIR",
+      "envHint": "Kinokontrol ang folder ng environment variable na TABULARIS_DATA_DIR. Alisin ito para mabago ang lokasyon mula rito.",
+      "envVar": "Environment variable",
+      "envVarDesc": "Itakda ang TABULARIS_DATA_DIR sa isang absolute path para palitan ang folder ng data sa isang paglulunsad o installation. Mas inuuna ito kaysa sa folder na pinili sa itaas, umiiral din sa MCP server, at kapaki-pakinabang para sa portable install, script at development.",
+      "envVarExample": "TABULARIS_DATA_DIR=/path/sa/folder tabularis",
+      "changeFolder": "Palitan ang folder…",
+      "openFolder": "Buksan ang folder",
+      "resetToDefault": "Gamitin ang default na lokasyon",
+      "concurrencyWarning": "Binabasa ng Tabularis ang folder na ito sa pagsisimula. Iwasang magpatakbo ng dalawang instance sa parehong folder nang sabay, halimbawa sa dalawang makina habang nag-sync.",
+      "newFolder": "Bagong folder",
+      "modeExisting": "Gamitin ang data na nasa folder na ito",
+      "modeExistingDesc": "May laman na itong Tabularis data, halimbawa na-sync mula sa ibang makina.",
+      "modeCopy": "Kopyahin ang kasalukuyang data ko sa folder na ito",
+      "modeCopyDesc": "Pinapanatili ang mga file na nasa folder na. Hindi kinokopya ang mga naka-install na plugin.",
+      "modeEmpty": "Magsimula sa walang lamang folder",
+      "apply": "Ilapat",
+      "restartRequired": "Kailangan i-restart",
+      "restartRequiredDesc": "Gagamitin ng Tabularis ang {{path}} pagkatapos ng restart.",
+      "restartNow": "I-restart ngayon"
+    },
     "backup": {
       "title": "Backup",
       "directory": "Folder ng backup",
@@ -857,6 +980,22 @@
     }
   },
   "update": {
+    "badges": {
+      "morePlugins": "{{count}} pa — buksan ang Plugins para makita ang lahat ng update",
+      "driverUpdate": "May available na update ng driver",
+      "themeUpdate": "May available na update ng tema",
+      "tag": "Update",
+      "driverTooltip": "Available na ang {{name}} {{version}}. Ibinabahagi ang plugin na ito ng iyong mga koneksyon. Buksan ang Plugins → Updates para pamahalaan ito.",
+      "core_one": "May {{count}} update sa core",
+      "core_other": "May {{count}} update sa core",
+      "plugins_one": "May {{count}} update sa plugin",
+      "plugins_other": "May {{count}} update sa mga plugin",
+      "coreDetails": "Available na ang Tabularis {{version}}. Buksan ang Impormasyon para tingnan ang update sa core.",
+      "pluginDetails_one": "May update para sa: {{plugins}}",
+      "pluginDetails_other": "May mga update para sa: {{plugins}}",
+      "toastTitle": "May mga update sa plugin",
+      "openPlugins": "Buksan ang Plugins"
+    },
     "newVersionAvailable": "May Bagong Bersyon",
     "version": "Bersyon",
     "releaseNotes": "Mga Tala ng Release",
@@ -899,6 +1038,17 @@
     "configError": "Pakiconfigure ang AI provider sa Settings at maglagay ng prompt."
   },
   "newConnection": {
+    "ssmForwardHint": "Nire-resolve sa {{document}} - ipinapasa sa {{host}}:{{port}} sa pamamagitan ng managed node. Baguhin ang target na address sa tab na General; ang loopback host ay ang node mismo.",
+    "ssmIamHint": "Kailangan ng ssm:StartSession sa target at sa na-resolve na dokumento.",
+    "ssmNotAvailable": "Hindi available ang AWS SSM para sa driver na ito.",
+    "ssmPortRequired": "Magtakda muna ng wastong port sa tab na General.",
+    "ssmProfile": "AWS profile",
+    "ssmRegion": "AWS region",
+    "ssmTarget": "Managed node",
+    "ssmTargetRequired": "Ilagay ang managed node na daraanan ng koneksyon.",
+    "testSsm": "Subukan ang SSM",
+    "testSsmHint": "Nagbubukas ng tunay na port forwarding session at isinasara itong muli, nang hindi kumokonekta sa database.",
+    "useSsm": "Gamitin ang AWS SSM port forwarding",
     "titleNew": "Bagong Connection",
     "titleEdit": "I-edit ang Connection",
     "subtitle": "I-configure ang mga setting ng database connection",
@@ -1051,6 +1201,7 @@
   },
   "dataGrid": {
     "noRowIdentity": "Hindi ma-edit ang mga row: walang primary key ang \"{{table}}\", kaya kailangang kasama sa resulta ang lahat ng column ng table. Piliin ang lahat ng column (hal. SELECT *) o magdagdag ng primary key.",
+    "resizeRelatedPanel": "I-drag para baguhin ang laki ng panel",
     "keylessRowNotFound": "Walang row na tumugma sa mga orihinal na value habang ina-update ang \"{{column}}\". Walang primary key ang table at maaaring nagbago ang data — i-refresh at subukang muli.",
     "keylessDeleteNotFound": "Walang row na tumugma sa mga orihinal na value habang nagde-delete. Walang primary key ang table at maaaring nagbago ang data — i-refresh at subukang muli.",
     "newRow": "BAGO",
@@ -1242,6 +1393,21 @@
     "failedProcessInsertions": "Nabigong iproseso ang mga insertion: ",
     "fieldRequired": "Kailangan ang field na ito",
     "newNotebook": "Bagong Notebook",
+    "openSqlFile": "Buksan ang SQL File…",
+    "openSqlFileError": "Hindi mabuksan ang SQL file",
+    "sqlFileFilter": "Mga SQL File",
+    "saveSqlFile": "I-save ang SQL File",
+    "saveSqlFileAs": "I-save ang SQL File Bilang…",
+    "saveSqlFileError": "Hindi ma-save ang SQL file",
+    "sqlFileSaved": "Na-save ang SQL file",
+    "unsavedSqlFileTitle": "Itapon ang mga hindi na-save na pagbabago?",
+    "unsavedSqlFileMessage": "May hindi na-save na pagbabago ang isa o higit pang SQL file. Mawawala ang mga ito kapag isinara ang mga tab.",
+    "discardSqlFileChanges": "Itapon ang mga pagbabago",
+    "saveFile": "I-save",
+    "saveFileAs": "I-save bilang…",
+    "saveOptions": "Mga opsyon sa pag-save",
+    "addToSavedQueries": "Idagdag sa mga naka-save na query…",
+    "sqlFileNotSaved": "Hindi pa naka-save sa file",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Explain Plan",
@@ -1370,6 +1536,7 @@
       "addSqlCell": "Magdagdag ng SQL Cell",
       "addMarkdownCell": "Magdagdag ng Markdown Cell",
       "addCell": "Magdagdag",
+      "resizeResult": "Baguhin ang laki ng resulta",
       "runAll": "Patakbuhin Lahat",
       "runAllTooltip": "I-execute ang lahat ng SQL cell mula taas hanggang baba",
       "runCell": "Patakbuhin ang Cell",
@@ -1386,6 +1553,7 @@
       "invalidFile": "Invalid na format ng notebook file",
       "importSuccess": "Matagumpay na na-import ang notebook",
       "exportSuccess": "Matagumpay na na-export ang notebook",
+      "resultExportSuccess": "Matagumpay na na-export ang resulta",
       "convertToConsole": "I-convert sa Console",
       "runningAll": "Pinapatakbo ang lahat ng cell...",
       "cellResult": "{{count}} row · {{time}}ms",
@@ -1414,6 +1582,13 @@
       "sectionQuery": "Query",
       "sectionResults": "Mga Resulta",
       "sectionChart": "Chart",
+      "sectionQueryPlan": "Query Plan",
+      "queryPlanOutdated": "Nagbago ang query o koneksyon. Patakbuhin muli para i-refresh ang plan.",
+      "queryPlanUnresolved": "Matagumpay na patakbuhin ang mga naka-reference na cell bago ipaliwanag ang query na ito: {{refs}}",
+      "explainPopout": "Buksan sa buong view",
+      "toggleQueryPlan": "Ipakita ang query plan",
+      "hideQueryPlan": "Itago ang query plan",
+      "exportError": "Nabigo ang pag-export",
       "collapseSection": "I-collapse ang Section",
       "expandSection": "I-expand ang Section",
       "collapseAll": "I-collapse Lahat",
@@ -1513,6 +1688,7 @@
     "colType": "Uri",
     "colNullable": "Nullable",
     "colKey": "Key",
+    "colDescription": "Paglalarawan",
     "yes": "OO",
     "no": "HINDI"
   },
@@ -1668,6 +1844,13 @@
     "dismiss": "Baka mamaya"
   },
   "whatsNew": {
+    "supportTitle": "Kumusta, ako si Andrea, ang lumikha ng Tabularis",
+    "supportStarAction": "Magbigay ng star sa GitHub",
+    "supportDescription": "Nilikha ko ang Tabularis na may isang layunin: panatilihin itong open source magpakailanman. Kung kapaki-pakinabang ito sa iyo, kahit maliit na donasyon sa GitHub Sponsors ay tumutulong sa akin na maglaan ng oras sa mga bagong feature at pagbutihin ito para sa lahat.",
+    "supportThanks": "Salamat sa pagiging bahagi ng proyektong ito!",
+    "supportNeverShow": "Huwag nang ipakita muli",
+    "supportHideError": "Hindi ma-save ang iyong kagustuhan. Pakisubukang muli.",
+    "supportAction": "Sumuporta sa GitHub Sponsors",
     "title": "Ano ang Bago",
     "subtitle": "Bersyon {{version}}",
     "features": "Mga Bagong Feature",
@@ -2160,6 +2343,10 @@
     "tablePlaceholder": "talahanayan (opsyonal)",
     "initialPrivilegesHint": "Opsyonal: mga paunang pribilehiyong ibibigay agad pagkatapos gumawa. Pumili ng database, o iwanang walang laman para ibigay ito nang global."
   },
+  "connectionCatalogue": {
+    "deprecated": "Deprecated",
+    "deprecatedTooltip": "Ang built-in driver na ito ay papalitan ng isang plugin"
+  },
   "connectionErrors": {
     "ssh-auth": {
       "summary": "Nabigo ang SSH authentication",
@@ -2172,6 +2359,10 @@
     "ssh": {
       "summary": "Nabigo ang SSH tunnel",
       "recovery": "Suriin ang mga setting sa tab na SSH."
+    },
+    "ssm": {
+      "summary": "Nabigo ang AWS SSM session",
+      "recovery": "Buksan ang mga detalye para sa eksaktong error ng AWS. Tiyaking naka-install ang AWS CLI at ang Session Manager plugin, kasalukuyan pa ang iyong mga kredensyal, at online ang managed node."
     },
     "db-auth": {
       "summary": "Nabigo ang authentication sa database",
@@ -2210,6 +2401,11 @@
         "ok": "Handa na ang port-forward",
         "error": "Nabigo ang Kubernetes port-forward"
       },
+      "ssmForward": {
+        "start": "Sinisimulan ang AWS SSM port forwarding",
+        "ok": "Handa na ang port forwarding",
+        "error": "Nabigo ang AWS SSM port forwarding"
+      },
       "dbConnect": {
         "start": "Kumokonekta sa database",
         "ok": "Naitatag ang koneksyon sa database",
@@ -2218,5 +2414,62 @@
     },
     "title": "Log ng pagsubok ng koneksyon",
     "showLog": "Ipakita ang log"
+  },
+  "migration": {
+    "banner": {
+      "nudge": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired. The plugin has the same features and gets updates faster.",
+      "nudgeWithDate": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired (tentatively {{date}}). The plugin has the same features and gets updates faster.",
+      "offline": "The PostgreSQL plugin couldn't be downloaded — we'll retry on the next launch. Check your connection or network if this keeps happening.",
+      "reviewConnections": "Review connections"
+    },
+    "switchToPlugin": "Switch to plugin",
+    "switchToBuiltin": "Switch back to built-in",
+    "confirm": {
+      "title": "Lumipat sa plugin?",
+      "message": "Lumipat ang {{name}} sa PostgreSQL plugin? Kung kasalukuyang konektado, ito ay magdiskonekta at mabubuksan muli gamit ang plugin.",
+      "uriMessage": "Lumipat ang {{name}} sa PostgreSQL plugin? Ang connection string na naka-imbak sa keychain ay hindi madadala — kakailanganin mong ilagay ulit ito para makakonekta.",
+      "confirmLabel": "Lumipat",
+      "confirmLabelUri": "Lumipat at ilagay ulit mamaya",
+      "undoTitle": "Bumalik sa built-in driver?",
+      "undoMessage": "Ibalik ang {{name}} sa built-in na PostgreSQL driver? Kung kasalukuyang konektado, ito ay magdiskonekta at mabubuksan muli gamit ang built-in driver.",
+      "undoConfirmLabel": "Ibalik"
+    },
+    "toast": {
+      "success": "Na-switch ang {{name}} sa PostgreSQL plugin.",
+      "connectionFailure": "Hindi makakonekta sa {{name}} gamit ang plugin: {{error}}",
+      "connectionFailurePreexisting": "Hindi makakonekta sa {{name}} gamit ang alinman sa dalawang driver: {{error}}. Hindi ito problema ng plugin — nanatili ang paglipat sa plugin.",
+      "processFailureWithError": "Hindi nag-start ang PostgreSQL plugin: {{error}}. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
+      "processFailure": "Hindi nag-start ang PostgreSQL plugin. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
+      "failed": "Hindi ma-switch ang {{name}} sa plugin: {{error}}",
+      "undo": "I-undo",
+      "undoFailed": "Hindi maibalik ang {{name}} sa built-in driver: {{error}}",
+      "reportIssue": "I-report ang isyu"
+    },
+    "checklist": {
+      "title": "Suriin ang mga koneksyon",
+      "subtitle_one": "{{count}} koneksyon na nasa built-in driver pa rin",
+      "subtitle_other": "{{count}} koneksyon na nasa built-in driver pa rin",
+      "migrateSelected_one": "Ilipat ang {{count}} napili",
+      "migrateSelected_other": "Ilipat ang {{count}} napili",
+      "reportThisGap": "I-report ang isyung ito",
+      "alreadyReported": "Na-report",
+      "testing": "Sinusubukan ang koneksyon…",
+      "uriWarning": "Ang connection string na naka-imbak sa keychain ay hindi madadala — kakailanganin mong ilagay ulit ito pagkatapos lumipat.",
+      "noGaps": "Walang koneksyon na susuriin.",
+      "close": "Isara",
+      "migratingNotice": "Magpapatuloy ang migration kahit isara mo ang window na ito.",
+      "gap": {
+        "ssl": "Gumagamit ng SSL/TLS, hindi pa suportado ng plugin",
+        "connection_uri": "Gumagamit ng connection string, hindi pa suportado ng plugin"
+      }
+    }
+  },
+  "themePackages": {
+    "import": "Mag-import ng tema",
+    "registryMismatch": "Ang package na ito ay mula sa ibang registry. Tahasang palitan ang naka-configure na registry bago ito i-update.",
+    "importedTheme": "Na-import na tema", "manage": "Pamahalaan ang mga tema", "importJSON": "Mag-import ng Tabularis JSON", "importVSCode": "Mag-import mula sa VS Code", "edit": "I-edit ang personal na tema", "localPackage": "Lokal na pakete", "installTitle": "I-install ang theme package", "installSubtitle": "Deklaratibong tema mula sa naka-configure na registry. Walang code na pinapatakbo.", "discover": "Mag-browse ng mga tema sa Plugins", "refresh": "I-refresh", "preview": "Silipin", "apply": "Ilapat", "confirm": "Kumpirmahin", "duplicate": "Kopyahin bilang personal", "exportJSON": "I-export ang hiwalay na JSON", "exportPackage": "I-export ang pakete ng may-akda", "remove": "Tanggalin", "update": "I-update ang pakete", "disable": "I-disable ang pakete", "enable": "I-enable ang pakete", "removePackage": "I-uninstall ang pakete", "disabled": "Naka-disable", "file": "File ng tema", "name": "Pangalan ng tema", "mode": "Mode / batayan", "detectMode": "Awtomatikong tukuyin (pumili kung malabo)", "source": "JSON ng tema", "search": "Maghanap ng mga tema", "loading": "Naglo-load…", "noThemes": "Walang available na tema sa registry na ito.", "details": "Detalye / pag-install", "readme": "README / mga screenshot", "version": "Bersyon ng pakete", "latest": "Pinakabagong release", "install": "I-install / palitan ang pakete", "chooseArchive": "Pumili ng ZIP archive", "screenshots": "Mga screenshot (buksan sa browser)", "externalMedia": "Hindi awtomatikong nilo-load ang mga larawan at ibang remote media. Magbubukas ang mga link sa browser.", "snapshotEditor": "Eksaktong editor JSON", "snapshotEditorHelp": "Ang hiwalay na snapshot na ito ang kumokontrol sa mga kulay ng SQL sa halip na lumang alias. Ipinapakita muna ang pagbabago at sinusuri ang orihinal na rebisyon bago i-save.", "recover": "I-recover ang naantalang pag-install", "recoveryExplanation": "Tahasan na suriin at i-recover ang mga hindi natapos na operasyon ng tema. Maaari nitong ibalik ang naantalang pag-install nang hindi pumipili ng tema o binabago ang naka-save na kagustuhan.", "recoveryDone": "Tapos na ang pagsusuri sa recovery. Tingnan ang anumang natitirang problema sa ibaba.", "catalogIssues": "Mga diagnostic ng katalogo", "fileTooLarge": "Lampas sa limitasyon ng import ang laki ng file.", "previewHint": "Pansamantala ang silip. Ibinabalik ng Kanselahin ang naka-save na tema; sine-save ng Ilapat ang pagpili.", "previewReady": "Aktibo ang silip. Suriin ang app at editor bago kumpirmahin.", "licenseNotice": "Hindi nagbibigay ng karapatang muling ipamahagi ang pag-import o pag-export. Panatilihin ang pagkilala sa may-akda at suriin ang lisensya bago mag-publish.", "acknowledge": "Nauunawaan at tinatanggap ko ang mga nakalistang limitasyon ng conversion.", "applyAfterSave": "Ilapat pagkatapos i-save", "savedNotApplied": "Na-save ang tema ngunit nabigo ang pagpili. Huwag uliting i-import; piliin ang naka-save na tema.", "installHint": "Pinapalitan ng pag-install ang buong pakete ngunit hindi pumipili ng variant. Hindi binibilang na download ang silip, lokal na import, at pagpili.", "installedHint": "Na-install ang pakete. Isara at pumili ng variant sa Hitsura.", "committedRefreshFailed": "Natapos ang operasyon ngunit nabigo ang pag-refresh ng katalogo. I-refresh bago subukang muli.", "missing": "Hindi available ang naka-save na pagpili: {{id}}. Gagamit ng offline na kapalit nang hindi binabago ang kagustuhan.", "downloads": "Mga download: {{count}}", "downloadsUnavailable": "Hindi available ang bilang ng download", "installedVersion": "Naka-install: {{version}}", "minimumVersion": "Kailangan ang Tabularis {{version}} o mas bago", "incompatible": "Hindi compatible ang release o walang eksaktong isang universal archive.", "packageWarning": "Apektado ang lahat ng variant. Pinapanatili ang mga naka-save na pagpili at ibinabalik kapag available muli.", "deleteWarning": "Tanggalin ang personal na tema? Gagamit ng mga default na tema ang mga naka-save nitong pagpili.", "duplicateHint": "Gumawa ng hiwalay at nae-edit na personal na kopya nang hindi ina-activate.", "exportError": "Nabigo ang pag-export ng pakete; available pa rin ang hiwalay na JSON export.", "runtimeWarning": "Ilagay ang unang release na talagang sumusuporta rito. Hindi patunay ng compatibility sa lumang client ang numero ng development build.", "packageName": "Identifier ng pakete (maliliit na titik)", "minimumRuntime": "Pinakamababang bersyon ng Tabularis", "license": "Lisensya at pagkilala sa may-akda", "rightsAcknowledged": "Nasuri ko ang karapatan sa muling pamamahagi at pagkilala sa may-akda.",
+    "groups": { "builtin": "Kasama na · offline", "installed": "Mga naka-install na pakete", "personal": "Mga personal na tema" }, "modes": { "light": "Maliwanag", "dark": "Madilim", "high-contrast": "Mataas na contrast" },
+    "importErrors": { "unrecognized": "Hindi nakilalang VS Code theme.", "modeRequired": "Pumili ng mode at silipin muli.", "includeOnly": "Hindi ma-import ang temang puro include lang. Ibigay ang aktuwal na mga kulay.", "noSupportedData": "Walang suportadong kulay o SQL token rule.", "invalidColor": "Mali ang halaga ng suportadong kulay.", "invalidRules": "Mali o sobra ang mga token rule." },
+    "diagnostics": { "unsupportedKey": "Hindi suportadong field", "unsupportedColor": "Hindi suportadong kulay", "unsupportedScope": "Hindi suportadong saklaw", "scopeApproximation": "Tinatayang SQL mapping", "unsupportedStyle": "Hindi suportadong estilo", "ignoredInclude": "Hindi ni-load ang include", "ignoredSemanticTokens": "Binale-wala ang semantic token", "unsupportedReference": "Hindi ni-load ang panlabas na sanggunian", "unsupportedSetting": "Hindi suportadong setting", "tokenAlphaFlattened": "Kinalkula ang opacity ng token laban sa batayang background", "modeApproximation": "Pinalitan o tinantiya ang mode", "diagnosticsTruncated": "Hindi isinama ang dagdag na diagnostic" }
   }
 }

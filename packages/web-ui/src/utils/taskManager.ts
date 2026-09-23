@@ -40,24 +40,24 @@ export function formatMemoryBar(used: number, total: number): number {
 export function getStatusColor(status: ProcessInfo["status"]): string {
   switch (status) {
     case "running":
-      return "text-green-400";
+      return "text-accent-success";
     case "stopped":
-      return "text-red-400";
+      return "text-accent-error";
     case "unknown":
     default:
-      return "text-yellow-400";
+      return "text-accent-warning";
   }
 }
 
 export function getStatusBadgeColor(status: ProcessInfo["status"]): string {
   switch (status) {
     case "running":
-      return "bg-green-500/20 text-green-400 border border-green-500/30";
+      return "bg-accent-success/20 text-accent-success border border-accent-success/30";
     case "stopped":
-      return "bg-red-500/20 text-red-400 border border-red-500/30";
+      return "bg-accent-error/20 text-accent-error border border-accent-error/30";
     case "unknown":
     default:
-      return "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30";
+      return "bg-accent-warning/20 text-accent-warning border border-accent-warning/30";
   }
 }
 

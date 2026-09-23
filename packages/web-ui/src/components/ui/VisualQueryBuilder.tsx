@@ -19,6 +19,8 @@ import { JoinEdge } from './JoinEdge';
 import { useDatabase } from '../../hooks/useDatabase';
 import { dragState } from '../../utils/dragState';
 import { useEditor } from '../../hooks/useEditor';
+import { useTheme } from '../../hooks/useTheme';
+import { withThemeAlpha } from '../../utils/themeColor';
 import { Filter, SortAsc, Group, Hash, X, Plus } from 'lucide-react';
 import { generateVisualQuerySQL, type WhereCondition, type OrderByClause } from '../../utils/visualQuery';
 import { useTabularisClient } from '../../hooks/useTabularisClient';
@@ -35,6 +37,7 @@ const VisualQueryBuilderContent = () => {
   const client = useTabularisClient();
   const { activeConnectionId, activeDriver, activeCapabilities, activeSchema } = useDatabase();
   const { activeTab, activeTabId, updateTab } = useEditor();
+  const { currentTheme } = useTheme();
   const { screenToFlowPosition } = useReactFlow();
   
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(activeTab?.flowState?.nodes || []);
@@ -259,7 +262,7 @@ const VisualQueryBuilderContent = () => {
           preventScrolling={true}
           defaultEdgeOptions={{
             animated: true,
-            style: { stroke: '#3b82f6', strokeWidth: 2 },
+            style: { stroke: 'var(--accent-primary)', strokeWidth: 2 },
           }}
         >
           <Controls 
@@ -267,18 +270,18 @@ const VisualQueryBuilderContent = () => {
             showInteractive={false}
           />
           <MiniMap 
-            nodeColor={() => '#3b82f6'}
-            maskColor="rgba(15, 23, 42, 0.85)"
+            nodeColor={() => currentTheme.colors.accent.primary}
+            maskColor={withThemeAlpha(currentTheme.colors.bg.base, 0.85)}
             className="!bg-elevated !border !border-strong !shadow-xl"
             style={{
-              backgroundColor: '#0f172a',
+              backgroundColor: currentTheme.colors.bg.elevated,
               width: 150,
               height: 100,
             }}
             zoomable
             pannable
           />
-          <Background gap={16} size={1} color="#1e293b" />
+          <Background gap={16} size={1} color={currentTheme.colors.border.default} />
         </ReactFlow>
       </div>
 
@@ -289,7 +292,7 @@ const VisualQueryBuilderContent = () => {
             <h3 className="font-semibold text-base text-primary">Query Settings</h3>
             <button 
               onClick={() => setShowSettings(false)} 
-              className="text-muted hover:text-white transition-colors p-1.5 hover:bg-surface-secondary rounded"
+              className="text-muted hover:text-primary transition-colors p-1.5 hover:bg-surface-secondary rounded"
               title="Collapse Settings"
             >
               <X size={18} />
@@ -301,7 +304,7 @@ const VisualQueryBuilderContent = () => {
             <div className="p-5 border-b border-default">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                  <Filter size={16} className="text-blue-400" />
+                  <Filter size={16} className="text-accent" />
                   WHERE Conditions
                 </div>
                 <button
@@ -313,7 +316,7 @@ const VisualQueryBuilderContent = () => {
                     logicalOperator: 'AND',
                     isAggregate: false
                   }])}
-                  className="text-blue-500 hover:text-blue-400 transition-colors p-1.5 hover:bg-blue-500/10 rounded"
+                  className="text-accent transition-colors p-1.5 hover:bg-accent-primary/10 rounded"
                   title="Add condition"
                 >
                   <Plus size={16} />
@@ -333,7 +336,7 @@ const VisualQueryBuilderContent = () => {
                         ))}
                         className={`flex-1 px-3 py-1 text-xs font-medium rounded transition-colors ${
                           condition.logicalOperator === 'AND' 
-                            ? 'bg-blue-500 text-white' 
+                            ? 'bg-accent-primary text-inverse'
                             : 'bg-surface-tertiary text-secondary hover:bg-surface-tertiary'
                         }`}
                       >
@@ -345,7 +348,7 @@ const VisualQueryBuilderContent = () => {
                         ))}
                         className={`flex-1 px-3 py-1 text-xs font-medium rounded transition-colors ${
                           condition.logicalOperator === 'OR' 
-                            ? 'bg-purple-500 text-white' 
+                            ? 'bg-accent-secondary text-on-accent-secondary' 
                             : 'bg-surface-tertiary text-secondary hover:bg-surface-tertiary'
                         }`}
                       >
@@ -358,7 +361,7 @@ const VisualQueryBuilderContent = () => {
                   <select
                     value={condition.column}
                     onChange={(e) => setWhereConditions(whereConditions.map(c => c.id === condition.id ? { ...c, column: e.target.value } : c))}
-                    className="w-full bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors appearance-none cursor-pointer"
+                    className="w-full bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary focus:border-focus focus:ring-1 focus:ring-focus transition-colors appearance-none cursor-pointer"
                     style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
                   >
                     <option value="">Select column</option>
@@ -376,7 +379,7 @@ const VisualQueryBuilderContent = () => {
                       onChange={(e) => setWhereConditions(whereConditions.map(c => 
                         c.id === condition.id ? { ...c, isAggregate: e.target.checked } : c
                       ))}
-                      className="rounded border-strong bg-surface-tertiary text-purple-500 focus:ring-0 w-4 h-4"
+                      className="rounded border-strong bg-surface-tertiary text-accent-secondary focus:ring-0 w-4 h-4"
                     />
                     <label htmlFor={`agg-${condition.id}`} className="text-xs text-secondary select-none cursor-pointer">
                       Use aggregate function (HAVING)
@@ -388,7 +391,7 @@ const VisualQueryBuilderContent = () => {
                     <select
                       value={condition.operator}
                       onChange={(e) => setWhereConditions(whereConditions.map(c => c.id === condition.id ? { ...c, operator: e.target.value } : c))}
-                      className="bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors w-24 appearance-none cursor-pointer"
+                      className="bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary focus:border-focus focus:ring-1 focus:ring-focus transition-colors w-24 appearance-none cursor-pointer"
                       style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")', backgroundPosition: 'right 0.35rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.25em 1.25em', paddingRight: '2rem' }}
                     >
                       <option value="=">=</option>
@@ -406,11 +409,11 @@ const VisualQueryBuilderContent = () => {
                         value={condition.value}
                         onChange={(e) => setWhereConditions(whereConditions.map(c => c.id === condition.id ? { ...c, value: e.target.value } : c))}
                         placeholder="Value"
-                        className="w-full bg-surface-secondary border border-strong rounded-md pl-3 pr-9 py-2.5 text-sm text-primary placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                        className="w-full bg-surface-secondary border border-strong rounded-md pl-3 pr-9 py-2.5 text-sm text-primary placeholder:text-muted focus:border-focus focus:ring-1 focus:ring-focus transition-colors"
                       />
                       <button
                         onClick={() => setWhereConditions(whereConditions.filter(c => c.id !== condition.id))}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-red-400 transition-colors"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-accent-error transition-colors"
                         title="Remove condition"
                       >
                         <X size={16} />
@@ -425,12 +428,12 @@ const VisualQueryBuilderContent = () => {
             <div className="p-5 border-b border-default">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                  <Group size={16} className="text-purple-400" />
+                  <Group size={16} className="text-accent-secondary" />
                   GROUP BY
                 </div>
                 <button
                   onClick={() => setGroupBy([...groupBy, ''])}
-                  className="text-blue-500 hover:text-blue-400 transition-colors p-1.5 hover:bg-blue-500/10 rounded"
+                  className="text-accent transition-colors p-1.5 hover:bg-accent-primary/10 rounded"
                   title="Add grouping"
                 >
                   <Plus size={16} />
@@ -444,7 +447,7 @@ const VisualQueryBuilderContent = () => {
                   <select
                     value={col}
                     onChange={(e) => setGroupBy(groupBy.map((c, i) => i === idx ? e.target.value : c))}
-                    className="flex-1 bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors appearance-none cursor-pointer"
+                    className="flex-1 bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary focus:border-focus focus:ring-1 focus:ring-focus transition-colors appearance-none cursor-pointer"
                     style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
                   >
                     <option value="">Select column</option>
@@ -454,7 +457,7 @@ const VisualQueryBuilderContent = () => {
                   </select>
                   <button
                     onClick={() => setGroupBy(groupBy.filter((_, i) => i !== idx))}
-                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-2.5 rounded transition-colors shrink-0"
+                    className="text-accent-error hover:bg-accent-error/10 p-2.5 rounded transition-colors shrink-0"
                     title="Remove grouping"
                   >
                     <X size={16} />
@@ -467,12 +470,12 @@ const VisualQueryBuilderContent = () => {
             <div className="p-5 border-b border-default">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                  <SortAsc size={16} className="text-green-400" />
+                  <SortAsc size={16} className="text-accent-success" />
                   ORDER BY
                 </div>
                 <button
                   onClick={() => setOrderBy([...orderBy, { id: Date.now().toString(), column: '', direction: 'ASC' }])}
-                  className="text-blue-500 hover:text-blue-400 transition-colors p-1.5 hover:bg-blue-500/10 rounded"
+                  className="text-accent transition-colors p-1.5 hover:bg-accent-primary/10 rounded"
                   title="Add sorting"
                 >
                   <Plus size={16} />
@@ -486,7 +489,7 @@ const VisualQueryBuilderContent = () => {
                   <select
                     value={order.column}
                     onChange={(e) => setOrderBy(orderBy.map(o => o.id === order.id ? { ...o, column: e.target.value } : o))}
-                    className="flex-1 bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors appearance-none cursor-pointer"
+                    className="flex-1 bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary focus:border-focus focus:ring-1 focus:ring-focus transition-colors appearance-none cursor-pointer"
                     style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
                   >
                     <option value="">Select column</option>
@@ -497,7 +500,7 @@ const VisualQueryBuilderContent = () => {
                   <select
                     value={order.direction}
                     onChange={(e) => setOrderBy(orderBy.map(o => o.id === order.id ? { ...o, direction: e.target.value as 'ASC' | 'DESC' } : o))}
-                    className="bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors w-28 appearance-none cursor-pointer"
+                    className="bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary focus:border-focus focus:ring-1 focus:ring-focus transition-colors w-28 appearance-none cursor-pointer"
                     style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")', backgroundPosition: 'right 0.35rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.25em 1.25em', paddingRight: '2rem' }}
                   >
                     <option value="ASC">ASC ↑</option>
@@ -505,7 +508,7 @@ const VisualQueryBuilderContent = () => {
                   </select>
                   <button
                     onClick={() => setOrderBy(orderBy.filter(o => o.id !== order.id))}
-                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 p-2.5 rounded transition-colors shrink-0"
+                    className="text-accent-error hover:bg-accent-error/10 p-2.5 rounded transition-colors shrink-0"
                     title="Remove sorting"
                   >
                     <X size={16} />
@@ -517,7 +520,7 @@ const VisualQueryBuilderContent = () => {
             {/* LIMIT */}
             <div className="p-5">
               <div className="flex items-center gap-2 text-sm font-semibold text-primary mb-4">
-                <Hash size={16} className="text-orange-400" />
+                <Hash size={16} className="text-accent-warning" />
                 LIMIT
               </div>
               <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
@@ -526,7 +529,7 @@ const VisualQueryBuilderContent = () => {
                 onChange={(e) => setLimit(e.target.value)}
                 placeholder="e.g., 100"
                 min="1"
-                className="w-full bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                className="w-full bg-surface-secondary border border-strong rounded-md px-3 py-2.5 text-sm text-primary placeholder:text-muted focus:border-focus focus:ring-1 focus:ring-focus transition-colors"
               />
             </div>
           </div>
@@ -537,7 +540,7 @@ const VisualQueryBuilderContent = () => {
       {!showSettings && (
         <button
           onClick={() => setShowSettings(true)}
-          className="absolute top-4 right-4 z-10 bg-elevated border border-strong rounded-lg px-3 py-2 text-secondary hover:text-white hover:border-strong hover:bg-surface-secondary transition-colors shadow-xl flex items-center gap-2"
+          className="absolute top-4 right-4 z-10 bg-elevated border border-strong rounded-lg px-3 py-2 text-secondary hover:text-primary hover:border-strong hover:bg-surface-secondary transition-colors shadow-xl flex items-center gap-2"
           title="Show Query Settings"
         >
           <Filter size={16} />

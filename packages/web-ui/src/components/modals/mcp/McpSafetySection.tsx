@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ShieldCheck, Lock } from "lucide-react";
+import { Braces, ShieldCheck, Lock } from "lucide-react";
 import { useSettings } from "../../../hooks/useSettings";
 import {
   SettingRow,
@@ -30,6 +30,7 @@ export function McpSafetySection() {
       .catch(() => setConnections([]));
   }, [client]);
 
+  const outputFormat = settings.mcpOutputFormat ?? "json";
   const readonlyDefault = settings.mcpReadonlyDefault ?? false;
   const overrideList = settings.mcpReadonlyConnections ?? [];
   const approvalMode = (settings.mcpApprovalMode ?? "writes_only") as McpApprovalMode;
@@ -48,8 +49,28 @@ export function McpSafetySection() {
   return (
     <>
       <SettingSection
+        title={t("mcp.output.title")}
+        icon={<Braces size={14} className="text-accent" />}
+      >
+        <SettingRow
+          label={t("mcp.output.formatLabel")}
+          description={t("mcp.output.formatDescription")}
+        >
+          <SettingButtonGroup
+            value={outputFormat}
+            onChange={(value) => updateSetting("mcpOutputFormat", value)}
+            options={[
+              { value: "json", label: "JSON" },
+              { value: "toon", label: "TOON" },
+            ]}
+            mono
+          />
+        </SettingRow>
+      </SettingSection>
+
+      <SettingSection
         title={t("mcp.safety.readOnlyTitle")}
-        icon={<Lock size={14} className="text-yellow-400" />}
+        icon={<Lock size={14} className="text-accent-warning" />}
       >
         <SettingRow
           label={t("mcp.safety.readOnlyDefault")}
@@ -87,7 +108,7 @@ export function McpSafetySection() {
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleConnection(c.id)}
-                      className="accent-blue-500"
+                      className="accent-accent-primary"
                     />
                     <span className="font-mono text-xs">{c.name}</span>
                   </label>
@@ -100,7 +121,7 @@ export function McpSafetySection() {
 
       <SettingSection
         title={t("mcp.safety.approvalTitle")}
-        icon={<ShieldCheck size={14} className="text-purple-400" />}
+        icon={<ShieldCheck size={14} className="text-accent-secondary" />}
       >
         <SettingRow
           label={t("mcp.safety.approvalMode")}

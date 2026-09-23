@@ -1,95 +1,176 @@
-use crate::paths::get_app_config_dir;
-use crate::theme_models::Theme;
-use std::fs;
-use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use crate::paths::{get_app_config_dir, get_default_app_data_dir};
+use crate::theme_packages::{self, ThemeCatalog, ThemeContribution};
+use serde_json::Value;
+use tauri::{AppHandle, Emitter};
 
-const THEMES_DIR: &str = "themes";
-
-fn get_themes_dir() -> PathBuf {
-    let config_dir = get_app_config_dir();
-    let themes_dir = config_dir.join(THEMES_DIR);
-    if !themes_dir.exists() {
-        let _ = fs::create_dir_all(&themes_dir);
+fn committed<T>(app: &AppHandle, result: Result<T, String>) -> Result<T, String> {
+    let value = result?;
+    if let Err(error) = app.emit("theme-catalog-changed", ()) {
+        log::warn!("Personal theme change committed but refresh delivery failed: {error}");
     }
-    themes_dir
-}
-
-fn get_theme_path(theme_id: &str) -> PathBuf {
-    get_themes_dir().join(format!("{}.json", theme_id))
+    Ok(value)
 }
 
 #[tauri::command]
-pub fn get_all_themes(app: AppHandle) -> Result<Vec<Theme>, String> {
-    Ok(crate::application::persistence::get_all_themes(
-        &app.state::<crate::runtime::RuntimeContext>(),
-    ))
+pub fn get_theme_catalog() -> ThemeCatalog {
+    theme_packages::read_theme_catalog(
+        &get_app_config_dir(),
+        &get_default_app_data_dir(),
+        env!("CARGO_PKG_VERSION"),
+    )
+}
+
+/// Legacy command names and argument names remain available. Raw metadata is
+/// retained instead of round-tripping files through the historical Rust model.
+#[tauri::command]
+pub fn get_all_themes() -> Result<Vec<Value>, String> {
+    get_theme_catalog()
+        .themes
+        .into_iter()
+        .filter(|entry| !entry.read_only && entry.format == "legacy" && entry.editor.is_none())
+        .map(|entry| {
+            let mut value: Value =
+                serde_json::from_str(&entry.source).map_err(|e| e.to_string())?;
+            value["isPreset"] = Value::Bool(false);
+            value["isReadOnly"] = Value::Bool(false);
+            Ok(value)
+        })
+        .collect()
 }
 
 #[tauri::command]
-pub fn get_theme(theme_id: String) -> Result<Theme, String> {
-    let theme_path = get_theme_path(&theme_id);
-
-    if !theme_path.exists() {
-        return Err(format!("Theme {} not found", theme_id));
+pub fn get_theme(theme_id: String) -> Result<Value, String> {
+    let entry = get_theme_catalog()
+        .themes
+        .into_iter()
+        .find(|entry| entry.id == theme_id)
+        .ok_or("Theme not found or unavailable")?;
+    if entry.format != "legacy" || entry.editor.is_some() {
+        return Err("Use get_theme_catalog for v1 definitions and independent snapshots".into());
     }
-
-    let content = fs::read_to_string(&theme_path).map_err(|e| e.to_string())?;
-    let theme = serde_json::from_str::<Theme>(&content).map_err(|e| e.to_string())?;
-
-    Ok(theme)
+    let mut value: Value = serde_json::from_str(&entry.source).map_err(|e| e.to_string())?;
+    value["isPreset"] = Value::Bool(entry.origin["kind"] == "builtin");
+    value["isReadOnly"] = Value::Bool(entry.read_only);
+    Ok(value)
 }
 
 #[tauri::command]
-pub fn save_custom_theme(app: AppHandle, theme: Theme) -> Result<(), String> {
-    crate::application::persistence::save_custom_theme(
-        &app.state::<crate::runtime::RuntimeContext>(),
-        &theme,
+pub fn save_custom_theme(app: AppHandle, theme: Value) -> Result<(), String> {
+    committed(
+        &app,
+        theme_packages::save_legacy_theme(&get_app_config_dir(), theme),
     )
 }
 
 #[tauri::command]
 pub fn delete_custom_theme(app: AppHandle, theme_id: String) -> Result<(), String> {
-    crate::application::persistence::delete_custom_theme(
-        &app.state::<crate::runtime::RuntimeContext>(),
-        &theme_id,
+    committed(
+        &app,
+        theme_packages::remove_personal_theme(&get_app_config_dir(), &theme_id),
     )
 }
 
 #[tauri::command]
-pub fn import_theme(theme_json: String) -> Result<Theme, String> {
-    let mut theme = serde_json::from_str::<Theme>(&theme_json).map_err(|e| e.to_string())?;
-
-    // Mark as custom and generate new ID
-    theme.is_preset = false;
-    theme.is_read_only = false;
-    theme.id = format!(
-        "custom-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis()
-    );
-    theme.created_at = Some(chrono::Local::now().to_rfc3339());
-    theme.updated_at = Some(chrono::Local::now().to_rfc3339());
-
-    // Save the imported theme
-    let theme_path = get_theme_path(&theme.id);
-    let content = serde_json::to_string_pretty(&theme).map_err(|e| e.to_string())?;
-    fs::write(&theme_path, content).map_err(|e| e.to_string())?;
-
-    Ok(theme)
+pub fn import_theme(
+    app: AppHandle,
+    theme_json: String,
+    name: Option<String>,
+) -> Result<Value, String> {
+    let result = if let Some(name) = name {
+        theme_packages::import_legacy_theme_named(&get_app_config_dir(), &theme_json, &name)
+    } else {
+        theme_packages::import_legacy_theme(&get_app_config_dir(), &theme_json)
+    };
+    committed(&app, result)
 }
 
 #[tauri::command]
 pub fn export_theme(theme_id: String) -> Result<String, String> {
-    let theme_path = get_theme_path(&theme_id);
+    theme_packages::export_personal_theme(&get_app_config_dir(), &theme_id)
+}
 
-    if !theme_path.exists() {
-        return Err(format!("Theme {} not found", theme_id));
-    }
+#[tauri::command]
+pub fn create_personal_theme(
+    app: AppHandle,
+    name: String,
+    source: String,
+) -> Result<ThemeContribution, String> {
+    committed(
+        &app,
+        theme_packages::create_personal_definition(&get_app_config_dir(), &name, &source),
+    )
+}
 
-    let content = fs::read_to_string(&theme_path).map_err(|e| e.to_string())?;
+#[tauri::command]
+pub fn create_personal_snapshot(
+    app: AppHandle,
+    name: String,
+    source: String,
+) -> Result<ThemeContribution, String> {
+    committed(
+        &app,
+        theme_packages::create_personal_snapshot(&get_app_config_dir(), &name, &source),
+    )
+}
 
-    Ok(content)
+#[tauri::command]
+pub fn update_personal_theme(
+    app: AppHandle,
+    theme_id: String,
+    name: String,
+    source: String,
+    expected_revision: String,
+) -> Result<ThemeContribution, String> {
+    committed(
+        &app,
+        theme_packages::update_personal_definition(
+            &get_app_config_dir(),
+            &theme_id,
+            &name,
+            &source,
+            &expected_revision,
+        ),
+    )
+}
+
+#[tauri::command]
+pub fn update_personal_snapshot(
+    app: AppHandle,
+    theme_id: String,
+    name: String,
+    source: String,
+    editor: Value,
+    expected_revision: String,
+) -> Result<ThemeContribution, String> {
+    committed(
+        &app,
+        theme_packages::update_personal_snapshot(
+            &get_app_config_dir(),
+            &theme_id,
+            &name,
+            &source,
+            editor,
+            &expected_revision,
+        ),
+    )
+}
+
+#[tauri::command]
+pub fn duplicate_personal_theme(
+    app: AppHandle,
+    theme_id: String,
+    name: String,
+    editor: Option<Value>,
+) -> Result<ThemeContribution, String> {
+    committed(
+        &app,
+        theme_packages::duplicate_personal_theme(
+            &get_app_config_dir(),
+            &get_default_app_data_dir(),
+            env!("CARGO_PKG_VERSION"),
+            &theme_id,
+            &name,
+            editor,
+        ),
+    )
 }

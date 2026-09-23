@@ -8,15 +8,17 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, OnceCell};
 
 use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, PluginManifest};
 use crate::models::{
     AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
-    DbPrivilegeCatalog, DbUserInfo, ExplainQueryOutput, ForeignKey, Index, QueryResult, RoutineInfo,
-    RoutineParameter, TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
+    DbPrivilegeCatalog, DbUserInfo, ExplainQueryOutput, ForeignKey, Index, QueryResult,
+    RawExplainOutput, RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema,
+    TriggerInfo, ViewInfo,
 };
-use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse};
+use crate::plugins::connection_metadata::{ConnectionMetadataCache, ConnectionMetadataOverrides};
+use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse, PluginCallError};
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -26,8 +28,7 @@ use std::os::windows::process::CommandExt;
 /// plugin cannot block the (single-threaded) MCP request loop forever.
 const PLUGIN_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// Shorter ceiling for the startup `initialize` handshake so one unresponsive
-/// plugin cannot stall MCP server startup indefinitely.
+/// The first operation waits for initialization of its own plugin only.
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Flag to create the process without a console window on Windows.
@@ -45,7 +46,10 @@ fn is_method_not_found(err: &str) -> bool {
 /// Message sent to the management task that owns the plugin child process.
 enum PluginCommand {
     /// Dispatch a JSON-RPC request and route the response back via the sender.
-    Call(JsonRpcRequest, oneshot::Sender<Result<Value, String>>),
+    Call(
+        JsonRpcRequest,
+        oneshot::Sender<Result<Value, PluginCallError>>,
+    ),
     /// Drop the pending entry for `id` because the caller stopped waiting
     /// (timed out). Prevents an unbounded leak of orphaned response senders.
     Cancel(u64),
@@ -56,6 +60,8 @@ pub struct PluginProcess {
     next_id: AtomicU64,
     shutdown_tx: tokio::sync::Mutex<Option<oneshot::Sender<()>>>,
     pub pid: Option<u32>,
+    initialization_settings: Option<HashMap<String, Value>>,
+    initialized: OnceCell<()>,
 }
 
 impl PluginProcess {
@@ -106,8 +112,10 @@ impl PluginProcess {
             let stdout = child.stdout.take().expect("Failed to open stdout");
             let mut reader = BufReader::new(stdout);
 
-            let mut pending_requests: HashMap<u64, oneshot::Sender<Result<Value, String>>> =
-                HashMap::new();
+            let mut pending_requests: HashMap<
+                u64,
+                oneshot::Sender<Result<Value, PluginCallError>>,
+            > = HashMap::new();
             let mut line_buf = String::new();
 
             loop {
@@ -129,7 +137,7 @@ impl PluginProcess {
                                 if let Err(e) = stdin.write_all(req_str.as_bytes()).await {
                                     log::error!("Failed to write to plugin stdin: {}", e);
                                     if let Some(tx) = pending_requests.remove(&id) {
-                                        let _ = tx.send(Err(format!("Plugin communication error: {}", e)));
+                                        let _ = tx.send(Err(format!("Plugin communication error: {}", e).into()));
                                     }
                                 }
                             }
@@ -161,7 +169,7 @@ impl PluginProcess {
                                     }
                                     Ok(JsonRpcResponse::Error { error, id, .. }) => {
                                         if let Some(tx) = pending_requests.remove(&id) {
-                                            let _ = tx.send(Err(error.message));
+                                            let _ = tx.send(Err(PluginCallError::Remote(error)));
                                         }
                                     }
                                     Err(e) => {
@@ -185,6 +193,8 @@ impl PluginProcess {
             next_id: AtomicU64::new(1),
             shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
             pid,
+            initialization_settings: None,
+            initialized: OnceCell::new(),
         })
     }
 
@@ -210,6 +220,44 @@ impl PluginProcess {
         params: Value,
         timeout: Duration,
     ) -> Result<Value, String> {
+        self.call_detailed(method, params, timeout)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    async fn call_detailed(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value, PluginCallError> {
+        if let Some(settings) = &self.initialization_settings {
+            self.initialized
+                .get_or_init(|| async {
+                    // Older plugins may not implement initialize. Preserve that
+                    // compatibility, but serialize concurrent first calls behind it.
+                    if let Err(error) = self
+                        .send_request(
+                            "initialize",
+                            json!({ "settings": settings }),
+                            PLUGIN_INIT_TIMEOUT,
+                        )
+                        .await
+                    {
+                        log::warn!("Plugin initialization failed (pid {:?}): {}", self.pid, error);
+                    }
+                })
+                .await;
+        }
+        self.send_request(method, params, timeout).await
+    }
+
+    async fn send_request(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value, PluginCallError> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let req = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
@@ -226,7 +274,7 @@ impl PluginProcess {
 
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(result)) => result,
-            Ok(Err(_)) => Err("Plugin process did not respond".to_string()),
+            Ok(Err(_)) => Err("Plugin process did not respond".to_string().into()),
             Err(_) => {
                 // Tell the management task to drop the now-orphaned pending
                 // entry so it does not leak one slot per timeout.
@@ -235,7 +283,8 @@ impl PluginProcess {
                     "Plugin call '{}' timed out after {}s",
                     method,
                     timeout.as_secs()
-                ))
+                )
+                .into())
             }
         }
     }
@@ -245,6 +294,9 @@ pub struct RpcDriver {
     manifest: PluginManifest,
     process: Arc<PluginProcess>,
     data_types: Vec<DataTypeInfo>,
+    connection_metadata: bool,
+    metadata_cache: Arc<ConnectionMetadataCache>,
+    connection_params: Option<ConnectionParams>,
 }
 
 impl RpcDriver {
@@ -255,30 +307,90 @@ impl RpcDriver {
         data_types: Vec<DataTypeInfo>,
         settings: HashMap<String, serde_json::Value>,
     ) -> Result<Self, String> {
-        let process = Arc::new(PluginProcess::new(executable_path, interpreter).await?);
-        // Send initialize RPC with settings; silently ignore any error or
-        // non-response. The short timeout keeps one unresponsive plugin from
-        // stalling startup (notably the standalone `--mcp` subprocess, which
-        // registers every plugin before serving any request).
-        let _ = process
-            .call_with_timeout(
-                "initialize",
-                json!({ "settings": settings }),
-                PLUGIN_INIT_TIMEOUT,
-            )
-            .await;
+        let mut process = PluginProcess::new(executable_path, interpreter).await?;
+        // Register manifests immediately. Initialize only when this plugin is
+        // actually used, so idle plugins cannot delay the GUI or MCP startup.
+        process.initialization_settings = Some(settings);
+        let process = Arc::new(process);
         Ok(Self {
             manifest,
             process,
             data_types,
+            connection_metadata: false,
+            metadata_cache: Arc::new(ConnectionMetadataCache::default()),
+            connection_params: None,
         })
+    }
+
+    /// SQL-building methods historically had no connection parameters. Add
+    /// them only for opted-in snapshots; legacy plugin request shapes stay intact.
+    async fn call_with_connection(
+        &self,
+        method: &str,
+        mut arguments: Value,
+    ) -> Result<Value, String> {
+        if let Some(params) = &self.connection_params {
+            if let Some(object) = arguments.as_object_mut() {
+                object.entry("params").or_insert_with(|| json!(params));
+            }
+        }
+        self.process.call(method, arguments).await
+    }
+
+    pub fn with_connection_metadata(mut self, enabled: bool) -> Self {
+        self.connection_metadata = enabled;
+        self
     }
 }
 
 #[async_trait]
 impl DatabaseDriver for RpcDriver {
+    fn has_connection_metadata(&self) -> bool {
+        self.connection_metadata
+    }
+
     fn manifest(&self) -> &PluginManifest {
         &self.manifest
+    }
+
+    async fn for_connection(
+        &self,
+        params: &ConnectionParams,
+    ) -> Result<Option<Arc<dyn DatabaseDriver>>, String> {
+        if !self.connection_metadata {
+            return Ok(None);
+        }
+        let cell = self.metadata_cache.entry(params).await?;
+        let metadata = cell.get_or_try_init(|| async {
+            let overrides = match self.process.call_detailed(
+                "get_connection_metadata", json!({ "params": params }), PLUGIN_CALL_TIMEOUT,
+            ).await {
+                Ok(value) => serde_json::from_value::<ConnectionMetadataOverrides>(value)
+                    .map_err(|e| format!("Invalid connection metadata: {}", e))?,
+                Err(PluginCallError::Remote(error)) if error.code == -32601 => {
+                    log::warn!("Plugin '{}' declares connection metadata but does not implement the RPC; using its manifest", self.manifest.id);
+                    ConnectionMetadataOverrides::default()
+                }
+                Err(error) => return Err(format!("Connection metadata discovery failed: {}", error)),
+            };
+            overrides.resolve(&self.manifest, &self.data_types)
+        }).await?;
+        let mut manifest = self.manifest.clone();
+        manifest.capabilities = metadata.capabilities.clone();
+        manifest.type_mappings = metadata.type_mappings.clone();
+        Ok(Some(Arc::new(Self {
+            manifest,
+            process: self.process.clone(),
+            data_types: metadata.data_types.clone(),
+            // The returned snapshot is already resolved for this operation.
+            connection_metadata: false,
+            metadata_cache: self.metadata_cache.clone(),
+            connection_params: Some(params.clone()),
+        })))
+    }
+
+    async fn invalidate_connection_metadata(&self, connection_id: Option<&str>) {
+        self.metadata_cache.invalidate(connection_id).await;
     }
 
     async fn shutdown(&self) {
@@ -657,8 +769,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
     ) -> Result<String, String> {
         let res = self
-            .process
-            .call(
+            .call_with_connection(
                 "routine_create_template",
                 json!({ "routine_type": routine_type, "schema": schema }),
             )
@@ -811,8 +922,40 @@ impl DatabaseDriver for RpcDriver {
                 json!({ "params": params, "query": query, "analyze": analyze, "schema": schema }),
             )
             .await?;
-        // A plugin knows engines the core parsers do not, so its already
-        // parsed plan passes through to the frontend untouched.
+        // Permanently support both historical parsed plans and raw payloads
+        // for runtime-registered parsers. Only the complete raw wire shape is
+        // recognized; every other plugin result passes through unchanged.
+        if let Some((engine, format, payload, original_query)) =
+            res.as_object().and_then(|object| {
+                Some((
+                    object.get("engine")?.as_str()?,
+                    object.get("format")?.as_str()?,
+                    object.get("payload")?.as_str()?,
+                    object.get("original_query"),
+                ))
+            })
+        {
+            let original_query = match original_query {
+                None | Some(Value::Null) => query.to_string(),
+                Some(Value::String(original_query)) => original_query.clone(),
+                Some(_) => {
+                    return Err(
+                        "Plugin raw EXPLAIN field 'original_query' must be a string or null"
+                            .to_string(),
+                    );
+                }
+            };
+
+            return Ok(ExplainQueryOutput::Raw {
+                raw: RawExplainOutput {
+                    engine: engine.to_string(),
+                    format: format.to_string(),
+                    payload: payload.to_string(),
+                    original_query,
+                },
+            });
+        }
+
         Ok(ExplainQueryOutput::Plan { plan: res })
     }
 
@@ -930,8 +1073,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
         let res = self
-            .process
-            .call(
+            .call_with_connection(
                 "get_create_table_sql",
                 json!({ "table_name": table_name, "columns": columns, "schema": schema }),
             )
@@ -946,8 +1088,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
         let res = self
-            .process
-            .call(
+            .call_with_connection(
                 "get_add_column_sql",
                 json!({ "table": table, "column": column, "schema": schema }),
             )
@@ -962,7 +1103,7 @@ impl DatabaseDriver for RpcDriver {
         new_column: ColumnDefinition,
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
-        let res = self.process.call("get_alter_column_sql", json!({ "table": table, "old_column": old_column, "new_column": new_column, "schema": schema })).await?;
+        let res = self.call_with_connection("get_alter_column_sql", json!({ "table": table, "old_column": old_column, "new_column": new_column, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -974,7 +1115,7 @@ impl DatabaseDriver for RpcDriver {
         is_unique: bool,
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
-        let res = self.process.call("get_create_index_sql", json!({ "table": table, "index_name": index_name, "columns": columns, "is_unique": is_unique, "schema": schema })).await?;
+        let res = self.call_with_connection("get_create_index_sql", json!({ "table": table, "index_name": index_name, "columns": columns, "is_unique": is_unique, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -990,6 +1131,7 @@ impl DatabaseDriver for RpcDriver {
         on_update: Option<&str>,
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
+        let params = self.connection_params.as_ref().unwrap_or(params);
         let res = self.process.call("get_create_foreign_key_sql", json!({ "params": params, "table": table, "fk_name": fk_name, "column": column, "ref_table": ref_table, "ref_column": ref_column, "on_delete": on_delete, "on_update": on_update, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -1040,8 +1182,7 @@ impl DatabaseDriver for RpcDriver {
 
     async fn get_db_privilege_catalog(&self) -> Result<DbPrivilegeCatalog, String> {
         let res = self
-            .process
-            .call("get_db_privilege_catalog", json!({}))
+            .call_with_connection("get_db_privilege_catalog", json!({}))
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -1290,38 +1431,104 @@ impl DatabaseDriver for RpcDriver {
     }
 }
 
+/// Builds a fake, in-memory `RpcDriver` backed by `handle_request` instead of
+/// a real subprocess. `pub(crate)` (rather than private to this module's own
+/// `tests`) so other modules' tests — e.g. `mcp::tests` — can register a
+/// driver whose behavior they control without spawning a real plugin
+/// process.
+#[cfg(test)]
+pub(crate) fn test_manifest() -> PluginManifest {
+    PluginManifest {
+        id: "test-plugin".to_string(),
+        name: "Test Plugin".to_string(),
+        version: "1.0.0".to_string(),
+        description: "Test plugin".to_string(),
+        default_port: None,
+        capabilities: crate::drivers::driver_trait::DriverCapabilities {
+            triggers: true,
+            ..Default::default()
+        },
+        is_builtin: false,
+        engine: None,
+        paradigms: Vec::new(),
+        default_username: String::new(),
+        color: String::new(),
+        icon: String::new(),
+        settings: Vec::new(),
+        ui_extensions: None,
+        explain_parsers: None,
+        type_mappings: HashMap::new(),
+        deprecated: None,
+    }
+}
+
 #[cfg(test)]
 #[path = "driver_resilience_tests.rs"]
 mod resilience_tests;
 
+/// Builds a fake, in-memory `RpcDriver` backed by `handle_request` instead of
+/// a real subprocess, with `connection_metadata` disabled. `pub(crate)` so
+/// other modules' tests (e.g. `mcp::tests`) can build one too; enable
+/// connection metadata with `.with_connection_metadata(true)`.
+#[cfg(test)]
+pub(crate) fn test_driver<F>(mut handle_request: F) -> RpcDriver
+where
+    F: FnMut(JsonRpcRequest) -> Value + Send + 'static,
+{
+    test_driver_result(move |request| Ok(handle_request(request)))
+}
+
+#[cfg(test)]
+pub(crate) fn test_driver_result<F>(mut handle_request: F) -> RpcDriver
+where
+    F: FnMut(JsonRpcRequest) -> Result<Value, String> + Send + 'static,
+{
+    let (tx, mut rx) = mpsc::channel::<PluginCommand>(8);
+    tokio::spawn(async move {
+        while let Some(command) = rx.recv().await {
+            if let PluginCommand::Call(request, response_tx) = command {
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    handle_request(request)
+                }))
+                .map_err(|_| "request assertion failed".to_string())
+                .and_then(|outcome| outcome);
+                let _ = response_tx.send(result.map_err(PluginCallError::Transport));
+            }
+        }
+    });
+
+    let (shutdown_tx, _shutdown_rx) = oneshot::channel();
+    RpcDriver {
+        manifest: test_manifest(),
+        process: Arc::new(PluginProcess {
+            sender: tx,
+            next_id: AtomicU64::new(1),
+            shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
+            pid: None,
+            initialization_settings: None,
+            initialized: OnceCell::new(),
+        }),
+        data_types: Vec::new(),
+        connection_metadata: false,
+        metadata_cache: Arc::new(ConnectionMetadataCache::default()),
+        connection_params: None,
+    }
+}
+
+/// Overrides the manifest id of a driver built by [`test_driver`] /
+/// [`test_driver_result`] (both default to `"test-plugin"`), so a test that
+/// registers into the shared, process-global [`crate::drivers::registry`]
+/// can use an id no other test claims.
+#[cfg(test)]
+pub(crate) fn with_test_driver_id(mut driver: RpcDriver, id: &str) -> RpcDriver {
+    driver.manifest.id = id.to_string();
+    driver
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::drivers::driver_trait::DriverCapabilities;
     use crate::models::DatabaseSelection;
-
-    fn test_manifest() -> PluginManifest {
-        PluginManifest {
-            id: "test-plugin".to_string(),
-            name: "Test Plugin".to_string(),
-            version: "1.0.0".to_string(),
-            description: "Test plugin".to_string(),
-            default_port: None,
-            capabilities: DriverCapabilities {
-                triggers: true,
-                ..Default::default()
-            },
-            is_builtin: false,
-            engine: None,
-            paradigms: Vec::new(),
-            default_username: String::new(),
-            color: String::new(),
-            icon: String::new(),
-            settings: Vec::new(),
-            ui_extensions: None,
-            type_mappings: HashMap::new(),
-        }
-    }
 
     fn test_connection_params() -> ConnectionParams {
         ConnectionParams {
@@ -1358,48 +1565,177 @@ mod tests {
             k8s_port: None,
             k8s_kubectl_path: None,
             k8s_kubeconfig_path: None,
+            ssm_enabled: None,
+            ssm_target: None,
+            ssm_profile: None,
+            ssm_region: None,
             startup_script: None,
             use_iam_auth: None,
             extra: HashMap::new(),
             connection_id: Some("conn-1".to_string()),
+            proxy: None,
         }
     }
 
-    fn test_driver<F>(mut handle_request: F) -> RpcDriver
-    where
-        F: FnMut(JsonRpcRequest) -> Value + Send + 'static,
-    {
-        test_driver_result(move |request| Ok(handle_request(request)))
+    #[tokio::test]
+    async fn rpc_driver_returns_structurally_detected_raw_explain_output() {
+        let request_query = "SELECT * FROM users";
+
+        for (plugin_original_query, expected_original_query) in [
+            (None, request_query),
+            (Some(Value::Null), request_query),
+            (Some(json!("SELECT id FROM users")), "SELECT id FROM users"),
+        ] {
+            let driver = test_driver(move |request| {
+                assert_eq!(request.method, "explain_query");
+                assert_eq!(request.params["query"], request_query);
+                assert_eq!(request.params["analyze"], true);
+                assert_eq!(request.params["schema"], "public");
+
+                let mut result = json!({
+                    "engine": "third-party-db",
+                    "format": "third-party-plan-text",
+                    "payload": "raw plan payload",
+                    "ignored": "additional fields are allowed"
+                });
+                if let Some(original_query) = plugin_original_query.clone() {
+                    result["original_query"] = original_query;
+                }
+                result
+            });
+
+            let output = driver
+                .explain_query(
+                    &test_connection_params(),
+                    request_query,
+                    true,
+                    Some("public"),
+                )
+                .await
+                .expect("raw explain output");
+
+            let ExplainQueryOutput::Raw { raw } = output else {
+                panic!("complete raw output must use the raw variant");
+            };
+            assert_eq!(raw.engine, "third-party-db");
+            assert_eq!(raw.format, "third-party-plan-text");
+            assert_eq!(raw.payload, "raw plan payload");
+            assert_eq!(raw.original_query, expected_original_query);
+        }
     }
 
-    fn test_driver_result<F>(mut handle_request: F) -> RpcDriver
-    where
-        F: FnMut(JsonRpcRequest) -> Result<Value, String> + Send + 'static,
-    {
-        let (tx, mut rx) = mpsc::channel::<PluginCommand>(8);
-        tokio::spawn(async move {
-            while let Some(command) = rx.recv().await {
-                if let PluginCommand::Call(request, response_tx) = command {
-                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        handle_request(request)
-                    }))
-                    .map_err(|_| "request assertion failed".to_string())
-                    .and_then(|outcome| outcome);
-                    let _ = response_tx.send(result);
-                }
-            }
+    #[tokio::test]
+    async fn rpc_driver_rejects_invalid_raw_explain_original_query() {
+        let driver = test_driver(|_| {
+            json!({
+                "engine": "third-party-db",
+                "format": "third-party-plan-text",
+                "payload": "raw plan payload",
+                "original_query": 42
+            })
         });
 
-        let (shutdown_tx, _shutdown_rx) = oneshot::channel();
-        RpcDriver {
-            manifest: test_manifest(),
-            process: Arc::new(PluginProcess {
-                sender: tx,
-                next_id: AtomicU64::new(1),
-                shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
-                pid: None,
+        let error = driver
+            .explain_query(
+                &test_connection_params(),
+                "SELECT * FROM users",
+                false,
+                None,
+            )
+            .await
+            .expect_err("invalid original_query must fail");
+
+        assert_eq!(
+            error,
+            "Plugin raw EXPLAIN field 'original_query' must be a string or null"
+        );
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_preserves_realistic_parsed_explain_plan() {
+        let parsed_plan = json!({
+            "engine": "third-party-db",
+            "root": {
+                "id": "node-0",
+                "node_type": "Index Scan",
+                "relation": "users",
+                "startup_cost": 0.15,
+                "total_cost": 8.17,
+                "plan_rows": 1,
+                "actual_rows": null,
+                "actual_time_ms": null,
+                "actual_loops": null,
+                "buffers_hit": null,
+                "buffers_read": null,
+                "filter": "email = 'alice@example.com'",
+                "index_condition": null,
+                "join_type": null,
+                "hash_condition": null,
+                "extra": {},
+                "children": []
+            },
+            "planning_time_ms": 0.12,
+            "execution_time_ms": null,
+            "original_query": "SELECT * FROM users WHERE email = 'alice@example.com'",
+            "driver": "third-party-db",
+            "has_analyze_data": false,
+            "raw_output": null
+        });
+        let expected_plan = parsed_plan.clone();
+        let driver = test_driver(move |_| parsed_plan.clone());
+
+        let output = driver
+            .explain_query(
+                &test_connection_params(),
+                "SELECT * FROM users WHERE email = 'alice@example.com'",
+                false,
+                None,
+            )
+            .await
+            .expect("parsed explain plan");
+
+        let ExplainQueryOutput::Plan { plan } = output else {
+            panic!("historical parsed plans must keep using the plan variant");
+        };
+        assert_eq!(plan, expected_plan);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_falls_back_to_plan_for_malformed_raw_explain_objects() {
+        let malformed_results = [
+            json!({
+                "engine": "third-party-db",
+                "format": "third-party-plan-text"
             }),
-            data_types: Vec::new(),
+            json!({
+                "engine": "third-party-db",
+                "format": 42,
+                "payload": "raw plan payload"
+            }),
+            json!({
+                "format": "third-party-plan-text",
+                "payload": "raw plan payload"
+            }),
+        ];
+
+        for malformed in malformed_results {
+            let expected_plan = malformed.clone();
+            let driver = test_driver(move |_| malformed.clone());
+
+            let output = driver
+                .explain_query(
+                    &test_connection_params(),
+                    "SELECT * FROM users",
+                    false,
+                    None,
+                )
+                .await
+                .expect("malformed raw object must remain a plan");
+
+            let ExplainQueryOutput::Plan { plan } = output else {
+                panic!("incomplete raw output must use the plan variant");
+            };
+            assert_eq!(plan, expected_plan);
         }
     }
 
@@ -2003,8 +2339,13 @@ mod tests {
                 next_id: AtomicU64::new(1),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
                 pid: None,
+                initialization_settings: None,
+                initialized: OnceCell::new(),
             }),
             data_types: Vec::new(),
+            connection_metadata: false,
+            metadata_cache: Arc::new(ConnectionMetadataCache::default()),
+            connection_params: None,
         };
 
         // Mapped types
@@ -2029,11 +2370,20 @@ mod tests {
                 next_id: AtomicU64::new(1),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
                 pid: None,
+                initialization_settings: None,
+                initialized: OnceCell::new(),
             }),
             data_types: Vec::new(),
+            connection_metadata: false,
+            metadata_cache: Arc::new(ConnectionMetadataCache::default()),
+            connection_params: None,
         };
 
         assert_eq!(driver.map_inferred_type("DATETIME"), "DATETIME");
         assert_eq!(driver.map_inferred_type("JSON"), "JSON");
     }
 }
+
+#[cfg(test)]
+#[path = "startup_tests.rs"]
+mod startup_tests;

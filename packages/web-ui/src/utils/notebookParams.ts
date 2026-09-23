@@ -28,7 +28,10 @@ export function extractParamReferences(sql: string): ParamReference[] {
 }
 
 export function hasParamReferences(sql: string): boolean {
-  return PARAM_PATTERN.test(sql) || TEMPLATE_PARAM_PATTERN.test(sql);
+  return (
+    new RegExp(PARAM_PATTERN.source).test(sql) ||
+    new RegExp(TEMPLATE_PARAM_PATTERN.source).test(sql)
+  );
 }
 
 export function resolveParams(

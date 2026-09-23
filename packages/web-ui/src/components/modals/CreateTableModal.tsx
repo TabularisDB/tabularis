@@ -169,8 +169,8 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-             <div className="bg-blue-900/30 p-2 rounded-lg">
-                <Plus className="text-blue-400" size={20} />
+             <div className="bg-accent-primary/15 p-2 rounded-lg">
+                <Plus className="text-accent" size={20} />
              </div>
              <div>
                 <h2 className="text-lg font-semibold text-primary">{t('createTable.title')}</h2>
@@ -191,7 +191,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
                 <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
                     value={tableName}
                     onChange={(e) => { setTableName(e.target.value); setError(''); }}
-                    className={`w-full bg-base border rounded-lg px-3 py-2 text-primary focus:border-blue-500 focus:outline-none transition-all font-mono ${!tableName.trim() && error ? 'border-red-500' : 'border-strong'}`}
+                    className={`w-full bg-base border rounded-lg px-3 py-2 text-primary focus:border-focus focus:outline-none transition-all font-mono ${!tableName.trim() && error ? 'border-accent-error' : 'border-strong'}`}
                     placeholder={t('createTable.tableNamePlaceholder')}
                     autoFocus
                 />
@@ -201,7 +201,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
             <div className="flex-1 flex flex-col min-h-0 border border-strong rounded-lg bg-base/50 overflow-hidden">
                 <div className="bg-elevated/80 p-2 border-b border-strong flex items-center justify-between">
                     <h3 className="text-sm font-medium text-secondary">{t('createTable.columns')}</h3>
-                    <button onClick={handleAddColumn} className="text-xs bg-surface-secondary hover:bg-surface-tertiary border border-strong text-white px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                    <button onClick={handleAddColumn} className="text-xs bg-surface-secondary hover:bg-surface-tertiary border border-strong text-primary px-2 py-1 rounded flex items-center gap-1 transition-colors">
                         <Plus size={12} /> {t('createTable.addColumn')}
                     </button>
                 </div>
@@ -229,7 +229,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
                                         <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
                                             value={col.name}
                                             onChange={(e) => updateColumn(col.id, 'name', e.target.value)}
-                                            className={`w-full bg-transparent text-sm text-primary focus:outline-none border-b font-mono placeholder:text-muted ${!col.name.trim() ? 'border-red-500/50' : 'border-transparent focus:border-blue-500'}`}
+                                            className={`w-full bg-transparent text-sm text-primary focus:outline-none border-b font-mono placeholder:text-muted ${!col.name.trim() ? 'border-accent-error/50' : 'border-transparent focus:border-focus'}`}
                                             placeholder="col_name"
                                         />
                                     </td>
@@ -258,7 +258,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
                                         <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
                                             value={col.length}
                                             onChange={(e) => updateColumn(col.id, 'length', e.target.value)}
-                                            className="w-full bg-transparent text-xs text-secondary focus:outline-none border-b border-transparent focus:border-blue-500 text-center disabled:opacity-30"
+                                            className="w-full bg-transparent text-xs text-secondary focus:outline-none border-b border-transparent focus:border-focus text-center disabled:opacity-30"
                                             placeholder={availableTypes.find((t) => t.name === col.type)?.default_length || "-"}
                                             disabled={
                                               !availableTypes.find((t) => t.name === col.type)?.requires_length &&
@@ -271,7 +271,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
                                             type="checkbox"
                                             checked={col.isPk}
                                             onChange={(e) => updateColumn(col.id, 'isPk', e.target.checked)}
-                                            className="accent-blue-500"
+                                            className="accent-accent-primary"
                                         />
                                     </td>
                                     <td className="p-2 text-center">
@@ -280,7 +280,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
                                             checked={col.isAutoInc ? true : !col.isNullable}
                                             onChange={(e) => updateColumn(col.id, 'isNullable', !e.target.checked)}
                                             disabled={col.isAutoInc}
-                                            className="accent-blue-500 disabled:opacity-30"
+                                            className="accent-accent-primary disabled:opacity-30"
                                         />
                                     </td>
                                     <td className="p-2 text-center">
@@ -289,7 +289,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
                                             checked={col.isAutoInc}
                                             onChange={(e) => updateColumn(col.id, 'isAutoInc', e.target.checked)}
                                             disabled={!availableTypes.find((t) => t.name === col.type)?.supports_auto_increment}
-                                            className="accent-blue-500 disabled:opacity-30"
+                                            className="accent-accent-primary disabled:opacity-30"
                                         />
                                     </td>
                                     <td className="p-2">
@@ -297,14 +297,14 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
                                             value={col.isAutoInc ? '' : col.defaultValue}
                                             onChange={(e) => updateColumn(col.id, 'defaultValue', e.target.value)}
                                             disabled={col.isAutoInc}
-                                            className="w-full bg-transparent text-xs text-secondary focus:outline-none border-b border-transparent focus:border-blue-500 disabled:opacity-30"
+                                            className="w-full bg-transparent text-xs text-secondary focus:outline-none border-b border-transparent focus:border-focus disabled:opacity-30"
                                             placeholder="NULL"
                                         />
                                     </td>
                                     <td className="p-2 text-center">
                                         <button
                                             onClick={() => handleRemoveColumn(col.id)}
-                                            className="text-surface-tertiary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="text-surface-tertiary hover:text-accent-error opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
                                             <Trash2 size={14} />
                                         </button>
@@ -352,7 +352,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
           <button
             onClick={handleCreate}
             disabled={loading || !tableName.trim() || hasEmptyColumnNames}
-            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
+            className="bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-inverse px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-accent-primary/20 transition-all"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
             <Save size={16} /> {t('createTable.create')}

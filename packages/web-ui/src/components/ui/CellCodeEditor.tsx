@@ -1,11 +1,10 @@
 import { useEffect, useRef } from "react";
-import MonacoEditor, {
-  type BeforeMount,
-  type OnValidate,
-} from "@monaco-editor/react";
+import type { BeforeMount, OnValidate } from "@monaco-editor/react";
+import { MonacoEditor } from "./LazyMonaco";
 import type * as MonacoTypes from "monaco-editor";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
+import { getMonacoThemeId } from "../../themes/themeRuntime";
 
 interface CellCodeEditorProps {
   value: string;
@@ -50,7 +49,7 @@ export const CellCodeEditor = ({
     <MonacoEditor
       height={height}
       language={language}
-      theme={editorTheme.id}
+      theme={getMonacoThemeId(editorTheme.id)}
       value={value}
       beforeMount={handleBeforeMount}
       onChange={handleChange}

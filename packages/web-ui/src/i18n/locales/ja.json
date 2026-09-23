@@ -57,6 +57,7 @@
   "common": {
     "save": "保存",
     "close": "閉じる",
+    "resizeColumn": "列のサイズを変更",
     "cancel": "キャンセル",
     "delete": "削除",
     "edit": "編集",
@@ -75,7 +76,8 @@
     "copied": "コピーしました！",
     "showDetails": "詳細を表示",
     "hideDetails": "詳細を非表示",
-    "beta": "ベータ"
+    "beta": "ベータ",
+    "dismiss": "閉じる"
   },
   "sidebar": {
     "connections": "接続",
@@ -113,6 +115,8 @@
     "noTables": "テーブルが見つかりません",
     "expandTable": "テーブル {{name}} を展開",
     "collapseTable": "テーブル {{name}} を折りたたむ",
+    "expandView": "ビュー {{name}} を展開",
+    "collapseView": "ビュー {{name}} を折りたたむ",
     "columns": "カラム",
     "parameters": "パラメータ",
     "noParameters": "パラメータなし",
@@ -194,6 +198,7 @@
     "splitHorizontal": "水平分割",
     "separateConnections": "接続を分離",
     "splitGroup": "グループを分割",
+    "resizePanels": "パネルのサイズを変更",
     "filterTables": "テーブルをフィルター...",
     "noTablesMatch": "一致するテーブルがありません",
     "filterDatabases": "データベースをフィルター...",
@@ -264,6 +269,11 @@
       "activity": "アクティビティ",
       "safety": "セーフティ"
     },
+    "output": {
+      "title": "ツール出力",
+      "formatLabel": "既定の出力形式",
+      "formatDescription": "MCP ツール呼び出しで output_format が指定されていない場合に使用されます。JSON は互換性を維持し、TOON はトークン使用量を削減できます。"
+    },
     "safety": {
       "readOnlyTitle": "読み取り専用モード",
       "readOnlyDefault": "MCP クエリをすべて読み取り専用にする",
@@ -291,6 +301,9 @@
   "connections": {
     "title": "接続",
     "addConnection": "接続を追加",
+    "deprecated": "非推奨",
+    "deprecatedTooltip": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます。",
+    "deprecatedTooltipDate": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます（暫定 {{date}}）。",
     "newSqliteDatabase": {
       "menuLabel": "新しい SQLite データベース…",
       "dialogTitle": "新しい SQLite データベース",
@@ -419,6 +432,47 @@
     "title": "設定",
     "general": "一般",
     "privacy": "プライバシー",
+    "network": {
+      "tab": "Network",
+      "title": "Proxy",
+      "description": "Route selected application traffic through an HTTP or SOCKS5 proxy. Connection and AI provider overrides take priority over these global settings.",
+      "enabled": "Enable proxy",
+      "enabledDesc": "Turn on the global proxy. Individual scopes below must also be checked for traffic to use it.",
+      "protocol": "Protocol",
+      "protocolDesc": "HTTP CONNECT or SOCKS5.",
+      "host": "Proxy host",
+      "hostDesc": "Hostname or IP of the proxy server.",
+      "port": "Proxy port",
+      "portDesc": "TCP port of the proxy server.",
+      "username": "Username",
+      "usernameDesc": "Optional proxy authentication username.",
+      "password": "Password",
+      "passwordDesc": "Optional proxy password. Stored in the OS keychain, never in config.json.",
+      "passwordReplaceDesc": "A password is already stored. Enter a new one to replace it.",
+      "clearPassword": "Clear",
+      "applyTo": "Apply proxy to",
+      "applyToDesc": "Opt-in traffic categories. Unchecked categories never use the global proxy.",
+      "scopes": {
+        "appHttp": "App network requests",
+        "appHttpDesc": "Plugin downloads (including legacy raw.githubusercontent.com registry.json), Tabularium registry API, update checks, and WebDAV backup uploads.",
+        "database": "Database connections",
+        "databaseDesc": "Direct TCP connections to databases (skipped when already on a local SSH/K8s tunnel).",
+        "ai": "AI / LLM endpoints",
+        "aiDesc": "Requests to configured AI providers. Per-provider overrides can still customize or disable.",
+        "sshTunnel": "SSH tunnels",
+        "sshTunnelDesc": "Outbound connection to the SSH bastion before port-forwarding to the database."
+      },
+      "overrideMode": "Proxy mode",
+      "overrideModeDesc": "Inherit the global proxy, set a custom proxy, or disable proxying for this target.",
+      "modeInherit": "Inherit",
+      "modeCustom": "Custom",
+      "modeDisabled": "Disabled",
+      "providerProxy": "Provider proxy",
+      "providerProxyDesc": "Override the global AI proxy for this provider only.",
+      "connectionProxy": "Proxy",
+      "connectionProxyDesc": "Override the global proxy for this connection’s database and SSH traffic. When an SSH tunnel is used, the proxy applies to the bastion hop; the local tunnel leg is not re-proxied.",
+      "passwordAfterSave": "Save the connection first to store a proxy password in the keychain."
+    },
     "columnMasking": "列のマスキング",
     "columnMaskingDesc": "結果グリッドで機密列（パスワード、メール、トークンなど）の内容を非表示にします。コピーやエクスポートでは実際の値がそのまま使用されます。",
     "columnMaskingEnabled": "機密列をマスク",
@@ -462,9 +516,15 @@
     "themeSelection": "テーマ選択",
     "importTheme": "テーマをインポート",
     "exportTheme": "テーマをエクスポート",
+    "themeMode": "テーマモード",
+    "themeModeDesc": "固定テーマを選ぶか、システムのライト/ダーク表示に従うかを選択します。",
+    "themeModeStatic": "固定",
+    "themeModeSystem": "システムに従う",
+    "lightTheme": "ライトテーマ",
+    "darkTheme": "ダークテーマ",
     "fontFamily": "フォントファミリー",
     "fonts": {
-      "system": "システム既定",
+      "system": "テーマの既定",
       "systemDesc": "OS の既定フォントを使用します",
       "custom": "カスタムフォント",
       "customPlaceholder": "例: Comic Sans MS",
@@ -660,6 +720,11 @@
     "autoConnectLastConnectionDesc": "アプリを最後に閉じたときに開いていた接続に再接続します。",
     "startMaximized": "最大化して起動",
     "startMaximizedDesc": "起動時にウィンドウを最大化して画面いっぱいに表示します。",
+    "windowDecorations": "ウィンドウ装飾",
+    "windowDecorationsDesc": "タイル型ウィンドウマネージャーを検出したときにネイティブ装飾を自動的に非表示にするか、動作を明示的に選択します。",
+    "windowDecorationsAutomatic": "自動",
+    "windowDecorationsAlwaysShow": "常に表示",
+    "windowDecorationsAlwaysHide": "常に非表示",
     "erDiagram": "ER 図",
     "erDiagramDefaultLayout": "デフォルトレイアウト",
     "erDiagramDefaultLayoutDesc": "ER 図のデフォルトのレイアウト方向を選択します",
@@ -677,18 +742,30 @@
       "loadingRegistry": "プラグインレジストリを読み込み中...",
       "registryError": "レジストリの読み込みに失敗しました",
       "installed": "インストール済み",
+      "latest": "最新",
       "by": "作成者:",
       "platformNotSupported": "お使いのプラットフォームでは利用できません",
       "update": "更新",
       "install": "インストール",
       "upToDate": "最新",
       "downgrade": "ダウングレード:",
+      "deprecated": "非推奨",
+      "deprecatedTooltip": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます。",
+      "deprecatedTooltipDate": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます（暫定 {{date}}）。",
+      "migrationProgress": "{{total}} 件中 {{migrated}} 件移行済み",
       "olderVersions": "以前のバージョン",
       "noPlugins": "レジストリに利用可能なプラグインがありません。",
       "searchPlaceholder": "プラグインを検索…",
       "filterAll": "すべて",
       "filterInstalled": "インストール済み",
       "filterUpdates": "アップデート",
+      "kindFilter": "種類で絞り込む",
+      "kindAll": "すべての種類",
+      "kindDrivers": "ドライバー",
+      "kindThemes": "テーマ",
+      "kindTheme": "テーマ",
+      "kindDriver": "ドライバー",
+      "manageThemes": "外観で管理",
       "searchNoResults": "検索に一致するプラグインがありません。",
       "version": "バージョン",
       "requiresVersion": "Tabularis ≥ {{version}} が必要です",
@@ -712,6 +789,9 @@
         "title": "アンインストール失敗",
         "subtitle": "プラグインのアンインストール中にエラーが発生しました。詳細は下記を参照してください。"
       },
+      "devRuntimeWarning": {
+        "title": "開発ビルド: プラグイン \"{{plugin}}\" は Tabularis のバージョンチェックをスキップしました"
+      },
       "startError": {
         "title": "プラグインの起動に失敗",
         "subtitle": "プラグインプロセスを起動できませんでした。下記のエラー詳細を確認してください。",
@@ -730,6 +810,7 @@
         "fieldRequired": "{{label}} は必須です",
         "saved": "保存しました",
         "resetToDefault": "デフォルトに戻す",
+        "reportIssue": "プラグインの問題を報告",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -748,6 +829,12 @@
               "label": "タイムゾーン",
               "description": "接続後に MySQL に送信するセッションタイムゾーンです。"
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "プール最大サイズ",
+              "description": "プールに保持する PostgreSQL 接続の最大数です。"
+            }
           }
         }
       },
@@ -759,7 +846,8 @@
       "categories": {
         "editor": "エディタ",
         "navigation": "ナビゲーション",
-        "data_grid": "データグリッド"
+        "data_grid": "データグリッド",
+        "notebook": "ノートブック"
       },
       "runQuery": "クエリを実行",
       "runQueryEditor": "クエリを実行 (エディタ内)",
@@ -771,6 +859,9 @@
       "toggleRightSidebar": "右サイドバーの切り替え",
       "focusTableFilter": "テーブルフィルターにフォーカス",
       "openConnections": "接続を開く",
+      "openSettings": "設定を開く",
+      "conflict": "このショートカットは「{{shortcut}}」と競合しています。",
+      "needsModifier": "Ctrl や Alt などの修飾キーを追加してください。",
       "newConnection": "新規接続",
       "newTab": "新規タブ",
       "closeTab": "タブを閉じる",
@@ -787,9 +878,41 @@
       "commandPaletteActions": "アクションを検索",
       "triggerSuggestions": "候補を表示",
       "formatSql": "SQLをフォーマット",
-      "refreshTable": "テーブルを更新"
+      "refreshTable": "テーブルを更新",
+      "extendCellRange": "セル範囲を拡張",
+      "jumpToEdge": "グリッドの端へ移動",
+      "extendCellRangeToEdge": "セル範囲を端まで拡張",
+      "selectRow": "行を選択",
+      "selectColumn": "列を選択"
     },
     "aiActivity": "AI アクティビティ",
+    "storage": {
+      "title": "ストレージ",
+      "locations": "保存場所",
+      "dataFolder": "データフォルダー",
+      "dataFolderDesc": "接続、設定、保存済みクエリ、テーマ、ノートブック、クエリ履歴はここに保存されます。同期フォルダー(iCloud Drive、Dropbox など)を指定すると、複数のマシン間で共有できます。インストール済みプラグインは常にローカルに残ります。",
+      "sourceDefault": "デフォルトの場所",
+      "sourceCustom": "カスタムの場所",
+      "sourceEnv": "TABULARIS_DATA_DIR で設定",
+      "envHint": "このフォルダーは環境変数 TABULARIS_DATA_DIR で制御されています。ここから変更するには、その変数を解除してください。",
+      "envVar": "環境変数",
+      "envVarDesc": "TABULARIS_DATA_DIR に絶対パスを設定すると、起動時またはインストール単位でデータフォルダーを上書きできます。上で選択したフォルダーより優先され、MCP サーバーにも適用されます。ポータブル運用、スクリプト、開発に便利です。",
+      "envVarExample": "TABULARIS_DATA_DIR=/path/to/folder tabularis",
+      "changeFolder": "フォルダーを変更…",
+      "openFolder": "フォルダーを開く",
+      "resetToDefault": "デフォルトの場所を使用",
+      "concurrencyWarning": "Tabularis は起動時にこのフォルダーを読み込みます。同期中の 2 台のマシンなど、同じフォルダーで 2 つのインスタンスを同時に実行しないでください。",
+      "newFolder": "新しいフォルダー",
+      "modeExisting": "このフォルダーにあるデータをそのまま使用",
+      "modeExistingDesc": "このフォルダーには既に Tabularis のデータ(別のマシンから同期されたものなど)が含まれています。",
+      "modeCopy": "現在のデータをこのフォルダーにコピー",
+      "modeCopyDesc": "フォルダー内の既存ファイルは保持されます。インストール済みプラグインはコピーされません。",
+      "modeEmpty": "空のフォルダーから始める",
+      "apply": "適用",
+      "restartRequired": "再起動が必要です",
+      "restartRequiredDesc": "再起動後、Tabularis は {{path}} を使用します。",
+      "restartNow": "今すぐ再起動"
+    },
     "backup": {
       "title": "バックアップ",
       "directory": "バックアップフォルダー",
@@ -841,6 +964,22 @@
     }
   },
   "update": {
+    "badges": {
+      "morePlugins": "他 {{count}} 件 — すべての更新を見るにはプラグインを開いてください",
+      "driverUpdate": "ドライバーの更新があります",
+      "themeUpdate": "テーマの更新があります",
+      "tag": "更新",
+      "driverTooltip": "{{name}} {{version}} が利用可能です。このプラグインは複数の接続で共有されています。プラグイン → 更新 から管理してください。",
+      "core_one": "コアの更新が {{count}} 件あります",
+      "core_other": "コアの更新が {{count}} 件あります",
+      "plugins_one": "プラグインの更新が {{count}} 件あります",
+      "plugins_other": "プラグインの更新が {{count}} 件あります",
+      "coreDetails": "Tabularis {{version}} が利用可能です。「情報」を開いてコアの更新を確認してください。",
+      "pluginDetails_one": "更新可能：{{plugins}}",
+      "pluginDetails_other": "更新可能：{{plugins}}",
+      "toastTitle": "プラグインの更新があります",
+      "openPlugins": "プラグインを開く"
+    },
     "newVersionAvailable": "新しいバージョンが利用可能",
     "version": "バージョン",
     "releaseNotes": "リリースノート",
@@ -883,6 +1022,17 @@
     "configError": "設定で AI プロバイダを構成し、プロンプトを入力してください。"
   },
   "newConnection": {
+    "ssmForwardHint": "{{document}} に解決されます。マネージドノード経由で {{host}}:{{port}} に転送します。転送先アドレスは「一般」タブで変更します。ループバックホストはノード自身を意味します。",
+    "ssmIamHint": "対象と解決されたドキュメントに対する ssm:StartSession 権限が必要です。",
+    "ssmNotAvailable": "AWS SSM はこのドライバーでは利用できません。",
+    "ssmPortRequired": "先に「一般」タブで有効なポートを設定してください。",
+    "ssmProfile": "AWS プロファイル",
+    "ssmRegion": "AWS リージョン",
+    "ssmTarget": "マネージドノード",
+    "ssmTargetRequired": "接続に使用するマネージドノードを入力してください。",
+    "testSsm": "SSM をテスト",
+    "testSsmHint": "実際のポートフォワーディングセッションを開いてすぐに閉じます。データベースには接続しません。",
+    "useSsm": "AWS SSM ポートフォワーディングを使用",
     "titleNew": "新規接続",
     "titleEdit": "接続を編集",
     "subtitle": "データベース接続の設定を構成します",
@@ -1035,6 +1185,7 @@
   },
   "dataGrid": {
     "noRowIdentity": "行を編集できません: \"{{table}}\" には主キーがないため、編集には結果にテーブルの全列が含まれている必要があります。すべての列を選択する(例: SELECT *)か、主キーを追加してください。",
+    "resizeRelatedPanel": "ドラッグしてパネルのサイズを変更",
     "keylessRowNotFound": "\"{{column}}\" の更新時に元の値に一致する行が見つかりませんでした。テーブルに主キーがなく、データが変更された可能性があります。再読み込みして再試行してください。",
     "keylessDeleteNotFound": "削除時に元の値に一致する行が見つかりませんでした。テーブルに主キーがなく、データが変更された可能性があります。再読み込みして再試行してください。",
     "noData": "表示するデータがありません",
@@ -1222,6 +1373,21 @@
     "failedProcessInsertions": "挿入の処理に失敗しました: ",
     "fieldRequired": "この項目は必須です",
     "newNotebook": "新規ノートブック",
+    "openSqlFile": "SQLファイルを開く…",
+    "openSqlFileError": "SQLファイルを開けませんでした",
+    "sqlFileFilter": "SQLファイル",
+    "saveSqlFile": "SQLファイルを保存",
+    "saveSqlFileAs": "SQLファイルに名前を付けて保存…",
+    "saveSqlFileError": "SQLファイルを保存できませんでした",
+    "sqlFileSaved": "SQLファイルを保存しました",
+    "unsavedSqlFileTitle": "未保存の変更を破棄しますか？",
+    "unsavedSqlFileMessage": "1つ以上のSQLファイルに未保存の変更があります。タブを閉じると変更は失われます。",
+    "discardSqlFileChanges": "変更を破棄",
+    "saveFile": "保存",
+    "saveFileAs": "名前を付けて保存…",
+    "saveOptions": "保存オプション",
+    "addToSavedQueries": "保存済みクエリに追加…",
+    "sqlFileNotSaved": "まだファイルに保存されていません",
     "visualExplain": {
       "title": "ビジュアル Explain",
       "buttonShort": "実行計画",
@@ -1350,6 +1516,7 @@
       "addSqlCell": "SQL セルを追加",
       "addMarkdownCell": "Markdown セルを追加",
       "addCell": "追加",
+      "resizeResult": "結果のサイズを変更",
       "runAll": "すべて実行",
       "runAllTooltip": "上から下へすべての SQL セルを実行",
       "runCell": "セルを実行",
@@ -1366,6 +1533,7 @@
       "invalidFile": "不正なノートブックファイル形式です",
       "importSuccess": "ノートブックを正常にインポートしました",
       "exportSuccess": "ノートブックを正常にエクスポートしました",
+      "resultExportSuccess": "結果を正常にエクスポートしました",
       "convertToConsole": "コンソールに変換",
       "runningAll": "すべてのセルを実行中...",
       "cellResult": "{{count}} 行 · {{time}}ms",
@@ -1394,6 +1562,13 @@
       "sectionQuery": "クエリ",
       "sectionResults": "結果",
       "sectionChart": "チャート",
+      "sectionQueryPlan": "クエリプラン",
+      "queryPlanOutdated": "クエリまたは接続が変更されました。再実行してプランを更新してください。",
+      "queryPlanUnresolved": "このクエリを説明する前に、参照先のセルを正常に実行してください：{{refs}}",
+      "explainPopout": "全体表示で開く",
+      "toggleQueryPlan": "クエリプランを表示",
+      "hideQueryPlan": "クエリプランを非表示",
+      "exportError": "エクスポートに失敗しました",
       "collapseSection": "セクションを折りたたむ",
       "expandSection": "セクションを展開",
       "collapseAll": "すべて折りたたむ",
@@ -1494,6 +1669,7 @@
     "colType": "タイプ",
     "colNullable": "NULL 許可",
     "colKey": "キー",
+    "colDescription": "説明",
     "yes": "はい",
     "no": "いいえ"
   },
@@ -1649,6 +1825,13 @@
     "dismiss": "あとで"
   },
   "whatsNew": {
+    "supportTitle": "こんにちは、Tabularisの生みの親、Andreaです",
+    "supportStarAction": "GitHubでスターを付ける",
+    "supportDescription": "いつまでもオープンソースで提供し続けることを目標に、Tabularisを作りました。お役に立てているなら、GitHub Sponsorsでの少額のご寄付でも、新機能の開発に時間を充て、すべての人のために改善を続ける力になります。",
+    "supportThanks": "このプロジェクトに参加してくださり、ありがとうございます！",
+    "supportNeverShow": "今後表示しない",
+    "supportHideError": "設定を保存できませんでした。もう一度お試しください。",
+    "supportAction": "GitHub Sponsorsで支援する",
     "title": "新機能",
     "subtitle": "バージョン {{version}}",
     "features": "新機能",
@@ -2128,6 +2311,55 @@
     "updateConfirm": "v{{version}} に更新",
     "alreadyInstalled": "バージョン {{version}} は既にインストールされています。"
   },
+  "migration": {
+    "banner": {
+      "nudge": "新しい PostgreSQL プラグインをお試しください —組み込みの PostgreSQL ドライバーは廃止予定です。プラグインは同じ機能を持ち、より早く更新されます。",
+      "nudgeWithDate": "新しい PostgreSQL プラグインをお試しください —組み込みの PostgreSQL ドライバーは廃止予定です（{{date}}を予定）。プラグインは同じ機能を持ち、より早く更新されます。",
+      "offline": "PostgreSQL プラグインをダウンロードできませんでした —次回起動時に再試行します。続く場合は接続やネットワークを確認してください。",
+      "reviewConnections": "接続を確認"
+    },
+    "switchToPlugin": "プラグインに切り替え",
+    "switchToBuiltin": "組み込みドライバーに戻す",
+    "confirm": {
+      "title": "プラグインに切り替えますか？",
+      "message": "{{name}} を PostgreSQL プラグインに切り替えますか？現在接続中の場合は切断され、プラグインで再接続されます。",
+      "uriMessage": "{{name}} を PostgreSQL プラグインに切り替えますか？キーチェーンに保存されている接続文字列は引き継がれません —再接続するには再入力が必要です。",
+      "confirmLabel": "切り替え",
+      "confirmLabelUri": "切り替えて後で再入力",
+      "undoTitle": "組み込みドライバーに戻しますか？",
+      "undoMessage": "{{name}} を組み込みの PostgreSQL ドライバーに戻しますか？現在接続中の場合は切断され、組み込みドライバーで再接続されます。",
+      "undoConfirmLabel": "戻す"
+    },
+    "toast": {
+      "success": "{{name}} を PostgreSQL プラグインに切り替えました。",
+      "connectionFailure": "プラグインを使用して {{name}} に接続できませんでした: {{error}}",
+      "connectionFailurePreexisting": "{{name}} はどちらのドライバでも接続できませんでした: {{error}}。プラグインの問題ではありません — プラグインへの切り替えはそのまま維持されます。",
+      "processFailureWithError": "PostgreSQL プラグインが起動しませんでした: {{error}}。これは {{name}} 固有の問題ではありません —接続は試行されませんでした。",
+      "processFailure": "PostgreSQL プラグインが起動しませんでした。これは {{name}} 固有の問題ではありません —接続は試行されませんでした。",
+      "failed": "{{name}} をプラグインに切り替えられませんでした: {{error}}",
+      "undo": "元に戻す",
+      "undoFailed": "{{name}} を組み込みドライバーに戻せませんでした: {{error}}",
+      "reportIssue": "問題を報告"
+    },
+    "checklist": {
+      "title": "接続を確認",
+      "subtitle_one": "{{count}} 件の接続がまだ組み込みドライバーを使用しています",
+      "subtitle_other": "{{count}} 件の接続がまだ組み込みドライバーを使用しています",
+      "migrateSelected_one": "選択した {{count}} 件を移行",
+      "migrateSelected_other": "選択した {{count}} 件を移行",
+      "reportThisGap": "この問題を報告",
+      "alreadyReported": "報告済み",
+      "testing": "接続をテスト中…",
+      "uriWarning": "キーチェーンに保存されている接続文字列は引き継がれません —移行後に再入力が必要です。",
+      "noGaps": "確認する接続はありません。",
+      "close": "閉じる",
+      "migratingNotice": "このウィンドウを閉じても、移行はバックグラウンドで続行されます。",
+      "gap": {
+        "ssl": "SSL/TLS を使用しています。プラグインはまだ未対応です",
+        "connection_uri": "接続文字列を使用しています。プラグインはまだ未対応です"
+      }
+    }
+  },
   "connectionCatalogue": {
     "searchPlaceholder": "データベースを検索…",
     "clearSearch": "検索をクリア",
@@ -2143,6 +2375,8 @@
     "connectTo": "{{name}} に接続",
     "unavailableOnPlatform": "お使いのプラットフォームでは利用できません",
     "unavailable": "利用不可",
+    "deprecated": "非推奨",
+    "deprecatedTooltip": "この組み込みドライバーはプラグインに置き換えられます",
     "backToCatalogue": "カタログに戻る",
     "pickDriver": "複数のドライバーが {{name}} に接続します。1つ選択してください：",
     "latestVersion": "最新 v{{version}}",
@@ -2173,6 +2407,10 @@
     "ssh": {
       "summary": "SSH トンネルに失敗しました",
       "recovery": "SSH タブの設定を確認してください。"
+    },
+    "ssm": {
+      "summary": "AWS SSM セッションに失敗しました",
+      "recovery": "詳細を開いて正確な AWS のエラーを確認してください。AWS CLI と Session Manager プラグインがインストールされていること、認証情報が有効であること、マネージドノードがオンラインであることを確認してください。"
     },
     "db-auth": {
       "summary": "データベース認証に失敗しました",
@@ -2211,6 +2449,11 @@
         "ok": "ポートフォワードの準備ができました",
         "error": "Kubernetes ポートフォワードに失敗しました"
       },
+      "ssmForward": {
+        "start": "AWS SSM ポートフォワーディングを開始しています",
+        "ok": "ポートフォワーディングの準備ができました",
+        "error": "AWS SSM ポートフォワーディングに失敗しました"
+      },
       "dbConnect": {
         "start": "データベースに接続しています",
         "ok": "データベース接続が確立されました",
@@ -2219,5 +2462,13 @@
     },
     "title": "接続テストのログ",
     "showLog": "ログを表示"
+  },
+  "themePackages": {
+    "import": "テーマをインポート",
+    "registryMismatch": "このパッケージは別のレジストリのものです。更新する前に、設定済みのレジストリを明示的に変更してください。",
+    "importedTheme": "インポートしたテーマ", "manage": "テーマを管理", "importJSON": "Tabularis JSON をインポート", "importVSCode": "VS Code からインポート", "edit": "個人テーマを編集", "localPackage": "ローカルパッケージ", "installTitle": "テーマパッケージをインストール", "installSubtitle": "設定済みレジストリの宣言的テーマです。コードは実行されません。", "discover": "プラグインでテーマを探す", "refresh": "再読み込み", "preview": "プレビュー", "apply": "適用", "confirm": "確認", "duplicate": "個人テーマとして複製", "exportJSON": "単独 JSON をエクスポート", "exportPackage": "作者用パッケージをエクスポート", "remove": "削除", "update": "パッケージを更新", "disable": "パッケージを無効化", "enable": "パッケージを有効化", "removePackage": "パッケージをアンインストール", "disabled": "無効", "file": "テーマファイル", "name": "テーマ名", "mode": "モード / ベース", "detectMode": "自動検出（不明な場合は選択）", "source": "テーマ JSON", "search": "テーマを検索", "loading": "読み込み中…", "noThemes": "このレジストリに利用可能なテーマはありません。", "details": "詳細 / インストール", "readme": "README / スクリーンショット", "version": "パッケージのバージョン", "latest": "最新リリース", "install": "パッケージをインストール / 置換", "chooseArchive": "ZIP アーカイブを選択", "screenshots": "スクリーンショット（外部で開く）", "externalMedia": "画像などのリモートメディアは自動的に読み込みません。リンクはブラウザーで開きます。", "snapshotEditor": "エディターの正確な JSON", "snapshotEditorHelp": "この独立したスナップショットが旧形式のエイリアスに代わって SQL の色を制御します。変更はプレビューされ、元のリビジョンを確認して保存されます。", "recover": "中断されたインストールを復旧", "recoveryExplanation": "未完了のテーマ操作を明示的に確認して復旧します。中断されたインストールを復元する場合がありますが、テーマの選択や保存済み設定の変更は行いません。", "recoveryDone": "復旧の確認が完了しました。残っている問題は以下をご確認ください。", "catalogIssues": "カタログ診断", "fileTooLarge": "ファイルがインポートの容量制限を超えています。", "previewHint": "プレビューは一時的です。キャンセルで保存済みテーマに戻り、適用で選択を保存します。", "previewReady": "プレビュー中です。確認前にアプリとエディターを確認してください。", "licenseNotice": "インポートやエクスポートで再配布権は付与されません。公開前に帰属表示を保持し、ライセンスを確認してください。", "acknowledge": "上記の変換制限を理解し、受け入れます。", "applyAfterSave": "保存後に適用", "savedNotApplied": "テーマは保存されましたが、選択に失敗しました。再インポートせず、保存済みテーマを選択してください。", "installHint": "インストールはパッケージ全体を置換しますが、バリアントは選択しません。プレビュー、ローカルインポート、選択はダウンロード数に含まれません。", "installedHint": "インストール済みです。閉じて外観設定でバリアントを選択してください。", "committedRefreshFailed": "操作は完了しましたが、カタログ更新に失敗しました。再試行前に再読み込みしてください。", "missing": "保存済みの選択が利用できません: {{id}}。設定を変更せずオフラインテーマを使用します。", "downloads": "ダウンロード数: {{count}}", "downloadsUnavailable": "ダウンロード数を取得できません", "installedVersion": "インストール済み: {{version}}", "minimumVersion": "Tabularis {{version}} 以降が必要", "incompatible": "互換性がないか、ユニバーサルアーカイブが一つだけではありません。", "packageWarning": "パッケージのすべてのバリアントに影響します。保存済みの選択は保持され、再び利用可能になると復元されます。", "deleteWarning": "個人テーマを削除しますか？保存済みのアプリ選択は既定のテーマになります。", "duplicateHint": "独立した編集可能な個人コピーを作成します。自動適用はしません。", "exportError": "パッケージのエクスポートに失敗しました。単独 JSON は引き続きエクスポートできます。", "runtimeWarning": "実際に初めて対応したリリースを入力してください。開発版の番号は旧クライアントとの互換性を保証しません。", "packageName": "パッケージ識別子（小文字）", "minimumRuntime": "Tabularis の最小バージョン", "license": "ライセンスと帰属表示", "rightsAcknowledged": "再配布権と帰属表示を確認しました。",
+    "groups": { "builtin": "内蔵 · オフライン", "installed": "インストール済みパッケージ", "personal": "個人テーマ" }, "modes": { "light": "ライト", "dark": "ダーク", "high-contrast": "ハイコントラスト" },
+    "importErrors": { "unrecognized": "VS Code テーマとして認識できません。", "modeRequired": "モードを選択して再度プレビューしてください。", "includeOnly": "include のみのテーマはインポートできません。実際の色データを指定してください。", "noSupportedData": "対応する色や SQL トークン規則がありません。", "invalidColor": "対応する色の値が無効です。", "invalidRules": "トークン規則が無効または多すぎます。" },
+    "diagnostics": { "unsupportedKey": "非対応のフィールド", "unsupportedColor": "非対応の色", "unsupportedScope": "非対応のスコープ", "scopeApproximation": "近似的な SQL スコープ変換", "unsupportedStyle": "非対応のスタイル", "ignoredInclude": "include は読み込まれません", "ignoredSemanticTokens": "セマンティックトークンを無視", "unsupportedReference": "外部参照は読み込まれません", "unsupportedSetting": "非対応の設定", "tokenAlphaFlattened": "トークンの不透明度を基本背景に合成", "modeApproximation": "モードを上書きまたは近似", "diagnosticsTruncated": "追加の診断を省略" }
   }
 }

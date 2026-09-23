@@ -5,6 +5,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MainLayout } from "../../../src/components/layout/MainLayout";
 
+vi.mock("../../../src/contexts/PluginRegistryProvider", () => ({
+  PluginRegistryProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+vi.mock("../../../src/components/plugins/PluginUpdateToast", () => ({
+  PluginUpdateToast: () => null,
+}));
+
 vi.mock("../../../src/components/layout/Sidebar", () => ({
   Sidebar: () => <aside>Sidebar</aside>,
 }));

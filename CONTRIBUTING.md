@@ -23,6 +23,7 @@ All types of contributions are encouraged and valued. See the [Table of Contents
   - [Reporting Bugs](#reporting-bugs)
   - [Suggesting Enhancements](#suggesting-enhancements)
   - [Your First Code Contribution](#your-first-code-contribution)
+  - [Testing a Pull Request Build](#testing-a-pull-request-build)
   - [Improving The Documentation](#improving-the-documentation)
 - [Styleguides](#styleguides)
   - [Commit Messages](#commit-messages)
@@ -146,6 +147,12 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/Tabula
 include Setup of env, IDE and typical getting started instructions?
 
 -->
+
+### Testing a Pull Request Build
+
+Maintainers can add the `preview` label to a pull request to get installable builds of it for macOS, Linux and Windows, without publishing anything to the Releases page. The build runs right away and again on every push while the label stays; a bot comment on the PR links the downloads (a GitHub login is required, and they expire after 14 days). Builds of PRs from forks are not signed, so macOS asks for `xattr -cr` on the app and Windows shows a SmartScreen warning.
+
+If you reported a bug and a maintainer points you to such a build, that is the fastest way to confirm the fix before it lands in a nightly.
 
 ### Improving The Documentation
 

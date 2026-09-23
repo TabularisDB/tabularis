@@ -117,6 +117,7 @@ export const SpotlightPalette = ({
       closeOnBackdrop
       overlayClassName="fixed inset-0 z-[100] flex items-start justify-center bg-black/50 pt-[15vh] backdrop-blur-sm"
     >
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the dialog owns list navigation and its Tab focus trap; the rule exempts <dialog> but not role="dialog" */}
       <div
         ref={dialogRef}
         role="dialog"
@@ -130,7 +131,7 @@ export const SpotlightPalette = ({
           {isBusy ? (
             <Loader2
               size={18}
-              className="shrink-0 animate-spin text-blue-400"
+              className="shrink-0 animate-spin text-accent"
             />
           ) : (
             <Search size={18} className="shrink-0 text-secondary" />

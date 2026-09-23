@@ -32,6 +32,8 @@ pub async fn shutdown_headless_runtime(state: &super::state::ApplicationState) {
     crate::pool_manager::close_all_pools().await;
     crate::ssh_tunnel::stop_all_tunnels();
     crate::k8s_tunnel::stop_all_tunnels();
+    crate::ssm_tunnel::stop_all_tunnels();
+    crate::proxy::stop_all_forwards();
     crate::drivers::registry::shutdown_external_drivers().await;
 }
 

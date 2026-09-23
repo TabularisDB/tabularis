@@ -12,7 +12,7 @@ export const StyledSelect = ({ value, onChange, options, className = "" }: Style
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full appearance-none bg-base border border-default rounded px-2 pr-6 py-1 text-xs text-secondary font-mono focus:outline-none focus:border-blue-500/60 cursor-pointer transition-colors hover:border-default/80"
+      className="w-full appearance-none bg-base border border-default rounded px-2 pr-6 py-1 text-xs text-secondary font-mono focus:outline-none focus:border-focus/60 cursor-pointer transition-colors hover:border-default/80"
     >
       {options.map((opt) => (
         <option key={opt} value={opt}>

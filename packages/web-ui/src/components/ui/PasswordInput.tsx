@@ -43,7 +43,7 @@ export const PasswordInput = ({
         spellCheck={false}
         aria-label={ariaLabel}
         className={clsx(
-          "w-full px-3 py-2 pr-10 bg-base border border-strong rounded-lg text-sm text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none transition-colors",
+          "w-full px-3 py-2 pr-10 bg-base border border-strong rounded-lg text-sm text-primary placeholder:text-muted focus:border-focus focus:outline-none transition-colors",
           className,
         )}
       />

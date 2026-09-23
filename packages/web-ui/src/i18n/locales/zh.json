@@ -57,6 +57,7 @@
   "common": {
     "save": "保存",
     "close": "关闭",
+    "resizeColumn": "调整列宽",
     "cancel": "取消",
     "delete": "删除",
     "edit": "编辑",
@@ -74,7 +75,8 @@
     "copied": "已复制！",
     "showDetails": "显示详情",
     "hideDetails": "隐藏详情",
-    "beta": "测试版"
+    "beta": "测试版",
+    "dismiss": "关闭"
   },
   "sidebar": {
     "connections": "连接",
@@ -112,6 +114,8 @@
     "noTables": "未找到表",
     "expandTable": "展开表 {{name}}",
     "collapseTable": "折叠表 {{name}}",
+    "expandView": "展开视图 {{name}}",
+    "collapseView": "折叠视图 {{name}}",
     "columns": "列",
     "parameters": "参数",
     "noParameters": "无参数",
@@ -180,6 +184,7 @@
     "splitHorizontal": "水平分割",
     "separateConnections": "分离连接",
     "splitGroup": "分割组",
+    "resizePanels": "调整面板大小",
     "filterTables": "筛选表...",
     "noTablesMatch": "无匹配的表",
     "filterDatabases": "筛选数据库...",
@@ -250,6 +255,11 @@
       "activity": "活动",
       "safety": "安全"
     },
+    "output": {
+      "title": "工具输出",
+      "formatLabel": "默认输出格式",
+      "formatDescription": "当 MCP 工具调用未指定 output_format 时使用。JSON 保持兼容性；TOON 可以减少令牌用量。"
+    },
     "safety": {
       "readOnlyTitle": "只读模式",
       "readOnlyDefault": "将所有 MCP 查询设为只读",
@@ -277,6 +287,9 @@
   "connections": {
     "title": "连接",
     "addConnection": "添加连接",
+    "deprecated": "已弃用",
+    "deprecatedTooltip": "此内置驱动正由 {{replacement}} 插件取代。",
+    "deprecatedTooltipDate": "此内置驱动正由 {{replacement}} 插件取代（暂定 {{date}}）。",
     "newSqliteDatabase": {
       "menuLabel": "新建 SQLite 数据库…",
       "dialogTitle": "新建 SQLite 数据库",
@@ -405,6 +418,47 @@
     "title": "设置",
     "general": "通用",
     "privacy": "隐私",
+    "network": {
+      "tab": "网络",
+      "title": "代理",
+      "description": "将选定的应用流量经由 HTTP 或 SOCKS5 代理转发。具体连接与 AI 提供商的覆盖设置优先于全局设置。",
+      "enabled": "启用代理",
+      "enabledDesc": "打开全局代理。下方各流量类别也需勾选后才会走代理。",
+      "protocol": "协议",
+      "protocolDesc": "HTTP CONNECT 或 SOCKS5。",
+      "host": "代理主机",
+      "hostDesc": "代理服务器的主机名或 IP。",
+      "port": "代理端口",
+      "portDesc": "代理服务器的 TCP 端口。",
+      "username": "用户名",
+      "usernameDesc": "可选的代理认证用户名。",
+      "password": "密码",
+      "passwordDesc": "可选的代理密码。保存在系统钥匙串中，不会写入 config.json。",
+      "passwordReplaceDesc": "已保存密码。输入新密码可替换。",
+      "clearPassword": "清除",
+      "applyTo": "应用于",
+      "applyToDesc": "按流量类别选择是否使用全局代理。未勾选的类别不会使用全局代理。",
+      "scopes": {
+        "appHttp": "软件本体网络请求",
+        "appHttpDesc": "插件下载（含 legacy raw.githubusercontent.com 的 registry.json）、Tabularium 注册表 API、检查更新，以及 WebDAV 备份上传。",
+        "database": "数据库连接",
+        "databaseDesc": "直连数据库的 TCP（若已走本地 SSH/K8s 隧道则跳过）。",
+        "ai": "大模型 endpoint",
+        "aiDesc": "对已配置 AI 提供商的请求。仍可被提供商级覆盖自定义或禁用。",
+        "sshTunnel": "SSH 隧道",
+        "sshTunnelDesc": "在端口转发到数据库之前，通往 SSH 跳板机的出站连接。"
+      },
+      "overrideMode": "代理模式",
+      "overrideModeDesc": "继承全局代理、自定义代理，或对此目标禁用代理。",
+      "modeInherit": "继承",
+      "modeCustom": "自定义",
+      "modeDisabled": "禁用",
+      "providerProxy": "提供商代理",
+      "providerProxyDesc": "仅对此 AI 提供商覆盖全局 AI 代理。",
+      "connectionProxy": "代理",
+      "connectionProxyDesc": "覆盖此连接的数据库与 SSH 流量所用的全局代理。启用 SSH 隧道时，代理作用于跳板机一跳；本地隧道段不会再次走代理。",
+      "passwordAfterSave": "请先保存连接，才能将代理密码写入钥匙串。"
+    },
     "columnMasking": "列掩码",
     "columnMaskingDesc": "在结果网格中隐藏敏感列（密码、邮箱、令牌等）的内容。复制和导出仍使用真实值。",
     "columnMaskingEnabled": "掩码敏感列",
@@ -450,9 +504,15 @@
     "themeSelection": "主题选择",
     "importTheme": "导入主题",
     "exportTheme": "导出主题",
+    "themeMode": "主题模式",
+    "themeModeDesc": "选择固定主题，或跟随系统的浅色/深色外观。",
+    "themeModeStatic": "固定",
+    "themeModeSystem": "跟随系统",
+    "lightTheme": "浅色主题",
+    "darkTheme": "深色主题",
     "fontFamily": "字体",
     "fonts": {
-      "system": "系统默认",
+      "system": "主题默认",
       "systemDesc": "使用您的操作系统默认字体",
       "custom": "自定义字体",
       "customPlaceholder": "例如：微软雅黑",
@@ -610,6 +670,11 @@
     "autoConnectLastConnectionDesc": "重新连接到上次关闭应用时打开的连接。",
     "startMaximized": "最大化启动",
     "startMaximizedDesc": "启动时以最大化窗口填满屏幕。",
+    "windowDecorations": "窗口装饰",
+    "windowDecorationsDesc": "检测到平铺式窗口管理器时自动隐藏原生窗口装饰，或选择明确的显示方式。",
+    "windowDecorationsAutomatic": "自动",
+    "windowDecorationsAlwaysShow": "始终显示",
+    "windowDecorationsAlwaysHide": "始终隐藏",
     "erDiagram": "ER 图",
     "erDiagramDefaultLayout": "默认布局",
     "erDiagramDefaultLayoutDesc": "选择 ER 图的默认布局方向",
@@ -627,18 +692,30 @@
       "loadingRegistry": "加载插件注册表...",
       "registryError": "加载注册表失败",
       "installed": "已安装",
+      "latest": "最新",
       "by": "作者",
       "platformNotSupported": "您的平台不可用",
       "update": "更新",
       "install": "安装",
       "upToDate": "已是最新",
       "downgrade": "降级到",
+      "deprecated": "已弃用",
+      "deprecatedTooltip": "此内置驱动正由 {{replacement}} 插件取代。",
+      "deprecatedTooltipDate": "此内置驱动正由 {{replacement}} 插件取代（暂定 {{date}}）。",
+      "migrationProgress": "已迁移 {{migrated}} / {{total}}",
       "olderVersions": "旧版本",
       "noPlugins": "注册表中无可用插件。",
       "searchPlaceholder": "搜索插件…",
       "filterAll": "全部",
       "filterInstalled": "已安装",
       "filterUpdates": "更新",
+      "kindFilter": "按类型筛选",
+      "kindAll": "所有类型",
+      "kindDrivers": "驱动",
+      "kindThemes": "主题",
+      "kindTheme": "主题",
+      "kindDriver": "驱动",
+      "manageThemes": "在外观中管理",
       "searchNoResults": "没有匹配的插件。",
       "version": "版本",
       "requiresVersion": "需要 Tabularis ≥ {{version}}",
@@ -662,6 +739,9 @@
         "title": "卸载失败",
         "subtitle": "卸载插件时发生错误。请参阅下面的详细信息。"
       },
+      "devRuntimeWarning": {
+        "title": "开发版本：插件 \"{{plugin}}\" 跳过了 Tabularis 版本检查"
+      },
       "startError": {
         "title": "插件启动失败",
         "subtitle": "无法启动插件进程。请参阅下面的错误详细信息。",
@@ -680,6 +760,7 @@
         "fieldRequired": "{{label}} 是必需的",
         "saved": "已保存",
         "resetToDefault": "重置为默认",
+        "reportIssue": "报告插件问题",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -698,6 +779,12 @@
               "label": "时区",
               "description": "连接建立后发送给 MySQL 的会话时区。"
             }
+          },
+          "postgres": {
+            "poolMaxSize": {
+              "label": "连接池最大大小",
+              "description": "连接池中保留的 PostgreSQL 连接最大数量。"
+            }
           }
         }
       },
@@ -709,7 +796,8 @@
       "categories": {
         "editor": "编辑器",
         "navigation": "导航",
-        "data_grid": "数据网格"
+        "data_grid": "数据网格",
+        "notebook": "笔记本"
       },
       "runQuery": "运行查询",
       "runQueryEditor": "运行查询（编辑器中）",
@@ -721,6 +809,9 @@
       "toggleRightSidebar": "切换右侧边栏",
       "focusTableFilter": "聚焦表格筛选",
       "openConnections": "打开连接",
+      "openSettings": "打开设置",
+      "conflict": "此快捷键与“{{shortcut}}”冲突。",
+      "needsModifier": "请添加修饰键，例如 Ctrl 或 Alt。",
       "newConnection": "新建连接",
       "newTab": "新建标签",
       "closeTab": "关闭标签",
@@ -736,9 +827,41 @@
       "commandPaletteActions": "搜索操作",
       "triggerSuggestions": "触发建议",
       "formatSql": "格式化 SQL",
-      "refreshTable": "刷新表格"
+      "refreshTable": "刷新表格",
+      "extendCellRange": "扩展单元格范围",
+      "jumpToEdge": "跳转到网格边缘",
+      "extendCellRangeToEdge": "扩展单元格范围至边缘",
+      "selectRow": "选择行",
+      "selectColumn": "选择列"
     },
     "aiActivity": "AI 活动",
+    "storage": {
+      "title": "存储",
+      "locations": "位置",
+      "dataFolder": "数据文件夹",
+      "dataFolderDesc": "连接、设置、已保存的查询、主题、笔记本和查询历史都存储在这里。将其指向同步文件夹(iCloud Drive、Dropbox 等)即可在多台电脑间共享。已安装的插件始终保留在本地。",
+      "sourceDefault": "默认位置",
+      "sourceCustom": "自定义位置",
+      "sourceEnv": "由 TABULARIS_DATA_DIR 设置",
+      "envHint": "该文件夹由环境变量 TABULARIS_DATA_DIR 控制。请取消该变量后再在此处更改位置。",
+      "envVar": "环境变量",
+      "envVarDesc": "将 TABULARIS_DATA_DIR 设为绝对路径,即可在单次启动或某个安装中覆盖数据文件夹。它优先于上面选择的文件夹,同样作用于 MCP 服务器,适合便携安装、脚本和开发。",
+      "envVarExample": "TABULARIS_DATA_DIR=/path/to/folder tabularis",
+      "changeFolder": "更改文件夹…",
+      "openFolder": "打开文件夹",
+      "resetToDefault": "使用默认位置",
+      "concurrencyWarning": "Tabularis 在启动时读取此文件夹。请避免同时在同一文件夹上运行两个实例,例如在两台电脑上同步期间。",
+      "newFolder": "新文件夹",
+      "modeExisting": "使用此文件夹中已有的数据",
+      "modeExistingDesc": "此文件夹已包含 Tabularis 数据,例如从另一台电脑同步而来。",
+      "modeCopy": "将我当前的数据复制到此文件夹",
+      "modeCopyDesc": "文件夹中已有的文件会被保留。已安装的插件不会被复制。",
+      "modeEmpty": "从空文件夹开始",
+      "apply": "应用",
+      "restartRequired": "需要重启",
+      "restartRequiredDesc": "重启后 Tabularis 将使用 {{path}}。",
+      "restartNow": "立即重启"
+    },
     "backup": {
       "title": "备份",
       "directory": "备份文件夹",
@@ -795,6 +918,22 @@
     "safetyConfirmationDelayDesc": "对于破坏性查询和生产环境写入，将确认按钮禁用五秒。"
   },
   "update": {
+    "badges": {
+      "morePlugins": "还有 {{count}} 个 — 打开插件查看所有更新",
+      "driverUpdate": "驱动有可用更新",
+      "themeUpdate": "主题有可用更新",
+      "tag": "更新",
+      "driverTooltip": "{{name}} {{version}} 已可用。此插件由多个连接共享。打开 插件 → 更新 进行管理。",
+      "core_one": "有 {{count}} 个核心更新可用",
+      "core_other": "有 {{count}} 个核心更新可用",
+      "plugins_one": "有 {{count}} 个插件更新可用",
+      "plugins_other": "有 {{count}} 个插件更新可用",
+      "coreDetails": "Tabularis {{version}} 已发布。打开“关于”以查看核心更新。",
+      "pluginDetails_one": "以下插件有更新：{{plugins}}",
+      "pluginDetails_other": "以下插件有更新：{{plugins}}",
+      "toastTitle": "插件更新可用",
+      "openPlugins": "打开插件"
+    },
     "newVersionAvailable": "有新版本可用",
     "version": "版本",
     "releaseNotes": "发布说明",
@@ -837,6 +976,17 @@
     "configError": "请在设置中配置 AI 提供商并输入提示词。"
   },
   "newConnection": {
+    "ssmForwardHint": "解析为 {{document}}：通过托管节点转发到 {{host}}:{{port}}。在“常规”选项卡中修改目标地址；回环地址表示节点自身。",
+    "ssmIamHint": "需要对目标和解析出的文档具有 ssm:StartSession 权限。",
+    "ssmNotAvailable": "此驱动不支持 AWS SSM。",
+    "ssmPortRequired": "请先在“常规”选项卡中设置有效端口。",
+    "ssmProfile": "AWS 配置文件",
+    "ssmRegion": "AWS 区域",
+    "ssmTarget": "托管节点",
+    "ssmTargetRequired": "请填写用于连接的托管节点。",
+    "testSsm": "测试 SSM",
+    "testSsmHint": "打开一个真实的端口转发会话并随即关闭，不会连接数据库。",
+    "useSsm": "使用 AWS SSM 端口转发",
     "titleNew": "新建连接",
     "titleEdit": "编辑连接",
     "subtitle": "配置数据库连接设置",
@@ -989,6 +1139,7 @@
   },
   "dataGrid": {
     "noRowIdentity": "无法编辑行:\"{{table}}\" 没有主键,因此编辑要求结果包含表的所有列。请选择所有列(例如 SELECT *)或添加主键。",
+    "resizeRelatedPanel": "拖动以调整面板大小",
     "keylessRowNotFound": "更新 \"{{column}}\" 时没有行与原始值匹配。该表没有主键,数据可能已更改,请刷新后重试。",
     "keylessDeleteNotFound": "删除时没有行与原始值匹配。该表没有主键,数据可能已更改,请刷新后重试。",
     "newRow": "新建",
@@ -1177,6 +1328,21 @@
     "failedProcessInsertions": "处理插入失败：",
     "fieldRequired": "此字段是必需的",
     "newNotebook": "新建笔记本",
+    "openSqlFile": "打开 SQL 文件…",
+    "openSqlFileError": "无法打开 SQL 文件",
+    "sqlFileFilter": "SQL 文件",
+    "saveSqlFile": "保存 SQL 文件",
+    "saveSqlFileAs": "SQL 文件另存为…",
+    "saveSqlFileError": "无法保存 SQL 文件",
+    "sqlFileSaved": "SQL 文件已保存",
+    "unsavedSqlFileTitle": "放弃未保存的更改？",
+    "unsavedSqlFileMessage": "一个或多个 SQL 文件包含未保存的更改。关闭这些标签页将放弃更改。",
+    "discardSqlFileChanges": "放弃更改",
+    "saveFile": "保存",
+    "saveFileAs": "另存为…",
+    "saveOptions": "保存选项",
+    "addToSavedQueries": "添加到已保存查询…",
+    "sqlFileNotSaved": "尚未保存到文件",
     "visualExplain": {
       "title": "可视化执行计划",
       "buttonShort": "执行计划",
@@ -1304,6 +1470,7 @@
       "addSqlCell": "添加 SQL 单元格",
       "addMarkdownCell": "添加 Markdown 单元格",
       "addCell": "添加",
+      "resizeResult": "调整结果大小",
       "runAll": "全部运行",
       "runAllTooltip": "从上到下执行所有 SQL 单元格",
       "runCell": "运行单元格",
@@ -1320,6 +1487,7 @@
       "invalidFile": "无效的笔记本文件格式",
       "importSuccess": "笔记本导入成功",
       "exportSuccess": "笔记本导出成功",
+      "resultExportSuccess": "结果导出成功",
       "convertToConsole": "转换为控制台",
       "runningAll": "正在运行所有单元格...",
       "cellResult": "{{count}} 行 · {{time}}毫秒",
@@ -1348,6 +1516,13 @@
       "sectionQuery": "查询",
       "sectionResults": "结果",
       "sectionChart": "图表",
+      "sectionQueryPlan": "查询计划",
+      "queryPlanOutdated": "查询或连接已更改。请重新运行以刷新查询计划。",
+      "queryPlanUnresolved": "解释此查询之前，请先成功运行引用的单元格：{{refs}}",
+      "explainPopout": "在完整视图中打开",
+      "toggleQueryPlan": "显示查询计划",
+      "hideQueryPlan": "隐藏查询计划",
+      "exportError": "导出失败",
       "collapseSection": "折叠区域",
       "expandSection": "展开区域",
       "collapseAll": "全部折叠",
@@ -1432,6 +1607,7 @@
     "colType": "类型",
     "colNullable": "可为空",
     "colKey": "键",
+    "colDescription": "描述",
     "yes": "是",
     "no": "否"
   },
@@ -1554,6 +1730,13 @@
     "dismiss": "稍后再说"
   },
   "whatsNew": {
+    "supportTitle": "你好，我是 Andrea，Tabularis 的创造者",
+    "supportStarAction": "在 GitHub 上点亮星标",
+    "supportDescription": "我创造 Tabularis 时怀着一个目标：让它永远保持开源。如果它对您有帮助，哪怕通过 GitHub Sponsors 捐助一小笔，也能让我投入更多时间开发新功能，为所有人持续改进。",
+    "supportThanks": "感谢您成为这个项目的一部分！",
+    "supportNeverShow": "永不再显示",
+    "supportHideError": "无法保存您的偏好设置，请重试。",
+    "supportAction": "在 GitHub Sponsors 上支持我们",
     "title": "新功能",
     "subtitle": "版本 {{version}}",
     "features": "新功能",
@@ -2046,6 +2229,55 @@
     "updateConfirm": "更新到 v{{version}}",
     "alreadyInstalled": "版本 {{version}} 已安装。"
   },
+  "migration": {
+    "banner": {
+      "nudge": "试试新的 PostgreSQL 插件 —内置 PostgreSQL 驱动正在退役。插件功能相同且更新更快。",
+      "nudgeWithDate": "试试新的 PostgreSQL 插件 —内置 PostgreSQL 驱动正在退役（暂定 {{date}}）。插件功能相同且更新更快。",
+      "offline": "PostgreSQL 插件无法下载 —下次启动时会重试。如果持续出现，请检查您的连接或网络。",
+      "reviewConnections": "查看连接"
+    },
+    "switchToPlugin": "切换到插件",
+    "switchToBuiltin": "切回内置驱动",
+    "confirm": {
+      "title": "切换到插件？",
+      "message": "将 {{name}} 切换到 PostgreSQL 插件？如果当前已连接，将断开连接并使用插件重新打开。",
+      "uriMessage": "将 {{name}} 切换到 PostgreSQL 插件？存储在密钥链中的连接字符串不会被带过来 —您需要重新输入才能重新连接。",
+      "confirmLabel": "切换",
+      "confirmLabelUri": "切换并稍后重新输入",
+      "undoTitle": "切回内置驱动？",
+      "undoMessage": "将 {{name}} 切回内置 PostgreSQL 驱动？如果当前已连接，将断开连接并使用内置驱动重新打开。",
+      "undoConfirmLabel": "切回"
+    },
+    "toast": {
+      "success": "已将 {{name}} 切换到 PostgreSQL 插件。",
+      "connectionFailure": "无法使用插件连接到 {{name}}：{{error}}",
+      "connectionFailurePreexisting": "无法使用任一驱动程序连接到 {{name}}：{{error}}。这不是插件的问题——切换到插件的操作已保留。",
+      "processFailureWithError": "PostgreSQL 插件未启动：{{error}}。这与 {{name}} 无关 —未尝试连接。",
+      "processFailure": "PostgreSQL 插件未启动。这与 {{name}} 无关 —未尝试连接。",
+      "failed": "无法将 {{name}} 切换到插件：{{error}}",
+      "undo": "撤销",
+      "undoFailed": "无法将 {{name}} 切换回内置驱动程序：{{error}}",
+      "reportIssue": "报告问题"
+    },
+    "checklist": {
+      "title": "查看连接",
+      "subtitle_one": "还有 {{count}} 个连接使用内置驱动",
+      "subtitle_other": "还有 {{count}} 个连接使用内置驱动",
+      "migrateSelected_one": "迁移已选的 {{count}} 个",
+      "migrateSelected_other": "迁移已选的 {{count}} 个",
+      "reportThisGap": "报告此问题",
+      "alreadyReported": "已报告",
+      "testing": "正在测试连接…",
+      "uriWarning": "存储在密钥链中的连接字符串不会被带过来 —迁移后需要重新输入。",
+      "noGaps": "没有需要查看的连接。",
+      "close": "关闭",
+      "migratingNotice": "即使关闭此窗口，迁移仍会继续。",
+      "gap": {
+        "ssl": "使用 SSL/TLS，插件尚不支持",
+        "connection_uri": "使用连接字符串，插件尚不支持"
+      }
+    }
+  },
   "connectionCatalogue": {
     "searchPlaceholder": "搜索数据库…",
     "clearSearch": "清除搜索",
@@ -2061,6 +2293,8 @@
     "connectTo": "连接到 {{name}}",
     "unavailableOnPlatform": "在您的平台上不可用",
     "unavailable": "不可用",
+    "deprecated": "已弃用",
+    "deprecatedTooltip": "此内置驱动正由插件取代",
     "backToCatalogue": "返回目录",
     "pickDriver": "多个驱动程序可连接到 {{name}}。请选择一个：",
     "latestVersion": "最新 v{{version}}",
@@ -2091,6 +2325,10 @@
     "ssh": {
       "summary": "SSH 隧道失败",
       "recovery": "请检查 SSH 标签页中的设置。"
+    },
+    "ssm": {
+      "summary": "AWS SSM 会话失败",
+      "recovery": "展开详情查看具体的 AWS 错误。请确认已安装 AWS CLI 和 Session Manager 插件、凭证仍然有效，并且托管节点处于在线状态。"
     },
     "db-auth": {
       "summary": "数据库认证失败",
@@ -2129,6 +2367,11 @@
         "ok": "端口转发就绪",
         "error": "Kubernetes 端口转发失败"
       },
+      "ssmForward": {
+        "start": "正在启动 AWS SSM 端口转发",
+        "ok": "端口转发就绪",
+        "error": "AWS SSM 端口转发失败"
+      },
       "dbConnect": {
         "start": "正在连接数据库",
         "ok": "数据库连接已建立",
@@ -2137,5 +2380,13 @@
     },
     "title": "连接测试日志",
     "showLog": "显示日志"
+  },
+  "themePackages": {
+    "import": "导入主题",
+    "registryMismatch": "此软件包来自其他注册表。更新前，请明确更改已配置的注册表。",
+    "importedTheme": "导入的主题", "manage": "管理主题", "importJSON": "导入 Tabularis JSON", "importVSCode": "从 VS Code 导入", "edit": "编辑个人主题", "localPackage": "本地主题包", "installTitle": "安装主题包", "installSubtitle": "来自已配置注册表的声明式主题。不会执行任何代码。", "discover": "在插件中浏览主题", "refresh": "刷新", "preview": "预览", "apply": "应用", "confirm": "确认", "duplicate": "复制为个人主题", "exportJSON": "导出独立 JSON", "exportPackage": "导出作者主题包", "remove": "删除", "update": "更新主题包", "disable": "禁用主题包", "enable": "启用主题包", "removePackage": "卸载主题包", "disabled": "已禁用", "file": "主题文件", "name": "主题名称", "mode": "模式 / 基础", "detectMode": "自动检测（不明确时请选择）", "source": "主题 JSON", "search": "搜索主题", "loading": "加载中…", "noThemes": "此注册表中没有可用主题。", "details": "详情 / 安装", "readme": "README / 截图", "version": "主题包版本", "latest": "最新版本", "install": "安装 / 替换主题包", "chooseArchive": "选择 ZIP 文件", "screenshots": "截图（在外部打开）", "externalMedia": "不会自动加载图片及其他远程媒体。链接会在浏览器中打开。", "snapshotEditor": "精确的编辑器 JSON", "snapshotEditorHelp": "此独立快照代替旧版别名控制 SQL 颜色。更改会先预览，保存时会检查原始修订版本。", "recover": "恢复中断的安装", "recoveryExplanation": "明确检查并恢复未完成的主题操作。这可能恢复中断的安装，但不会选择主题或更改已保存的偏好设置。", "recoveryDone": "恢复检查已完成。请查看下方剩余的问题。", "catalogIssues": "目录诊断", "fileTooLarge": "文件超出导入大小限制。", "previewHint": "预览是临时的。取消会恢复已保存主题；应用会保存选择。", "previewReady": "正在预览。确认前请检查应用和编辑器。", "licenseNotice": "导入或导出不授予再分发权。发布前请保留署名并核实许可证。", "acknowledge": "我理解并接受上述转换限制。", "applyAfterSave": "保存后应用", "savedNotApplied": "主题已保存，但选择失败。请勿重复导入；请选择已保存的主题。", "installHint": "安装会替换整个主题包，但不会选择变体。预览、本地导入和选择不会计入下载次数。", "installedHint": "主题包已安装。关闭此窗口并在外观设置中选择变体。", "committedRefreshFailed": "操作已完成，但目录刷新失败。重试前请刷新列表。", "missing": "已保存的选择不可用：{{id}}。使用离线后备主题，不更改偏好。", "downloads": "下载次数：{{count}}", "downloadsUnavailable": "下载次数不可用", "installedVersion": "已安装：{{version}}", "minimumVersion": "需要 Tabularis {{version}} 或更新版本", "incompatible": "此版本不兼容，或未提供唯一的通用资源包。", "packageWarning": "此操作影响包内所有变体。已保存的选择会保留，并在再次可用时恢复。", "deleteWarning": "删除此个人主题？其已保存的应用选择将使用默认主题。", "duplicateHint": "创建独立、可编辑的个人副本，不自动启用。", "exportError": "主题包导出失败；仍可导出独立 JSON。", "runtimeWarning": "请输入实际首次支持的版本。开发版本号不能证明旧客户端兼容性。", "packageName": "主题包标识（小写）", "minimumRuntime": "最低 Tabularis 版本", "license": "许可证及署名文本", "rightsAcknowledged": "我已核实再分发权和署名。",
+    "groups": { "builtin": "内置 · 离线", "installed": "已安装主题包", "personal": "个人主题" }, "modes": { "light": "浅色", "dark": "深色", "high-contrast": "高对比度" },
+    "importErrors": { "unrecognized": "无法识别此 VS Code 主题。", "modeRequired": "请选择模式，然后重新预览。", "includeOnly": "无法导入仅含 include 的主题。请提供实际颜色数据。", "noSupportedData": "未找到支持的颜色或 SQL 词法规则。", "invalidColor": "某个支持的颜色值无效。", "invalidRules": "词法规则无效或过多。" },
+    "diagnostics": { "unsupportedKey": "不支持的字段", "unsupportedColor": "不支持的颜色", "unsupportedScope": "不支持的作用域", "scopeApproximation": "近似 SQL 作用域映射", "unsupportedStyle": "不支持的样式", "ignoredInclude": "未加载 include", "ignoredSemanticTokens": "已忽略语义词法标记", "unsupportedReference": "未加载外部引用", "unsupportedSetting": "不支持的设置", "tokenAlphaFlattened": "词法标记不透明度按基础背景计算", "modeApproximation": "模式已覆盖或近似转换", "diagnosticsTruncated": "已省略其他诊断信息" }
   }
 }

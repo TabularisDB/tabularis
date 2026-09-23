@@ -44,7 +44,7 @@ export function SqlCellResult({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center gap-2 p-4 border-t border-default">
-        <div className="w-4 h-4 border-2 border-surface-secondary border-t-blue-500 rounded-full animate-spin" />
+        <div className="w-4 h-4 border-2 border-surface-secondary border-t-accent-primary rounded-full animate-spin" />
         <span className="text-xs text-muted">{t("editor.executingQuery")}</span>
       </div>
     );

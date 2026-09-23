@@ -561,7 +561,7 @@ pnpm --dir ui install
 pnpm --dir ui build
 
 # 3. Copy everything into the plugins folder
-PLUGIN_DIR="$HOME/.local/share/tabularis/plugins/google-sheets"
+PLUGIN_DIR="$HOME/.local/share/tabularis/plugins/drivers/google-sheets"
 mkdir -p "$PLUGIN_DIR/ui/dist"
 cp target/release/google-sheets-plugin "$PLUGIN_DIR/"
 cp .tabularium "$PLUGIN_DIR/"
@@ -569,8 +569,8 @@ cp ui/dist/*.js "$PLUGIN_DIR/ui/dist/"
 chmod +x "$PLUGIN_DIR/google-sheets-plugin"
 ```
 
-(macOS: `~/Library/Application Support/tabularis/plugins/google-sheets/`.
-Windows: `%APPDATA%\tabularis\plugins\google-sheets\`.)
+(macOS: `~/Library/Application Support/tabularis/plugins/drivers/google-sheets/`.
+Windows: `%APPDATA%\tabularis\plugins\drivers\google-sheets\`.)
 
 Now:
 

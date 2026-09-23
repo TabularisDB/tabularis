@@ -80,6 +80,17 @@ export type SlotContextMap = {
     extra: Record<string, string>;
     /** Update one extra field. Pass an empty string to clear it. */
     setExtraField: (key: string, value: string) => void;
+    /** Whether the host username/password inputs are currently hidden. */
+    credentialFieldsHidden: boolean;
+    /**
+     * Hide (or show again) the host username/password inputs. Hiding also
+     * clears both values. Use it for drivers that authenticate without a
+     * database login (e.g. Windows integrated authentication). While hidden,
+     * the host ignores the login part of an imported connection string and
+     * saves an explicit empty password, dropping any secret stored for the
+     * connection. The host resets the flag whenever the driver changes.
+     */
+    setCredentialFieldsHidden: (hidden: boolean) => void;
   };
 };
 

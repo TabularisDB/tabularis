@@ -7,6 +7,14 @@ import {
   toggleGeometryMode,
 } from "../../utils/geometryInput";
 
+const SQL_FUNCTIONS = [
+  { label: "ST_GeomFromText", template: "ST_GeomFromText('POINT(0 0)', 4326)" },
+  { label: "ST_GeomFromText (no SRID)", template: "ST_GeomFromText('POINT(0 0)')" },
+  { label: "ST_Point", template: "ST_Point(0, 0)" },
+  { label: "ST_MakePoint", template: "ST_MakePoint(0, 0)" },
+  { label: "ST_SetSRID", template: "ST_SetSRID(ST_MakePoint(0, 0), 4326)" },
+];
+
 interface DropdownPosition {
   top: number;
   left: number;
@@ -109,14 +117,6 @@ export const GeometryInput = ({
       : t("geometryInput.wktPlaceholder");
   };
 
-  const sqlFunctions = [
-    { label: "ST_GeomFromText", template: "ST_GeomFromText('POINT(0 0)', 4326)" },
-    { label: "ST_GeomFromText (no SRID)", template: "ST_GeomFromText('POINT(0 0)')" },
-    { label: "ST_Point", template: "ST_Point(0, 0)" },
-    { label: "ST_MakePoint", template: "ST_MakePoint(0, 0)" },
-    { label: "ST_SetSRID", template: "ST_SetSRID(ST_MakePoint(0, 0), 4326)" },
-  ];
-
   if (!isGeometricType(dataType)) {
     // Fallback to regular input for non-geometric types
     return (
@@ -174,7 +174,7 @@ export const GeometryInput = ({
             onMouseLeave={() => setShowTooltip(false)}
             className={`flex-shrink-0 p-1.5 rounded transition-colors flex items-center gap-0.5 ${
               isRawSqlMode
-                ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
+                ? "bg-accent-warning/20 text-accent-warning hover:bg-accent-warning/30"
                 : "bg-secondary/20 text-secondary hover:bg-secondary/30"
             }`}
             title={isRawSqlMode ? t("geometryInput.sqlMode") : t("geometryInput.toggleTooltip")}
@@ -208,7 +208,7 @@ export const GeometryInput = ({
                 </p>
               </div>
                <div className="py-1">
-                {sqlFunctions.map((func) => (
+                {SQL_FUNCTIONS.map((func) => (
                   <button
                     key={func.label}
                     type="button"

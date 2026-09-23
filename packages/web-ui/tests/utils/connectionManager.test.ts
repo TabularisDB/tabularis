@@ -75,6 +75,7 @@ describe('connectionManager', () => {
         host: 'localhost',
         sshEnabled: false,
         k8sEnabled: false,
+        ssmEnabled: false,
         isOpen: true,
         isActive: true,
         isConnecting: false,
@@ -188,7 +189,7 @@ describe('connectionManager', () => {
   describe('getConnectionItemClass', () => {
     it('should return active classes when isActive is true', () => {
       const result = getConnectionItemClass(true);
-      expect(result).toContain('text-blue-400');
+      expect(result).toContain('text-accent');
       // Active state must not paint a button background: it is conveyed by
       // the enlarged driver badge + rail indicator
       expect(result).not.toContain('bg-');
@@ -202,27 +203,27 @@ describe('connectionManager', () => {
 
     it('should not return active classes when isActive is false', () => {
       const result = getConnectionItemClass(false);
-      expect(result).not.toContain('text-blue-400');
+      expect(result).not.toContain('text-accent');
     });
   });
 
   describe('getStatusDotClass', () => {
     it('should return red when there is an error', () => {
-      expect(getStatusDotClass(true, true)).toBe('bg-red-400');
-      expect(getStatusDotClass(false, true)).toBe('bg-red-400');
+      expect(getStatusDotClass(true, true)).toBe('bg-accent-error');
+      expect(getStatusDotClass(false, true)).toBe('bg-accent-error');
     });
 
     it('should return bright green for active connection without error', () => {
-      expect(getStatusDotClass(true, false)).toBe('bg-green-400');
+      expect(getStatusDotClass(true, false)).toBe('bg-accent-success');
     });
 
     it('should return dimmed green for inactive connection without error', () => {
-      expect(getStatusDotClass(false, false)).toBe('bg-green-400/70');
+      expect(getStatusDotClass(false, false)).toBe('bg-accent-success/70');
     });
 
     it('should prioritize error over active state', () => {
       const result = getStatusDotClass(true, true);
-      expect(result).toBe('bg-red-400');
+      expect(result).toBe('bg-accent-error');
     });
   });
 

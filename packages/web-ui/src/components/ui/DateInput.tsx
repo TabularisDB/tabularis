@@ -124,7 +124,7 @@ const SelectDropdown = ({
       <select
         value={value}
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
-        className="w-full appearance-none bg-base border border-strong rounded text-primary text-sm font-mono px-2 py-0.5 pr-6 outline-none focus:border-blue-500 cursor-pointer"
+        className="w-full appearance-none bg-base border border-strong rounded text-primary text-sm font-mono px-2 py-0.5 pr-6 outline-none focus:border-focus cursor-pointer"
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
@@ -209,8 +209,11 @@ export const DateInput = ({
   const showTime = mode === "time" || mode === "datetime";
 
   return (
+    // Layout wrapper: onKeyDown/onBlur only observe events bubbling from the
+    // inner selects and inputs, which carry the semantics.
     <div
       ref={containerRef}
+      role="presentation"
       className={`inline-flex flex-col gap-1.5 p-2 bg-base border border-strong rounded-lg shadow-lg ${className}`}
       onBlur={(e) => {
         // Only fire onBlur when focus leaves the entire component

@@ -5,7 +5,7 @@ import { normalizeMaskingPatterns } from "../../utils/columnMasking";
 import { SettingRow } from "./SettingControls";
 
 const TEXTAREA_CLASS =
-  "w-full h-28 bg-base border border-strong rounded-lg p-3 text-primary text-sm font-mono focus:outline-none focus:border-blue-500 transition-colors resize-y";
+  "w-full h-28 bg-base border border-strong rounded-lg p-3 text-primary text-sm font-mono focus:outline-none focus:border-focus transition-colors resize-y";
 
 interface MaskingOverridesEditorProps {
   /** Saved connection the include/exclude lists apply to. */

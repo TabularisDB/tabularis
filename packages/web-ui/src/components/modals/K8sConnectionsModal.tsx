@@ -56,7 +56,7 @@ interface DiscoveryErrors {
 type DiscoverySource = keyof DiscoveryErrors;
 
 const InputClass =
-  "w-full px-3 pt-2 pb-1 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none leading-tight";
+  "w-full px-3 pt-2 pb-1 bg-base border border-strong rounded-lg text-primary focus:border-focus focus:outline-none leading-tight";
 const LabelClass = "block text-xs uppercase font-bold text-muted mb-1";
 
 export function K8sConnectionsModal({
@@ -773,7 +773,7 @@ export function K8sConnectionsModal({
           <div className="flex items-center gap-2">
             <button
               onClick={handleCreate}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-md transition-colors"
             >
               <Plus size={12} />
               {t("k8sConnections.add", { defaultValue: "Add" })}
@@ -792,7 +792,7 @@ export function K8sConnectionsModal({
             editingId === connection.id ? (
               <div
                 key={connection.id}
-                className="border border-blue-500/30 rounded-lg p-4 bg-base/50 space-y-3"
+                className="border border-accent-primary/30 rounded-lg p-4 bg-base/50 space-y-3"
               >
                 <EditForm {...editFormProps} />
               </div>
@@ -822,7 +822,7 @@ export function K8sConnectionsModal({
                   <button
                     onClick={() => handleDelete(connection.id)}
                     aria-label={t("common.delete")}
-                    className="p-1.5 text-muted hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                    className="p-1.5 text-muted hover:text-accent-error hover:bg-accent-error/10 rounded transition-colors"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -832,7 +832,7 @@ export function K8sConnectionsModal({
           )}
 
           {isCreating && (
-            <div className="border border-blue-500/30 rounded-lg p-4 bg-base/50 space-y-3">
+            <div className="border border-accent-primary/30 rounded-lg p-4 bg-base/50 space-y-3">
               <EditForm {...editFormProps} />
             </div>
           )}
@@ -940,7 +940,7 @@ function EditForm({
           noResultsLabel={t("common.noResults")}
         />
         {discoveryErrors.contexts && (
-          <p role="alert" className="mt-1 text-xs text-red-400">
+          <p role="alert" className="mt-1 text-xs text-accent-error">
             {discoveryErrors.contexts}
           </p>
         )}
@@ -961,7 +961,7 @@ function EditForm({
           noResultsLabel={t("common.noResults")}
         />
         {discoveryErrors.namespaces && (
-          <p role="alert" className="mt-1 text-xs text-red-400">
+          <p role="alert" className="mt-1 text-xs text-accent-error">
             {discoveryErrors.namespaces}
           </p>
         )}
@@ -1001,7 +1001,7 @@ function EditForm({
             noResultsLabel={t("common.noResults")}
           />
           {discoveryErrors.resources && (
-            <p role="alert" className="mt-1 text-xs text-red-400">
+            <p role="alert" className="mt-1 text-xs text-accent-error">
               {discoveryErrors.resources}
             </p>
           )}
@@ -1028,8 +1028,8 @@ function EditForm({
           className={clsx(
             "text-xs px-3 py-2 rounded-md",
             testStatus === "testing" && "text-muted",
-            testStatus === "success" && "text-green-400 bg-green-500/10",
-            testStatus === "error" && "text-red-400 bg-red-500/10",
+            testStatus === "success" && "text-accent-success bg-accent-success/10",
+            testStatus === "error" && "text-accent-error bg-accent-error/10",
           )}
         >
           {testStatus === "testing" && (
@@ -1054,10 +1054,10 @@ function EditForm({
       )}
 
       {validationError && (
-        <p className="text-xs text-red-400">{validationError}</p>
+        <p className="text-xs text-accent-error">{validationError}</p>
       )}
       {pathActionError && (
-        <p className="text-xs text-red-400">{pathActionError}</p>
+        <p className="text-xs text-accent-error">{pathActionError}</p>
       )}
 
       <div className="flex items-center gap-2 pt-1">
@@ -1076,7 +1076,7 @@ function EditForm({
         <button
           onClick={onSave}
           disabled={isActionPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-md transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse rounded-md transition-colors"
         >
           <Check size={12} />
           {t("common.save")}

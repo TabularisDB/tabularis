@@ -48,14 +48,21 @@ Built-in drivers (MySQL, PostgreSQL, SQLite) are compiled into the binary. All a
 | macOS   | `~/Library/Application Support/tabularis/plugins/` |
 | Windows | `%APPDATA%\tabularis\plugins\` |
 
-Each plugin lives in its own subdirectory:
+Every install/update writes under its mapped manifest kind (`driver` when absent): `theme` → `themes`, `driver` → `drivers`, otherwise the kind unchanged.
 
 ```
 plugins/
-└── duckdb/
-    ├── .tabularium  (or legacy manifest.json)
-    └── duckdb-plugin-executable
+├── drivers/
+│   └── duckdb/
+│       ├── .tabularium  (or legacy manifest.json)
+│       └── duckdb-plugin-executable
+└── themes/
+    └── ember-theme/
+        ├── .tabularium
+        └── themes/
 ```
+
+Flat `plugins/<name>/` bundles remain a discovery fallback. Kind-scoped copies take precedence; themes never enter driver activation.
 
 ---
 

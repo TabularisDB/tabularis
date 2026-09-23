@@ -39,11 +39,11 @@ export function BrowserCapabilityFallbacks() {
           role="status"
           className="flex items-start gap-3 rounded-lg border border-strong bg-elevated p-3 shadow-2xl"
         >
-          <div className="shrink-0 rounded-lg bg-blue-900/30 p-1.5">
+          <div className="shrink-0 rounded-lg bg-accent-primary/15 p-1.5">
             {fallback.kind === "external-url" ? (
-              <ExternalLink size={16} className="text-blue-400" />
+              <ExternalLink size={16} className="text-accent" />
             ) : (
-              <Info size={16} className="text-blue-400" />
+              <Info size={16} className="text-accent" />
             )}
           </div>
           <div className="min-w-0 flex-1 text-sm">
@@ -61,7 +61,7 @@ export function BrowserCapabilityFallbacks() {
                 href={fallback.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="break-all text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                className="break-all text-accent underline underline-offset-2 hover:text-accent/90"
               >
                 {fallback.url}
               </a>

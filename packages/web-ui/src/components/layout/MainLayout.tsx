@@ -1,6 +1,10 @@
+import { lazy, Suspense } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { LoadingState } from "../ui/LoadingState";
 
 import { CommandPaletteProvider } from "../../contexts/CommandPaletteProvider";
+import { PluginRegistryProvider } from "../../contexts/PluginRegistryProvider";
+import { PluginUpdateToast } from "../plugins/PluginUpdateToast";
 import { useAutoConnectFromUrl } from "../../hooks/useAutoConnectFromUrl";
 import { useConnectionLayoutContext } from "../../hooks/useConnectionLayoutContext";
 import { useConnectionWindowLifecycle } from "../../hooks/useConnectionWindowLifecycle";
@@ -13,7 +17,7 @@ import { CommandPaletteScopeBridge } from "./CommandPaletteScopeBridge";
 import { ProductionBanner } from "./ProductionBanner";
 import { RightSidebar } from "./RightSidebar";
 import { Sidebar } from "./Sidebar";
-import { SplitPaneLayout } from "./SplitPaneLayout";
+const SplitPaneLayout = lazy(() => import("./SplitPaneLayout").then((m) => ({ default: m.SplitPaneLayout })));
 
 const MainLayoutContent = () => {
   const { splitView, isSplitVisible } = useConnectionLayoutContext();
@@ -34,11 +38,19 @@ const MainLayoutContent = () => {
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {isEditorRoute(location.pathname) && <ProductionBanner />}
-        {renderedSplit ? (
-          <SplitPaneLayout {...renderedSplit} />
-        ) : (
-          <Outlet />
-        )}
+        {/* Routed pages size themselves with h-full, which resolves against
+            this wrapper — not against <main>. Without it the production banner
+            would push the page down without shrinking it, clipping the bottom
+            row of the results grid. */}
+        <div className="flex-1 min-h-0 min-w-0">
+          <Suspense fallback={<LoadingState />}>
+            {renderedSplit ? (
+              <SplitPaneLayout {...renderedSplit} />
+            ) : (
+              <Outlet />
+            )}
+          </Suspense>
+        </div>
       </main>
       <RightSidebar />
       <CommandPaletteModal />
@@ -47,7 +59,10 @@ const MainLayoutContent = () => {
 };
 
 export const MainLayout = () => (
-  <CommandPaletteProvider>
-    <MainLayoutContent />
-  </CommandPaletteProvider>
+  <PluginRegistryProvider>
+    <PluginUpdateToast />
+    <CommandPaletteProvider>
+      <MainLayoutContent />
+    </CommandPaletteProvider>
+  </PluginRegistryProvider>
 );

@@ -310,7 +310,7 @@ export const BlobInput = ({
                 onClick={() => onChange(null)}
                 disabled={isUploading}
                 title={t("blobInput.delete")}
-                className="p-1.5 rounded text-muted hover:text-red-400 hover:bg-red-900/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-1.5 rounded text-muted hover:text-accent-error hover:bg-accent-error/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Trash2 size={14} />
               </button>
@@ -319,12 +319,12 @@ export const BlobInput = ({
 
           {/* Truncated warning — footer */}
           {metadata.isTruncated && (
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/5 border-t border-amber-500/20">
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-accent-warning/5 border-t border-accent-warning/20">
               <AlertTriangle
                 size={11}
-                className="text-amber-500 flex-shrink-0"
+                className="text-accent-warning flex-shrink-0"
               />
-              <span className="text-xs text-amber-500/80">
+              <span className="text-xs text-accent-warning/80">
                 {t("blobInput.truncatedWarning")}
               </span>
             </div>
@@ -332,9 +332,9 @@ export const BlobInput = ({
 
           {/* Error message footer */}
           {error && (
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-red-500/5 border-t border-red-500/20">
-              <AlertTriangle size={11} className="text-red-500 flex-shrink-0" />
-              <span className="text-xs text-red-500/80">{error}</span>
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-accent-error/5 border-t border-accent-error/20">
+              <AlertTriangle size={11} className="text-accent-error flex-shrink-0" />
+              <span className="text-xs text-accent-error/80">{error}</span>
             </div>
           )}
         </div>
@@ -363,12 +363,12 @@ export const BlobInput = ({
 
           {/* Error message for empty state */}
           {error && (
-            <div className="mt-2 flex items-start gap-1.5 px-3 py-2 bg-red-500/5 border border-red-500/20 rounded-lg">
+            <div className="mt-2 flex items-start gap-1.5 px-3 py-2 bg-accent-error/5 border border-accent-error/20 rounded-lg">
               <AlertTriangle
                 size={13}
-                className="text-red-500 flex-shrink-0 mt-0.5"
+                className="text-accent-error flex-shrink-0 mt-0.5"
               />
-              <span className="text-xs text-red-500/90 leading-relaxed">
+              <span className="text-xs text-accent-error/90 leading-relaxed">
                 {error}
               </span>
             </div>

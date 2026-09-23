@@ -1,0 +1,151 @@
+name: Publish npm packages
+
+# Publishes the public workspace packages under packages/* to npm.
+#
+# Trigger: every push to main (a merged PR is a push to main). The `detect`
+# job compares each package.json version with the versions already on the
+# npm registry and only the packages whose version is NOT on npm get
+# published. Bumping "version" in a package.json is therefore the only
+# release action needed; pushes that don't change a version are no-ops.
+#
+# Auth: `NPM_TOKEN` repository secret (granular access token, publish scope
+# on the @tabularis packages, "bypass 2FA" enabled). Provenance attestations
+# are attached via OIDC (`id-token: write`), which is why the publish job
+# needs that permission even though it authenticates with the token.
+#
+# Manual runs: `workflow_dispatch` re-runs the same detection (useful to
+# retry after a transient failure); tick `dry_run` to build and pack
+# without uploading anything.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/npm-publish.yml'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and pack without publishing to npm'
+        type: boolean
+        default: false
+
+# Never run two publishes at once, never cancel one that is uploading.
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect unpublished versions
+    runs-on: ubuntu-24.04
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compare workspace versions with the npm registry
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          publish='[]'
+          {
+            echo '## npm publish plan'
+            echo
+            echo '| Package | Version | On npm | Action |'
+            echo '|---|---|---|---|'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for manifest in packages/*/package.json; do
+            dir=$(dirname "$manifest")
+            name=$(jq -r '.name' "$manifest")
+            version=$(jq -r '.version' "$manifest")
+            private=$(jq -r '.private // false' "$manifest")
+
+            if [ "$private" = "true" ]; then
+              echo "$name is private, skipping"
+              echo "| $name | $version | - | private, skipped |" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+
+            # `npm view <pkg> versions --json` returns an array, a bare string
+            # when only one version exists, and E404 when the package has
+            # never been published. Anything else is a real error.
+            if published=$(npm view "$name" versions --json 2>npm-view.err); then
+              :
+            elif grep -q 'E404' npm-view.err; then
+              published='[]'
+            else
+              cat npm-view.err >&2
+              echo "::error::npm view failed for $name"
+              exit 1
+            fi
+
+            if echo "$published" | jq -e --arg v "$version" '[.] | flatten | index($v) != null' >/dev/null; then
+              echo "$name@$version already on npm, skipping"
+              echo "| $name | $version | yes | skipped |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "$name@$version not on npm, will publish"
+              echo "| $name | $version | no | **publish** |" >> "$GITHUB_STEP_SUMMARY"
+              publish=$(echo "$publish" | jq -c --arg n "$name" --arg v "$version" --arg d "$dir" \
+                '. + [{name: $n, version: $v, dir: $d}]')
+            fi
+          done
+
+          echo "packages=$publish" >> "$GITHUB_OUTPUT"
+          echo "plan: $publish"
+
+  publish:
+    name: Publish ${{ matrix.package.name }}@${{ matrix.package.version }}
+    needs: detect
+    if: needs.detect.outputs.packages != '[]'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # npm provenance attestation
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        package: ${{ fromJson(needs.detect.outputs.packages) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `prepublishOnly` in each package runs clean + build (+ check:sync for
+      # plugin-api), so the tarball is always built from this checkout.
+      # --no-git-checks: the runner is on a detached HEAD, not a branch.
+      - name: Publish ${{ matrix.package.name }}
+        working-directory: ${{ matrix.package.dir }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'
+        run: |
+          set -euo pipefail
+          pnpm publish --access public --no-git-checks ${{ inputs.dry_run && '--dry-run' || '' }}
+          {
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "- dry run: ${{ matrix.package.name }}@${{ matrix.package.version }} packed, not uploaded"
+            else
+              echo "- published ${{ matrix.package.name }}@${{ matrix.package.version }}: https://www.npmjs.com/package/${{ matrix.package.name }}/v/${{ matrix.package.version }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -10,9 +10,9 @@ vi.mock("../hooks/usePlatformCapabilities", () => ({
 
 vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (s: string) => `tauri://${s}`,
+  invoke: vi.fn().mockResolvedValue("/app/data"),
 }));
 vi.mock("@tauri-apps/api/path", () => ({
-  appDataDir: vi.fn().mockResolvedValue("/app/data"),
   join: vi.fn().mockImplementation(async (...parts: string[]) => parts.join("/")),
 }));
 

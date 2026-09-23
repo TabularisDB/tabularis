@@ -197,7 +197,7 @@ export const DumpDatabaseModal = ({
                         type="checkbox"
                         checked={includeStructure}
                         onChange={e => setIncludeStructure(e.target.checked)}
-                        className="rounded border-default bg-base focus:ring-blue-500 w-4 h-4"
+                        className="rounded border-default bg-base focus:ring-focus w-4 h-4"
                         disabled={isExporting}
                     />
                     <span>{t("dump.includeStructure")}</span>
@@ -207,7 +207,7 @@ export const DumpDatabaseModal = ({
                         type="checkbox"
                         checked={includeData}
                         onChange={e => setIncludeData(e.target.checked)}
-                        className="rounded border-default bg-base focus:ring-blue-500 w-4 h-4"
+                        className="rounded border-default bg-base focus:ring-focus w-4 h-4"
                         disabled={isExporting}
                     />
                     <span>{t("dump.includeData")}</span>
@@ -220,7 +220,7 @@ export const DumpDatabaseModal = ({
                     <span className="text-xs font-semibold uppercase text-muted">{t("dump.selectTables")} ({selectedTables.size}/{effectiveTables.length})</span>
                     <button
                         onClick={handleSelectAll}
-                        className="text-xs text-blue-500 hover:underline"
+                        className="text-xs text-accent hover:underline"
                         disabled={isExporting || tablesLoading}
                     >
                         {selectedTables.size === effectiveTables.length ? t("dump.deselectAll") : t("dump.selectAll")}
@@ -235,14 +235,17 @@ export const DumpDatabaseModal = ({
                         effectiveTables.map(table => {
                             const isSelected = selectedTables.has(table);
                             return (
-                                <div key={table}
+                                <button key={table}
+                                    type="button"
+                                    aria-pressed={isSelected}
+                                    disabled={isExporting}
                                     onClick={() => !isExporting && handleToggleTable(table)}
-                                    className={`flex items-center gap-2 p-2 rounded cursor-pointer border transition-colors ${isSelected ? 'bg-blue-500/10 border-blue-500/50' : 'hover:bg-surface-secondary border-transparent'} ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                    <div className={`w-4 h-4 flex items-center justify-center ${isSelected ? 'text-blue-500' : 'text-muted'}`}>
+                                    className={`w-full text-left flex items-center gap-2 p-2 rounded cursor-pointer border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${isSelected ? 'bg-accent-primary/10 border-accent-primary/50' : 'hover:bg-surface-secondary border-transparent'} ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    <div className={`w-4 h-4 flex items-center justify-center ${isSelected ? 'text-accent' : 'text-muted'}`}>
                                         {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
                                     </div>
                                     <span className="truncate text-sm select-none" title={table}>{table}</span>
-                                </div>
+                                </button>
                             );
                         })
                     )}
@@ -253,7 +256,7 @@ export const DumpDatabaseModal = ({
               <div className="space-y-2">
                 <div className="w-full bg-surface-secondary rounded-full h-2 overflow-hidden border border-default">
                   <div
-                    className="h-full bg-blue-600 transition-all duration-300"
+                    className="h-full bg-accent-primary transition-all duration-300"
                     style={{ width: `${progress.percentage}%` }}
                   />
                 </div>
@@ -283,7 +286,7 @@ export const DumpDatabaseModal = ({
              {isExporting ? (
                  <button
                     onClick={handleStop}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded flex items-center gap-2 transition-colors"
+                    className="px-4 py-2 bg-accent-error hover:bg-accent-error/90 text-on-accent-error rounded flex items-center gap-2 transition-colors"
                  >
                     <Loader2 size={16} className="animate-spin" />
                     {t("editor.stop")}
@@ -292,7 +295,7 @@ export const DumpDatabaseModal = ({
                  <button
                     onClick={handleExport}
                     disabled={tablesLoading}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                     <Download size={16} />
                     {t("dump.export")}

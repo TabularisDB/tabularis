@@ -9,8 +9,9 @@ name: Nightly
 #   * that green commit hasn't already been shipped as a nightly.
 # We build the last GREEN commit (not necessarily main's tip), so a failing or
 # still-running CI never produces a nightly, and a day with no new tested code
-# produces no release. The prerelease flag keeps nightlies out of
-# AUR/Snap/Winget (those gate on !prerelease).
+# produces no release. The prerelease flag keeps nightlies out of Snap/Winget
+# and out of the stable tabularis-bin AUR package (those gate on !prerelease);
+# the `aur` job below publishes them to tabularis-nightly-bin instead.
 on:
   schedule:
     - cron: "0 3 * * *" # 03:00 UTC daily
@@ -32,8 +33,6 @@ jobs:
       tag: ${{ steps.decide.outputs.tag }}
       updater_version: ${{ steps.decide.outputs.updater_version }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - name: Decide whether a nightly is due
         id: decide
         env:
@@ -46,9 +45,16 @@ jobs:
           # Last commit on main whose CI run concluded success. Path filters mean
           # not every main commit runs CI, so this is the newest *tested* commit,
           # which is exactly what we want to ship.
+          #
+          # The runs API does NOT return a stable newest-first order once the
+          # `status` filter is on (it has been observed handing back weeks-old
+          # runs first), so never trust `per_page=1`: pull a recent window and
+          # sort by created_at ourselves. Runs on main are created at push
+          # time, so created_at order is main's order for our purposes.
+          since=$(date -u -d '-30 days' +%Y-%m-%d)
           validated_sha=$(gh api \
-            "repos/$GH_REPO/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" \
-            --jq '.workflow_runs[0].head_sha // ""')
+            "repos/$GH_REPO/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&created=>=$since&per_page=100" \
+            --jq '[.workflow_runs[]] | sort_by(.created_at) | last | .head_sha // ""')
 
           if [ -z "$validated_sha" ]; then
             echo "No successful CI run on main — nothing to ship."
@@ -58,18 +64,34 @@ jobs:
 
           # Commit shipped by the most recent existing nightly, if any. The old
           # rolling `nightly` tag has no dash, so `nightly-` never matches it.
-          last_tag=$(gh release list --limit 100 --json tagName,createdAt \
+          # Sort by publishedAt: a release's createdAt is the date of the
+          # commit its tag points to, not when the release was made.
+          last_tag=$(gh release list --limit 100 --json tagName,publishedAt \
             --jq '[.[] | select(.tagName | startswith("nightly-"))]
-                  | sort_by(.createdAt) | last | .tagName // ""')
-          last_sha=""
-          if [ -n "$last_tag" ]; then
-            last_sha=$(gh api "repos/$GH_REPO/commits/$last_tag" --jq '.sha // ""' || echo "")
-          fi
+                  | sort_by(.publishedAt) | last | .tagName // ""')
+          # The built commit is the short sha in the tag NAME
+          # (nightly-YYYYMMDD-<sha>). Do not resolve the tag itself: older
+          # nightlies were tagged on main's tip rather than the commit built.
+          last_sha="${last_tag##*-}"
 
-          if [ "$validated_sha" = "$last_sha" ]; then
+          if [ -n "$last_sha" ] && [ "${validated_sha:0:${#last_sha}}" = "$last_sha" ]; then
             echo "Latest green commit $validated_sha already shipped as $last_tag."
             echo "should_build=false" >> "$GITHUB_OUTPUT"
             exit 0
+          fi
+
+          # Never ship a commit OLDER than the previous nightly: the updater
+          # would happily offer it (its prerelease counter is higher) and users
+          # would silently downgrade. `behind` = validated_sha is an ancestor of
+          # last_sha; `identical` is covered above; `ahead`/`diverged` build.
+          if [ -n "$last_sha" ]; then
+            rel=$(gh api "repos/$GH_REPO/compare/$last_sha...$validated_sha" --jq '.status // "unknown"' || echo "unknown")
+            if [ "$rel" = "behind" ] || [ "$rel" = "identical" ]; then
+              echo "Latest green commit $validated_sha predates $last_tag ($last_sha); refusing to ship an older build."
+              echo "should_build=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Relation to previous nightly commit: $rel"
           fi
 
           tag="nightly-$(date -u +%Y%m%d)-${validated_sha:0:7}"
@@ -88,7 +110,15 @@ jobs:
           # identifiers (tauri-apps/tauri#8038, #5286). The human-readable
           # date/sha lives in the tag (nightly-YYYYMMDD-sha) and the release
           # name, not here.
-          next=$(node -e "const v=require('./src-tauri/tauri.conf.json').version.split('-')[0].split('.').map(Number); v[2]++; console.log(v.join('.'))")
+          #
+          # Read the base from the commit we are actually BUILDING, not from
+          # main's tip: if a release bump has landed on main but its CI hasn't
+          # gone green yet, the nightly must still be based on the pre-bump
+          # version, or the upcoming stable would never supersede it.
+          base=$(gh api "repos/$GH_REPO/contents/src-tauri/tauri.conf.json?ref=$validated_sha" \
+            --jq '.content' | base64 -d | jq -r '.version' | cut -d- -f1)
+          IFS=. read -r major minor patch <<<"$base"
+          next="$major.$minor.$((patch + 1))"
 
           # Counter is scoped to the base: it increments while the base stays
           # put and restarts at 1 as soon as a stable release moves it (0.17.1-3
@@ -129,3 +159,12 @@ jobs:
       # Nightlies double as the daily canary for the sharun-based AppImage
       # format (tauri PR #12491); releases stay on the official bundler.
       experimental_appimage: true
+
+  aur:
+    needs: [gate, build]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/aur.yml
+    secrets: inherit
+    with:
+      tag: ${{ needs.gate.outputs.tag }}

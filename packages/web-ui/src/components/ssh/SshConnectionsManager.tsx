@@ -28,7 +28,7 @@ import clsx from "clsx";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 const InputClass =
-  "w-full px-3 pt-2 pb-1 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none leading-tight";
+  "w-full px-3 pt-2 pb-1 bg-base border border-strong rounded-lg text-primary focus:border-focus focus:outline-none leading-tight";
 const LabelClass = "block text-xs uppercase font-bold text-muted";
 
 interface SshInputProps {
@@ -350,7 +350,7 @@ export function SshConnectionsManager({
           <div className="mb-4">
             <button
               onClick={() => setIsCreating(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors"
             >
               <Plus size={16} />
               {t("sshConnections.createNew")}
@@ -366,7 +366,7 @@ export function SshConnectionsManager({
               connections.map((conn) => (
                 <div
                   key={conn.id}
-                  className="flex items-center justify-between p-3 bg-elevated border border-default rounded-lg hover:border-blue-500/60 transition-colors"
+                  className="flex items-center justify-between p-3 bg-elevated border border-default rounded-lg hover:border-accent-primary/60 transition-colors"
                 >
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-primary truncate">
@@ -387,10 +387,10 @@ export function SshConnectionsManager({
                       disabled={testingConnectionId === conn.id}
                       className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
                         testResults[conn.id] === "success"
-                          ? "text-green-500 bg-green-500/20"
+                          ? "text-accent-success bg-accent-success/20"
                           : testResults[conn.id] === "error"
-                            ? "text-red-500 bg-red-500/20"
-                            : "text-green-500 hover:bg-green-500/10"
+                            ? "text-accent-error bg-accent-error/20"
+                            : "text-accent-success hover:bg-accent-success/10"
                       }`}
                       title={t("sshConnections.quickTest")}
                     >
@@ -406,14 +406,14 @@ export function SshConnectionsManager({
                     </button>
                     <button
                       onClick={() => handleEdit(conn)}
-                      className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
+                      className="p-2 text-accent hover:bg-accent-primary/10 rounded-lg transition-colors"
                       title={t("sshConnections.edit")}
                     >
                       <Edit2 size={16} />
                     </button>
                     <button
                       onClick={() => requestDelete(conn.id)}
-                      className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                      className="p-2 text-accent-error hover:bg-accent-error/10 rounded-lg transition-colors"
                       title={t("sshConnections.delete")}
                     >
                       <Trash2 size={16} />
@@ -553,7 +553,7 @@ export function SshConnectionsManager({
                   updateField("key_passphrase", "");
                 }
               }}
-              className="accent-blue-500 w-4 h-4 rounded cursor-pointer"
+              className="accent-accent-primary w-4 h-4 rounded cursor-pointer"
             />
             <label
               htmlFor="ssh-keychain-toggle"
@@ -571,7 +571,7 @@ export function SshConnectionsManager({
               onChange={(e) => {
                 updateField("allow_passphrase_prompt", e.target.checked);
               }}
-              className="accent-blue-500 w-4 h-4 rounded cursor-pointer"
+              className="accent-accent-primary w-4 h-4 rounded cursor-pointer"
             />
             <label
               htmlFor="ssh-prompt-toggle"
@@ -598,8 +598,8 @@ export function SshConnectionsManager({
               <div
                 className={`mt-3 p-3 rounded-lg flex items-start gap-2 text-sm border ${
                   testStatus === "success"
-                    ? "bg-green-900/20 text-green-400 border-green-900/50"
-                    : "bg-red-900/20 text-red-400 border-red-900/50"
+                    ? "bg-accent-success/10 text-accent-success border-accent-success/25"
+                    : "bg-accent-error/10 text-accent-error border-accent-error/25"
                 }`}
               >
                 {testStatus === "success" ? (
@@ -621,7 +621,7 @@ export function SshConnectionsManager({
             </button>
             <button
               onClick={handleSave}
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
             >
               <Check size={16} />
               {editingId

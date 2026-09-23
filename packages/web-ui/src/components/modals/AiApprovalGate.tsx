@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { usePendingApprovals } from "../../hooks/useAiActivity";
 import { useSettings } from "../../hooks/useSettings";
@@ -7,8 +7,10 @@ import {
   notifyApprovalRequest,
   restoreWindowAlwaysOnTop,
 } from "../../utils/mcpApprovalAttention";
-import { AiApprovalModal } from "./AiApprovalModal";
 import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { LoadingState } from "../ui/LoadingState";
+
+const AiApprovalModal = lazy(() => import("./AiApprovalModal").then((module) => ({ default: module.AiApprovalModal })));
 
 /// Listens for `ai://pending_approval` events emitted by the file watcher
 /// and presents one approval modal at a time. Mounted once at the App
@@ -87,23 +89,25 @@ export function AiApprovalGate() {
   };
 
   return (
-    <AiApprovalModal
-      approval={current}
-      onApprove={(editedQuery) =>
-        decide({
-          approvalId: current.id,
-          decision: "approve",
-          editedQuery,
-        })
-      }
-      onDeny={(reason) =>
-        decide({
-          approvalId: current.id,
-          decision: "deny",
-          reason,
-        })
-      }
-      onClose={handleClose}
-    />
+    <Suspense fallback={<LoadingState />}>
+      <AiApprovalModal
+        approval={current}
+        onApprove={(editedQuery) =>
+          decide({
+            approvalId: current.id,
+            decision: "approve",
+            editedQuery,
+          })
+        }
+        onDeny={(reason) =>
+          decide({
+            approvalId: current.id,
+            decision: "deny",
+            reason,
+          })
+        }
+        onClose={handleClose}
+      />
+    </Suspense>
   );
 }

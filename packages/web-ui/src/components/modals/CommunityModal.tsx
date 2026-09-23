@@ -21,8 +21,8 @@ export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-900/30 rounded-lg">
-              <Star size={20} className="text-blue-400" />
+            <div className="p-2 bg-accent-primary/15 rounded-lg">
+              <Star size={20} className="text-accent" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">{t("community.title")}</h2>
@@ -43,25 +43,25 @@ export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
           {/* GitHub Star */}
           <button
             onClick={() => void platform.openExternalUrl(GITHUB_URL)}
-            className="w-full flex items-center gap-4 p-4 bg-base border border-default rounded-lg hover:border-yellow-500/50 hover:bg-yellow-900/10 transition-all group cursor-pointer"
+            className="w-full flex items-center gap-4 p-4 bg-base border border-default rounded-lg hover:border-accent-warning/50 hover:bg-accent-warning/5 transition-all group cursor-pointer"
           >
-            <div className="p-2.5 bg-surface-secondary rounded-lg group-hover:bg-yellow-900/20 transition-colors">
-              <Github size={22} className="text-secondary group-hover:text-yellow-400 transition-colors" />
+            <div className="p-2.5 bg-surface-secondary rounded-lg group-hover:bg-accent-warning/10 transition-colors">
+              <Github size={22} className="text-secondary group-hover:text-accent-warning transition-colors" />
             </div>
             <div className="text-left flex-1">
               <div className="text-sm font-medium text-primary">{t("community.starTitle")}</div>
               <div className="text-xs text-muted mt-0.5">{t("community.starDesc")}</div>
             </div>
-            <Star size={18} className="text-muted group-hover:text-yellow-400 transition-colors" />
+            <Star size={18} className="text-muted group-hover:text-accent-warning transition-colors" />
           </button>
 
           {/* Discord */}
           <button
             onClick={() => void platform.openExternalUrl(DISCORD_URL)}
-            className="w-full flex items-center gap-4 p-4 bg-base border border-default rounded-lg hover:border-indigo-500/50 hover:bg-indigo-900/10 transition-all group cursor-pointer"
+            className="w-full flex items-center gap-4 p-4 bg-base border border-default rounded-lg hover:border-accent-primary/50 hover:bg-accent-primary/5 transition-all group cursor-pointer"
           >
-            <div className="p-2.5 bg-surface-secondary rounded-lg group-hover:bg-indigo-900/20 transition-colors">
-              <DiscordIcon size={22} className="text-secondary group-hover:text-indigo-400 transition-colors" />
+            <div className="p-2.5 bg-surface-secondary rounded-lg group-hover:bg-accent-primary/10 transition-colors">
+              <DiscordIcon size={22} className="text-secondary group-hover:text-accent transition-colors" />
             </div>
             <div className="text-left flex-1">
               <div className="text-sm font-medium text-primary">{t("community.discordTitle")}</div>

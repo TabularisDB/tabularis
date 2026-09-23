@@ -71,7 +71,7 @@ export const JoinEdge = ({
         >
           <button
             onClick={cycleJoinType}
-            className="bg-surface-secondary border border-strong rounded px-2 py-1 text-xs font-medium text-blue-400 hover:bg-surface-tertiary hover:border-blue-500 transition-all shadow-lg"
+            className="bg-surface-secondary border border-strong rounded px-2 py-1 text-xs font-medium text-accent hover:bg-surface-tertiary hover:border-accent-primary transition-all shadow-lg"
           >
             {joinType}
           </button>

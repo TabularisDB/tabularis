@@ -1,6 +1,6 @@
 # Modal Styling Rules
 
-This document defines the standard styling and structural patterns for all modal components in Tabularis.
+This document defines the standard styling and structural patterns for all modal components in Tabularis. Colors, radii and fonts follow the theme tokens in [DESIGN.md](../DESIGN.md) and [design.md](./design.md); never use Tailwind palette classes or `text-white`.
 
 ## File Location
 
@@ -45,8 +45,8 @@ return (
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-default bg-base">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-{color}-900/30 rounded-lg">
-            <Icon size={20} className="text-{color}-400" />
+          <div className="p-2 bg-accent-{tone}/15 rounded-lg">
+            <Icon size={20} className="text-accent" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-primary">{t("xxx.title")}</h2>
@@ -68,7 +68,7 @@ return (
         <button onClick={onClose} className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm">
           {t("common.cancel")}
         </button>
-        <button onClick={handleAction} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium">
+        <button onClick={handleAction} className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium">
           {t("common.save")}
         </button>
       </div>
@@ -96,8 +96,8 @@ return (
 
 ### Header
 - `p-4 border-b border-default bg-base` - Padding, bottom border, base background
-- Icon container: `p-2 bg-{color}-900/30 rounded-lg` - Themed background
-- Icon: `text-{color}-400` - Themed icon color (use semantic colors: purple for tools, blue for info, green for success, red for danger)
+- Icon container: `p-2 bg-accent-{tone}/15 rounded-lg` - Tinted theme accent
+- Icon: `text-accent` for information, configuration and connections; `text-accent-secondary` (tools, integrations, schema changes), `text-accent-success`, `text-accent-warning` or `text-accent-error` for the other tones
 - Title: `text-lg font-semibold text-primary`
 - Subtitle: `text-xs text-secondary`
 
@@ -111,7 +111,7 @@ return (
 - `text-xs uppercase font-bold text-muted` - Small, uppercase, muted color
 
 **Inputs:**
-- `w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none`
+- `w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-focus focus:outline-none`
 
 **Textareas:**
 - Same as inputs with `resize-none` to prevent manual resizing
@@ -123,14 +123,14 @@ return (
 ### Buttons
 
 **Primary Action:**
-- `px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors`
-- Add `shadow-lg shadow-blue-900/20` for emphasis on important actions
+- `px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors`
+- Add `shadow-lg shadow-accent-primary/10` for emphasis on important actions
 
 **Secondary/Cancel:**
 - `px-4 py-2 text-secondary hover:text-primary transition-colors text-sm`
 
 **Danger Action:**
-- `px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium transition-colors`
+- `px-4 py-2 bg-accent-error hover:bg-accent-error/90 text-on-accent-error rounded-lg text-sm font-medium transition-colors`
 
 **Icon Buttons:**
 - `p-2 bg-surface-secondary text-secondary hover:text-primary rounded transition-all`
@@ -139,17 +139,18 @@ return (
 ## Theming Guidelines
 
 ### Icon Colors (Semantic)
-- **Purple** (`bg-purple-900/30`, `text-purple-400`): Tools, integrations, advanced features
-- **Blue** (`bg-blue-900/30`, `text-blue-400`): Information, configuration, connections
-- **Green** (`bg-green-900/30`, `text-green-400`): Success, confirmation, enabled states
-- **Red** (`bg-red-900/30`, `text-red-400`): Danger, delete, error states
-- **Yellow** (`bg-yellow-900/30`, `text-yellow-400`): Warnings, primary keys
+- **`accent-secondary`** (`bg-accent-secondary/15`, `text-accent-secondary`): Tools, integrations, advanced features, schema changes
+- **`accent-primary`** (`bg-accent-primary/15`, icon `text-accent`): Information, configuration, connections
+- **`accent-success`** (`bg-accent-success/15`, `text-accent-success`): Success, confirmation, enabled states
+- **`accent-error`** (`bg-accent-error/15`, `text-accent-error`): Danger, delete, error states
+- **`accent-warning`** (`bg-accent-warning/15`, `text-accent-warning`): Warnings
+- **`semantic-pk`**, **`semantic-fk`**, **`semantic-index`**: Primary keys, foreign keys and indexes in data views
 
 ### Status Indicators
 
 **Success Badge:**
 ```tsx
-<div className="flex items-center gap-2 text-green-400 bg-green-900/20 px-3 py-1 rounded-full text-xs font-medium border border-green-900/50">
+<div className="flex items-center gap-2 text-accent-success bg-accent-success/10 px-3 py-1 rounded-full text-xs font-medium border border-accent-success/25">
   <Check size={14} />
   <span>{t("xxx.installed")}</span>
 </div>
@@ -180,7 +181,7 @@ Use for displaying key-value information:
 ```tsx
 <div className="flex items-center justify-between bg-base p-4 rounded-lg border border-default">
   <div className="flex items-center gap-3">
-    <div className={`w-3 h-3 rounded-full ${isActive ? 'bg-green-500' : 'bg-surface-tertiary'}`} />
+    <div className={`w-3 h-3 rounded-full ${isActive ? 'bg-accent-success' : 'bg-surface-tertiary'}`} />
     <div>
       <div className="font-medium text-primary">{t("xxx.label")}</div>
       <div className="text-xs text-muted font-mono mt-1">{value}</div>
@@ -228,7 +229,7 @@ export const InfoModal = ({ isOpen, onClose, title, message }: InfoModalProps) =
           <p className="text-secondary">{message}</p>
         </div>
         <div className="p-4 border-t border-default bg-base/50 flex justify-end">
-          <button onClick={onClose} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium">
+          <button onClick={onClose} className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium">
             {t("common.ok")}
           </button>
         </div>
@@ -263,8 +264,8 @@ export const CreateModal = ({ isOpen, onClose, onSubmit }: CreateModalProps) => 
         {/* Header with icon */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-900/30 rounded-lg">
-              <Plus size={20} className="text-blue-400" />
+            <div className="p-2 bg-accent-primary/15 rounded-lg">
+              <Plus size={20} className="text-accent-primary" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">{t("create.title")}</h2>
@@ -286,7 +287,7 @@ export const CreateModal = ({ isOpen, onClose, onSubmit }: CreateModalProps) => 
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none"
+              className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-focus focus:outline-none"
               placeholder={t("create.namePlaceholder")}
               autoFocus
             />
@@ -301,7 +302,7 @@ export const CreateModal = ({ isOpen, onClose, onSubmit }: CreateModalProps) => 
           <button 
             onClick={handleSubmit}
             disabled={loading || !name}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
             {t("common.create")}

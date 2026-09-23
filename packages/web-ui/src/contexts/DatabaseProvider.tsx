@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { detectPlatformEnvironment } from '../platform/environment';
 import {
@@ -13,8 +14,9 @@ import {
   type ConnectionGroup,
 } from './DatabaseContext';
 import type { ReactNode } from 'react';
-import type { PluginManifest } from '../types/plugins';
+import type { ConnectionMetadata, PluginManifest } from '../types/plugins';
 import { clearAutocompleteCache } from '../utils/autocomplete';
+import { loadOptionalMetadata } from '../utils/connectionMetadata';
 import { toErrorMessage } from '../utils/errors';
 import { useSettings } from '../hooks/useSettings';
 import { useToast } from '../hooks/useToast';
@@ -90,6 +92,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const [connections, setConnections] = useState<SavedConnection[]>([]);
   const [connectionGroups, setConnectionGroups] = useState<ConnectionGroup[]>([]);
   const [isLoadingConnections, setIsLoadingConnections] = useState(false);
+  const connectionsLoadRef = useRef<Promise<void> | null>(null);
+  const connectionsLoadedRef = useRef(false);
+  const connectionsLoadVersionRef = useRef(0);
   // Connection ids open anywhere in the app (shared backend, all windows).
   // Kept in sync via the `connections:active-changed` broadcast so each window
   // can show accurate cross-window connection status.
@@ -100,6 +105,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   openConnectionIdsRef.current = openConnectionIds;
   const connectionDataMapRef = useRef(connectionDataMap);
   connectionDataMapRef.current = connectionDataMap;
+  const connectionAttemptsRef = useRef(new Map<string, symbol>());
   const prevActiveExtRef = useRef<string[] | undefined>(undefined);
 
   const getActiveConnectionData = useCallback((): ConnectionData | undefined => {
@@ -299,7 +305,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     if (!connId) return;
     updateConnectionData(connId, { isLoadingViews: true });
     try {
-      const result = await client.call('get_views', { connectionId: connId });
+      const result = await loadOptionalMetadata(connectionDataMap[connId]?.metadata?.capabilities.views, () => client.call('get_views', { connectionId: connId }), []);
       updateConnectionData(connId, { views: result, isLoadingViews: false });
     } catch (e) {
       console.error('Failed to refresh views:', e);
@@ -312,7 +318,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     if (!connId) return;
     updateConnectionData(connId, { isLoadingRoutines: true });
     try {
-      const result = await client.call('get_routines', { connectionId: connId });
+      const result = await loadOptionalMetadata(connectionDataMap[connId]?.metadata?.capabilities.routines, () => client.call('get_routines', { connectionId: connId }), []);
       updateConnectionData(connId, {
         routines: result,
         isLoadingRoutines: false,
@@ -332,7 +338,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     if (!connId) return;
     updateConnectionData(connId, { isLoadingTriggers: true });
     try {
-      const result = await client.call('get_triggers', { connectionId: connId });
+      const result = await loadOptionalMetadata(connectionDataMap[connId]?.metadata?.capabilities.triggers, () => client.call('get_triggers', { connectionId: connId }), []);
       updateConnectionData(connId, { triggers: result, isLoadingTriggers: false });
     } catch (e) {
       console.error('Failed to refresh triggers:', e);
@@ -360,12 +366,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     try {
       const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
         client.call('get_tables', { connectionId: connId, schema }),
-        client.call('get_views', { connectionId: connId, schema }),
+        loadOptionalMetadata(currentData.metadata?.capabilities.views, () => client.call('get_views', { connectionId: connId, schema }), [] as ViewInfo[]),
         (currentData.capabilities?.materialized_views
           ? client.call('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
           : Promise.resolve([] as ViewInfo[])),
-        getRoutinesOrEmpty(client, connId, schema, handleRoutineMetadataError),
-        client.call('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
+        loadOptionalMetadata(currentData.metadata?.capabilities.routines, () => getRoutinesOrEmpty(client, connId, schema, handleRoutineMetadataError), { routines: [] }),
+        loadOptionalMetadata(currentData.metadata?.capabilities.triggers, () => client.call('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -420,12 +426,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     try {
       const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
         client.call('get_tables', { connectionId: connId, schema }),
-        client.call('get_views', { connectionId: connId, schema }),
+        loadOptionalMetadata(currentData.metadata?.capabilities.views, () => client.call('get_views', { connectionId: connId, schema }), [] as ViewInfo[]),
         (currentData.capabilities?.materialized_views
           ? client.call('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
           : Promise.resolve([] as ViewInfo[])),
-        getRoutinesOrEmpty(client, connId, schema, handleRoutineMetadataError),
-        client.call('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
+        loadOptionalMetadata(currentData.metadata?.capabilities.routines, () => getRoutinesOrEmpty(client, connId, schema, handleRoutineMetadataError), { routines: [] }),
+        loadOptionalMetadata(currentData.metadata?.capabilities.triggers, () => client.call('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -483,9 +489,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     try {
       const [tablesResult, viewsResult, routineMetadata, triggersResult] = await Promise.all([
         client.call('get_tables', { connectionId: connId, schema: database }),
-        client.call('get_views', { connectionId: connId, schema: database }),
-        getRoutinesOrEmpty(client, connId, database, handleRoutineMetadataError),
-        client.call('get_triggers', { connectionId: connId, schema: database }).catch(() => [] as TriggerInfo[]),
+        loadOptionalMetadata(currentData.metadata?.capabilities.views, () => client.call('get_views', { connectionId: connId, schema: database }), [] as ViewInfo[]),
+        loadOptionalMetadata(currentData.metadata?.capabilities.routines, () => getRoutinesOrEmpty(client, connId, database, handleRoutineMetadataError), { routines: [] }),
+        loadOptionalMetadata(currentData.metadata?.capabilities.triggers, () => client.call('get_triggers', { connectionId: connId, schema: database }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -539,9 +545,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     try {
       const [tablesResult, viewsResult, routineMetadata, triggersResult] = await Promise.all([
         client.call('get_tables', { connectionId: connId, schema: database }),
-        client.call('get_views', { connectionId: connId, schema: database }),
-        getRoutinesOrEmpty(client, connId, database, handleRoutineMetadataError),
-        client.call('get_triggers', { connectionId: connId, schema: database }).catch(() => [] as TriggerInfo[]),
+        loadOptionalMetadata(currentData.metadata?.capabilities.views, () => client.call('get_views', { connectionId: connId, schema: database }), [] as ViewInfo[]),
+        loadOptionalMetadata(currentData.metadata?.capabilities.routines, () => getRoutinesOrEmpty(client, connId, database, handleRoutineMetadataError), { routines: [] }),
+        loadOptionalMetadata(currentData.metadata?.capabilities.triggers, () => client.call('get_triggers', { connectionId: connId, schema: database }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -649,7 +655,14 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [activeConnectionId, connectionDataMap, updateConnectionData, loadDatabaseData]);
 
-  const connect = async (connectionId: string) => {
+  const connect = async (connectionId: string, options?: { activate?: boolean }) => {
+    const activate = options?.activate !== false;
+    const attempt = Symbol(connectionId);
+    connectionAttemptsRef.current.set(connectionId, attempt);
+    const isCurrentAttempt = () => connectionAttemptsRef.current.get(connectionId) === attempt;
+    const updateCurrentConnection = (id: string, updates: Partial<ConnectionData>) => {
+      if (isCurrentAttempt()) updateConnectionData(id, updates);
+    };
     // Capture previous state so we can restore it on failure
     const prevActiveConnectionId = activeConnectionId;
 
@@ -670,8 +683,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       },
     }));
 
-    setActiveConnectionId(connectionId);
-    setActiveTable(null);
+    if (activate) {
+      setActiveConnectionId(connectionId);
+      setActiveTable(null);
+    }
 
     try {
       const allConnections = await client.call('get_connections', undefined);
@@ -690,13 +705,14 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         // Manifest not found; capabilities will be null and features will degrade gracefully
       }
 
-      const capabilities = driverManifest?.capabilities ?? null;
+      let capabilities = driverManifest?.capabilities ?? null;
       const dbParam = conn.params.database; // string | string[]
       const primaryDb = getEffectiveDatabase(dbParam);
 
-      updateConnectionData(connectionId, {
+      updateCurrentConnection(connectionId, {
         driver,
         capabilities,
+        usesConnectionMetadata: driverManifest?.connection_metadata === true,
         connectionName: conn.name,
         databaseName: primaryDb,
       });
@@ -710,7 +726,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         });
       } catch (testError) {
         const errorMsg = toErrorMessage(testError);
-        updateConnectionData(connectionId, {
+        updateCurrentConnection(connectionId, {
           isConnecting: false,
           isConnected: false,
           isLoadingTables: false,
@@ -720,6 +736,16 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         });
         setOpenConnectionIds(prev => prev.filter(id => id !== connectionId));
         throw new Error(errorMsg);
+      }
+
+      if (!isCurrentAttempt()) return;
+      const metadata = driverManifest?.connection_metadata
+        ? await invoke<ConnectionMetadata | null>("get_connection_metadata", { connectionId })
+        : null;
+      if (!isCurrentAttempt()) return;
+      if (metadata) {
+        capabilities = metadata.capabilities;
+        updateCurrentConnection(connectionId, { capabilities, metadata });
       }
 
       // Register for health-check pinging.
@@ -747,7 +773,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           // Without a database list the connection is unusable (it has no
           // default schema) — fail the connect with the real error.
           const errorMsg = toErrorMessage(e);
-          updateConnectionData(connectionId, {
+          updateCurrentConnection(connectionId, {
             isConnecting: false,
             isConnected: false,
             isLoadingTables: false,
@@ -803,9 +829,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           try {
             const [tablesResult, viewsResult, routineMetadata, triggersResult] = await Promise.all([
               client.call('get_tables', { connectionId, schema: firstDb }),
-              client.call('get_views', { connectionId, schema: firstDb }),
-              getRoutinesOrEmpty(client, connectionId, firstDb, handleRoutineMetadataError),
-              client.call('get_triggers', { connectionId, schema: firstDb }).catch(() => [] as TriggerInfo[]),
+              loadOptionalMetadata(metadata?.capabilities.views, () => client.call('get_views', { connectionId, schema: firstDb }), [] as ViewInfo[]),
+              loadOptionalMetadata(metadata?.capabilities.routines, () => getRoutinesOrEmpty(client, connectionId, firstDb, handleRoutineMetadataError), { routines: [] }),
+              loadOptionalMetadata(metadata?.capabilities.triggers, () => client.call('get_triggers', { connectionId, schema: firstDb }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
             ]);
             initialDbMap = {
               [firstDb]: {
@@ -823,7 +849,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        updateConnectionData(connectionId, {
+        updateCurrentConnection(connectionId, {
           selectedDatabases: dbList,
           databaseDataMap: initialDbMap,
           allDatabasesMode,
@@ -841,11 +867,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           isConnected: true,
         });
       } else if (capabilities?.schemas === true) {
-        updateConnectionData(connectionId, { isLoadingSchemas: true });
+        updateCurrentConnection(connectionId, { isLoadingSchemas: true });
 
         try {
           const schemasResult = await client.call('get_schemas', { connectionId });
-          updateConnectionData(connectionId, { schemas: schemasResult });
+          updateCurrentConnection(connectionId, { schemas: schemasResult });
 
           let savedSelection: string[] = [];
           try {
@@ -869,15 +895,15 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
             const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
               client.call('get_tables', { connectionId, schema: preferredSchema }),
-              client.call('get_views', { connectionId, schema: preferredSchema }),
+              loadOptionalMetadata(metadata?.capabilities.views, () => client.call('get_views', { connectionId, schema: preferredSchema }), [] as ViewInfo[]),
               (capabilities?.materialized_views
                 ? client.call('get_materialized_views', { connectionId, schema: preferredSchema }).catch(() => [] as ViewInfo[])
                 : Promise.resolve([] as ViewInfo[])),
-              getRoutinesOrEmpty(client, connectionId, preferredSchema, handleRoutineMetadataError),
-              client.call('get_triggers', { connectionId, schema: preferredSchema }).catch(() => [] as TriggerInfo[]),
+              loadOptionalMetadata(metadata?.capabilities.routines, () => getRoutinesOrEmpty(client, connectionId, preferredSchema, handleRoutineMetadataError), { routines: [] }),
+              loadOptionalMetadata(metadata?.capabilities.triggers, () => client.call('get_triggers', { connectionId, schema: preferredSchema }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
             ]);
 
-            updateConnectionData(connectionId, {
+            updateCurrentConnection(connectionId, {
               selectedSchemas: validSelection,
               needsSchemaSelection: false,
               activeSchema: preferredSchema,
@@ -902,7 +928,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               isConnected: true,
             });
           } else {
-            updateConnectionData(connectionId, {
+            updateCurrentConnection(connectionId, {
               selectedSchemas: [],
               needsSchemaSelection: true,
               isLoadingSchemas: false,
@@ -916,7 +942,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           }
         } catch (e) {
           console.error('Failed to fetch schemas:', e);
-          updateConnectionData(connectionId, {
+          updateCurrentConnection(connectionId, {
             isLoadingSchemas: false,
             isLoadingTables: false,
             isLoadingViews: false,
@@ -932,12 +958,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       } else {
         const [tablesResult, viewsResult, routineMetadata, triggersResult] = await Promise.all([
           client.call('get_tables', { connectionId }),
-          client.call('get_views', { connectionId }),
-          getRoutinesOrEmpty(client, connectionId, undefined, handleRoutineMetadataError),
-          client.call('get_triggers', { connectionId }).catch(() => [] as TriggerInfo[]),
+          loadOptionalMetadata(metadata?.capabilities.views, () => client.call('get_views', { connectionId }), [] as ViewInfo[]),
+          loadOptionalMetadata(metadata?.capabilities.routines, () => getRoutinesOrEmpty(client, connectionId, undefined, handleRoutineMetadataError), { routines: [] }),
+          loadOptionalMetadata(metadata?.capabilities.triggers, () => client.call('get_triggers', { connectionId }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
         ]);
 
-        updateConnectionData(connectionId, {
+        updateCurrentConnection(connectionId, {
           tables: tablesResult,
           views: viewsResult,
           routines: routineMetadata.routines,
@@ -952,6 +978,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     } catch (error) {
+      if (!isCurrentAttempt()) return;
       console.error('Failed to connect:', error);
       setConnectionDataMap(prev => {
         const newMap = { ...prev };
@@ -959,7 +986,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         return newMap;
       });
       setOpenConnectionIds(prev => prev.filter(id => id !== connectionId));
-      setActiveConnectionId(prevActiveConnectionId);
+      if (activate) {
+        setActiveConnectionId(current => current === connectionId ? prevActiveConnectionId : current);
+      }
       throw error;
     }
   };
@@ -968,6 +997,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const targetId = connectionId || activeConnectionId;
     if (!targetId) return;
 
+    connectionAttemptsRef.current.delete(targetId);
     clearAutocompleteCache(targetId);
 
     try {
@@ -1004,6 +1034,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const detachConnection = useCallback((connectionId: string) => {
+    connectionAttemptsRef.current.delete(connectionId);
     clearAutocompleteCache(connectionId);
 
     setOpenConnectionIds(prev => prev.filter(id => id !== connectionId));
@@ -1037,17 +1068,31 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [client, activeConnectionId, updateConnectionData]);
 
-  const loadConnections = useCallback(async () => {
-    setIsLoadingConnections(true);
-    try {
-      const result = await client.call('get_connections_with_groups', undefined);
-      setConnections(result.connections);
-      setConnectionGroups(result.groups);
-    } catch (e) {
-      console.error('Failed to load connections:', e);
-    } finally {
-      setIsLoadingConnections(false);
+  const loadConnections = useCallback((options?: { ifNeeded?: boolean }) => {
+    if (options?.ifNeeded) {
+      if (connectionsLoadRef.current) return connectionsLoadRef.current;
+      if (connectionsLoadedRef.current) return Promise.resolve();
     }
+    const version = ++connectionsLoadVersionRef.current;
+    connectionsLoadRef.current = (async () => {
+      setIsLoadingConnections(true);
+      try {
+        const result = await client.call('get_connections_with_groups', undefined);
+        if (version === connectionsLoadVersionRef.current) {
+          setConnections(result.connections);
+          setConnectionGroups(result.groups);
+          connectionsLoadedRef.current = true;
+        }
+      } catch (e) {
+        console.error('Failed to load connections:', e);
+      } finally {
+        if (version === connectionsLoadVersionRef.current) {
+          setIsLoadingConnections(false);
+          connectionsLoadRef.current = null;
+        }
+      }
+    })();
+    return connectionsLoadRef.current;
   }, [client]);
 
   const getConnectionData = useCallback((connectionId: string): ConnectionData | undefined => {
@@ -1112,12 +1157,42 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     client.call('set_last_open_connections', { connectionIds: openConnectionIds }).catch(() => {});
   }, [client, openConnectionIds]);
 
+  // Invalidate open dynamic contexts when their saved parameters or plugin change.
+  useEffect(() => {
+    const unlisten = listen<{ connectionId?: string; driverId?: string }>(
+      'connection-metadata-invalidated',
+      ({ payload }) => {
+        const ids = Object.entries(connectionDataMapRef.current)
+          .filter(([id, data]) => data.usesConnectionMetadata &&
+            (id === payload.connectionId || data.driver === payload.driverId))
+          .map(([id]) => id);
+        if (ids.length === 0) return;
+        for (const id of ids) {
+          connectionAttemptsRef.current.delete(id);
+          clearAutocompleteCache(id);
+          void client.call('disconnect_connection', { connectionId: id }).catch(error => {
+            console.error('Failed to release invalidated connection:', error);
+          });
+        }
+        setOpenConnectionIds(previous => previous.filter(id => !ids.includes(id)));
+        setConnectionDataMap(previous => Object.fromEntries(
+          Object.entries(previous).filter(([id]) => !ids.includes(id)),
+        ));
+        setActiveConnectionId(previous => previous && ids.includes(previous)
+          ? openConnectionIdsRef.current.find(id => !ids.includes(id)) ?? null
+          : previous);
+      },
+    );
+    return () => { unlisten.then(fn => fn()); };
+  }, [client]);
+
   // Listen for backend health-check failures and clean up dead connections.
   useEffect(() => {
     const unlisten = client.subscribe(
       'connection-health-failed',
       (payload) => {
         const { connectionId } = payload;
+        connectionAttemptsRef.current.delete(connectionId);
         console.warn(`[DatabaseProvider] Connection health check failed for ${connectionId}: ${payload.error}`);
 
         clearAutocompleteCache(connectionId);

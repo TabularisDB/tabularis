@@ -1,0 +1,32 @@
+[
+  {
+    "name": "static builtin with inherited editor",
+    "config": { "theme": "tabularis-dark", "editorTheme": null }
+  },
+  {
+    "name": "system appearance with independent editor",
+    "config": {
+      "theme": "nord",
+      "followSystemTheme": true,
+      "lightThemeId": "solarized-light",
+      "darkThemeId": "custom-1700000000000",
+      "editorTheme": "monokai"
+    }
+  },
+  {
+    "name": "static personal selection with missing custom file",
+    "config": {
+      "theme": "custom-1700000000000",
+      "followSystemTheme": false,
+      "editorTheme": "custom-1700000000001"
+    }
+  },
+  {
+    "name": "partial non-theme save",
+    "config": { "fontFamily": "System", "fontSize": 14 }
+  },
+  {
+    "name": "old configuration without theme settings",
+    "config": {}
+  }
+]

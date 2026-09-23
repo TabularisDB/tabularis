@@ -1,52 +1,108 @@
 name: Publish to AUR
 
+# One PKGBUILD (aur/PKGBUILD), two AUR packages:
+#   * tabularis-bin          stable releases (release published / manual)
+#   * tabularis-nightly-bin  nightlies, called by nightly.yml after the build
+# The channel is derived from the tag: `nightly-*` is nightly, anything else
+# is stable.
 on:
   release:
     types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.25.0 or nightly-20260923-ef21476)."
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Release version (without v prefix, e.g. 0.9.14)'
+      tag:
+        description: "Release tag to publish (e.g. v0.25.0 or nightly-20260923-ef21476)."
         required: true
 
 jobs:
   aur-publish:
-    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    # Stable prereleases never reach the AUR. Nightlies are prereleases too,
+    # but they arrive via workflow_call, never via the release event (releases
+    # created with GITHUB_TOKEN don't trigger workflows).
+    if: ${{ github.event_name != 'release' || !github.event.release.prerelease }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Get Release Version
-        id: version
+      - name: Resolve package metadata
+        id: meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          set -euo pipefail
+
+          # Read the .deb name from the release instead of rebuilding it: a
+          # nightly's tag (nightly-<date>-<sha>) differs from its version.
+          deb=$(gh release view "$TAG" --json assets \
+            --jq '.assets[].name | select(endswith("_amd64.deb"))')
+          if [ -z "$deb" ]; then
+            echo "::error::No _amd64.deb asset on release $TAG"
+            exit 1
+          fi
+          gh release download "$TAG" --pattern "$deb" --output app.deb
+          debver="${deb#tabularis_}"
+          debver="${debver%_amd64.deb}"
+
+          if [[ "$TAG" == nightly-* ]]; then
+            pkgname=tabularis-nightly-bin
+            # pacman forbids '-' in pkgver: 0.25.1-2 -> 0.25.1.nightly2
+            pkgver="${debver//-/.nightly}"
           else
-            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+            pkgname=tabularis-bin
+            pkgver="$debver"
+            if [[ "$pkgver" == *-* ]]; then
+              echo "::error::Stable version $pkgver is a prerelease; refusing to publish it to tabularis-bin"
+              exit 1
+            fi
           fi
 
-      - name: Download .deb Artifact
-        run: |
-          wget "https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/tabularis_${{ steps.version.outputs.version }}_amd64.deb" -O app.deb
-
-      - name: Calculate SHA256
-        id: shasum
-        run: |
-          echo "sha256=$(sha256sum app.deb | awk '{print $1}')" >> $GITHUB_OUTPUT
+          {
+            echo "tag=$TAG"
+            echo "debver=$debver"
+            echo "pkgname=$pkgname"
+            echo "pkgver=$pkgver"
+            echo "sha256=$(sha256sum app.deb | awk '{print $1}')"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Update PKGBUILD
+        env:
+          PKGNAME: ${{ steps.meta.outputs.pkgname }}
+          PKGVER: ${{ steps.meta.outputs.pkgver }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          DEBVER: ${{ steps.meta.outputs.debver }}
+          SHA256: ${{ steps.meta.outputs.sha256 }}
         run: |
           cd aur
-          sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" PKGBUILD
-          sed -i "s/^sha256sums=.*/sha256sums=('${{ steps.shasum.outputs.sha256 }}')/" PKGBUILD
+          sed -i \
+            -e "s/^pkgname=.*/pkgname=${PKGNAME}/" \
+            -e "s/^pkgver=.*/pkgver=${PKGVER}/" \
+            -e "s/^_tag=.*/_tag=${TAG}/" \
+            -e "s/^_debver=.*/_debver=${DEBVER}/" \
+            -e "s/^sha256sums=.*/sha256sums=('${SHA256}')/" \
+            PKGBUILD
+          if [ "$PKGNAME" = "tabularis-nightly-bin" ]; then
+            sed -i 's/^pkgdesc="\(.*\)"$/pkgdesc="\1 (nightly build)"/' PKGBUILD
+          fi
+          cat PKGBUILD
 
       - name: Publish to AUR
         uses: KSXGitHub/github-actions-deploy-aur@084b0d9b15415bf9cdb65d44dad1efe37a354050 # v4.2.0
         with:
-          pkgname: tabularis-bin
+          pkgname: ${{ steps.meta.outputs.pkgname }}
           pkgbuild: ./aur/PKGBUILD
           commit_username: ${{ secrets.AUR_USERNAME }}
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: "Update to v${{ steps.version.outputs.version }}"
+          commit_message: "Update to ${{ steps.meta.outputs.tag }}"
           force_push: true
