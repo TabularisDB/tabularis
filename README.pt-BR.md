@@ -309,7 +309,7 @@ A configuração é armazenada em `~/.config/tabularis/` (Linux), `~/Library/App
 
 > [Referência completa em tabularis.dev →](https://tabularis.dev/wiki/ai-assistant)
 
-Text-to-SQL opcional e explicação de consultas com **OpenAI**, **Anthropic**, **MiniMax**, **OpenRouter**, **Ollama** (modelos locais, sem chave de API, total privacidade), e qualquer **API compatível com OpenAI** (Groq, Perplexity, Azure OpenAI, LocalAI, ...). As listas de modelos são obtidas do seu provedor e armazenadas em cache localmente; modelos personalizados podem ser configurados por provedor.
+Text-to-SQL opcional e explicação de consultas com **OpenAI**, **Anthropic**, **MiniMax**, **OpenRouter**, **Requesty**, **Ollama** (modelos locais, sem chave de API, total privacidade), e qualquer **API compatível com OpenAI** (Groq, Perplexity, Azure OpenAI, LocalAI, ...). As listas de modelos são obtidas do seu provedor e armazenadas em cache localmente; modelos personalizados podem ser configurados por provedor.
 
 ### Servidor MCP — Integração com Agentes de IA
 
