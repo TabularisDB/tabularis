@@ -119,7 +119,7 @@ pub fn validate_theme_archive(
 ) -> Result<ValidatedThemePackage, String> {
     check_cancelled()?;
     let limits: ArchiveLimits =
-        serde_json::from_str(include_str!("../../../src/schemas/theme-limits-v1.json"))
+        serde_json::from_str(include_str!("../../../packages/web-ui/src/schemas/theme-limits-v1.json"))
             .map_err(|error| error.to_string())?;
     if bytes.len() > limits.archive_bytes {
         return Err("Theme archive exceeds the download byte limit".into());

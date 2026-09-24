@@ -1,6 +1,6 @@
 /**
  * Sync check: assert the public API surface declared by this package
- * mirrors the host barrel at `src/pluginApi.ts`.
+ * mirrors the host barrel at `packages/web-ui/src/pluginApi.ts`.
  *
  * Catches the one drift scenario that matters: someone adds a hook or type
  * to the host without publishing it from `@tabularis/plugin-api`.
@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../../..");
 
-const HOST_BARREL = resolve(REPO_ROOT, "src/pluginApi.ts");
+const HOST_BARREL = resolve(REPO_ROOT, "packages/web-ui/src/pluginApi.ts");
 const PACKAGE_BARREL = resolve(__dirname, "../src/index.ts");
 
 function extractExports(source: string): { values: Set<string>; types: Set<string> } {

@@ -18,7 +18,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::config::{self, AppConfig};
-use crate::plugins::{commands, installer, registry, tabularium};
+use crate::plugins::{installer, registry, tabularium};
 
 /// Built-in driver id → replacement plugin id pairs that the app keeps
 /// installed automatically when a connection on the built-in exists. Adding
@@ -83,7 +83,11 @@ pub async fn ensure_plugin_installed(app: &AppHandle, plugin_id: &str) {
         log::warn!("{LOG_PREFIX} {plugin_id} has no compatible release, skipping");
         return;
     }
-    if let Err(e) = commands::install_plugin(app.clone(), plugin_id.to_string(), None).await {
+    let runtime = tauri::Manager::state::<crate::runtime::RuntimeContext>(app);
+    if let Err(e) =
+        crate::application::plugins::install_plugin(&runtime, plugin_id.to_string(), None, None)
+            .await
+    {
         log::warn!("{LOG_PREFIX} {plugin_id} install failed: {e}");
         return;
     }

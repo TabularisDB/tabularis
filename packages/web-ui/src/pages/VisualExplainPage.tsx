@@ -1,0 +1,258 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { FileJson, FolderOpen, Loader2, RefreshCw } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import type { ExplainPlan } from "@tabularis/explain";
+import { parseExplain, withSourceLabel } from "@tabularis/explain";
+import { VisualExplainView } from "../components/explain/VisualExplainView";
+import {
+  getExplainFileName,
+  parseExplainFileParam,
+} from "../utils/explainImport";
+import { parseVisualExplainDeepLink } from "../utils/aiActivity";
+import { useSettings } from "../hooks/useSettings";
+import { useExplainPlan } from "../hooks/useExplainPlan";
+import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
+import type { ChosenInputFile } from "../platform/capabilities";
+
+export interface VisualExplainPageProps {
+  /// When provided, render in embedded mode: skip the page header, use the
+  /// supplied plan instead of loading from disk, and ignore router params.
+  initialPlan?: ExplainPlan | null;
+  /// Hide the page chrome (header + file picker). Defaults to false.
+  compactMode?: boolean;
+}
+
+export const VisualExplainPage = ({
+  initialPlan = null,
+  compactMode = false,
+}: VisualExplainPageProps = {}) => {
+  const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
+  const { settings } = useSettings();
+  const { search } = useLocation();
+  const initialParamPath = parseExplainFileParam(search);
+  const deepLink = parseVisualExplainDeepLink(search);
+  const isDeepLink = !!deepLink.query && !!deepLink.connectionId;
+
+  const [filePath, setFilePath] = useState<string | null>(initialParamPath);
+  const sourceVersion = useRef(0);
+  const pickerVersion = useRef(0);
+  // A picked file is re-read through the platform reference on reload: its
+  // display name is not a loadable path (and a browser has no path at all).
+  const pickedFile = useRef<ChosenInputFile | null>(null);
+  const {
+    plan,
+    isLoading,
+    error,
+    viewMode,
+    setViewMode,
+    selectedNodeId,
+    setSelectedNodeId,
+    runExplain,
+    loadPlan,
+    invalidate,
+  } = useExplainPlan(initialPlan);
+
+  const loadFile = useCallback(
+    (path: string) => loadPlan(async () => {
+      const file = await invoke<{ content: string; display_name: string }>(
+        "load_explain_from_file",
+        { path },
+      );
+      return withSourceLabel(parseExplain(file.content), file.display_name);
+    }),
+    [loadPlan],
+  );
+
+  // On mount: prefer initialPlan (embedded mode), then deep link, then file
+  // path, then any pending CLI handoff.
+  useEffect(() => {
+    let cancelled = false;
+    const source = sourceVersion;
+    const version = ++source.current;
+
+    const bootstrap = async () => {
+      await Promise.resolve();
+      if (cancelled || version !== source.current || initialPlan) return;
+      if (isDeepLink) {
+        await runExplain({
+          connectionId: deepLink.connectionId!,
+          query: deepLink.query!,
+          analyze: false,
+          schema: null,
+        });
+        return;
+      }
+      if (initialParamPath) {
+        await loadFile(initialParamPath);
+        return;
+      }
+      try {
+        const pending = await invoke<string | null>("get_pending_explain_file");
+        if (!cancelled && version === source.current && pending) {
+          pickedFile.current = null;
+          setFilePath(pending);
+          await loadFile(pending);
+        }
+      } catch (err) {
+        if (!cancelled && version === source.current) {
+          await loadPlan(async () => {
+            throw err;
+          });
+        }
+      }
+    };
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+      ++source.current;
+      invalidate();
+    };
+  }, [
+    initialPlan,
+    initialParamPath,
+    isDeepLink,
+    deepLink.connectionId,
+    deepLink.query,
+    loadFile,
+    loadPlan,
+    runExplain,
+    invalidate,
+  ]);
+
+  const loadPickedFile = useCallback(
+    (selected: ChosenInputFile) => loadPlan(async () => {
+      const contents = await platform.readInputFile(selected.reference);
+      return withSourceLabel(
+        parseExplain(new TextDecoder().decode(contents)),
+        selected.name,
+      );
+    }),
+    [loadPlan, platform],
+  );
+
+  const handlePickFile = useCallback(async () => {
+    const version = sourceVersion.current;
+    const picker = ++pickerVersion.current;
+    try {
+      const selected = await platform.chooseInputFile({
+        filters: [
+          { name: "Explain", extensions: ["json", "txt"] },
+          { name: "All files", extensions: ["*"] },
+        ],
+      });
+      if (version !== sourceVersion.current || picker !== pickerVersion.current) return;
+      if (!selected) return;
+      ++sourceVersion.current;
+      pickedFile.current = selected;
+      setFilePath(selected.name);
+      await loadPickedFile(selected);
+    } catch (err) {
+      if (version === sourceVersion.current && picker === pickerVersion.current) {
+        ++sourceVersion.current;
+        await loadPlan(async () => {
+          throw err;
+        });
+      }
+    }
+  }, [loadPickedFile, loadPlan, platform]);
+
+  const handleReload = useCallback(() => {
+    if (filePath) {
+      ++sourceVersion.current;
+      if (pickedFile.current) void loadPickedFile(pickedFile.current);
+      else void loadFile(filePath);
+    }
+  }, [filePath, loadFile, loadPickedFile]);
+
+  const fileLabel = filePath ? getExplainFileName(filePath) : null;
+  const containerClass = compactMode
+    ? "w-full h-full flex flex-col bg-base"
+    : "w-screen h-screen flex flex-col bg-base";
+
+  return (
+    <div className={containerClass}>
+      {!compactMode && (
+        <div className="flex items-center justify-between px-4 py-3 border-b border-default bg-elevated shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 bg-accent-success/15 rounded-lg">
+              <FileJson size={18} className="text-accent-success" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-base font-semibold text-primary truncate">
+                {t("visualExplainPage.title")}
+              </h1>
+              {fileLabel ? (
+                <p
+                  className="text-xs text-muted font-mono truncate"
+                  title={filePath ?? undefined}
+                >
+                  {fileLabel}
+                </p>
+              ) : (
+                <p className="text-xs text-muted">
+                  {t("visualExplainPage.noFile")}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePickFile}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted hover:text-primary hover:bg-surface-secondary/50 transition-colors"
+            >
+              <FolderOpen size={14} />
+              {t("visualExplainPage.openFile")}
+            </button>
+            <button
+              onClick={handleReload}
+              disabled={!filePath || isLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted hover:text-primary hover:bg-surface-secondary/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <RefreshCw
+                size={14}
+                className={isLoading ? "animate-spin" : ""}
+              />
+              {t("visualExplainPage.reload")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0">
+        {!compactMode && !filePath && !plan && !isLoading && !error ? (
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-muted">
+            <FileJson size={32} className="opacity-30" />
+            <p className="text-sm">{t("visualExplainPage.emptyHint")}</p>
+            <button
+              onClick={handlePickFile}
+              className="flex items-center gap-1.5 px-4 py-2 bg-accent-success hover:bg-accent-success/90 text-on-accent-success rounded-lg text-sm font-medium transition-colors"
+            >
+              <FolderOpen size={14} />
+              {t("visualExplainPage.openFile")}
+            </button>
+          </div>
+        ) : isLoading && !plan ? (
+          <div className="flex flex-col items-center justify-center h-full gap-2 text-muted">
+            <Loader2 size={24} className="animate-spin" />
+            <span className="text-sm">{t("visualExplainPage.loading")}</span>
+          </div>
+        ) : (
+          <VisualExplainView
+            plan={plan}
+            isLoading={isLoading}
+            error={error}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
+            aiEnabled={!!settings.aiEnabled}
+          />
+        )}
+      </div>
+    </div>
+  );
+};

@@ -1,0 +1,668 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "pnpm web:inventory:write",
+  "sources": {
+    "frontend": "packages/web-ui/src",
+    "tauriHandler": "src-tauri/src/lib.rs"
+  },
+  "classifications": {
+    "featureGroup": [
+      "ai",
+      "application",
+      "backup",
+      "configuration",
+      "connections",
+      "data",
+      "database-objects",
+      "drivers",
+      "files",
+      "k8s",
+      "logs",
+      "metadata",
+      "notebooks",
+      "plugins",
+      "queries",
+      "saved-queries",
+      "ssh",
+      "tasks",
+      "themes",
+      "users",
+      "windows"
+    ],
+    "eventUse": [
+      "none",
+      "emits",
+      "event-coordinated"
+    ],
+    "filesystemUse": [
+      "none",
+      "read",
+      "write",
+      "read-write"
+    ],
+    "authorizationLevel": [
+      "session",
+      "database",
+      "sensitive",
+      "local-admin"
+    ]
+  },
+  "classificationNotes": {
+    "eventUse": "Whether command completion or progress participates in the frontend event bus.",
+    "filesystemUse": "User-visible host filesystem access only; internal application persistence is classified as none.",
+    "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
+  },
+  "summary": {
+    "literalCommandCount": 22,
+    "literalCallSiteCount": 27,
+    "dynamicCallSiteCount": 0,
+    "handlerRegistrationCount": 292,
+    "registeredCommandCount": 292,
+    "duplicateHandlerRegistrations": [],
+    "frontendCommandsMissingRegistration": [],
+    "registeredCommandsWithoutFrontendCall": 270
+  },
+  "commands": [
+    {
+      "name": "check_for_updates",
+      "featureGroup": "application",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
+          "line": 58
+        }
+      ]
+    },
+    {
+      "name": "consume_pending_deep_link_install",
+      "featureGroup": "application",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/hooks/useDeepLinkInstall.ts",
+          "line": 68
+        }
+      ]
+    },
+    {
+      "name": "download_and_install_update",
+      "featureGroup": "application",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "write",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
+          "line": 101
+        }
+      ]
+    },
+    {
+      "name": "execute_clipboard_import",
+      "featureGroup": "data",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
+          "line": 308
+        }
+      ]
+    },
+    {
+      "name": "fetch_blob",
+      "featureGroup": "data",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 430
+        }
+      ]
+    },
+    {
+      "name": "get_app_data_dir",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 106
+        }
+      ]
+    },
+    {
+      "name": "get_data_types",
+      "featureGroup": "drivers",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/hooks/useDataTypes.ts",
+          "line": 25
+        }
+      ]
+    },
+    {
+      "name": "get_linux_system_theme",
+      "featureGroup": "themes",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 122
+        }
+      ]
+    },
+    {
+      "name": "get_pending_explain_file",
+      "featureGroup": "files",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
+          "line": 93
+        }
+      ]
+    },
+    {
+      "name": "list_databases",
+      "featureGroup": "metadata",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
+          "line": 1751
+        }
+      ]
+    },
+    {
+      "name": "load_blob_from_file",
+      "featureGroup": "data",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 407
+        }
+      ]
+    },
+    {
+      "name": "load_explain_from_file",
+      "featureGroup": "files",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
+          "line": 60
+        }
+      ]
+    },
+    {
+      "name": "log_frontend_event",
+      "featureGroup": "logs",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
+          "line": 267
+        },
+        {
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
+          "line": 808
+        }
+      ]
+    },
+    {
+      "name": "map_inferred_column_types",
+      "featureGroup": "drivers",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
+          "line": 92
+        }
+      ]
+    },
+    {
+      "name": "open_connection_window",
+      "featureGroup": "windows",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 273
+        }
+      ]
+    },
+    {
+      "name": "open_plugins_dir",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
+          "line": 786
+        }
+      ]
+    },
+    {
+      "name": "open_storage_location",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 290
+        }
+      ]
+    },
+    {
+      "name": "read_file_as_data_url",
+      "featureGroup": "files",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 415
+        }
+      ]
+    },
+    {
+      "name": "relaunch_app",
+      "featureGroup": "application",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/components/modals/ConfigJsonModal.tsx",
+          "line": 59
+        },
+        {
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 289
+        }
+      ]
+    },
+    {
+      "name": "save_connection_icon",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 398
+        }
+      ]
+    },
+    {
+      "name": "set_selected_databases",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
+          "line": 259
+        },
+        {
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
+          "line": 643
+        },
+        {
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
+          "line": 800
+        }
+      ]
+    },
+    {
+      "name": "set_window_title",
+      "featureGroup": "windows",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
+          "line": 156
+        },
+        {
+          "file": "packages/web-ui/src/pages/Editor.tsx",
+          "line": 610
+        }
+      ]
+    }
+  ],
+  "dynamicInvocations": [],
+  "registeredCommandsWithoutFrontendCall": [
+    "add_query_history_entry",
+    "alter_view",
+    "analyze_ai_explain_plan",
+    "apply_connection_import",
+    "apply_db_user_privileges",
+    "apply_prepared_tabularis_import",
+    "apply_tabularis_import",
+    "build_routine_call_sql",
+    "cancel_dump",
+    "cancel_export",
+    "cancel_import",
+    "cancel_plugin_install",
+    "cancel_query",
+    "cancel_theme_install",
+    "check_ai_key",
+    "check_ai_key_status",
+    "clear_ai_activity",
+    "clear_logs",
+    "clear_query_history",
+    "close_devtools",
+    "close_results_window",
+    "complete_json_viewer_session",
+    "count_query",
+    "create_connection_group",
+    "create_connection_tag",
+    "create_db_user",
+    "create_group_path",
+    "create_notebook",
+    "create_personal_snapshot",
+    "create_personal_theme",
+    "create_sqlite_database",
+    "create_sqlite_file",
+    "create_trigger",
+    "create_view",
+    "decide_pending_approval",
+    "decrypt_export_payload",
+    "delete_ai_key",
+    "delete_connection",
+    "delete_connection_group",
+    "delete_connection_icon",
+    "delete_connection_tag",
+    "delete_custom_theme",
+    "delete_editor_preferences",
+    "delete_k8s_connection",
+    "delete_notebook",
+    "delete_proxy_password",
+    "delete_query_history_entry",
+    "delete_record",
+    "delete_saved_query",
+    "delete_ssh_connection",
+    "delete_ui_state",
+    "detect_blob_mime",
+    "detect_mime_type",
+    "disable_plugin",
+    "disconnect_connection",
+    "drop_db_user",
+    "drop_foreign_key_action",
+    "drop_index_action",
+    "drop_routine",
+    "drop_trigger",
+    "drop_view",
+    "dump_database",
+    "duplicate_connection",
+    "duplicate_personal_theme",
+    "enable_plugin",
+    "encrypt_export_payload",
+    "execute_query",
+    "execute_query_batch",
+    "explain_ai_query",
+    "explain_query_plan",
+    "export_ai_activity_csv",
+    "export_ai_activity_json",
+    "export_ai_session_as_notebook",
+    "export_connections_file",
+    "export_connections_payload",
+    "export_logs",
+    "export_query_to_file",
+    "export_theme",
+    "fetch_blob_as_data_url",
+    "fetch_plugin_readme",
+    "fetch_plugin_registry",
+    "fetch_tabularium_plugin_preview",
+    "fetch_theme_package_detail",
+    "fetch_theme_registry",
+    "generate_ai_query",
+    "generate_cell_name",
+    "generate_tab_rename",
+    "get_active_connections",
+    "get_add_column_sql",
+    "get_ai_activity",
+    "get_ai_models",
+    "get_ai_schema_context",
+    "get_ai_session_events",
+    "get_ai_sessions",
+    "get_all_themes",
+    "get_alter_column_sql",
+    "get_available_databases",
+    "get_cellname_prompt",
+    "get_columns",
+    "get_config",
+    "get_config_json",
+    "get_connection_by_id",
+    "get_connection_groups",
+    "get_connection_metadata",
+    "get_connections",
+    "get_connections_backup_status",
+    "get_connections_with_groups",
+    "get_create_foreign_key_sql",
+    "get_create_index_sql",
+    "get_create_table_sql",
+    "get_db_privilege_catalog",
+    "get_db_user_grants",
+    "get_db_user_privileges",
+    "get_db_users",
+    "get_driver_manifest",
+    "get_explain_prompt",
+    "get_explainplan_prompt",
+    "get_file_stats",
+    "get_foreign_keys",
+    "get_indexes",
+    "get_installation_source",
+    "get_installed_plugins",
+    "get_json_viewer_session",
+    "get_k8s_connections",
+    "get_k8s_contexts_cmd",
+    "get_k8s_namespaces_cmd",
+    "get_k8s_resource_ports_cmd",
+    "get_k8s_resources_cmd",
+    "get_keybindings",
+    "get_last_active_connection",
+    "get_last_open_connections",
+    "get_log_settings",
+    "get_logs",
+    "get_materialized_view_columns",
+    "get_materialized_view_definition",
+    "get_materialized_views",
+    "get_mcp_status",
+    "get_plugin_dir",
+    "get_plugin_manifest",
+    "get_plugin_runtime_warnings",
+    "get_plugin_startup_errors",
+    "get_process_list",
+    "get_query_history",
+    "get_registered_drivers",
+    "get_routine_create_template",
+    "get_routine_definition",
+    "get_routine_edit_script",
+    "get_routine_parameters",
+    "get_routines",
+    "get_saved_queries",
+    "get_schema_preference",
+    "get_schema_snapshot",
+    "get_schemas",
+    "get_selected_schemas",
+    "get_server_now",
+    "get_ssh_connections",
+    "get_storage_location",
+    "get_system_prompt",
+    "get_system_stats",
+    "get_tables",
+    "get_tabrename_prompt",
+    "get_tabularis_children",
+    "get_theme",
+    "get_theme_catalog",
+    "get_trigger_definition",
+    "get_triggers",
+    "get_ui_state",
+    "get_view_columns",
+    "get_view_definition",
+    "get_views",
+    "import_connections_payload",
+    "import_database",
+    "import_theme",
+    "insert_record",
+    "inspect_storage_location",
+    "install_local_theme_package",
+    "install_mcp_config",
+    "install_plugin",
+    "install_registry_theme",
+    "is_debug_mode",
+    "kill_plugin_process",
+    "list_all_preferences",
+    "list_connection_import_sources",
+    "list_connection_tags",
+    "list_notebooks",
+    "list_pending_approvals",
+    "load_editor_preferences",
+    "load_notebook",
+    "move_connection_to_group",
+    "move_group_to_parent",
+    "open_devtools",
+    "open_er_diagram_window",
+    "open_json_viewer_window",
+    "open_results_window",
+    "open_task_manager_window",
+    "open_visual_explain_window",
+    "preview_connection_import",
+    "preview_local_theme_package",
+    "preview_tabularis_import",
+    "preview_tabularis_import_file",
+    "preview_theme_document",
+    "proxy_password_is_set",
+    "read_plugin_file",
+    "read_sql_file",
+    "recover_theme_packages",
+    "refresh_materialized_view",
+    "register_active_connection",
+    "rename_notebook",
+    "reorder_connections_in_group",
+    "reorder_groups",
+    "reset_cellname_prompt",
+    "reset_explain_prompt",
+    "reset_explainplan_prompt",
+    "reset_storage_location",
+    "reset_system_prompt",
+    "reset_tabrename_prompt",
+    "respond_ssh_askpass",
+    "restart_plugin_process",
+    "run_connections_backup",
+    "save_blob_to_file",
+    "save_cellname_prompt",
+    "save_config",
+    "save_config_json",
+    "save_connection",
+    "save_custom_theme",
+    "save_editor_preferences",
+    "save_explain_prompt",
+    "save_explainplan_prompt",
+    "save_k8s_connection",
+    "save_keybindings",
+    "save_notebook",
+    "save_query",
+    "save_ssh_connection",
+    "save_system_prompt",
+    "save_tabrename_prompt",
+    "set_ai_key",
+    "set_connection_appearance",
+    "set_connection_tags",
+    "set_connections_backup_password",
+    "set_connections_backup_target_password",
+    "set_db_user_password",
+    "set_last_active_connection",
+    "set_last_open_connections",
+    "set_log_enabled",
+    "set_log_max_size",
+    "set_proxy_password",
+    "set_schema_preference",
+    "set_selected_schemas",
+    "set_storage_location",
+    "set_theme_package_enabled",
+    "set_ui_state",
+    "suggest_table_name",
+    "test_connection",
+    "test_k8s_connection_cmd",
+    "test_log",
+    "test_ssh_connection",
+    "test_ssm_connection_cmd",
+    "uninstall_plugin",
+    "uninstall_theme_package",
+    "update_connection",
+    "update_connection_group",
+    "update_connection_tag",
+    "update_k8s_connection",
+    "update_personal_snapshot",
+    "update_personal_theme",
+    "update_record",
+    "update_saved_query",
+    "update_ssh_connection",
+    "validate_k8s_path_cmd",
+    "write_sql_file"
+  ]
+}

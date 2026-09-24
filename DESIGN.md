@@ -9,12 +9,12 @@ enforces the parts that can be checked mechanically.
 
 ## How a theme reaches the UI
 
-1. A theme definition (`src/schemas/theme-definition-v1.json`) declares `colors`,
+1. A theme definition (`packages/web-ui/src/schemas/theme-definition-v1.json`) declares `colors`,
    `typography.fontFamily`, `layout.borderRadius` and the Monaco `editor` colors.
-2. `applyThemeToCSS` (`src/themes/themeUtils.ts`) writes every token to a CSS variable
+2. `applyThemeToCSS` (`packages/web-ui/src/themes/themeUtils.ts`) writes every token to a CSS variable
    on `<html>` and sets `color-scheme`, then caches the base colors so the next startup
-   paints them before React mounts (`src/utils/themeBoot.ts`, read by `index.html`).
-3. `src/index.css` exposes the variables to Tailwind in `@theme`, derives the status
+   paints them before React mounts (`packages/web-ui/src/utils/themeBoot.ts`, read by `index.html`).
+3. `packages/web-ui/src/index.css` exposes the variables to Tailwind in `@theme`, derives the status
    variables from the accents, and aliases Tailwind's radius steps to the theme radii.
 4. Components use only the utilities below. Monaco receives its own theme through
    `generateMonacoTheme`; ReactFlow and Recharts read `currentTheme.colors` from
@@ -79,13 +79,13 @@ hover state of a solid button. The status variables `--color-error*`,
 | Link, accent label, accent icon | `text-accent hover:text-primary` |
 | Error banner | `bg-accent-error/10 border border-accent-error/30 text-accent-error rounded-lg` |
 | Warning banner | `bg-accent-warning/10 border border-accent-warning/30 text-accent-warning rounded-lg` |
-| Status chip / badge | `toneStyle()` and `TONE_*` from `src/utils/tones.ts` |
+| Status chip / badge | `toneStyle()` and `TONE_*` from `packages/web-ui/src/utils/tones.ts` |
 | Modal overlay | `fixed inset-0 bg-black/50 backdrop-blur-sm` (neutral scrim, allowed) |
 | Selected row | `bg-accent-primary/10 border-l-4 border-accent-primary`, row number `text-accent` |
 | Inserted / modified / deleted row | `semantic.new` / `semantic.modified` / `semantic.deleted` tokens |
 | Active rail item | `bg-accent-primary text-inverse` |
 | Glow behind an indicator | `shadow-[0_0_6px_var(--accent-primary)]` |
-| Inline style needing alpha | `tint("var(--accent-primary)", 20)` from `src/utils/tones.ts` |
+| Inline style needing alpha | `tint("var(--accent-primary)", 20)` from `packages/web-ui/src/utils/tones.ts` |
 
 Meaning drives the token, not hue. Blue in a mock-up means `accent-primary`, red means
 `accent-error`, green `accent-success`, amber `accent-warning`, purple `accent-secondary`.
@@ -127,7 +127,7 @@ choose to stand out against their inputs (Highlighter uses pink on a yellow acce
 ## Contrast
 
 Every built-in theme meets WCAG 2.2 AA on the token pairs the UI paints, listed in
-`CONTRAST_PAIRS` in `src/utils/themeContrast.ts`:
+`CONTRAST_PAIRS` in `packages/web-ui/src/utils/themeContrast.ts`:
 
 - 4.5:1 for `text.primary`, `text.secondary` and `text.muted` on `bg.base`, `bg.elevated`,
   `bg.overlay` and `surface.secondary`; `text.primary` also on `bg.tooltip` and

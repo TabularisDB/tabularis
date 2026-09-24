@@ -1,0 +1,34 @@
+{
+  "name": "e2e-ui-extension",
+  "version": "1.0.0",
+  "description": "Deterministic UI extension used by the browser E2E matrix.",
+  "default_port": null,
+  "default_username": "",
+  "color": "#0d9488",
+  "icon": "puzzle",
+  "capabilities": {
+    "schemas": false,
+    "views": false,
+    "routines": false,
+    "file_based": false,
+    "folder_based": false,
+    "connection_string": false,
+    "identifier_quote": "\"",
+    "sql_dialect": "generic",
+    "alter_primary_key": false,
+    "alter_column": false,
+    "create_foreign_keys": false,
+    "no_connection_required": true,
+    "manage_tables": false,
+    "readonly": true
+  },
+  "data_types": [],
+  "ui_extensions": [
+    {
+      "slot": "sidebar.footer.actions",
+      "module": "ui/e2e-extension.js",
+      "api_version": "0.1.1",
+      "order": 1
+    }
+  ]
+}

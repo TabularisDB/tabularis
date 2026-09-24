@@ -1,7 +1,7 @@
 //! Build a `.tabularis-notebook` document from an audit log session.
 //!
 //! Produces the same JSON shape that the frontend's notebook editor reads
-//! and writes (see `src/types/notebook.ts` `NotebookFile`). Results are not
+//! and writes (see `packages/web-ui/src/types/notebook.ts` `NotebookFile`). Results are not
 //! embedded — notebook cells re-execute on load, which matches the existing
 //! notebook UX.
 

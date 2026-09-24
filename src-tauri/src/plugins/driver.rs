@@ -1462,6 +1462,10 @@ pub(crate) fn test_manifest() -> PluginManifest {
     }
 }
 
+#[cfg(test)]
+#[path = "driver_resilience_tests.rs"]
+mod resilience_tests;
+
 /// Builds a fake, in-memory `RpcDriver` backed by `handle_request` instead of
 /// a real subprocess, with `connection_metadata` disabled. `pub(crate)` so
 /// other modules' tests (e.g. `mcp::tests`) can build one too; enable

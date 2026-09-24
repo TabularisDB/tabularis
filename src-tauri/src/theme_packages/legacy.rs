@@ -8,7 +8,7 @@ pub(super) const LEGACY_BYTES: usize = 4 * 1024 * 1024;
 type RawObject = BTreeMap<String, Box<RawValue>>;
 
 pub(super) fn builtin_themes() -> Vec<Value> {
-    serde_json::from_str(include_str!("../../../src/themes/builtin-themes.json"))
+    serde_json::from_str(include_str!("../../../packages/web-ui/src/themes/builtin-themes.json"))
         .expect("Bundled builtin catalog must be valid")
 }
 

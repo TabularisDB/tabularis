@@ -38,6 +38,22 @@ pub fn get_tunnels() -> &'static Mutex<HashMap<K8sTunnelKey, K8sTunnel>> {
     TUNNELS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+pub fn stop_all_tunnels() {
+    let tunnels = {
+        let mut tunnels = get_tunnels()
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        tunnels
+            .drain()
+            .map(|(_, tunnel)| tunnel)
+            .collect::<Vec<_>>()
+    };
+
+    for tunnel in tunnels {
+        tunnel.stop();
+    }
+}
+
 impl K8sTunnel {
     /// Create a new kubectl port-forward tunnel.
     ///

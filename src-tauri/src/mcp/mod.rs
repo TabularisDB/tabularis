@@ -9,6 +9,7 @@ use crate::config::{
 use crate::credential_cache;
 use crate::drivers::driver_trait::{DatabaseDriver, SqlDialect};
 use crate::drivers::registry as driver_registry;
+#[cfg(test)]
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::heartbeat;
 use crate::models::{ConnectionParams, K8sConnection, SshConnection};
@@ -320,21 +321,14 @@ async fn resolve_db_params(
 /// mysql/postgres/sqlite connections — every other driver fails with
 /// "Unsupported driver".
 async fn register_drivers_for_mcp() {
-    driver_registry::register_driver(mysql::MysqlDriver::new()).await;
-    driver_registry::register_driver(postgres::PostgresDriver::new()).await;
-    driver_registry::register_driver(sqlite::SqliteDriver::new()).await;
-
-    plugins::manager::reload_plugins_from_disk_config().await;
-
-    // Must run after driver registration above — the migration resolves each
-    // connection's driver dialect via the same registry, so it needs plugin
-    // drivers already loaded. This is the standalone MCP process's own entry
-    // point for a migration that previously only ran from the GUI process's
-    // Tauri commands (issue #639) — never blocks server startup on failure.
-    let conn_path = paths::resolve_connections_path(&paths::get_app_config_dir());
-    crate::connection_migrations::migrate_postgres_ssl_mode_spelling_at_path(&conn_path)
-        .await
-        .ok();
+    if let Err(error) = crate::runtime::bootstrap::bootstrap_application(
+        crate::runtime::RuntimeContext::system(),
+        crate::runtime::bootstrap::BootstrapOptions::default(),
+    )
+    .await
+    {
+        log::error!("Failed to bootstrap MCP application services: {error}");
+    }
 }
 
 /// Resolve the driver for an MCP-known connection. Returns the connection,

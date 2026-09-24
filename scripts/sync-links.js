@@ -4,7 +4,7 @@ import { resolve } from 'path';
 // File paths
 const paths = {
   package: resolve('package.json'),
-  configLinks: resolve('src/config/links.ts'),
+  configLinks: resolve('packages/web-ui/src/config/links.ts'),
   readme: resolve('README.md'),
   contributing: resolve('CONTRIBUTING.md')
 };
@@ -24,7 +24,7 @@ for (const [key, value] of entries) {
   console.log(`   ${key}: ${value}`);
 }
 
-// 2. Create/update src/config/links.ts
+// 2. Create/update packages/web-ui/src/config/links.ts
 const constKey = (key) => key.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
 const linkLines = entries
   .map(([key, value]) => `  ${constKey(key)}: "${value}",`)
@@ -50,7 +50,7 @@ ${namedExports}
 `;
 
 writeFileSync(paths.configLinks, linksConfig);
-console.log('✅ Updated src/config/links.ts');
+console.log('✅ Updated packages/web-ui/src/config/links.ts');
 
 // 3. Update README.md - Discord links
 let readme = readFileSync(paths.readme, 'utf-8');
@@ -71,4 +71,4 @@ writeFileSync(paths.contributing, contributing);
 console.log('✅ Updated CONTRIBUTING.md');
 
 console.log('\n✨ All links synced successfully!');
-console.log('\n💡 React components automatically use the updated links from src/config/links.ts');
+console.log('\n💡 React components automatically use the updated links from packages/web-ui/src/config/links.ts');

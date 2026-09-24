@@ -24,6 +24,7 @@ pub use client::maybe_run_askpass_client;
 pub use protocol::PromptKind;
 pub use server::{AskpassServer, AskpassUi};
 
+use crate::runtime::events::{RuntimeEvents, TauriRuntimeEvents};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{sync_channel, SyncSender};
@@ -31,7 +32,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
+use uuid::Uuid;
 
 /// Event emitted to the frontend when ssh needs user input.
 pub const REQUEST_EVENT: &str = "ssh-askpass://request";
@@ -48,8 +50,13 @@ static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
 static NEXT_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
-fn pending_responses() -> &'static Mutex<HashMap<u64, SyncSender<Option<String>>>> {
-    static PENDING: OnceLock<Mutex<HashMap<u64, SyncSender<Option<String>>>>> = OnceLock::new();
+struct PendingResponse {
+    session_id: Option<Uuid>,
+    sender: SyncSender<Option<String>>,
+}
+
+fn pending_responses() -> &'static Mutex<HashMap<u64, PendingResponse>> {
+    static PENDING: OnceLock<Mutex<HashMap<u64, PendingResponse>>> = OnceLock::new();
     PENDING.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -65,7 +72,23 @@ pub fn start_frontend_server() -> Result<AskpassServer, String> {
     let app = APP_HANDLE
         .get()
         .ok_or_else(|| "Askpass UI unavailable: application not initialised".to_string())?;
-    AskpassServer::start(Arc::new(FrontendUi { app: app.clone() }))
+    start_scoped_server(
+        Arc::new(TauriRuntimeEvents::new(app.clone())),
+        None,
+        Duration::from_secs(RESPONSE_TIMEOUT_SECS),
+    )
+}
+
+pub fn start_scoped_server(
+    events: Arc<dyn RuntimeEvents>,
+    session_id: Option<Uuid>,
+    response_timeout: Duration,
+) -> Result<AskpassServer, String> {
+    AskpassServer::start(Arc::new(FrontendUi {
+        events,
+        session_id,
+        response_timeout,
+    }))
 }
 
 #[derive(Serialize, Clone)]
@@ -75,36 +98,51 @@ struct AskpassRequestPayload {
     prompt: String,
 }
 
-/// Bridges askpass exchanges to the webview via Tauri events.
+/// Bridges askpass exchanges to the initiating frontend session.
 struct FrontendUi {
-    app: AppHandle,
+    events: Arc<dyn RuntimeEvents>,
+    session_id: Option<Uuid>,
+    response_timeout: Duration,
+}
+
+impl FrontendUi {
+    fn emit(&self, event: &str, payload: serde_json::Value) -> Result<(), String> {
+        match self.session_id {
+            Some(session_id) => self.events.emit_to(session_id, event, payload),
+            None => self.events.emit(event, payload),
+        }
+    }
 }
 
 impl AskpassUi for FrontendUi {
     fn request(&self, kind: PromptKind, prompt: &str) -> Option<String> {
         let id = NEXT_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = sync_channel(1);
-        pending_responses().lock().unwrap().insert(id, tx);
+        pending_responses().lock().unwrap().insert(
+            id,
+            PendingResponse {
+                session_id: self.session_id,
+                sender: tx,
+            },
+        );
 
         let payload = AskpassRequestPayload {
             id,
             kind: kind.as_str(),
             prompt: prompt.to_string(),
         };
-        if let Err(e) = self.app.emit(REQUEST_EVENT, payload) {
-            eprintln!("[Askpass] Failed to notify frontend: {}", e);
+        let payload = serde_json::to_value(payload).unwrap_or(serde_json::Value::Null);
+        if let Err(error) = self.emit(REQUEST_EVENT, payload) {
+            eprintln!("[Askpass] Failed to notify frontend: {error}");
             pending_responses().lock().unwrap().remove(&id);
             return None;
         }
 
-        let response = rx
-            .recv_timeout(Duration::from_secs(RESPONSE_TIMEOUT_SECS))
-            .ok()
-            .flatten();
+        let response = rx.recv_timeout(self.response_timeout).ok().flatten();
         // Entry is still present when the wait timed out (the command removes
         // it on a real answer); clean up and close the stale modal.
         if pending_responses().lock().unwrap().remove(&id).is_some() {
-            let _ = self.app.emit(DISMISS_EVENT, id);
+            let _ = self.emit(DISMISS_EVENT, serde_json::json!(id));
         }
         response
     }
@@ -116,14 +154,15 @@ impl AskpassUi for FrontendUi {
             kind: PromptKind::Notify.as_str(),
             prompt: prompt.to_string(),
         };
-        if let Err(e) = self.app.emit(REQUEST_EVENT, payload) {
-            eprintln!("[Askpass] Failed to notify frontend: {}", e);
+        let payload = serde_json::to_value(payload).unwrap_or(serde_json::Value::Null);
+        if let Err(error) = self.emit(REQUEST_EVENT, payload) {
+            eprintln!("[Askpass] Failed to notify frontend: {error}");
         }
         id
     }
 
     fn dismiss_notification(&self, id: u64) {
-        let _ = self.app.emit(DISMISS_EVENT, id);
+        let _ = self.emit(DISMISS_EVENT, serde_json::json!(id));
     }
 }
 
@@ -131,7 +170,25 @@ impl AskpassUi for FrontendUi {
 /// cancelled.
 #[tauri::command]
 pub fn respond_ssh_askpass(id: u64, response: Option<String>) {
-    if let Some(tx) = pending_responses().lock().unwrap().remove(&id) {
-        let _ = tx.send(response);
+    let _ = respond_for_session(None, id, response);
+}
+
+pub fn respond_for_session(
+    session_id: Option<Uuid>,
+    id: u64,
+    response: Option<String>,
+) -> Result<(), String> {
+    let mut pending = pending_responses().lock().unwrap();
+    let Some(request) = pending.get(&id) else {
+        return Err("SSH askpass prompt is no longer pending".to_string());
+    };
+    if request.session_id != session_id {
+        return Err("SSH askpass prompt belongs to another session".to_string());
     }
+    let request = pending.remove(&id).expect("pending response disappeared");
+    drop(pending);
+    request
+        .sender
+        .send(response)
+        .map_err(|_| "SSH askpass prompt is no longer accepting responses".to_string())
 }
