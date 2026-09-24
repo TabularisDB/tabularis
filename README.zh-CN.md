@@ -241,6 +241,7 @@ yay -S tabularis-bin
 - Anthropic
 - MiniMax
 - OpenRouter
+- Requesty
 - Ollama
 - 兼容 OpenAI 的 API
 
