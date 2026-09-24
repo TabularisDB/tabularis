@@ -1673,9 +1673,10 @@ export const DataGrid = React.memo(
     const copySelectedOrContextRow = useCallback(async () => {
       if (!contextMenu) return;
 
+      const rowsWithInsertions = mergedRows.map((row) => row.rowData);
       const rows =
         selectedRowIndices.size > 0
-          ? getSelectedRows(data, selectedRowIndices)
+          ? getSelectedRows(rowsWithInsertions, selectedRowIndices)
           : [contextMenu.row];
 
       await copyToClipboard(
@@ -1685,7 +1686,7 @@ export const DataGrid = React.memo(
     }, [
       contextMenu,
       selectedRowIndices,
-      data,
+      mergedRows,
       formatRows,
       copyToClipboard,
       rowsCopiedToast,
@@ -1733,7 +1734,8 @@ export const DataGrid = React.memo(
     // Copies the selected columns (all loaded rows) in the active copy format.
     const copySelectedColumns = useCallback(async () => {
       if (selectedColIndices.size === 0) return;
-      const projected = projectColumns(data, columns, selectedColIndices);
+      const rows = mergedRows.map((row) => row.rowData);
+      const projected = projectColumns(rows, columns, selectedColIndices);
       await copyToClipboard(
         formatRowsForCopy(projected.rows, projected.columns, copyFormat ?? "csv", {
           withHeaders: true,
@@ -1741,11 +1743,11 @@ export const DataGrid = React.memo(
           csvDelimiter,
           tableName,
         }),
-        rowsCopiedToast(data.length),
+        rowsCopiedToast(rows.length),
       );
     }, [
       selectedColIndices,
-      data,
+      mergedRows,
       columns,
       copyFormat,
       csvIncludeHeaders,
@@ -1791,11 +1793,13 @@ export const DataGrid = React.memo(
     ]);
 
     const copyColumnValues = useCallback(
-      async (colIndex: number) => {        if (colIndex < 0) return;
+      async (colIndex: number) => {
+        if (colIndex < 0) return;
+        const rowsWithInsertions = mergedRows.map((row) => row.rowData);
         const rows =
           selectedRowIndices.size > 0
-            ? getSelectedRows(data, selectedRowIndices)
-            : data;
+            ? getSelectedRows(rowsWithInsertions, selectedRowIndices)
+            : rowsWithInsertions;
         const text = columnValuesForCopy(rows, columns, colIndex, {
           format: copyFormat ?? "csv",
           delimiter: csvDelimiter,
@@ -1806,7 +1810,7 @@ export const DataGrid = React.memo(
       },
       [
         selectedRowIndices,
-        data,
+        mergedRows,
         columns,
         copyFormat,
         csvDelimiter,
@@ -1819,13 +1823,14 @@ export const DataGrid = React.memo(
     const copyColumnValuesAsInClause = useCallback(
       async (colIndex: number) => {
         if (colIndex < 0) return;
+        const rowsWithInsertions = mergedRows.map((row) => row.rowData);
         const rows =
           selectedRowIndices.size > 0
-            ? getSelectedRows(data, selectedRowIndices)
-            : data;
+            ? getSelectedRows(rowsWithInsertions, selectedRowIndices)
+            : rowsWithInsertions;
         await copyToClipboard(columnValuesToInClause(rows, colIndex));
       },
-      [selectedRowIndices, data, copyToClipboard],
+      [selectedRowIndices, mergedRows, copyToClipboard],
     );
 
     const copyCellValue = useCallback(

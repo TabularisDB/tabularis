@@ -77,6 +77,70 @@ describe("useGlobalShortcuts", () => {
     input.remove();
   });
 
+  it("leaves the command palette shortcut available to Monaco", () => {
+    activeShortcutId = "command_palette";
+    renderHook(() => useGlobalShortcuts());
+    const monaco = document.createElement("div");
+    monaco.className = "monaco-editor";
+    const textarea = document.createElement("textarea");
+    monaco.appendChild(textarea);
+    document.body.appendChild(monaco);
+    textarea.focus();
+
+    const event = new KeyboardEvent("keydown", {
+      key: "k",
+      code: "KeyK",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    textarea.dispatchEvent(event);
+
+    expect(togglePaletteMock).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+    monaco.remove();
+  });
+
+  it("opens a remapped command palette shortcut inside Monaco", () => {
+    activeShortcutId = "command_palette";
+    renderHook(() => useGlobalShortcuts());
+    const monaco = document.createElement("div");
+    monaco.className = "monaco-editor";
+    const textarea = document.createElement("textarea");
+    monaco.appendChild(textarea);
+    document.body.appendChild(monaco);
+    textarea.focus();
+
+    fireEvent.keyDown(textarea, {
+      key: "p",
+      code: "KeyP",
+      metaKey: true,
+    });
+
+    expect(togglePaletteMock).toHaveBeenCalledWith("all");
+    monaco.remove();
+  });
+
+  it("opens action search while focus is inside Monaco", () => {
+    renderHook(() => useGlobalShortcuts());
+    const monaco = document.createElement("div");
+    monaco.className = "monaco-editor";
+    const textarea = document.createElement("textarea");
+    monaco.appendChild(textarea);
+    document.body.appendChild(monaco);
+    textarea.focus();
+
+    fireEvent.keyDown(textarea, {
+      key: "a",
+      code: "KeyA",
+      metaKey: true,
+      shiftKey: true,
+    });
+
+    expect(togglePaletteMock).toHaveBeenCalledWith("actions");
+    monaco.remove();
+  });
+
   it("ignores composing key events while focus is inside an input", () => {
     renderHook(() => useGlobalShortcuts());
     const input = document.createElement("input");

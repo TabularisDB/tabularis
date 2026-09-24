@@ -865,6 +865,7 @@
       "categories_notebook": "ノートブック",
       "pasteImportClipboard": "クリップボードからインポート",
       "quickNavigator": "クイックナビゲーター",
+      "commandPalette": "コマンドパレット",
       "commandPaletteActions": "アクションを検索",
       "triggerSuggestions": "候補を表示",
       "formatSql": "SQLをフォーマット",

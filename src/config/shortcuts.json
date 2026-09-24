@@ -266,7 +266,7 @@
     "defaultWin": "Ctrl+K",
     "macMatch": { "metaKey": true, "key": "k", "code": "KeyK" },
     "winMatch": { "ctrlKey": true, "key": "k", "code": "KeyK" },
-    "i18nKey": "commandPalette.title",
+    "i18nKey": "settings.shortcuts.commandPalette",
     "overridable": true
   },
   {

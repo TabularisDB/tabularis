@@ -851,6 +851,7 @@
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Aus Zwischenablage importieren",
       "quickNavigator": "Schnellnavigation",
+      "commandPalette": "Befehlspalette",
       "commandPaletteActions": "Aktionen suchen",
       "triggerSuggestions": "Vorschläge anzeigen",
       "formatSql": "SQL formatieren",

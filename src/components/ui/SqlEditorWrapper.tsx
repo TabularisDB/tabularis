@@ -433,22 +433,12 @@ const SqlEditorInternal = ({
         },
       });
 
-      // Monaco binds both palette shortcuts itself (Ctrl+K starts chords and
-      // Ctrl+Shift+A toggles block comments on Linux), so handle them first.
+      // Ctrl+K starts Monaco chords, so leave the unified palette shortcut
+      // untouched. Ctrl+Shift+A conflicts with Monaco and must be handled here.
       editor.onKeyDown((e) => {
         if (isTextCompositionKeyEvent(e.browserEvent)) return;
 
         const togglePalette = togglePaletteRef.current;
-        if (
-          togglePalette &&
-          matchesShortcutRef.current(e.browserEvent, "command_palette")
-        ) {
-          e.preventDefault();
-          e.stopPropagation();
-          togglePalette("all");
-          return;
-        }
-
         if (
           togglePalette &&
           matchesShortcutRef.current(e.browserEvent, "command_palette_actions")

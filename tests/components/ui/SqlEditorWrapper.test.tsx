@@ -390,7 +390,7 @@ describe('SqlEditorWrapper', () => {
     expect(trigger).not.toHaveBeenCalled();
   });
 
-  it('opens the unified palette before Monaco consumes its shortcut', () => {
+  it('leaves the unified palette shortcut available to Monaco chords', () => {
     matchesShortcutMock.mockImplementation(
       (_event, id) => id === 'command_palette',
     );
@@ -415,9 +415,9 @@ describe('SqlEditorWrapper', () => {
 
     keyDownHandlers[0](event);
 
-    expect(event.preventDefault).toHaveBeenCalledOnce();
-    expect(event.stopPropagation).toHaveBeenCalledOnce();
-    expect(togglePaletteMock).toHaveBeenCalledWith('all');
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(event.stopPropagation).not.toHaveBeenCalled();
+    expect(togglePaletteMock).not.toHaveBeenCalled();
     expect(trigger).not.toHaveBeenCalled();
   });
 

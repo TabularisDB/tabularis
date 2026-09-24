@@ -137,6 +137,7 @@ describe('matchesEvent', () => {
     expect(commandPalette).toBeDefined();
     expect(commandPalette?.macMatch.code).toBe('KeyK');
     expect(commandPalette?.winMatch.code).toBe('KeyK');
+    expect(commandPalette?.i18nKey).toBe('settings.shortcuts.commandPalette');
     expect(matchesEvent(event, commandPalette!.macMatch)).toBe(true);
   });
 
@@ -524,10 +525,10 @@ describe('formatEvent', () => {
     expect(formatEvent(event, false)).toBe('Ctrl+Space');
   });
 
-  it('formats a printable shortcut from its physical code', () => {
-    const event = makeEvent({ key: 'б', code: 'Comma', metaKey: true });
+  it('formats the logical key instead of the physical code', () => {
+    const event = makeEvent({ key: 'a', code: 'KeyQ', metaKey: true });
 
-    expect(formatEvent(event, true)).toBe('⌘+,');
+    expect(formatEvent(event, true)).toBe('⌘+A');
   });
 });
 
@@ -563,9 +564,9 @@ describe('formatMatch', () => {
     expect(formatMatch(match, false)).toBe('Ctrl+Space');
   });
 
-  it('keeps a recorded printable shortcut stable across layouts', () => {
-    const match: KeyMatch = { metaKey: true, key: 'б', code: 'Comma' };
+  it('formats a recorded shortcut using its logical key', () => {
+    const match: KeyMatch = { metaKey: true, key: 'a', code: 'KeyQ' };
 
-    expect(formatMatch(match, true)).toBe('⌘+,');
+    expect(formatMatch(match, true)).toBe('⌘+A');
   });
 });

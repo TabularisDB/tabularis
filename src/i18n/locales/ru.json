@@ -844,6 +844,7 @@
       "categories_notebook": "Ноутбук",
       "pasteImportClipboard": "Импортировать из буфера обмена",
       "quickNavigator": "Быстрый навигатор",
+      "commandPalette": "Панель команд",
       "commandPaletteActions": "Поиск действий",
       "triggerSuggestions": "Показать подсказки",
       "formatSql": "Форматировать SQL",

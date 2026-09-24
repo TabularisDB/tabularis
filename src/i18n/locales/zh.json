@@ -814,6 +814,7 @@
       "notebookRunAll": "运行所有单元格",
       "categories_notebook": "笔记本",
       "quickNavigator": "快速导航",
+      "commandPalette": "命令面板",
       "commandPaletteActions": "搜索操作",
       "triggerSuggestions": "触发建议",
       "formatSql": "格式化 SQL",

@@ -884,6 +884,7 @@
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Importa dagli Appunti",
       "quickNavigator": "Navigatore rapido",
+      "commandPalette": "Tavolozza dei comandi",
       "commandPaletteActions": "Cerca azioni",
       "triggerSuggestions": "Mostra suggerimenti",
       "formatSql": "Formatta SQL",

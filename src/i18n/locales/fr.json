@@ -885,6 +885,7 @@
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Importer depuis le Presse-papiers",
       "quickNavigator": "Navigateur rapide",
+      "commandPalette": "Palette de commandes",
       "commandPaletteActions": "Rechercher des actions",
       "triggerSuggestions": "Afficher les suggestions",
       "formatSql": "Formater SQL",
