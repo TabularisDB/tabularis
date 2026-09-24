@@ -44,15 +44,23 @@ interface FoldedGroup {
 const MAX_LEADING_TOKENS = 12;
 const WORD_RE = /[A-Za-z_][A-Za-z0-9_$#]*/y;
 
-export function splitInto(sql: string, options: DialectOptions): Statement[] {
+export function splitInto(
+  sql: string,
+  options: DialectOptions,
+  batchOnly = false,
+): Statement[] {
   if (sql.length === 0) return [];
-  const segments = collectSegments(sql, options);
+  const segments = collectSegments(sql, options, batchOnly);
   const foldedBlocks = options.plsqlBlocks ? foldBlocks(sql, segments) : segments;
   const folded = foldComments(foldedBlocks);
   return folded.map((group) => buildStatement(sql, group));
 }
 
-function collectSegments(sql: string, options: DialectOptions): RawSegment[] {
+function collectSegments(
+  sql: string,
+  options: DialectOptions,
+  batchOnly: boolean,
+): RawSegment[] {
   const state: TokenizerState = { delimiter: ';', lineLeading: true };
   const segments: RawSegment[] = [];
   let segStart = 0;
@@ -72,6 +80,13 @@ function collectSegments(sql: string, options: DialectOptions): RawSegment[] {
       case 'delimiter':
       case 'goDelimiter':
       case 'slashDelimiter':
+        // Batch mode: `;` ends a statement, not a batch — keep it inline.
+        if (batchOnly && token.kind === 'delimiter') {
+          hasMeaningful = true;
+          position += token.length;
+          state.lineLeading = false;
+          break;
+        }
         pushSegment(position, token.kind);
         position += token.length;
         segStart = position;

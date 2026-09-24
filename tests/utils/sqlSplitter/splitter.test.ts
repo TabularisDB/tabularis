@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitStatements, splitQueries } from '../../../src/utils/sqlSplitter';
+import { splitStatements, splitQueries, splitBatches } from '../../../src/utils/sqlSplitter';
 
 describe('splitStatements', () => {
   describe('#223 — comment-only fragments fold', () => {
@@ -625,5 +625,29 @@ describe('splitStatements', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toContain('SELECT');
     });
+  });
+});
+
+describe('splitBatches', () => {
+  it('keeps a T-SQL script with DECLARE and several SELECTs in one batch', () => {
+    const sql = [
+      "DECLARE @id INT = 1;",
+      "SELECT * FROM a WHERE id = @id;",
+      "-- second",
+      "SELECT * FROM b WHERE id = @id;",
+    ].join('\n');
+    const result = splitBatches(sql, 'mssql');
+    expect(result).toHaveLength(1);
+    expect(result[0].text).toBe(sql);
+  });
+
+  it('splits a T-SQL script on GO only', () => {
+    const result = splitBatches('SELECT 1; SELECT 2;\nGO\nSELECT 3;', 'mssql');
+    expect(result.map((s) => s.text)).toEqual(['SELECT 1; SELECT 2;', 'SELECT 3;']);
+  });
+
+  it('still splits per statement on dialects without a batch separator', () => {
+    const result = splitBatches('SELECT 1; SELECT 2;', 'postgres');
+    expect(result.map((s) => s.text)).toEqual(['SELECT 1', 'SELECT 2']);
   });
 });

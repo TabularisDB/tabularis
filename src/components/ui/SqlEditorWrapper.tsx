@@ -11,7 +11,7 @@ import { useKeybindings } from "../../hooks/useKeybindings";
 import { CommandPaletteDispatchContext } from "../../contexts/CommandPaletteContext";
 import { getFontCSS } from "../../utils/settings";
 import {
-  splitStatements,
+  splitBatches,
   findStatementAtOffset,
   type Dialect,
   type Statement,
@@ -480,7 +480,7 @@ const SqlEditorInternal = ({
             lastSplitRef.current = {
               model,
               versionId,
-              statements: splitStatements(model.getValue(), dialectRef.current),
+              statements: splitBatches(model.getValue(), dialectRef.current),
             };
           }
           return lastSplitRef.current.statements;
