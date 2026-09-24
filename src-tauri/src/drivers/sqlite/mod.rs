@@ -999,6 +999,7 @@ impl SqliteDriver {
                     auto_increment_keyword: "AUTOINCREMENT".into(),
                     serial_type: String::new(),
                     inline_pk: true,
+                    table_query_templates: false,
                     alter_column: false,
                     create_foreign_keys: false,
                     no_connection_required: false,

@@ -1821,6 +1821,7 @@ impl MysqlDriver {
                     auto_increment_keyword: "AUTO_INCREMENT".into(),
                     serial_type: String::new(),
                     inline_pk: false,
+                    table_query_templates: false,
                     alter_column: true,
                     create_foreign_keys: true,
                     no_connection_required: false,

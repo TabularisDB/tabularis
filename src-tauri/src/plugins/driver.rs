@@ -1066,6 +1066,31 @@ impl DatabaseDriver for RpcDriver {
         }
     }
 
+    async fn get_table_query_template(
+        &self,
+        params: &ConnectionParams,
+        request: &crate::models::TableQueryTemplateRequest,
+    ) -> Result<Option<String>, String> {
+        if !self.manifest.capabilities.table_query_templates {
+            return Ok(None);
+        }
+        match self
+            .process
+            .call_detailed(
+                "get_table_query_template",
+                json!({ "params": params, "request": request }),
+                PLUGIN_CALL_TIMEOUT,
+            )
+            .await
+        {
+            Ok(value) => serde_json::from_value::<String>(value)
+                .map(Some)
+                .map_err(|error| format!("Invalid table query template: {error}")),
+            Err(PluginCallError::Remote(error)) if error.code == -32601 => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
     async fn get_create_table_sql(
         &self,
         table_name: &str,
@@ -2379,6 +2404,10 @@ mod tests {
         assert_eq!(driver.map_inferred_type("JSON"), "JSON");
     }
 }
+
+#[cfg(test)]
+#[path = "table_query_template_tests.rs"]
+mod table_query_template_tests;
 
 #[cfg(test)]
 #[path = "startup_tests.rs"]
