@@ -314,6 +314,7 @@ yay -S tabularis-bin
 - Anthropic
 - MiniMax
 - OpenRouter
+- Requesty
 - Ollama
 - OpenAI-совместимые API
 
