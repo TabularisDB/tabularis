@@ -349,6 +349,24 @@ describe('settings', () => {
       expect(result.model).toBeNull();
     });
 
+    it('should not auto-select requesty even when its key exists', () => {
+      const keyStatus: Record<AiProvider, boolean> = {
+        openai: false,
+        anthropic: false,
+        openrouter: false,
+        requesty: true,
+        minimax: false,
+      };
+      const models: Record<string, string[]> = {
+        requesty: ['openai/gpt-4o-mini'],
+      };
+
+      const result = detectAIProviderFromKeys(keyStatus, models);
+
+      expect(result.provider).toBeNull();
+      expect(result.model).toBeNull();
+    });
+
     it('should return null model when no models available for provider', () => {
       const keyStatus: Record<AiProvider, boolean> = {
         openai: true,
