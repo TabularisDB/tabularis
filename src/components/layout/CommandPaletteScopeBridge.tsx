@@ -14,11 +14,15 @@ import type {
 interface CommandPaletteScopeBridgeProps {
   scopeId: string;
   openEditor?: CommandRuntime["openEditor"];
+  getEditorCommands?: CommandScope["getEditorCommands"];
+  getResultCommands?: CommandScope["getResultCommands"];
 }
 
 export const CommandPaletteScopeBridge = ({
   scopeId,
   openEditor,
+  getEditorCommands,
+  getResultCommands,
 }: CommandPaletteScopeBridgeProps) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -26,6 +30,10 @@ export const CommandPaletteScopeBridge = ({
     activeConnectionId,
     activeDriver,
     activeSchema,
+    connect,
+    connections: availableConnections,
+    openConnectionIds,
+    switchConnection: switchActiveConnection,
   } = useDatabase();
   const { activeTab } = useEditor();
   const activeTable = activeTab?.activeTable ?? null;
@@ -62,18 +70,52 @@ export const CommandPaletteScopeBridge = ({
       openEditor:
         openEditor ??
         ((request) => navigateToEditor(navigate, request)),
+      switchConnection: async (connectionId) => {
+        if (openConnectionIds.includes(connectionId)) {
+          switchActiveConnection(connectionId);
+        } else {
+          await connect(connectionId);
+        }
+        navigate("/editor");
+      },
     }),
-    [navigate, openEditor],
+    [connect, navigate, openConnectionIds, openEditor, switchActiveConnection],
+  );
+
+  const commandConnections = useMemo(
+    () =>
+      availableConnections
+        .map((connection) => ({
+          id: connection.id,
+          name: connection.name,
+          driver: connection.params.driver,
+          database: Array.isArray(connection.params.database)
+            ? (connection.params.database[0] ?? "")
+            : connection.params.database,
+          ...(connection.params.host ? { host: connection.params.host } : {}),
+        })),
+    [availableConnections],
   );
 
   const scope = useMemo<CommandScope>(
     () => ({
       connectionId: activeConnectionId,
+      connections: commandConnections,
       driver: activeDriver,
       table,
+      getEditorCommands,
+      getResultCommands,
       runtime,
     }),
-    [activeConnectionId, activeDriver, runtime, table],
+    [
+      activeConnectionId,
+      activeDriver,
+      commandConnections,
+      getEditorCommands,
+      getResultCommands,
+      runtime,
+      table,
+    ],
   );
 
   useRegisterCommandPaletteScope(scopeId, scope);

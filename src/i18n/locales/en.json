@@ -897,6 +897,7 @@
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Import from Clipboard",
       "quickNavigator": "Quick Navigator",
+      "commandPalette": "Command Palette",
       "commandPaletteActions": "Search actions",
       "triggerSuggestions": "Trigger suggestions",
       "formatSql": "Format SQL",

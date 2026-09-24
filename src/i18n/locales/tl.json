@@ -889,6 +889,7 @@
       "extendCellRangeToEdge": "Palawakin ang range hanggang sa gilid",
       "selectRow": "Piliin ang row",
       "selectColumn": "Piliin ang column",
+      "commandPalette": "Command Palette",
       "commandPaletteActions": "Maghanap ng mga aksyon"
     },
     "aiActivity": "AI Activity",
@@ -1226,6 +1227,7 @@
     "copyColumnName": "Kopyahin ang pangalan ng column",
     "copyColumnNameQuoted": "Kopyahin bilang `column`",
     "copyColumnNameTable": "Kopyahin bilang table.column",
+    "copyColumnValuesIn": "Kopyahin ang mga value ng column bilang SQL IN",
     "copyCells": "Kopyahin ang {{count}} Cell",
     "copyRows": "Kopyahin ang {{count}} Row",
     "copied": "Nakopya sa clipboard",

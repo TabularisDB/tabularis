@@ -17,7 +17,14 @@ interface BuiltInCommandLabels {
   countRows: string;
   navigationCategory: string;
   connectionCategory: string;
+  editorCategory: string;
   tableCategory: string;
+  resultCategory: string;
+  copySelectedCells: (count: number) => string;
+  copySelectedRows: (count: number) => string;
+  copySelectedColumns: (count: number) => string;
+  copyColumnValuesAsSqlIn: string;
+  copyAllRows: (count?: number) => string;
 }
 
 /** Commands that open a modal the palette itself owns, rather than navigating. */
@@ -63,7 +70,7 @@ export function createBuiltInCommandItems(
     items.push({
       id: "connection.new-console",
       title: labels.newConsole,
-      group: labels.connectionCategory,
+      group: labels.editorCategory,
       keywords: ["sql", "query", "console", "editor"],
       icon: "new-console",
       primaryAction: {
@@ -163,6 +170,117 @@ export function createBuiltInCommandItems(
             ),
         },
       },
+    );
+  }
+
+  const editorCommands = scope.getEditorCommands?.();
+  const addEditorCommand = (
+    id: string,
+    command: { label: string; execute: () => void | Promise<void> },
+    keywords: string[],
+  ) => {
+    items.push({
+      id,
+      title: command.label,
+      group: labels.editorCategory,
+      keywords,
+      icon: "command",
+      relevance: PINNED_PALETTE_RELEVANCE,
+      primaryAction: {
+        id,
+        label: command.label,
+        execute: command.execute,
+      },
+    });
+  };
+
+  if (editorCommands?.run) {
+    addEditorCommand(
+      "editor.run",
+      editorCommands.run,
+      ["run", "execute", "query", "selection", "statement"],
+    );
+  }
+  if (editorCommands?.runAll) {
+    addEditorCommand(
+      "editor.run-all",
+      editorCommands.runAll,
+      ["run", "execute", "query", "all", "statements"],
+    );
+  }
+  if (editorCommands?.saveSqlFile) {
+    addEditorCommand(
+      "editor.save-sql-file",
+      editorCommands.saveSqlFile,
+      ["save", "sql", "file"],
+    );
+  }
+  if (editorCommands?.closeTab) {
+    addEditorCommand(
+      "tab.close-active",
+      editorCommands.closeTab,
+      ["close", "tab", "editor"],
+    );
+  }
+
+  const resultCommands = scope.getResultCommands?.();
+  const addResultCommand = (
+    id: string,
+    title: string,
+    execute: () => void | Promise<void>,
+    description?: string,
+  ) => {
+    items.push({
+      id,
+      title,
+      description,
+      group: labels.resultCategory,
+      keywords: ["copy", "clipboard", "result", "selection"],
+      icon: "copy",
+      relevance: PINNED_PALETTE_RELEVANCE,
+      primaryAction: { id, label: title, execute },
+    });
+  };
+
+  if (resultCommands?.copySelectedCells) {
+    const command = resultCommands.copySelectedCells;
+    addResultCommand(
+      "result.copy-selected-cells",
+      labels.copySelectedCells(command.count),
+      command.execute,
+    );
+  }
+  if (resultCommands?.copySelectedRows) {
+    const command = resultCommands.copySelectedRows;
+    addResultCommand(
+      "result.copy-selected-rows",
+      labels.copySelectedRows(command.count),
+      command.execute,
+    );
+  }
+  if (resultCommands?.copySelectedColumns) {
+    const command = resultCommands.copySelectedColumns;
+    addResultCommand(
+      "result.copy-selected-columns",
+      labels.copySelectedColumns(command.count),
+      command.execute,
+    );
+  }
+  if (resultCommands?.copyColumnValuesAsSqlIn) {
+    const command = resultCommands.copyColumnValuesAsSqlIn;
+    addResultCommand(
+      "result.copy-column-values-as-sql-in",
+      labels.copyColumnValuesAsSqlIn,
+      command.execute,
+      command.columnName,
+    );
+  }
+  if (resultCommands?.copyAllRows) {
+    const command = resultCommands.copyAllRows;
+    addResultCommand(
+      "result.copy-all-rows",
+      labels.copyAllRows(command.count),
+      command.execute,
     );
   }
 

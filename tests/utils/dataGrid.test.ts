@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   formatCellValue,
   getColumnSortState,
@@ -19,7 +19,87 @@ import {
   moveCellPosition,
   type ColumnDisplayInfo,
   type CellClassParams,
+  createDataGridResultCommands,
 } from '../../src/utils/dataGrid';
+
+describe('createDataGridResultCommands', () => {
+  const callbacks = () => ({
+    copyCellRange: vi.fn(),
+    copyCellValue: vi.fn(),
+    copySelectedRows: vi.fn(),
+    copySelectedColumns: vi.fn(),
+    copyColumnValuesAsSqlIn: vi.fn(),
+    copyAllLoadedRows: vi.fn(),
+  });
+
+  it('builds commands from the current range, row, and column selections', async () => {
+    const actions = callbacks();
+    const commands = createDataGridResultCommands({
+      cellRange: { minRow: 1, maxRow: 2, minCol: 0, maxCol: 1 },
+      focusedCell: { rowIndex: 1, colIndex: 0 },
+      selectedRowIndices: new Set([1, 2]),
+      selectedColIndices: new Set([1]),
+      columns: ['id', 'name'],
+      dataLength: 4,
+      totalRows: 4,
+      hasRowsBeyondLoadedPage: false,
+      ...actions,
+    });
+
+    expect(commands.copySelectedCells?.count).toBe(4);
+    expect(commands.copySelectedRows?.count).toBe(2);
+    expect(commands.copySelectedColumns?.count).toBe(1);
+    expect(commands.copyColumnValuesAsSqlIn).toEqual({
+      columnName: 'name',
+      execute: expect.any(Function),
+    });
+    expect(commands.copyAllRows?.count).toBe(4);
+
+    await commands.copyColumnValuesAsSqlIn?.execute();
+    expect(actions.copyColumnValuesAsSqlIn).toHaveBeenCalledWith(1);
+  });
+
+  it('uses the full-fetch action only when rows exist beyond the loaded page', async () => {
+    const actions = callbacks();
+    const copyAllRows = vi.fn();
+    const commands = createDataGridResultCommands({
+      cellRange: null,
+      focusedCell: null,
+      selectedRowIndices: new Set(),
+      selectedColIndices: new Set(),
+      columns: ['id'],
+      dataLength: 2,
+      totalRows: null,
+      hasRowsBeyondLoadedPage: true,
+      onCopyAllRows: copyAllRows,
+      ...actions,
+    });
+
+    expect(commands.copyAllRows?.count).toBeUndefined();
+    await commands.copyAllRows?.execute();
+    expect(copyAllRows).toHaveBeenCalledOnce();
+    expect(actions.copyAllLoadedRows).not.toHaveBeenCalled();
+  });
+
+  it('counts pending rows when copying only loaded rows', async () => {
+    const actions = callbacks();
+    const commands = createDataGridResultCommands({
+      cellRange: null,
+      focusedCell: null,
+      selectedRowIndices: new Set(),
+      selectedColIndices: new Set(),
+      columns: ['id'],
+      dataLength: 2,
+      totalRows: 1,
+      hasRowsBeyondLoadedPage: false,
+      ...actions,
+    });
+
+    expect(commands.copyAllRows?.count).toBe(2);
+    await commands.copyAllRows?.execute();
+    expect(actions.copyAllLoadedRows).toHaveBeenCalledOnce();
+  });
+});
 
 describe('dataGrid utils', () => {
   describe('formatCellValue', () => {

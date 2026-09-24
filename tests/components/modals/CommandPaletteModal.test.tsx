@@ -24,6 +24,7 @@ const openEditorMock = vi.fn();
 const invokeMock = vi.fn();
 const showAlertMock = vi.fn();
 const setActiveTableMock = vi.fn();
+const loadSchemaDataMock = vi.fn();
 const databaseState = { activeConnectionId: "connection-1" };
 const connectionData = {
   driver: "postgres",
@@ -81,7 +82,7 @@ vi.mock("../../../src/hooks/useDatabase", () => ({
       },
     ],
     loadDatabaseData: vi.fn(),
-    loadSchemaData: vi.fn(),
+    loadSchemaData: loadSchemaDataMock,
     setActiveTable: setActiveTableMock,
   }),
 }));
@@ -170,6 +171,7 @@ describe("CommandPaletteModal", () => {
     invokeMock.mockReset();
     showAlertMock.mockReset();
     setActiveTableMock.mockReset();
+    loadSchemaDataMock.mockReset();
     databaseState.activeConnectionId = "connection-1";
     connectionData.capabilities = {};
     connectionData.tables = [{ name: "users" }];
@@ -205,6 +207,60 @@ describe("CommandPaletteModal", () => {
         "commandPalette.commands.openTableInConsole",
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it("should combine commands and objects only after the unified query starts", () => {
+    renderPalette({ state: { activePalette: "all" } });
+
+    const input = screen.getByRole("combobox", {
+      name: "commandPalette.searchLabel",
+    });
+    expect(
+      screen.getByText("commandPalette.commands.openSettings"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "users" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "users" } });
+
+    expect(
+      screen.getByRole("option", { name: "users" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("commandPalette.commands.openSettings"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should defer unified object loading until the user types", async () => {
+    connectionData.capabilities = { schemas: true };
+    connectionData.tables = [];
+    connectionData.schemas = ["public"];
+    connectionData.selectedSchemas = ["public"];
+    connectionData.schemaDataMap = {
+      public: {
+        tables: [],
+        views: [],
+        routines: [],
+        triggers: [],
+        isLoading: false,
+        isLoaded: false,
+      },
+    };
+    renderPalette({ state: { activePalette: "all" } });
+
+    expect(loadSchemaDataMock).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "users" },
+    });
+
+    await waitFor(() =>
+      expect(loadSchemaDataMock).toHaveBeenCalledWith(
+        "public",
+        "connection-1",
+      ),
+    );
   });
 
   it("should execute action items through the shared pipeline", async () => {

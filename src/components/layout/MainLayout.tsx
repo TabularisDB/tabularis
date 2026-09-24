@@ -33,7 +33,9 @@ const MainLayoutContent = () => {
 
   return (
     <div className="flex h-screen bg-base text-primary overflow-hidden">
-      <CommandPaletteScopeBridge scopeId={ROOT_COMMAND_SCOPE_ID} />
+      {location.pathname !== "/editor" && (
+        <CommandPaletteScopeBridge scopeId={ROOT_COMMAND_SCOPE_ID} />
+      )}
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {location.pathname === "/editor" && <ProductionBanner />}
@@ -42,7 +44,16 @@ const MainLayoutContent = () => {
             would push the page down without shrinking it, clipping the bottom
             row of the results grid. */}
         <div className="flex-1 min-h-0 min-w-0">
-          <Suspense fallback={<LoadingState />}>
+          <Suspense
+            fallback={
+              <>
+                {location.pathname === "/editor" && (
+                  <CommandPaletteScopeBridge scopeId={ROOT_COMMAND_SCOPE_ID} />
+                )}
+                <LoadingState />
+              </>
+            }
+          >
             {renderedSplit ? (
               <SplitPaneLayout {...renderedSplit} />
             ) : (

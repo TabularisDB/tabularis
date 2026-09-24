@@ -1,8 +1,11 @@
-import { render, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, render, fireEvent, screen, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { useState } from "react";
+import { createRef, useState } from "react";
 import { vi } from "vitest";
-import { DataGrid } from "../../../src/components/ui/DataGrid";
+import {
+  DataGrid,
+  type DataGridCommandTarget,
+} from "../../../src/components/ui/DataGrid";
 import {
   buildPkMap,
   serializePkKey,
@@ -17,13 +20,28 @@ vi.mock("../../../src/hooks/useAlert", () => ({
   useAlert: () => ({ showAlert: vi.fn() }),
 }));
 
-const { showToastMock, openRowEditorMock } = vi.hoisted(() => ({
+const { showToastMock, openRowEditorMock, translationMock } = vi.hoisted(() => ({
   showToastMock: vi.fn(),
   openRowEditorMock: vi.fn(),
+  translationMock: vi.fn((key: string) => key),
 }));
 
 vi.mock("../../../src/hooks/useToast", () => ({
   useToast: () => ({ showToast: showToastMock }),
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: translationMock,
+    i18n: {
+      language: "en",
+      changeLanguage: vi.fn(),
+    },
+  }),
+  initReactI18next: {
+    type: "3rdParty",
+    init: vi.fn(),
+  },
 }));
 
 vi.mock("../../../src/hooks/useSettings", () => ({
@@ -537,10 +555,158 @@ describe("DataGrid select all", () => {
   beforeEach(() => {
     writeText.mockClear();
     showToastMock.mockClear();
+    translationMock.mockClear();
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText },
       configurable: true,
     });
+  });
+
+  it("copies pending insertions with all loaded rows", async () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <DataGrid
+        ref={commandTargetRef}
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    const command = commandTargetRef.current?.getResultCommands().copyAllRows;
+    expect(command?.count).toBe(2);
+    await act(async () => {
+      await command?.execute();
+    });
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
+  });
+
+  it("copies pending insertions with selected columns", async () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <DataGrid
+        ref={commandTargetRef}
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("name"), { metaKey: true });
+    const command =
+      commandTargetRef.current?.getResultCommands().copySelectedColumns;
+    await act(async () => {
+      await command?.execute();
+    });
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
+    expect(translationMock).toHaveBeenCalledWith("dataGrid.copiedRows", {
+      count: 2,
+    });
+  });
+
+  it("copies pending insertion values as a SQL IN clause", async () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <DataGrid
+        ref={commandTargetRef}
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("name"), { metaKey: true });
+    const command =
+      commandTargetRef.current?.getResultCommands().copyColumnValuesAsSqlIn;
+    await act(async () => {
+      await command?.execute();
+    });
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("'Alice'");
+    expect(writeText.mock.calls[0][0]).toContain("'Pending'");
+  });
+
+  it("copies selected pending insertions from the row context menu", async () => {
+    const { container } = render(
+      <DataGrid
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set([0, 1])}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(
+      container.querySelector('td[data-col-index="0"]')!,
+    );
+    fireEvent.click(await screen.findByText("dataGrid.copySelectedN"));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
+  });
+
+  it("copies pending insertion values from the column context menu", async () => {
+    const { container } = render(
+      <DataGrid
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelectorAll("th")[2]);
+    fireEvent.click(await screen.findByText("dataGrid.copyColumnValues"));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
   });
 
   it("selects all loaded rows with Cmd/Ctrl+A without copying", () => {
@@ -589,6 +755,37 @@ describe("DataGrid select all", () => {
         kind: "success",
       }),
     );
+  });
+
+  it("copies pending insertions when selected with Cmd/Ctrl+A", async () => {
+    const Harness = () => {
+      const [selected, setSelected] = useState<Set<number>>(new Set());
+      return (
+        <DataGrid
+          columns={columns}
+          data={[[1, "Alice"]]}
+          pendingInsertions={{
+            pending: {
+              tempId: "pending",
+              data: { id: 2, name: "Pending" },
+              displayIndex: 1,
+            },
+          }}
+          selectedRows={selected}
+          onSelectionChange={setSelected}
+          readonly
+        />
+      );
+    };
+    const { container } = render(<Harness />);
+
+    fireEvent.mouseDown(container.querySelector("table")!);
+    fireEvent.keyDown(document, { key: "a", metaKey: true });
+    fireEvent.keyDown(document, { key: "c", metaKey: true });
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
   });
 
   it("ignores Cmd/Ctrl+A when the grid was not interacted with", () => {
