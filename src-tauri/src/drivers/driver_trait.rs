@@ -100,6 +100,10 @@ pub struct DriverCapabilities {
     /// Whether primary key is defined inline in the column definition (e.g. SQLite AUTOINCREMENT).
     #[serde(default)]
     pub inline_pk: bool,
+    /// Opts Generate SQL into the optional get_table_query_template RPC.
+    /// Omitted/false preserves the host's existing template generation.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub table_query_templates: bool,
     // DDL capabilities
     /// Supports ALTER TABLE MODIFY/ALTER COLUMN on existing tables.
     #[serde(default)]
@@ -742,6 +746,16 @@ pub trait DatabaseDriver: Send + Sync {
         _schema: Option<&str>,
     ) -> Result<String, String> {
         Err("BLOB preview not supported by this driver".into())
+    }
+
+    /// Optional SQL preview generation. None asks the host to use its legacy
+    /// templates. Built-in and older drivers need no implementation changes.
+    async fn get_table_query_template(
+        &self,
+        _params: &ConnectionParams,
+        _request: &crate::models::TableQueryTemplateRequest,
+    ) -> Result<Option<String>, String> {
+        Ok(None)
     }
 
     // --- DDL generation (SQL preview) ----------------------------------------

@@ -1080,6 +1080,21 @@ pub async fn get_routine_definition<R: Runtime>(
         .await
 }
 
+/// Preview generation only; the returned SQL is never executed here.
+#[tauri::command]
+pub async fn get_table_query_template<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    request: crate::models::TableQueryTemplateRequest,
+) -> Result<Option<String>, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let drv = driver_for_params(&params).await?;
+    drv.get_table_query_template(&params, &request).await
+}
+
 #[tauri::command]
 pub async fn build_routine_call_sql<R: Runtime>(
     app: AppHandle<R>,
