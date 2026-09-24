@@ -32,6 +32,7 @@ import {
   AnthropicIcon,
   MiniMaxIcon,
   OpenRouterIcon,
+  RequestyIcon,
   OllamaIcon,
 } from "../icons/ClientIcons";
 
@@ -64,6 +65,11 @@ const PROVIDERS: Array<{
     id: "openrouter",
     label: "OpenRouter",
     icon: <OpenRouterIcon size={18} className="text-[#9b6dff]" />,
+  },
+  {
+    id: "requesty",
+    label: "Requesty",
+    icon: <RequestyIcon size={18} className="text-current" />,
   },
   {
     id: "ollama",
@@ -136,6 +142,9 @@ export function AiTab() {
       const openrouter = await invoke<AiKeyStatus>("check_ai_key_status", {
         provider: "openrouter",
       });
+      const requesty = await invoke<AiKeyStatus>("check_ai_key_status", {
+        provider: "requesty",
+      });
       const minimax = await invoke<AiKeyStatus>("check_ai_key_status", {
         provider: "minimax",
       });
@@ -147,6 +156,7 @@ export function AiTab() {
         openai,
         anthropic,
         openrouter,
+        requesty,
         minimax,
         "custom-openai": customOpenai,
         ollama,
