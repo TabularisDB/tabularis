@@ -1,7 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { loadStartupConfig } from "../utils/startupConfig";
 import { useTranslation } from "react-i18next";
 import { ThemeContext } from "./ThemeContext";
@@ -13,15 +10,16 @@ import { editThemeDefinition } from "../utils/themeDefinitionEditing";
 import { getSystemIsDark, listenForSystemThemeChanges } from "../utils/themeSystemEvents";
 import { resolveLegacyTheme, resolveThemeDefinition } from "../utils/themeResolver";
 import { DEFAULT_THEME_SETTINGS, type Theme, type ThemeSettings, type MonacoThemeDefinition } from "../types/theme";
-import type { NativeThemeCatalog, NativeThemeContribution } from "../types/themeCatalog";
+import type { NativeThemeContribution } from "../types/themeCatalog";
 import { useTabularisClient } from "../hooks/useTabularisClient";
-import { detectPlatformEnvironment } from "../platform/environment";
+import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
 
 type SettingsPatch = Partial<ThemeSettings> | ((previous: ThemeSettings) => Partial<ThemeSettings>);
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useTranslation();
   const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const [catalog, setCatalog] = useState(builtinCatalog);
   const [settings, setSettings] = useState(DEFAULT_THEME_SETTINGS);
   const [systemDark, setSystemDark] = useState(true);
@@ -35,18 +33,18 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshCatalog = useCallback(async () => {
     const request = ++catalogRequest.current.version;
-    const native = await invoke<NativeThemeCatalog>("get_theme_catalog");
+    const native = await client.call("get_theme_catalog", undefined);
     const resolved = resolveNativeCatalog(native, catalogRef.current);
     if (request === catalogRequest.current.version) { catalogRef.current = resolved; setCatalog(resolved); }
     return resolved;
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     let disposed = false;
     const requests = catalogRequest.current;
     let stopCatalog: (() => void) | undefined;
     // Subscribe before reading. Out-of-order reads cannot undo a later refresh.
-    void listen("theme-catalog-changed", () => {
+    void client.subscribe("theme-catalog-changed", () => {
       if (!disposed) void refreshCatalog().catch((error) => console.error("Failed to refresh themes:", error));
     }).then((stop) => { if (disposed) stop(); else stopCatalog = stop; }).catch((error) => console.error("Failed to subscribe to theme changes:", error));
     void (async () => {
@@ -91,11 +89,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (isLoading) return;
     applyThemeToCSS(currentTheme);
-    // Native window chrome only exists in the desktop host.
-    if (detectPlatformEnvironment() !== "tauri") return;
-    getCurrentWindow().setTheme(settings.followSystemTheme && !preview && !isLinuxDesktop() ? null : themeRegistry.isDarkTheme(currentTheme) ? "dark" : "light")
+    // Native window chrome only exists in the desktop host; browsers no-op.
+    platform.setNativeWindowTheme(settings.followSystemTheme && !preview && !isLinuxDesktop() ? null : themeRegistry.isDarkTheme(currentTheme) ? "dark" : "light")
       .catch((error) => console.error("Failed to set window theme:", error));
-  }, [currentTheme, isLoading, settings.followSystemTheme, preview]);
+  }, [currentTheme, isLoading, platform, settings.followSystemTheme, preview]);
 
   // Persistence only follows explicit user actions, never hydration, system
   // changes, preview, package refresh, or missing-package fallback.
@@ -156,10 +153,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const duplicateTheme = useCallback(async (themeId: string, newName: string): Promise<Theme> => {
     const base = catalogRef.current.themes.find(({ entry }) => entry.id === themeId && entry.available);
     if (!base) throw new Error("Theme is unavailable");
-    const entry = await invoke<NativeThemeContribution>("duplicate_personal_theme", { themeId, name: newName, editor: base.entry.format === "legacy" ? base.resolved.editor : null });
+    const entry = await client.call("duplicate_personal_theme", { themeId, name: newName, editor: base.entry.format === "legacy" ? base.resolved.editor : null });
     await refreshAfterCommit();
     return resolveCatalogEntry(entry).resolved.theme;
-  }, [refreshAfterCommit]);
+  }, [client, refreshAfterCommit]);
   const createCustomTheme = duplicateTheme;
 
   const updatePersonalSource = useCallback(async (themeId: string, name: string, source: string, expectedRevision?: string, editor?: MonacoThemeDefinition): Promise<Theme> => {
@@ -168,12 +165,13 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     const snapshot = previous.entry.format === "legacy" && !!previous.entry.editor;
     if (previous.entry.format !== "v1" && (!snapshot || !editor)) throw new Error("An independent snapshot requires its exact editor definition");
     const request = { themeId, name, source, expectedRevision: expectedRevision ?? previous.entry.revision };
-    const entry = snapshot
-      ? await invoke<NativeThemeContribution>("update_personal_snapshot", { ...request, editor })
-      : await invoke<NativeThemeContribution>("update_personal_theme", request);
+    // A snapshot always carries its editor definition (checked above).
+    const entry = snapshot && editor
+      ? await client.call("update_personal_snapshot", { ...request, editor })
+      : await client.call("update_personal_theme", request);
     await refreshAfterCommit();
     return resolveCatalogEntry(entry).resolved.theme;
-  }, [refreshAfterCommit]);
+  }, [client, refreshAfterCommit]);
 
   const updateCustomTheme = useCallback(async (theme: Theme) => {
     const previous = catalogRef.current.themes.find(({ entry }) => entry.id === theme.id);
@@ -207,30 +205,30 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const importTheme = useCallback(async (themeJson: string, name?: string): Promise<Theme> => {
     const parsed: unknown = JSON.parse(themeJson);
     if (parsed && typeof parsed === "object" && "themeSnapshotVersion" in parsed && !("colors" in parsed)) {
-      const entry = await invoke<NativeThemeContribution>("create_personal_snapshot", { name: name ?? t("themePackages.importedTheme"), source: themeJson });
+      const entry = await client.call("create_personal_snapshot", { name: name ?? t("themePackages.importedTheme"), source: themeJson });
       await refreshAfterCommit();
       return resolveCatalogEntry(entry).resolved.theme;
     }
     // monacoTheme is required by the legacy format; its schemaVersion may be opaque metadata.
     if (parsed && typeof parsed === "object" && "schemaVersion" in parsed && !("monacoTheme" in parsed)) {
-      const entry = await invoke<NativeThemeContribution>("create_personal_theme", { name: name ?? t("themePackages.importedTheme"), source: themeJson });
+      const entry = await client.call("create_personal_theme", { name: name ?? t("themePackages.importedTheme"), source: themeJson });
       await refreshAfterCommit();
       return resolveCatalogEntry(entry).resolved.theme;
     }
-    const legacy = await invoke<Theme>("import_theme", name === undefined ? { themeJson } : { themeJson, name });
+    const legacy = await client.call("import_theme", name === undefined ? { themeJson } : { themeJson, name });
     await refreshAfterCommit();
     const imported = catalogRef.current.themes.find(({ entry }) => entry.id === legacy.id);
     // This fallback is only the returned runtime object, never the raw export
     // source or persisted data. A later refresh reads original native bytes.
     return imported?.resolved.theme ?? resolveLegacyTheme(legacy, { id: legacy.id, name: legacy.name, revision: "native-commit", origin: { kind: "personal" } }).theme;
-  }, [refreshAfterCommit, t]);
+  }, [client, refreshAfterCommit, t]);
 
   const exportTheme = useCallback(async (themeId: string): Promise<string> => {
     const theme = catalogRef.current.themes.find(({ entry }) => entry.id === themeId);
     if (!theme) throw new Error("Theme is unavailable");
-    if (theme.entry.origin.kind === "personal") return invoke<string>("export_theme", { themeId });
+    if (theme.entry.origin.kind === "personal") return client.call("export_theme", { themeId });
     return theme.entry.source;
-  }, []);
+  }, [client]);
 
   const value = useMemo(() => ({ currentTheme, settings, allThemes, isLoading, catalog, selection, setTheme, createCustomTheme,
     updateCustomTheme, deleteCustomTheme, duplicateTheme, importTheme, exportTheme, updateSettings, refreshCatalog,

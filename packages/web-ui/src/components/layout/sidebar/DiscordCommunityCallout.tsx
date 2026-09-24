@@ -1,50 +1,34 @@
-import { useState } from "react";
 import { X, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePlatformCapabilities } from "../../../hooks/usePlatformCapabilities";
 import { DISCORD_URL } from "../../../config/links";
 import { DiscordIcon } from "../../icons/DiscordIcon";
+import { useUiState, useUiStateReady } from "../../../hooks/useUiState";
+import { UI_STATE_KEYS, type UiStateStore } from "../../../utils/uiStateStore";
 
-export const DISCORD_CALLOUT_STORAGE_KEY = "tabularis:discord-callout-v2-dismissed";
-
-type CalloutStorage = Pick<Storage, "getItem" | "setItem">;
+export const DISCORD_CALLOUT_STORAGE_KEY = UI_STATE_KEYS.discordCalloutDismissed.key;
 
 interface DiscordCommunityCalloutProps {
-  /** Hook used by tests to inject a storage implementation. */
-  storage?: CalloutStorage;
+  /** Tests inject an isolated shared UI state store. */
+  store?: UiStateStore;
 }
 
-const resolveStorage = (storage?: CalloutStorage): CalloutStorage | null => {
-  if (storage) return storage;
-  if (typeof window === "undefined") return null;
-  return window.localStorage;
-};
-
-const computeInitialVisible = (storage?: CalloutStorage): boolean => {
-  const store = resolveStorage(storage);
-  if (!store) return false;
-  try {
-    return store.getItem(DISCORD_CALLOUT_STORAGE_KEY) !== "true";
-  } catch {
-    return true;
-  }
-};
-
-export const DiscordCommunityCallout = ({ storage }: DiscordCommunityCalloutProps) => {
+export const DiscordCommunityCallout = ({ store }: DiscordCommunityCalloutProps) => {
   const platform = usePlatformCapabilities();
   const { t } = useTranslation();
-  const [visible, setVisible] = useState(() => computeInitialVisible(storage));
+  const [dismissed, setDismissed] = useUiState(
+    UI_STATE_KEYS.discordCalloutDismissed,
+    false,
+    { store },
+  );
+  // Wait for the shared value so an already dismissed callout never flashes.
+  const ready = useUiStateReady(store);
+  const visible = ready && dismissed !== true;
 
   if (!visible) return null;
 
-  const dismiss = () => {
-    try {
-      resolveStorage(storage)?.setItem(DISCORD_CALLOUT_STORAGE_KEY, "true");
-    } catch {
-      // quota / privacy mode — still hide for this session
-    }
-    setVisible(false);
-  };
+  // Hides immediately; a failed backend write only means it shows again next start.
+  const dismiss = () => setDismissed(true);
 
   const handleJoin = () => {
     void platform.openExternalUrl(DISCORD_URL);

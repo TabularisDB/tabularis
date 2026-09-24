@@ -897,7 +897,8 @@
       "apply": "Anwenden",
       "restartRequired": "Neustart erforderlich",
       "restartRequiredDesc": "Tabularis verwendet {{path}} nach einem Neustart.",
-      "restartNow": "Jetzt neu starten"
+      "restartNow": "Jetzt neu starten",
+      "restartServer": "Starte den Tabularis-Server neu, um die Änderung anzuwenden."
     },
     "backup": {
       "title": "Backup",

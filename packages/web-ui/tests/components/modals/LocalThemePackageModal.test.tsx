@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { LocalThemePackageModal } from "../../../src/components/modals/LocalThemePackageModal";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), open: vi.fn(), previewTheme: vi.fn(), cancelPreview: vi.fn(), refreshCatalog: vi.fn() }));
+vi.mock("../../../src/hooks/useTabularisClient", () => import("../../support/tauriBackedHooks"));
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => import("../../support/tauriBackedHooks"));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: mocks.open }));
 vi.mock("../../../src/hooks/useTheme", () => ({ useTheme: () => mocks }));

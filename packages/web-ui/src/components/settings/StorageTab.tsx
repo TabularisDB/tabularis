@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 import {
   AlertTriangle,
   FolderOpen,
@@ -12,6 +10,9 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useAlert } from "../../hooks/useAlert";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { choosePlatformServerPath } from "../../platform/dialogs";
 import { toErrorMessage } from "../../utils/errors";
 import {
   defaultModeFor,
@@ -37,17 +38,21 @@ interface PendingChoice {
 export function StorageTab() {
   const { t } = useTranslation();
   const { showAlert } = useAlert();
+  const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
+  const canOpenFolder = platform.supports("openStorageLocation");
+  const canRestart = platform.supports("restartApplication");
   const [info, setInfo] = useState<StorageLocationInfo | null>(null);
   const [pending, setPending] = useState<PendingChoice | null>(null);
   const [applying, setApplying] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      setInfo(await invoke<StorageLocationInfo>("get_storage_location"));
+      setInfo(await client.call("get_storage_location", undefined));
     } catch (e) {
       console.error("Failed to load storage location:", e);
     }
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     void refresh();
@@ -56,13 +61,18 @@ export function StorageTab() {
   const lockedByEnv = info?.source === "env";
 
   const handlePickFolder = async () => {
-    const selected = await open({ multiple: false, directory: true });
-    if (typeof selected !== "string") return;
+    let selected: string | null;
     try {
-      const inspection = await invoke<StorageLocationInspection>(
-        "inspect_storage_location",
-        { path: selected },
-      );
+      selected = await choosePlatformServerPath(platform, { directory: true });
+    } catch (e) {
+      showAlert(toErrorMessage(e));
+      return;
+    }
+    if (!selected) return;
+    try {
+      const inspection = await client.call("inspect_storage_location", {
+        path: selected,
+      });
       setPending({ path: selected, inspection, mode: defaultModeFor(inspection) });
     } catch (e) {
       showAlert(toErrorMessage(e));
@@ -73,7 +83,7 @@ export function StorageTab() {
     if (!pending) return;
     setApplying(true);
     try {
-      const next = await invoke<StorageLocationInfo>("set_storage_location", {
+      const next = await client.call("set_storage_location", {
         path: pending.path,
         copyData: pending.mode === "copy",
       });
@@ -88,7 +98,7 @@ export function StorageTab() {
 
   const handleReset = async () => {
     try {
-      setInfo(await invoke<StorageLocationInfo>("reset_storage_location"));
+      setInfo(await client.call("reset_storage_location", undefined));
       setPending(null);
     } catch (e) {
       showAlert(toErrorMessage(e));
@@ -97,7 +107,7 @@ export function StorageTab() {
 
   const handleOpenFolder = async () => {
     try {
-      await invoke("open_storage_location");
+      await platform.openStorageLocation();
     } catch (e) {
       showAlert(toErrorMessage(e));
     }
@@ -148,10 +158,12 @@ export function StorageTab() {
               <FolderSync size={14} />
               {t("settings.storage.changeFolder")}
             </button>
-            <button onClick={() => void handleOpenFolder()} className={buttonClass}>
-              <FolderOpen size={14} />
-              {t("settings.storage.openFolder")}
-            </button>
+            {canOpenFolder && (
+              <button onClick={() => void handleOpenFolder()} className={buttonClass}>
+                <FolderOpen size={14} />
+                {t("settings.storage.openFolder")}
+              </button>
+            )}
             {canReset && (
               <button onClick={() => void handleReset()} className={buttonClass}>
                 <RotateCcw size={14} />
@@ -232,13 +244,23 @@ export function StorageTab() {
                 {t("settings.storage.restartRequiredDesc", { path: pendingPath })}
               </div>
             </div>
-            <button
-              onClick={() => void invoke("relaunch_app")}
-              className={clsx(primaryButtonClass, "shrink-0")}
-            >
-              <RefreshCw size={14} />
-              {t("settings.storage.restartNow")}
-            </button>
+            {canRestart ? (
+              <button
+                onClick={() => {
+                  platform.restartApplication().catch((e: unknown) => {
+                    showAlert(toErrorMessage(e));
+                  });
+                }}
+                className={clsx(primaryButtonClass, "shrink-0")}
+              >
+                <RefreshCw size={14} />
+                {t("settings.storage.restartNow")}
+              </button>
+            ) : (
+              <span className="shrink-0 text-xs text-secondary">
+                {t("settings.storage.restartServer")}
+              </span>
+            )}
           </div>
         )}
 

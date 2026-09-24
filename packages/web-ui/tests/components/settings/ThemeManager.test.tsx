@@ -8,6 +8,8 @@ import { DEFAULT_THEME_SETTINGS } from "../../../src/types/theme";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 let context: ThemeContextType;
+vi.mock("../../../src/hooks/useTabularisClient", () => import("../../support/tauriBackedHooks"));
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => import("../../support/tauriBackedHooks"));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("lucide-react", async () => await vi.importActual("lucide-react"));
 vi.mock("../../../src/hooks/useTheme", () => ({ useTheme: () => context }));

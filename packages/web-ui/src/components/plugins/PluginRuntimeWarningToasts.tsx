@@ -1,14 +1,11 @@
 import { useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 
 import { useSettings } from "../../hooks/useSettings";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { useToast } from "../../hooks/useToast";
+import type { PluginRuntimeWarning } from "../../types/plugins";
 
-interface PluginRuntimeWarning {
-  plugin_id: string;
-  message: string;
-}
 
 /** How long a runtime warning toast stays visible, in ms. */
 const WARNING_TOAST_DURATION = 12000;
@@ -25,6 +22,7 @@ const STARTUP_RECHECK_DELAY = 5000;
  */
 export const PluginRuntimeWarningToasts = () => {
   const { showToast } = useToast();
+  const client = useTabularisClient();
   const { settings } = useSettings();
   const { t } = useTranslation();
   const enabledKey = [...(settings.activeExternalDrivers ?? [])].sort().join(",");
@@ -33,9 +31,9 @@ export const PluginRuntimeWarningToasts = () => {
     const drain = async () => {
       let warnings: PluginRuntimeWarning[];
       try {
-        warnings = await invoke<PluginRuntimeWarning[]>("get_plugin_runtime_warnings");
+        warnings = await client.call("get_plugin_runtime_warnings", undefined);
       } catch {
-        // Not running inside Tauri (tests, browser preview).
+        // The backend may be unavailable (tests, previews) or deny the call.
         return;
       }
       for (const warning of warnings) {
@@ -50,7 +48,7 @@ export const PluginRuntimeWarningToasts = () => {
     void drain();
     const timer = window.setTimeout(() => void drain(), STARTUP_RECHECK_DELAY);
     return () => window.clearTimeout(timer);
-  }, [enabledKey, showToast, t]);
+  }, [client, enabledKey, showToast, t]);
 
   return null;
 };

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { toErrorMessage } from "../../utils/errors";
 import type { CatalogTheme } from "../../types/themeCatalog";
 import { exportThemePackage } from "../../utils/themePackageExport";
 import { AlertTriangle, Info, Upload } from "lucide-react";
@@ -13,6 +13,7 @@ interface ThemePackageExportModalProps { isOpen: boolean; onClose: () => void; t
 
 export function ThemePackageExportModal({ isOpen, onClose, theme }: ThemePackageExportModalProps) {
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
   const [name, setName] = useState("");
   const [version, setVersion] = useState("1.0.0");
   const [minimum, setMinimum] = useState("");
@@ -25,9 +26,10 @@ export function ThemePackageExportModal({ isOpen, onClose, theme }: ThemePackage
     setBusy(true); setError("");
     try {
       const bytes = exportThemePackage(theme, { kind: "theme", name, version, min_runtime_version: minimum, theme_schema_version: 1, theme_variants: [{ id: "main", name: theme.entry.name, file: "themes/main.json" }] }, license);
-      const path = await save({ defaultPath: `${name}-${version}-universal.zip`, filters: [{ name: "ZIP", extensions: ["zip"] }] });
-      if (path) { await writeFile(path, bytes); onClose(); }
-    } catch (failure) { setError(`${t("themePackages.exportError")} ${String(failure)}`); }
+      // Desktop asks for a save path; browsers download the archive.
+      const saved = await platform.downloadFile({ fileName: `${name}-${version}-universal.zip`, contents: bytes, mimeType: "application/zip", filters: [{ name: "ZIP", extensions: ["zip"] }] });
+      if (saved) onClose();
+    } catch (failure) { setError(`${t("themePackages.exportError")} ${toErrorMessage(failure)}`); }
     finally { setBusy(false); }
   };
   return <ThemeDialog isOpen onClose={onClose} busy={busy} icon={<Upload size={20} />} title={t("themePackages.exportPackage")} subtitle={theme.entry.name}

@@ -1,5 +1,4 @@
 import { restoreSession } from "../utils/restoreSession";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -61,15 +60,11 @@ import { useToast } from "../hooks/useToast";
 import { useEscapeKey } from "../hooks/useEscapeKey";
 import { buildPluginIssueUrl, resolvePluginRepoUrl } from "../utils/pluginIssueReport";
 import { APP_VERSION } from "../version";
-import { detectPlatformEnvironment } from "../platform/environment";
 
 const NewConnectionModal = lazy(() => import("../components/modals/NewConnectionModal").then((m) => ({ default: m.NewConnectionModal })));
 const ImportFromAppModal = lazy(() => import("../components/modals/ImportFromAppModal").then((m) => ({ default: m.ImportFromAppModal })));
 const MigrationChecklistModal = lazy(() => import("../components/modals/MigrationChecklistModal").then((m) => ({ default: m.MigrationChecklistModal })));
 
-// Browser sessions have no native windows; they behave like the main window.
-const windowLabel =
-  detectPlatformEnvironment() === "tauri" ? getCurrentWindow().label : "main";
 let autoConnectAttempted = false;
 
 export const Connections = () => {
@@ -313,6 +308,8 @@ export const Connections = () => {
   useEffect(() => {
     if (autoConnectAttempted) return;
     // Dedicated connection windows have their own URL-driven restore flow.
+    // Browser sessions have no native windows; they behave like the main window.
+    const windowLabel = platform.currentWindowLabel();
     if (windowLabel && windowLabel !== "main") return;
     if (isSettingsLoading) return;
     if (connections.length === 0) return;
@@ -357,6 +354,7 @@ export const Connections = () => {
     isConnectionOpen,
     connect,
     navigate,
+    platform,
   ]);
 
   // Initialize collapsed groups from saved state

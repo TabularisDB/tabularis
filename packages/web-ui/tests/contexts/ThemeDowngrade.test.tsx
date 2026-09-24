@@ -7,6 +7,8 @@ import { ThemeProvider as OldProvider } from "../../../../tests/fixtures/themes/
 import { ThemeContext as OldContext } from "../../../../tests/fixtures/themes/pre-feature/contexts/ThemeContext";
 
 const native = vi.hoisted(() => ({ invoke: vi.fn(), setTheme: vi.fn(async () => undefined) }));
+vi.mock("../../src/hooks/useTabularisClient", () => import("../support/tauriBackedHooks"));
+vi.mock("../../src/hooks/usePlatformCapabilities", () => import("../support/tauriBackedHooks"));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: native.invoke }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => undefined) }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ theme: async () => "dark", setTheme: native.setTheme, onThemeChanged: async () => () => undefined }) }));

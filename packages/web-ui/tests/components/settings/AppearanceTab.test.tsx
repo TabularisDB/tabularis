@@ -37,6 +37,8 @@ let themeSettings = {
 };
 
 // The unified theme toolbar uses the same icons as its management menus.
+vi.mock("../../../src/hooks/useTabularisClient", () => import("../../support/tauriBackedHooks"));
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => import("../../support/tauriBackedHooks"));
 vi.mock("lucide-react", async () => await vi.importActual("lucide-react"));
 
 vi.mock("react-i18next", () => ({

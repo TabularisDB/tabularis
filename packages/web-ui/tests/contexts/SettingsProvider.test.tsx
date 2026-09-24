@@ -12,7 +12,7 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(),
 }));
 
-const mockClient = vi.hoisted(() => ({ call: vi.fn() }));
+const mockClient = vi.hoisted(() => ({ call: vi.fn(), subscribe: vi.fn() }));
 vi.mock("../../src/hooks/useTabularisClient", () => ({
   useTabularisClient: () => mockClient,
 }));
@@ -40,6 +40,10 @@ describe("SettingsProvider", () => {
     localStorage.clear();
 
     mockClient.call.mockImplementation((command, request) => invoke(command, request));
+    mockClient.subscribe.mockImplementation(
+      (event: string, handler: (payload: unknown) => void) =>
+        listen(event, ({ payload }) => handler(payload)),
+    );
     eventHandlers = {};
     vi.mocked(listen).mockImplementation((event, handler) => {
       eventHandlers[event as string] = handler as EventCallback<unknown>;

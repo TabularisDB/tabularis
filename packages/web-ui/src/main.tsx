@@ -25,6 +25,7 @@ import { toErrorMessage } from './utils/errors';
 import { BrowserCapabilityFallbacks } from './components/ui/BrowserCapabilityFallbacks';
 import { registerActivePlatformCapabilities } from './platform/activeCapabilities';
 import { LoadingState } from './components/ui/LoadingState';
+import { UiStateProvider } from './contexts/UiStateProvider';
 
 const rootElement = document.getElementById('root') as HTMLElement;
 const environment = detectPlatformEnvironment();
@@ -45,28 +46,30 @@ async function startApplication() {
     <React.StrictMode>
       <Suspense fallback={<LoadingState />}>
         <TabularisClientProvider client={tabularisClient}>
-          <PlatformCapabilitiesProvider capabilities={platformCapabilities}>
-            <UpdateProvider session={session}>
-              <ThemeProvider>
-                <SettingsProvider>
-                  <ToastProvider>
-                    <BrowserCapabilityFallbacks />
-                    <DatabaseProvider>
-                      <SavedQueriesProvider>
-                        <QueryHistoryProvider>
-                          <EditorProvider>
-                            <ProductionGuardProvider>
-                              <App />
-                            </ProductionGuardProvider>
-                          </EditorProvider>
-                        </QueryHistoryProvider>
-                      </SavedQueriesProvider>
-                    </DatabaseProvider>
-                  </ToastProvider>
-                </SettingsProvider>
-              </ThemeProvider>
-            </UpdateProvider>
-          </PlatformCapabilitiesProvider>
+          <UiStateProvider>
+            <PlatformCapabilitiesProvider capabilities={platformCapabilities}>
+              <UpdateProvider session={session}>
+                <ThemeProvider>
+                  <SettingsProvider>
+                    <ToastProvider>
+                      <BrowserCapabilityFallbacks />
+                      <DatabaseProvider>
+                        <SavedQueriesProvider>
+                          <QueryHistoryProvider>
+                            <EditorProvider>
+                              <ProductionGuardProvider>
+                                <App />
+                              </ProductionGuardProvider>
+                            </EditorProvider>
+                          </QueryHistoryProvider>
+                        </SavedQueriesProvider>
+                      </DatabaseProvider>
+                    </ToastProvider>
+                  </SettingsProvider>
+                </ThemeProvider>
+              </UpdateProvider>
+            </PlatformCapabilitiesProvider>
+          </UiStateProvider>
         </TabularisClientProvider>
       </Suspense>
     </React.StrictMode>,

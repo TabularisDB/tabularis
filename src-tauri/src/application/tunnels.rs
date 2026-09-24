@@ -79,6 +79,13 @@ pub enum TunnelCommand {
         path: String,
         kind: String,
     },
+    TestSsmConnection {
+        target: String,
+        profile: Option<String>,
+        region: Option<String>,
+        host: String,
+        port: u16,
+    },
 }
 
 pub async fn execute(
@@ -163,6 +170,24 @@ pub async fn execute(
             crate::k8s_tunnel::validate_k8s_path(&path, &kind)?;
             Ok(Value::Null)
         }
+        TunnelCommand::TestSsmConnection {
+            target,
+            profile,
+            region,
+            host,
+            port,
+        } => json(
+            run_blocking(move || {
+                crate::ssm_tunnel::test_ssm_connection(
+                    &target,
+                    profile.as_deref(),
+                    region.as_deref(),
+                    &host,
+                    port,
+                )
+            })
+            .await?,
+        ),
     }
 }
 

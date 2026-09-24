@@ -2,6 +2,7 @@
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useRowEditorResize } from "../../src/hooks/useRowEditorResize";
+import { uiStateStore } from "../../src/utils/uiStateStore";
 
 const STORAGE_KEY = "tabularis_row_editor_sidebar_width";
 
@@ -30,6 +31,7 @@ describe("useRowEditorResize", () => {
       writable: true,
       value: createLocalStorageStub(),
     });
+    uiStateStore.reset();
     vi.restoreAllMocks();
     // Pin innerWidth so clamps are deterministic.
     Object.defineProperty(window, "innerWidth", {
@@ -39,19 +41,21 @@ describe("useRowEditorResize", () => {
     });
   });
 
-  it("initializes with the default width when localStorage is empty", () => {
+  it("initializes with the default width when nothing was saved", () => {
     const { result } = renderHook(() => useRowEditorResize());
     expect(result.current.width).toBe(384);
   });
 
-  it("reads a persisted width from localStorage", () => {
+  it("reads the width an older version saved in localStorage", () => {
     window.localStorage.setItem(STORAGE_KEY, "720");
+    uiStateStore.reset();
     const { result } = renderHook(() => useRowEditorResize());
     expect(result.current.width).toBe(720);
   });
 
-  it("never starts below the minimum even if localStorage was corrupted", () => {
+  it("never starts below the minimum even if the saved width is too small", () => {
     window.localStorage.setItem(STORAGE_KEY, "50");
+    uiStateStore.reset();
     const { result } = renderHook(() => useRowEditorResize());
     expect(result.current.width).toBe(320);
   });
@@ -124,6 +128,6 @@ describe("useRowEditorResize", () => {
 
     expect(document.body.style.cursor).toBe("");
     expect(document.body.style.userSelect).toBe("");
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("500");
+    expect(uiStateStore.get(STORAGE_KEY, 0)).toBe(500);
   });
 });

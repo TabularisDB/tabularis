@@ -152,6 +152,31 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     maxSize: 1000,
   });
 
+  const themeCatalog = caller.call("get_theme_catalog", undefined);
+  const uploadedThemePreview = caller.call("preview_local_theme_package", {
+    uploadToken: "upload-1",
+  });
+  const serverThemeInstall = caller.call("install_local_theme_package", {
+    path: "/srv/themes/nord.zip",
+    packageName: "acme/nord",
+    expectedDigest: "digest",
+  });
+  const uiState: Promise<Readonly<Record<string, unknown>>> = caller.call(
+    "get_ui_state",
+    { keys: ["tabularis_sidebar_width"] },
+  );
+  const savedUiState: Promise<void> = caller.call("set_ui_state", {
+    key: "tabularis_sidebar_width",
+    value: 320,
+  });
+  const sqlFile: Promise<string> = caller.call("read_sql_file", {
+    path: "/srv/sql/report.sql",
+  });
+  // @ts-expect-error A local archive is either uploaded or a server path, never both.
+  caller.call("preview_local_theme_package", { path: "/a.zip", uploadToken: "t" });
+  // @ts-expect-error UI state writes need a key.
+  caller.call("set_ui_state", { value: 1 });
+
   // @ts-expect-error Log limits must be numeric.
   caller.call("get_logs", { request: { limit: "100" } });
   // @ts-expect-error Plugin identifiers are required for lifecycle mutations.
@@ -229,6 +254,12 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     cancellation,
     wrongResponse,
     unmigratedResult,
+    themeCatalog,
+    uploadedThemePreview,
+    serverThemeInstall,
+    uiState,
+    savedUiState,
+    sqlFile,
   ];
 }
 
@@ -250,6 +281,12 @@ function assertEventContract(subscriber: EventSubscriber): void {
     const status: "started" | "completed" | "failed" = payload.status;
     void [requestId, status];
   });
+
+  subscriber.subscribe("ui-state://changed", (payload) => {
+    const key: string = payload.key;
+    void key;
+  });
+  subscriber.subscribe("theme-catalog-changed", () => undefined);
 
   // @ts-expect-error database-dropped does not carry a batch id.
   subscriber.subscribe("database-dropped", (payload) => payload.batch_id);
@@ -279,6 +316,12 @@ const mcpAuthorization: CommandAuthorization<"install_mcp_config"> =
 const logReadAuthorization: CommandAuthorization<"get_logs"> = "sensitive";
 const clearLogsAuthorization: CommandAuthorization<"clear_logs"> = "local-admin";
 const taskStatsAuthorization: CommandAuthorization<"get_system_stats"> = "sensitive";
+const themeCatalogAuthorization: CommandAuthorization<"get_theme_catalog"> = "session";
+const themeImportAuthorization: CommandAuthorization<"import_theme"> = "local-admin";
+const proxySecretAuthorization: CommandAuthorization<"set_proxy_password"> = "sensitive";
+const uiStateAuthorization: CommandAuthorization<"set_ui_state"> = "session";
+// @ts-expect-error Personal theme writes change host files.
+const wrongThemeAuthorization: CommandAuthorization<"create_personal_theme"> = "session";
 // @ts-expect-error Plugin installation is never a plain session operation.
 const wrongPluginAuthorization: CommandAuthorization<"install_plugin"> = "session";
 // @ts-expect-error execute_query is not a local-admin operation.
@@ -327,3 +370,8 @@ void wrongPluginAuthorization;
 void wrongAuthorization;
 void rpcFailure;
 void failureWithoutRequestId;
+void themeCatalogAuthorization;
+void themeImportAuthorization;
+void proxySecretAuthorization;
+void uiStateAuthorization;
+void wrongThemeAuthorization;

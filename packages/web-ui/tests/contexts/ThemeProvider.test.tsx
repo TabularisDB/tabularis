@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { TabularisClient } from "../../src/api/client";
+import { tauriBackedClient } from "../support/tauriBackedHooks";
+import { registerActivePlatformCapabilities } from "../../src/platform/activeCapabilities";
+import { TauriPlatformCapabilities } from "../../src/platform/tauriCapabilities";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import React from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -16,12 +18,11 @@ import capabilities from "../../../../src-tauri/capabilities/default.json";
 
 vi.mock("@tauri-apps/api/core");
 vi.mock("@tauri-apps/api/event");
-// The provider reaches migrated commands through the client; route them to the
-// same invoke mock so every command is asserted in one place.
-const mockClient = vi.hoisted(() => ({ call: vi.fn() }));
-vi.mock("../../src/hooks/useTabularisClient", () => ({
-  useTabularisClient: () => mockClient,
-}));
+// The provider reaches commands, events and native window chrome through the
+// client and platform; route them to the same Tauri mocks so every call is
+// asserted in one place.
+vi.mock("../../src/hooks/useTabularisClient", () => import("../support/tauriBackedHooks"));
+vi.mock("../../src/hooks/usePlatformCapabilities", () => import("../support/tauriBackedHooks"));
 vi.mock("../../src/platform/environment", () => ({
   detectPlatformEnvironment: () => "tauri",
 }));
@@ -68,8 +69,8 @@ function saves() { return vi.mocked(invoke).mock.calls.filter(([command]) => com
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mockClient.call.mockImplementation((command: string, args: unknown) =>
-    args === undefined ? invoke(command) : invoke(command, args as Record<string, unknown>));
+  // System theme detection reads the registered platform, as after bootstrap.
+  registerActivePlatformCapabilities(new TauriPlatformCapabilities());
   vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Macintosh");
   config = {}; personal = []; identity = 0;
   systemDark = false; mediaDark = undefined; portalTheme = undefined;
@@ -374,7 +375,7 @@ describe("preview, fallback and concurrency", () => {
     const pending = deferred<Record<string, unknown>>();
     const native = vi.mocked(invoke).getMockImplementation()!;
     vi.mocked(invoke).mockImplementation((command, args) => command === "get_config" ? pending.promise : native(command, args));
-    const sharedConfig = loadStartupConfig(mockClient as unknown as TabularisClient);
+    const sharedConfig = loadStartupConfig(tauriBackedClient);
     const { result, unmount } = renderHook(() => useTheme(), { wrapper, reactStrictMode: true });
     expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "get_config")).toHaveLength(1);
     await act(async () => pending.resolve({ theme: "monokai" }));

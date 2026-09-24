@@ -14,6 +14,8 @@ import type {
   PluginManifest,
   PluginReadme,
   RegistryPluginWithStatus,
+  ConnectionMetadata,
+  PluginRuntimeWarning,
 } from "../types/plugins";
 import type { ConnectionTag } from "../types/tags";
 import type { ExplainQueryOutput } from "@tabularis/explain";
@@ -25,7 +27,7 @@ import type {
   TableSchema,
 } from "../types/editor";
 import type { ForeignKey, Index } from "../types/schema";
-import type { Theme } from "../types/theme";
+import type { MonacoThemeDefinition, Theme } from "../types/theme";
 import type { Settings } from "../contexts/SettingsContext";
 import type { SavedQuery } from "../contexts/SavedQueriesContext";
 import type {
@@ -62,6 +64,20 @@ import type {
   TabularisChildProcess,
 } from "../types/operations";
 import type { McpClientStatus } from "../types/mcp";
+import type {
+  LocalThemePreview,
+  NativeThemeCatalog,
+  NativeThemeContribution,
+  ThemeCommit,
+} from "../types/themeCatalog";
+import type {
+  ThemeRegistryPlugin,
+  ThemeRegistrySnapshot,
+} from "../utils/themeDiscovery";
+import type {
+  StorageLocationInfo,
+  StorageLocationInspection,
+} from "../utils/storageLocation";
 
 export type AuthorizationLevel =
   | "session"
@@ -107,6 +123,26 @@ export interface ServerSaveTarget {
 export interface SqlitePathRequest {
   readonly path: string;
 }
+
+/**
+ * A local theme archive. Desktop sends a host path from the native dialog;
+ * browsers send either an upload token (purpose {@link THEME_PACKAGE_UPLOAD_PURPOSE})
+ * or a server path chosen with the server file browser.
+ */
+export type LocalThemeArchiveRequest =
+  | { readonly path: string; readonly uploadToken?: never }
+  | { readonly uploadToken: string; readonly path?: never };
+
+/** Upload purpose the server expects for local theme archives. */
+export const THEME_PACKAGE_UPLOAD_PURPOSE = "theme-package";
+
+export interface ThemePackageRequest {
+  readonly registryKey: string;
+  readonly packageName: string;
+}
+
+/** Values stored in the shared UI state database, keyed by UI state key. */
+export type UiStateEntries = Readonly<Record<string, unknown>>;
 
 export interface ConnectionParameters {
   driver: string;
@@ -1208,6 +1244,153 @@ export interface CommandMap {
     void,
     "session"
   >;
+
+  get_theme_catalog: CommandDefinition<undefined, NativeThemeCatalog, "session">;
+  preview_theme_document: CommandDefinition<
+    { source: string; name: string },
+    NativeThemeContribution,
+    "session"
+  >;
+  create_personal_theme: CommandDefinition<
+    { name: string; source: string },
+    NativeThemeContribution,
+    "local-admin"
+  >;
+  create_personal_snapshot: CommandDefinition<
+    { name: string; source: string },
+    NativeThemeContribution,
+    "local-admin"
+  >;
+  update_personal_theme: CommandDefinition<
+    { themeId: string; name: string; source: string; expectedRevision: string },
+    NativeThemeContribution,
+    "local-admin"
+  >;
+  update_personal_snapshot: CommandDefinition<
+    {
+      themeId: string;
+      name: string;
+      source: string;
+      editor: MonacoThemeDefinition;
+      expectedRevision: string;
+    },
+    NativeThemeContribution,
+    "local-admin"
+  >;
+  duplicate_personal_theme: CommandDefinition<
+    { themeId: string; name: string; editor?: MonacoThemeDefinition | null },
+    NativeThemeContribution,
+    "local-admin"
+  >;
+  import_theme: CommandDefinition<
+    { themeJson: string; name?: string | null },
+    Theme,
+    "local-admin"
+  >;
+  export_theme: CommandDefinition<{ themeId: string }, string, "local-admin">;
+  preview_local_theme_package: CommandDefinition<
+    LocalThemeArchiveRequest,
+    LocalThemePreview,
+    "local-admin"
+  >;
+  install_local_theme_package: CommandDefinition<
+    LocalThemeArchiveRequest & { packageName: string; expectedDigest: string },
+    ThemeCommit,
+    "local-admin"
+  >;
+  fetch_theme_registry: CommandDefinition<
+    { packageName?: string | null; expectedRegistryKey?: string | null } | undefined,
+    ThemeRegistrySnapshot,
+    "local-admin"
+  >;
+  fetch_theme_package_detail: CommandDefinition<
+    {
+      packageName: string;
+      expectedRegistryKey: string;
+      requestedRegistryUrl?: string | null;
+    },
+    ThemeRegistryPlugin,
+    "local-admin"
+  >;
+  install_registry_theme: CommandDefinition<
+    { packageName: string; expectedRegistryKey: string; version?: string | null },
+    ThemeCommit,
+    "local-admin"
+  >;
+  cancel_theme_install: CommandDefinition<ThemePackageRequest, boolean, "local-admin">;
+  set_theme_package_enabled: CommandDefinition<
+    ThemePackageRequest & { enabled: boolean },
+    void,
+    "local-admin"
+  >;
+  uninstall_theme_package: CommandDefinition<
+    ThemePackageRequest,
+    ThemeCommit,
+    "local-admin"
+  >;
+  recover_theme_packages: CommandDefinition<undefined, string[], "local-admin">;
+
+  proxy_password_is_set: CommandDefinition<{ slot: string }, boolean, "sensitive">;
+  set_proxy_password: CommandDefinition<
+    { slot: string; password: string },
+    void,
+    "sensitive"
+  >;
+  delete_proxy_password: CommandDefinition<{ slot: string }, void, "sensitive">;
+
+  /** Paths are host paths; browsers may only use server file browser roots. */
+  get_storage_location: CommandDefinition<undefined, StorageLocationInfo, "local-admin">;
+  inspect_storage_location: CommandDefinition<
+    { path: string },
+    StorageLocationInspection,
+    "local-admin"
+  >;
+  set_storage_location: CommandDefinition<
+    { path: string; copyData: boolean },
+    StorageLocationInfo,
+    "local-admin"
+  >;
+  reset_storage_location: CommandDefinition<undefined, StorageLocationInfo, "local-admin">;
+  get_app_data_dir: CommandDefinition<undefined, string, "local-admin">;
+
+  /** Paths are host paths; browsers may only use server file browser roots. */
+  read_sql_file: CommandDefinition<{ path: string }, string, "local-admin">;
+  write_sql_file: CommandDefinition<
+    { path: string; content: string },
+    void,
+    "local-admin"
+  >;
+
+  get_connection_metadata: CommandDefinition<
+    ConnectionIdRequest,
+    ConnectionMetadata | null,
+    "database"
+  >;
+  get_plugin_runtime_warnings: CommandDefinition<
+    undefined,
+    PluginRuntimeWarning[],
+    "local-admin"
+  >;
+  test_ssm_connection_cmd: CommandDefinition<
+    {
+      target: string;
+      profile?: string | null;
+      region?: string | null;
+      host: string;
+      port: number;
+    },
+    string,
+    "local-admin"
+  >;
+
+  /** Shared UI state (SQLite in the host config folder); omit keys to read all. */
+  get_ui_state: CommandDefinition<
+    { keys?: string[] } | undefined,
+    UiStateEntries,
+    "session"
+  >;
+  set_ui_state: CommandDefinition<{ key: string; value: unknown }, void, "session">;
+  delete_ui_state: CommandDefinition<{ key: string }, void, "session">;
 }
 
 export type CommandName = keyof CommandMap;

@@ -930,7 +930,8 @@
       "apply": "Applica",
       "restartRequired": "Riavvio necessario",
       "restartRequiredDesc": "Tabularis userà {{path}} dopo il riavvio.",
-      "restartNow": "Riavvia ora"
+      "restartNow": "Riavvia ora",
+      "restartServer": "Riavvia il server Tabularis per applicare."
     },
     "backup": {
       "title": "Backup",

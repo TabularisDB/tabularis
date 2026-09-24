@@ -71,6 +71,20 @@ export interface EventMap {
   "ssh-askpass://dismiss": EventDefinition<number, "sensitive">;
   "ai://pending_approval": EventDefinition<PendingApproval, "sensitive">;
   "ai://activity": EventDefinition<AiActivityEvent, "sensitive">;
+  "theme-catalog-changed": EventDefinition<null, "session">;
+  "ui-state://changed": EventDefinition<
+    { key: string; value: unknown },
+    "session"
+  >;
+  "connection-metadata-invalidated": EventDefinition<
+    { connectionId?: string; driverId?: string },
+    "database"
+  >;
+  "tabularis://plugin-activated": EventDefinition<
+    { pluginId: string },
+    "database"
+  >;
+  "tabularis://plugin-installed": EventDefinition<{ slug: string }, "session">;
 }
 
 export type EventName = keyof EventMap;

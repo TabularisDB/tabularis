@@ -87,6 +87,59 @@ pub fn validate_save_target(roots: &[PathBuf], target: &str) -> Result<String, S
     resolve_save_target(roots, &directory, file_name)
 }
 
+/// Resolves an existing file inside the configured roots (for server-side
+/// reads such as opening a SQL file or a local theme archive).
+pub fn validate_existing_file(roots: &[PathBuf], target: &str) -> Result<PathBuf, String> {
+    if roots.is_empty() {
+        return Err("Server file browsing is disabled".to_string());
+    }
+    let path = fs::canonicalize(target)
+        .map_err(|error| format!("Failed to resolve server file: {error}"))?;
+    if !roots.iter().any(|root| path.starts_with(root)) {
+        return Err("The requested path is outside the configured browser roots".to_string());
+    }
+    if !path.is_file() {
+        return Err("The requested server path is not a file".to_string());
+    }
+    Ok(path)
+}
+
+/// Resolves a directory that may not exist yet. Its nearest existing ancestor
+/// must sit inside the configured roots and the remaining components must be
+/// plain names, so the result can never escape them.
+pub fn validate_directory_target(roots: &[PathBuf], target: &str) -> Result<PathBuf, String> {
+    if roots.is_empty() {
+        return Err("Server file browsing is disabled".to_string());
+    }
+    let requested = Path::new(target);
+    if !requested.is_absolute() {
+        return Err("Choose an absolute server directory".to_string());
+    }
+    let mut existing = requested;
+    let mut missing = Vec::new();
+    while !existing.exists() {
+        let name = existing
+            .file_name()
+            .ok_or_else(|| "Choose a valid server directory".to_string())?;
+        missing.push(name.to_owned());
+        existing = existing
+            .parent()
+            .ok_or_else(|| "Choose a valid server directory".to_string())?;
+    }
+    let mut resolved = fs::canonicalize(existing)
+        .map_err(|error| format!("Failed to resolve server directory: {error}"))?;
+    if !resolved.is_dir() || !roots.iter().any(|root| resolved.starts_with(root)) {
+        return Err("The requested path is outside the configured browser roots".to_string());
+    }
+    for name in missing.into_iter().rev() {
+        if name == ".." || name == "." {
+            return Err("Choose a valid server directory".to_string());
+        }
+        resolved.push(name);
+    }
+    Ok(resolved)
+}
+
 pub fn list_directory(
     roots: &[PathBuf],
     requested_path: Option<&str>,

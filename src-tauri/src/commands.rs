@@ -54,21 +54,12 @@ pub async fn get_connection_metadata<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<Option<crate::plugins::connection_metadata::ConnectionMetadata>, String> {
-    let saved = find_connection_by_id(&app, &connection_id)?;
-    if !driver_for(&saved.params.driver)
-        .await?
-        .has_connection_metadata()
-    {
-        return Ok(None);
-    }
-    let driver = driver_for_saved(&app, &saved).await?;
-    Ok(Some(
-        crate::plugins::connection_metadata::ConnectionMetadata {
-            capabilities: driver.manifest().capabilities.clone(),
-            data_types: driver.get_data_types(),
-            type_mappings: driver.manifest().type_mappings.clone(),
-        },
-    ))
+    crate::application::metadata::get_connection_metadata(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+    )
+    .await
 }
 
 const DEFAULT_MYSQL_PORT: u16 = 3306;
@@ -1564,24 +1555,26 @@ pub async fn validate_k8s_path_cmd<R: Runtime>(
 
 #[tauri::command]
 pub async fn test_ssm_connection_cmd<R: Runtime>(
-    _app: AppHandle<R>,
+    app: AppHandle<R>,
     target: String,
     profile: Option<String>,
     region: Option<String>,
     host: String,
     port: u16,
 ) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || {
-        crate::ssm_tunnel::test_ssm_connection(
-            &target,
-            profile.as_deref(),
-            region.as_deref(),
-            &host,
+    let result = crate::application::tunnels::execute(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        crate::application::tunnels::TunnelCommand::TestSsmConnection {
+            target,
+            profile,
+            region,
+            host,
             port,
-        )
-    })
-    .await
-    .map_err(|e| e.to_string())?
+        },
+    )
+    .await?;
+    serde_json::from_value(result).map_err(|e| e.to_string())
 }
 
 /// Expand K8s connection params by loading saved config and creating/reusing a tunnel.

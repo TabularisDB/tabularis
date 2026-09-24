@@ -1,16 +1,24 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback } from "react";
+import { useUiState } from "./useUiState";
+import { UI_STATE_KEYS } from "../utils/uiStateStore";
 
 const MIN_WIDTH = 150;
 const MAX_WIDTH = 600;
 const DEFAULT_WIDTH = 256;
 const COLLAPSE_THRESHOLD = 100;
-const STORAGE_KEY = "tabularis_sidebar_width";
+/** Coalesces writes while the handle is being dragged. */
+const PERSIST_DEBOUNCE_MS = 300;
 
 export const useSidebarResize = (onCollapse?: () => void) => {
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
-  });
+  const [storedWidth, setSidebarWidth] = useUiState(
+    UI_STATE_KEYS.sidebarWidth,
+    DEFAULT_WIDTH,
+    { debounceMs: PERSIST_DEBOUNCE_MS },
+  );
+  const sidebarWidth =
+    typeof storedWidth === "number" && Number.isFinite(storedWidth)
+      ? storedWidth
+      : DEFAULT_WIDTH;
   const isDragging = useRef(false);
   const onCollapseRef = useRef(onCollapse);
 
@@ -47,17 +55,11 @@ export const useSidebarResize = (onCollapse?: () => void) => {
       document.body.style.cursor = "default";
       document.removeEventListener("mousemove", handleResize);
       document.removeEventListener("mouseup", stopResize);
-      // localStorage is handled by useEffect
     };
 
     document.addEventListener("mousemove", handleResize);
     document.addEventListener("mouseup", stopResize);
-  }, []);
-
-  // Persist width on change as well to be safe
-  useEffect(() => {
-      localStorage.setItem(STORAGE_KEY, sidebarWidth.toString());
-  }, [sidebarWidth]);
+  }, [setSidebarWidth]);
 
   return { sidebarWidth, startResize };
 };

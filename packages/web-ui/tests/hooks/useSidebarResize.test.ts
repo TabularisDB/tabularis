@@ -1,10 +1,12 @@
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useSidebarResize } from "../../src/hooks/useSidebarResize";
+import { UI_STATE_CACHE_KEY, uiStateStore } from "../../src/utils/uiStateStore";
 
 describe("useSidebarResize", () => {
   beforeEach(() => {
     localStorage.clear();
+    uiStateStore.reset();
     vi.restoreAllMocks();
   });
 
@@ -13,8 +15,9 @@ describe("useSidebarResize", () => {
     expect(result.current.sidebarWidth).toBe(256);
   });
 
-  it("should initialize with saved width from localStorage", () => {
+  it("should initialize with the width an older version saved in localStorage", () => {
     localStorage.setItem("tabularis_sidebar_width", "300");
+    uiStateStore.reset();
     const { result } = renderHook(() => useSidebarResize());
     expect(result.current.sidebarWidth).toBe(300);
   });
@@ -61,7 +64,7 @@ describe("useSidebarResize", () => {
     expect(result.current.sidebarWidth).toBe(256); // No update
   });
 
-  it("should stop resizing on mouseup and save to localStorage", () => {
+  it("should stop resizing on mouseup and save to the shared UI state", () => {
     const { result } = renderHook(() => useSidebarResize());
     const { startResize } = result.current;
 
@@ -81,6 +84,10 @@ describe("useSidebarResize", () => {
     });
 
     expect(document.body.style.cursor).toBe("default");
-    expect(localStorage.getItem("tabularis_sidebar_width")).toBe("300");
+    expect(uiStateStore.get("tabularis_sidebar_width", 0)).toBe(300);
+    // Mirrored for the next first paint, so the sidebar does not jump.
+    expect(JSON.parse(localStorage.getItem(UI_STATE_CACHE_KEY) ?? "{}")).toEqual({
+      tabularis_sidebar_width: 300,
+    });
   });
 });

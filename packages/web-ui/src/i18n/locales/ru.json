@@ -890,7 +890,8 @@
       "apply": "Применить",
       "restartRequired": "Требуется перезапуск",
       "restartRequiredDesc": "После перезапуска Tabularis будет использовать {{path}}.",
-      "restartNow": "Перезапустить сейчас"
+      "restartNow": "Перезапустить сейчас",
+      "restartServer": "Перезапустите сервер Tabularis, чтобы применить изменения."
     },
     "backup": {
       "title": "Бэкап",

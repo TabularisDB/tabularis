@@ -1,5 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { listenForSystemThemeChanges } from "../../src/utils/themeSystemEvents";
+import { listenForTauriSystemThemeChanges as listenForSystemThemeChanges } from "../../src/platform/tauriCapabilities";
+import {
+  getSystemIsDark,
+  listenForSystemThemeChanges as listenThroughActivePlatform,
+} from "../../src/utils/themeSystemEvents";
+import { registerActivePlatformCapabilities } from "../../src/platform/activeCapabilities";
+import type { PlatformCapabilities } from "../../src/platform/capabilities";
 
 const native = vi.hoisted(() => ({ theme: vi.fn(), onThemeChanged: vi.fn() }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => native }));
@@ -27,4 +33,17 @@ it("does not allow a delayed initial read to override a newer event", async () =
   const stop = await subscription;
   expect(change).toHaveBeenCalledTimes(1); expect(change).toHaveBeenLastCalledWith(false);
   stop();
+});
+
+it("delegates to the registered platform", async () => {
+  const stop = vi.fn();
+  const platform = {
+    getSystemIsDark: vi.fn().mockResolvedValue(true),
+    listenForSystemThemeChanges: vi.fn().mockResolvedValue(stop),
+  };
+  registerActivePlatformCapabilities(platform as unknown as PlatformCapabilities);
+  const change = vi.fn();
+  await expect(getSystemIsDark()).resolves.toBe(true);
+  await expect(listenThroughActivePlatform(change)).resolves.toBe(stop);
+  expect(platform.listenForSystemThemeChanges).toHaveBeenCalledWith(change);
 });

@@ -22,13 +22,13 @@ import { useUpdate } from "./hooks/useUpdate";
 import { useChangelog } from "./hooks/useChangelog";
 import { useSettings } from "./hooks/useSettings";
 import { useDeepLinkInstall } from "./hooks/useDeepLinkInstall";
+import { useUiState, useUiStateReady } from "./hooks/useUiState";
+import { UI_STATE_KEYS } from "./utils/uiStateStore";
 import { useResultTypeColors } from "./hooks/useResultTypeColors";
 import { APP_VERSION } from "./version";
 import { isVersionAtMost, isVersionNewer } from "./utils/versionCompare";
 import { useTabularisClient } from "./hooks/useTabularisClient";
 import { BROWSER_ROUTES, WEB_UI_BASE_PATH } from "./routing";
-
-const WHATS_NEW_VERSION_KEY = "tabularis_last_seen_version";
 
 // The editor route owns the Editor import, so lazy-loading it keeps Editor in its own chunk.
 const ConnectionEditorRoute = lazy(() => import("./pages/ConnectionEditorRoute").then((m) => ({ default: m.ConnectionEditorRoute })));
@@ -57,10 +57,20 @@ export function App() {
   const deepLinkInstall = useDeepLinkInstall();
   const [isCommunityModalDismissed, setIsCommunityModalDismissed] = useState(false);
 
-  const lastSeenVersion = localStorage.getItem(WHATS_NEW_VERSION_KEY);
-  const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(
-    () => lastSeenVersion !== null && isVersionNewer(APP_VERSION, lastSeenVersion),
+  // Shared with every host (desktop and browser), so What's New shows once per version.
+  const isUiStateReady = useUiStateReady();
+  const [storedLastSeenVersion, setLastSeenVersion] = useUiState<string | null>(
+    UI_STATE_KEYS.lastSeenVersion,
+    null,
   );
+  const lastSeenVersion =
+    typeof storedLastSeenVersion === "string" ? storedLastSeenVersion : null;
+  const [isWhatsNewDismissed, setIsWhatsNewDismissed] = useState(false);
+  const isWhatsNewOpen =
+    isUiStateReady &&
+    !isWhatsNewDismissed &&
+    lastSeenVersion !== null &&
+    isVersionNewer(APP_VERSION, lastSeenVersion);
 
   const { entries: allEntries, isLoading: isChangelogLoading } = useChangelog(isWhatsNewOpen);
 
@@ -75,27 +85,28 @@ export function App() {
 
   const dismissCommunityModal = useCallback(() => {
     updateSetting("showWelcome", false);
-    localStorage.setItem(WHATS_NEW_VERSION_KEY, APP_VERSION);
+    setLastSeenVersion(APP_VERSION);
     setIsCommunityModalDismissed(true);
-  }, [updateSetting]);
+  }, [setLastSeenVersion, updateSetting]);
 
   const dismissWhatsNew = useCallback(() => {
-    localStorage.setItem(WHATS_NEW_VERSION_KEY, APP_VERSION);
-    setIsWhatsNewOpen(false);
-  }, []);
+    setLastSeenVersion(APP_VERSION);
+    setIsWhatsNewDismissed(true);
+  }, [setLastSeenVersion]);
 
-  // Seed WHATS_NEW_VERSION_KEY for users who completed the welcome flow
+  // Seed the last seen version for users who completed the welcome flow
   // before the WhatsNew feature was introduced. Without this, lastSeenVersion
   // stays null and WhatsNew never triggers.
   useEffect(() => {
     if (
+      isUiStateReady &&
       !isSettingsLoading &&
       settings.showWelcome === false &&
-      !localStorage.getItem(WHATS_NEW_VERSION_KEY)
+      lastSeenVersion === null
     ) {
-      localStorage.setItem(WHATS_NEW_VERSION_KEY, APP_VERSION);
+      setLastSeenVersion(APP_VERSION);
     }
-  }, [isSettingsLoading, settings.showWelcome]);
+  }, [isSettingsLoading, isUiStateReady, lastSeenVersion, setLastSeenVersion, settings.showWelcome]);
 
   useEffect(() => {
     client.call("is_debug_mode", undefined).then((debugMode) => {

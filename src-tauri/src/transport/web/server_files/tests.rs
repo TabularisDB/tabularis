@@ -1,4 +1,7 @@
-use super::{canonicalize_roots, list_directory, resolve_save_target, validate_save_target};
+use super::{
+    canonicalize_roots, list_directory, resolve_save_target, validate_directory_target,
+    validate_existing_file, validate_save_target,
+};
 use std::fs;
 use tempfile::tempdir;
 
@@ -58,4 +61,46 @@ fn rejects_missing_roots_during_startup_validation() {
     let error = canonicalize_roots(&[missing]).unwrap_err();
 
     assert!(error.contains("Failed to resolve server file browser root"));
+}
+
+#[test]
+fn validates_existing_files_inside_configured_roots() {
+    let root = tempdir().unwrap();
+    let outside = tempdir().unwrap();
+    fs::write(root.path().join("query.sql"), b"select 1").unwrap();
+    fs::write(outside.path().join("secret.sql"), b"").unwrap();
+    fs::create_dir(root.path().join("folder")).unwrap();
+    let roots = canonicalize_roots(&[root.path().to_path_buf()]).unwrap();
+
+    let file = root.path().join("query.sql");
+    assert_eq!(
+        validate_existing_file(&roots, file.to_str().unwrap()).unwrap(),
+        roots[0].join("query.sql")
+    );
+    let escaped = root.path().join("folder/../../").join(
+        outside.path().file_name().unwrap(),
+    );
+    assert!(validate_existing_file(&roots, escaped.join("secret.sql").to_str().unwrap()).is_err());
+    assert!(validate_existing_file(&roots, root.path().join("folder").to_str().unwrap()).is_err());
+    assert!(validate_existing_file(&[], file.to_str().unwrap()).is_err());
+}
+
+#[test]
+fn validates_new_directories_inside_configured_roots() {
+    let root = tempdir().unwrap();
+    let outside = tempdir().unwrap();
+    let roots = canonicalize_roots(&[root.path().to_path_buf()]).unwrap();
+
+    let nested = root.path().join("sync/tabularis");
+    assert_eq!(
+        validate_directory_target(&roots, nested.to_str().unwrap()).unwrap(),
+        roots[0].join("sync/tabularis")
+    );
+    assert!(validate_directory_target(&roots, outside.path().join("new").to_str().unwrap()).is_err());
+    assert!(validate_directory_target(&roots, "relative/dir").is_err());
+    assert!(validate_directory_target(
+        &roots,
+        root.path().join("missing/../../escape").to_str().unwrap()
+    )
+    .is_err());
 }

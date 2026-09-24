@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
+import { useUiState } from "./useUiState";
+import { UI_STATE_KEYS } from "../utils/uiStateStore";
 
 const MIN_WIDTH = 320;
 const DEFAULT_WIDTH = 384;
-const STORAGE_KEY = "tabularis_row_editor_sidebar_width";
+/** Coalesces writes while the handle is being dragged. */
+const PERSIST_DEBOUNCE_MS = 300;
 
 const computeMaxWidth = () =>
 	typeof window === "undefined"
@@ -10,14 +13,15 @@ const computeMaxWidth = () =>
 		: Math.max(MIN_WIDTH, Math.floor(window.innerWidth * 0.5));
 
 export const useRightSidebarResize = () => {
-	const [width, setWidth] = useState<number>(() => {
-		if (typeof window === "undefined") return DEFAULT_WIDTH;
-		const saved = window.localStorage.getItem(STORAGE_KEY);
-		if (!saved) return DEFAULT_WIDTH;
-		const parsed = Number.parseInt(saved, 10);
-		if (Number.isNaN(parsed)) return DEFAULT_WIDTH;
-		return Math.max(MIN_WIDTH, Math.min(parsed, computeMaxWidth()));
-	});
+	const [stored, setWidth] = useUiState(
+		UI_STATE_KEYS.rowEditorSidebarWidth,
+		DEFAULT_WIDTH,
+		{ debounceMs: PERSIST_DEBOUNCE_MS },
+	);
+	const width =
+		typeof stored === "number" && Number.isFinite(stored)
+			? Math.max(MIN_WIDTH, Math.min(stored, computeMaxWidth()))
+			: DEFAULT_WIDTH;
 	const isDragging = useRef(false);
 
 	const startResize = useCallback((e: React.MouseEvent) => {
@@ -49,12 +53,7 @@ export const useRightSidebarResize = () => {
 
 		document.addEventListener("mousemove", handleMove);
 		document.addEventListener("mouseup", stop);
-	}, []);
-
-	useEffect(() => {
-		if (typeof window === "undefined") return;
-		window.localStorage.setItem(STORAGE_KEY, String(width));
-	}, [width]);
+	}, [setWidth]);
 
 	return { width, startResize };
 };

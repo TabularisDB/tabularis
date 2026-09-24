@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import { Save } from "lucide-react";
 import { PasswordInput } from "../ui/PasswordInput";
 import { useAlert } from "../../hooks/useAlert";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import {
   SettingButtonGroup,
   SettingRow,
@@ -43,6 +43,7 @@ export function ProxyFields({
 }: ProxyFieldsProps) {
   const { t } = useTranslation();
   const { showAlert } = useAlert();
+  const client = useTabularisClient();
   const [password, setPassword] = useState("");
   const [passwordSet, setPasswordSet] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -54,14 +55,14 @@ export function ProxyFields({
       return;
     }
     try {
-      const set = await invoke<boolean>("proxy_password_is_set", {
+      const set = await client.call("proxy_password_is_set", {
         slot: passwordSlot,
       });
       setPasswordSet(set);
     } catch {
       setPasswordSet(false);
     }
-  }, [passwordSlot]);
+  }, [client, passwordSlot]);
 
   useEffect(() => {
     void refreshPasswordStatus();
@@ -75,7 +76,7 @@ export function ProxyFields({
     if (!passwordSlot || !password) return;
     setSavingPassword(true);
     try {
-      await invoke("set_proxy_password", {
+      await client.call("set_proxy_password", {
         slot: passwordSlot,
         password,
       });
@@ -92,7 +93,7 @@ export function ProxyFields({
     if (!passwordSlot) return;
     setSavingPassword(true);
     try {
-      await invoke("delete_proxy_password", { slot: passwordSlot });
+      await client.call("delete_proxy_password", { slot: passwordSlot });
       setPassword("");
       await refreshPasswordStatus();
     } catch (e) {

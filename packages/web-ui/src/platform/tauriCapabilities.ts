@@ -31,6 +31,7 @@ import {
   type ChosenInputFile,
   type ChosenSaveTarget,
   type DownloadFileRequest,
+  type NativeWindowTheme,
   type FetchedBlob,
   type NotificationOutcome,
   type OpenConnectionRouteRequest,
@@ -40,6 +41,7 @@ import {
   type PlatformDialogRequest,
   type PlatformNotification,
   type RouteEventHandler,
+  type SystemThemeListener,
   type UnsubscribeRouteEvent,
 } from "./capabilities";
 import type { BlobFetchResponse } from "../api/contract";
@@ -49,7 +51,11 @@ import {
   extractBlobMetadata,
   parseBlobFileRef,
 } from "../utils/blob";
-import { getAppDataDir } from "../utils/storageLocation";
+import { isLinuxDesktop } from "../utils/systemTheme";
+import {
+  listenForColorSchemeChanges,
+  prefersDarkColorScheme,
+} from "./systemColorScheme";
 
 export interface TauriPlatformOperations {
   chooseInputPath(
@@ -77,7 +83,91 @@ export interface TauriPlatformOperations {
   closeRoute(): Promise<void>;
   requestAttention(level: AttentionLevel): Promise<void>;
   restartApplication(): Promise<void>;
+  openStorageLocation(): Promise<void>;
+  setNativeWindowTheme(theme: NativeWindowTheme | null): Promise<void>;
+  getSystemIsDark(): Promise<boolean>;
+  listenForSystemThemeChanges(
+    onChange: SystemThemeListener,
+  ): Promise<() => void>;
+  currentWindowLabel(): string;
+  getAppDataDir(): Promise<string>;
 }
+
+let appDataDirPromise: Promise<string> | null = null;
+
+/**
+ * Absolute data directory as resolved by the backend, honouring a custom
+ * storage location. Cached for the page lifetime: the folder cannot change
+ * without a restart. Prefer this over `appDataDir()` from the Tauri path API,
+ * which only knows the platform default.
+ */
+export function getTauriAppDataDir(): Promise<string> {
+  if (!appDataDirPromise) {
+    appDataDirPromise = invoke<string>("get_app_data_dir").catch((e: unknown) => {
+      appDataDirPromise = null;
+      throw e;
+    });
+  }
+  return appDataDirPromise;
+}
+
+/** Test hook: forget the cached directory. */
+export function resetAppDataDirCache(): void {
+  appDataDirPromise = null;
+}
+
+export const getTauriSystemIsDark = async (): Promise<boolean> => {
+  if (isLinuxDesktop()) {
+    try {
+      const portalTheme = await invoke<"dark" | "light" | null>("get_linux_system_theme");
+      if (portalTheme) return portalTheme === "dark";
+    } catch { /* Desktops without a portal use fallbacks. */ }
+  }
+  try {
+    const nativeTheme = await getCurrentWindow().theme();
+    if (nativeTheme) return nativeTheme === "dark";
+  } catch { /* Previews do not expose the native window API. */ }
+  return prefersDarkColorScheme().matches;
+};
+
+export const listenForTauriSystemThemeChanges = async (
+  onChange: SystemThemeListener,
+): Promise<() => void> => {
+  if (isLinuxDesktop()) {
+    let disposed = false;
+    let revision = 0;
+    const refresh = async () => {
+      const request = ++revision;
+      const isDark = await getTauriSystemIsDark();
+      if (!disposed && request === revision) onChange(isDark);
+    };
+    const mediaQuery = prefersDarkColorScheme();
+    const handleChange = () => { void refresh(); };
+    mediaQuery.addEventListener("change", handleChange);
+    let stopPortal: (() => void) | undefined;
+    try { stopPortal = await listen("linux-system-theme-changed", handleChange); } catch { /* Keep the media-query fallback. */ }
+    await refresh();
+    return () => { disposed = true; stopPortal?.(); mediaQuery.removeEventListener("change", handleChange); };
+  }
+  try {
+    let disposed = false;
+    let revision = 0;
+    const stopNative = await getCurrentWindow().onThemeChanged(({ payload }) => {
+      const request = ++revision;
+      if (payload === null) {
+        void getTauriSystemIsDark().then((isDark) => { if (!disposed && request === revision) onChange(isDark); });
+      } else { onChange(payload === "dark"); }
+    });
+    // A user may enable follow-system after the OS changed in static mode.
+    // Subscribe before reading and never let a stale read override an event.
+    const request = ++revision;
+    const isDark = await getTauriSystemIsDark();
+    if (!disposed && request === revision) onChange(isDark);
+    return () => { disposed = true; stopNative(); };
+  } catch {
+    return listenForColorSchemeChanges(onChange);
+  }
+};
 
 const toDialogFilters = (
   filters: ChooseInputFileOptions["filters"],
@@ -197,6 +287,12 @@ const defaultTauriOperations: TauriPlatformOperations = {
         : UserAttentionType.Informational,
     ),
   restartApplication: () => invoke<void>("relaunch_app"),
+  openStorageLocation: () => invoke<void>("open_storage_location"),
+  setNativeWindowTheme: (theme) => getCurrentWindow().setTheme(theme),
+  getSystemIsDark: getTauriSystemIsDark,
+  listenForSystemThemeChanges: listenForTauriSystemThemeChanges,
+  currentWindowLabel: () => getCurrentWindow().label,
+  getAppDataDir: getTauriAppDataDir,
 };
 
 const nativeCapabilityAvailability = Object.fromEntries(
@@ -347,7 +443,9 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
   }
 
   async resolveAppAsset(relativePath: string): Promise<string> {
-    return convertFileSrc(await join(await getAppDataDir(), relativePath));
+    return convertFileSrc(
+      await join(await this.operations.getAppDataDir(), relativePath),
+    );
   }
 
   async readClipboard(): Promise<string> {
@@ -434,6 +532,29 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
   async restartApplication(): Promise<void> {
     this.require("restartApplication");
     await this.operations.restartApplication();
+  }
+
+  async openStorageLocation(): Promise<void> {
+    this.require("openStorageLocation");
+    await this.operations.openStorageLocation();
+  }
+
+  setNativeWindowTheme(theme: NativeWindowTheme | null): Promise<void> {
+    return this.operations.setNativeWindowTheme(theme);
+  }
+
+  getSystemIsDark(): Promise<boolean> {
+    return this.operations.getSystemIsDark();
+  }
+
+  listenForSystemThemeChanges(
+    onChange: SystemThemeListener,
+  ): Promise<() => void> {
+    return this.operations.listenForSystemThemeChanges(onChange);
+  }
+
+  currentWindowLabel(): string {
+    return this.operations.currentWindowLabel();
   }
 
   private require(

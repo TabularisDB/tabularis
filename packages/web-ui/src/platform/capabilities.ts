@@ -13,6 +13,7 @@ export const PLATFORM_CAPABILITY_NAMES = [
   "closeRoute",
   "requestAttention",
   "restartApplication",
+  "openStorageLocation",
 ] as const;
 
 export type PlatformCapabilityName =
@@ -145,6 +146,11 @@ export type UnsubscribeRouteEvent = () => void;
 
 export type AttentionLevel = "informational" | "critical";
 
+/** Native window chrome theme; null follows the operating system. */
+export type NativeWindowTheme = "light" | "dark";
+
+export type SystemThemeListener = (isDark: boolean) => void;
+
 export interface PlatformCapabilities {
   readonly negotiation: PlatformCapabilityNegotiation;
 
@@ -183,6 +189,20 @@ export interface PlatformCapabilities {
   closeRoute(): Promise<void>;
   requestAttention(level?: AttentionLevel): Promise<void>;
   restartApplication(): Promise<void>;
+  /** Open the app storage folder in the host file manager (desktop only). */
+  openStorageLocation(): Promise<void>;
+  /** Apply the theme to native window chrome; a no-op where there is none. */
+  setNativeWindowTheme(theme: NativeWindowTheme | null): Promise<void>;
+  getSystemIsDark(): Promise<boolean>;
+  /**
+   * Subscribe to operating-system light/dark changes. The listener is also
+   * called once with the current mode after subscribing.
+   */
+  listenForSystemThemeChanges(
+    onChange: SystemThemeListener,
+  ): Promise<() => void>;
+  /** Label of the hosting window; the browser always reports "main". */
+  currentWindowLabel(): string;
 }
 
 export class PlatformCapabilityPermissionError extends Error {

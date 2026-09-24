@@ -860,7 +860,8 @@
       "apply": "应用",
       "restartRequired": "需要重启",
       "restartRequiredDesc": "重启后 Tabularis 将使用 {{path}}。",
-      "restartNow": "立即重启"
+      "restartNow": "立即重启",
+      "restartServer": "重启 Tabularis 服务器以应用更改。"
     },
     "backup": {
       "title": "备份",

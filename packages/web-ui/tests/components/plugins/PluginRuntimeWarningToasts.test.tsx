@@ -5,6 +5,12 @@ import { ToastContext } from "../../../src/contexts/ToastContext";
 
 const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({
+    call: (command: string, request: unknown) =>
+      request === undefined ? invokeMock(command) : invokeMock(command, request),
+  }),
+}));
 
 const settingsMock = vi.hoisted(() => ({ activeExternalDrivers: [] as string[] }));
 vi.mock("../../../src/hooks/useSettings", () => ({

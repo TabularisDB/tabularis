@@ -70,11 +70,13 @@ vi.mock("../../src/hooks/useTabularisClient", () => ({
   useTabularisClient: () => ({ call: vi.fn() }),
 }));
 
+const platformMock = vi.hoisted(() => ({
+  negotiation: { environment: "tauri" },
+  downloadFile: vi.fn(),
+  currentWindowLabel: vi.fn(() => "main"),
+}));
 vi.mock("../../src/hooks/usePlatformCapabilities", () => ({
-  usePlatformCapabilities: () => ({
-    negotiation: { environment: "tauri" },
-    downloadFile: vi.fn(),
-  }),
+  usePlatformCapabilities: () => platformMock,
 }));
 
 vi.mock("../../src/hooks/useDrivers", () => ({

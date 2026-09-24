@@ -6,7 +6,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { PluginRegistryContext } from "./PluginRegistryContext";
 import { useSettings } from "../hooks/useSettings";
 import { useTabularisClient } from "../hooks/useTabularisClient";
@@ -51,11 +50,10 @@ export function PluginRegistryProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    const subscriptions = [
-      "tabularis://plugin-installed",
-      "tabularis://plugin-activated",
-    ].map((event) =>
-      listen(event, () => {
+    const subscriptions = (
+      ["tabularis://plugin-installed", "tabularis://plugin-activated"] as const
+    ).map((event) =>
+      client.subscribe(event, () => {
         if (mounted) refresh();
       }),
     );
@@ -70,7 +68,7 @@ export function PluginRegistryProvider({ children }: { children: ReactNode }) {
         void subscription.then((unlisten) => unlisten()).catch(() => {});
       }
     };
-  }, [refresh]);
+  }, [client, refresh]);
 
   const updates = useMemo(
     () => getPluginUpdates(plugins, APP_VERSION),

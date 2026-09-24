@@ -109,6 +109,10 @@ pub mod theme_commands;
 pub mod theme_models;
 pub mod theme_packages;
 pub mod transport;
+pub mod ui_state;
+pub mod ui_state_commands;
+#[cfg(test)]
+pub mod ui_state_tests;
 pub mod updater;
 pub mod window_decorations;
 pub mod drivers {
@@ -613,6 +617,9 @@ pub fn run() {
             storage_location::reset_storage_location,
             storage_location::open_storage_location,
             storage_location::get_app_data_dir,
+            ui_state_commands::get_ui_state,
+            ui_state_commands::set_ui_state,
+            ui_state_commands::delete_ui_state,
             config::set_ai_key,
             config::delete_ai_key,
             config::check_ai_key,

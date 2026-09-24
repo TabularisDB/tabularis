@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../hooks/useTheme";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { toErrorMessage } from "../../utils/errors";
 import { AlertTriangle, CheckCircle2, Wrench } from "lucide-react";
 import { ThemeDialog } from "../ui/ThemeDialog";
 import { ThemeDialogButton } from "../ui/ThemeDialogButton";
@@ -12,17 +13,18 @@ interface Props { isOpen: boolean; onClose: () => void }
 export const ThemeRecoveryModal = ({ isOpen, onClose }: Props) => {
   const { t } = useTranslation();
   const { refreshCatalog } = useTheme();
+  const client = useTabularisClient();
   const [busy, setBusy] = useState(false);
   const [checked, setChecked] = useState(false);
   const [notes, setNotes] = useState<string[]>([]);
   const recover = async () => {
     setBusy(true); setNotes([]);
     try {
-      const failures = await invoke<string[]>("recover_theme_packages");
+      const failures = await client.call("recover_theme_packages", undefined);
       setChecked(true); setNotes(failures);
       try { await refreshCatalog(); }
-      catch (error) { setNotes((previous) => [...previous, `${t("themePackages.refreshFailed")}: ${String(error)}`]); }
-    } catch (error) { setNotes([String(error)]); }
+      catch (error) { setNotes((previous) => [...previous, `${t("themePackages.refreshFailed")}: ${toErrorMessage(error)}`]); }
+    } catch (error) { setNotes([toErrorMessage(error)]); }
     finally { setBusy(false); }
   };
   return <ThemeDialog isOpen={isOpen} onClose={onClose} icon={<Wrench size={20} />} title={t("themePackages.recover")} busy={busy}

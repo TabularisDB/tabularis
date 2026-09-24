@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, Copy, Download, Eye, FileJson, FolderOpen, Info, Package, Palette, Pencil, Power, RefreshCw, Trash2, Upload, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { useTheme } from "../../hooks/useTheme";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { downloadTextFile } from "../../utils/fileDownloads";
+import { toErrorMessage } from "../../utils/errors";
 import { useSettings } from "../../hooks/useSettings";
 import type { CatalogTheme } from "../../types/themeCatalog";
 import type { Theme } from "../../types/theme";
@@ -29,6 +30,7 @@ type ThemeAction = { kind: "preview"; theme: CatalogTheme; apply: () => Promise<
 export function ThemeManager() {
   const { t } = useTranslation();
   const themes = useTheme();
+  const platform = usePlatformCapabilities();
   const { settings } = useSettings();
   const [document, setDocument] = useState<{ kind: "tabularis" | "vscode" | "edit"; original?: CatalogTheme }>();
   const [action, setAction] = useState<ThemeAction>();
@@ -51,7 +53,7 @@ export function ThemeManager() {
     const request = ++saveRequest.current;
     setError("");
     void operation().catch((failure) => {
-      if (request === saveRequest.current) setError(String(failure));
+      if (request === saveRequest.current) setError(toErrorMessage(failure));
     });
   };
   const entries = new Map(themes.catalog.themes.map((theme) => [theme.entry.id, theme]));
@@ -62,9 +64,9 @@ export function ThemeManager() {
   const exportJSON = async (theme: CatalogTheme) => {
     try {
       const source = await themes.exportTheme(theme.entry.id);
-      const path = await save({ defaultPath: "theme.json", filters: [{ name: "JSON", extensions: ["json"] }] });
-      if (path) await writeTextFile(path, source);
-    } catch (failure) { setError(String(failure)); }
+      // Desktop asks for a save path; browsers download the file.
+      await downloadTextFile(platform, { fileName: "theme.json", contents: source, mimeType: "application/json", filters: [{ name: "JSON", extensions: ["json"] }] });
+    } catch (failure) { setError(toErrorMessage(failure)); }
   };
   const renderActions = (choice: Theme, apply: () => Promise<void>) => {
     const theme = entries.get(choice.id);
@@ -121,7 +123,7 @@ export function ThemeManager() {
         ]}><Download size={13} />{t("themePackages.import")}<ChevronDown size={12} /></ThemeActionsMenu>
         <button type="button" onClick={browseThemes} className="inline-flex items-center gap-1.5 rounded-lg border border-default px-3 py-2 text-xs text-muted hover:bg-surface-secondary hover:text-primary transition-colors"><Palette size={13} />{t("themePackages.discover")}</button>
         <div className="ml-auto flex items-center gap-1">
-          <button type="button" disabled={themes.isLoading} aria-label={t("themePackages.refresh")} title={t("themePackages.refresh")} onClick={() => { void themes.refreshCatalog().catch((failure) => setError(String(failure))); }} className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface-secondary disabled:opacity-40"><RefreshCw size={15} /></button>
+          <button type="button" disabled={themes.isLoading} aria-label={t("themePackages.refresh")} title={t("themePackages.refresh")} onClick={() => { void themes.refreshCatalog().catch((failure) => setError(toErrorMessage(failure))); }} className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface-secondary disabled:opacity-40"><RefreshCw size={15} /></button>
           <ThemeActionsMenu label={t("themePackages.manage")} items={[{ label: t("themePackages.recover"), icon: Wrench, onSelect: () => setRecover(true) }]} />
         </div>
       </div>
@@ -151,6 +153,7 @@ export function ThemeManager() {
 function ThemeActionDialog({ isOpen, action, onClose }: { isOpen: boolean; action: ThemeAction; onClose: () => void }) {
   const { t } = useTranslation();
   const themes = useTheme();
+  const client = useTabularisClient();
   const [name, setName] = useState(action.theme.entry.name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -166,14 +169,14 @@ function ThemeActionDialog({ isOpen, action, onClose }: { isOpen: boolean; actio
       else if (action.kind === "package" && action.theme.entry.origin.kind === "installed") {
         const identity = action.theme.entry.origin.identity;
         const args = { registryKey: identity.registryKey, packageName: identity.packageName };
-        if (action.operation === "remove") await invoke("uninstall_theme_package", args);
-        else await invoke("set_theme_package_enabled", { ...args, enabled: action.operation === "enable" });
+        if (action.operation === "remove") await client.call("uninstall_theme_package", args);
+        else await client.call("set_theme_package_enabled", { ...args, enabled: action.operation === "enable" });
         setCommitted(true);
         try { await themes.refreshCatalog(); }
-        catch (failure) { setError(`${t("themePackages.committedRefreshFailed")} ${String(failure)}`); return; }
+        catch (failure) { setError(`${t("themePackages.committedRefreshFailed")} ${toErrorMessage(failure)}`); return; }
       }
       setCommitted(true); onClose();
-    } catch (failure) { setError(String(failure)); }
+    } catch (failure) { setError(toErrorMessage(failure)); }
     finally { setBusy(false); }
   };
   const destructive = action.kind === "delete" || (action.kind === "package" && action.operation === "remove");

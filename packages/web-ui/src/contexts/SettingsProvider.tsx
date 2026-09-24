@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { listen } from "@tauri-apps/api/event";
 import { loadStartupConfig } from "../utils/startupConfig";
 import { detectAiDefaults } from "../utils/aiDefaults";
 import {
@@ -237,7 +236,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let mounted = true;
     let cleanup: (() => void) | null = null;
-    listen("tabularis://plugin-activated", () => {
+    client.subscribe("tabularis://plugin-activated", () => {
       if (!mounted) return;
       client.call("get_config", undefined)
         .then((config) => {

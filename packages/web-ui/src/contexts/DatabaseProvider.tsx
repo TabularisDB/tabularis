@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { detectPlatformEnvironment } from '../platform/environment';
 import {
@@ -14,7 +13,7 @@ import {
   type ConnectionGroup,
 } from './DatabaseContext';
 import type { ReactNode } from 'react';
-import type { ConnectionMetadata, PluginManifest } from '../types/plugins';
+import type { PluginManifest } from '../types/plugins';
 import { clearAutocompleteCache } from '../utils/autocomplete';
 import { loadOptionalMetadata } from '../utils/connectionMetadata';
 import { toErrorMessage } from '../utils/errors';
@@ -740,7 +739,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
       if (!isCurrentAttempt()) return;
       const metadata = driverManifest?.connection_metadata
-        ? await invoke<ConnectionMetadata | null>("get_connection_metadata", { connectionId })
+        ? await client.call("get_connection_metadata", { connectionId })
         : null;
       if (!isCurrentAttempt()) return;
       if (metadata) {
@@ -1159,9 +1158,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
   // Invalidate open dynamic contexts when their saved parameters or plugin change.
   useEffect(() => {
-    const unlisten = listen<{ connectionId?: string; driverId?: string }>(
+    const unlisten = client.subscribe(
       'connection-metadata-invalidated',
-      ({ payload }) => {
+      (payload) => {
         const ids = Object.entries(connectionDataMapRef.current)
           .filter(([id, data]) => data.usesConnectionMetadata &&
             (id === payload.connectionId || data.driver === payload.driverId))

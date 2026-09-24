@@ -13,6 +13,7 @@ const MAX_PLUGIN_ID_LENGTH: usize = 128;
 
 #[derive(Clone, Debug)]
 pub enum PluginCommand {
+    GetRuntimeWarnings,
     FetchRegistry,
     FetchPreview {
         slug: String,
@@ -72,7 +73,13 @@ pub async fn execute(runtime: &RuntimeContext, command: PluginCommand) -> Result
             version,
             registry_url,
         } => {
-            install_plugin(runtime, plugin_id, version, registry_url).await?;
+            install_plugin(runtime, plugin_id.clone(), version, registry_url).await?;
+            // Browser clients cannot publish events themselves, so the host
+            // tells every session that the installed set changed.
+            let _ = runtime.events.emit(
+                PLUGIN_INSTALLED_EVENT,
+                serde_json::json!({ "slug": plugin_id }),
+            );
             Ok(Value::Null)
         }
         PluginCommand::CancelInstall { plugin_id } => json(cancel_plugin_install(plugin_id)?),
@@ -91,6 +98,9 @@ pub async fn execute(runtime: &RuntimeContext, command: PluginCommand) -> Result
         }
         PluginCommand::GetManifest { plugin_id } => json(get_plugin_manifest(runtime, plugin_id)?),
         PluginCommand::GetStartupErrors => json(get_plugin_startup_errors()),
+        PluginCommand::GetRuntimeWarnings => {
+            json(crate::plugins::runtime_version::get_plugin_runtime_warnings())
+        }
         PluginCommand::KillProcess { plugin_id } => {
             kill_plugin_process(plugin_id).await?;
             Ok(Value::Null)
@@ -101,6 +111,9 @@ pub async fn execute(runtime: &RuntimeContext, command: PluginCommand) -> Result
         }
     }
 }
+
+/// Emitted after a plugin install completes.
+pub const PLUGIN_INSTALLED_EVENT: &str = "tabularis://plugin-installed";
 
 pub async fn fetch_plugin_registry(
     runtime: &RuntimeContext,

@@ -34,6 +34,14 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
+#[path = "rpc_host_commands.rs"]
+mod host_commands;
+use host_commands::{
+    decode_host_settings_command, decode_theme_command, decode_ui_state_command,
+    HostSettingsRpcCommand, ReadSqlFileRequest, ThemeRpcCommand, UiStateRpcCommand,
+    WriteSqlFileRequest,
+};
+
 pub const RPC_DEADLINE_HEADER_NAME: &str = "x-tabularis-deadline-ms";
 pub const RPC_CANCELLATION_HEADER_NAME: &str = "x-tabularis-cancellation-id";
 
@@ -158,6 +166,11 @@ enum RpcCommand {
     ResolveServerSaveTarget,
     CreateSqliteFile,
     CreateSqliteDatabase,
+    ReadSqlFile,
+    WriteSqlFile,
+    Theme(ThemeRpcCommand),
+    HostSettings(HostSettingsRpcCommand),
+    UiState(UiStateRpcCommand),
     Connection(ConnectionRpcCommand),
     ConnectionFiles(ConnectionFilesRpcCommand),
     DatabaseTransfer(DatabaseTransferRpcCommand),
@@ -196,6 +209,7 @@ enum OperationalRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PluginRpcCommand {
+    GetRuntimeWarnings,
     FetchRegistry,
     FetchPreview,
     FetchReadme,
@@ -364,6 +378,7 @@ enum DatabaseObjectRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum MetadataRpcCommand {
+    GetConnectionMetadata,
     GetAvailableDatabases,
     GetSchemas,
     GetTables,
@@ -402,6 +417,7 @@ enum TunnelRpcCommand {
     GetK8sResources,
     GetK8sResourcePorts,
     ValidateK8sPath,
+    TestSsmConnection,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -631,6 +647,18 @@ struct SaveKeybindingsRequest {
 #[serde(deny_unknown_fields)]
 struct SaveThemeRequest {
     theme: Value,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TestSsmConnectionRequest {
+    target: String,
+    #[serde(default)]
+    profile: Option<String>,
+    #[serde(default)]
+    region: Option<String>,
+    host: String,
+    port: u16,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1791,6 +1819,70 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::ReadSqlFile => {
+                let request: ReadSqlFileRequest =
+                    decode_payload(body).map_err(InvocationError::InvalidPayload)?;
+                let path = super::server_files::validate_existing_file(
+                    &self.access_policy.server_file_browser_roots,
+                    &request.path,
+                )
+                .map_err(|error| InvocationError::Application(ApplicationError::new(error)))?;
+                let path = path.to_str().map(str::to_string).ok_or_else(|| {
+                    InvocationError::Application(ApplicationError::new(
+                        "The selected server path is not valid UTF-8",
+                    ))
+                })?;
+                let content = crate::sql_file::read_sql_file(path)
+                    .await
+                    .map_err(|error| InvocationError::Application(ApplicationError::new(error)))?;
+                Ok(Value::String(content))
+            }
+            RpcCommand::WriteSqlFile => {
+                let request: WriteSqlFileRequest =
+                    decode_payload(body).map_err(InvocationError::InvalidPayload)?;
+                let path = super::server_files::validate_save_target(
+                    &self.access_policy.server_file_browser_roots,
+                    &request.path,
+                )
+                .map_err(|error| InvocationError::Application(ApplicationError::new(error)))?;
+                crate::sql_file::write_sql_file(path, request.content)
+                    .await
+                    .map_err(|error| InvocationError::Application(ApplicationError::new(error)))?;
+                Ok(Value::Null)
+            }
+            RpcCommand::Theme(command) => {
+                let command = decode_theme_command(
+                    command,
+                    body,
+                    &self.access_policy.server_file_browser_roots,
+                    context.session_id,
+                )
+                .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_theme_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
+            RpcCommand::HostSettings(command) => {
+                let command = decode_host_settings_command(
+                    command,
+                    body,
+                    &self.access_policy.server_file_browser_roots,
+                )
+                .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_host_settings_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
+            RpcCommand::UiState(command) => {
+                let command = decode_ui_state_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_ui_state_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
         }
     }
 
@@ -1829,6 +1921,8 @@ impl RpcCommand {
             "resolve_server_save_target" => Some(Self::ResolveServerSaveTarget),
             "create_sqlite_file" => Some(Self::CreateSqliteFile),
             "create_sqlite_database" => Some(Self::CreateSqliteDatabase),
+            "read_sql_file" => Some(Self::ReadSqlFile),
+            "write_sql_file" => Some(Self::WriteSqlFile),
             name => QueryRpcCommand::parse(name)
                 .map(Self::Query)
                 .or_else(|| RecordRpcCommand::parse(name).map(Self::Record))
@@ -1845,7 +1939,10 @@ impl RpcCommand {
                 .or_else(|| NotebookRpcCommand::parse(name).map(Self::Notebook))
                 .or_else(|| PluginRpcCommand::parse(name).map(Self::Plugin))
                 .or_else(|| OperationalRpcCommand::parse(name).map(Self::Operational))
-                .or_else(|| McpHostRpcCommand::parse(name).map(Self::McpHost)),
+                .or_else(|| McpHostRpcCommand::parse(name).map(Self::McpHost))
+                .or_else(|| ThemeRpcCommand::parse(name).map(Self::Theme))
+                .or_else(|| HostSettingsRpcCommand::parse(name).map(Self::HostSettings))
+                .or_else(|| UiStateRpcCommand::parse(name).map(Self::UiState)),
         }
     }
 
@@ -1980,6 +2077,26 @@ impl RpcCommand {
                 application_error_code: "MCP_HOST_CONFIGURATION_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::ReadSqlFile | Self::WriteSqlFile => CommandMetadata {
+                authorization: AuthorizationLevel::LocalAdmin,
+                application_error_code: "SQL_FILE_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+            Self::Theme(command) => CommandMetadata {
+                authorization: command.authorization(),
+                application_error_code: "THEME_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+            Self::HostSettings(command) => CommandMetadata {
+                authorization: command.authorization(),
+                application_error_code: "HOST_SETTINGS_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+            Self::UiState(_) => CommandMetadata {
+                authorization: AuthorizationLevel::Session,
+                application_error_code: "UI_STATE_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
         }
     }
 }
@@ -2026,6 +2143,7 @@ impl OperationalRpcCommand {
 impl PluginRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "get_plugin_runtime_warnings" => Self::GetRuntimeWarnings,
             "fetch_plugin_registry" => Self::FetchRegistry,
             "fetch_tabularium_plugin_preview" => Self::FetchPreview,
             "fetch_plugin_readme" => Self::FetchReadme,
@@ -2303,6 +2421,7 @@ impl DatabaseObjectRpcCommand {
 impl MetadataRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "get_connection_metadata" => Self::GetConnectionMetadata,
             "get_available_databases" => Self::GetAvailableDatabases,
             "get_schemas" => Self::GetSchemas,
             "get_tables" => Self::GetTables,
@@ -2345,6 +2464,7 @@ impl TunnelRpcCommand {
             "get_k8s_resources_cmd" => Self::GetK8sResources,
             "get_k8s_resource_ports_cmd" => Self::GetK8sResourcePorts,
             "validate_k8s_path_cmd" => Self::ValidateK8sPath,
+            "test_ssm_connection_cmd" => Self::TestSsmConnection,
             _ => return None,
         })
     }
@@ -2814,6 +2934,10 @@ fn decode_plugin_command(command: PluginRpcCommand, body: &[u8]) -> Result<Plugi
         PluginRpcCommand::GetStartupErrors => {
             decode_empty_payload(body)?;
             PluginCommand::GetStartupErrors
+        }
+        PluginRpcCommand::GetRuntimeWarnings => {
+            decode_empty_payload(body)?;
+            PluginCommand::GetRuntimeWarnings
         }
         PluginRpcCommand::KillProcess => {
             let request: PluginIdRequest = decode_payload(body)?;
@@ -3375,6 +3499,12 @@ fn decode_metadata_command(
     body: &[u8],
 ) -> Result<MetadataCommand, String> {
     Ok(match command {
+        MetadataRpcCommand::GetConnectionMetadata => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            MetadataCommand::GetConnectionMetadata {
+                connection_id: request.connection_id,
+            }
+        }
         MetadataRpcCommand::GetAvailableDatabases => {
             let request: ConnectionIdRequest = decode_payload(body)?;
             MetadataCommand::GetAvailableDatabases {
@@ -3606,6 +3736,16 @@ fn decode_tunnel_command(command: TunnelRpcCommand, body: &[u8]) -> Result<Tunne
             TunnelCommand::ValidateK8sPath {
                 path: request.path,
                 kind: request.kind,
+            }
+        }
+        TunnelRpcCommand::TestSsmConnection => {
+            let request: TestSsmConnectionRequest = decode_payload(body)?;
+            TunnelCommand::TestSsmConnection {
+                target: request.target,
+                profile: request.profile,
+                region: request.region,
+                host: request.host,
+                port: request.port,
             }
         }
     })

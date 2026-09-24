@@ -318,6 +318,18 @@ defineTransportContractSuite(
         expect(request).toEqual({ connectionId: "metadata-fixture" });
         return ["public"];
       }
+      if (command === "get_ui_state") {
+        expect(request).toEqual({ keys: ["tabularis_sidebar_width"] });
+        return { tabularis_sidebar_width: 320 };
+      }
+      if (command === "set_ui_state") {
+        expect(request).toEqual({ key: "tabularis_sidebar_width", value: 280 });
+        return null;
+      }
+      if (command === "get_theme_catalog") {
+        expect(request).toBeUndefined();
+        return { themes: [], issues: [] };
+      }
       if (command === "create_notebook" || command === "save_notebook") {
         return null;
       }

@@ -326,6 +326,16 @@ pub fn load_redacted_connections(path: &Path) -> Result<Vec<SavedConnection>, St
     load_connections(path).map(redacted_connections)
 }
 
+/// Driver id of a saved connection, without resolving secrets or tunnels.
+pub(crate) fn saved_connection_driver(
+    runtime: &RuntimeContext,
+    connection_id: &str,
+) -> Result<String, String> {
+    Ok(find_connection(&load_file(runtime)?, connection_id)?
+        .params
+        .driver)
+}
+
 pub(crate) fn resolve_saved_connection_params(
     runtime: &RuntimeContext,
     session_id: Option<Uuid>,

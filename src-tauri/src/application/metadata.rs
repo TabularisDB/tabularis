@@ -11,6 +11,9 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum MetadataCommand {
+    GetConnectionMetadata {
+        connection_id: String,
+    },
     GetAvailableDatabases {
         connection_id: String,
     },
@@ -93,6 +96,9 @@ pub async fn execute(
     command: MetadataCommand,
 ) -> Result<Value, String> {
     match command {
+        MetadataCommand::GetConnectionMetadata { connection_id } => {
+            json(get_connection_metadata(runtime, session_id, &connection_id).await?)
+        }
         MetadataCommand::GetAvailableDatabases { connection_id } => {
             json(get_available_databases(runtime, session_id, &connection_id).await?)
         }
@@ -206,6 +212,31 @@ async fn driver_and_params(
     .map_err(|error| error.to_string())??;
     let driver = crate::drivers::registry::get_connection_driver(&params).await?;
     Ok((driver, params))
+}
+
+/// Capabilities and type catalog reported by a connection's driver. Only
+/// plugins that discover them per connection answer; static drivers return
+/// `None` so the frontend keeps using their manifest.
+pub async fn get_connection_metadata(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: &str,
+) -> Result<Option<crate::plugins::connection_metadata::ConnectionMetadata>, String> {
+    let driver_id = crate::application::connections::saved_connection_driver(runtime, connection_id)?;
+    let driver = crate::drivers::registry::get_driver(&driver_id)
+        .await
+        .ok_or_else(|| format!("Unsupported driver: {driver_id}"))?;
+    if !driver.has_connection_metadata() {
+        return Ok(None);
+    }
+    let (driver, _params) = driver_and_params(runtime, session_id, connection_id).await?;
+    Ok(Some(
+        crate::plugins::connection_metadata::ConnectionMetadata {
+            capabilities: driver.manifest().capabilities.clone(),
+            data_types: driver.get_data_types(),
+            type_mappings: driver.manifest().type_mappings.clone(),
+        },
+    ))
 }
 
 pub async fn get_ai_schema_context(

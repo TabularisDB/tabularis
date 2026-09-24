@@ -1,7 +1,7 @@
 use super::{
     ai, connection_files, connections, database_objects, database_transfers, generic_exports,
-    mcp_host, metadata, notebooks, operations, persistence, plugins, productivity, queries,
-    records, tunnels,
+    host_settings, mcp_host, metadata, notebooks, operations, persistence, plugins, productivity,
+    queries, records, themes, tunnels, ui_state,
 };
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
@@ -163,6 +163,24 @@ pub trait ApplicationApi: Send + Sync {
         &self,
         context: ApplicationRequestContext,
         command: mcp_host::McpHostCommand,
+    ) -> Result<Value, ApplicationError>;
+
+    async fn execute_theme_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: themes::ThemeCommand,
+    ) -> Result<Value, ApplicationError>;
+
+    async fn execute_host_settings_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: host_settings::HostSettingsCommand,
+    ) -> Result<Value, ApplicationError>;
+
+    async fn execute_ui_state_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: ui_state::UiStateCommand,
     ) -> Result<Value, ApplicationError>;
 }
 
@@ -404,6 +422,37 @@ impl ApplicationApi for RuntimeApplicationApi {
         command: mcp_host::McpHostCommand,
     ) -> Result<Value, ApplicationError> {
         mcp_host::execute(command)
+            .await
+            .map_err(ApplicationError::new)
+    }
+
+    async fn execute_theme_command(
+        &self,
+        _context: ApplicationRequestContext,
+        command: themes::ThemeCommand,
+    ) -> Result<Value, ApplicationError> {
+        themes::execute(&self.runtime, command)
+            .await
+            .map_err(ApplicationError::new)
+    }
+
+    async fn execute_host_settings_command(
+        &self,
+        _context: ApplicationRequestContext,
+        command: host_settings::HostSettingsCommand,
+    ) -> Result<Value, ApplicationError> {
+        tokio::task::spawn_blocking(move || host_settings::execute(command))
+            .await
+            .map_err(|error| ApplicationError::new(error.to_string()))?
+            .map_err(ApplicationError::new)
+    }
+
+    async fn execute_ui_state_command(
+        &self,
+        _context: ApplicationRequestContext,
+        command: ui_state::UiStateCommand,
+    ) -> Result<Value, ApplicationError> {
+        ui_state::execute(&self.runtime, command)
             .await
             .map_err(ApplicationError::new)
     }

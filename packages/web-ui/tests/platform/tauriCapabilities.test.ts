@@ -27,6 +27,12 @@ const createOperations = (): TauriPlatformOperations => ({
   closeRoute: vi.fn(),
   requestAttention: vi.fn(),
   restartApplication: vi.fn(),
+  openStorageLocation: vi.fn(),
+  setNativeWindowTheme: vi.fn(),
+  getSystemIsDark: vi.fn().mockResolvedValue(false),
+  listenForSystemThemeChanges: vi.fn().mockResolvedValue(vi.fn()),
+  currentWindowLabel: vi.fn(() => "main"),
+  getAppDataDir: vi.fn().mockResolvedValue("/data"),
 });
 
 describe("TauriPlatformCapabilities", () => {
@@ -249,5 +255,28 @@ describe("TauriPlatformCapabilities", () => {
       capability: "openExternalUrl",
     });
     expect(operations.openUrl).not.toHaveBeenCalled();
+  });
+});
+
+describe("TauriPlatformCapabilities host window integration", () => {
+  it("forwards native window theme, system theme, label and storage folder", async () => {
+    const operations = createOperations();
+    vi.mocked(operations.getSystemIsDark).mockResolvedValue(true);
+    vi.mocked(operations.currentWindowLabel).mockReturnValue("conn-1");
+    const capabilities = new TauriPlatformCapabilities(operations);
+    const onChange = vi.fn();
+
+    await capabilities.setNativeWindowTheme("dark");
+    await capabilities.setNativeWindowTheme(null);
+    await expect(capabilities.getSystemIsDark()).resolves.toBe(true);
+    await capabilities.listenForSystemThemeChanges(onChange);
+    await capabilities.openStorageLocation();
+
+    expect(operations.setNativeWindowTheme).toHaveBeenNthCalledWith(1, "dark");
+    expect(operations.setNativeWindowTheme).toHaveBeenNthCalledWith(2, null);
+    expect(operations.listenForSystemThemeChanges).toHaveBeenCalledWith(onChange);
+    expect(operations.openStorageLocation).toHaveBeenCalledOnce();
+    expect(capabilities.currentWindowLabel()).toBe("conn-1");
+    expect(capabilities.supports("openStorageLocation")).toBe(true);
   });
 });

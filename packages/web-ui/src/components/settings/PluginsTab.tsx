@@ -39,6 +39,7 @@ import { useDrivers } from "../../hooks/useDrivers";
 import { useTheme } from "../../hooks/useTheme";
 import { usePluginRegistry } from "../../hooks/usePluginRegistry";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { toErrorMessage } from "../../utils/errors";
 import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { useSearchParams } from "react-router-dom";
 import { useDatabase } from "../../hooks/useDatabase";
@@ -813,12 +814,11 @@ export function PluginsTab({
         if (registryPlugin && pluginKind(registryPlugin) === "theme") {
           // Declarative package: same button, different installer. Nothing is
           // activated as a driver and the theme catalog is what changes.
-          const snapshot = await invoke<{ registryKey: string }>(
-            "fetch_theme_registry",
-            { packageName: pluginId },
-          );
+          const snapshot = await client.call("fetch_theme_registry", {
+            packageName: pluginId,
+          });
           themeRegistryKeys.current.set(pluginId, snapshot.registryKey);
-          await invoke("install_registry_theme", {
+          await client.call("install_registry_theme", {
             packageName: pluginId,
             expectedRegistryKey: snapshot.registryKey,
             version,
@@ -851,10 +851,10 @@ export function PluginsTab({
           pluginId;
         onPluginsChanged?.({ type: "install", pluginId, pluginName });
       } catch (err) {
-        if (String(err) !== INSTALL_CANCELLED_ERROR) {
+        if (toErrorMessage(err) !== INSTALL_CANCELLED_ERROR) {
           setPluginInstallError({
             pluginId,
-            error: String(err),
+            error: toErrorMessage(err),
             operation: "install",
           });
         }
@@ -872,7 +872,7 @@ export function PluginsTab({
     try {
       const registryKey = themeRegistryKeys.current.get(pluginId);
       if (registryKey) {
-        await invoke<boolean>("cancel_theme_install", { registryKey, packageName: pluginId });
+        await client.call("cancel_theme_install", { registryKey, packageName: pluginId });
       } else {
         await client.call("cancel_plugin_install", { pluginId });
       }
@@ -880,7 +880,7 @@ export function PluginsTab({
       setCancellingPluginId(null);
       setPluginInstallError({
         pluginId,
-        error: String(err),
+        error: toErrorMessage(err),
         operation: "install",
       });
     }
@@ -976,19 +976,19 @@ export function PluginsTab({
       try {
         // A package toggle applies to every variant. Saved theme selections and
         // driver preferences are retained; the refreshed catalog decides fallback.
-        await invoke("set_theme_package_enabled", { packageName, registryKey, enabled });
+        await client.call("set_theme_package_enabled", { packageName, registryKey, enabled });
         try {
           await refreshCatalog();
         } catch (error) {
-          setThemeToggleError(`${t("themePackages.committedRefreshFailed")} ${String(error)}`);
+          setThemeToggleError(`${t("themePackages.committedRefreshFailed")} ${toErrorMessage(error)}`);
         }
       } catch (error) {
-        setThemeToggleError(`${packageName}: ${String(error)}`);
+        setThemeToggleError(`${packageName}: ${toErrorMessage(error)}`);
       } finally {
         setTogglingThemeId(null);
       }
     },
-    [refreshCatalog, t],
+    [client, refreshCatalog, t],
   );
 
   const doRemoveTheme = async () => {
@@ -996,7 +996,7 @@ export function PluginsTab({
     const { registryKey, packageName } = themeRemoveConfirm;
     setThemeRemoveConfirm({ ...themeRemoveConfirm, busy: true, error: undefined });
     try {
-      const result = await invoke<{ warnings: string[] }>("uninstall_theme_package", {
+      const result = await client.call("uninstall_theme_package", {
         registryKey, packageName,
       });
       setThemeRemoveConfirm((current) => current && { ...current, committed: true, warnings: result.warnings });
@@ -1004,13 +1004,13 @@ export function PluginsTab({
         await Promise.all([refreshCatalog(), refreshRegistry()]);
       } catch (failure) {
         setThemeRemoveConfirm((current) => current && {
-          ...current, error: `${t("themePackages.committedRefreshFailed")} ${String(failure)}`,
+          ...current, error: `${t("themePackages.committedRefreshFailed")} ${toErrorMessage(failure)}`,
         });
         return;
       }
       if (result.warnings.length === 0) setThemeRemoveConfirm(null);
     } catch (failure) {
-      setThemeRemoveConfirm((current) => current && { ...current, error: String(failure) });
+      setThemeRemoveConfirm((current) => current && { ...current, error: toErrorMessage(failure) });
     } finally {
       setThemeRemoveConfirm((current) => current && { ...current, busy: false });
     }

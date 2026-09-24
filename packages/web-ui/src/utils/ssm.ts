@@ -3,9 +3,9 @@
  * Manages `aws ssm start-session` port-forwarding tunnels.
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import type { TabularisClient } from "../api/client";
 
-export interface SsmTestParams extends Record<string, unknown> {
+export interface SsmTestParams {
   target: string;
   profile?: string;
   region?: string;
@@ -18,8 +18,11 @@ export interface SsmTestParams extends Record<string, unknown> {
  * Test an SSM connection by opening a real port-forwarding session and
  * closing it again.
  */
-export async function testSsmConnection(params: SsmTestParams): Promise<string> {
-  return await invoke<string>("test_ssm_connection_cmd", params);
+export async function testSsmConnection(
+  client: TabularisClient,
+  params: SsmTestParams,
+): Promise<string> {
+  return await client.call("test_ssm_connection_cmd", params);
 }
 
 const LOOPBACK_HOSTS = new Set(["", "localhost", "127.0.0.1", "::1"]);

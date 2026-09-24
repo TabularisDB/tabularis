@@ -65,6 +65,12 @@ export interface DriverCapabilities {
   sql_dialect?: Dialect;
 }
 
+/** Non-fatal plugin warning queued by the host, e.g. a runtime version mismatch. */
+export interface PluginRuntimeWarning {
+  plugin_id: string;
+  message: string;
+}
+
 /** Effective metadata for one connection. The registered manifest stays static. */
 export interface ConnectionMetadata {
   capabilities: DriverCapabilities;

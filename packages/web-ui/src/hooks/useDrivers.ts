@@ -1,4 +1,3 @@
-import { listen } from "@tauri-apps/api/event";
 import { useEffect, useSyncExternalStore } from "react";
 import type { TabularisClient } from "../api/client";
 import { createAsyncResource } from "../utils/asyncResource";
@@ -159,7 +158,7 @@ function createDriverStore(client: TabularisClient) {
     if (++subscribers === 1) {
       let disposed = false;
       let unlisten: (() => void) | undefined;
-      void listen("tabularis://plugin-activated", () => {
+      void client.subscribe("tabularis://plugin-activated", () => {
         void resource.refresh();
       }).then((cleanup) => {
         if (disposed) cleanup();

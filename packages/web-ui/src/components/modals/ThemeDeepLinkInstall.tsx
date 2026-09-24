@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Loader2, Palette } from "lucide-react";
 import { useTheme } from "../../hooks/useTheme";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { toErrorMessage } from "../../utils/errors";
 import type { DeepLinkInstallRequest } from "../../hooks/useDeepLinkInstall";
 import type { RegistryPluginWithStatus } from "../../types/plugins";
 import type { ThemeRegistrySnapshot } from "../../utils/themeDiscovery";
@@ -16,13 +17,14 @@ interface ThemeDeepLinkInstallProps { request: DeepLinkInstallRequest; preview: 
 export function ThemeDeepLinkInstall({ request, preview, onClose }: ThemeDeepLinkInstallProps) {
   const { t } = useTranslation();
   const { refreshCatalog } = useTheme();
+  const client = useTabularisClient();
   const [snapshot, setSnapshot] = useState<ThemeRegistrySnapshot>();
   const [error, setError] = useState("");
   useEffect(() => {
     let disposed = false;
-    void invoke<ThemeRegistrySnapshot>("fetch_theme_registry", { packageName: request.slug }).then((result) => { if (!disposed) setSnapshot(result); }).catch((failure) => { if (!disposed) setError(String(failure)); });
+    void client.call("fetch_theme_registry", { packageName: request.slug }).then((result) => { if (!disposed) setSnapshot(result); }).catch((failure) => { if (!disposed) setError(toErrorMessage(failure)); });
     return () => { disposed = true; };
-  }, [request.slug]);
+  }, [client, request.slug]);
   const selectedPlugin = snapshot?.plugins.find((plugin) => plugin.id === request.slug);
   if (snapshot && selectedPlugin) return <ThemeRegistryInstall isOpen onClose={onClose} snapshot={snapshot} plugin={selectedPlugin} installedVersion={preview.installed_version} requestedRegistry={request.registry} initialVersion={request.version || ""} onCommitted={async () => { await refreshCatalog(); }} />;
   return <ThemeDialog isOpen onClose={onClose} icon={<Palette size={20} />} title={t("themePackages.installTitle")} subtitle={preview.name} widthClass="w-[560px]"

@@ -466,6 +466,23 @@ export function defineTransportContractSuite(
       ).resolves.toEqual(["public"]);
     });
 
+    it("preserves shared UI state and theme catalog contracts", async () => {
+      await expect(
+        harness.transport.call("get_ui_state", {
+          keys: ["tabularis_sidebar_width"],
+        }),
+      ).resolves.toEqual({ tabularis_sidebar_width: 320 });
+      await expect(
+        harness.transport.call("set_ui_state", {
+          key: "tabularis_sidebar_width",
+          value: 280,
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("get_theme_catalog", undefined),
+      ).resolves.toEqual({ themes: [], issues: [] });
+    });
+
     it("preserves database object and user-management contracts", async () => {
       await expect(
         harness.transport.call("get_view_definition", {
@@ -949,6 +966,24 @@ async function handleRequest(
     body === JSON.stringify({ connectionId: "metadata-fixture" })
   ) {
     sendSuccess(response, ["public"], requestId);
+    return;
+  }
+  if (
+    command === "get_ui_state" &&
+    body === JSON.stringify({ keys: ["tabularis_sidebar_width"] })
+  ) {
+    sendSuccess(response, { tabularis_sidebar_width: 320 }, requestId);
+    return;
+  }
+  if (
+    command === "set_ui_state" &&
+    body === JSON.stringify({ key: "tabularis_sidebar_width", value: 280 })
+  ) {
+    sendSuccess(response, null, requestId);
+    return;
+  }
+  if (command === "get_theme_catalog" && body === "null") {
+    sendSuccess(response, { themes: [], issues: [] }, requestId);
     return;
   }
   const notebookContent = JSON.stringify({

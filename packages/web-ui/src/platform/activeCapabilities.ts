@@ -15,6 +15,11 @@ export function getActivePlatformCapabilities(): PlatformCapabilities {
   return activePlatformCapabilities;
 }
 
+/** The registered platform, or null before bootstrap (tests, previews). */
+export function getActivePlatformCapabilitiesOrNull(): PlatformCapabilities | null {
+  return activePlatformCapabilities;
+}
+
 export function writeActiveClipboard(text: string): Promise<void> {
   if (activePlatformCapabilities) {
     return activePlatformCapabilities.writeClipboard(text);

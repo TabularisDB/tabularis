@@ -76,10 +76,6 @@ import {
   WrapText,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import {
-  open as openFileDialog,
-  save as saveFileDialog,
-} from "@tauri-apps/plugin-dialog";
 import { TableToolbar } from "../components/ui/TableToolbar";
 import { DataGrid } from "../components/ui/DataGrid";
 import { MultiResultPanel } from "../components/ui/MultiResultPanel";
@@ -149,6 +145,7 @@ import { useEditor } from "../hooks/useEditor";
 import { useConnectionLayoutContext } from "../hooks/useConnectionLayoutContext";
 import { useKeybindings } from "../hooks/useKeybindings";
 import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
+import { openSqlFile, saveSqlFile } from "../utils/sqlFileTransfer";
 import { useSecondaryWindows } from "../hooks/useSecondaryWindows";
 import type {
   BatchStatementResult,
@@ -510,24 +507,24 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const handleOpenSqlFile = useCallback(async () => {
     try {
-      const filePath = await openFileDialog({
-        multiple: false,
-        filters: [
-          {
-            name: t("editor.sqlFileFilter"),
-            extensions: ["sql", "psql", "pgsql"],
-          },
-        ],
-      });
-      if (typeof filePath !== "string") return;
-
-      const query = await invoke<string>("read_sql_file", { path: filePath });
+      const opened = await openSqlFile(platform, client, [
+        {
+          name: t("editor.sqlFileFilter"),
+          extensions: ["sql", "psql", "pgsql"],
+        },
+      ]);
+      if (!opened) return;
+      const schema = isMultiDb ? selectedDatabases[0] : undefined;
       addTab(
-        createSqlFileTab(
-          filePath,
-          query,
-          isMultiDb ? selectedDatabases[0] : undefined,
-        ),
+        opened.kind === "path"
+          ? createSqlFileTab(opened.path, opened.query, schema)
+          : {
+              // An uploaded copy has no host path; saving it downloads a file.
+              type: "console",
+              title: getSqlFileName(opened.name),
+              query: opened.query,
+              ...(schema ? { schema } : {}),
+            },
       );
     } catch (error) {
       showAlert(`${t("editor.openSqlFileError")}: ${String(error)}`, {
@@ -535,7 +532,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         kind: "error",
       });
     }
-  }, [addTab, isMultiDb, selectedDatabases, showAlert, t]);
+  }, [addTab, client, isMultiDb, platform, selectedDatabases, showAlert, t]);
 
   // Save is a no-op on a clean file and on an empty console (which would
   // otherwise open a Save As dialog for nothing).
@@ -548,26 +545,25 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const handleSaveSqlFile = useCallback(
     async (tab: Tab, saveAs = false) => {
       try {
-        let filePath = tab.sourceFilePath;
-        if (saveAs || !filePath) {
-          const selectedPath = await saveFileDialog({
-            defaultPath: filePath ?? tab.title,
-            filters: [
-              {
-                name: t("editor.sqlFileFilter"),
-                extensions: ["sql", "psql", "pgsql"],
-              },
-            ],
-          });
-          if (typeof selectedPath !== "string") return;
-          filePath = selectedPath;
-        }
-
         const savedQuery = tab.query;
-        await invoke("write_sql_file", { path: filePath, content: savedQuery });
-        updateTab(tab.id, (currentTab) =>
-          savedSqlFileTab(filePath, savedQuery, currentTab.query),
-        );
+        const saved = await saveSqlFile(platform, client, {
+          query: savedQuery,
+          title: tab.title,
+          sourceFilePath: tab.sourceFilePath,
+          saveAs,
+          filters: [
+            {
+              name: t("editor.sqlFileFilter"),
+              extensions: ["sql", "psql", "pgsql"],
+            },
+          ],
+        });
+        if (!saved) return;
+        if (saved.kind === "path") {
+          updateTab(tab.id, (currentTab) =>
+            savedSqlFileTab(saved.path, savedQuery, currentTab.query),
+          );
+        }
         showToast(t("editor.sqlFileSaved"), { kind: "success" });
       } catch (error) {
         showAlert(`${t("editor.saveSqlFileError")}: ${String(error)}`, {
@@ -576,7 +572,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         });
       }
     },
-    [showAlert, showToast, t, updateTab],
+    [client, platform, showAlert, showToast, t, updateTab],
   );
 
   const isEditorOpen =

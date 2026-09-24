@@ -298,3 +298,48 @@ describe("BrowserPlatformCapabilities BLOB transfers", () => {
     });
   });
 });
+
+describe("BrowserPlatformCapabilities host-only integrations", () => {
+  it("keeps native window and host folder actions out of the browser", async () => {
+    const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
+
+    expect(capabilities.supports("openStorageLocation")).toBe(false);
+    await expect(capabilities.openStorageLocation()).rejects.toThrow(
+      "The browser cannot open folders on the Tabularis server",
+    );
+    await expect(capabilities.setNativeWindowTheme("dark")).resolves.toBeUndefined();
+    expect(capabilities.currentWindowLabel()).toBe("main");
+  });
+
+  it("reads and follows the browser color scheme", async () => {
+    let listener: ((event: MediaQueryListEvent) => void) | undefined;
+    const media = {
+      matches: true,
+      addEventListener: vi.fn((_: string, handler: (event: MediaQueryListEvent) => void) => {
+        listener = handler;
+      }),
+      removeEventListener: vi.fn(),
+    };
+    const original = window.matchMedia;
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: vi.fn(() => media as unknown as MediaQueryList),
+    });
+    const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
+    const onChange = vi.fn();
+
+    await expect(capabilities.getSystemIsDark()).resolves.toBe(true);
+    const stop = await capabilities.listenForSystemThemeChanges(onChange);
+    expect(onChange).toHaveBeenLastCalledWith(true);
+    listener?.({ matches: false } as MediaQueryListEvent);
+    expect(onChange).toHaveBeenLastCalledWith(false);
+    stop();
+    expect(media.removeEventListener).toHaveBeenCalled();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: original,
+    });
+  });
+});

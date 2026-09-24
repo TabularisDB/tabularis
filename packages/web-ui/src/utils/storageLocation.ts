@@ -1,5 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
-
 /** Where the folder in use was resolved from (mirrors the Rust enum). */
 export type StorageLocationSource = "default" | "custom" | "env";
 
@@ -37,27 +35,4 @@ export function defaultModeFor(inspection: StorageLocationInspection): NewFolder
 export function pendingPathOf(info: StorageLocationInfo): string | null {
   if (!info.restartRequired) return null;
   return info.customPath ?? info.defaultPath;
-}
-
-let appDataDirPromise: Promise<string> | null = null;
-
-/**
- * Absolute data directory as resolved by the backend, honouring a custom
- * storage location. Cached for the page lifetime: the folder cannot change
- * without a restart. Prefer this over `appDataDir()` from the Tauri path API,
- * which only knows the platform default.
- */
-export function getAppDataDir(): Promise<string> {
-  if (!appDataDirPromise) {
-    appDataDirPromise = invoke<string>("get_app_data_dir").catch((e: unknown) => {
-      appDataDirPromise = null;
-      throw e;
-    });
-  }
-  return appDataDirPromise;
-}
-
-/** Test hook: forget the cached directory. */
-export function resetAppDataDirCache(): void {
-  appDataDirPromise = null;
 }

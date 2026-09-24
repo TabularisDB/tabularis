@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ThemeRecoveryModal } from "../../../src/components/modals/ThemeRecoveryModal";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), refresh: vi.fn() }));
+vi.mock("../../../src/hooks/useTabularisClient", () => import("../../support/tauriBackedHooks"));
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => import("../../support/tauriBackedHooks"));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock("../../../src/hooks/useTheme", () => ({ useTheme: () => ({ refreshCatalog: mocks.refresh }) }));

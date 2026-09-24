@@ -225,7 +225,12 @@ impl WebEventBus {
             | "query-cancelled"
             | "dump_progress"
             | "import_progress"
-            | "export_progress" => Some(AuthorizationLevel::Database),
+            | "export_progress"
+            | "connection-metadata-invalidated"
+            | "tabularis://plugin-activated" => Some(AuthorizationLevel::Database),
+            "theme-catalog-changed" | "ui-state://changed" | "tabularis://plugin-installed" => {
+                Some(AuthorizationLevel::Session)
+            }
             "plugin-install-progress" | "tabularis://plugin-install" => {
                 Some(AuthorizationLevel::Sensitive)
             }

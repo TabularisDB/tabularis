@@ -911,7 +911,8 @@
       "apply": "適用",
       "restartRequired": "再起動が必要です",
       "restartRequiredDesc": "再起動後、Tabularis は {{path}} を使用します。",
-      "restartNow": "今すぐ再起動"
+      "restartNow": "今すぐ再起動",
+      "restartServer": "適用するには Tabularis サーバーを再起動してください。"
     },
     "backup": {
       "title": "バックアップ",

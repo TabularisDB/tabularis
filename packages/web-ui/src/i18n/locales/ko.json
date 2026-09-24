@@ -872,7 +872,8 @@
       "apply": "적용",
       "restartRequired": "재시작 필요",
       "restartRequiredDesc": "재시작 후 Tabularis는 {{path}}를 사용합니다.",
-      "restartNow": "지금 재시작"
+      "restartNow": "지금 재시작",
+      "restartServer": "적용하려면 Tabularis 서버를 다시 시작하세요."
     },
     "backup": {
       "title": "백업",

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { toErrorMessage } from "../../utils/errors";
 import { AlertTriangle, BookOpen, CheckCircle2, Download, ExternalLink, Info, Loader2, Palette, RefreshCw } from "lucide-react";
 import { APP_VERSION } from "../../version";
 import { ThemeDialog } from "../ui/ThemeDialog";
@@ -33,6 +34,7 @@ interface ThemeRegistryInstallProps {
 export function ThemeRegistryInstall({ isOpen, onClose, snapshot, plugin, onCommitted, installedVersion = null, initialVersion = "", requestedRegistry = null }: ThemeRegistryInstallProps) {
   const { t, i18n } = useTranslation();
   const platform = usePlatformCapabilities();
+  const client = useTabularisClient();
   const [detail, setDetail] = useState<ThemeRegistryPlugin>();
   const [version, setVersion] = useState(initialVersion);
   const [readme, setReadme] = useState(false);
@@ -44,9 +46,9 @@ export function ThemeRegistryInstall({ isOpen, onClose, snapshot, plugin, onComm
   useEffect(() => {
     if (!isOpen) return;
     let disposed = false;
-    void invoke<ThemeRegistryPlugin>("fetch_theme_package_detail", { packageName: plugin.id, expectedRegistryKey: snapshot.registryKey, requestedRegistryUrl: requestedRegistry }).then((value) => { if (!disposed) setDetail(value); }).catch((failure) => { if (!disposed) setError(String(failure)); });
+    void client.call("fetch_theme_package_detail", { packageName: plugin.id, expectedRegistryKey: snapshot.registryKey, requestedRegistryUrl: requestedRegistry }).then((value) => { if (!disposed) setDetail(value); }).catch((failure) => { if (!disposed) setError(toErrorMessage(failure)); });
     return () => { disposed = true; };
-  }, [plugin.id, snapshot.registryKey, requestedRegistry, isOpen]);
+  }, [client, plugin.id, snapshot.registryKey, requestedRegistry, isOpen]);
   useEffect(() => {
     if (isOpen && !readme && returningFromReadme.current) { readmeButton.current?.focus(); returningFromReadme.current = false; }
   }, [isOpen, readme]);
@@ -61,12 +63,12 @@ export function ThemeRegistryInstall({ isOpen, onClose, snapshot, plugin, onComm
   const install = async () => {
     setBusy(true); setError("");
     try {
-      const result = await invoke<{ warnings: string[] }>("install_registry_theme", { packageName: plugin.id, expectedRegistryKey: snapshot.registryKey, version: version || null });
+      const result = await client.call("install_registry_theme", { packageName: plugin.id, expectedRegistryKey: snapshot.registryKey, version: version || null });
       setCommitted(true);
       setError(result.warnings.join("\n"));
       try { await onCommitted(); }
-      catch (failure) { setError(`${t("themePackages.committedRefreshFailed")} ${String(failure)}`); }
-    } catch (failure) { setError(String(failure)); }
+      catch (failure) { setError(`${t("themePackages.committedRefreshFailed")} ${toErrorMessage(failure)}`); }
+    } catch (failure) { setError(toErrorMessage(failure)); }
     finally { setBusy(false); }
   };
   const actionLabel = `${t(isUpdate ? "settings.plugins.update" : "settings.plugins.install")} v${target}`;
@@ -75,7 +77,7 @@ export function ThemeRegistryInstall({ isOpen, onClose, snapshot, plugin, onComm
       {t("themePackages.readme")}
     </ThemeDialogButton>
     {busy
-      ? <ThemeDialogButton onClick={() => { void invoke("cancel_theme_install", { registryKey: snapshot.registryKey, packageName: plugin.id }).catch((failure) => setError(String(failure))); }}>{t("common.cancel")}</ThemeDialogButton>
+      ? <ThemeDialogButton onClick={() => { void client.call("cancel_theme_install", { registryKey: snapshot.registryKey, packageName: plugin.id }).catch((failure) => setError(toErrorMessage(failure))); }}>{t("common.cancel")}</ThemeDialogButton>
       : <ThemeDialogButton onClick={onClose}>{t("common.close")}</ThemeDialogButton>}
     <ThemeDialogButton variant="primary" busy={busy} disabled={!compatible || committed} onClick={() => void install()} title={release?.min_tabularis_version && !compatible ? t("themePackages.minimumVersion", { version: release.min_tabularis_version }) : undefined}
       icon={isUpdate ? <RefreshCw size={16} /> : <Download size={16} />}>

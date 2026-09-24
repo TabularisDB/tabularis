@@ -8,10 +8,12 @@ vi.mock("@tauri-apps/api/core", () => ({
 import {
   defaultModeFor,
   pendingPathOf,
-  getAppDataDir,
-  resetAppDataDirCache,
   type StorageLocationInfo,
 } from "../../src/utils/storageLocation";
+import {
+  getTauriAppDataDir as getAppDataDir,
+  resetAppDataDirCache,
+} from "../../src/platform/tauriCapabilities";
 
 const baseInfo: StorageLocationInfo = {
   currentPath: "/home/u/.config/tabularis",

@@ -136,12 +136,11 @@ export const WhatsNewModal = ({
                 <button
                   type="button"
                   onClick={() => {
-                    try {
-                      dismissSupportPrompt();
-                    } catch (error) {
+                    setSupportHideError(false);
+                    dismissSupportPrompt().catch((error: unknown) => {
                       console.error("Failed to save sponsorship prompt preference:", error);
                       setSupportHideError(true);
-                    }
+                    });
                   }}
                   className="rounded text-xs text-secondary underline underline-offset-4 transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-secondary"
                 >

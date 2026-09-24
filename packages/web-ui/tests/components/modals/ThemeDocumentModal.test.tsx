@@ -4,6 +4,8 @@ import { ThemeDocumentModal } from "../../../src/components/modals/ThemeDocument
 import { builtinCatalog, resolveCatalogEntry } from "../../../src/utils/themeCatalog";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), previewTheme: vi.fn(), cancelPreview: vi.fn(), importTheme: vi.fn(), setTheme: vi.fn(), updatePersonalSource: vi.fn(), updateCustomTheme: vi.fn() }));
+vi.mock("../../../src/hooks/useTabularisClient", () => import("../../support/tauriBackedHooks"));
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => import("../../support/tauriBackedHooks"));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("../../../src/components/ui/ThemeSqlSample", () => ({ ThemeSqlSample: () => <div>SQL sample</div> }));
 vi.mock("../../../src/hooks/useTheme", () => ({ useTheme: () => mocks }));

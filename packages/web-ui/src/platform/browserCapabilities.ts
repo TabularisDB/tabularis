@@ -20,6 +20,7 @@ import {
   type PlatformDialogRequest,
   type PlatformCapabilityNegotiation,
   type PlatformNotification,
+  type SystemThemeListener,
   type RouteEventHandler,
   type UnsubscribeRouteEvent,
 } from "./capabilities";
@@ -39,6 +40,10 @@ import {
   requestBrowserSaveTarget,
   requestBrowserServerPath,
 } from "./browserDialogs";
+import {
+  listenForColorSchemeChanges,
+  prefersDarkColorScheme,
+} from "./systemColorScheme";
 
 function browserCapabilityNegotiation(
   serverFileBrowser: boolean,
@@ -75,6 +80,11 @@ function browserCapabilityNegotiation(
       supported: false,
       adaptation: "unsupported",
       reason: "The browser cannot restart the Tabularis server",
+    },
+    openStorageLocation: {
+      supported: false,
+      adaptation: "unsupported",
+      reason: "The browser cannot open folders on the Tabularis server",
     },
   });
 }
@@ -352,6 +362,29 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
 
   restartApplication(): Promise<void> {
     return this.unsupported("restartApplication");
+  }
+
+  openStorageLocation(): Promise<void> {
+    return this.unsupported("openStorageLocation");
+  }
+
+  setNativeWindowTheme(): Promise<void> {
+    // Browser pages have no native window chrome to theme.
+    return Promise.resolve();
+  }
+
+  getSystemIsDark(): Promise<boolean> {
+    return Promise.resolve(prefersDarkColorScheme().matches);
+  }
+
+  listenForSystemThemeChanges(
+    onChange: SystemThemeListener,
+  ): Promise<() => void> {
+    return listenForColorSchemeChanges(onChange);
+  }
+
+  currentWindowLabel(): string {
+    return "main";
   }
 
   private unsupported<T>(capability: PlatformCapabilityName): Promise<T> {

@@ -399,6 +399,33 @@ impl ApplicationApi for FixtureApplication {
             }
         })
     }
+
+    async fn execute_theme_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::themes::ThemeCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(Value::String(format!("{command:?}")))
+    }
+
+    async fn execute_host_settings_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::host_settings::HostSettingsCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(Value::String(format!("{command:?}")))
+    }
+
+    async fn execute_ui_state_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::ui_state::UiStateCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(Value::String(format!("{command:?}")))
+    }
 }
 
 fn json_headers() -> HeaderMap {
@@ -2066,4 +2093,287 @@ fn json_headers_with_cancellation(id: &str) -> HeaderMap {
         HeaderValue::from_str(id).unwrap(),
     );
     headers
+}
+
+async fn dispatch_json(
+    dispatcher: &RpcDispatcher,
+    command: &str,
+    payload: serde_json::Value,
+    session_id: Option<Uuid>,
+    authorization: AuthorizationLevel,
+) -> Response {
+    dispatcher
+        .dispatch_authorized(
+            command,
+            RequestId(format!("request-{command}")),
+            &json_headers(),
+            Bytes::from(serde_json::to_vec(&payload).unwrap()),
+            session_id,
+            authorization,
+        )
+        .await
+}
+
+fn dispatcher_with_roots(root: &std::path::Path) -> RpcDispatcher {
+    let roots = crate::transport::web::server_files::canonicalize_roots(&[root.to_path_buf()])
+        .unwrap();
+    RpcDispatcher::with_access_policy(
+        Arc::new(FixtureApplication::new(Duration::ZERO)),
+        RpcAccessPolicy {
+            server_file_browser_roots: roots,
+            ..RpcAccessPolicy::default()
+        },
+    )
+}
+
+#[test]
+fn registers_merged_host_commands_with_explicit_authorization() {
+    let expectations = [
+        ("get_theme_catalog", AuthorizationLevel::Session),
+        ("preview_theme_document", AuthorizationLevel::Session),
+        ("create_personal_theme", AuthorizationLevel::LocalAdmin),
+        ("create_personal_snapshot", AuthorizationLevel::LocalAdmin),
+        ("update_personal_theme", AuthorizationLevel::LocalAdmin),
+        ("update_personal_snapshot", AuthorizationLevel::LocalAdmin),
+        ("duplicate_personal_theme", AuthorizationLevel::LocalAdmin),
+        ("import_theme", AuthorizationLevel::LocalAdmin),
+        ("export_theme", AuthorizationLevel::LocalAdmin),
+        ("preview_local_theme_package", AuthorizationLevel::LocalAdmin),
+        ("install_local_theme_package", AuthorizationLevel::LocalAdmin),
+        ("fetch_theme_registry", AuthorizationLevel::LocalAdmin),
+        ("fetch_theme_package_detail", AuthorizationLevel::LocalAdmin),
+        ("install_registry_theme", AuthorizationLevel::LocalAdmin),
+        ("cancel_theme_install", AuthorizationLevel::LocalAdmin),
+        ("set_theme_package_enabled", AuthorizationLevel::LocalAdmin),
+        ("uninstall_theme_package", AuthorizationLevel::LocalAdmin),
+        ("recover_theme_packages", AuthorizationLevel::LocalAdmin),
+        ("proxy_password_is_set", AuthorizationLevel::Sensitive),
+        ("set_proxy_password", AuthorizationLevel::Sensitive),
+        ("delete_proxy_password", AuthorizationLevel::Sensitive),
+        ("get_storage_location", AuthorizationLevel::LocalAdmin),
+        ("inspect_storage_location", AuthorizationLevel::LocalAdmin),
+        ("set_storage_location", AuthorizationLevel::LocalAdmin),
+        ("reset_storage_location", AuthorizationLevel::LocalAdmin),
+        ("get_app_data_dir", AuthorizationLevel::LocalAdmin),
+        ("read_sql_file", AuthorizationLevel::LocalAdmin),
+        ("write_sql_file", AuthorizationLevel::LocalAdmin),
+        ("get_connection_metadata", AuthorizationLevel::Database),
+        ("get_plugin_runtime_warnings", AuthorizationLevel::LocalAdmin),
+        ("test_ssm_connection_cmd", AuthorizationLevel::LocalAdmin),
+        ("get_ui_state", AuthorizationLevel::Session),
+        ("set_ui_state", AuthorizationLevel::Session),
+        ("delete_ui_state", AuthorizationLevel::Session),
+    ];
+    for (name, authorization) in expectations {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(command.metadata().authorization, authorization, "{name}");
+    }
+    // Desktop-only integrations never get a browser route.
+    for name in ["open_storage_location", "get_linux_system_theme"] {
+        assert!(RpcCommand::parse(name).is_none(), "{name}");
+    }
+}
+
+#[tokio::test]
+async fn routes_theme_host_and_ui_state_commands_through_the_shared_application_api() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let session = Some(Uuid::new_v4());
+    let commands = [
+        ("get_theme_catalog", serde_json::Value::Null, "GetCatalog"),
+        (
+            "update_personal_snapshot",
+            serde_json::json!({
+                "themeId": "personal:a",
+                "name": "A",
+                "source": "{}",
+                "editor": {"base": "vs-dark"},
+                "expectedRevision": "r1"
+            }),
+            "UpdatePersonalSnapshot",
+        ),
+        (
+            "duplicate_personal_theme",
+            serde_json::json!({"themeId": "builtin:x", "name": "Copy"}),
+            "DuplicatePersonalTheme",
+        ),
+        (
+            "import_theme",
+            serde_json::json!({"themeJson": "{}"}),
+            "ImportTheme",
+        ),
+        ("fetch_theme_registry", serde_json::Value::Null, "FetchRegistry"),
+        (
+            "install_local_theme_package",
+            serde_json::json!({
+                "uploadToken": "token-1",
+                "packageName": "acme/nord",
+                "expectedDigest": "abc"
+            }),
+            "Upload",
+        ),
+        (
+            "set_theme_package_enabled",
+            serde_json::json!({"registryKey": "r", "packageName": "p", "enabled": false}),
+            "SetPackageEnabled",
+        ),
+        (
+            "proxy_password_is_set",
+            serde_json::json!({"slot": "proxy:global"}),
+            "ProxyPasswordIsSet",
+        ),
+        ("get_storage_location", serde_json::Value::Null, "GetStorageLocation"),
+        ("get_ui_state", serde_json::json!({"keys": ["a"]}), "Get"),
+        (
+            "set_ui_state",
+            serde_json::json!({"key": "tabularis_sidebar_width", "value": 320}),
+            "Set",
+        ),
+        ("delete_ui_state", serde_json::json!({"key": "k"}), "Delete"),
+    ];
+    for (command, payload, expected) in commands {
+        let response = dispatch_json(
+            &dispatcher,
+            command,
+            payload,
+            session,
+            AuthorizationLevel::LocalAdmin,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+        let body = response_json(response).await;
+        let routed = body["data"].as_str().unwrap_or_default().to_string();
+        assert!(routed.contains(expected), "{command}: {routed}");
+    }
+}
+
+#[tokio::test]
+async fn keeps_host_commands_behind_their_authorization_level() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let session = Some(Uuid::new_v4());
+    let response = dispatch_json(
+        &dispatcher,
+        "get_theme_catalog",
+        serde_json::Value::Null,
+        session,
+        AuthorizationLevel::Session,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    for command in ["import_theme", "set_proxy_password", "set_storage_location"] {
+        let response = dispatch_json(
+            &dispatcher,
+            command,
+            serde_json::json!({}),
+            session,
+            AuthorizationLevel::Database,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{command}");
+    }
+}
+
+#[tokio::test]
+async fn confines_server_paths_for_sql_files_theme_archives_and_storage() {
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let dispatcher = dispatcher_with_roots(root.path());
+    let session = Some(Uuid::new_v4());
+    let inside_sql = root.path().join("report.sql");
+    std::fs::write(&inside_sql, "select 1;").unwrap();
+    let outside_sql = outside.path().join("secret.sql");
+    std::fs::write(&outside_sql, "select 2;").unwrap();
+
+    let response = dispatch_json(
+        &dispatcher,
+        "read_sql_file",
+        serde_json::json!({"path": inside_sql.to_string_lossy()}),
+        session,
+        AuthorizationLevel::LocalAdmin,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response_json(response).await["data"], "select 1;");
+
+    let written = root.path().join("saved.sql");
+    let response = dispatch_json(
+        &dispatcher,
+        "write_sql_file",
+        serde_json::json!({"path": written.to_string_lossy(), "content": "select 3;"}),
+        session,
+        AuthorizationLevel::LocalAdmin,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(std::fs::read_to_string(&written).unwrap(), "select 3;");
+
+    for (command, payload) in [
+        (
+            "read_sql_file",
+            serde_json::json!({"path": outside_sql.to_string_lossy()}),
+        ),
+        (
+            "write_sql_file",
+            serde_json::json!({
+                "path": outside.path().join("x.sql").to_string_lossy(),
+                "content": ""
+            }),
+        ),
+    ] {
+        let response =
+            dispatch_json(&dispatcher, command, payload, session, AuthorizationLevel::LocalAdmin)
+                .await;
+        assert_ne!(response.status(), StatusCode::OK, "{command}");
+    }
+    assert!(!outside.path().join("x.sql").exists());
+
+    for (command, payload) in [
+        (
+            "preview_local_theme_package",
+            serde_json::json!({"path": outside_sql.to_string_lossy()}),
+        ),
+        (
+            "preview_local_theme_package",
+            serde_json::json!({"path": inside_sql.to_string_lossy(), "uploadToken": "t"}),
+        ),
+        (
+            "set_storage_location",
+            serde_json::json!({"path": outside.path().join("data").to_string_lossy(), "copyData": false}),
+        ),
+        (
+            "inspect_storage_location",
+            serde_json::json!({"path": "relative/folder"}),
+        ),
+    ] {
+        let response =
+            dispatch_json(&dispatcher, command, payload, session, AuthorizationLevel::LocalAdmin)
+                .await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{command}");
+    }
+
+    let response = dispatch_json(
+        &dispatcher,
+        "inspect_storage_location",
+        serde_json::json!({"path": root.path().join("sync/tabularis").to_string_lossy()}),
+        session,
+        AuthorizationLevel::LocalAdmin,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn rejects_server_paths_when_the_file_browser_is_disabled() {
+    let root = tempfile::tempdir().unwrap();
+    let file = root.path().join("report.sql");
+    std::fs::write(&file, "select 1;").unwrap();
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let response = dispatch_json(
+        &dispatcher,
+        "read_sql_file",
+        serde_json::json!({"path": file.to_string_lossy()}),
+        Some(Uuid::new_v4()),
+        AuthorizationLevel::LocalAdmin,
+    )
+    .await;
+    assert_ne!(response.status(), StatusCode::OK);
 }

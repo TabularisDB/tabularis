@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import { AlertTriangle, Eye, FileCode, Info, Pencil, Save } from "lucide-react";
 import { ThemeDialog } from "../ui/ThemeDialog";
 import { ThemeDialogButton } from "../ui/ThemeDialogButton";
@@ -8,6 +7,8 @@ import { InlineBanner } from "../ui/InlineBanner";
 import { ThemeSqlSample } from "../ui/ThemeSqlSample";
 import { Select } from "../ui/Select";
 import { useTheme } from "../../hooks/useTheme";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { toErrorMessage } from "../../utils/errors";
 import { convertVsCodeTheme, VsCodeThemeImportError, type VsCodeThemeDiagnostic } from "../../utils/vsCodeThemeImport";
 import { resolveCatalogEntry } from "../../utils/themeCatalog";
 import type { CatalogTheme, NativeThemeContribution } from "../../types/themeCatalog";
@@ -23,6 +24,7 @@ interface ThemeDocumentModalProps {
 export function ThemeDocumentModal({ isOpen, onClose, kind, original }: ThemeDocumentModalProps) {
   const { t } = useTranslation();
   const themes = useTheme();
+  const client = useTabularisClient();
   const modeId = useId();
   const [source, setSource] = useState(original?.entry.source ?? "");
   const [editorSource, setEditorSource] = useState(original?.entry.editor ? JSON.stringify(original.entry.editor, null, 2) : "");
@@ -47,12 +49,12 @@ export function ThemeDocumentModal({ isOpen, onClose, kind, original }: ThemeDoc
     try {
       const converted = kind === "vscode" ? convertVsCodeTheme(source, { mode: mode || undefined }) : undefined;
       const document = snapshot ? JSON.stringify({ themeSnapshotVersion: 1, source, editor: JSON.parse(editorSource) }) : converted ? JSON.stringify(converted.definition) : source;
-      const entry = await invoke<NativeThemeContribution>("preview_theme_document", { source: document, name });
+      const entry = await client.call("preview_theme_document", { source: document, name });
       if (request !== generation.current) return;
       themes.previewTheme(entry);
       setPrepared({ entry, document, diagnostics: converted?.diagnostics ?? [] });
     } catch (failure) {
-      if (request === generation.current) setError(failure instanceof VsCodeThemeImportError ? t(`themePackages.importErrors.${failure.code}`) : String(failure));
+      if (request === generation.current) setError(failure instanceof VsCodeThemeImportError ? t(`themePackages.importErrors.${failure.code}`) : toErrorMessage(failure));
     } finally { if (request === generation.current) setBusy(false); }
   };
   const commit = async () => {
@@ -74,10 +76,10 @@ export function ThemeDocumentModal({ isOpen, onClose, kind, original }: ThemeDoc
       cancelPreview();
       if (apply) {
         try { await themes.setTheme(id); }
-        catch (failure) { setError(`${t("themePackages.savedNotApplied")} ${String(failure)}`); return; }
+        catch (failure) { setError(`${t("themePackages.savedNotApplied")} ${toErrorMessage(failure)}`); return; }
       }
       onClose();
-    } catch (failure) { setError(String(failure)); }
+    } catch (failure) { setError(toErrorMessage(failure)); }
     finally { setBusy(false); }
   };
   return <ThemeDialog isOpen onClose={onClose} busy={busy} widthClass="w-[760px]"
@@ -98,7 +100,7 @@ export function ThemeDocumentModal({ isOpen, onClose, kind, original }: ThemeDoc
         const limit = kind === "vscode" ? 256 * 1024 : 8 * 1024 * 1024;
         if (file.size > limit) { setError(t("themePackages.fileTooLarge")); return; }
         try { const text = await file.text(); if (request === generation.current) setSource(text); }
-        catch (failure) { if (request === generation.current) setError(String(failure)); }
+        catch (failure) { if (request === generation.current) setError(toErrorMessage(failure)); }
       }} /></label>}
       <label className="block space-y-1.5 text-xs font-medium text-secondary">{t("themePackages.name")}<input data-autofocus value={name} maxLength={128} onChange={(event) => { invalidate(); setName(event.target.value); }} className="block w-full px-3 py-2 bg-base border border-strong rounded-lg text-sm font-normal text-primary focus:border-focus focus:outline-none disabled:opacity-50" /></label>
       {kind === "vscode" && <div className="space-y-1.5">

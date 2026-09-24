@@ -1609,7 +1609,7 @@ export const NewConnectionModal = ({
     setSsmTestStatus("testing");
     setSsmTestMessage(null);
     const result = await runSsmAsync("new-ssm-test", () =>
-      testSsmConnection({
+      testSsmConnection(client, {
         target,
         profile: formData.ssm_profile?.trim() || undefined,
         region: formData.ssm_region?.trim() || undefined,
@@ -1627,6 +1627,7 @@ export const NewConnectionModal = ({
     setSsmTestStatus("success");
     setSsmTestMessage(result.value);
   }, [
+    client,
     formData.host,
     formData.port,
     formData.ssm_profile,

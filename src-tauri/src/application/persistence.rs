@@ -471,9 +471,7 @@ pub fn delete_custom_theme(runtime: &RuntimeContext, theme_id: &str) -> Result<(
 }
 
 fn notify_theme_catalog_changed(runtime: &RuntimeContext) {
-    if let Err(error) = runtime.events.emit("theme-catalog-changed", Value::Null) {
-        log::warn!("Personal theme change committed but refresh delivery failed: {error}");
-    }
+    super::themes::notify_catalog_changed(runtime);
 }
 
 pub fn get_prompt(runtime: &RuntimeContext, kind: PromptKind) -> String {

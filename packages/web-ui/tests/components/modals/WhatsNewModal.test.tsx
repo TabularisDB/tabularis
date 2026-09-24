@@ -1,8 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WhatsNewModal } from "../../../src/components/modals/WhatsNewModal";
+import type { TabularisClient } from "../../../src/api/client";
 import { SUPPORT_PROMPT_DISMISSED_KEY } from "../../../src/utils/supportPrompt";
+import { uiStateStore } from "../../../src/utils/uiStateStore";
 
 vi.mock("../../../src/hooks/useTabularisClient", () => import("../../support/tauriBackedHooks"));
 vi.mock("../../../src/hooks/usePlatformCapabilities", () => import("../../support/tauriBackedHooks"));
@@ -29,12 +31,25 @@ const renderModal = (props = {}) => {
   return { onClose, ...view };
 };
 
+const uiStateCall = vi.fn();
+let detachUiState: () => void = () => {};
+
 describe("WhatsNewModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    uiStateStore.reset();
+    uiStateCall.mockReset();
+    uiStateCall.mockImplementation(async (command: string) => (command === "get_ui_state" ? {} : undefined));
+    detachUiState = uiStateStore.attach({
+      call: uiStateCall,
+      subscribe: vi.fn(async () => () => {}),
+    } as unknown as TabularisClient);
   });
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    detachUiState();
+    vi.restoreAllMocks();
+  });
 
   it("shows the sponsorship invitation alongside every changelog section", () => {
     renderModal();
@@ -86,11 +101,14 @@ describe("WhatsNewModal", () => {
     expect(screen.queryByText("common.loading") !== null).toBe(isLoading);
   });
 
-  it("remembers never-show-again after remounting without hiding the changelog", () => {
+  it("remembers never-show-again after remounting without hiding the changelog", async () => {
     const { onClose, unmount } = renderModal();
     fireEvent.click(screen.getByRole("button", { name: "whatsNew.supportNeverShow" }));
-    expect(localStorage.getItem(SUPPORT_PROMPT_DISMISSED_KEY)).toBe("true");
-    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
+    expect(uiStateCall).toHaveBeenCalledWith("set_ui_state", {
+      key: SUPPORT_PROMPT_DISMISSED_KEY,
+      value: true,
+    });
     expect(screen.getByText("SQL files")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     unmount();
@@ -100,24 +118,25 @@ describe("WhatsNewModal", () => {
     expect(screen.getByRole("button", { name: "whatsNew.dismiss" })).toBeInTheDocument();
   });
 
-  it("keeps multiple modal instances in sync", () => {
+  it("keeps multiple modal instances in sync", async () => {
     renderModal();
     renderModal();
     expect(screen.getAllByRole("region")).toHaveLength(2);
     fireEvent.click(screen.getAllByRole("button", { name: "whatsNew.supportNeverShow" })[0]);
-    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("region")).not.toBeInTheDocument());
   });
 
-  it("reports persistence failures instead of claiming the choice was saved", () => {
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+  it("reports persistence failures instead of claiming the choice was saved", async () => {
+    uiStateCall.mockImplementation(async (command: string) => {
+      if (command === "get_ui_state") return {};
       throw new Error("Storage unavailable");
     });
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     renderModal();
     fireEvent.click(screen.getByRole("button", { name: "whatsNew.supportNeverShow" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("whatsNew.supportHideError");
+    expect(await screen.findByRole("alert")).toHaveTextContent("whatsNew.supportHideError");
     expect(screen.getByRole("region")).toBeInTheDocument();
-    expect(localStorage.getItem(SUPPORT_PROMPT_DISMISSED_KEY)).toBeNull();
+    expect(uiStateStore.get(SUPPORT_PROMPT_DISMISSED_KEY, false)).toBe(false);
   });
 
   it("does not render when closed", () => {
