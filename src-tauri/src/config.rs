@@ -210,6 +210,13 @@ pub struct AppConfig {
     /// already reported. Prevents re-prompting for a gap already filed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub known_capability_gaps: Option<HashMap<String, Vec<String>>>,
+    // ----- Team share -----
+    /// Path of the shared vault file this machine is joined to (see
+    /// [`crate::team_share`]). `None` means the feature is off. The master
+    /// password is deliberately *not* stored anywhere: it is asked again on
+    /// every launch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub team_share_path: Option<String>,
     /// Per built-in driver id → migration mode. Defaults to `opt-in` when
     /// unset; flipping an entry to `forced` is a separate, later decision
     /// gated on adoption signal — never enabled by this field's existence.
@@ -338,6 +345,25 @@ pub fn load_config_internal<R: tauri::Runtime>(app: &AppHandle<R>) -> AppConfig 
     let default_config = AppConfig::default();
     cache_config(&default_config);
     default_config
+}
+
+/// Write `config` to disk as-is and refresh the in-process cache.
+///
+/// Unlike [`save_config`] this does not merge field by field, so a caller that
+/// needs to *clear* an optional setting can do it. Used by the team share,
+/// which turns `team_share_path` on and off.
+pub fn persist_config<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    config: &AppConfig,
+) -> Result<(), String> {
+    let config_dir = get_config_dir(app).ok_or("Could not resolve config directory")?;
+    if !config_dir.exists() {
+        fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
+    }
+    let content = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    fs::write(config_dir.join("config.json"), content).map_err(|e| e.to_string())?;
+    cache_config(config);
+    Ok(())
 }
 
 #[tauri::command]
@@ -611,6 +637,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.ai_provider_proxies.is_some() {
             existing_config.ai_provider_proxies = config.ai_provider_proxies;
+        }
+        if config.team_share_path.is_some() {
+            existing_config.team_share_path = config.team_share_path;
         }
 
         let content = serde_json::to_string_pretty(&existing_config).map_err(|e| e.to_string())?;

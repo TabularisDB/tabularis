@@ -397,7 +397,21 @@
       "reportIssue": "report it on GitHub."
     },
     "databaseCount_one": "{{count}} database",
-    "databaseCount_other": "{{count}} databases"
+    "databaseCount_other": "{{count}} databases",
+    "shared": "SHARED",
+    "sharedTooltip": "Shared with your team: its credentials live in the shared vault and need the master password.",
+    "shareSelected": "Share ({{count}})",
+    "shareSelectedTooltip": "Move the selected connections into the team share. Their credentials leave this machine's keychain for the shared vault.",
+    "unshareSelected": "Unshare ({{count}})",
+    "unshareSelectedTooltip": "Take the selected connections out of the team share and put their credentials back in this machine's keychain.",
+    "shareFilter": {
+      "all": "All",
+      "allTooltip": "Show every connection",
+      "shared": "Shared",
+      "sharedTooltip": "Show only the connections in the team share",
+      "local": "Local",
+      "localTooltip": "Show only the connections that stay on this machine"
+    }
   },
   "connectionAppearance": {
     "section": "Appearance",
@@ -935,6 +949,55 @@
       "restartRequiredDesc": "Tabularis will use {{path}} after a restart.",
       "restartNow": "Restart now"
     },
+    "teamShare": {
+      "title": "Team share",
+      "description": "Keep a copy of selected connections and their credentials on a folder your team shares. The copy is encrypted with a master password everyone on the team knows.",
+      "vault": "Shared vault",
+      "vaultDesc": "The file holding the shared connections. It is read, merged and written back on each sync, never kept open.",
+      "notConfigured": "No shared vault configured",
+      "revision": "revision {{revision}}",
+      "lastWrite": "Last written by {{who}} on {{when}}",
+      "unreachable": "The shared vault cannot be reached right now. Check that the shared folder is mounted, then unlock it again.",
+      "phase": {
+        "disabled": "Off",
+        "unreachable": "Unreachable",
+        "locked": "Locked",
+        "unlocked": "Unlocked"
+      },
+      "setUp": "Set up team share",
+      "unlock": "Unlock",
+      "lock": "Lock",
+      "syncNow": "Sync now",
+      "disable": "Leave the share",
+      "syncUpToDate": "Already in sync with the share.",
+      "syncSummary": "Last sync: {{pulled}} pulled, {{pushed}} pushed, {{conflicts}} conflict(s), {{removed}} removed.",
+      "membership": "Shared connections",
+      "membershipDesc": "Which connections travel in the share is decided on the connections screen: select them and use Share.",
+      "unlockToManage": "Unlock the shared vault with the master password to manage its connections.",
+      "unlockTitle": "Unlock the team share",
+      "unlockSubtitle": "Shared credentials stay locked until the master password is entered",
+      "unlockDescription": "The master password is never stored, so it is asked on every launch. Without it the shared connections are listed but cannot be used.",
+      "masterPassword": "Master password",
+      "continueLocked": "Continue without them",
+      "setupTitle": "Set up the team share",
+      "setupSubtitle": "Join an existing shared vault, or create one for your team",
+      "setupDescription": "Pick the shared folder. If it already holds a vault, the master password must open it; otherwise a new vault is created there with this password.",
+      "sharedFolder": "Shared folder",
+      "sharedFolderPlaceholder": "\\\\server\\share\\tabularis",
+      "sharedFolderHint": "Point to the folder — the vault file is created inside it. A full path to an existing vault file works too.",
+      "browse": "Browse",
+      "repeatMasterPassword": "Repeat master password",
+      "masterPasswordWarning": "There is no way to recover a lost master password: the shared credentials would be unreadable for the whole team.",
+      "connect": "Connect",
+      "errorEmptyPassword": "Enter a master password.",
+      "errorPasswordMismatch": "The two master passwords do not match.",
+      "errorNoFolder": "Choose the shared folder first.",
+      "membershipHint_one": "{{count}} connection is currently in the share.",
+      "membershipHint_other": "{{count}} connections are currently in the share.",
+      "conflictToastTitle": "Team share conflict",
+      "conflictToast_one": "{{count}} record changed here and on the share since the last sync. Your version won — check it is still the one you want, especially if a teammate rotated a password.",
+      "conflictToast_other": "{{count}} records changed here and on the share since the last sync. Your versions won — check they are still the ones you want, especially if a teammate rotated a password."
+    },
     "backup": {
       "title": "Backup",
       "directory": "Backup folder",
@@ -1160,7 +1223,8 @@
     "chooseDatabases": "Choose databases",
     "allDatabasesHint": "Every database on the server is loaded automatically when connecting. Databases created or dropped on the server show up on their own — no need to edit this connection.",
     "selectDatabasesHint": "Select the databases to include in this connection.",
-    "loadDatabasesHint": "Click Load Databases to fetch available databases."
+    "loadDatabasesHint": "Click Load Databases to fetch available databases.",
+    "sshKeyFileVarsHint": "Environment variables are resolved when connecting: %USERPROFILE%\\keys\\id_ed25519, $HOME/.ssh/id_rsa, ~/.ssh/id_rsa. Use ~ to keep the path working on every machine."
   },
   "sshConnections": {
     "title": "SSH Connections",

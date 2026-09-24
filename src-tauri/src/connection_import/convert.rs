@@ -208,6 +208,7 @@ fn build_connection(
             key_passphrase: creds.and_then(|c| c.ssh_key_passphrase.clone()),
             allow_passphrase_prompt: None,
             save_in_keychain: Some(has_ssh_secret),
+            shared: None,
         }
     });
 
@@ -225,6 +226,7 @@ fn build_connection(
         appearance: None,
         tag_ids: None,
         environment: None,
+        shared: None,
     };
     (saved, ssh_record)
 }

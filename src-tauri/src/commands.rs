@@ -184,6 +184,14 @@ async fn get_ssh_connection_by_id<R: Runtime>(
         );
     }
 
+    // A shared profile keeps its secrets in the team vault, never in this
+    // machine's keychain. While the vault is locked this fails on purpose, the
+    // same way a shared connection does.
+    if ssh.is_shared() {
+        crate::team_share::attach_ssh_secrets(app, &mut ssh)?;
+        return Ok(ssh);
+    }
+
     // Fetch credentials only for this connection, via the in-memory cache.
     // On a warm cache hit this is a HashMap lookup (nanoseconds); on a cold miss
     // it calls keychain once per credential and then caches the result.
@@ -832,6 +840,22 @@ pub fn find_connection_by_id<R: Runtime>(
         }
     };
 
+    // A shared connection keeps its credentials in the team vault, never in
+    // this file and never in the keychain. While the vault is locked this
+    // fails on purpose: falling back to anything else would defeat the master
+    // password.
+    if conn.is_shared() {
+        crate::team_share::attach_secrets(app, &mut conn)?;
+        // Same exception the keychain path makes below: an IAM-auth
+        // connection's password is a 15-minute RDS token, so whatever the
+        // vault happens to hold is stale by the time it is read. Drop it and
+        // let the caller supply a fresh one.
+        if conn.params.use_iam_auth.unwrap_or(false) {
+            conn.params.password = None;
+        }
+        return Ok(conn);
+    }
+
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     restore_runtime_connection_uri(&cache, &conn.id, &mut conn.params)?;
 
@@ -1259,6 +1283,7 @@ pub async fn save_connection<R: Runtime>(
         appearance: None,
         tag_ids: None,
         environment: validate_environment(environment)?,
+        shared: None,
     };
     conn_file.connections.push(new_conn.clone());
     persist_connection_uri_change(
@@ -1302,6 +1327,11 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
         .find(|c| c.id == id)
         .and_then(|c| c.appearance.clone());
 
+    let was_shared = conn_file
+        .connections
+        .iter()
+        .any(|c| c.id == id && c.is_shared());
+
     let initial_count = conn_file.connections.len();
     conn_file.connections.retain(|c| c.id != id);
     let deleted = conn_file.connections.len() < initial_count;
@@ -1315,6 +1345,12 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
     })?;
     // Invalidate the in-memory cache for this connection
     credential_cache::invalidate_all_for_connection(&cache, &id);
+
+    // Propagate the removal to the team share, so it disappears for everyone
+    // instead of coming back on the next sync.
+    if was_shared {
+        crate::team_share::push_local_change(&app, &id, None);
+    }
 
     // Cascade-delete the custom icon file if the connection used one.
     {
@@ -1357,6 +1393,22 @@ pub async fn update_connection<R: Runtime>(
         .iter()
         .position(|c| c.id == id)
         .ok_or("Connection not found")?;
+
+    // A shared connection has no keychain entries to reconcile: its
+    // credentials go to the team vault instead.
+    if conn_file.connections[conn_idx].is_shared() {
+        return update_shared_connection(
+            &app,
+            conn_file,
+            conn_idx,
+            &path,
+            id,
+            name,
+            params,
+            detect_json_in_text_columns,
+            environment,
+        );
+    }
 
     let existing_uri_in_keychain = conn_file.connections[conn_idx]
         .params
@@ -1449,6 +1501,7 @@ pub async fn update_connection<R: Runtime>(
         appearance: original_appearance,
         tag_ids: original_tag_ids,
         environment: validate_environment(environment)?,
+        shared: None,
     };
 
     conn_file.connections[conn_idx] = updated.clone();
@@ -1510,6 +1563,47 @@ pub async fn update_connection<R: Runtime>(
     Ok(returned_conn)
 }
 
+/// `update_connection` for a connection that belongs to the team share.
+///
+/// Kept apart from the main path because none of the keychain reconciliation
+/// applies: the file gets the connection without any secret, the secrets go to
+/// the shared vault, and the push is best effort so an unreachable share does
+/// not fail the edit.
+#[allow(clippy::too_many_arguments)]
+fn update_shared_connection<R: Runtime>(
+    app: &AppHandle<R>,
+    mut conn_file: ConnectionsFile,
+    conn_idx: usize,
+    path: &std::path::Path,
+    id: String,
+    name: String,
+    params: ConnectionParams,
+    detect_json_in_text_columns: Option<bool>,
+    environment: Option<String>,
+) -> Result<SavedConnection, String> {
+    let existing = &conn_file.connections[conn_idx];
+    let updated = SavedConnection {
+        id: id.clone(),
+        name,
+        params: params.clone(),
+        group_id: existing.group_id.clone(),
+        sort_order: existing.sort_order,
+        detect_json_in_text_columns,
+        appearance: existing.appearance.clone(),
+        tag_ids: existing.tag_ids.clone(),
+        environment: validate_environment(environment)?,
+        shared: Some(true),
+    };
+    conn_file.connections[conn_idx] = updated.clone();
+    // `save_connections_file` strips the secrets of a shared connection.
+    save_connections_and_invalidate(app, path, &conn_file)?;
+    crate::team_share::push_local_change(app, &id, Some(&params));
+
+    let mut returned_conn = updated;
+    returned_conn.params = params;
+    Ok(returned_conn)
+}
+
 /// Pure, testable core of `set_connection_appearance`.
 /// Mutates `file` in place; does not touch disk or Tauri state.
 fn set_appearance_impl(
@@ -1536,6 +1630,9 @@ pub async fn set_connection_appearance<R: Runtime>(
     let mut conn_file = persistence::load_connections_file(&path)?;
     set_appearance_impl(&mut conn_file, &id, appearance)?;
     save_connections_and_invalidate(&app, &path, &conn_file)?;
+    // The team shares the look of a connection, so this reaches the share as
+    // soon as it is saved rather than at the next sync.
+    crate::team_share::push_metadata_change(&app, &id);
     Ok(())
 }
 
@@ -1649,6 +1746,7 @@ pub async fn duplicate_connection<R: Runtime>(
         // Normalize rather than fail: an invalid on-disk value must not
         // block duplication, the copy just becomes "unclassified".
         environment: validate_environment(original.environment.clone()).unwrap_or(None),
+        shared: None,
     };
 
     conn_file.connections.push(new_conn.clone());
@@ -1771,6 +1869,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
                         key_passphrase: None,
                         allow_passphrase_prompt: None,
                         save_in_keychain: conn.params.save_in_keychain,
+                        shared: None,
                     };
 
                     ssh_connections.push(new_ssh_conn);
@@ -1967,11 +2066,13 @@ pub async fn save_ssh_connection<R: Runtime>(
         },
         allow_passphrase_prompt: ssh.allow_passphrase_prompt,
         save_in_keychain: ssh.save_in_keychain,
+        // A brand-new profile is local; it joins the share only when a shared
+        // connection starts tunnelling through it.
+        shared: None,
     };
 
     ssh_connections.push(ssh_to_save.clone());
-    let json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
+    persistence::save_ssh_connections_file(&path, &ssh_connections)?;
 
     let mut returned_ssh = ssh_to_save;
     returned_ssh.password = ssh.password;
@@ -1996,8 +2097,18 @@ pub async fn update_ssh_connection<R: Runtime>(
         .position(|s| s.id == id)
         .ok_or("SSH connection not found")?;
 
+    // A shared profile keeps its secrets in the team vault, so none of the
+    // keychain reconciliation below applies to it. The secrets are read out of
+    // the form now, before the struct literal below moves its fields.
+    let was_shared = ssh_connections[ssh_idx].is_shared();
+    let staged_secrets =
+        was_shared.then(|| crate::team_share::SshSecrets::from_input(&ssh));
+
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    if ssh.save_in_keychain.unwrap_or(false) {
+    if was_shared {
+        // Nothing to do here: the push to the vault happens after the file is
+        // written, so an unreachable share cannot fail the edit.
+    } else if ssh.save_in_keychain.unwrap_or(false) {
         if let Some(pwd) = &ssh.password {
             keychain_utils::set_ssh_password(&id, pwd)?;
             credential_cache::set_ssh_password_cached(&cache, &id, pwd);
@@ -2035,12 +2146,17 @@ pub async fn update_ssh_connection<R: Runtime>(
         },
         allow_passphrase_prompt: ssh.allow_passphrase_prompt,
         save_in_keychain: ssh.save_in_keychain,
+        shared: was_shared.then_some(true),
     };
 
     ssh_connections[ssh_idx] = ssh_to_save.clone();
 
-    let json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
+    // Writes through the shared-aware helper, so a shared profile's secrets
+    // never reach the file.
+    persistence::save_ssh_connections_file(&path, &ssh_connections)?;
+    if let Some(secrets) = &staged_secrets {
+        crate::team_share::push_local_ssh_change(&app, &id, Some(secrets));
+    }
 
     let mut returned_ssh = ssh_to_save;
     returned_ssh.password = ssh.password;
@@ -2062,6 +2178,7 @@ pub async fn delete_ssh_connection<R: Runtime>(
     let mut ssh_connections: Vec<SshConnection> =
         serde_json::from_str(&content).unwrap_or_default();
 
+    let was_shared = ssh_connections.iter().any(|s| s.id == id && s.is_shared());
     ssh_connections.retain(|s| s.id != id);
 
     // Remove credentials from keychain and invalidate cache
@@ -2071,8 +2188,12 @@ pub async fn delete_ssh_connection<R: Runtime>(
     credential_cache::invalidate_ssh_password(&cache, &id);
     credential_cache::invalidate_ssh_key_passphrase(&cache, &id);
 
-    let json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
+    persistence::save_ssh_connections_file(&path, &ssh_connections)?;
+    // Propagate the removal so the profile disappears for the team too,
+    // instead of coming back on the next sync.
+    if was_shared {
+        crate::team_share::push_local_ssh_change(&app, &id, None);
+    }
     Ok(())
 }
 
@@ -2192,8 +2313,26 @@ fn load_k8s_connections_sync<R: Runtime>(
     Ok(serde_json::from_str(&content).unwrap_or_default())
 }
 
+/// Load `k8s_connections.json`. Shared with [`crate::team_share`], which
+/// mirrors the team's tunnels into it.
+pub(crate) fn load_k8s_connections<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<Vec<K8sConnection>, String> {
+    load_k8s_connections_sync(app)
+}
+
+/// Write `k8s_connections.json`.
+pub(crate) fn save_k8s_connections<R: Runtime>(
+    app: &AppHandle<R>,
+    connections: &[K8sConnection],
+) -> Result<(), String> {
+    let path = get_k8s_config_path(app)?;
+    let json = serde_json::to_string_pretty(connections).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())
+}
+
 /// Get the path to the k8s_connections.json file.
-fn get_k8s_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+pub(crate) fn get_k8s_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let config_dir = app
         .path()
         .app_config_dir()
@@ -2243,6 +2382,9 @@ pub async fn save_k8s_connection<R: Runtime>(
         port: k8s.port,
         kubectl_path: k8s.kubectl_path,
         kubeconfig_path: k8s.kubeconfig_path,
+        // A new tunnel is local; it joins the share only when a shared
+        // connection starts routing through it.
+        shared: None,
     };
 
     connections.push(connection.clone());
@@ -2273,6 +2415,10 @@ pub async fn update_k8s_connection<R: Runtime>(
         .position(|c| c.id == id)
         .ok_or_else(|| format!("K8s connection with ID {} not found", id))?;
 
+    // A shared tunnel stays shared across an edit; the change reaches the team
+    // on the next sync.
+    let was_shared = connections[idx].is_shared();
+
     let connection = K8sConnection {
         id: id.clone(),
         name: k8s.name,
@@ -2283,6 +2429,7 @@ pub async fn update_k8s_connection<R: Runtime>(
         port: k8s.port,
         kubectl_path: k8s.kubectl_path,
         kubeconfig_path: k8s.kubeconfig_path,
+        shared: was_shared.then_some(true),
     };
 
     connections[idx] = connection.clone();
@@ -2916,6 +3063,7 @@ mod tests {
             appearance: None,
             tag_ids: None,
             environment: None,
+            shared: None,
         }
     }
 
@@ -2947,6 +3095,7 @@ mod tests {
             }),
             tag_ids: None,
             environment: None,
+            shared: None,
         };
 
         // Simulate the pattern used in update_connection after the fix.
@@ -2962,6 +3111,7 @@ mod tests {
             appearance: original_appearance,
             tag_ids: None,
             environment: None,
+            shared: None,
         };
 
         let app = updated.appearance.as_ref().expect("appearance must be preserved");
@@ -2981,6 +3131,7 @@ mod tests {
             appearance,
             tag_ids: None,
             environment: None,
+            shared: None,
         };
         ConnectionsFile {
             groups: vec![],
@@ -3203,6 +3354,7 @@ mod tests {
                 key_passphrase: None,
                 allow_passphrase_prompt: None,
                 save_in_keychain: Some(save_in_keychain),
+                shared: None,
             }
         }
 
@@ -6174,6 +6326,9 @@ pub async fn move_connection_to_group<R: Runtime>(
 
     let updated = conn.clone();
     save_connections_and_invalidate(&app, &path, &file)?;
+    // Moving a shared connection can also pull its new group into the share,
+    // or leave the old one empty and drop it.
+    crate::team_share::push_metadata_change(&app, &connection_id);
 
     Ok(updated)
 }
