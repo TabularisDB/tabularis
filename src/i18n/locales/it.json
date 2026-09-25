@@ -1190,6 +1190,15 @@
     "placeholder": "PIN o passphrase",
     "waiting": "In attesa della security key — toccala per confermare."
   },
+  "connectionPassword": {
+    "title": "Password richiesta",
+    "subtitle": "Inserisci la password per \"{{name}}\"",
+    "subtitleWithUser": "Inserisci la password di {{user}} per \"{{name}}\"",
+    "remember": "Salva password",
+    "rememberHint": "Se la connessione riesce, la password viene salvata nella connessione per le prossime volte.",
+    "sessionOnlyHint": "La password resta in memoria solo fino alla chiusura di Tabularis e non viene mai scritta su disco.",
+    "connect": "Connetti"
+  },
   "dataGrid": {
     "noRowIdentity": "Impossibile modificare le righe: \"{{table}}\" non ha una chiave primaria, quindi la modifica richiede che il risultato includa tutte le colonne della tabella. Seleziona tutte le colonne (es. SELECT *) o aggiungi una chiave primaria.",
     "resizeRelatedPanel": "Trascina per ridimensionare il pannello",

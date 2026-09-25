@@ -1154,6 +1154,15 @@
     "placeholder": "PIN oder Passphrase",
     "waiting": "Warten auf Ihren Sicherheitsschlüssel — zum Bestätigen berühren."
   },
+  "connectionPassword": {
+    "title": "Passwort erforderlich",
+    "subtitle": "Passwort für „{{name}}“ eingeben",
+    "subtitleWithUser": "Passwort von {{user}} für „{{name}}“ eingeben",
+    "remember": "Passwort speichern",
+    "rememberHint": "Wenn die Verbindung gelingt, wird das Passwort für das nächste Mal in der Verbindung gespeichert.",
+    "sessionOnlyHint": "Das Passwort wird nur bis zum Schließen von Tabularis im Speicher gehalten und nie auf die Festplatte geschrieben.",
+    "connect": "Verbinden"
+  },
   "dataGrid": {
     "noRowIdentity": "Zeilen können nicht bearbeitet werden: \"{{table}}\" hat keinen Primärschlüssel, daher muss das Ergebnis alle Spalten der Tabelle enthalten. Wählen Sie alle Spalten aus (z. B. SELECT *) oder fügen Sie einen Primärschlüssel hinzu.",
     "resizeRelatedPanel": "Ziehen, um die Größe des Bereichs zu ändern",

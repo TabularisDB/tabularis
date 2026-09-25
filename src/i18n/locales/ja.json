@@ -1167,6 +1167,15 @@
     "placeholder": "PINまたはパスフレーズ",
     "waiting": "セキュリティキーを待っています — タッチして確認してください。"
   },
+  "connectionPassword": {
+    "title": "パスワードが必要です",
+    "subtitle": "「{{name}}」のパスワードを入力してください",
+    "subtitleWithUser": "「{{name}}」の {{user}} のパスワードを入力してください",
+    "remember": "パスワードを保存",
+    "rememberHint": "接続に成功すると、次回のためにパスワードが接続に保存されます。",
+    "sessionOnlyHint": "パスワードは Tabularis を閉じるまでのみ保持され、ディスクには書き込まれません。",
+    "connect": "接続"
+  },
   "dataGrid": {
     "noRowIdentity": "行を編集できません: \"{{table}}\" には主キーがないため、編集には結果にテーブルの全列が含まれている必要があります。すべての列を選択する(例: SELECT *)か、主キーを追加してください。",
     "resizeRelatedPanel": "ドラッグしてパネルのサイズを変更",
