@@ -1176,7 +1176,9 @@
     "title": "Senha necessária",
     "subtitle": "Digite a senha de \"{{name}}\"",
     "subtitleWithUser": "Digite a senha de {{user}} para \"{{name}}\"",
-    "savedOnSuccess": "Se a conexão funcionar, a senha é salva na conexão para a próxima vez.",
+    "remember": "Salvar senha",
+    "rememberHint": "Se a conexão for bem-sucedida, a senha é salva na conexão para a próxima vez.",
+    "sessionOnlyHint": "A senha é mantida apenas até o Tabularis ser fechado e nunca é gravada no disco.",
     "connect": "Conectar"
   },
   "dataGrid": {

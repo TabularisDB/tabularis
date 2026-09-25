@@ -1187,7 +1187,9 @@
     "title": "Kailangan ang password",
     "subtitle": "Ilagay ang password para sa \"{{name}}\"",
     "subtitleWithUser": "Ilagay ang password ni {{user}} para sa \"{{name}}\"",
-    "savedOnSuccess": "Kapag nagtagumpay ang koneksyon, ise-save ang password sa koneksyon para sa susunod.",
+    "remember": "I-save ang password",
+    "rememberHint": "Kapag nagtagumpay ang koneksyon, ise-save ang password sa koneksyon para sa susunod.",
+    "sessionOnlyHint": "Itatago lang ang password hanggang isara ang Tabularis at hindi ito isinusulat sa disk.",
     "connect": "Kumonekta"
   },
   "dataGrid": {

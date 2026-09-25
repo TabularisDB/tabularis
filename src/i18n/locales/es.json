@@ -1186,7 +1186,9 @@
     "title": "Contraseña requerida",
     "subtitle": "Introduce la contraseña de \"{{name}}\"",
     "subtitleWithUser": "Introduce la contraseña de {{user}} para \"{{name}}\"",
-    "savedOnSuccess": "Si la conexión funciona, la contraseña se guarda en la conexión para la próxima vez.",
+    "remember": "Guardar contraseña",
+    "rememberHint": "Si la conexión tiene éxito, la contraseña se guarda en la conexión para la próxima vez.",
+    "sessionOnlyHint": "La contraseña se conserva solo hasta cerrar Tabularis y nunca se escribe en el disco.",
     "connect": "Conectar"
   },
   "dataGrid": {

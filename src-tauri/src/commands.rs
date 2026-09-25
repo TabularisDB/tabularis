@@ -808,7 +808,32 @@ fn restore_runtime_connection_uri(
     }
 }
 
+/// Saved connection `id` ready to connect with: the stored params, with the
+/// password typed at connect time for this session only when there is one.
 pub fn find_connection_by_id<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+) -> Result<SavedConnection, String> {
+    let mut conn = find_stored_connection_by_id(app, id)?;
+    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    apply_session_password(&cache, &mut conn);
+    Ok(conn)
+}
+
+/// Replace the stored password with the one kept for this session, if any.
+/// IAM connections never get one: their tokens always come from the form.
+fn apply_session_password(cache: &credential_cache::CredentialCache, conn: &mut SavedConnection) {
+    if conn.params.use_iam_auth.unwrap_or(false) {
+        return;
+    }
+    if let Some(pwd) = credential_cache::get_session_db_password(cache, &conn.id) {
+        conn.params.password = Some(pwd);
+    }
+}
+
+/// Saved connection `id` as stored (file and keychain), without the session
+/// password. This is what the edit form shows and may save back.
+fn find_stored_connection_by_id<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
 ) -> Result<SavedConnection, String> {
@@ -932,7 +957,7 @@ pub async fn get_connection_by_id<R: Runtime>(
     app: AppHandle<R>,
     id: String,
 ) -> Result<SavedConnection, String> {
-    find_connection_by_id(&app, &id)
+    find_stored_connection_by_id(&app, &id)
 }
 
 #[tauri::command]
@@ -1349,6 +1374,11 @@ pub async fn update_connection<R: Runtime>(
     environment: Option<String>,
 ) -> Result<SavedConnection, String> {
     validate_connection_uri_persistence(&params)?;
+    // A password saved in the form replaces the one kept for this session.
+    if params.password.as_deref().is_some_and(|p| !p.is_empty()) {
+        let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+        credential_cache::clear_session_db_password(&cache, &id);
+    }
     let path = get_config_path(&app)?;
     let mut conn_file = persistence::load_connections_file(&path)?;
 
@@ -1532,21 +1562,31 @@ fn apply_connection_password(
     Ok(in_keychain)
 }
 
-/// Save the password typed at connect time after the stored one was rejected
-/// (e.g. rotated in a vault), so the next connect uses it straight away.
+/// Use the password typed at connect time after the stored one was rejected
+/// (e.g. rotated in a vault). With `remember` it is saved in the connection,
+/// so the next connect uses it straight away; without, it is kept in memory
+/// until the app quits and nothing is written.
 #[tauri::command]
 pub async fn set_connection_password<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
     password: String,
+    remember: bool,
 ) -> Result<(), String> {
+    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    if !remember {
+        log::info!("Keeping password for this session only: {}", connection_id);
+        credential_cache::set_session_db_password(&cache, &connection_id, &password);
+        return Ok(());
+    }
+
     log::info!("Updating stored password for connection: {}", connection_id);
+    credential_cache::clear_session_db_password(&cache, &connection_id);
     let path = get_config_path(&app)?;
     let mut conn_file = persistence::load_connections_file(&path)?;
     let in_keychain = apply_connection_password(&mut conn_file, &connection_id, &password)?;
 
     if in_keychain {
-        let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
         match keychain_utils::stored_password_change(Some(&password)) {
             keychain_utils::StoredPasswordChange::Store(pwd) => {
                 keychain_utils::set_db_password(&connection_id, pwd)?;
@@ -2645,6 +2685,10 @@ pub async fn test_connection<R: Runtime>(
     )
     .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
 
+    if !iam_auth {
+        use_session_password_for_request(&app, &request, &mut expanded_params);
+    }
+
     if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
             Some(id) => find_connection_by_id(&app, id).ok(),
@@ -3124,6 +3168,46 @@ mod tests {
 
         assert!(in_keychain);
         assert_eq!(file.connections[0].params.password, None);
+    }
+
+    #[test]
+    fn session_password_replaces_blank_or_stored_request_password() {
+        assert!(session_password_applies(None, None));
+        assert!(session_password_applies(Some(""), None));
+        assert!(session_password_applies(Some("stale"), Some("stale")));
+    }
+
+    #[test]
+    fn typed_password_wins_over_session_password() {
+        assert!(!session_password_applies(Some("typed"), Some("stale")));
+        assert!(!session_password_applies(Some("typed"), None));
+    }
+
+    #[test]
+    fn session_password_overrides_stored_one_except_for_iam() {
+        let cache = credential_cache::CredentialCache::default();
+        credential_cache::set_session_db_password(&cache, "conn-1", "rotated");
+
+        let mut conn = one_conn_file("conn-1", None).connections.remove(0);
+        conn.params.password = Some("stale".to_string());
+        apply_session_password(&cache, &mut conn);
+        assert_eq!(conn.params.password.as_deref(), Some("rotated"));
+
+        let mut iam = one_conn_file("conn-1", None).connections.remove(0);
+        iam.params.use_iam_auth = Some(true);
+        iam.params.password = Some("token".to_string());
+        apply_session_password(&cache, &mut iam);
+        assert_eq!(iam.params.password.as_deref(), Some("token"));
+    }
+
+    #[test]
+    fn deleting_a_connection_clears_its_session_password() {
+        let cache = credential_cache::CredentialCache::default();
+        credential_cache::set_session_db_password(&cache, "conn-1", "rotated");
+
+        credential_cache::invalidate_all_for_connection(&cache, "conn-1");
+
+        assert_eq!(credential_cache::get_session_db_password(&cache, "conn-1"), None);
     }
 
     #[test]
@@ -4085,6 +4169,10 @@ pub async fn list_databases<R: Runtime>(
         expanded_params.password.as_deref(),
     )?;
 
+    if !iam_auth {
+        use_session_password_for_request(&app, &request, &mut expanded_params);
+    }
+
     if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
             Some(id) => find_connection_by_id(&app, id).ok(),
@@ -5020,6 +5108,38 @@ pub async fn build_connection_url(params: &ConnectionParams) -> Result<String, S
             params.database
         )),
         _ => Err("Unsupported driver".into()),
+    }
+}
+
+/// Put the password kept for this session on a request for a saved
+/// connection, unless the request carries a password just typed.
+fn use_session_password_for_request<R: Runtime>(
+    app: &AppHandle<R>,
+    request: &TestConnectionRequest,
+    params: &mut ConnectionParams,
+) {
+    let Some(conn_id) = &request.connection_id else {
+        return;
+    };
+    let cache = app.state::<std::sync::Arc<credential_cache::CredentialCache>>();
+    let Some(session_pwd) = credential_cache::get_session_db_password(&cache, conn_id) else {
+        return;
+    };
+    let stored = find_stored_connection_by_id(app, conn_id)
+        .ok()
+        .and_then(|c| c.params.password);
+    if session_password_applies(request.params.password.as_deref(), stored.as_deref()) {
+        params.password = Some(session_pwd);
+    }
+}
+
+/// The password kept for this session replaces the one in a request unless
+/// the request carries a different password than the stored one, i.e. one
+/// just typed (in the form or in the connect prompt).
+fn session_password_applies(request_password: Option<&str>, stored_password: Option<&str>) -> bool {
+    match request_password {
+        None | Some("") => true,
+        Some(pwd) => stored_password == Some(pwd),
     }
 }
 

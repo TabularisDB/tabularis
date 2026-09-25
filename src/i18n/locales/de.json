@@ -1158,7 +1158,9 @@
     "title": "Passwort erforderlich",
     "subtitle": "Passwort für „{{name}}“ eingeben",
     "subtitleWithUser": "Passwort von {{user}} für „{{name}}“ eingeben",
-    "savedOnSuccess": "Wenn die Verbindung gelingt, wird das Passwort für das nächste Mal in der Verbindung gespeichert.",
+    "remember": "Passwort speichern",
+    "rememberHint": "Wenn die Verbindung gelingt, wird das Passwort für das nächste Mal in der Verbindung gespeichert.",
+    "sessionOnlyHint": "Das Passwort wird nur bis zum Schließen von Tabularis im Speicher gehalten und nie auf die Festplatte geschrieben.",
     "connect": "Verbinden"
   },
   "dataGrid": {

@@ -1171,7 +1171,9 @@
     "title": "パスワードが必要です",
     "subtitle": "「{{name}}」のパスワードを入力してください",
     "subtitleWithUser": "「{{name}}」の {{user}} のパスワードを入力してください",
-    "savedOnSuccess": "接続に成功すると、次回のためにパスワードが接続設定に保存されます。",
+    "remember": "パスワードを保存",
+    "rememberHint": "接続に成功すると、次回のためにパスワードが接続に保存されます。",
+    "sessionOnlyHint": "パスワードは Tabularis を閉じるまでのみ保持され、ディスクには書き込まれません。",
     "connect": "接続"
   },
   "dataGrid": {

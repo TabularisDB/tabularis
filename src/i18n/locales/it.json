@@ -1194,7 +1194,9 @@
     "title": "Password richiesta",
     "subtitle": "Inserisci la password per \"{{name}}\"",
     "subtitleWithUser": "Inserisci la password di {{user}} per \"{{name}}\"",
-    "savedOnSuccess": "Se la connessione riesce, la password viene salvata nella connessione per le prossime volte.",
+    "remember": "Salva password",
+    "rememberHint": "Se la connessione riesce, la password viene salvata nella connessione per le prossime volte.",
+    "sessionOnlyHint": "La password resta in memoria solo fino alla chiusura di Tabularis e non viene mai scritta su disco.",
     "connect": "Connetti"
   },
   "dataGrid": {

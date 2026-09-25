@@ -23,6 +23,10 @@ pub struct CredentialCache {
     pub ssh_passwords: Mutex<HashMap<String, CacheEntry>>,
     pub ssh_passphrases: Mutex<HashMap<String, CacheEntry>>,
     pub ai_keys: Mutex<HashMap<String, CacheEntry>>,
+    /// DB passwords typed at connect time that the user chose not to save.
+    /// They live only in this process and take precedence over the stored
+    /// password, which the server already rejected.
+    pub session_db_passwords: Mutex<HashMap<String, String>>,
 }
 
 impl Default for CredentialCache {
@@ -33,6 +37,7 @@ impl Default for CredentialCache {
             ssh_passwords: Mutex::new(HashMap::new()),
             ssh_passphrases: Mutex::new(HashMap::new()),
             ai_keys: Mutex::new(HashMap::new()),
+            session_db_passwords: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -177,6 +182,24 @@ pub fn get_ai_key_cached(cache: &CredentialCache, provider: &str) -> Result<Stri
     }
 }
 
+// ─── Session-only DB passwords ────────────────────────────────────────────────
+
+pub fn get_session_db_password(cache: &CredentialCache, connection_id: &str) -> Option<String> {
+    cache.session_db_passwords.lock().unwrap().get(connection_id).cloned()
+}
+
+pub fn set_session_db_password(cache: &CredentialCache, connection_id: &str, password: &str) {
+    cache
+        .session_db_passwords
+        .lock()
+        .unwrap()
+        .insert(connection_id.to_string(), password.to_string());
+}
+
+pub fn clear_session_db_password(cache: &CredentialCache, connection_id: &str) {
+    cache.session_db_passwords.lock().unwrap().remove(connection_id);
+}
+
 // ─── Write-through helpers ────────────────────────────────────────────────────
 // Call these AFTER the corresponding keychain_utils::set_* succeeds.
 
@@ -243,6 +266,7 @@ pub fn invalidate_ssh_password(cache: &CredentialCache, connection_id: &str) {
 
 pub fn invalidate_ssh_key_passphrase(cache: &CredentialCache, connection_id: &str) {
     cache.ssh_passphrases.lock().unwrap().remove(connection_id);
+    cache.session_db_passwords.lock().unwrap().remove(connection_id);
 }
 
 pub fn invalidate_ai_key(cache: &CredentialCache, provider: &str) {
@@ -255,4 +279,5 @@ pub fn invalidate_all_for_connection(cache: &CredentialCache, connection_id: &st
     cache.connection_uris.lock().unwrap().remove(connection_id);
     cache.ssh_passwords.lock().unwrap().remove(connection_id);
     cache.ssh_passphrases.lock().unwrap().remove(connection_id);
+    cache.session_db_passwords.lock().unwrap().remove(connection_id);
 }

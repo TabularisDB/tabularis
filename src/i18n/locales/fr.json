@@ -1195,7 +1195,9 @@
     "title": "Mot de passe requis",
     "subtitle": "Saisissez le mot de passe de « {{name}} »",
     "subtitleWithUser": "Saisissez le mot de passe de {{user}} pour « {{name}} »",
-    "savedOnSuccess": "Si la connexion réussit, le mot de passe est enregistré dans la connexion pour la prochaine fois.",
+    "remember": "Enregistrer le mot de passe",
+    "rememberHint": "Si la connexion réussit, le mot de passe est enregistré dans la connexion pour la prochaine fois.",
+    "sessionOnlyHint": "Le mot de passe est conservé uniquement jusqu'à la fermeture de Tabularis et n'est jamais écrit sur le disque.",
     "connect": "Se connecter"
   },
   "dataGrid": {

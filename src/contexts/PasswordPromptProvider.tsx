@@ -1,11 +1,14 @@
 import { useCallback, useRef, useState } from "react";
 import { PasswordPromptContext } from "./PasswordPromptContext";
 import { ConnectionPasswordModal } from "../components/modals/ConnectionPasswordModal";
-import type { PasswordPromptRequest } from "../utils/connectionPassword";
+import type {
+  PasswordPromptRequest,
+  PasswordPromptResult,
+} from "../utils/connectionPassword";
 
 interface PendingPrompt extends PasswordPromptRequest {
   id: number;
-  resolve: (password: string | null) => void;
+  resolve: (result: PasswordPromptResult | null) => void;
 }
 
 /**
@@ -23,7 +26,7 @@ export const PasswordPromptProvider = ({
 
   const requestPassword = useCallback(
     (request: PasswordPromptRequest) =>
-      new Promise<string | null>((resolve) => {
+      new Promise<PasswordPromptResult | null>((resolve) => {
         const id = nextId.current++;
         setQueue((prev) => [...prev, { ...request, id, resolve }]);
       }),
@@ -33,9 +36,9 @@ export const PasswordPromptProvider = ({
   const current = queue[0];
 
   const settle = useCallback(
-    (password: string | null) => {
+    (result: PasswordPromptResult | null) => {
       if (!current) return;
-      current.resolve(password);
+      current.resolve(result);
       setQueue((prev) => prev.filter((p) => p.id !== current.id));
     },
     [current],

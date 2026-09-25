@@ -1125,7 +1125,9 @@
     "title": "需要密码",
     "subtitle": "请输入“{{name}}”的密码",
     "subtitleWithUser": "请输入“{{name}}”中 {{user}} 的密码",
-    "savedOnSuccess": "连接成功后，密码会保存到该连接中，供下次使用。",
+    "remember": "保存密码",
+    "rememberHint": "连接成功后，密码会保存在连接中，供下次使用。",
+    "sessionOnlyHint": "密码仅保留到关闭 Tabularis 为止，绝不会写入磁盘。",
     "connect": "连接"
   },
   "dataGrid": {
