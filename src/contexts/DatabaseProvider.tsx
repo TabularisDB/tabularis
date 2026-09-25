@@ -21,6 +21,8 @@ import { loadOptionalMetadata } from '../utils/connectionMetadata';
 import { toErrorMessage } from '../utils/errors';
 import { useSettings } from '../hooks/useSettings';
 import { useToast } from '../hooks/useToast';
+import { usePasswordPrompt } from '../hooks/usePasswordPrompt';
+import { isConnectionCancelled, testSavedConnection } from '../utils/connectionPassword';
 import { findConnectionsForDrivers } from '../utils/connectionManager';
 import { isMultiDatabaseCapable, usesMultiDatabaseLayout, getEffectiveDatabase, getDatabaseList, reconcileDatabaseSelection } from '../utils/database';
 
@@ -81,6 +83,7 @@ const createEmptyConnectionData = (driver: string = '', name: string = '', dbNam
 export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const { settings } = useSettings();
   const { showToast } = useToast();
+  const { requestPassword } = usePasswordPrompt();
   const { t } = useTranslation();
   const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
   const [openConnectionIds, setOpenConnectionIds] = useState<string[]>([]);
@@ -715,13 +718,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       });
 
       try {
-        await invoke<string>('test_connection', {
-          request: {
-            params: conn.params,
-            connection_id: connectionId,
-          },
-        });
+        await testSavedConnection(conn, requestPassword);
       } catch (testError) {
+        if (isConnectionCancelled(testError)) throw testError;
         const errorMsg = toErrorMessage(testError);
         updateCurrentConnection(connectionId, {
           isConnecting: false,

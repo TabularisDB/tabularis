@@ -1203,6 +1203,13 @@
   "dateInput": {
     "useShownValue": "Usa questo valore"
   },
+  "connectionPassword": {
+    "title": "Password richiesta",
+    "subtitle": "Inserisci la password per \"{{name}}\"",
+    "subtitleWithUser": "Inserisci la password di {{user}} per \"{{name}}\"",
+    "savedOnSuccess": "Se la connessione riesce, la password viene salvata nella connessione per le prossime volte.",
+    "connect": "Connetti"
+  },
   "dataGrid": {
     "noRowIdentity": "Impossibile modificare le righe: \"{{table}}\" non ha una chiave primaria, quindi la modifica richiede che il risultato includa tutte le colonne della tabella. Seleziona tutte le colonne (es. SELECT *) o aggiungi una chiave primaria.",
     "resizeRelatedPanel": "Trascina per ridimensionare il pannello",
