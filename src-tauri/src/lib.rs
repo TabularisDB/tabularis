@@ -473,6 +473,7 @@ pub fn run() {
             commands::get_connections,
             commands::get_connection_by_id,
             commands::disconnect_connection,
+            commands::set_connection_password,
             commands::register_active_connection,
             commands::get_active_connections,
             commands::get_data_types,

@@ -1510,6 +1510,60 @@ pub async fn update_connection<R: Runtime>(
     Ok(returned_conn)
 }
 
+/// Pure core of `set_connection_password`: put `password` on the saved
+/// connection `id`, the way `update_connection` stores it. Returns `true` when
+/// it belongs in the keychain instead, leaving the file copy empty.
+fn apply_connection_password(
+    file: &mut ConnectionsFile,
+    id: &str,
+    password: &str,
+) -> Result<bool, String> {
+    let conn = file
+        .connections
+        .iter_mut()
+        .find(|c| c.id == id)
+        .ok_or("Connection not found")?;
+    let in_keychain = conn.params.save_in_keychain.unwrap_or(false);
+    conn.params.password = if in_keychain {
+        None
+    } else {
+        Some(password.to_string())
+    };
+    Ok(in_keychain)
+}
+
+/// Save the password typed at connect time after the stored one was rejected
+/// (e.g. rotated in a vault), so the next connect uses it straight away.
+#[tauri::command]
+pub async fn set_connection_password<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    password: String,
+) -> Result<(), String> {
+    log::info!("Updating stored password for connection: {}", connection_id);
+    let path = get_config_path(&app)?;
+    let mut conn_file = persistence::load_connections_file(&path)?;
+    let in_keychain = apply_connection_password(&mut conn_file, &connection_id, &password)?;
+
+    if in_keychain {
+        let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+        match keychain_utils::stored_password_change(Some(&password)) {
+            keychain_utils::StoredPasswordChange::Store(pwd) => {
+                keychain_utils::set_db_password(&connection_id, pwd)?;
+                credential_cache::set_db_password_cached(&cache, &connection_id, pwd);
+            }
+            keychain_utils::StoredPasswordChange::Delete => {
+                keychain_utils::delete_db_password(&connection_id).ok();
+                credential_cache::invalidate_db_password(&cache, &connection_id);
+            }
+            keychain_utils::StoredPasswordChange::Keep => {}
+        }
+        return Ok(());
+    }
+
+    save_connections_and_invalidate(&app, &path, &conn_file)
+}
+
 /// Pure, testable core of `set_connection_appearance`.
 /// Mutates `file` in place; does not touch disk or Tauri state.
 fn set_appearance_impl(
@@ -3046,6 +3100,36 @@ mod tests {
         let result =
             resolve_test_connection_password(&params, Some(&saved), |_| Ok("kc".to_string()));
         assert_eq!(result, Some("kc".to_string()));
+    }
+
+    #[test]
+    fn apply_connection_password_stores_in_file_without_keychain() {
+        let mut file = one_conn_file("conn-1", None);
+        file.connections[0].params.save_in_keychain = Some(false);
+        file.connections[0].params.password = Some("old".to_string());
+
+        let in_keychain = apply_connection_password(&mut file, "conn-1", "rotated").unwrap();
+
+        assert!(!in_keychain);
+        assert_eq!(file.connections[0].params.password.as_deref(), Some("rotated"));
+    }
+
+    #[test]
+    fn apply_connection_password_defers_to_keychain() {
+        let mut file = one_conn_file("conn-1", None);
+        file.connections[0].params.save_in_keychain = Some(true);
+        file.connections[0].params.password = Some("stale".to_string());
+
+        let in_keychain = apply_connection_password(&mut file, "conn-1", "rotated").unwrap();
+
+        assert!(in_keychain);
+        assert_eq!(file.connections[0].params.password, None);
+    }
+
+    #[test]
+    fn apply_connection_password_rejects_unknown_connection() {
+        let mut file = one_conn_file("conn-1", None);
+        assert!(apply_connection_password(&mut file, "missing", "pwd").is_err());
     }
 
     #[test]

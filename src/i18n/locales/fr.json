@@ -1191,6 +1191,13 @@
     "placeholder": "PIN ou phrase secrète",
     "waiting": "En attente de votre clé de sécurité — touchez-la pour confirmer."
   },
+  "connectionPassword": {
+    "title": "Mot de passe requis",
+    "subtitle": "Saisissez le mot de passe de « {{name}} »",
+    "subtitleWithUser": "Saisissez le mot de passe de {{user}} pour « {{name}} »",
+    "savedOnSuccess": "Si la connexion réussit, le mot de passe est enregistré dans la connexion pour la prochaine fois.",
+    "connect": "Se connecter"
+  },
   "dataGrid": {
     "noRowIdentity": "Impossible de modifier les lignes : \"{{table}}\" n'a pas de clé primaire, la modification nécessite donc que le résultat inclue toutes les colonnes de la table. Sélectionnez toutes les colonnes (p. ex. SELECT *) ou ajoutez une clé primaire.",
     "resizeRelatedPanel": "Faites glisser pour redimensionner le panneau",

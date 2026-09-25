@@ -1182,6 +1182,13 @@
     "placeholder": "PIN o frase de contraseña",
     "waiting": "Esperando tu llave de seguridad — tócala para confirmar."
   },
+  "connectionPassword": {
+    "title": "Contraseña requerida",
+    "subtitle": "Introduce la contraseña de \"{{name}}\"",
+    "subtitleWithUser": "Introduce la contraseña de {{user}} para \"{{name}}\"",
+    "savedOnSuccess": "Si la conexión funciona, la contraseña se guarda en la conexión para la próxima vez.",
+    "connect": "Conectar"
+  },
   "dataGrid": {
     "noRowIdentity": "No se pueden editar las filas: \"{{table}}\" no tiene clave primaria, por lo que la edición requiere que el resultado incluya todas las columnas de la tabla. Selecciona todas las columnas (p. ej. SELECT *) o añade una clave primaria.",
     "resizeRelatedPanel": "Arrastra para redimensionar el panel",

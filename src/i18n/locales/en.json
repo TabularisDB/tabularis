@@ -1201,6 +1201,13 @@
     "placeholder": "PIN or passphrase",
     "waiting": "Waiting for your security key — touch it to confirm."
   },
+  "connectionPassword": {
+    "title": "Password required",
+    "subtitle": "Enter the password for \"{{name}}\"",
+    "subtitleWithUser": "Enter the password of {{user}} for \"{{name}}\"",
+    "savedOnSuccess": "If the connection succeeds, the password is saved in the connection for next time.",
+    "connect": "Connect"
+  },
   "dataGrid": {
     "noRowIdentity": "Rows can't be edited: \"{{table}}\" has no primary key, so editing requires the result to include all table columns. Select all columns (e.g. SELECT *) or add a primary key.",
     "resizeRelatedPanel": "Drag to resize panel",
