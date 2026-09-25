@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, KeyRound, X } from "lucide-react";
 import { Modal } from "../ui/Modal";
+import type { PasswordPromptResult } from "../../utils/connectionPassword";
 
 interface ConnectionPasswordModalProps {
   isOpen: boolean;
@@ -11,12 +12,13 @@ interface ConnectionPasswordModalProps {
   username?: string;
   /** Why the server rejected the previous password. */
   error?: string;
-  onSubmit: (password: string) => void;
+  onSubmit: (result: PasswordPromptResult) => void;
 }
 
 /**
  * Asks for a new password after the server rejected the stored one (missing,
- * wrong or rotated). The caller saves it once the connection succeeds.
+ * wrong or rotated). Once the connection succeeds the caller saves it, or
+ * keeps it for this session only when "Save password" is unchecked.
  */
 export const ConnectionPasswordModal = ({
   isOpen,
@@ -29,11 +31,13 @@ export const ConnectionPasswordModal = ({
   const { t } = useTranslation();
   const titleId = useId();
   const inputId = useId();
+  const rememberId = useId();
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(password);
+    onSubmit({ password, remember });
   };
 
   return (
@@ -108,9 +112,28 @@ export const ConnectionPasswordModal = ({
                 className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-focus focus:outline-none"
               />
             </div>
-            <p className="text-xs text-muted leading-relaxed">
-              {t("connectionPassword.savedOnSuccess")}
-            </p>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id={rememberId}
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  className="accent-accent-primary"
+                />
+                <label
+                  htmlFor={rememberId}
+                  className="text-sm text-secondary select-none cursor-pointer"
+                >
+                  {t("connectionPassword.remember")}
+                </label>
+              </div>
+              <p className="text-xs text-muted leading-relaxed">
+                {remember
+                  ? t("connectionPassword.rememberHint")
+                  : t("connectionPassword.sessionOnlyHint")}
+              </p>
+            </div>
           </div>
 
           {/* Footer */}

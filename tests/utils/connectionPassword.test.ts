@@ -92,7 +92,9 @@ describe("connectionPassword", () => {
 
     it("asks for the password when it is rejected and saves the one that works", async () => {
       failTestsWith(PG_AUTH);
-      const requestPassword = vi.fn().mockResolvedValue("rotated");
+      const requestPassword = vi
+        .fn()
+        .mockResolvedValue({ password: "rotated", remember: true });
 
       await testSavedConnection(conn(), requestPassword);
 
@@ -108,7 +110,20 @@ describe("connectionPassword", () => {
         },
       });
       expect(calls("set_connection_password")).toEqual([
-        { connectionId: "c1", password: "rotated" },
+        { connectionId: "c1", password: "rotated", remember: true },
+      ]);
+    });
+
+    it("passes the choice not to save the password to the backend", async () => {
+      failTestsWith(PG_AUTH);
+      const requestPassword = vi
+        .fn()
+        .mockResolvedValue({ password: "rotated", remember: false });
+
+      await testSavedConnection(conn(), requestPassword);
+
+      expect(calls("set_connection_password")).toEqual([
+        { connectionId: "c1", password: "rotated", remember: false },
       ]);
     });
 
@@ -116,8 +131,8 @@ describe("connectionPassword", () => {
       failTestsWith(PG_AUTH, "password authentication failed again");
       const requestPassword = vi
         .fn()
-        .mockResolvedValueOnce("wrong")
-        .mockResolvedValueOnce("right");
+        .mockResolvedValueOnce({ password: "wrong", remember: true })
+        .mockResolvedValueOnce({ password: "right", remember: true });
 
       await testSavedConnection(conn(), requestPassword);
 
@@ -127,7 +142,7 @@ describe("connectionPassword", () => {
         error: "password authentication failed again",
       });
       expect(calls("set_connection_password")).toEqual([
-        { connectionId: "c1", password: "right" },
+        { connectionId: "c1", password: "right", remember: true },
       ]);
     });
 
@@ -154,7 +169,9 @@ describe("connectionPassword", () => {
 
     it("stops prompting when the retry fails for another reason", async () => {
       failTestsWith(PG_AUTH, "Connection refused (os error 111)");
-      const requestPassword = vi.fn().mockResolvedValue("typed");
+      const requestPassword = vi
+        .fn()
+        .mockResolvedValue({ password: "typed", remember: true });
 
       await expect(testSavedConnection(conn(), requestPassword)).rejects.toBe(
         "Connection refused (os error 111)",

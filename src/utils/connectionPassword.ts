@@ -8,10 +8,16 @@ export interface PasswordPromptRequest {
   error?: string;
 }
 
+export interface PasswordPromptResult {
+  password: string;
+  /** Save it in the connection; otherwise it is kept until the app quits. */
+  remember: boolean;
+}
+
 /** Resolves with the typed password, or `null` when the user cancels. */
 export type RequestPassword = (
   request: PasswordPromptRequest,
-) => Promise<string | null>;
+) => Promise<PasswordPromptResult | null>;
 
 /** Thrown when the user dismisses the password prompt instead of connecting. */
 export class ConnectionCancelledError extends Error {
@@ -63,8 +69,9 @@ interface TestableConnection {
  * Validate a saved connection with `test_connection`. When the server rejects
  * the stored password (missing, wrong or rotated in a vault), ask for a new
  * one and retry, showing the server's error, until the login works or the
- * user cancels. A password that works is saved in the connection, so every
- * command resolving it by id, and the next connect, use it.
+ * user cancels. A password that works is handed to the backend, which saves
+ * it in the connection or, if the user opted out, keeps it for this session
+ * only; either way every command resolving it by id uses it.
  */
 export async function testSavedConnection<P extends TestableConnection["params"]>(
   conn: TestableConnection & { params: P },
@@ -90,12 +97,13 @@ async function retryWithPromptedPassword<P extends TestableConnection["params"]>
 ): Promise<void> {
   let error = firstError;
   for (;;) {
-    const password = await requestPassword({
+    const result = await requestPassword({
       connectionName: conn.name,
       username: conn.params.username,
       error,
     });
-    if (password === null) throw new ConnectionCancelledError();
+    if (result === null) throw new ConnectionCancelledError();
+    const { password, remember } = result;
 
     try {
       await invoke<string>("test_connection", {
@@ -114,6 +122,7 @@ async function retryWithPromptedPassword<P extends TestableConnection["params"]>
     await invoke("set_connection_password", {
       connectionId: conn.id,
       password,
+      remember,
     });
     return;
   }
