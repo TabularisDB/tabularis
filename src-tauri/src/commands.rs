@@ -1037,6 +1037,7 @@ pub async fn get_routine_parameters<R: Runtime>(
     connection_id: String,
     routine_name: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<RoutineParameter>, String> {
     log::info!(
         "Fetching routine parameters for: {} on connection: {}",
@@ -1047,7 +1048,10 @@ pub async fn get_routine_parameters<R: Runtime>(
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
 
     let drv = driver_for_params(&params).await?;
     drv.get_routine_parameters(&params, &routine_name, schema.as_deref())
@@ -5208,6 +5212,7 @@ pub async fn drop_view<R: Runtime>(
     connection_id: String,
     view_name: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     log::info!(
         "Dropping view: {} on connection: {}",
@@ -5218,7 +5223,10 @@ pub async fn drop_view<R: Runtime>(
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
 
     let drv = driver_for_params(&params).await?;
     let result = drv.drop_view(&params, &view_name, schema.as_deref()).await;
@@ -5237,6 +5245,7 @@ pub async fn get_view_columns<R: Runtime>(
     connection_id: String,
     view_name: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<TableColumn>, String> {
     log::info!(
         "Fetching view columns for: {} on connection: {}",
@@ -5247,7 +5256,10 @@ pub async fn get_view_columns<R: Runtime>(
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
 
     let drv = driver_for_params(&params).await?;
     let result = drv
@@ -5307,6 +5319,7 @@ pub async fn get_materialized_view_columns<R: Runtime>(
     connection_id: String,
     view_name: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<TableColumn>, String> {
     log::info!(
         "Fetching materialized view columns for: {} on connection: {}",
@@ -5317,7 +5330,10 @@ pub async fn get_materialized_view_columns<R: Runtime>(
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
 
     let drv = driver_for_params(&params).await?;
     let result = drv
@@ -5384,6 +5400,7 @@ pub async fn refresh_materialized_view<R: Runtime>(
     connection_id: String,
     view_name: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     log::info!(
         "Refreshing materialized view: {} on connection: {}",
@@ -5394,7 +5411,10 @@ pub async fn refresh_materialized_view<R: Runtime>(
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
 
     let drv = driver_for_params(&params).await?;
     let result = drv
@@ -5499,6 +5519,7 @@ pub async fn drop_trigger<R: Runtime>(
     trigger_name: String,
     table_name: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     log::info!(
         "Dropping trigger: {} on connection: {}",
@@ -5509,7 +5530,10 @@ pub async fn drop_trigger<R: Runtime>(
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
 
     let drv = driver_for_params(&params).await?;
     let result = drv
@@ -5855,11 +5879,15 @@ pub async fn drop_index_action<R: Runtime>(
     table: String,
     index_name: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
     let drv = driver_for_params(&params).await?;
     drv.drop_index(&params, &table, &index_name, schema.as_deref())
         .await
@@ -5872,11 +5900,15 @@ pub async fn drop_foreign_key_action<R: Runtime>(
     table: String,
     fk_name: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
     let drv = driver_for_params(&params).await?;
     drv.drop_foreign_key(&params, &table, &fk_name, schema.as_deref())
         .await

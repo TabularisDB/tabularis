@@ -90,7 +90,18 @@ export function getTableDataChangeScope(
   capabilities: DriverCapabilities | null | undefined,
   tabSchema: string | null | undefined,
   activeSchema: string | null | undefined,
+  tabDatabase?: string | null,
 ): TableDataChangeScope {
+  if (capabilities?.schemas === true && tabDatabase) {
+    // Schema-based multi-db (nested): the database pool AND the Postgres
+    // schema are both needed at once, unlike the flat/schema-only branches
+    // below which only ever resolve one qualifier. A plain single-database
+    // Postgres tab never has `tabDatabase` set, so it keeps falling through
+    // to the schemas-only branch unchanged.
+    const schema = tabSchema ?? activeSchema;
+    return schema ? { database: tabDatabase, schema } : { database: tabDatabase };
+  }
+
   if (isMultiDatabaseCapable(capabilities) && tabSchema) {
     return { database: tabSchema };
   }

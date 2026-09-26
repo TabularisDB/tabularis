@@ -2000,26 +2000,27 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             contextMenu.type === "table"
               ? (() => {
                   const ctxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                  const ctxDatabase = contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined;
                   return [
                     {
                       label: t("sidebar.showData"),
                       icon: PlaySquare,
                       action: () => {
-                        objectNavigation?.open(contextMenu.id, ctxSchema);
+                        objectNavigation?.open(contextMenu.id, ctxSchema, undefined, ctxDatabase);
                       },
                     },
                     {
                       label: t("sidebar.newConsole"),
                       icon: FileCode,
                       action: () => {
-                        objectNavigation?.newConsole(contextMenu.id, ctxSchema);
+                        objectNavigation?.newConsole(contextMenu.id, ctxSchema, ctxDatabase);
                       },
                     },
                     {
                       label: t("sidebar.countRows"),
                       icon: Hash,
                       action: () => {
-                        objectNavigation?.count(contextMenu.id, ctxSchema);
+                        objectNavigation?.count(contextMenu.id, ctxSchema, undefined, ctxDatabase);
                       },
                     },
                     {
@@ -2043,7 +2044,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           await invoke("open_er_diagram_window", {
                             connectionId: activeConnectionId || "",
                             connectionName: activeConnectionName || "Unknown",
-                            databaseName: activeDatabaseName || "Unknown",
+                            databaseName: ctxDatabase || activeDatabaseName || "Unknown",
                             focusTable: contextMenu.id,
                             ...(ctxSchema ? { schema: ctxSchema } : {}),
                           });
@@ -2098,6 +2099,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               connectionId: activeConnectionId,
                               query: `DROP TABLE ${quotedTable}`,
                               ...(ctxSchema ? { schema: ctxSchema } : {}),
+                              ...(ctxDatabase ? { database: ctxDatabase } : {}),
                             });
                             if (refreshTables) refreshTables();
                           } catch (e) {
@@ -2124,6 +2126,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         if (contextMenu.data && "tableName" in contextMenu.data) {
                           const t_name = contextMenu.data.tableName;
                           const ctxSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                          const ctxDatabase = "database" in contextMenu.data ? contextMenu.data.database : undefined;
                           if (
                             await ask(
                               t("sidebar.deleteIndexConfirm", { name: contextMenu.id }),
@@ -2136,6 +2139,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 table: t_name,
                                 indexName: contextMenu.id,
                                 ...(ctxSchema ? { schema: ctxSchema } : {}),
+                                ...(ctxDatabase ? { database: ctxDatabase } : {}),
                               });
                               setSchemaVersion((v) => v + 1);
                             } catch (e) {
@@ -2164,6 +2168,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           if (contextMenu.data && "tableName" in contextMenu.data) {
                             const t_name = contextMenu.data.tableName;
                             const ctxSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                            const ctxDatabase = "database" in contextMenu.data ? contextMenu.data.database : undefined;
                             if (
                               await ask(
                                 t("sidebar.deleteFkConfirm", { name: contextMenu.id }),
@@ -2176,6 +2181,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   table: t_name,
                                   fkName: contextMenu.id,
                                   ...(ctxSchema ? { schema: ctxSchema } : {}),
+                                  ...(ctxDatabase ? { database: ctxDatabase } : {}),
                                 });
                                 setSchemaVersion((v) => v + 1);
                               } catch (e) {
@@ -2217,6 +2223,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       : contextMenu.type === "view"
                         ? (() => {
                             const viewCtxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                            const viewCtxDatabase = contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined;
                             return [
                               {
                                 label: t("sidebar.showData"),
@@ -2225,6 +2232,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   objectNavigation?.open(
                                     contextMenu.id,
                                     viewCtxSchema,
+                                    undefined,
+                                    viewCtxDatabase,
                                   );
                                 },
                               },
@@ -2235,6 +2244,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   objectNavigation?.count(
                                     contextMenu.id,
                                     viewCtxSchema,
+                                    undefined,
+                                    viewCtxDatabase,
                                   );
                                 },
                               },
@@ -2265,7 +2276,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       await invoke("drop_view", {
                                         connectionId: activeConnectionId,
                                         viewName: contextMenu.id,
-                                        ...(activeSchema ? { schema: activeSchema } : {}),
+                                        ...((viewCtxSchema ?? activeSchema) ? { schema: viewCtxSchema ?? activeSchema } : {}),
+                                        ...(viewCtxDatabase ? { database: viewCtxDatabase } : {}),
                                       });
                                       if (refreshViews) refreshViews();
                                     } catch (e) {
@@ -2280,6 +2292,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         : contextMenu.type === "materialized_view"
                         ? (() => {
                             const mvCtxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                            const mvCtxDatabase = contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined;
                             return [
                               {
                                 label: t("sidebar.showData"),
@@ -2289,6 +2302,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     contextMenu.id,
                                     mvCtxSchema,
                                     { materialized: true },
+                                    mvCtxDatabase,
                                   );
                                 },
                               },
@@ -2299,6 +2313,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   objectNavigation?.count(
                                     contextMenu.id,
                                     mvCtxSchema,
+                                    undefined,
+                                    mvCtxDatabase,
                                   );
                                 },
                               },
@@ -2313,6 +2329,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       connectionId: activeConnectionId,
                                       viewName: mvName,
                                       ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
+                                      ...(mvCtxDatabase ? { database: mvCtxDatabase } : {}),
                                     });
                                     showAlert(t("views.refreshSuccess", { view: mvName }), { kind: "info" });
                                   } catch (e) {
@@ -2332,6 +2349,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       connectionId: activeConnectionId,
                                       viewName: contextMenu.id,
                                       ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
+                                      ...(mvCtxDatabase ? { database: mvCtxDatabase } : {}),
                                     });
                                     objectNavigation?.openDefinition(
                                       definition,
@@ -2356,10 +2374,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           ? (() => {
                               const routineData =
                                 contextMenu.data && 'routine_type' in contextMenu.data
-                                  ? (contextMenu.data as RoutineInfo & { schema?: string })
+                                  ? (contextMenu.data as RoutineInfo & { schema?: string; database?: string })
                                   : null;
                               const routineType = routineData?.routine_type ?? "PROCEDURE";
                               const routineSchema = routineData?.schema ?? activeSchema ?? undefined;
+                              const routineDatabase = routineData?.database ?? undefined;
                               const canManageRoutines =
                                 activeCapabilities?.routine_management === true;
                               return [
@@ -2385,6 +2404,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         routine_type: routineType,
                                       },
                                       routineSchema,
+                                      routineDatabase,
                                     );
                                   },
                                 },
@@ -2444,9 +2464,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           : contextMenu.type === "trigger"
                             ? (() => {
                                 const triggerData = contextMenu.data && 'table_name' in contextMenu.data
-                                  ? contextMenu.data as unknown as TriggerInfo & { schema?: string }
+                                  ? contextMenu.data as unknown as TriggerInfo & { schema?: string; database?: string }
                                   : null;
                                 const triggerSchema = triggerData?.schema ?? activeSchema ?? undefined;
+                                const triggerDatabase = triggerData?.database ?? undefined;
                                 return [
                                   {
                                     label: t("sidebar.viewTriggerDefinition"),
@@ -2457,6 +2478,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       objectNavigation?.openTriggerDefinition(
                                         triggerData,
                                         triggerSchema,
+                                        triggerDatabase,
                                       );
                                     },
                                   },
@@ -2495,6 +2517,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                             triggerName: contextMenu.id,
                                             tableName: triggerData?.table_name ?? "",
                                             ...(triggerSchema ? { schema: triggerSchema } : {}),
+                                            ...(triggerDatabase ? { database: triggerDatabase } : {}),
                                           });
                                           if (refreshTriggers) refreshTriggers();
                                         } catch (e) {

@@ -4,6 +4,6 @@ import type { QueryHistoryEntry } from "./queryHistory";
 
 export type ContextMenuData =
   | SavedQuery
-  | { tableName: string; schema?: string }
-  | (RoutineInfo & { schema?: string })
+  | { tableName: string; schema?: string; database?: string }
+  | (RoutineInfo & { schema?: string; database?: string })
   | QueryHistoryEntry;

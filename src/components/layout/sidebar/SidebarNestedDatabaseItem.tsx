@@ -242,6 +242,7 @@ export const SidebarNestedDatabaseItem = ({
                 connectionId={connectionId}
                 driver={driver}
                 schemaVersion={schemaVersion}
+                database={databaseName}
                 onLoadSchema={() => onLoadSchemaData(databaseName, schemaName)}
                 onRefreshSchema={() => onRefreshSchemaData(databaseName, schemaName)}
                 onTableClick={(name, schema) => onTableClick(name, schema, databaseName)}

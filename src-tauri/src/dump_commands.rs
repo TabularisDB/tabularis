@@ -71,7 +71,7 @@ pub async fn dump_database<R: Runtime>(
     // databases (e.g. MySQL/MariaDB). Without this the connection pool stays bound
     // to the primary database, so unqualified statements such as `SHOW CREATE TABLE`
     // and `SELECT * FROM table` run against the wrong database.
-    if let Some(db) = database {
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
         params.database = crate::models::DatabaseSelection::Single(db);
     }
     let driver = saved_conn.params.driver.clone();
@@ -509,7 +509,7 @@ pub async fn import_database<R: Runtime>(
     // to the primary database, so every statement in the dump file is executed
     // against the wrong database. Mirrors the same fix already applied to
     // `dump_database`.
-    if let Some(db) = database {
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
         params.database = crate::models::DatabaseSelection::Single(db);
     }
     let driver = saved_conn.params.driver.clone();

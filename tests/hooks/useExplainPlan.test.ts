@@ -66,9 +66,10 @@ describe("useExplainPlan", () => {
   });
 
   it.each([
-    { options: {}, expected: { analyze: false, schema: null } },
-    { options: { analyze: true, schema: "analytics" }, expected: { analyze: true, schema: "analytics" } },
-    { options: { analyze: false, schema: "" }, expected: { analyze: false, schema: null } },
+    { options: {}, expected: { analyze: false, schema: null, database: null } },
+    { options: { analyze: true, schema: "analytics" }, expected: { analyze: true, schema: "analytics", database: null } },
+    { options: { analyze: false, schema: "" }, expected: { analyze: false, schema: null, database: null } },
+    { options: { analyze: false, database: "app_db" }, expected: { analyze: false, schema: null, database: "app_db" } },
   ])("preserves invoke defaults and explicit options: $expected", async ({ options, expected }) => {
     const plan = makePlan("resolved");
     vi.mocked(invoke).mockResolvedValue({ kind: "plan", plan });

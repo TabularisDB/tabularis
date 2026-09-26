@@ -24,6 +24,7 @@ interface SidebarColumnItemProps {
   onEdit: (column: TableColumn) => void;
   isView?: boolean;
   schema?: string;
+  database?: string;
   canManage?: boolean;
 }
 
@@ -37,6 +38,7 @@ export const SidebarColumnItem = ({
   onEdit,
   isView = false,
   schema,
+  database,
   canManage,
 }: SidebarColumnItemProps) => {
   const { t } = useTranslation();
@@ -72,6 +74,7 @@ export const SidebarColumnItem = ({
           connectionId,
           query,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         });
 
         onRefresh();
