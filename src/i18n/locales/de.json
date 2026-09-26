@@ -182,7 +182,6 @@
     "noTablesMatch": "Keine passende Tabelle",
     "filterDatabases": "Datenbanken filtern...",
     "manageDatabases": "Datenbanken verwalten",
-    "nestedDbActionUnsupported": "Für PostgreSQL-Verbindungen mit mehreren Datenbanken noch nicht unterstützt.",
     "databaseSelectionUpdated": "Datenbankauswahl aktualisiert",
     "droppedDatabasesRemoved": "Entfernt, da nicht mehr auf dem Server vorhanden: {{names}}",
     "structure": "Struktur",

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { SidebarSchemaItem } from "./SidebarSchemaItem";
 import type { NestedDatabaseData, RoutineInfo, TriggerInfo } from "../../../contexts/DatabaseContext";
+import type { TableColumn } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 import { onActivationKey } from "../../../utils/keyboardEvents";
 
@@ -44,11 +45,15 @@ interface SidebarNestedDatabaseItemProps {
     label: string,
     data?: ContextMenuData,
   ) => void;
-  /** Table-mutation actions (create/drop table/view/trigger, add/drop column,
-   * index, foreign key) aren't wired for nested multi-database browsing yet
-   * — invoked in place of those callbacks to tell the user why nothing
-   * happened, instead of silently no-opping or hiding the affordance. */
-  onUnsupportedAction: () => void;
+  onAddColumn: (tableName: string, schema: string, database: string) => void;
+  onEditColumn: (tableName: string, col: TableColumn, schema: string, database: string) => void;
+  onAddIndex: (tableName: string, schema: string, database: string) => void;
+  onDropIndex: (tableName: string, indexName: string, schema: string, database: string) => void;
+  onAddForeignKey: (tableName: string, schema: string, database: string) => void;
+  onDropForeignKey: (tableName: string, fkName: string, schema: string, database: string) => void;
+  onCreateTable: (schema: string, database: string) => void;
+  onCreateView: (schema: string, database: string) => void;
+  onCreateTrigger: (schema: string, database: string) => void;
   showTriggers?: boolean;
 }
 
@@ -78,7 +83,15 @@ export const SidebarNestedDatabaseItem = ({
   onRoutineDoubleClick,
   onTriggerDoubleClick,
   onContextMenu,
-  onUnsupportedAction,
+  onAddColumn,
+  onEditColumn,
+  onAddIndex,
+  onDropIndex,
+  onAddForeignKey,
+  onDropForeignKey,
+  onCreateTable,
+  onCreateView,
+  onCreateTrigger,
   showTriggers = false,
 }: SidebarNestedDatabaseItemProps) => {
   const { t } = useTranslation();
@@ -254,15 +267,15 @@ export const SidebarNestedDatabaseItem = ({
                 onRoutineDoubleClick={(routine, schema) => onRoutineDoubleClick(routine, schema, databaseName)}
                 onTriggerDoubleClick={(trigger, schema) => onTriggerDoubleClick(trigger, schema, databaseName)}
                 onContextMenu={onContextMenu}
-                onAddColumn={onUnsupportedAction}
-                onEditColumn={onUnsupportedAction}
-                onAddIndex={onUnsupportedAction}
-                onDropIndex={onUnsupportedAction}
-                onAddForeignKey={onUnsupportedAction}
-                onDropForeignKey={onUnsupportedAction}
-                onCreateTable={onUnsupportedAction}
-                onCreateView={onUnsupportedAction}
-                onCreateTrigger={onUnsupportedAction}
+                onAddColumn={(t_name) => onAddColumn(t_name, schemaName, databaseName)}
+                onEditColumn={(t_name, col) => onEditColumn(t_name, col, schemaName, databaseName)}
+                onAddIndex={(t_name) => onAddIndex(t_name, schemaName, databaseName)}
+                onDropIndex={(t_name, indexName) => onDropIndex(t_name, indexName, schemaName, databaseName)}
+                onAddForeignKey={(t_name) => onAddForeignKey(t_name, schemaName, databaseName)}
+                onDropForeignKey={(t_name, fkName) => onDropForeignKey(t_name, fkName, schemaName, databaseName)}
+                onCreateTable={() => onCreateTable(schemaName, databaseName)}
+                onCreateView={() => onCreateView(schemaName, databaseName)}
+                onCreateTrigger={() => onCreateTrigger(schemaName, databaseName)}
                 showTriggers={showTriggers}
               />
             ))

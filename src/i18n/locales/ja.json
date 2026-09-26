@@ -195,7 +195,6 @@
     "noTablesMatch": "一致するテーブルがありません",
     "filterDatabases": "データベースをフィルター...",
     "manageDatabases": "データベースを管理",
-    "nestedDbActionUnsupported": "複数のデータベースを閲覧する PostgreSQL 接続では、まだサポートされていません。",
     "databaseSelectionUpdated": "データベースの選択を更新しました",
     "droppedDatabasesRemoved": "サーバーに存在しないため削除されました: {{names}}",
     "structure": "構造",

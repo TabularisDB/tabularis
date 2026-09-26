@@ -486,10 +486,6 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     objectNavigation?.openTriggerDefinition(trigger, schema, database);
   };
 
-  const handleUnsupportedNestedAction = () => {
-    showAlert(t("sidebar.nestedDbActionUnsupported"), { kind: "info" });
-  };
-
   const handleRoutineDoubleClick = (routine: RoutineInfo, schema?: string) => {
     objectNavigation?.openRoutineDefinition(routine, schema);
   };
@@ -1609,7 +1605,63 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       onRoutineDoubleClick={handleNestedRoutineDoubleClick}
                       onTriggerDoubleClick={handleNestedTriggerDoubleClick}
                       onContextMenu={handleContextMenu}
-                      onUnsupportedAction={handleUnsupportedNestedAction}
+                      onAddColumn={(t_name, schema, database) =>
+                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: null, schema, database })
+                      }
+                      onEditColumn={(t_name, c, schema, database) =>
+                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: c, schema, database })
+                      }
+                      onAddIndex={(t_name, schema, database) =>
+                        setCreateIndexModal({ isOpen: true, tableName: t_name, schema, database })
+                      }
+                      onDropIndex={async (t_name, name, schema, database) => {
+                        if (
+                          await ask(
+                            t("sidebar.deleteIndexConfirm", { name }),
+                            { title: t("sidebar.deleteIndex"), kind: "warning" },
+                          )
+                        ) {
+                          try {
+                            await invoke("drop_index_action", {
+                              connectionId: activeConnectionId,
+                              table: t_name,
+                              indexName: name,
+                              schema,
+                              database,
+                            });
+                            setSchemaVersion((v) => v + 1);
+                          } catch (e) {
+                            showAlert(t("sidebar.failDeleteIndex") + toErrorMessage(e), { title: t("common.error"), kind: "error" });
+                          }
+                        }
+                      }}
+                      onAddForeignKey={(t_name, schema, database) =>
+                        setCreateForeignKeyModal({ isOpen: true, tableName: t_name, schema, database })
+                      }
+                      onDropForeignKey={async (t_name, name, schema, database) => {
+                        if (
+                          await ask(
+                            t("sidebar.deleteFkConfirm", { name }),
+                            { title: t("sidebar.deleteFk"), kind: "warning" },
+                          )
+                        ) {
+                          try {
+                            await invoke("drop_foreign_key_action", {
+                              connectionId: activeConnectionId,
+                              table: t_name,
+                              fkName: name,
+                              schema,
+                              database,
+                            });
+                            setSchemaVersion((v) => v + 1);
+                          } catch (e) {
+                            showAlert(toErrorMessage(e), { title: t("common.error"), kind: "error" });
+                          }
+                        }
+                      }}
+                      onCreateTable={(schema, database) => openCreateTableModal({ kind: "nested", schema, database })}
+                      onCreateView={(schema, database) => setViewEditorModal({ isOpen: true, isNewView: true, schema, database })}
+                      onCreateTrigger={(schema, database) => setTriggerEditorModal({ isOpen: true, isNewTrigger: true, schema, database })}
                       showTriggers={activeCapabilities?.triggers === true}
                     />
                   ))}

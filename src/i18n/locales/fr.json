@@ -195,7 +195,6 @@
     "noTablesMatch": "Aucune table correspondante",
     "filterDatabases": "Filtrer les bases de données...",
     "manageDatabases": "Gérer les bases de données",
-    "nestedDbActionUnsupported": "Pas encore pris en charge pour les connexions PostgreSQL parcourant plusieurs bases de données.",
     "databaseSelectionUpdated": "Sélection des bases de données mise à jour",
     "droppedDatabasesRemoved": "Supprimées car absentes du serveur : {{names}}",
     "structure": "Structure",
