@@ -1217,16 +1217,8 @@ pub async fn execute_batch_in_session(
     for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
         let outcome = exec_on_pg_client(&client, q, limit, page).await;
-        // A failed statement changes nothing: a failed COMMIT leaves the
-        // transaction open (aborted), and the session stays pinned so the
-        // user can still ROLLBACK from the same tab.
-        if outcome.is_ok() {
-            match crate::drivers::common::transaction_effect(q) {
-                crate::drivers::common::TransactionEffect::Opens => in_transaction = true,
-                crate::drivers::common::TransactionEffect::Closes => in_transaction = false,
-                crate::drivers::common::TransactionEffect::None => {}
-            }
-        }
+        in_transaction = crate::drivers::common::transaction_effect(q)
+            .in_transaction_after(outcome.is_ok(), in_transaction);
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
         if let Some(cb) = on_progress {
             cb(idx, &res);

@@ -804,6 +804,34 @@ fn transaction_effect_ignores_savepoint_rollback() {
 }
 
 #[test]
+fn transaction_effect_detects_chained_and_two_phase_statements() {
+    for query in ["COMMIT AND CHAIN", "commit work and chain", "ROLLBACK AND CHAIN", "ABORT AND CHAIN"] {
+        assert_eq!(transaction_effect(query), TransactionEffect::Chains, "{query}");
+    }
+    for query in ["COMMIT AND NO CHAIN", "ABORT", "PREPARE TRANSACTION 'tx1'"] {
+        assert_eq!(transaction_effect(query), TransactionEffect::Closes, "{query}");
+    }
+    // Two-phase commit runs outside a transaction block and never touches the session's.
+    for query in ["COMMIT PREPARED 'tx1'", "ROLLBACK PREPARED 'tx1'"] {
+        assert_eq!(transaction_effect(query), TransactionEffect::None, "{query}");
+    }
+}
+
+#[test]
+fn in_transaction_after_treats_a_failed_commit_as_closing() {
+    use TransactionEffect::*;
+    // A COMMIT failing on a deferred constraint has already ended the transaction server-side.
+    assert!(!Closes.in_transaction_after(false, true));
+    assert!(!Chains.in_transaction_after(false, true));
+    assert!(Chains.in_transaction_after(true, true));
+    assert!(Opens.in_transaction_after(true, false));
+    // A failed BEGIN or ordinary statement leaves the state as it was.
+    assert!(!Opens.in_transaction_after(false, false));
+    assert!(None.in_transaction_after(false, true));
+    assert!(!None.in_transaction_after(true, false));
+}
+
+#[test]
 fn transaction_effect_ignores_ordinary_statements() {
     for query in [
         "SELECT 1",
