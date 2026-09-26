@@ -19,6 +19,7 @@ interface RunRoutineModalProps {
   connectionId: string;
   routine: RoutineInfo;
   schema?: string;
+  database?: string;
   /** Receives the generated invocation script, ready to execute. */
   onRun: (sql: string) => void;
 }
@@ -29,6 +30,7 @@ export const RunRoutineModal = ({
   connectionId,
   routine,
   schema,
+  database,
   onRun,
 }: RunRoutineModalProps) => {
   const { t } = useTranslation();
@@ -47,6 +49,7 @@ export const RunRoutineModal = ({
       connectionId,
       routineName: routine.name,
       ...(schema ? { schema } : {}),
+      ...(database ? { database } : {}),
     })
       .then((params) => {
         if (cancelled) return;
@@ -71,7 +74,7 @@ export const RunRoutineModal = ({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, connectionId, routine.name, schema]);
+  }, [isOpen, connectionId, routine.name, schema, database]);
 
   const updateInput = useCallback(
     (position: number, partial: Partial<RoutineArgInput>) => {

@@ -17,6 +17,7 @@ interface TriggerEditorModalProps {
   triggerName?: string;
   tableName?: string;
   schema?: string;
+  database?: string;
   driver?: string;
   /** Capability-driven identifier quoting (issue #614): when available,
    * takes precedence over the bare `driver` id/fallback so a
@@ -56,6 +57,7 @@ export const TriggerEditorModal = ({
   triggerName,
   tableName: initialTableName,
   schema: schemaProp,
+  database,
   driver,
   capabilities,
   isNewTrigger = false,
@@ -86,6 +88,7 @@ export const TriggerEditorModal = ({
         triggerName: tName,
         tableName: tTable,
         ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+        ...(database ? { database } : {}),
       });
       setRawSql(def);
 
@@ -105,7 +108,7 @@ export const TriggerEditorModal = ({
     } finally {
       setLoading(false);
     }
-  }, [connectionId, t, resolvedSchema]);
+  }, [connectionId, t, resolvedSchema, database]);
 
   useEffect(() => {
     if (isOpen) {
@@ -168,6 +171,7 @@ export const TriggerEditorModal = ({
           triggerName: name,
           tableName,
           ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+          ...(database ? { database } : {}),
         });
       } catch (e) {
         setError(t("triggers.dropError") + String(e));
@@ -182,6 +186,7 @@ export const TriggerEditorModal = ({
         connectionId,
         triggerSql: sql,
         ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+        ...(database ? { database } : {}),
       });
       showAlert(
         isNewTrigger ? t("triggers.createSuccess") : t("triggers.updateSuccess"),

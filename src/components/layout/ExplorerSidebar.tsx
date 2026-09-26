@@ -222,8 +222,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   } | null>(null);
   const [schemaModal, setSchemaModal] =
     useState<TableTarget | null>(null);
-  const [runRoutineModal, setRunRoutineModal] = useState<{ routine: RoutineInfo; schema?: string } | null>(null);
-  const [routineDropConfirm, setRoutineDropConfirm] = useState<{ name: string; routineType: string; schema?: string } | null>(null);
+  const [runRoutineModal, setRunRoutineModal] = useState<{ routine: RoutineInfo; schema?: string; database?: string } | null>(null);
+  const [routineDropConfirm, setRoutineDropConfirm] = useState<{ name: string; routineType: string; schema?: string; database?: string } | null>(null);
   const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
   const [createTableTarget, setCreateTableTarget] = useState<CreateTableTarget>(DEFAULT_CREATE_TABLE_TARGET);
   const [isClipboardImportOpen, setIsClipboardImportOpen] = useState(false);
@@ -299,6 +299,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     isOpen: boolean;
     viewName?: string;
     isNewView?: boolean;
+    schema?: string;
+    database?: string;
   }>({ isOpen: false });
 
   const [triggerEditorModal, setTriggerEditorModal] = useState<{
@@ -306,6 +308,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     triggerName?: string;
     tableName?: string;
     schema?: string;
+    database?: string;
     isNewTrigger?: boolean;
   }>({ isOpen: false });
 
@@ -332,13 +335,14 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   };
 
   /** Table navigation goes through `objectNavigation`; this only opens consoles. */
-  const runQuery = (sql: string, queryName?: string, preventAutoRun: boolean = false, schema?: string) => {
+  const runQuery = (sql: string, queryName?: string, preventAutoRun: boolean = false, schema?: string, database?: string) => {
     openEditor(navigate, {
       kind: "console",
       initialQuery: sql,
       queryName,
       preventAutoRun,
       schema,
+      database,
       targetConnectionId: activeConnectionId ?? undefined,
     });
   };
@@ -510,7 +514,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
 
   const handleDropRoutine = async () => {
     if (!routineDropConfirm) return;
-    const { name, routineType, schema } = routineDropConfirm;
+    const { name, routineType, schema, database } = routineDropConfirm;
     setRoutineDropConfirm(null);
     try {
       await invoke("drop_routine", {
@@ -518,6 +522,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         routineName: name,
         routineType,
         ...(schema ? { schema } : {}),
+        ...(database ? { database } : {}),
       });
       showAlert(t("routines.dropSuccess", { name }), { kind: "info" });
       if (refreshRoutines) refreshRoutines();
@@ -1267,7 +1272,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           }}
                           onCreateTable={() => openCreateTableModal({ kind: "schema", schema: schemaName })}
                           onCreateView={() =>
-                            setViewEditorModal({ isOpen: true, isNewView: true })
+                            setViewEditorModal({ isOpen: true, isNewView: true, schema: schemaName })
                           }
                           onCreateTrigger={(schema) =>
                             setTriggerEditorModal({ isOpen: true, isNewTrigger: true, schema })
@@ -1530,7 +1535,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       capabilities={activeCapabilities}
                       onCreateTable={() => openCreateTableModal({ kind: "database", schema: dbName })}
                       onCreateView={() =>
-                        setViewEditorModal({ isOpen: true, isNewView: true })
+                        setViewEditorModal({ isOpen: true, isNewView: true, schema: dbName })
                       }
                       onCreateTrigger={(schema) =>
                         setTriggerEditorModal({ isOpen: true, isNewTrigger: true, schema })
@@ -2265,7 +2270,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 label: t("sidebar.editView"),
                                 icon: Edit,
                                 action: () => {
-                                  setViewEditorModal({ isOpen: true, viewName: contextMenu.id, isNewView: false });
+                                  setViewEditorModal({ isOpen: true, viewName: contextMenu.id, isNewView: false, schema: viewCtxSchema, database: viewCtxDatabase });
                                 },
                               },
                               {
@@ -2402,6 +2407,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       setRunRoutineModal({
                                         routine: routineData,
                                         schema: routineSchema,
+                                        database: routineDatabase,
                                       });
                                     }
                                   },
@@ -2430,8 +2436,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         routineName: contextMenu.id,
                                         routineType: routineType,
                                         ...(routineSchema ? { schema: routineSchema } : {}),
+                                        ...(routineDatabase ? { database: routineDatabase } : {}),
                                       });
-                                      runQuery(script, `${contextMenu.id} Edit`, true, routineSchema);
+                                      runQuery(script, `${contextMenu.id} Edit`, true, routineSchema, routineDatabase);
                                     } catch (e) {
                                       console.error(e);
                                       showAlert(
@@ -2450,6 +2457,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       name: contextMenu.id,
                                       routineType,
                                       schema: routineSchema,
+                                      database: routineDatabase,
                                     });
                                   },
                                 } : null,
@@ -2503,6 +2511,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         triggerName: contextMenu.id,
                                         tableName: triggerData?.table_name,
                                         schema: triggerSchema,
+                                        database: triggerDatabase,
                                         isNewTrigger: false,
                                       });
                                     },
@@ -2804,6 +2813,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           connectionId={activeConnectionId}
           viewName={viewEditorModal.viewName}
           isNewView={viewEditorModal.isNewView}
+          schema={viewEditorModal.schema}
+          database={viewEditorModal.database}
           onSuccess={() => {
             if (refreshViews) refreshViews();
           }}
@@ -2818,6 +2829,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           triggerName={triggerEditorModal.triggerName}
           tableName={triggerEditorModal.tableName}
           schema={triggerEditorModal.schema}
+          database={triggerEditorModal.database}
           driver={activeDriver ?? undefined}
           capabilities={activeCapabilities}
           isNewTrigger={triggerEditorModal.isNewTrigger}
@@ -2875,8 +2887,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           connectionId={activeConnectionId}
           routine={runRoutineModal.routine}
           schema={runRoutineModal.schema}
+          database={runRoutineModal.database}
           onRun={(sql) => {
-            runQuery(sql, `${t("routines.runTabPrefix")} ${runRoutineModal.routine.name}`, false, runRoutineModal.schema);
+            runQuery(sql, `${t("routines.runTabPrefix")} ${runRoutineModal.routine.name}`, false, runRoutineModal.schema, runRoutineModal.database);
           }}
         />
       )}
