@@ -1,8 +1,8 @@
 use super::{
     build_paginated_query, decode_blob_wire_format, encode_blob, encode_blob_full, i64_to_json,
     is_explainable_query, is_select_query, parse_unsafe_bigint_string, strip_leading_sql_comments,
-    strip_limit_offset, u64_to_json, DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT,
-    MAX_BLOB_PREVIEW_SIZE,
+    strip_limit_offset, transaction_effect, u64_to_json, TransactionEffect, DEFAULT_MAX_BLOB_SIZE,
+    JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT, MAX_BLOB_PREVIEW_SIZE,
 };
 
 #[test]
@@ -758,4 +758,123 @@ mod routine_builders {
             "DROP FUNCTION \"s\".\"f\""
         );
     }
+}
+
+#[test]
+fn transaction_effect_detects_opening_statements() {
+    for query in [
+        "BEGIN",
+        "begin;",
+        "BEGIN TRANSACTION",
+        "BEGIN ISOLATION LEVEL SERIALIZABLE",
+        "START TRANSACTION",
+        "start transaction read write",
+    ] {
+        assert_eq!(
+            transaction_effect(query),
+            TransactionEffect::Opens,
+            "{query} should open a transaction"
+        );
+    }
+}
+
+#[test]
+fn transaction_effect_detects_closing_statements() {
+    for query in ["COMMIT", "commit;", "ROLLBACK", "END", "END TRANSACTION"] {
+        assert_eq!(
+            transaction_effect(query),
+            TransactionEffect::Closes,
+            "{query} should close the transaction"
+        );
+    }
+}
+
+#[test]
+fn transaction_effect_ignores_savepoint_rollback() {
+    // Unwinding to a savepoint leaves the transaction open, so the
+    // connection must stay pinned.
+    assert_eq!(
+        transaction_effect("ROLLBACK TO SAVEPOINT before_update"),
+        TransactionEffect::None
+    );
+    assert_eq!(
+        transaction_effect("ROLLBACK TO before_update"),
+        TransactionEffect::None
+    );
+}
+
+#[test]
+fn transaction_effect_detects_chained_and_two_phase_statements() {
+    for query in ["COMMIT AND CHAIN", "commit work and chain", "ROLLBACK AND CHAIN", "ABORT AND CHAIN"] {
+        assert_eq!(transaction_effect(query), TransactionEffect::Chains, "{query}");
+    }
+    for query in ["COMMIT AND NO CHAIN", "ABORT", "PREPARE TRANSACTION 'tx1'"] {
+        assert_eq!(transaction_effect(query), TransactionEffect::Closes, "{query}");
+    }
+    // Two-phase commit runs outside a transaction block and never touches the session's.
+    for query in ["COMMIT PREPARED 'tx1'", "ROLLBACK PREPARED 'tx1'"] {
+        assert_eq!(transaction_effect(query), TransactionEffect::None, "{query}");
+    }
+}
+
+#[test]
+fn in_transaction_after_treats_a_failed_commit_as_closing() {
+    use TransactionEffect::*;
+    // A COMMIT failing on a deferred constraint has already ended the transaction server-side.
+    assert!(!Closes.in_transaction_after(false, true));
+    assert!(!Chains.in_transaction_after(false, true));
+    assert!(Chains.in_transaction_after(true, true));
+    assert!(Opens.in_transaction_after(true, false));
+    // A failed BEGIN or ordinary statement leaves the state as it was.
+    assert!(!Opens.in_transaction_after(false, false));
+    assert!(None.in_transaction_after(false, true));
+    assert!(!None.in_transaction_after(true, false));
+}
+
+#[test]
+fn transaction_effect_ignores_ordinary_statements() {
+    for query in [
+        "SELECT 1",
+        "UPDATE t SET a = 1",
+        "SAVEPOINT before_update",
+        // `BEGIN` appearing as data, not as the leading keyword.
+        "SELECT 'BEGIN' AS word",
+        "INSERT INTO log (msg) VALUES ('COMMIT')",
+    ] {
+        assert_eq!(
+            transaction_effect(query),
+            TransactionEffect::None,
+            "{query} should not change the transaction state"
+        );
+    }
+}
+
+#[test]
+fn transaction_effect_sees_through_leading_comments() {
+    assert_eq!(
+        transaction_effect("-- start the transaction\nBEGIN"),
+        TransactionEffect::Opens
+    );
+    assert_eq!(
+        transaction_effect("/* done */ COMMIT"),
+        TransactionEffect::Closes
+    );
+}
+
+#[test]
+fn transaction_effect_handles_empty_input() {
+    assert_eq!(transaction_effect(""), TransactionEffect::None);
+    assert_eq!(transaction_effect("   \n"), TransactionEffect::None);
+    assert_eq!(transaction_effect("-- only a comment"), TransactionEffect::None);
+}
+
+#[test]
+fn transaction_effect_does_not_match_plpgsql_block_bodies() {
+    // A PL/pgSQL `BEGIN ... END` arrives inside a DO or CREATE FUNCTION
+    // statement, whose leading keyword is not BEGIN, so the block cannot be
+    // mistaken for transaction control.
+    assert_eq!(
+        transaction_effect("DO $$ BEGIN RAISE NOTICE 'hi'; END $$"),
+        TransactionEffect::None
+    );
 }

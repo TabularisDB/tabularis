@@ -460,3 +460,70 @@ fn trailing_comment_start(sql: &str) -> Option<usize> {
         State::SingleQuote | State::DoubleQuote | State::Backtick => None,
     }
 }
+
+/// What a statement does to the surrounding transaction.
+///
+/// Drivers use this to decide whether the physical connection a batch ran
+/// on must be held for the next batch (an explicit transaction is still
+/// open) or may go back to the pool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransactionEffect {
+    /// Opens an explicit transaction (`BEGIN`, `START TRANSACTION`).
+    Opens,
+    /// Closes the current transaction (`COMMIT`, `ROLLBACK`, `END`).
+    ///
+    /// `ROLLBACK TO SAVEPOINT` does NOT close the transaction and is
+    /// classified as [`TransactionEffect::None`].
+    Closes,
+    /// Ends the current transaction and opens a new one (`COMMIT AND CHAIN`).
+    Chains,
+    /// Leaves the transaction state as it was.
+    None,
+}
+
+impl TransactionEffect {
+    /// Whether a transaction is open after a statement with this effect ran.
+    pub fn in_transaction_after(self, succeeded: bool, before: bool) -> bool {
+        match (self, succeeded) {
+            (TransactionEffect::Opens, true) => true,
+            // PostgreSQL ends the transaction even when COMMIT itself fails, e.g. on a deferred constraint.
+            (TransactionEffect::Closes, _) | (TransactionEffect::Chains, false) => false,
+            _ => before,
+        }
+    }
+}
+
+/// Classify a statement's effect on the transaction state.
+///
+/// Only the leading keywords are inspected, on the statement the driver is
+/// about to run, so a `BEGIN` inside a string literal or a later clause
+/// cannot be mistaken for transaction control. PL/pgSQL `BEGIN ... END`
+/// blocks are not a concern here: they arrive as part of a `DO` or
+/// `CREATE FUNCTION` statement, whose leading keyword is not `BEGIN`.
+pub fn transaction_effect(query: &str) -> TransactionEffect {
+    let normalized = strip_leading_sql_comments(query);
+    // Five words cover the longest form, `COMMIT TRANSACTION AND NO CHAIN`.
+    let words: Vec<String> = normalized
+        .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+        .filter(|w| !w.is_empty())
+        .take(5)
+        .map(|w| w.to_uppercase())
+        .collect();
+    let second = words.get(1).map(String::as_str);
+    let chains = words.windows(2).any(|p| p[0] == "AND" && p[1] == "CHAIN");
+
+    match words.first().map(String::as_str) {
+        // `BEGIN` alone, `BEGIN TRANSACTION`, `BEGIN ISOLATION LEVEL …`.
+        Some("BEGIN") => TransactionEffect::Opens,
+        Some("START") if second == Some("TRANSACTION") => TransactionEffect::Opens,
+        // Two-phase commit acts on a prepared transaction, not this session's.
+        Some("COMMIT" | "ROLLBACK") if second == Some("PREPARED") => TransactionEffect::None,
+        // `ROLLBACK TO [SAVEPOINT] x` unwinds to a savepoint and leaves the transaction open.
+        Some("ROLLBACK") if second == Some("TO") => TransactionEffect::None,
+        Some("COMMIT" | "END" | "ROLLBACK" | "ABORT") if chains => TransactionEffect::Chains,
+        Some("COMMIT" | "END" | "ROLLBACK" | "ABORT") => TransactionEffect::Closes,
+        // `PREPARE TRANSACTION` dissociates the transaction from the session.
+        Some("PREPARE") if second == Some("TRANSACTION") => TransactionEffect::Closes,
+        _ => TransactionEffect::None,
+    }
+}

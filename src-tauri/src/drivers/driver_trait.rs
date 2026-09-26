@@ -676,6 +676,68 @@ pub trait DatabaseDriver: Send + Sync {
         Ok(results)
     }
 
+    /// `execute_query` with the caller's connection carried across calls.
+    ///
+    /// One statement at a time is how a transaction is actually driven, so
+    /// the single-statement path needs the same pinning as a batch: without
+    /// it `BEGIN`, the changes and `COMMIT` each land on a different pooled
+    /// connection. See [`Self::execute_batch_in_session`].
+    ///
+    /// The default implementation delegates to [`Self::execute_query`] and
+    /// always reports `false`, so a driver that does not pin is unchanged.
+    async fn execute_query_in_session(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        _session_id: Option<&str>,
+    ) -> Result<(QueryResult, bool), String> {
+        let result = self
+            .execute_query(params, query, limit, page, schema)
+            .await?;
+        Ok((result, false))
+    }
+
+    /// `execute_batch` with the caller's connection carried across calls.
+    ///
+    /// `session_id` identifies a long-lived caller — an editor tab. When a
+    /// batch leaves an explicit transaction open, a driver that implements
+    /// this keeps the physical connection reserved for that session instead
+    /// of returning it to the pool, so the next batch from the same tab
+    /// continues the same transaction: `BEGIN`, changes, verify, `COMMIT`,
+    /// each as its own run.
+    ///
+    /// The returned flag reports whether the session is still inside a
+    /// transaction after the batch, so the UI can show it and release the
+    /// connection on close.
+    ///
+    /// The default implementation delegates to [`Self::execute_batch`] and
+    /// always reports `false`: statements within one batch still share a
+    /// connection, but nothing is held afterwards.
+    async fn execute_batch_in_session(
+        &self,
+        params: &ConnectionParams,
+        queries: &[String],
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        _session_id: Option<&str>,
+        on_progress: Option<&BatchProgressFn>,
+    ) -> Result<(Vec<BatchStatementResult>, bool), String> {
+        let results = self
+            .execute_batch(params, queries, limit, page, schema, on_progress)
+            .await?;
+        Ok((results, false))
+    }
+
+    /// Roll back and release any connection pinned to `session_id`.
+    ///
+    /// Called when the owning tab closes and on shutdown. Drivers that do
+    /// not pin connections have nothing to do.
+    async fn release_session(&self, _session_id: &str) {}
+
     /// Runs EXPLAIN (or EXPLAIN ANALYZE) on the given query and returns a
     /// parsed execution plan tree. Drivers that do not support EXPLAIN can
     /// rely on the default implementation which returns an error.

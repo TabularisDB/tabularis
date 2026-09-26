@@ -1367,6 +1367,8 @@
     "rollback": "Annulla",
     "pendingCount": "{{count}} in sospeso",
     "executingQuery": "Esecuzione query...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transazione aperta — questa scheda mantiene la sua connessione fino a COMMIT o ROLLBACK",
     "exporting": "Esportazione in corso...",
     "rowsProcessed": "Righe processate",
     "exportLoadedRowsWarning": "Sono state esportate solo {{loaded}} righe caricate su {{total}} righe totali. Scorri le pagine del risultato o esegui una query più mirata prima di esportare se ti servono più righe.",

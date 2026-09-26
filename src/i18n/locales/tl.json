@@ -1365,6 +1365,8 @@
     "rollback": "I-rollback",
     "pendingCount": "{{count}} nakabinbin",
     "executingQuery": "Isinasakatuparan ang query...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Bukas ang transaction — hawak ng tab na ito ang koneksyon nito hanggang sa COMMIT o ROLLBACK",
     "exporting": "Nag-e-export...",
     "rowsProcessed": "Mga Row na Naproseso",
     "exportLoadedRowsWarning": "{{loaded}} lang na na-load na row ang na-export mula sa kabuuang {{total}} row. Mag-page sa resulta o magpatakbo ng mas makitid na query bago mag-export kung kailangan mo ng mas maraming row.",
