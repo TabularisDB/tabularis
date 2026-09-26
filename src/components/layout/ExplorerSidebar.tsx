@@ -231,14 +231,20 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     isOpen: boolean;
     tableName: string;
     column: TableColumn | null;
+    schema?: string;
+    database?: string;
   }>({ isOpen: false, tableName: "", column: null });
   const [createIndexModal, setCreateIndexModal] = useState<{
     isOpen: boolean;
     tableName: string;
+    schema?: string;
+    database?: string;
   }>({ isOpen: false, tableName: "" });
   const [createForeignKeyModal, setCreateForeignKeyModal] = useState<{
     isOpen: boolean;
     tableName: string;
+    schema?: string;
+    database?: string;
   }>({ isOpen: false, tableName: "" });
   const [generateSQLModal, setGenerateSQLModal] =
     useState<TableTarget | null>(null);
@@ -313,7 +319,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const refreshAfterCreateTable = async () => {
     const refreshPlan = getCreateTableRefreshPlan(createTableTarget);
 
-    if (refreshPlan.scope === "schema") {
+    if (refreshPlan.scope === "nested") {
+      await refreshNestedSchemaData(refreshPlan.database, refreshPlan.schema);
+    } else if (refreshPlan.scope === "schema") {
       await refreshSchemaData(refreshPlan.schema);
     } else if (refreshPlan.scope === "database") {
       await refreshDatabaseData(refreshPlan.schema);
@@ -1206,13 +1214,13 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           onTriggerDoubleClick={(trigger, schema) => handleTriggerDoubleClick(trigger, schema)}
                           onContextMenu={handleContextMenu}
                           onAddColumn={(t_name) =>
-                            setModifyColumnModal({ isOpen: true, tableName: t_name, column: null })
+                            setModifyColumnModal({ isOpen: true, tableName: t_name, column: null, schema: schemaName })
                           }
                           onEditColumn={(t_name, c) =>
-                            setModifyColumnModal({ isOpen: true, tableName: t_name, column: c })
+                            setModifyColumnModal({ isOpen: true, tableName: t_name, column: c, schema: schemaName })
                           }
                           onAddIndex={(t_name) =>
-                            setCreateIndexModal({ isOpen: true, tableName: t_name })
+                            setCreateIndexModal({ isOpen: true, tableName: t_name, schema: schemaName })
                           }
                           onDropIndex={async (t_name, name) => {
                             if (
@@ -1235,7 +1243,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             }
                           }}
                           onAddForeignKey={(t_name) =>
-                            setCreateForeignKeyModal({ isOpen: true, tableName: t_name })
+                            setCreateForeignKeyModal({ isOpen: true, tableName: t_name, schema: schemaName })
                           }
                           onDropForeignKey={async (t_name, name) => {
                             if (
@@ -1468,13 +1476,13 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       onTriggerDoubleClick={(trigger, db) => handleTriggerDoubleClick(trigger, db)}
                       onContextMenu={handleContextMenu}
                       onAddColumn={(t_name) =>
-                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: null })
+                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: null, schema: dbName })
                       }
                       onEditColumn={(t_name, c) =>
-                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: c })
+                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: c, schema: dbName })
                       }
                       onAddIndex={(t_name) =>
-                        setCreateIndexModal({ isOpen: true, tableName: t_name })
+                        setCreateIndexModal({ isOpen: true, tableName: t_name, schema: dbName })
                       }
                       onDropIndex={async (t_name, name) => {
                         if (
@@ -1497,7 +1505,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         }
                       }}
                       onAddForeignKey={(t_name) =>
-                        setCreateForeignKeyModal({ isOpen: true, tableName: t_name })
+                        setCreateForeignKeyModal({ isOpen: true, tableName: t_name, schema: dbName })
                       }
                       onDropForeignKey={async (t_name, name) => {
                         if (
@@ -2080,7 +2088,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       label: t("sidebar.addColumn"),
                       icon: Plus,
                       action: () =>
-                        setModifyColumnModal({ isOpen: true, tableName: contextMenu.id, column: null }),
+                        setModifyColumnModal({ isOpen: true, tableName: contextMenu.id, column: null, schema: ctxSchema, database: ctxDatabase }),
                     } : null,
                     supportsManageTables(activeCapabilities) ? {
                       label: t("sidebar.deleteTable"),
@@ -2200,7 +2208,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             icon: Plus,
                             action: () => {
                               if (contextMenu.data && "tableName" in contextMenu.data) {
-                                setCreateIndexModal({ isOpen: true, tableName: contextMenu.data.tableName });
+                                const folderSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                                const folderDatabase = ("database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
+                                setCreateIndexModal({ isOpen: true, tableName: contextMenu.data.tableName, schema: folderSchema, database: folderDatabase });
                               }
                             },
                           },
@@ -2214,7 +2224,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               icon: Plus,
                               action: () => {
                                 if (contextMenu.data && "tableName" in contextMenu.data) {
-                                  setCreateForeignKeyModal({ isOpen: true, tableName: contextMenu.data.tableName });
+                                  const folderSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                                  const folderDatabase = ("database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
+                                  setCreateForeignKeyModal({ isOpen: true, tableName: contextMenu.data.tableName, schema: folderSchema, database: folderDatabase });
                                 }
                               },
                             },
@@ -2668,6 +2680,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           onClose={() => setIsCreateTableModalOpen(false)}
           onSuccess={refreshAfterCreateTable}
           schema={createTableTarget.schema}
+          database={createTableTarget.kind === "nested" ? createTableTarget.database : undefined}
         />
       )}
 
@@ -2717,6 +2730,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           tableName={modifyColumnModal.tableName}
           driver={activeDriver || "sqlite"}
           column={modifyColumnModal.column}
+          schema={modifyColumnModal.schema}
+          database={modifyColumnModal.database}
         />
       )}
 
@@ -2728,6 +2743,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           connectionId={activeConnectionId}
           tableName={createIndexModal.tableName}
           driver={activeDriver || "sqlite"}
+          schema={createIndexModal.schema}
+          database={createIndexModal.database}
         />
       )}
 
@@ -2739,6 +2756,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           connectionId={activeConnectionId}
           tableName={createForeignKeyModal.tableName}
           driver={activeDriver || "sqlite"}
+          schema={createForeignKeyModal.schema}
+          database={createForeignKeyModal.database}
         />
       )}
 
