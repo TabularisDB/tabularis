@@ -39,6 +39,36 @@ export function isSchemaBasedMultiDbCapable(
 }
 
 /**
+ * Returns true when a saved connection's persisted `database` value signals
+ * an explicit opt-in to database-selection browsing.
+ *
+ * Flat multi-db drivers (MySQL) have no other mode, so a plain non-empty
+ * string is already an explicit one-element selection — capability alone is
+ * the gate, matching `usesMultiDatabaseLayout`.
+ *
+ * Schema-based multi-db drivers (PostgreSQL) are different: every existing
+ * connection already has a required, non-empty `database` string from the
+ * traditional single-database mode this feature adds onto, so that shape
+ * can't be reused as the opt-in signal without misreading every existing
+ * Postgres connection as "selected exactly this one database" and routing
+ * it through the new nested database -> schema -> table layout instead of
+ * the schema-only one it has always used. Only an array (any length,
+ * including one) or an empty string ("all databases") signals an explicit
+ * opt-in for these drivers; a plain non-empty string keeps meaning "the one
+ * database this connection always pointed at."
+ */
+export function hasOptedIntoDatabaseSelection(
+  capabilities: DriverCapabilities | null | undefined,
+  dbParam: string | string[],
+): boolean {
+  if (isMultiDatabaseCapable(capabilities)) return true;
+  if (isSchemaBasedMultiDbCapable(capabilities)) {
+    return Array.isArray(dbParam) || dbParam === '';
+  }
+  return false;
+}
+
+/**
  * Returns true when a schema-based driver (e.g. PostgreSQL) is being browsed
  * across multiple databases on one connection. Unlike `isMultiDatabaseCapable`
  * (flat database -> table drivers like MySQL), this drives a nested

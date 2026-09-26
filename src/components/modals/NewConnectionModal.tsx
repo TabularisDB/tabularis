@@ -63,7 +63,7 @@ import { resolveSsmDocument, testSsmConnection } from "../../utils/ssm";
 import { useK8sPathOverrides } from "../../hooks/useK8sPathOverrides";
 import { useLatestAsync } from "../../hooks/useLatestAsync";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
-import { isMultiDatabaseCapable, isSchemaBasedMultiDbCapable } from "../../utils/database";
+import { isMultiDatabaseCapable, isSchemaBasedMultiDbCapable, hasOptedIntoDatabaseSelection } from "../../utils/database";
 import { updateExtraField } from "../../utils/connections";
 import { normalizeLocalDatabasePath, sanitizeLocalFilePath } from "../../utils/fsPath";
 import { isLocalDriver } from "../../utils/driverCapabilities";
@@ -660,8 +660,9 @@ export const NewConnectionModal = ({
     t("newConnection.connectionStringPlaceholder", {
       defaultValue: "e.g. mysql://user:pass@localhost:3306/db",
     });
+  const isFlatMultiDbDriver = isMultiDatabaseCapable(activeDriver?.capabilities);
   const isMultiDb =
-    isMultiDatabaseCapable(activeDriver?.capabilities) ||
+    isFlatMultiDbDriver ||
     isSchemaBasedMultiDbCapable(activeDriver?.capabilities);
   // Flat single-database store (e.g. Meilisearch): no database to select or name.
   const singleDatabase =
@@ -1854,9 +1855,7 @@ export const NewConnectionModal = ({
         const editDriverForDb = drivers.find(
           (d) => d.id === initialConnection.params.driver,
         );
-        const editIsMultiDb =
-          isMultiDatabaseCapable(editDriverForDb?.capabilities) ||
-          isSchemaBasedMultiDbCapable(editDriverForDb?.capabilities);
+        const editIsMultiDb = hasOptedIntoDatabaseSelection(editDriverForDb?.capabilities, db);
         if (Array.isArray(db)) {
           setSelectedDatabasesState(db);
           setLoadAllDatabases(false);
@@ -2318,7 +2317,15 @@ export const NewConnectionModal = ({
             ? // "All databases" mode: persisted as an empty database so the
               // list is fetched from the server on every connect.
               ""
-            : selectedDatabasesState.length === 1
+            : // A single database selected via the Databases tab collapses to
+              // a plain string for flat multi-db drivers (MySQL), matching
+              // how they've always persisted a one-element selection. A
+              // schema-based multi-db driver (PostgreSQL) must NOT collapse:
+              // a plain string there is indistinguishable from the
+              // traditional single-database mode it already had before this
+              // feature existed, so it always keeps the array shape as the
+              // opt-in signal — see hasOptedIntoDatabaseSelection.
+              isFlatMultiDbDriver && selectedDatabasesState.length === 1
               ? selectedDatabasesState[0]
               : selectedDatabasesState
           : singleDatabase
@@ -2501,9 +2508,7 @@ export const NewConnectionModal = ({
       const parsed = toConnectionParams(result.params);
       const newDriver = parsed.driver || driver;
       const parsedDriver = drivers.find((item) => item.id === newDriver);
-      const parsedIsMultiDb =
-        isMultiDatabaseCapable(parsedDriver?.capabilities) ||
-        isSchemaBasedMultiDbCapable(parsedDriver?.capabilities);
+      const parsedIsMultiDb = hasOptedIntoDatabaseSelection(parsedDriver?.capabilities, parsed.database);
 
       const driverChanged = newDriver !== driver;
       const parsedFields: Partial<ConnectionParams> = {

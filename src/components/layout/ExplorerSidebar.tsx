@@ -74,6 +74,7 @@ import { SidebarRoutineItem } from "./sidebar/SidebarRoutineItem";
 import { SidebarRoutineGroupHeader } from "./sidebar/SidebarRoutineGroupHeader";
 import { SidebarSchemaItem } from "./sidebar/SidebarSchemaItem";
 import { SidebarDatabaseItem } from "./sidebar/SidebarDatabaseItem";
+import { SidebarNestedDatabaseItem } from "./sidebar/SidebarNestedDatabaseItem";
 import { SidebarTriggerItem } from "./sidebar/SidebarTriggerItem";
 import { QueryHistorySection } from "./sidebar/QueryHistorySection";
 import { NotebooksSection } from "./sidebar/NotebooksSection";
@@ -91,7 +92,7 @@ import { groupRoutinesByType } from "../../utils/routines";
 import { formatObjectCount } from "../../utils/schema";
 import { groupByDate, formatHistoryTime } from "../../utils/dateGroups";
 import { SqlHighlight } from "../ui/SqlHighlight";
-import { isMultiDatabaseCapable, usesMultiDatabaseLayout, reconcileDatabaseSelection } from "../../utils/database";
+import { isMultiDatabaseCapable, isSchemaBasedMultiDb, usesMultiDatabaseLayout, reconcileDatabaseSelection } from "../../utils/database";
 import { supportsManageTables } from "../../utils/driverCapabilities";
 import { newConsoleForDatabase } from "../../utils/newConsole";
 import { openEditor } from "../../utils/editorNavigation";
@@ -147,6 +148,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     databaseDataMap,
     loadDatabaseData,
     refreshDatabaseData,
+    nestedDatabaseDataMap,
+    loadNestedSchemas,
+    setSelectedSchemasForDatabase,
+    loadNestedSchemaData,
+    refreshNestedSchemaData,
     connectionDataMap,
     connections,
     connect,
@@ -440,6 +446,36 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
       qualifySchema: false,
       title: database ? `${viewName} (${database})` : viewName,
     });
+  };
+
+  // Nested (schema-based multi-db, e.g. Postgres browsing several databases
+  // on one connection): unlike the flat multi-db case above, both a real
+  // schema AND a database are needed, so the object is qualified by schema
+  // as usual and the pool is separately routed by `database`.
+  const handleOpenNestedTable = (tableName: string, schema: string, database: string) => {
+    setActiveTable(tableName, schema);
+    objectNavigation?.open(tableName, schema, { title: `${tableName} (${database}.${schema})` }, database);
+  };
+
+  const handleOpenNestedView = (
+    viewName: string,
+    schema: string,
+    database: string,
+    materialized = false,
+  ) => {
+    objectNavigation?.open(viewName, schema, { materialized, title: `${viewName} (${database}.${schema})` }, database);
+  };
+
+  const handleNestedRoutineDoubleClick = (routine: RoutineInfo, schema: string, database: string) => {
+    objectNavigation?.openRoutineDefinition(routine, schema, database);
+  };
+
+  const handleNestedTriggerDoubleClick = (trigger: TriggerInfo, schema: string, database: string) => {
+    objectNavigation?.openTriggerDefinition(trigger, schema, database);
+  };
+
+  const handleUnsupportedNestedAction = () => {
+    showAlert(t("sidebar.nestedDbActionUnsupported"), { kind: "info" });
   };
 
   const handleRoutineDoubleClick = (routine: RoutineInfo, schema?: string) => {
@@ -1504,6 +1540,64 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           console.error("Failed to open ER Diagram window:", e);
                         }
                       } : undefined}
+                    />
+                  ))}
+                </div>
+              ) : isSchemaBasedMultiDb(activeCapabilities, selectedDatabases) ? (
+                /* Nested database -> schema -> table layout (PostgreSQL browsing several databases) */
+                <div>
+                  <div className="flex items-center justify-between px-3 py-1.5">
+                    <span className="text-xs font-semibold uppercase text-muted tracking-wider">
+                      {t("sidebar.databases")} ({selectedDatabases.length})
+                    </span>
+                  </div>
+
+                  <div className="px-3 pb-1.5">
+                    <div className="relative flex items-center">
+                      <Search size={11} className="absolute left-2 text-muted pointer-events-none" />
+                      <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
+                        type="text"
+                        value={dbFilter}
+                        onChange={(e) => setDbFilter(e.target.value)}
+                        placeholder={t("sidebar.filterDatabases")}
+                        className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-focus/50"
+                      />
+                      {dbFilter && (
+                        <button
+                          onClick={() => setDbFilter("")}
+                          className="absolute right-1.5 text-muted hover:text-primary"
+                        >
+                          <X size={11} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {(dbFilter
+                    ? selectedDatabases.filter((db) => db.toLowerCase().includes(dbFilter.toLowerCase()))
+                    : selectedDatabases
+                  ).map((dbName) => (
+                    <SidebarNestedDatabaseItem
+                      key={dbName}
+                      databaseName={dbName}
+                      nestedData={nestedDatabaseDataMap[dbName]}
+                      activeTable={activeTable}
+                      connectionId={activeConnectionId!}
+                      driver={activeDriver!}
+                      schemaVersion={schemaVersion}
+                      onLoadSchemas={loadNestedSchemas}
+                      onSetSelectedSchemas={setSelectedSchemasForDatabase}
+                      onLoadSchemaData={loadNestedSchemaData}
+                      onRefreshSchemaData={refreshNestedSchemaData}
+                      onTableClick={(name, schema) => handleTableClick(name, schema)}
+                      onTableDoubleClick={handleOpenNestedTable}
+                      onViewClick={handleViewClick}
+                      onViewDoubleClick={handleOpenNestedView}
+                      onRoutineDoubleClick={handleNestedRoutineDoubleClick}
+                      onTriggerDoubleClick={handleNestedTriggerDoubleClick}
+                      onContextMenu={handleContextMenu}
+                      onUnsupportedAction={handleUnsupportedNestedAction}
+                      showTriggers={activeCapabilities?.triggers === true}
                     />
                   ))}
                 </div>

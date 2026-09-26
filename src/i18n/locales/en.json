@@ -195,6 +195,7 @@
     "noTablesMatch": "No tables match",
     "filterDatabases": "Filter databases...",
     "manageDatabases": "Manage Databases",
+    "nestedDbActionUnsupported": "Not yet supported for PostgreSQL connections browsing multiple databases.",
     "databaseSelectionUpdated": "Database selection updated",
     "droppedDatabasesRemoved": "Removed because no longer on the server: {{names}}",
     "structure": "Structure",

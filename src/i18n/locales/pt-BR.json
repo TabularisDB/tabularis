@@ -172,6 +172,7 @@
     "noTablesMatch": "Nenhuma tabela corresponde",
     "filterDatabases": "Filtrar bancos de dados...",
     "manageDatabases": "Gerenciar Bancos de Dados",
+    "nestedDbActionUnsupported": "Ainda não suportado para conexões PostgreSQL que navegam em vários bancos de dados.",
     "databaseSelectionUpdated": "Seleção de bancos de dados atualizada",
     "droppedDatabasesRemoved": "Removidos por não existirem mais no servidor: {{names}}",
     "structure": "Estrutura",

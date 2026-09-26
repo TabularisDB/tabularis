@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   isMultiDatabaseCapable,
+  isSchemaBasedMultiDbCapable,
+  isSchemaBasedMultiDb,
+  hasOptedIntoDatabaseSelection,
   usesMultiDatabaseLayout,
   isMultiDatabaseSelection,
   getTableDataChangeScope,
@@ -18,6 +21,11 @@ const baseCapabilities: DriverCapabilities = {
   folder_based: false,
   identifier_quote: '`',
   alter_primary_key: false,
+};
+
+const postgresCapabilities: DriverCapabilities = {
+  ...baseCapabilities,
+  schemas: true,
 };
 
 describe('isMultiDatabaseCapable', () => {
@@ -222,5 +230,87 @@ describe('getEffectiveDatabase', () => {
 
   it('returns the only element of a single-element array', () => {
     expect(getEffectiveDatabase(['only'])).toBe('only');
+  });
+});
+
+describe('isSchemaBasedMultiDbCapable', () => {
+  it('returns true for a Postgres-like driver (schemas, not file/folder-based)', () => {
+    expect(isSchemaBasedMultiDbCapable(postgresCapabilities)).toBe(true);
+  });
+
+  it('returns false when schemas is false (MySQL)', () => {
+    expect(isSchemaBasedMultiDbCapable(baseCapabilities)).toBe(false);
+  });
+
+  it('returns false when file_based is true', () => {
+    expect(isSchemaBasedMultiDbCapable({ ...postgresCapabilities, file_based: true })).toBe(false);
+  });
+
+  it('returns false when folder_based is true', () => {
+    expect(isSchemaBasedMultiDbCapable({ ...postgresCapabilities, folder_based: true })).toBe(false);
+  });
+
+  it('returns false for a single_database store', () => {
+    expect(isSchemaBasedMultiDbCapable({ ...postgresCapabilities, single_database: true })).toBe(false);
+  });
+
+  it('returns false for null/undefined capabilities', () => {
+    expect(isSchemaBasedMultiDbCapable(null)).toBe(false);
+    expect(isSchemaBasedMultiDbCapable(undefined)).toBe(false);
+  });
+});
+
+describe('isSchemaBasedMultiDb', () => {
+  it('is on for a schema-based driver with a non-empty selection', () => {
+    expect(isSchemaBasedMultiDb(postgresCapabilities, ['analytics'])).toBe(true);
+    expect(isSchemaBasedMultiDb(postgresCapabilities, ['a', 'b'])).toBe(true);
+  });
+
+  it('is off with an empty selection, even for a capable driver', () => {
+    // A plain single-database Postgres connection must keep using the
+    // schema-only layout — this is the guard against the exact regression
+    // #402's review caught (flat-driver fallback firing on plain Postgres).
+    expect(isSchemaBasedMultiDb(postgresCapabilities, [])).toBe(false);
+  });
+
+  it('is off for a flat multi-db driver (MySQL)', () => {
+    expect(isSchemaBasedMultiDb(baseCapabilities, ['a'])).toBe(false);
+  });
+
+  it('is off for null capabilities', () => {
+    expect(isSchemaBasedMultiDb(null, ['a'])).toBe(false);
+  });
+});
+
+describe('hasOptedIntoDatabaseSelection', () => {
+  it('is always true for a flat multi-db driver, regardless of dbParam shape', () => {
+    expect(hasOptedIntoDatabaseSelection(baseCapabilities, 'mydb')).toBe(true);
+    expect(hasOptedIntoDatabaseSelection(baseCapabilities, '')).toBe(true);
+    expect(hasOptedIntoDatabaseSelection(baseCapabilities, ['a', 'b'])).toBe(true);
+  });
+
+  it('is false for a schema-based driver with a plain non-empty string', () => {
+    // The critical case: every existing Postgres connection already has a
+    // required, non-empty database name stored as a plain string from the
+    // traditional single-database mode. That must NOT be misread as an
+    // explicit one-element multi-db selection.
+    expect(hasOptedIntoDatabaseSelection(postgresCapabilities, 'mydb')).toBe(false);
+  });
+
+  it('is true for a schema-based driver with an array selection (any length)', () => {
+    expect(hasOptedIntoDatabaseSelection(postgresCapabilities, ['db1'])).toBe(true);
+    expect(hasOptedIntoDatabaseSelection(postgresCapabilities, ['db1', 'db2'])).toBe(true);
+  });
+
+  it('is true for a schema-based driver with an empty string ("all databases")', () => {
+    expect(hasOptedIntoDatabaseSelection(postgresCapabilities, '')).toBe(true);
+  });
+
+  it('is false for a driver that is neither flat nor schema-based multi-db capable', () => {
+    expect(hasOptedIntoDatabaseSelection({ ...baseCapabilities, file_based: true }, 'main')).toBe(false);
+  });
+
+  it('is false for null capabilities', () => {
+    expect(hasOptedIntoDatabaseSelection(null, ['a'])).toBe(false);
   });
 });
