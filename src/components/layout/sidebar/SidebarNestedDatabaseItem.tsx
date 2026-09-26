@@ -9,6 +9,8 @@ import {
   Check,
   CheckSquare,
   Square,
+  Download,
+  Upload,
 } from "lucide-react";
 import { SidebarSchemaItem } from "./SidebarSchemaItem";
 import type { NestedDatabaseData, RoutineInfo, TriggerInfo } from "../../../contexts/DatabaseContext";
@@ -54,6 +56,11 @@ interface SidebarNestedDatabaseItemProps {
   onCreateTable: (schema: string, database: string) => void;
   onCreateView: (schema: string, database: string) => void;
   onCreateTrigger: (schema: string, database: string) => void;
+  /** Optional dump/import entry points — mirror SidebarDatabaseItem's props,
+   * but scoped to both a database AND the user's currently active schema
+   * within that database. */
+  onDump?: (database: string, schema: string) => void;
+  onImport?: (database: string, schema: string) => void;
   showTriggers?: boolean;
 }
 
@@ -92,6 +99,8 @@ export const SidebarNestedDatabaseItem = ({
   onCreateTable,
   onCreateView,
   onCreateTrigger,
+  onDump,
+  onImport,
   showTriggers = false,
 }: SidebarNestedDatabaseItemProps) => {
   const { t } = useTranslation();
@@ -139,17 +148,42 @@ export const SidebarNestedDatabaseItem = ({
           </span>
         </div>
         {isExpanded && !needsSchemaSelection && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onLoadSchemas(databaseName);
-            }}
-            className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors opacity-0
-                group-hover/db:opacity-100 ml-1 mr-3"
-            title={t("sidebar.refreshTables") || "Refresh"}
-          >
-            <RefreshCw size={12} />
-          </button>
+          <div className="flex items-center opacity-0 group-hover/db:opacity-100 ml-1">
+            {onImport && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onImport(databaseName, activeSchema ?? "public");
+                }}
+                className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                title={t("dump.importDatabase")}
+              >
+                <Upload size={12} />
+              </button>
+            )}
+            {onDump && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDump(databaseName, activeSchema ?? "public");
+                }}
+                className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                title={t("dump.dumpDatabase")}
+              >
+                <Download size={12} />
+              </button>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onLoadSchemas(databaseName);
+              }}
+              className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors mr-3"
+              title={t("sidebar.refreshTables") || "Refresh"}
+            >
+              <RefreshCw size={12} />
+            </button>
+          </div>
         )}
       </div>
 

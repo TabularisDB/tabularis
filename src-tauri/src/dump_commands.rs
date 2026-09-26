@@ -3,7 +3,6 @@ use crate::commands::{
     register_abort_handle, resolve_connection_params_with_id, unregister_abort_handle,
     AbortHandleMap,
 };
-use crate::drivers::{mysql, postgres, sqlite};
 use crate::dump_utils::{drop_table_if_exists, format_table_ref, insert_into_statement};
 use crate::models::ConnectionParams;
 use crate::pool_manager::{get_mysql_pool, get_postgres_pool, get_sqlite_pool};
@@ -89,12 +88,18 @@ pub async fn dump_database<R: Runtime>(
             .map_err(|e| e.to_string())?;
 
         // Get tables
-        let all_tables = match driver.as_str() {
-            "mysql" => mysql::get_tables(&params, None).await?,
-            "postgres" => postgres::get_tables(&params, &schema).await?,
-            "sqlite" => sqlite::get_tables(&params).await?,
-            _ => return Err("Unsupported driver".into()),
+        let drv = crate::drivers::registry::get_connection_driver(&params).await?;
+        // Schema-based drivers (Postgres) use `schema` to scope the listing
+        // to a specific schema within the database. Flat multi-db drivers
+        // (MySQL, SQLite) pass None — they ignore the schema arg and use
+        // params.database to determine which tables to list, avoiding a
+        // confusing `WHERE table_schema = 'public'` on a MySQL connection.
+        let schema_for_listing: Option<&str> = if driver.as_str() == "postgres" {
+            Some(&schema)
+        } else {
+            None
         };
+        let all_tables = drv.get_tables(&params, schema_for_listing).await?;
 
         let tables_to_process: Vec<String> = if let Some(selection) = &options.tables {
             selection.clone()
@@ -113,12 +118,7 @@ pub async fn dump_database<R: Runtime>(
                 writeln!(writer, "{}", drop_table_if_exists(&driver, &schema, &table))
                     .map_err(|e| e.to_string())?;
 
-                let ddl = match driver.as_str() {
-                    "mysql" => mysql::get_table_ddl(&params, &table).await?,
-                    "postgres" => postgres::get_table_ddl(&params, &table, &schema).await?,
-                    "sqlite" => sqlite::get_table_ddl(&params, &table).await?,
-                    _ => return Err("Unsupported driver".into()),
-                };
+                let ddl = drv.get_table_ddl(&params, &table, Some(&schema)).await?;
 
                 writeln!(writer, "{}\n", ddl).map_err(|e| e.to_string())?;
             }

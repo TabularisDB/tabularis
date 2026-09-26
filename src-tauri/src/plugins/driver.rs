@@ -244,7 +244,11 @@ impl PluginProcess {
                         )
                         .await
                     {
-                        log::warn!("Plugin initialization failed (pid {:?}): {}", self.pid, error);
+                        log::warn!(
+                            "Plugin initialization failed (pid {:?}): {}",
+                            self.pid,
+                            error
+                        );
                     }
                 })
                 .await;
@@ -1133,6 +1137,29 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<String>, String> {
         let params = self.connection_params.as_ref().unwrap_or(params);
         let res = self.process.call("get_create_foreign_key_sql", json!({ "params": params, "table": table, "fk_name": fk_name, "column": column, "ref_table": ref_table, "ref_column": ref_column, "on_delete": on_delete, "on_update": on_update, "schema": schema })).await?;
+        serde_json::from_value(res).map_err(|e| e.to_string())
+    }
+
+    /// Not yet part of the plugin RPC protocol — a plugin that hasn't added a
+    /// `get_table_ddl` handler surfaces this as a clear "method not
+    /// implemented" error from `self.process.call`, rather than the
+    /// "Unsupported driver" blanket rejection `dump_database` used to give
+    /// every plugin-based driver regardless of whether it could actually
+    /// help. See tabularis-postgresql-plugin for the tracked follow-up.
+    async fn get_table_ddl(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        let params = self.connection_params.as_ref().unwrap_or(params);
+        let res = self
+            .process
+            .call(
+                "get_table_ddl",
+                json!({ "params": params, "table": table, "schema": schema }),
+            )
+            .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -2113,14 +2140,7 @@ mod tests {
 
         let pk_map = HashMap::new();
         let result = driver
-            .save_blob_to_file(
-                &test_connection_params(),
-                "t",
-                "c",
-                &pk_map,
-                None,
-                "/tmp/x",
-            )
+            .save_blob_to_file(&test_connection_params(), "t", "c", &pk_map, None, "/tmp/x")
             .await;
 
         assert!(result.is_err());
@@ -2218,11 +2238,7 @@ mod tests {
         });
 
         let cols = driver
-            .get_materialized_view_columns(
-                &test_connection_params(),
-                "mv_sales",
-                Some("public"),
-            )
+            .get_materialized_view_columns(&test_connection_params(), "mv_sales", Some("public"))
             .await
             .expect("get_materialized_view_columns");
 
@@ -2254,11 +2270,7 @@ mod tests {
         });
 
         let def = driver
-            .get_materialized_view_definition(
-                &test_connection_params(),
-                "mv_sales",
-                Some("public"),
-            )
+            .get_materialized_view_definition(&test_connection_params(), "mv_sales", Some("public"))
             .await
             .expect("get_materialized_view_definition");
 

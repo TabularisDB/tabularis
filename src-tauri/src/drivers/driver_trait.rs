@@ -800,6 +800,20 @@ pub trait DatabaseDriver: Send + Sync {
         Err("DDL generation not supported".into())
     }
 
+    /// Returns the DDL (e.g. `CREATE TABLE ...`) for an *existing* table, as
+    /// used by `dump_database` to write a schema-preserving dump. Distinct
+    /// from `get_create_table_sql`, which generates a brand-new statement
+    /// from a column list the caller is proposing (used by the Create Table
+    /// UI) rather than reflecting a table that already exists.
+    async fn get_table_ddl(
+        &self,
+        _params: &ConnectionParams,
+        _table: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        Err("Fetching existing table DDL is not supported by this driver".into())
+    }
+
     async fn drop_index(
         &self,
         _params: &ConnectionParams,
@@ -866,9 +880,7 @@ pub trait DatabaseDriver: Send + Sync {
 
     /// Returns the privilege keywords accepted by `apply_db_user_privileges`,
     /// split by scope, so the frontend renders the dialect's own catalog.
-    async fn get_db_privilege_catalog(
-        &self,
-    ) -> Result<crate::models::DbPrivilegeCatalog, String> {
+    async fn get_db_privilege_catalog(&self) -> Result<crate::models::DbPrivilegeCatalog, String> {
         Err("User management is not supported by this driver".into())
     }
 

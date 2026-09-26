@@ -270,10 +270,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     isOpen: boolean;
     query?: SavedQuery;
   }>({ isOpen: false });
-  const [dumpModal, setDumpModal] = useState<{ database: string } | null>(null);
+  const [dumpModal, setDumpModal] = useState<{ database: string; schema?: string } | null>(null);
   const [importModal, setImportModal] = useState<{
     filePath: string;
     database: string;
+    schema?: string;
   } | null>(null);
   const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
   const [isSchemaFilterOpen, setIsSchemaFilterOpen] = useState(false);
@@ -543,7 +544,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     setContextMenu({ x: e.clientX, y: e.clientY, type, id, label, data });
   };
 
-  const handleImportDatabase = async (database?: string) => {
+  const handleImportDatabase = async (database?: string, schema?: string) => {
     const file = await open({
       filters: [{ name: "SQL / Zip File", extensions: ["sql", "zip"] }],
     });
@@ -553,7 +554,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         { title: t("dump.importDatabase"), kind: "warning" },
       );
       if (!confirmed) return;
-      setImportModal({ filePath: file, database: database ?? activeDatabaseName ?? "" });
+      setImportModal({ filePath: file, database: database ?? activeDatabaseName ?? "", schema });
     }
   };
 
@@ -1608,6 +1609,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       onAddColumn={(t_name, schema, database) =>
                         setModifyColumnModal({ isOpen: true, tableName: t_name, column: null, schema, database })
                       }
+                      onDump={activeCapabilities?.no_connection_required !== true
+                        ? (database, schema) => setDumpModal({ database, schema })
+                        : undefined}
+                      onImport={activeCapabilities?.no_connection_required !== true
+                        ? (database, schema) => handleImportDatabase(database, schema)
+                        : undefined}
                       onEditColumn={(t_name, c, schema, database) =>
                         setModifyColumnModal({ isOpen: true, tableName: t_name, column: c, schema, database })
                       }
@@ -2838,10 +2845,16 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           connectionId={activeConnectionId}
           databaseName={dumpModal.database || activeDatabaseName || "Database"}
           tables={(
-            activeCapabilities?.schemas && activeSchema
-              ? (schemaDataMap[activeSchema]?.tables ?? [])
-              : (databaseDataMap[dumpModal.database]?.tables ?? tables)
+            dumpModal.schema && dumpModal.database
+              // Nested schema-based multi-db (Postgres): pass an empty list;
+              // DumpDatabaseModal reads from nestedDatabaseDataMap itself.
+              ? []
+              : activeCapabilities?.schemas && activeSchema
+                ? (schemaDataMap[activeSchema]?.tables ?? [])
+                : (databaseDataMap[dumpModal.database]?.tables ?? tables)
           ).map((t) => t.name)}
+          schema={dumpModal.schema}
+          database={dumpModal.schema ? dumpModal.database : undefined}
         />
       )}
 
@@ -2853,6 +2866,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           databaseName={importModal.database || activeDatabaseName || "Database"}
           targetDatabase={importModal.database || activeDatabaseName || undefined}
           filePath={importModal.filePath}
+          schema={importModal.schema}
           onSuccess={() => {
             if (refreshTables) refreshTables();
           }}

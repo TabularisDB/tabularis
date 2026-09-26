@@ -25,6 +25,9 @@ interface ImportDatabaseModalProps {
   targetDatabase?: string;
   filePath: string;
   onSuccess?: () => void;
+  /** Explicit schema for a schema-based multi-db connection (Postgres nested
+   * tree), overriding the connection's global active schema. */
+  schema?: string;
 }
 
 export const ImportDatabaseModal = ({
@@ -35,9 +38,11 @@ export const ImportDatabaseModal = ({
   targetDatabase,
   filePath,
   onSuccess,
+  schema: schemaProp,
 }: ImportDatabaseModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema } = useDatabase();
+  const { activeSchema: connectionActiveSchema } = useDatabase();
+  const activeSchema = schemaProp ?? connectionActiveSchema;
   const { showAlert } = useAlert();
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState<ImportProgress | null>(null);

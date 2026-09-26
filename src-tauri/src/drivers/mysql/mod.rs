@@ -650,14 +650,11 @@ fn build_mysql_pk_where(
     if pk_map.is_empty() {
         return Err("pk_map must not be empty".into());
     }
-    let mut pairs: Vec<(String, serde_json::Value)> = pk_map
-        .iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
+    let mut pairs: Vec<(String, serde_json::Value)> =
+        pk_map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
     pairs.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(pairs)
 }
-
 
 pub async fn save_blob_column_to_file(
     params: &ConnectionParams,
@@ -724,7 +721,10 @@ async fn mysql_fetch_one_with_pk(
             .await
             .map_err(|e| e.to_string())
     } else {
-        qb3.build().fetch_one(&pool).await.map_err(|e| e.to_string())
+        qb3.build()
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -1555,7 +1555,9 @@ pub async fn get_triggers(
 
 // --- User management ---------------------------------------------------
 
-pub async fn get_db_users(params: &ConnectionParams) -> Result<Vec<crate::models::DbUserInfo>, String> {
+pub async fn get_db_users(
+    params: &ConnectionParams,
+) -> Result<Vec<crate::models::DbUserInfo>, String> {
     let pool = get_mysql_pool(params).await?;
     let text = resolve_text_proto(&pool, params).await?;
     // `account_locked` exists on MySQL 5.7+ / MariaDB 10.4+; older servers
@@ -1582,12 +1584,9 @@ pub async fn get_db_users(params: &ConnectionParams) -> Result<Vec<crate::models
                 // No SELECT privilege on mysql.user: degrade to the connected
                 // account only — everyone may run SHOW GRANTS on themselves.
                 Err(_) => {
-                    let row =
-                        fetch_one_row(&pool, text, "SELECT CURRENT_USER()", &[]).await?;
+                    let row = fetch_one_row(&pool, text, "SELECT CURRENT_USER()", &[]).await?;
                     let current = mysql_row_str(&row, 0);
-                    let (user, host) = current
-                        .rsplit_once('@')
-                        .unwrap_or((current.as_str(), "%"));
+                    let (user, host) = current.rsplit_once('@').unwrap_or((current.as_str(), "%"));
                     return Ok(vec![crate::models::DbUserInfo {
                         user: user.to_string(),
                         host: host.to_string(),
@@ -1642,7 +1641,10 @@ pub async fn create_db_user(
     host: &str,
     password: &str,
 ) -> Result<(), String> {
-    exec_user_stmt(params, |nbe| users::create_user_sql(user, host, password, nbe)).await
+    exec_user_stmt(params, |nbe| {
+        users::create_user_sql(user, host, password, nbe)
+    })
+    .await
 }
 
 pub async fn drop_db_user(params: &ConnectionParams, user: &str, host: &str) -> Result<(), String> {
@@ -1655,7 +1657,10 @@ pub async fn set_db_user_password(
     host: &str,
     password: &str,
 ) -> Result<(), String> {
-    exec_user_stmt(params, |nbe| users::set_password_sql(user, host, password, nbe)).await
+    exec_user_stmt(params, |nbe| {
+        users::set_password_sql(user, host, password, nbe)
+    })
+    .await
 }
 
 pub async fn get_db_user_privileges(
@@ -2134,9 +2139,7 @@ impl DatabaseDriver for MysqlDriver {
         get_routine_definition(params, routine_name, routine_type, schema).await
     }
 
-    async fn get_db_privilege_catalog(
-        &self,
-    ) -> Result<crate::models::DbPrivilegeCatalog, String> {
+    async fn get_db_privilege_catalog(&self) -> Result<crate::models::DbPrivilegeCatalog, String> {
         Ok(users::privilege_catalog())
     }
 
@@ -2531,6 +2534,15 @@ impl DatabaseDriver for MysqlDriver {
             sql.push_str(&format!(" ON UPDATE {}", action));
         }
         Ok(vec![sql])
+    }
+
+    async fn get_table_ddl(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_table_ddl(params, table).await
     }
 
     async fn drop_index(
