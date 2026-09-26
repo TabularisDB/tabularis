@@ -113,6 +113,49 @@ describe('getTableDataChangeScope', () => {
       ),
     ).toEqual({});
   });
+
+  it('returns both database and schema for a nested (schema-based multi-db) tab', () => {
+    expect(
+      getTableDataChangeScope(
+        postgresCapabilities,
+        'reporting',
+        'public',
+        'analytics',
+      ),
+    ).toEqual({ database: 'analytics', schema: 'reporting' });
+  });
+
+  it('falls back to the active schema when a nested tab has no schema of its own', () => {
+    expect(
+      getTableDataChangeScope(
+        postgresCapabilities,
+        undefined,
+        'public',
+        'analytics',
+      ),
+    ).toEqual({ database: 'analytics', schema: 'public' });
+  });
+
+  it('omits schema (but keeps database) when a nested tab and connection both lack one', () => {
+    expect(
+      getTableDataChangeScope(postgresCapabilities, undefined, undefined, 'analytics'),
+    ).toEqual({ database: 'analytics' });
+  });
+
+  it('ignores tabDatabase and keeps schema-only behavior for a plain single-db Postgres tab', () => {
+    // The regression guard: a plain single-database Postgres tab never has
+    // `database` set, so it must keep resolving to `{ schema }` exactly as
+    // before, never `{ database, schema }`.
+    expect(
+      getTableDataChangeScope(postgresCapabilities, 'reporting', 'public', undefined),
+    ).toEqual({ schema: 'reporting' });
+  });
+
+  it('ignores tabDatabase for flat multi-db drivers (MySQL never sets it)', () => {
+    expect(
+      getTableDataChangeScope(baseCapabilities, 'app_db', 'ignored', 'should-be-unused'),
+    ).toEqual({ database: 'app_db' });
+  });
 });
 
 describe('isMultiDatabaseSelection', () => {
