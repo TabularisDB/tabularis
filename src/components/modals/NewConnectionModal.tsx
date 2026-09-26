@@ -2508,7 +2508,7 @@ export const NewConnectionModal = ({
       const parsed = toConnectionParams(result.params);
       const newDriver = parsed.driver || driver;
       const parsedDriver = drivers.find((item) => item.id === newDriver);
-      const parsedIsMultiDb = hasOptedIntoDatabaseSelection(parsedDriver?.capabilities, parsed.database);
+      const parsedIsMultiDb = hasOptedIntoDatabaseSelection(parsedDriver?.capabilities, parsed.database ?? "");
 
       const driverChanged = newDriver !== driver;
       const parsedFields: Partial<ConnectionParams> = {

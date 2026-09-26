@@ -2000,7 +2000,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             contextMenu.type === "table"
               ? (() => {
                   const ctxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
-                  const ctxDatabase = contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined;
+                  const ctxDatabase = (contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
                   return [
                     {
                       label: t("sidebar.showData"),
@@ -2126,7 +2126,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         if (contextMenu.data && "tableName" in contextMenu.data) {
                           const t_name = contextMenu.data.tableName;
                           const ctxSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
-                          const ctxDatabase = "database" in contextMenu.data ? contextMenu.data.database : undefined;
+                          const ctxDatabase = ("database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
                           if (
                             await ask(
                               t("sidebar.deleteIndexConfirm", { name: contextMenu.id }),
@@ -2168,7 +2168,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           if (contextMenu.data && "tableName" in contextMenu.data) {
                             const t_name = contextMenu.data.tableName;
                             const ctxSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
-                            const ctxDatabase = "database" in contextMenu.data ? contextMenu.data.database : undefined;
+                            const ctxDatabase = ("database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
                             if (
                               await ask(
                                 t("sidebar.deleteFkConfirm", { name: contextMenu.id }),
@@ -2223,7 +2223,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       : contextMenu.type === "view"
                         ? (() => {
                             const viewCtxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
-                            const viewCtxDatabase = contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined;
+                            const viewCtxDatabase = (contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
                             return [
                               {
                                 label: t("sidebar.showData"),
@@ -2292,7 +2292,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         : contextMenu.type === "materialized_view"
                         ? (() => {
                             const mvCtxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
-                            const mvCtxDatabase = contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined;
+                            const mvCtxDatabase = (contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
                             return [
                               {
                                 label: t("sidebar.showData"),
