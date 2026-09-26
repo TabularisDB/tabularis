@@ -21,6 +21,41 @@ export function isMultiDatabaseCapable(capabilities: DriverCapabilities | null |
   );
 }
 
+/**
+ * Returns true when a schema-based driver (e.g. PostgreSQL) is eligible to
+ * browse multiple databases on one connection, driving a nested
+ * database -> schema -> table tree instead of MySQL-style flat
+ * database -> table. Capability-only check — mirrors `isMultiDatabaseCapable`
+ * but for `schemas === true` drivers. Use this to decide whether the
+ * connection dialog's database picker should be offered at all.
+ */
+export function isSchemaBasedMultiDbCapable(
+  capabilities: DriverCapabilities | null | undefined,
+): boolean {
+  if (!capabilities) return false;
+  if (capabilities.no_connection_required) return false;
+  if (capabilities.single_database) return false;
+  return capabilities.file_based === false && !capabilities.folder_based && capabilities.schemas === true;
+}
+
+/**
+ * Returns true when a schema-based driver (e.g. PostgreSQL) is being browsed
+ * across multiple databases on one connection. Unlike `isMultiDatabaseCapable`
+ * (flat database -> table drivers like MySQL), this drives a nested
+ * database -> schema -> table tree.
+ *
+ * Mirrors `usesMultiDatabaseLayout`'s selection-driven gating: it only
+ * activates once the connection has an explicit database selection, so a
+ * plain single-database Postgres connection (no selection at all) keeps
+ * using today's flat schema-only layout untouched.
+ */
+export function isSchemaBasedMultiDb(
+  capabilities: DriverCapabilities | null | undefined,
+  selectedDatabases: string[],
+): boolean {
+  return isSchemaBasedMultiDbCapable(capabilities) && selectedDatabases.length >= 1;
+}
+
 export function getTableDataChangeScope(
   capabilities: DriverCapabilities | null | undefined,
   tabSchema: string | null | undefined,
