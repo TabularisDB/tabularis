@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" font-family="JetBrains Mono, monospace">
+  <!-- Background -->
+  <rect width="900" height="400" fill="#1a1b26"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="900" height="44" fill="#24283b"/>
+  <text x="20" y="28" font-size="13" fill="#c0caf5" font-weight="bold">Synchronization Script Preview</text>
+  <text x="680" y="28" font-size="11" fill="#565f89">Target: production.users</text>
+
+  <!-- Script Content (Monaco-style) -->
+  <rect x="20" y="56" width="860" height="290" rx="6" fill="#1e2030" stroke="#3b4261"/>
+
+  <!-- Line numbers -->
+  <rect x="20" y="56" width="40" height="290" rx="6" fill="#1a1b26"/>
+  <text x="35" y="80" font-size="11" fill="#565f89" text-anchor="end">1</text>
+  <text x="35" y="98" font-size="11" fill="#565f89" text-anchor="end">2</text>
+  <text x="35" y="116" font-size="11" fill="#565f89" text-anchor="end">3</text>
+  <text x="35" y="134" font-size="11" fill="#565f89" text-anchor="end">4</text>
+  <text x="35" y="152" font-size="11" fill="#565f89" text-anchor="end">5</text>
+  <text x="35" y="170" font-size="11" fill="#565f89" text-anchor="end">6</text>
+  <text x="35" y="188" font-size="11" fill="#565f89" text-anchor="end">7</text>
+  <text x="35" y="206" font-size="11" fill="#565f89" text-anchor="end">8</text>
+  <text x="35" y="224" font-size="11" fill="#565f89" text-anchor="end">9</text>
+  <text x="35" y="242" font-size="11" fill="#565f89" text-anchor="end">10</text>
+  <text x="35" y="260" font-size="11" fill="#565f89" text-anchor="end">11</text>
+  <text x="35" y="278" font-size="11" fill="#565f89" text-anchor="end">12</text>
+  <text x="35" y="296" font-size="11" fill="#565f89" text-anchor="end">13</text>
+  <text x="35" y="314" font-size="11" fill="#565f89" text-anchor="end">14</text>
+
+  <!-- SQL content -->
+  <text x="68" y="80" font-size="11" fill="#565f89">-- Sync: staging.users → production.users</text>
+  <text x="68" y="98" font-size="11" fill="#565f89">-- Generated: 2026-07-24 14:30:00</text>
+  <text x="68" y="116" font-size="11" fill="#c0caf5"> </text>
+  <text x="68" y="134" font-size="11" fill="#bb9af7">BEGIN;</text>
+  <text x="68" y="152" font-size="11" fill="#c0caf5"> </text>
+  <text x="68" y="170" font-size="11" fill="#565f89">-- Updates (7 rows)</text>
+  <text x="68" y="188" font-size="11" fill="#c0caf5"><tspan fill="#7aa2f7">UPDATE</tspan> users <tspan fill="#7aa2f7">SET</tspan> email = <tspan fill="#9ece6a">'bob_new@ex.com'</tspan></text>
+  <text x="68" y="206" font-size="11" fill="#c0caf5"><tspan fill="#7aa2f7">WHERE</tspan> id = <tspan fill="#ff9e64">2</tspan>;</text>
+  <text x="68" y="224" font-size="11" fill="#c0caf5"> </text>
+  <text x="68" y="242" font-size="11" fill="#565f89">-- Inserts (12 rows)</text>
+  <text x="68" y="260" font-size="11" fill="#c0caf5"><tspan fill="#7aa2f7">INSERT INTO</tspan> users (id, name, email, status)</text>
+  <text x="68" y="278" font-size="11" fill="#c0caf5"><tspan fill="#7aa2f7">VALUES</tspan> (<tspan fill="#ff9e64">5</tspan>, <tspan fill="#9ece6a">'Eve'</tspan>, <tspan fill="#9ece6a">'eve@ex.com'</tspan>, <tspan fill="#9ece6a">'active'</tspan>);</text>
+  <text x="68" y="296" font-size="11" fill="#c0caf5"> </text>
+  <text x="68" y="314" font-size="11" fill="#565f89">-- Deletes (3 rows)</text>
+
+  <!-- Action Bar -->
+  <rect x="0" y="356" width="900" height="44" fill="#24283b"/>
+  <rect x="20" y="366" width="180" height="30" rx="4" fill="#22c55e"/>
+  <text x="45" y="386" font-size="11" fill="#1a1b26" font-weight="bold">Execute on Target ▶</text>
+  <rect x="210" y="366" width="140" height="30" rx="4" fill="#24283b" stroke="#3b4261" stroke-width="1"/>
+  <text x="230" y="386" font-size="11" fill="#a9b1d6">Copy to Clipboard</text>
+  <rect x="360" y="366" width="120" height="30" rx="4" fill="#24283b" stroke="#3b4261" stroke-width="1"/>
+  <text x="380" y="386" font-size="11" fill="#a9b1d6">Save to File</text>
+
+  <rect x="700" y="366" width="80" height="30" rx="4" fill="#24283b" stroke="#3b4261" stroke-width="1"/>
+  <text x="720" y="386" font-size="11" fill="#a9b1d6">Cancel</text>
+  <rect x="790" y="366" width="80" height="30" rx="4" fill="#24283b" stroke="#3b4261" stroke-width="1"/>
+  <text x="815" y="386" font-size="11" fill="#a9b1d6">Back</text>
+</svg>
