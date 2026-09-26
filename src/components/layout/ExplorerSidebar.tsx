@@ -2112,6 +2112,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             databaseName: ctxDatabase || activeDatabaseName || "Unknown",
                             focusTable: contextMenu.id,
                             ...(ctxSchema ? { schema: ctxSchema } : {}),
+                            ...(ctxDatabase ? { database: ctxDatabase } : {}),
                           });
                         } catch (e) {
                           console.error("Failed to open ER Diagram window:", e);

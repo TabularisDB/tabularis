@@ -116,12 +116,14 @@ interface SchemaDiagramContentProps {
   connectionId: string;
   refreshTrigger: number;
   schema?: string;
+  database?: string;
 }
 
 const SchemaDiagramContent = ({
   connectionId,
   refreshTrigger,
   schema,
+  database,
 }: SchemaDiagramContentProps) => {
   const { t } = useTranslation();
   const { getSchema } = useEditor();
@@ -261,7 +263,7 @@ const SchemaDiagramContent = ({
       setLoading(true);
 
       try {
-        const fetchedSchema = await getSchema(connectionId, undefined, schema);
+        const fetchedSchema = await getSchema(connectionId, undefined, schema, database);
         if (!isMounted) return;
 
         // Build nodes and edges with optimizations
@@ -346,6 +348,7 @@ const SchemaDiagramContent = ({
     setEdges,
     layoutDirection,
     schema,
+    database,
   ]);
 
   // Effetto per filtrare i nodi quando una tabella è selezionata
@@ -568,18 +571,21 @@ interface SchemaDiagramProps {
   connectionId: string;
   refreshTrigger: number;
   schema?: string;
+  database?: string;
 }
 
 export const SchemaDiagram = ({
   connectionId,
   refreshTrigger,
   schema,
+  database,
 }: SchemaDiagramProps) => (
   <ReactFlowProvider>
     <SchemaDiagramContent
       connectionId={connectionId}
       refreshTrigger={refreshTrigger}
       schema={schema}
+      database={database}
     />
   </ReactFlowProvider>
 );

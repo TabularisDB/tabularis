@@ -1181,11 +1181,15 @@ pub async fn get_schema_snapshot<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<crate::models::TableSchema>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
     let drv = driver_for_params(&params).await?;
     drv.get_schema_snapshot(&params, schema.as_deref()).await
 }
@@ -4886,6 +4890,7 @@ pub async fn open_er_diagram_window(
     database_name: String,
     focus_table: Option<String>,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     use tauri::{WebviewUrl, WebviewWindowBuilder};
     use urlencoding::encode;
@@ -4911,6 +4916,16 @@ pub async fn open_er_diagram_window(
 
     if let Some(s) = &schema {
         url.push_str(&format!("&schema={}", encode(s)));
+    }
+
+    // `database` (distinct from the display-only `database_name` above) is only
+    // set for a schema-based multi-db connection (PostgreSQL browsing several
+    // databases) — it's the value the schema-diagram page actually routes its
+    // snapshot request with, alongside `schema`. Absent for the flat multi-db
+    // (MySQL) and plain single-database cases, which already resolve correctly
+    // through `schema` alone.
+    if let Some(db) = &database {
+        url.push_str(&format!("&database={}", encode(db)));
     }
 
     // Derive a unique window label per (connection, database, schema) so that
