@@ -22,6 +22,7 @@ function parseEditorNavigationRequest(
 
   const {
     initialQuery,
+    database,
     kind,
     materialized,
     preventAutoRun,
@@ -35,6 +36,7 @@ function parseEditorNavigationRequest(
   const base = {
     initialQuery,
     ...(typeof schema === "string" && { schema }),
+    ...(typeof database === "string" && { database }),
     ...(typeof targetConnectionId === "string" && {
       targetConnectionId,
     }),
@@ -100,6 +102,7 @@ export function createEditorNavigationIntent(
           query: request.initialQuery,
           activeTable: request.tableName,
           schema: request.schema,
+          database: request.database,
           materialized: request.materialized,
         },
         execution: {
@@ -117,6 +120,7 @@ export function createEditorNavigationIntent(
           query: request.initialQuery,
           activeTable: null,
           schema: request.schema,
+          database: request.database,
         },
         execution: {
           autoRun: !request.preventAutoRun,
@@ -133,6 +137,7 @@ export function createEditorNavigationIntent(
           query: request.initialQuery,
           activeTable: null,
           schema: request.schema,
+          database: request.database,
           readOnly: request.readOnly,
         },
         execution: {

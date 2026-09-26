@@ -11,6 +11,7 @@ import {
   type TriggerInfo,
   type SavedConnection,
   type ConnectionData,
+  type NestedDatabaseData,
   type ConnectionGroup,
   type ConnectionsFile,
 } from './DatabaseContext';
@@ -22,7 +23,7 @@ import { toErrorMessage } from '../utils/errors';
 import { useSettings } from '../hooks/useSettings';
 import { useToast } from '../hooks/useToast';
 import { findConnectionsForDrivers } from '../utils/connectionManager';
-import { isMultiDatabaseCapable, usesMultiDatabaseLayout, getEffectiveDatabase, getDatabaseList, reconcileDatabaseSelection } from '../utils/database';
+import { hasOptedIntoDatabaseSelection, usesMultiDatabaseLayout, getEffectiveDatabase, getDatabaseList, reconcileDatabaseSelection } from '../utils/database';
 
 /** Label of the main window; Tauri defaults to this when none is configured. */
 const MAIN_WINDOW_LABEL = 'main';
@@ -41,15 +42,26 @@ const getRoutinesOrEmpty = async (
   connectionId: string,
   schema: string | undefined,
   onError: (error: unknown, schema?: string) => void,
+  database?: string,
 ): Promise<RoutineMetadataResult> => {
   try {
     return {
-      routines: await invoke<RoutineInfo[]>('get_routines', { connectionId, schema }),
+      routines: await invoke<RoutineInfo[]>('get_routines', { connectionId, schema, database }),
     };
   } catch (error) {
     onError(error, schema);
     return { routines: [], error: toErrorMessage(error) };
   }
+};
+
+const EMPTY_NESTED_DATABASE_DATA: NestedDatabaseData = {
+  schemas: [],
+  schemasLoaded: false,
+  isLoadingSchemas: false,
+  selectedSchemas: [],
+  activeSchema: null,
+  needsSchemaSelection: false,
+  schemaDataMap: {},
 };
 
 const createEmptyConnectionData = (driver: string = '', name: string = '', dbName: string = ''): ConnectionData => ({
@@ -73,6 +85,7 @@ const createEmptyConnectionData = (driver: string = '', name: string = '', dbNam
   needsSchemaSelection: false,
   selectedDatabases: [],
   databaseDataMap: {},
+  nestedDatabaseDataMap: {},
   allDatabasesMode: false,
   isConnecting: false,
   isConnected: false,
@@ -138,6 +151,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const needsSchemaSelection = activeData?.needsSchemaSelection ?? false;
   const selectedDatabases = useMemo(() => activeData?.selectedDatabases ?? [], [activeData?.selectedDatabases]);
   const databaseDataMap = activeData?.databaseDataMap ?? {};
+  const nestedDatabaseDataMap = activeData?.nestedDatabaseDataMap ?? {};
 
   useEffect(() => {
     const updateTitle = async () => {
@@ -618,11 +632,357 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [activeConnectionId, connectionDataMap, updateConnectionData, loadSchemaData]);
 
+  const loadNestedSchemaData = useCallback(async (database: string, schema: string, targetConnectionId?: string) => {
+    const connId = targetConnectionId ?? activeConnectionId;
+    if (!connId) return;
+
+    const currentData = connectionDataMap[connId];
+    if (!currentData) return;
+
+    const currentNested = currentData.nestedDatabaseDataMap[database] ?? EMPTY_NESTED_DATABASE_DATA;
+    const existingSchemaData = currentNested.schemaDataMap[schema];
+    if (existingSchemaData?.isLoaded || existingSchemaData?.isLoading) return;
+
+    updateConnectionData(connId, {
+      nestedDatabaseDataMap: {
+        ...currentData.nestedDatabaseDataMap,
+        [database]: {
+          ...currentNested,
+          schemaDataMap: {
+            ...currentNested.schemaDataMap,
+            [schema]: { tables: [], views: [], routines: [], triggers: [], isLoading: true, isLoaded: false },
+          },
+        },
+      },
+    });
+
+    try {
+      const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
+        invoke<TableInfo[]>('get_tables', { connectionId: connId, schema, database }),
+        loadOptionalMetadata(currentData.metadata?.capabilities.views, () => invoke<ViewInfo[]>('get_views', { connectionId: connId, schema, database }), [] as ViewInfo[]),
+        (currentData.capabilities?.materialized_views
+          ? invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema, database }).catch(() => [] as ViewInfo[])
+          : Promise.resolve([] as ViewInfo[])),
+        loadOptionalMetadata(currentData.metadata?.capabilities.routines, () => getRoutinesOrEmpty(connId, schema, handleRoutineMetadataError, database), { routines: [] }),
+        loadOptionalMetadata(currentData.metadata?.capabilities.triggers, () => invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema, database }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
+      ]);
+
+      const freshData = connectionDataMap[connId];
+      if (freshData) {
+        const freshNested = freshData.nestedDatabaseDataMap[database] ?? currentNested;
+        updateConnectionData(connId, {
+          nestedDatabaseDataMap: {
+            ...freshData.nestedDatabaseDataMap,
+            [database]: {
+              ...freshNested,
+              schemaDataMap: {
+                ...freshNested.schemaDataMap,
+                [schema]: {
+                  tables: tablesResult,
+                  views: viewsResult,
+                  materializedViews: materializedViewsResult,
+                  routines: routineMetadata.routines,
+                  triggers: triggersResult,
+                  routineError: routineMetadata.error,
+                  isLoading: false,
+                  isLoaded: true,
+                },
+              },
+            },
+          },
+        });
+      }
+    } catch (e) {
+      console.error(`Failed to load schema data for ${database}.${schema}:`, e);
+      const freshData = connectionDataMap[connId];
+      if (freshData) {
+        const freshNested = freshData.nestedDatabaseDataMap[database] ?? currentNested;
+        updateConnectionData(connId, {
+          nestedDatabaseDataMap: {
+            ...freshData.nestedDatabaseDataMap,
+            [database]: {
+              ...freshNested,
+              schemaDataMap: {
+                ...freshNested.schemaDataMap,
+                [schema]: { tables: [], views: [], routines: [], triggers: [], isLoading: false, isLoaded: true },
+              },
+            },
+          },
+        });
+      }
+    }
+  }, [activeConnectionId, connectionDataMap, updateConnectionData, handleRoutineMetadataError]);
+
+  const refreshNestedSchemaData = useCallback(async (database: string, schema: string, targetConnectionId?: string) => {
+    const connId = targetConnectionId ?? activeConnectionId;
+    if (!connId) return;
+
+    const currentData = connectionDataMap[connId];
+    if (!currentData) return;
+
+    const currentNested = currentData.nestedDatabaseDataMap[database] ?? EMPTY_NESTED_DATABASE_DATA;
+    const existingSchemaData = currentNested.schemaDataMap[schema];
+
+    updateConnectionData(connId, {
+      nestedDatabaseDataMap: {
+        ...currentData.nestedDatabaseDataMap,
+        [database]: {
+          ...currentNested,
+          schemaDataMap: {
+            ...currentNested.schemaDataMap,
+            [schema]: {
+              ...(existingSchemaData || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
+              isLoading: true,
+            },
+          },
+        },
+      },
+    });
+
+    try {
+      const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
+        invoke<TableInfo[]>('get_tables', { connectionId: connId, schema, database }),
+        loadOptionalMetadata(currentData.metadata?.capabilities.views, () => invoke<ViewInfo[]>('get_views', { connectionId: connId, schema, database }), [] as ViewInfo[]),
+        (currentData.capabilities?.materialized_views
+          ? invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema, database }).catch(() => [] as ViewInfo[])
+          : Promise.resolve([] as ViewInfo[])),
+        loadOptionalMetadata(currentData.metadata?.capabilities.routines, () => getRoutinesOrEmpty(connId, schema, handleRoutineMetadataError, database), { routines: [] }),
+        loadOptionalMetadata(currentData.metadata?.capabilities.triggers, () => invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema, database }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
+      ]);
+
+      const freshData = connectionDataMap[connId];
+      if (freshData) {
+        const freshNested = freshData.nestedDatabaseDataMap[database] ?? currentNested;
+        updateConnectionData(connId, {
+          nestedDatabaseDataMap: {
+            ...freshData.nestedDatabaseDataMap,
+            [database]: {
+              ...freshNested,
+              schemaDataMap: {
+                ...freshNested.schemaDataMap,
+                [schema]: {
+                  tables: tablesResult,
+                  views: viewsResult,
+                  materializedViews: materializedViewsResult,
+                  routines: routineMetadata.routines,
+                  triggers: triggersResult,
+                  routineError: routineMetadata.error,
+                  isLoading: false,
+                  isLoaded: true,
+                },
+              },
+            },
+          },
+        });
+      }
+    } catch (e) {
+      console.error(`Failed to refresh schema data for ${database}.${schema}:`, e);
+      const freshData = connectionDataMap[connId];
+      if (freshData) {
+        const freshNested = freshData.nestedDatabaseDataMap[database] ?? currentNested;
+        updateConnectionData(connId, {
+          nestedDatabaseDataMap: {
+            ...freshData.nestedDatabaseDataMap,
+            [database]: {
+              ...freshNested,
+              schemaDataMap: {
+                ...freshNested.schemaDataMap,
+                [schema]: {
+                  ...(freshNested.schemaDataMap[schema] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
+                  isLoading: false,
+                },
+              },
+            },
+          },
+        });
+      }
+    }
+  }, [activeConnectionId, connectionDataMap, updateConnectionData, handleRoutineMetadataError]);
+
+  const setSelectedSchemasForDatabase = useCallback(async (database: string, newSchemas: string[], targetConnectionId?: string) => {
+    const connId = targetConnectionId ?? activeConnectionId;
+    if (!connId) return;
+
+    const currentData = connectionDataMap[connId];
+    if (!currentData) return;
+
+    const currentNested = currentData.nestedDatabaseDataMap[database] ?? EMPTY_NESTED_DATABASE_DATA;
+
+    updateConnectionData(connId, {
+      nestedDatabaseDataMap: {
+        ...currentData.nestedDatabaseDataMap,
+        [database]: {
+          ...currentNested,
+          selectedSchemas: newSchemas,
+          needsSchemaSelection: false,
+        },
+      },
+    });
+
+    try {
+      await invoke('set_selected_schemas', {
+        connectionId: connId,
+        schemas: newSchemas,
+        database,
+      });
+    } catch (e) {
+      console.error(`Failed to persist selected schemas for ${database}:`, e);
+    }
+
+    for (const schema of newSchemas) {
+      const existing = currentNested.schemaDataMap[schema];
+      if (!existing?.isLoaded && !existing?.isLoading) {
+        loadNestedSchemaData(database, schema, connId);
+      }
+    }
+
+    if (!currentNested.activeSchema || !newSchemas.includes(currentNested.activeSchema)) {
+      const nextSchema = newSchemas[0] || null;
+      const latestNested = connectionDataMap[connId]?.nestedDatabaseDataMap[database] ?? currentNested;
+      updateConnectionData(connId, {
+        nestedDatabaseDataMap: {
+          ...(connectionDataMap[connId]?.nestedDatabaseDataMap ?? currentData.nestedDatabaseDataMap),
+          [database]: { ...latestNested, activeSchema: nextSchema },
+        },
+      });
+      if (nextSchema) {
+        invoke('set_schema_preference', { connectionId: connId, schema: nextSchema, database }).catch(() => {});
+      }
+    }
+  }, [activeConnectionId, connectionDataMap, updateConnectionData, loadNestedSchemaData]);
+
+  /**
+   * Fetches the schema list for one database of a schema-based multi-db
+   * connection, then applies its saved selection/preference (or marks
+   * `needsSchemaSelection` when there is none), mirroring `connect()`'s own
+   * schema-based branch but scoped to a single database.
+   */
+  const loadNestedSchemas = useCallback(async (database: string, targetConnectionId?: string) => {
+    const connId = targetConnectionId ?? activeConnectionId;
+    if (!connId) return;
+
+    const currentData = connectionDataMap[connId];
+    if (!currentData) return;
+
+    const currentNested = currentData.nestedDatabaseDataMap[database] ?? EMPTY_NESTED_DATABASE_DATA;
+    if (currentNested.schemasLoaded || currentNested.isLoadingSchemas) return;
+
+    updateConnectionData(connId, {
+      nestedDatabaseDataMap: {
+        ...currentData.nestedDatabaseDataMap,
+        [database]: { ...currentNested, isLoadingSchemas: true },
+      },
+    });
+
+    try {
+      const schemasResult = await invoke<string[]>('get_schemas', { connectionId: connId, database });
+
+      let savedSelection: string[] = [];
+      try {
+        savedSelection = await invoke<string[]>('get_selected_schemas', { connectionId: connId, database });
+      } catch {
+        // Ignore - no saved selection exists yet
+      }
+
+      const validSelection = savedSelection.filter((s) => schemasResult.includes(s));
+
+      const freshData = connectionDataMap[connId];
+      const freshNested = freshData?.nestedDatabaseDataMap[database] ?? currentNested;
+
+      if (validSelection.length === 0) {
+        updateConnectionData(connId, {
+          nestedDatabaseDataMap: {
+            ...(freshData?.nestedDatabaseDataMap ?? currentData.nestedDatabaseDataMap),
+            [database]: {
+              ...freshNested,
+              schemas: schemasResult,
+              schemasLoaded: true,
+              isLoadingSchemas: false,
+              selectedSchemas: [],
+              needsSchemaSelection: true,
+            },
+          },
+        });
+        return;
+      }
+
+      let preferredSchema = validSelection[0];
+      try {
+        const saved = await invoke<string | null>('get_schema_preference', { connectionId: connId, database });
+        if (saved && validSelection.includes(saved)) {
+          preferredSchema = saved;
+        }
+      } catch {
+        // Ignore - no saved preference exists yet
+      }
+
+      updateConnectionData(connId, {
+        nestedDatabaseDataMap: {
+          ...(freshData?.nestedDatabaseDataMap ?? currentData.nestedDatabaseDataMap),
+          [database]: {
+            ...freshNested,
+            schemas: schemasResult,
+            schemasLoaded: true,
+            isLoadingSchemas: false,
+            selectedSchemas: validSelection,
+            needsSchemaSelection: false,
+            activeSchema: preferredSchema,
+          },
+        },
+      });
+
+      const existing = freshNested.schemaDataMap[preferredSchema];
+      if (!existing?.isLoaded && !existing?.isLoading) {
+        loadNestedSchemaData(database, preferredSchema, connId);
+      }
+    } catch (e) {
+      console.error(`Failed to fetch schemas for database ${database}:`, e);
+      const freshData = connectionDataMap[connId];
+      const freshNested = freshData?.nestedDatabaseDataMap[database] ?? currentNested;
+      updateConnectionData(connId, {
+        nestedDatabaseDataMap: {
+          ...(freshData?.nestedDatabaseDataMap ?? currentData.nestedDatabaseDataMap),
+          [database]: { ...freshNested, isLoadingSchemas: false, schemasLoaded: true, schemas: [] },
+        },
+      });
+    }
+  }, [activeConnectionId, connectionDataMap, updateConnectionData, loadNestedSchemaData]);
+
   const setSelectedDatabases = useCallback((newDatabases: string[], targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
     if (!connId) return;
     const currentData = connectionDataMap[connId];
     if (!currentData) return;
+
+    if (currentData.capabilities?.schemas === true) {
+      // Schema-based multi-db (PostgreSQL): drop cached data for databases
+      // that left the selection, then lazily fetch schemas for any newly
+      // selected database.
+      const prunedNestedMap = Object.fromEntries(
+        Object.entries(currentData.nestedDatabaseDataMap).filter(([db]) => newDatabases.includes(db))
+      );
+
+      updateConnectionData(connId, {
+        selectedDatabases: newDatabases,
+        nestedDatabaseDataMap: prunedNestedMap,
+        allDatabasesMode: false,
+      });
+
+      if (newDatabases.length > 0) {
+        invoke('set_selected_databases', {
+          connectionId: connId,
+          databases: newDatabases,
+        }).catch(e => console.error('Failed to persist selected databases:', e));
+      }
+
+      for (const db of newDatabases) {
+        const existing = currentData.nestedDatabaseDataMap[db];
+        if (!existing?.schemasLoaded && !existing?.isLoadingSchemas) {
+          loadNestedSchemas(db, connId);
+        }
+      }
+      return;
+    }
 
     // Drop cached data for databases that left the selection.
     const prunedDataMap = Object.fromEntries(
@@ -650,7 +1010,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         loadDatabaseData(db, connId);
       }
     }
-  }, [activeConnectionId, connectionDataMap, updateConnectionData, loadDatabaseData]);
+  }, [activeConnectionId, connectionDataMap, updateConnectionData, loadDatabaseData, loadNestedSchemas]);
 
   const connect = async (connectionId: string, options?: { activate?: boolean }) => {
     const activate = options?.activate !== false;
@@ -748,11 +1108,18 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       // Register for health-check pinging.
       await invoke('register_active_connection', { connectionId });
 
-      const savedDbList = isMultiDatabaseCapable(capabilities) ? getDatabaseList(dbParam) : [];
+      // Whether this saved connection has explicitly opted into database
+      // selection browsing — see hasOptedIntoDatabaseSelection for why this
+      // isn't a plain capability check: an ordinary single-database Postgres
+      // connection's `database` is indistinguishable from a one-element
+      // selection unless the opt-in signal (array or empty string) is
+      // checked explicitly.
+      const optedIntoDbSelection = hasOptedIntoDatabaseSelection(capabilities, dbParam);
+      const savedDbList = optedIntoDbSelection ? getDatabaseList(dbParam) : [];
       // Empty selection on a multi-db driver = "all databases" mode: the list
       // comes from the server on every connect, so databases created/dropped
       // outside the app show up without editing the connection.
-      const allDatabasesMode = isMultiDatabaseCapable(capabilities) && savedDbList.length === 0;
+      const allDatabasesMode = optedIntoDbSelection && savedDbList.length === 0;
       // `>= 1`, not `> 1`: a connection saved with a single database is still a
       // database *selection*, and `usesMultiDatabaseLayout` already accepts one.
       // Gating here at `> 1` left `selectedDatabases` empty for that case, so
@@ -817,7 +1184,13 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      if (isMultiDb) {
+      // Nested (database -> schema -> table) applies to schema-based
+      // multi-db drivers (PostgreSQL); flat (database -> table) is
+      // everything else that reaches here (MySQL).
+      const isNestedMultiDb = isMultiDb && capabilities?.schemas === true;
+      const isFlatMultiDb = isMultiDb && !isNestedMultiDb;
+
+      if (isFlatMultiDb) {
         const firstDb = dbList[0] ?? '';
 
         // Pre-load first database inline
@@ -856,6 +1229,101 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           // would put its tables one click further away than the flat
           // single-database layout this replaces.
           ...(dbList.length === 1 ? { activeSchema: firstDb } : {}),
+          isLoadingTables: false,
+          isLoadingViews: false,
+          isLoadingRoutines: false,
+          isLoadingTriggers: false,
+          isConnecting: false,
+          isConnected: true,
+        });
+      } else if (isNestedMultiDb) {
+        const firstDb = dbList[0] ?? '';
+
+        // Pre-load the first database's schema list and its preferred (or
+        // first selected) schema's tables, mirroring both the flat multi-db
+        // preload above and the plain schema-only branch below, combined:
+        // this driver needs both a database AND a schema picked before any
+        // table data can be fetched.
+        let initialNestedMap: Record<string, NestedDatabaseData> = {};
+
+        if (firstDb) {
+          try {
+            const schemasResult = await invoke<string[]>('get_schemas', { connectionId, database: firstDb });
+
+            let savedSelection: string[] = [];
+            try {
+              savedSelection = await invoke<string[]>('get_selected_schemas', { connectionId, database: firstDb });
+            } catch {
+              // Ignore - no saved selection exists yet
+            }
+            const validSelection = savedSelection.filter((s) => schemasResult.includes(s));
+
+            if (validSelection.length > 0) {
+              let preferredSchema = validSelection[0];
+              try {
+                const saved = await invoke<string | null>('get_schema_preference', { connectionId, database: firstDb });
+                if (saved && validSelection.includes(saved)) {
+                  preferredSchema = saved;
+                }
+              } catch {
+                // Ignore - no saved preference exists yet
+              }
+
+              const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
+                invoke<TableInfo[]>('get_tables', { connectionId, schema: preferredSchema, database: firstDb }),
+                loadOptionalMetadata(metadata?.capabilities.views, () => invoke<ViewInfo[]>('get_views', { connectionId, schema: preferredSchema, database: firstDb }), [] as ViewInfo[]),
+                (capabilities?.materialized_views
+                  ? invoke<ViewInfo[]>('get_materialized_views', { connectionId, schema: preferredSchema, database: firstDb }).catch(() => [] as ViewInfo[])
+                  : Promise.resolve([] as ViewInfo[])),
+                loadOptionalMetadata(metadata?.capabilities.routines, () => getRoutinesOrEmpty(connectionId, preferredSchema, handleRoutineMetadataError, firstDb), { routines: [] }),
+                loadOptionalMetadata(metadata?.capabilities.triggers, () => invoke<TriggerInfo[]>('get_triggers', { connectionId, schema: preferredSchema, database: firstDb }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
+              ]);
+
+              initialNestedMap = {
+                [firstDb]: {
+                  schemas: schemasResult,
+                  schemasLoaded: true,
+                  isLoadingSchemas: false,
+                  selectedSchemas: validSelection,
+                  needsSchemaSelection: false,
+                  activeSchema: preferredSchema,
+                  schemaDataMap: {
+                    [preferredSchema]: {
+                      tables: tablesResult,
+                      views: viewsResult,
+                      materializedViews: materializedViewsResult,
+                      routines: routineMetadata.routines,
+                      triggers: triggersResult,
+                      routineError: routineMetadata.error,
+                      isLoading: false,
+                      isLoaded: true,
+                    },
+                  },
+                },
+              };
+            } else {
+              initialNestedMap = {
+                [firstDb]: {
+                  schemas: schemasResult,
+                  schemasLoaded: true,
+                  isLoadingSchemas: false,
+                  selectedSchemas: [],
+                  needsSchemaSelection: true,
+                  activeSchema: null,
+                  schemaDataMap: {},
+                },
+              };
+            }
+          } catch (e) {
+            console.error(`Failed to pre-load database ${firstDb}:`, e);
+          }
+        }
+
+        updateCurrentConnection(connectionId, {
+          selectedDatabases: dbList,
+          nestedDatabaseDataMap: initialNestedMap,
+          allDatabasesMode,
+          ...(allDatabasesMode ? { databaseName: firstDb } : {}),
           isLoadingTables: false,
           isLoadingViews: false,
           isLoadingRoutines: false,
@@ -1386,6 +1854,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       needsSchemaSelection,
       selectedDatabases,
       databaseDataMap,
+      nestedDatabaseDataMap,
       connections,
       connectionGroups,
       loadConnections,
@@ -1405,6 +1874,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       loadDatabaseData,
       refreshDatabaseData,
       setSelectedDatabases,
+      loadNestedSchemas,
+      setSelectedSchemasForDatabase,
+      loadNestedSchemaData,
+      refreshNestedSchemaData,
       refreshDatabaseSelection,
       getConnectionData,
       isConnectionOpen,

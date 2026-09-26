@@ -74,6 +74,7 @@ import { SidebarRoutineItem } from "./sidebar/SidebarRoutineItem";
 import { SidebarRoutineGroupHeader } from "./sidebar/SidebarRoutineGroupHeader";
 import { SidebarSchemaItem } from "./sidebar/SidebarSchemaItem";
 import { SidebarDatabaseItem } from "./sidebar/SidebarDatabaseItem";
+import { SidebarNestedDatabaseItem } from "./sidebar/SidebarNestedDatabaseItem";
 import { SidebarTriggerItem } from "./sidebar/SidebarTriggerItem";
 import { QueryHistorySection } from "./sidebar/QueryHistorySection";
 import { NotebooksSection } from "./sidebar/NotebooksSection";
@@ -91,7 +92,7 @@ import { groupRoutinesByType } from "../../utils/routines";
 import { formatObjectCount } from "../../utils/schema";
 import { groupByDate, formatHistoryTime } from "../../utils/dateGroups";
 import { SqlHighlight } from "../ui/SqlHighlight";
-import { isMultiDatabaseCapable, usesMultiDatabaseLayout, reconcileDatabaseSelection } from "../../utils/database";
+import { isMultiDatabaseCapable, isSchemaBasedMultiDb, usesMultiDatabaseLayout, reconcileDatabaseSelection } from "../../utils/database";
 import { supportsManageTables } from "../../utils/driverCapabilities";
 import { newConsoleForDatabase } from "../../utils/newConsole";
 import { openEditor } from "../../utils/editorNavigation";
@@ -147,6 +148,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     databaseDataMap,
     loadDatabaseData,
     refreshDatabaseData,
+    nestedDatabaseDataMap,
+    loadNestedSchemas,
+    setSelectedSchemasForDatabase,
+    loadNestedSchemaData,
+    refreshNestedSchemaData,
     connectionDataMap,
     connections,
     connect,
@@ -216,8 +222,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   } | null>(null);
   const [schemaModal, setSchemaModal] =
     useState<TableTarget | null>(null);
-  const [runRoutineModal, setRunRoutineModal] = useState<{ routine: RoutineInfo; schema?: string } | null>(null);
-  const [routineDropConfirm, setRoutineDropConfirm] = useState<{ name: string; routineType: string; schema?: string } | null>(null);
+  const [runRoutineModal, setRunRoutineModal] = useState<{ routine: RoutineInfo; schema?: string; database?: string } | null>(null);
+  const [routineDropConfirm, setRoutineDropConfirm] = useState<{ name: string; routineType: string; schema?: string; database?: string } | null>(null);
   const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
   const [createTableTarget, setCreateTableTarget] = useState<CreateTableTarget>(DEFAULT_CREATE_TABLE_TARGET);
   const [isClipboardImportOpen, setIsClipboardImportOpen] = useState(false);
@@ -225,14 +231,20 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     isOpen: boolean;
     tableName: string;
     column: TableColumn | null;
+    schema?: string;
+    database?: string;
   }>({ isOpen: false, tableName: "", column: null });
   const [createIndexModal, setCreateIndexModal] = useState<{
     isOpen: boolean;
     tableName: string;
+    schema?: string;
+    database?: string;
   }>({ isOpen: false, tableName: "" });
   const [createForeignKeyModal, setCreateForeignKeyModal] = useState<{
     isOpen: boolean;
     tableName: string;
+    schema?: string;
+    database?: string;
   }>({ isOpen: false, tableName: "" });
   const [generateSQLModal, setGenerateSQLModal] =
     useState<TableTarget | null>(null);
@@ -258,10 +270,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     isOpen: boolean;
     query?: SavedQuery;
   }>({ isOpen: false });
-  const [dumpModal, setDumpModal] = useState<{ database: string } | null>(null);
+  const [dumpModal, setDumpModal] = useState<{ database: string; schema?: string } | null>(null);
   const [importModal, setImportModal] = useState<{
     filePath: string;
     database: string;
+    schema?: string;
   } | null>(null);
   const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
   const [isSchemaFilterOpen, setIsSchemaFilterOpen] = useState(false);
@@ -287,6 +300,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     isOpen: boolean;
     viewName?: string;
     isNewView?: boolean;
+    schema?: string;
+    database?: string;
   }>({ isOpen: false });
 
   const [triggerEditorModal, setTriggerEditorModal] = useState<{
@@ -294,6 +309,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     triggerName?: string;
     tableName?: string;
     schema?: string;
+    database?: string;
     isNewTrigger?: boolean;
   }>({ isOpen: false });
 
@@ -307,7 +323,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const refreshAfterCreateTable = async () => {
     const refreshPlan = getCreateTableRefreshPlan(createTableTarget);
 
-    if (refreshPlan.scope === "schema") {
+    if (refreshPlan.scope === "nested") {
+      await refreshNestedSchemaData(refreshPlan.database, refreshPlan.schema);
+    } else if (refreshPlan.scope === "schema") {
       await refreshSchemaData(refreshPlan.schema);
     } else if (refreshPlan.scope === "database") {
       await refreshDatabaseData(refreshPlan.schema);
@@ -318,13 +336,14 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   };
 
   /** Table navigation goes through `objectNavigation`; this only opens consoles. */
-  const runQuery = (sql: string, queryName?: string, preventAutoRun: boolean = false, schema?: string) => {
+  const runQuery = (sql: string, queryName?: string, preventAutoRun: boolean = false, schema?: string, database?: string) => {
     openEditor(navigate, {
       kind: "console",
       initialQuery: sql,
       queryName,
       preventAutoRun,
       schema,
+      database,
       targetConnectionId: activeConnectionId ?? undefined,
     });
   };
@@ -442,6 +461,32 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     });
   };
 
+  // Nested (schema-based multi-db, e.g. Postgres browsing several databases
+  // on one connection): unlike the flat multi-db case above, both a real
+  // schema AND a database are needed, so the object is qualified by schema
+  // as usual and the pool is separately routed by `database`.
+  const handleOpenNestedTable = (tableName: string, schema: string, database: string) => {
+    setActiveTable(tableName, schema);
+    objectNavigation?.open(tableName, schema, { title: `${tableName} (${database}.${schema})` }, database);
+  };
+
+  const handleOpenNestedView = (
+    viewName: string,
+    schema: string,
+    database: string,
+    materialized = false,
+  ) => {
+    objectNavigation?.open(viewName, schema, { materialized, title: `${viewName} (${database}.${schema})` }, database);
+  };
+
+  const handleNestedRoutineDoubleClick = (routine: RoutineInfo, schema: string, database: string) => {
+    objectNavigation?.openRoutineDefinition(routine, schema, database);
+  };
+
+  const handleNestedTriggerDoubleClick = (trigger: TriggerInfo, schema: string, database: string) => {
+    objectNavigation?.openTriggerDefinition(trigger, schema, database);
+  };
+
   const handleRoutineDoubleClick = (routine: RoutineInfo, schema?: string) => {
     objectNavigation?.openRoutineDefinition(routine, schema);
   };
@@ -466,7 +511,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
 
   const handleDropRoutine = async () => {
     if (!routineDropConfirm) return;
-    const { name, routineType, schema } = routineDropConfirm;
+    const { name, routineType, schema, database } = routineDropConfirm;
     setRoutineDropConfirm(null);
     try {
       await invoke("drop_routine", {
@@ -474,6 +519,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         routineName: name,
         routineType,
         ...(schema ? { schema } : {}),
+        ...(database ? { database } : {}),
       });
       showAlert(t("routines.dropSuccess", { name }), { kind: "info" });
       if (refreshRoutines) refreshRoutines();
@@ -498,7 +544,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     setContextMenu({ x: e.clientX, y: e.clientY, type, id, label, data });
   };
 
-  const handleImportDatabase = async (database?: string) => {
+  const handleImportDatabase = async (database?: string, schema?: string) => {
     const file = await open({
       filters: [{ name: "SQL / Zip File", extensions: ["sql", "zip"] }],
     });
@@ -508,7 +554,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         { title: t("dump.importDatabase"), kind: "warning" },
       );
       if (!confirmed) return;
-      setImportModal({ filePath: file, database: database ?? activeDatabaseName ?? "" });
+      setImportModal({ filePath: file, database: database ?? activeDatabaseName ?? "", schema });
     }
   };
 
@@ -1170,13 +1216,13 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           onTriggerDoubleClick={(trigger, schema) => handleTriggerDoubleClick(trigger, schema)}
                           onContextMenu={handleContextMenu}
                           onAddColumn={(t_name) =>
-                            setModifyColumnModal({ isOpen: true, tableName: t_name, column: null })
+                            setModifyColumnModal({ isOpen: true, tableName: t_name, column: null, schema: schemaName })
                           }
                           onEditColumn={(t_name, c) =>
-                            setModifyColumnModal({ isOpen: true, tableName: t_name, column: c })
+                            setModifyColumnModal({ isOpen: true, tableName: t_name, column: c, schema: schemaName })
                           }
                           onAddIndex={(t_name) =>
-                            setCreateIndexModal({ isOpen: true, tableName: t_name })
+                            setCreateIndexModal({ isOpen: true, tableName: t_name, schema: schemaName })
                           }
                           onDropIndex={async (t_name, name) => {
                             if (
@@ -1199,7 +1245,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             }
                           }}
                           onAddForeignKey={(t_name) =>
-                            setCreateForeignKeyModal({ isOpen: true, tableName: t_name })
+                            setCreateForeignKeyModal({ isOpen: true, tableName: t_name, schema: schemaName })
                           }
                           onDropForeignKey={async (t_name, name) => {
                             if (
@@ -1223,7 +1269,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           }}
                           onCreateTable={() => openCreateTableModal({ kind: "schema", schema: schemaName })}
                           onCreateView={() =>
-                            setViewEditorModal({ isOpen: true, isNewView: true })
+                            setViewEditorModal({ isOpen: true, isNewView: true, schema: schemaName })
                           }
                           onCreateTrigger={(schema) =>
                             setTriggerEditorModal({ isOpen: true, isNewTrigger: true, schema })
@@ -1432,13 +1478,13 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       onTriggerDoubleClick={(trigger, db) => handleTriggerDoubleClick(trigger, db)}
                       onContextMenu={handleContextMenu}
                       onAddColumn={(t_name) =>
-                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: null })
+                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: null, schema: dbName })
                       }
                       onEditColumn={(t_name, c) =>
-                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: c })
+                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: c, schema: dbName })
                       }
                       onAddIndex={(t_name) =>
-                        setCreateIndexModal({ isOpen: true, tableName: t_name })
+                        setCreateIndexModal({ isOpen: true, tableName: t_name, schema: dbName })
                       }
                       onDropIndex={async (t_name, name) => {
                         if (
@@ -1461,7 +1507,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         }
                       }}
                       onAddForeignKey={(t_name) =>
-                        setCreateForeignKeyModal({ isOpen: true, tableName: t_name })
+                        setCreateForeignKeyModal({ isOpen: true, tableName: t_name, schema: dbName })
                       }
                       onDropForeignKey={async (t_name, name) => {
                         if (
@@ -1486,7 +1532,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       capabilities={activeCapabilities}
                       onCreateTable={() => openCreateTableModal({ kind: "database", schema: dbName })}
                       onCreateView={() =>
-                        setViewEditorModal({ isOpen: true, isNewView: true })
+                        setViewEditorModal({ isOpen: true, isNewView: true, schema: dbName })
                       }
                       onCreateTrigger={(schema) =>
                         setTriggerEditorModal({ isOpen: true, isNewTrigger: true, schema })
@@ -1504,6 +1550,126 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           console.error("Failed to open ER Diagram window:", e);
                         }
                       } : undefined}
+                    />
+                  ))}
+                </div>
+              ) : isSchemaBasedMultiDb(activeCapabilities, selectedDatabases) ? (
+                /* Nested database -> schema -> table layout (PostgreSQL browsing several databases) */
+                <div>
+                  <div className="flex items-center justify-between px-3 py-1.5">
+                    <span className="text-xs font-semibold uppercase text-muted tracking-wider">
+                      {t("sidebar.databases")} ({selectedDatabases.length})
+                    </span>
+                  </div>
+
+                  <div className="px-3 pb-1.5">
+                    <div className="relative flex items-center">
+                      <Search size={11} className="absolute left-2 text-muted pointer-events-none" />
+                      <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
+                        type="text"
+                        value={dbFilter}
+                        onChange={(e) => setDbFilter(e.target.value)}
+                        placeholder={t("sidebar.filterDatabases")}
+                        className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-focus/50"
+                      />
+                      {dbFilter && (
+                        <button
+                          onClick={() => setDbFilter("")}
+                          className="absolute right-1.5 text-muted hover:text-primary"
+                        >
+                          <X size={11} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {(dbFilter
+                    ? selectedDatabases.filter((db) => db.toLowerCase().includes(dbFilter.toLowerCase()))
+                    : selectedDatabases
+                  ).map((dbName) => (
+                    <SidebarNestedDatabaseItem
+                      key={dbName}
+                      databaseName={dbName}
+                      nestedData={nestedDatabaseDataMap[dbName]}
+                      activeTable={activeTable}
+                      connectionId={activeConnectionId!}
+                      driver={activeDriver!}
+                      schemaVersion={schemaVersion}
+                      onLoadSchemas={loadNestedSchemas}
+                      onSetSelectedSchemas={setSelectedSchemasForDatabase}
+                      onLoadSchemaData={loadNestedSchemaData}
+                      onRefreshSchemaData={refreshNestedSchemaData}
+                      onTableClick={(name, schema) => handleTableClick(name, schema)}
+                      onTableDoubleClick={handleOpenNestedTable}
+                      onViewClick={handleViewClick}
+                      onViewDoubleClick={handleOpenNestedView}
+                      onRoutineDoubleClick={handleNestedRoutineDoubleClick}
+                      onTriggerDoubleClick={handleNestedTriggerDoubleClick}
+                      onContextMenu={handleContextMenu}
+                      onAddColumn={(t_name, schema, database) =>
+                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: null, schema, database })
+                      }
+                      onDump={activeCapabilities?.no_connection_required !== true
+                        ? (database, schema) => setDumpModal({ database, schema })
+                        : undefined}
+                      onImport={activeCapabilities?.no_connection_required !== true
+                        ? (database, schema) => handleImportDatabase(database, schema)
+                        : undefined}
+                      onEditColumn={(t_name, c, schema, database) =>
+                        setModifyColumnModal({ isOpen: true, tableName: t_name, column: c, schema, database })
+                      }
+                      onAddIndex={(t_name, schema, database) =>
+                        setCreateIndexModal({ isOpen: true, tableName: t_name, schema, database })
+                      }
+                      onDropIndex={async (t_name, name, schema, database) => {
+                        if (
+                          await ask(
+                            t("sidebar.deleteIndexConfirm", { name }),
+                            { title: t("sidebar.deleteIndex"), kind: "warning" },
+                          )
+                        ) {
+                          try {
+                            await invoke("drop_index_action", {
+                              connectionId: activeConnectionId,
+                              table: t_name,
+                              indexName: name,
+                              schema,
+                              database,
+                            });
+                            setSchemaVersion((v) => v + 1);
+                          } catch (e) {
+                            showAlert(t("sidebar.failDeleteIndex") + toErrorMessage(e), { title: t("common.error"), kind: "error" });
+                          }
+                        }
+                      }}
+                      onAddForeignKey={(t_name, schema, database) =>
+                        setCreateForeignKeyModal({ isOpen: true, tableName: t_name, schema, database })
+                      }
+                      onDropForeignKey={async (t_name, name, schema, database) => {
+                        if (
+                          await ask(
+                            t("sidebar.deleteFkConfirm", { name }),
+                            { title: t("sidebar.deleteFk"), kind: "warning" },
+                          )
+                        ) {
+                          try {
+                            await invoke("drop_foreign_key_action", {
+                              connectionId: activeConnectionId,
+                              table: t_name,
+                              fkName: name,
+                              schema,
+                              database,
+                            });
+                            setSchemaVersion((v) => v + 1);
+                          } catch (e) {
+                            showAlert(toErrorMessage(e), { title: t("common.error"), kind: "error" });
+                          }
+                        }
+                      }}
+                      onCreateTable={(schema, database) => openCreateTableModal({ kind: "nested", schema, database })}
+                      onCreateView={(schema, database) => setViewEditorModal({ isOpen: true, isNewView: true, schema, database })}
+                      onCreateTrigger={(schema, database) => setTriggerEditorModal({ isOpen: true, isNewTrigger: true, schema, database })}
+                      showTriggers={activeCapabilities?.triggers === true}
                     />
                   ))}
                 </div>
@@ -1906,26 +2072,27 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             contextMenu.type === "table"
               ? (() => {
                   const ctxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                  const ctxDatabase = (contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
                   return [
                     {
                       label: t("sidebar.showData"),
                       icon: PlaySquare,
                       action: () => {
-                        objectNavigation?.open(contextMenu.id, ctxSchema);
+                        objectNavigation?.open(contextMenu.id, ctxSchema, undefined, ctxDatabase);
                       },
                     },
                     {
                       label: t("sidebar.newConsole"),
                       icon: FileCode,
                       action: () => {
-                        objectNavigation?.newConsole(contextMenu.id, ctxSchema);
+                        objectNavigation?.newConsole(contextMenu.id, ctxSchema, ctxDatabase);
                       },
                     },
                     {
                       label: t("sidebar.countRows"),
                       icon: Hash,
                       action: () => {
-                        objectNavigation?.count(contextMenu.id, ctxSchema);
+                        objectNavigation?.count(contextMenu.id, ctxSchema, undefined, ctxDatabase);
                       },
                     },
                     {
@@ -1949,9 +2116,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           await invoke("open_er_diagram_window", {
                             connectionId: activeConnectionId || "",
                             connectionName: activeConnectionName || "Unknown",
-                            databaseName: activeDatabaseName || "Unknown",
+                            databaseName: ctxDatabase || activeDatabaseName || "Unknown",
                             focusTable: contextMenu.id,
                             ...(ctxSchema ? { schema: ctxSchema } : {}),
+                            ...(ctxDatabase ? { database: ctxDatabase } : {}),
                           });
                         } catch (e) {
                           console.error("Failed to open ER Diagram window:", e);
@@ -1985,7 +2153,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       label: t("sidebar.addColumn"),
                       icon: Plus,
                       action: () =>
-                        setModifyColumnModal({ isOpen: true, tableName: contextMenu.id, column: null }),
+                        setModifyColumnModal({ isOpen: true, tableName: contextMenu.id, column: null, schema: ctxSchema, database: ctxDatabase }),
                     } : null,
                     supportsManageTables(activeCapabilities) ? {
                       label: t("sidebar.deleteTable"),
@@ -2004,6 +2172,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               connectionId: activeConnectionId,
                               query: `DROP TABLE ${quotedTable}`,
                               ...(ctxSchema ? { schema: ctxSchema } : {}),
+                              ...(ctxDatabase ? { database: ctxDatabase } : {}),
                             });
                             if (refreshTables) refreshTables();
                           } catch (e) {
@@ -2030,6 +2199,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         if (contextMenu.data && "tableName" in contextMenu.data) {
                           const t_name = contextMenu.data.tableName;
                           const ctxSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                          const ctxDatabase = ("database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
                           if (
                             await ask(
                               t("sidebar.deleteIndexConfirm", { name: contextMenu.id }),
@@ -2042,6 +2212,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 table: t_name,
                                 indexName: contextMenu.id,
                                 ...(ctxSchema ? { schema: ctxSchema } : {}),
+                                ...(ctxDatabase ? { database: ctxDatabase } : {}),
                               });
                               setSchemaVersion((v) => v + 1);
                             } catch (e) {
@@ -2070,6 +2241,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           if (contextMenu.data && "tableName" in contextMenu.data) {
                             const t_name = contextMenu.data.tableName;
                             const ctxSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                            const ctxDatabase = ("database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
                             if (
                               await ask(
                                 t("sidebar.deleteFkConfirm", { name: contextMenu.id }),
@@ -2082,6 +2254,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   table: t_name,
                                   fkName: contextMenu.id,
                                   ...(ctxSchema ? { schema: ctxSchema } : {}),
+                                  ...(ctxDatabase ? { database: ctxDatabase } : {}),
                                 });
                                 setSchemaVersion((v) => v + 1);
                               } catch (e) {
@@ -2100,7 +2273,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             icon: Plus,
                             action: () => {
                               if (contextMenu.data && "tableName" in contextMenu.data) {
-                                setCreateIndexModal({ isOpen: true, tableName: contextMenu.data.tableName });
+                                const folderSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                                const folderDatabase = ("database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
+                                setCreateIndexModal({ isOpen: true, tableName: contextMenu.data.tableName, schema: folderSchema, database: folderDatabase });
                               }
                             },
                           },
@@ -2114,7 +2289,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               icon: Plus,
                               action: () => {
                                 if (contextMenu.data && "tableName" in contextMenu.data) {
-                                  setCreateForeignKeyModal({ isOpen: true, tableName: contextMenu.data.tableName });
+                                  const folderSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                                  const folderDatabase = ("database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
+                                  setCreateForeignKeyModal({ isOpen: true, tableName: contextMenu.data.tableName, schema: folderSchema, database: folderDatabase });
                                 }
                               },
                             },
@@ -2123,6 +2300,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       : contextMenu.type === "view"
                         ? (() => {
                             const viewCtxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                            const viewCtxDatabase = (contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
                             return [
                               {
                                 label: t("sidebar.showData"),
@@ -2131,6 +2309,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   objectNavigation?.open(
                                     contextMenu.id,
                                     viewCtxSchema,
+                                    undefined,
+                                    viewCtxDatabase,
                                   );
                                 },
                               },
@@ -2141,6 +2321,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   objectNavigation?.count(
                                     contextMenu.id,
                                     viewCtxSchema,
+                                    undefined,
+                                    viewCtxDatabase,
                                   );
                                 },
                               },
@@ -2148,7 +2330,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 label: t("sidebar.editView"),
                                 icon: Edit,
                                 action: () => {
-                                  setViewEditorModal({ isOpen: true, viewName: contextMenu.id, isNewView: false });
+                                  setViewEditorModal({ isOpen: true, viewName: contextMenu.id, isNewView: false, schema: viewCtxSchema, database: viewCtxDatabase });
                                 },
                               },
                               {
@@ -2171,7 +2353,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       await invoke("drop_view", {
                                         connectionId: activeConnectionId,
                                         viewName: contextMenu.id,
-                                        ...(activeSchema ? { schema: activeSchema } : {}),
+                                        ...((viewCtxSchema ?? activeSchema) ? { schema: viewCtxSchema ?? activeSchema } : {}),
+                                        ...(viewCtxDatabase ? { database: viewCtxDatabase } : {}),
                                       });
                                       if (refreshViews) refreshViews();
                                     } catch (e) {
@@ -2186,6 +2369,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         : contextMenu.type === "materialized_view"
                         ? (() => {
                             const mvCtxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                            const mvCtxDatabase = (contextMenu.data && "database" in contextMenu.data ? contextMenu.data.database : undefined) ?? undefined;
                             return [
                               {
                                 label: t("sidebar.showData"),
@@ -2195,6 +2379,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     contextMenu.id,
                                     mvCtxSchema,
                                     { materialized: true },
+                                    mvCtxDatabase,
                                   );
                                 },
                               },
@@ -2205,6 +2390,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   objectNavigation?.count(
                                     contextMenu.id,
                                     mvCtxSchema,
+                                    undefined,
+                                    mvCtxDatabase,
                                   );
                                 },
                               },
@@ -2219,6 +2406,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       connectionId: activeConnectionId,
                                       viewName: mvName,
                                       ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
+                                      ...(mvCtxDatabase ? { database: mvCtxDatabase } : {}),
                                     });
                                     showAlert(t("views.refreshSuccess", { view: mvName }), { kind: "info" });
                                   } catch (e) {
@@ -2238,6 +2426,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       connectionId: activeConnectionId,
                                       viewName: contextMenu.id,
                                       ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
+                                      ...(mvCtxDatabase ? { database: mvCtxDatabase } : {}),
                                     });
                                     objectNavigation?.openDefinition(
                                       definition,
@@ -2262,10 +2451,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           ? (() => {
                               const routineData =
                                 contextMenu.data && 'routine_type' in contextMenu.data
-                                  ? (contextMenu.data as RoutineInfo & { schema?: string })
+                                  ? (contextMenu.data as RoutineInfo & { schema?: string; database?: string })
                                   : null;
                               const routineType = routineData?.routine_type ?? "PROCEDURE";
                               const routineSchema = routineData?.schema ?? activeSchema ?? undefined;
+                              const routineDatabase = routineData?.database ?? undefined;
                               const canManageRoutines =
                                 activeCapabilities?.routine_management === true;
                               return [
@@ -2277,6 +2467,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       setRunRoutineModal({
                                         routine: routineData,
                                         schema: routineSchema,
+                                        database: routineDatabase,
                                       });
                                     }
                                   },
@@ -2291,6 +2482,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         routine_type: routineType,
                                       },
                                       routineSchema,
+                                      routineDatabase,
                                     );
                                   },
                                 },
@@ -2304,8 +2496,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         routineName: contextMenu.id,
                                         routineType: routineType,
                                         ...(routineSchema ? { schema: routineSchema } : {}),
+                                        ...(routineDatabase ? { database: routineDatabase } : {}),
                                       });
-                                      runQuery(script, `${contextMenu.id} Edit`, true, routineSchema);
+                                      runQuery(script, `${contextMenu.id} Edit`, true, routineSchema, routineDatabase);
                                     } catch (e) {
                                       console.error(e);
                                       showAlert(
@@ -2324,6 +2517,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       name: contextMenu.id,
                                       routineType,
                                       schema: routineSchema,
+                                      database: routineDatabase,
                                     });
                                   },
                                 } : null,
@@ -2350,9 +2544,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           : contextMenu.type === "trigger"
                             ? (() => {
                                 const triggerData = contextMenu.data && 'table_name' in contextMenu.data
-                                  ? contextMenu.data as unknown as TriggerInfo & { schema?: string }
+                                  ? contextMenu.data as unknown as TriggerInfo & { schema?: string; database?: string }
                                   : null;
                                 const triggerSchema = triggerData?.schema ?? activeSchema ?? undefined;
+                                const triggerDatabase = triggerData?.database ?? undefined;
                                 return [
                                   {
                                     label: t("sidebar.viewTriggerDefinition"),
@@ -2363,6 +2558,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       objectNavigation?.openTriggerDefinition(
                                         triggerData,
                                         triggerSchema,
+                                        triggerDatabase,
                                       );
                                     },
                                   },
@@ -2375,6 +2571,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         triggerName: contextMenu.id,
                                         tableName: triggerData?.table_name,
                                         schema: triggerSchema,
+                                        database: triggerDatabase,
                                         isNewTrigger: false,
                                       });
                                     },
@@ -2401,6 +2598,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                             triggerName: contextMenu.id,
                                             tableName: triggerData?.table_name ?? "",
                                             ...(triggerSchema ? { schema: triggerSchema } : {}),
+                                            ...(triggerDatabase ? { database: triggerDatabase } : {}),
                                           });
                                           if (refreshTriggers) refreshTriggers();
                                         } catch (e) {
@@ -2551,6 +2749,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           onClose={() => setIsCreateTableModalOpen(false)}
           onSuccess={refreshAfterCreateTable}
           schema={createTableTarget.schema}
+          database={createTableTarget.kind === "nested" ? createTableTarget.database : undefined}
         />
       )}
 
@@ -2600,6 +2799,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           tableName={modifyColumnModal.tableName}
           driver={activeDriver || "sqlite"}
           column={modifyColumnModal.column}
+          schema={modifyColumnModal.schema}
+          database={modifyColumnModal.database}
         />
       )}
 
@@ -2611,6 +2812,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           connectionId={activeConnectionId}
           tableName={createIndexModal.tableName}
           driver={activeDriver || "sqlite"}
+          schema={createIndexModal.schema}
+          database={createIndexModal.database}
         />
       )}
 
@@ -2622,6 +2825,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           connectionId={activeConnectionId}
           tableName={createForeignKeyModal.tableName}
           driver={activeDriver || "sqlite"}
+          schema={createForeignKeyModal.schema}
+          database={createForeignKeyModal.database}
         />
       )}
 
@@ -2640,10 +2845,16 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           connectionId={activeConnectionId}
           databaseName={dumpModal.database || activeDatabaseName || "Database"}
           tables={(
-            activeCapabilities?.schemas && activeSchema
-              ? (schemaDataMap[activeSchema]?.tables ?? [])
-              : (databaseDataMap[dumpModal.database]?.tables ?? tables)
+            dumpModal.schema && dumpModal.database
+              // Nested schema-based multi-db (Postgres): pass an empty list;
+              // DumpDatabaseModal reads from nestedDatabaseDataMap itself.
+              ? []
+              : activeCapabilities?.schemas && activeSchema
+                ? (schemaDataMap[activeSchema]?.tables ?? [])
+                : (databaseDataMap[dumpModal.database]?.tables ?? tables)
           ).map((t) => t.name)}
+          schema={dumpModal.schema}
+          database={dumpModal.schema ? dumpModal.database : undefined}
         />
       )}
 
@@ -2655,6 +2866,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           databaseName={importModal.database || activeDatabaseName || "Database"}
           targetDatabase={importModal.database || activeDatabaseName || undefined}
           filePath={importModal.filePath}
+          schema={importModal.schema}
           onSuccess={() => {
             if (refreshTables) refreshTables();
           }}
@@ -2668,6 +2880,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           connectionId={activeConnectionId}
           viewName={viewEditorModal.viewName}
           isNewView={viewEditorModal.isNewView}
+          schema={viewEditorModal.schema}
+          database={viewEditorModal.database}
           onSuccess={() => {
             if (refreshViews) refreshViews();
           }}
@@ -2682,6 +2896,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           triggerName={triggerEditorModal.triggerName}
           tableName={triggerEditorModal.tableName}
           schema={triggerEditorModal.schema}
+          database={triggerEditorModal.database}
           driver={activeDriver ?? undefined}
           capabilities={activeCapabilities}
           isNewTrigger={triggerEditorModal.isNewTrigger}
@@ -2739,8 +2954,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           connectionId={activeConnectionId}
           routine={runRoutineModal.routine}
           schema={runRoutineModal.schema}
+          database={runRoutineModal.database}
           onRun={(sql) => {
-            runQuery(sql, `${t("routines.runTabPrefix")} ${runRoutineModal.routine.name}`, false, runRoutineModal.schema);
+            runQuery(sql, `${t("routines.runTabPrefix")} ${runRoutineModal.routine.name}`, false, runRoutineModal.schema, runRoutineModal.database);
           }}
         />
       )}

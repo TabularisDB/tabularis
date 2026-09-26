@@ -1195,6 +1195,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           limit: pageSize,
           page: pageNum,
           ...(schema ? { schema } : {}),
+          ...(targetTab?.database ? { database: targetTab.database } : {}),
         });
         const end = performance.now();
 
@@ -1488,6 +1489,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             page: 1,
             batchId,
             ...(schema ? { schema } : {}),
+            ...(targetTab?.database ? { database: targetTab.database } : {}),
           },
         );
       } catch (err) {
@@ -1640,6 +1642,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           limit: pageSize,
           page: pageNum,
           ...(schema ? { schema } : {}),
+          ...(currentTab?.database ? { database: currentTab.database } : {}),
         });
         const end = performance.now();
 
@@ -1745,6 +1748,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           connectionId: activeConnectionId,
           query: countTarget,
           schema: tab.schema ?? activeSchema,
+          database: tab.database,
         });
         const latest = tabsRef.current.find((t) => t.id === tab.id) ?? tab;
         if (!latest.result?.pagination) return;
@@ -2944,6 +2948,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         activeCapabilities,
         activeTab?.schema,
         activeSchema,
+        activeTab?.database,
       );
 
       // Deletions
@@ -3604,10 +3609,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       // selected database so the query runs against the database the user is
       // viewing rather than the connection's primary database. The tab may not
       // carry its own schema (e.g. a console query), so fall back to the active
-      // database — mirroring how execute_query resolves the schema.
+      // database — mirroring how execute_query resolves the schema. A
+      // schema-based multi-db tab (Postgres) carries its own `database`
+      // field instead, since `schema` there is a real Postgres schema, not
+      // the database name.
       const targetDatabase = activeTab?.schema ?? activeSchema ?? undefined;
-      const databaseParam =
-        isMultiDatabaseCapable(activeCapabilities) && targetDatabase
+      const databaseParam = activeTab?.database
+        ? { database: activeTab.database }
+        : isMultiDatabaseCapable(activeCapabilities) && targetDatabase
           ? { database: targetDatabase }
           : {};
 
@@ -3675,6 +3684,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         limit: totalRows ?? 1_000_000,
         page: 1,
         ...(schema ? { schema } : {}),
+        ...(activeTab?.database ? { database: activeTab.database } : {}),
       });
       const text = formatRowsForCopy(res.rows, res.columns ?? columns, copyFormat, {
         withHeaders: true,
@@ -5196,6 +5206,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         query={visualExplainQuery ?? activeTab?.query ?? ""}
         connectionId={activeConnectionId ?? ""}
         schema={activeTab?.schema ?? activeSchema ?? undefined}
+        database={activeTab?.database}
       />
       <ExplainSelectionModal
         isOpen={isExplainSelectionOpen}

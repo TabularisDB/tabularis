@@ -13,6 +13,8 @@ interface CreateIndexModalProps {
   connectionId: string;
   tableName: string;
   driver: string;
+  schema?: string;
+  database?: string;
 }
 
 interface TableColumn {
@@ -25,9 +27,12 @@ export const CreateIndexModal = ({
   onSuccess,
   connectionId,
   tableName,
+  schema: schemaProp,
+  database,
 }: CreateIndexModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema } = useDatabase();
+  const { activeSchema: connectionActiveSchema } = useDatabase();
+  const activeSchema = schemaProp ?? connectionActiveSchema;
   const [indexName, setIndexName] = useState('');
   const [isUnique, setIsUnique] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
@@ -44,12 +49,12 @@ export const CreateIndexModal = ({
         setIsUnique(false);
         setError('');
 
-        invoke<TableColumn[]>('get_columns', { connectionId, tableName, ...(activeSchema ? { schema: activeSchema } : {}) })
+        invoke<TableColumn[]>('get_columns', { connectionId, tableName, ...(activeSchema ? { schema: activeSchema } : {}), ...(database ? { database } : {}) })
             .then(cols => setAvailableColumns(cols))
             .catch(e => console.error(e))
             .finally(() => setFetchingCols(false));
     }
-  }, [isOpen, connectionId, tableName, activeSchema]);
+  }, [isOpen, connectionId, tableName, activeSchema, database]);
 
   const toggleColumn = (colName: string) => {
       if (selectedColumns.includes(colName)) {
@@ -106,6 +111,7 @@ export const CreateIndexModal = ({
               connectionId,
               query: sql,
               ...(activeSchema ? { schema: activeSchema } : {}),
+              ...(database ? { database } : {}),
             });
           }
           onSuccess();

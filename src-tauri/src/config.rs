@@ -222,8 +222,7 @@ pub struct AppConfig {
     pub proxy: Option<crate::proxy::GlobalProxySettings>,
     /// Per AI-provider proxy overrides (`openai`, `anthropic`, …).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ai_provider_proxies:
-        Option<HashMap<String, crate::proxy::ProxyOverride>>,
+    pub ai_provider_proxies: Option<HashMap<String, crate::proxy::ProxyOverride>>,
 }
 
 /// One entry in the append-only driver-migration history.
@@ -628,12 +627,29 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     }
 }
 
+/// Composes the config-storage key for per-connection schema selection/
+/// preference. A non-empty `database` scopes the key to that database, so a
+/// nested multi-database driver (e.g. PostgreSQL browsing several databases
+/// on one connection) keeps each database's schema selection independent
+/// instead of every database sharing one flat per-connection entry.
+fn schema_storage_key(connection_id: &str, database: Option<&str>) -> String {
+    match database {
+        Some(db) if !db.is_empty() => format!("{connection_id}::{db}"),
+        _ => connection_id.to_string(),
+    }
+}
+
 #[tauri::command]
-pub fn get_schema_preference(app: AppHandle, connection_id: String) -> Option<String> {
+pub fn get_schema_preference(
+    app: AppHandle,
+    connection_id: String,
+    database: Option<String>,
+) -> Option<String> {
     let config = load_config_internal(&app);
+    let key = schema_storage_key(&connection_id, database.as_deref());
     config
         .schema_preferences
-        .and_then(|prefs| prefs.get(&connection_id).cloned())
+        .and_then(|prefs| prefs.get(&key).cloned())
 }
 
 #[tauri::command]
@@ -641,6 +657,7 @@ pub fn set_schema_preference(
     app: AppHandle,
     connection_id: String,
     schema: String,
+    database: Option<String>,
 ) -> Result<(), String> {
     if let Some(config_dir) = get_config_dir(&app) {
         if !config_dir.exists() {
@@ -648,8 +665,9 @@ pub fn set_schema_preference(
         }
         let config_path = config_dir.join("config.json");
         let mut config = load_config_internal(&app);
+        let key = schema_storage_key(&connection_id, database.as_deref());
         let prefs = config.schema_preferences.get_or_insert_with(HashMap::new);
-        prefs.insert(connection_id, schema);
+        prefs.insert(key, schema);
         let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
         fs::write(config_path, content).map_err(|e| e.to_string())?;
         Ok(())
@@ -713,11 +731,16 @@ pub fn set_last_open_connections(
 }
 
 #[tauri::command]
-pub fn get_selected_schemas(app: AppHandle, connection_id: String) -> Vec<String> {
+pub fn get_selected_schemas(
+    app: AppHandle,
+    connection_id: String,
+    database: Option<String>,
+) -> Vec<String> {
     let config = load_config_internal(&app);
+    let key = schema_storage_key(&connection_id, database.as_deref());
     config
         .selected_schemas
-        .and_then(|map| map.get(&connection_id).cloned())
+        .and_then(|map| map.get(&key).cloned())
         .unwrap_or_default()
 }
 
@@ -726,6 +749,7 @@ pub fn set_selected_schemas(
     app: AppHandle,
     connection_id: String,
     schemas: Vec<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     if let Some(config_dir) = get_config_dir(&app) {
         if !config_dir.exists() {
@@ -733,11 +757,12 @@ pub fn set_selected_schemas(
         }
         let config_path = config_dir.join("config.json");
         let mut config = load_config_internal(&app);
+        let key = schema_storage_key(&connection_id, database.as_deref());
         let map = config.selected_schemas.get_or_insert_with(HashMap::new);
         if schemas.is_empty() {
-            map.remove(&connection_id);
+            map.remove(&key);
         } else {
-            map.insert(connection_id, schemas);
+            map.insert(key, schemas);
         }
         let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
         fs::write(config_path, content).map_err(|e| e.to_string())?;
@@ -1090,6 +1115,27 @@ mod tests {
             schemas.get("conn-2").unwrap(),
             &vec!["staging".to_string(), "prod".to_string()]
         );
+    }
+
+    #[test]
+    fn schema_storage_key_plain_connection_without_database() {
+        assert_eq!(schema_storage_key("conn-1", None), "conn-1");
+        assert_eq!(schema_storage_key("conn-1", Some("")), "conn-1");
+    }
+
+    #[test]
+    fn schema_storage_key_scopes_to_database_when_given() {
+        assert_eq!(
+            schema_storage_key("conn-1", Some("analytics")),
+            "conn-1::analytics"
+        );
+    }
+
+    #[test]
+    fn schema_storage_key_keeps_two_databases_on_the_same_connection_independent() {
+        let a = schema_storage_key("conn-1", Some("db_a"));
+        let b = schema_storage_key("conn-1", Some("db_b"));
+        assert_ne!(a, b);
     }
 
     #[test]

@@ -33,6 +33,12 @@ interface SidebarSchemaItemProps {
   connectionId: string;
   driver: string;
   schemaVersion: number;
+  /** Database name for a schema-based multi-db driver (PostgreSQL browsing
+   * several databases on one connection) — distinct from `schemaName`,
+   * forwarded to every child action alongside it so table/view/routine/
+   * trigger operations route to the right connection pool. Undefined for
+   * a plain single-database connection. */
+  database?: string;
   onLoadSchema: (schema: string) => void;
   onRefreshSchema: (schema: string) => void;
   onTableClick: (name: string, schema: string) => void;
@@ -73,6 +79,7 @@ export const SidebarSchemaItem = ({
   connectionId,
   driver,
   schemaVersion,
+  database,
   onLoadSchema,
   onRefreshSchema,
   onTableClick,
@@ -270,6 +277,7 @@ export const SidebarSchemaItem = ({
                         onDropForeignKey={onDropForeignKey}
                         schemaVersion={schemaVersion}
                         schema={schemaName}
+                        database={database}
                       />
                     ))}
                   </div>
@@ -313,6 +321,7 @@ export const SidebarSchemaItem = ({
                         connectionId={connectionId}
                         driver={driver}
                         schema={schemaName}
+                        database={database}
                       />
                     ))}
                   </div>
@@ -339,6 +348,7 @@ export const SidebarSchemaItem = ({
                         connectionId={connectionId}
                         driver={driver}
                         schema={schemaName}
+                        database={database}
                         materialized
                         isRefreshing={refreshingMatView === view.name}
                       />
@@ -405,6 +415,7 @@ export const SidebarSchemaItem = ({
                           onContextMenu={onContextMenu}
                           onDoubleClick={(tr) => onTriggerDoubleClick(tr, schemaName)}
                           schema={schemaName}
+                          database={database}
                         />
                       ))}
                     </div>
@@ -447,6 +458,7 @@ export const SidebarSchemaItem = ({
                             onContextMenu={onContextMenu}
                             onDoubleClick={(r) => onRoutineDoubleClick(r, schemaName)}
                             schema={schemaName}
+                            database={database}
                           />
                         ))}
                       </div>
@@ -469,6 +481,7 @@ export const SidebarSchemaItem = ({
                             onContextMenu={onContextMenu}
                             onDoubleClick={(r) => onRoutineDoubleClick(r, schemaName)}
                             schema={schemaName}
+                            database={database}
                           />
                         ))}
                       </div>

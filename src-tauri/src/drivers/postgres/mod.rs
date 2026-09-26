@@ -17,8 +17,10 @@ use crate::models::{
     TableColumn, TableInfo, TriggerInfo, ViewInfo,
 };
 use crate::pool_manager::get_postgres_pool;
-use binding::{PgValueOptions, bind_pg_value, build_pk_map_predicate};
-use client::{execute, execute_typed, format_pg_error, get_client, query_all, query_one, query_one_typed};
+use binding::{bind_pg_value, build_pk_map_predicate, PgValueOptions};
+use client::{
+    execute, execute_typed, format_pg_error, get_client, query_all, query_one, query_one_typed,
+};
 pub use explain::explain_query;
 use extract::extract_value;
 use helpers::{
@@ -195,10 +197,7 @@ pub async fn get_columns(
 
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: enum_data_type(
-                    r.try_get("data_type").unwrap_or_default(),
-                    enum_values,
-                ),
+                data_type: enum_data_type(r.try_get("data_type").unwrap_or_default(), enum_values),
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
@@ -820,8 +819,7 @@ pub async fn update_record(
     }
 
     let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
-    let (predicate, pk_params) =
-        build_pk_map_predicate(pk_map, &pk_types, bound_params.len() + 1)?;
+    let (predicate, pk_params) = build_pk_map_predicate(pk_map, &pk_types, bound_params.len() + 1)?;
     query.push_str(" WHERE ");
     query.push_str(&predicate);
     bound_params.extend(pk_params);
@@ -841,19 +839,21 @@ pub async fn update_record(
         .cloned()
         .unwrap_or(serde_json::Value::Null);
 
-    execute_typed(&pool, &query, &params_ref).await.map_err(|err| {
-        update_record_error_context(
-            err,
-            schema,
-            table,
-            first_pk_col,
-            &first_pk_val,
-            col_name,
-            &new_val_for_context,
-            column_data_type.as_deref(),
-            &query,
-        )
-    })
+    execute_typed(&pool, &query, &params_ref)
+        .await
+        .map_err(|err| {
+            update_record_error_context(
+                err,
+                schema,
+                table,
+                first_pk_col,
+                &first_pk_val,
+                col_name,
+                &new_val_for_context,
+                column_data_type.as_deref(),
+                &query,
+            )
+        })
 }
 
 pub async fn insert_record(
@@ -1055,12 +1055,10 @@ async fn exec_on_pg_client(
     };
 
     let pg_params: Vec<i32> = vec![];
-    let mut rows_stream = std::pin::pin!(
-        client
-            .query_raw(&final_query, &pg_params)
-            .await
-            .map_err(|e| format_pg_error(&e))?
-    );
+    let mut rows_stream = std::pin::pin!(client
+        .query_raw(&final_query, &pg_params)
+        .await
+        .map_err(|e| format_pg_error(&e))?);
 
     let mut columns: Vec<String> = Vec::new();
     let mut json_rows = Vec::new();
@@ -1350,10 +1348,7 @@ pub async fn get_view_columns(
 
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: enum_data_type(
-                    r.try_get("data_type").unwrap_or_default(),
-                    enum_values,
-                ),
+                data_type: enum_data_type(r.try_get("data_type").unwrap_or_default(), enum_values),
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
@@ -1830,7 +1825,9 @@ impl PostgresDriver {
                     key: "poolMaxSize".to_string(),
                     label: "Pool Max Size".to_string(),
                     setting_type: "number".to_string(),
-                    default: Some(serde_json::json!(crate::pool_manager::DEFAULT_POSTGRES_POOL_MAX_SIZE)),
+                    default: Some(serde_json::json!(
+                        crate::pool_manager::DEFAULT_POSTGRES_POOL_MAX_SIZE
+                    )),
                     description: Some(
                         "Maximum number of PostgreSQL connections kept in the pool.".to_string(),
                     ),
@@ -2148,7 +2145,13 @@ impl DatabaseDriver for PostgresDriver {
         routine_type: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        drop_routine(params, routine_name, routine_type, self.resolve_schema(schema)).await
+        drop_routine(
+            params,
+            routine_name,
+            routine_type,
+            self.resolve_schema(schema),
+        )
+        .await
     }
 
     async fn get_triggers(
@@ -2166,7 +2169,13 @@ impl DatabaseDriver for PostgresDriver {
         table_name: &str,
         schema: Option<&str>,
     ) -> Result<String, String> {
-        get_trigger_definition(params, trigger_name, table_name, self.resolve_schema(schema)).await
+        get_trigger_definition(
+            params,
+            trigger_name,
+            table_name,
+            self.resolve_schema(schema),
+        )
+        .await
     }
 
     async fn create_trigger(
@@ -2185,7 +2194,13 @@ impl DatabaseDriver for PostgresDriver {
         table_name: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        drop_trigger(params, trigger_name, table_name, self.resolve_schema(schema)).await
+        drop_trigger(
+            params,
+            trigger_name,
+            table_name,
+            self.resolve_schema(schema),
+        )
+        .await
     }
 
     async fn execute_query(
@@ -2299,14 +2314,8 @@ impl DatabaseDriver for PostgresDriver {
         pk_map: &std::collections::HashMap<String, serde_json::Value>,
         schema: Option<&str>,
     ) -> Result<String, String> {
-        fetch_blob_column_as_data_url(
-            params,
-            table,
-            col_name,
-            pk_map,
-            self.resolve_schema(schema),
-        )
-        .await
+        fetch_blob_column_as_data_url(params, table, col_name, pk_map, self.resolve_schema(schema))
+            .await
     }
 
     async fn get_create_table_sql(
@@ -2532,6 +2541,15 @@ impl DatabaseDriver for PostgresDriver {
             query.push_str(&format!(" ON UPDATE {}", action));
         }
         Ok(vec![query])
+    }
+
+    async fn get_table_ddl(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_table_ddl(params, table, &self.resolve_schema(schema)).await
     }
 
     async fn drop_index(

@@ -26,9 +26,11 @@ interface CreateTableModalProps {
   onClose: () => void;
   onSuccess: () => void | Promise<void>;
   schema?: string | null;
+  /** Database name for a schema-based multi-db driver (see Tab.database). */
+  database?: string;
 }
 
-export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateTableModalProps) => {
+export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema, database }: CreateTableModalProps) => {
   const { t } = useTranslation();
   const { activeConnectionId, activeDriver, activeSchema } = useDatabase();
   const targetSchema = resolveCreateTableSchema(schema, activeSchema);
@@ -140,6 +142,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
             connectionId: activeConnectionId,
             query: sql,
             ...(targetSchema ? { schema: targetSchema } : {}),
+            ...(database ? { database } : {}),
           });
         }
 

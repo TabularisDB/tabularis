@@ -104,6 +104,23 @@ export interface SchemaData {
   isLoaded: boolean;
 }
 
+/**
+ * Per-database state for a schema-based multi-db driver (e.g. PostgreSQL
+ * browsing several databases on one connection). Mirrors `ConnectionData`'s
+ * own `schemas`/`selectedSchemas`/`activeSchema`/`needsSchemaSelection`/
+ * `schemaDataMap` quintet, scoped to one database instead of the whole
+ * connection, since each database has its own independent set of schemas.
+ */
+export interface NestedDatabaseData {
+  schemas: string[];
+  schemasLoaded: boolean;
+  isLoadingSchemas: boolean;
+  selectedSchemas: string[];
+  activeSchema: string | null;
+  needsSchemaSelection: boolean;
+  schemaDataMap: Record<string, SchemaData>;
+}
+
 export interface ConnectionData {
   driver: string;
   capabilities: DriverCapabilities | null;
@@ -128,6 +145,11 @@ export interface ConnectionData {
   needsSchemaSelection: boolean;
   selectedDatabases: string[];
   databaseDataMap: Record<string, SchemaData>;
+  /** Nested per-database schema state for schema-based multi-db drivers
+   * (see `isSchemaBasedMultiDb` in `src/utils/database.ts`). Keyed by
+   * database name; empty/unused for flat multi-db drivers like MySQL, which
+   * keep using `databaseDataMap` above. */
+  nestedDatabaseDataMap: Record<string, NestedDatabaseData>;
   /** Multi-db drivers with no explicit selection: the database list is
    * fetched from the server on every connect/refresh instead of being
    * persisted. */
@@ -164,6 +186,7 @@ export interface DatabaseContextType {
   needsSchemaSelection: boolean;
   selectedDatabases: string[];
   databaseDataMap: Record<string, SchemaData>;
+  nestedDatabaseDataMap: Record<string, NestedDatabaseData>;
   connections: SavedConnection[];
   connectionGroups: ConnectionGroup[];
   loadConnections: (options?: { ifNeeded?: boolean }) => Promise<void>;
@@ -188,6 +211,21 @@ export interface DatabaseContextType {
   loadDatabaseData: (database: string, connectionId?: string) => Promise<void>;
   refreshDatabaseData: (database: string, connectionId?: string) => Promise<void>;
   setSelectedDatabases: (databases: string[], connectionId?: string) => void;
+  /** Fetches the schema list for one database of a schema-based multi-db
+   * connection and its saved schema selection/preference (scoped to that
+   * database — see `schema_storage_key` on the backend). No-op if already
+   * loaded/loading. */
+  loadNestedSchemas: (database: string, connectionId?: string) => Promise<void>;
+  /** Sets which schemas are selected for one database of a schema-based
+   * multi-db connection, persists the selection, and loads any newly
+   * selected schema's table/view/routine/trigger data. */
+  setSelectedSchemasForDatabase: (
+    database: string,
+    schemas: string[],
+    connectionId?: string,
+  ) => Promise<void>;
+  loadNestedSchemaData: (database: string, schema: string, connectionId?: string) => Promise<void>;
+  refreshNestedSchemaData: (database: string, schema: string, connectionId?: string) => Promise<void>;
   refreshDatabaseSelection: (
     connectionId: string,
     options?: { notifyWhenUnchanged?: boolean },

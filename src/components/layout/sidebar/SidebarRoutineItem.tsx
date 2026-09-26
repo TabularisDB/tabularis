@@ -33,6 +33,7 @@ interface SidebarRoutineItemProps {
   onDoubleClick: (routine: RoutineInfo) => void;
   connectionId: string;
   schema?: string;
+  database?: string;
 }
 
 export const SidebarRoutineItem = ({
@@ -41,6 +42,7 @@ export const SidebarRoutineItem = ({
   onDoubleClick,
   connectionId,
   schema,
+  database,
 }: SidebarRoutineItemProps) => {
   const { t } = useTranslation();
 
@@ -58,6 +60,7 @@ export const SidebarRoutineItem = ({
           connectionId,
           routineName: routine.name,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         },
       );
       setParameters(params);
@@ -66,7 +69,7 @@ export const SidebarRoutineItem = ({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, routine.name, schema]);
+  }, [connectionId, routine.name, schema, database]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -84,7 +87,7 @@ export const SidebarRoutineItem = ({
     e.stopPropagation();
     // Forward the item's schema so menu actions (run / edit / drop) target
     // the right namespace even outside the connection's active schema.
-    onContextMenu(e, "routine", routine.name, routine.name, { ...routine, schema });
+    onContextMenu(e, "routine", routine.name, routine.name, { ...routine, schema, database });
   };
 
   return (

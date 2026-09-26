@@ -46,6 +46,7 @@ interface SidebarTableItemProps {
   onDropForeignKey: (tableName: string, fkName: string) => void;
   schemaVersion: number;
   schema?: string;
+  database?: string;
   canManage?: boolean;
 }
 
@@ -67,6 +68,7 @@ const SidebarTableItemImpl = ({
   onDropForeignKey,
   schemaVersion,
   schema,
+  database,
 }: SidebarTableItemProps) => {
   const { t } = useTranslation();
   // Prevent unused variable warning
@@ -134,7 +136,7 @@ const SidebarTableItemImpl = ({
   const handleContextMenu = (e: React.MouseEvent, type: string, name: string) => {
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(e, type, name, name, { tableName: table.name, schema });
+    onContextMenu(e, type, name, name, { tableName: table.name, schema, database });
   };
 
   const groupedIndexes = React.useMemo(() => groupIndexes(indexes), [indexes]);
@@ -245,6 +247,7 @@ const SidebarTableItemImpl = ({
                         onRefresh={refreshMetadata}
                         onEdit={(c) => onEditColumn(table.name, c)}
                         schema={schema}
+                        database={database}
                       />
                     ))}
                   </div>

@@ -132,7 +132,11 @@ pub(super) fn routine_edit_script(
 }
 
 pub(super) fn drop_routine_sql(routine_name: &str, routine_type: &str) -> String {
-    format!("DROP {} {}", drop_keyword(routine_type), quoted(routine_name))
+    format!(
+        "DROP {} {}",
+        drop_keyword(routine_type),
+        quoted(routine_name)
+    )
 }
 
 /// `SHOW CREATE PROCEDURE|FUNCTION` qualified with the target schema: the

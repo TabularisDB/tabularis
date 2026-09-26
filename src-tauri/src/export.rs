@@ -83,7 +83,7 @@ pub async fn export_query_to_file<R: Runtime>(
     // Scope the export to the selected database on connections that expose multiple
     // databases (e.g. MySQL/MariaDB), so the query runs against the database the
     // user is viewing rather than the connection's primary database.
-    if let Some(db) = database {
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
         params.database = crate::models::DatabaseSelection::Single(db);
     }
     let driver = saved_conn.params.driver.clone();
