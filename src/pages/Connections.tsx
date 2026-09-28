@@ -40,6 +40,7 @@ import { ContextMenu } from "../components/ui/ContextMenu";
 import type { SavedConnection } from "../contexts/DatabaseContext";
 import { flattenGroupTree } from "../utils/groupTree";
 import { toErrorMessage } from "../utils/errors";
+import { isConnectionCancelled } from "../utils/connectionPassword";
 import { migrationDirectionForDriver } from "../utils/connections";
 import { fuzzyFilter } from "../utils/fuzzy";
 import { useOpenConnectionInNewWindow } from "../hooks/useOpenConnectionInNewWindow";
@@ -625,6 +626,7 @@ export const Connections = () => {
       await connect(conn.id);
       navigate("/editor");
     } catch (e) {
+      if (isConnectionCancelled(e)) return;
       setError(
         `${t("connections.failConnect", { name: conn.name })}\n\nError: ${toErrorMessage(e)}`,
       );
@@ -656,6 +658,7 @@ export const Connections = () => {
       // Validates connectivity before the window is spawned; only opens on success.
       await openConnectionInNewWindow(conn.id, conn.name);
     } catch (e) {
+      if (isConnectionCancelled(e)) return;
       setError(
         `${t("connections.failConnect", { name: conn.name })}\n\nError: ${toErrorMessage(e)}`,
       );

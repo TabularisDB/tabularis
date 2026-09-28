@@ -1128,6 +1128,15 @@
     "placeholder": "PIN 또는 암호",
     "waiting": "보안 키를 기다리는 중 — 터치하여 확인하세요."
   },
+  "connectionPassword": {
+    "title": "비밀번호 필요",
+    "subtitle": "\"{{name}}\"의 비밀번호를 입력하세요",
+    "subtitleWithUser": "\"{{name}}\"의 {{user}} 비밀번호를 입력하세요",
+    "remember": "비밀번호 저장",
+    "rememberHint": "연결에 성공하면 다음을 위해 비밀번호가 연결에 저장됩니다.",
+    "sessionOnlyHint": "비밀번호는 Tabularis를 닫을 때까지만 유지되며 디스크에 기록되지 않습니다.",
+    "connect": "연결"
+  },
   "dataGrid": {
     "noRowIdentity": "행을 편집할 수 없습니다: \"{{table}}\"에 기본 키가 없으므로 편집하려면 결과에 테이블의 모든 열이 포함되어야 합니다. 모든 열을 선택하거나(예: SELECT *) 기본 키를 추가하세요.",
     "resizeRelatedPanel": "드래그하여 패널 크기 조정",

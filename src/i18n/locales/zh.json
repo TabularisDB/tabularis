@@ -1121,6 +1121,15 @@
     "placeholder": "PIN 或密码短语",
     "waiting": "正在等待您的安全密钥 — 触摸以确认。"
   },
+  "connectionPassword": {
+    "title": "需要密码",
+    "subtitle": "请输入“{{name}}”的密码",
+    "subtitleWithUser": "请输入“{{name}}”中 {{user}} 的密码",
+    "remember": "保存密码",
+    "rememberHint": "连接成功后，密码会保存在连接中，供下次使用。",
+    "sessionOnlyHint": "密码仅保留到关闭 Tabularis 为止，绝不会写入磁盘。",
+    "connect": "连接"
+  },
   "dataGrid": {
     "noRowIdentity": "无法编辑行:\"{{table}}\" 没有主键,因此编辑要求结果包含表的所有列。请选择所有列(例如 SELECT *)或添加主键。",
     "resizeRelatedPanel": "拖动以调整面板大小",

@@ -1183,6 +1183,15 @@
     "placeholder": "PIN o passphrase",
     "waiting": "Naghihintay sa iyong security key — hawakan ito para kumpirmahin."
   },
+  "connectionPassword": {
+    "title": "Kailangan ang password",
+    "subtitle": "Ilagay ang password para sa \"{{name}}\"",
+    "subtitleWithUser": "Ilagay ang password ni {{user}} para sa \"{{name}}\"",
+    "remember": "I-save ang password",
+    "rememberHint": "Kapag nagtagumpay ang koneksyon, ise-save ang password sa koneksyon para sa susunod.",
+    "sessionOnlyHint": "Itatago lang ang password hanggang isara ang Tabularis at hindi ito isinusulat sa disk.",
+    "connect": "Kumonekta"
+  },
   "dataGrid": {
     "noRowIdentity": "Hindi ma-edit ang mga row: walang primary key ang \"{{table}}\", kaya kailangang kasama sa resulta ang lahat ng column ng table. Piliin ang lahat ng column (hal. SELECT *) o magdagdag ng primary key.",
     "resizeRelatedPanel": "I-drag para baguhin ang laki ng panel",

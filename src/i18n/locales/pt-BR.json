@@ -1172,6 +1172,15 @@
     "placeholder": "PIN ou frase-senha",
     "waiting": "Aguardando sua chave de segurança — toque nela para confirmar."
   },
+  "connectionPassword": {
+    "title": "Senha necessária",
+    "subtitle": "Digite a senha de \"{{name}}\"",
+    "subtitleWithUser": "Digite a senha de {{user}} para \"{{name}}\"",
+    "remember": "Salvar senha",
+    "rememberHint": "Se a conexão for bem-sucedida, a senha é salva na conexão para a próxima vez.",
+    "sessionOnlyHint": "A senha é mantida apenas até o Tabularis ser fechado e nunca é gravada no disco.",
+    "connect": "Conectar"
+  },
   "dataGrid": {
     "noRowIdentity": "Não é possível editar as linhas: \"{{table}}\" não tem chave primária, então a edição exige que o resultado inclua todas as colunas da tabela. Selecione todas as colunas (ex.: SELECT *) ou adicione uma chave primária.",
     "resizeRelatedPanel": "Arraste para redimensionar o painel",
