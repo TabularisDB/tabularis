@@ -347,20 +347,29 @@ impl RpcDriver {
     }
 
     /// Coerce `database` to a single, non-empty primary database name before
-    /// a base connection-establishing RPC (`test_connection`, `ping`).
+    /// it's sent to the plugin subprocess.
     ///
     /// Multi-database opt-in connections persist `database` as
     /// `DatabaseSelection::Multiple(...)`, or as an empty `Single("")` for
     /// "all databases" mode — both serialize to a JSON array/empty string.
     /// Plugins only understand a single `database: Option<String>` field for
-    /// the pool they use to answer these RPCs: an un-coerced array silently
+    /// the pool they use to answer RPCs: an un-coerced array silently
     /// deserializes to `None`, and an empty string is rejected outright by
     /// e.g. deadpool-postgres (`ConfigError::DbnameMissing`/`DbnameEmpty`),
     /// so either shape fails pool creation before ever reaching the server.
     ///
-    /// Per-table/schema commands already resolve a concrete database
-    /// override before reaching the driver (see `commands.rs`); this helper
-    /// only covers the RPCs that run before any such override exists.
+    /// Applied at every `"params"` JSON-RPC payload site in this impl, not
+    /// just `ping`/`test_connection` — a per-table/schema command that
+    /// *should* resolve a concrete database override before reaching the
+    /// driver (see `commands.rs`) can still omit it (a frontend refresh
+    /// helper calling the wrong/generic function, a command with no
+    /// per-call override at all, a future RPC nobody remembers to wire up).
+    /// Coercing here means such a gap degrades to targeting the primary/
+    /// first-selected database instead of crashing the whole connection —
+    /// it is a safety net, not a substitute for passing the right override.
+    /// For an already-resolved `Single(db)` (the normal case for both
+    /// single-database connections and per-command multi-db overrides),
+    /// `primary()` returns `db` unchanged, so this is a no-op.
     ///
     /// When there's no selection at all (empty "all databases" / an empty
     /// `Multiple`), fall back to the engine's maintenance database — the
@@ -404,7 +413,7 @@ impl DatabaseDriver for RpcDriver {
         let cell = self.metadata_cache.entry(params).await?;
         let metadata = cell.get_or_try_init(|| async {
             let overrides = match self.process.call_detailed(
-                "get_connection_metadata", json!({ "params": params }), PLUGIN_CALL_TIMEOUT,
+                "get_connection_metadata", json!({ "params": self.with_primary_database(params) }), PLUGIN_CALL_TIMEOUT,
             ).await {
                 Ok(value) => serde_json::from_value::<ConnectionMetadataOverrides>(value)
                     .map_err(|e| format!("Invalid connection metadata: {}", e))?,
@@ -491,7 +500,10 @@ impl DatabaseDriver for RpcDriver {
     async fn get_databases(&self, params: &ConnectionParams) -> Result<Vec<String>, String> {
         let res = self
             .process
-            .call("get_databases", json!({ "params": params }))
+            .call(
+                "get_databases",
+                json!({ "params": self.with_primary_database(params) }),
+            )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -499,7 +511,10 @@ impl DatabaseDriver for RpcDriver {
     async fn get_schemas(&self, params: &ConnectionParams) -> Result<Vec<String>, String> {
         let res = self
             .process
-            .call("get_schemas", json!({ "params": params }))
+            .call(
+                "get_schemas",
+                json!({ "params": self.with_primary_database(params) }),
+            )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -511,7 +526,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<TableInfo>, String> {
         let res = self
             .process
-            .call("get_tables", json!({ "params": params, "schema": schema }))
+            .call(
+                "get_tables",
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
+            )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -526,7 +544,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_columns",
-                json!({ "params": params, "table": table, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "table": table, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -542,7 +560,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_foreign_keys",
-                json!({ "params": params, "table": table, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "table": table, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -558,7 +576,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_indexes",
-                json!({ "params": params, "table": table, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "table": table, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -571,7 +589,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<ViewInfo>, String> {
         let res = self
             .process
-            .call("get_views", json!({ "params": params, "schema": schema }))
+            .call(
+                "get_views",
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
+            )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -586,7 +607,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_view_definition",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -602,7 +623,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_view_columns",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -615,7 +636,7 @@ impl DatabaseDriver for RpcDriver {
         definition: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        let res = self.process.call("create_view", json!({ "params": params, "view_name": view_name, "definition": definition, "schema": schema })).await?;
+        let res = self.process.call("create_view", json!({ "params": self.with_primary_database(params), "view_name": view_name, "definition": definition, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -626,7 +647,7 @@ impl DatabaseDriver for RpcDriver {
         definition: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        let res = self.process.call("alter_view", json!({ "params": params, "view_name": view_name, "definition": definition, "schema": schema })).await?;
+        let res = self.process.call("alter_view", json!({ "params": self.with_primary_database(params), "view_name": view_name, "definition": definition, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -640,7 +661,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "drop_view",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -657,7 +678,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_materialized_views",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
             .await;
         match res {
@@ -677,7 +698,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_materialized_view_columns",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await;
         match res {
@@ -697,7 +718,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_materialized_view_definition",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await;
         match res {
@@ -719,7 +740,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "refresh_materialized_view",
-                json!({ "params": params, "view_name": view_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
             )
             .await;
         match res {
@@ -740,7 +761,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_routines",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -756,7 +777,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_routine_parameters",
-                json!({ "params": params, "routine_name": routine_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -769,7 +790,7 @@ impl DatabaseDriver for RpcDriver {
         routine_type: &str,
         schema: Option<&str>,
     ) -> Result<String, String> {
-        let res = self.process.call("get_routine_definition", json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema })).await?;
+        let res = self.process.call("get_routine_definition", json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -792,7 +813,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "build_routine_call_sql",
-                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "args": args, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "args": args, "schema": schema }),
             )
             .await;
         match res {
@@ -848,7 +869,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_routine_edit_script",
-                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
             )
             .await;
         match res {
@@ -872,7 +893,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "drop_routine",
-                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
             )
             .await;
         match res {
@@ -900,7 +921,7 @@ impl DatabaseDriver for RpcDriver {
         page: u32,
         schema: Option<&str>,
     ) -> Result<QueryResult, String> {
-        let res = self.process.call("execute_query", json!({ "params": params, "query": query, "limit": limit, "page": page, "schema": schema })).await?;
+        let res = self.process.call("execute_query", json!({ "params": self.with_primary_database(params), "query": query, "limit": limit, "page": page, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -918,7 +939,7 @@ impl DatabaseDriver for RpcDriver {
             .call(
                 "execute_query_batch",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "queries": queries,
                     "limit": limit,
                     "page": page,
@@ -966,7 +987,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "explain_query",
-                json!({ "params": params, "query": query, "analyze": analyze, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "query": query, "analyze": analyze, "schema": schema }),
             )
             .await?;
         // Permanently support both historical parsed plans and raw payloads
@@ -1014,7 +1035,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
         max_blob_size: u64,
     ) -> Result<u64, String> {
-        let res = self.process.call("insert_record", json!({ "params": params, "table": table, "data": data, "schema": schema, "max_blob_size": max_blob_size })).await?;
+        let res = self.process.call("insert_record", json!({ "params": self.with_primary_database(params), "table": table, "data": data, "schema": schema, "max_blob_size": max_blob_size })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -1028,7 +1049,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
         max_blob_size: u64,
     ) -> Result<u64, String> {
-        let res = self.process.call("update_record", json!({ "params": params, "table": table, "pk_map": pk_map, "col_name": col_name, "new_val": new_val, "schema": schema, "max_blob_size": max_blob_size })).await?;
+        let res = self.process.call("update_record", json!({ "params": self.with_primary_database(params), "table": table, "pk_map": pk_map, "col_name": col_name, "new_val": new_val, "schema": schema, "max_blob_size": max_blob_size })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -1043,7 +1064,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "delete_record",
-                json!({ "params": params, "table": table, "pk_map": pk_map, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "table": table, "pk_map": pk_map, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1065,7 +1086,7 @@ impl DatabaseDriver for RpcDriver {
             .call(
                 "save_blob_to_file",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "table": table,
                     "col_name": col_name,
                     "pk_map": pk_map,
@@ -1096,7 +1117,7 @@ impl DatabaseDriver for RpcDriver {
             .call(
                 "fetch_blob_as_data_url",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "table": table,
                     "col_name": col_name,
                     "pk_map": pk_map,
@@ -1179,7 +1200,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
         let params = self.connection_params.as_ref().unwrap_or(params);
-        let res = self.process.call("get_create_foreign_key_sql", json!({ "params": params, "table": table, "fk_name": fk_name, "column": column, "ref_table": ref_table, "ref_column": ref_column, "on_delete": on_delete, "on_update": on_update, "schema": schema })).await?;
+        let res = self.process.call("get_create_foreign_key_sql", json!({ "params": self.with_primary_database(params), "table": table, "fk_name": fk_name, "column": column, "ref_table": ref_table, "ref_column": ref_column, "on_delete": on_delete, "on_update": on_update, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -1200,7 +1221,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_table_ddl",
-                json!({ "params": params, "table": table, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "table": table, "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1213,7 +1234,7 @@ impl DatabaseDriver for RpcDriver {
         index_name: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        self.process.call("drop_index", json!({ "params": params, "table": table, "index_name": index_name, "schema": schema })).await?;
+        self.process.call("drop_index", json!({ "params": self.with_primary_database(params), "table": table, "index_name": index_name, "schema": schema })).await?;
         Ok(())
     }
 
@@ -1227,7 +1248,7 @@ impl DatabaseDriver for RpcDriver {
         self.process
             .call(
                 "drop_foreign_key",
-                json!({ "params": params, "table": table, "fk_name": fk_name, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "table": table, "fk_name": fk_name, "schema": schema }),
             )
             .await?;
         Ok(())
@@ -1242,7 +1263,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_triggers",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1260,7 +1281,10 @@ impl DatabaseDriver for RpcDriver {
     async fn get_db_users(&self, params: &ConnectionParams) -> Result<Vec<DbUserInfo>, String> {
         let res = self
             .process
-            .call("get_db_users", json!({ "params": params }))
+            .call(
+                "get_db_users",
+                json!({ "params": self.with_primary_database(params) }),
+            )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
@@ -1275,7 +1299,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_db_user_grants",
-                json!({ "params": params, "user": user, "host": host }),
+                json!({ "params": self.with_primary_database(params), "user": user, "host": host }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1291,7 +1315,7 @@ impl DatabaseDriver for RpcDriver {
         self.process
             .call(
                 "create_db_user",
-                json!({ "params": params, "user": user, "host": host, "password": password }),
+                json!({ "params": self.with_primary_database(params), "user": user, "host": host, "password": password }),
             )
             .await?;
         Ok(())
@@ -1306,7 +1330,7 @@ impl DatabaseDriver for RpcDriver {
         self.process
             .call(
                 "drop_db_user",
-                json!({ "params": params, "user": user, "host": host }),
+                json!({ "params": self.with_primary_database(params), "user": user, "host": host }),
             )
             .await?;
         Ok(())
@@ -1322,7 +1346,7 @@ impl DatabaseDriver for RpcDriver {
         self.process
             .call(
                 "set_db_user_password",
-                json!({ "params": params, "user": user, "host": host, "password": password }),
+                json!({ "params": self.with_primary_database(params), "user": user, "host": host, "password": password }),
             )
             .await?;
         Ok(())
@@ -1338,7 +1362,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_db_user_privileges",
-                json!({ "params": params, "user": user, "host": host }),
+                json!({ "params": self.with_primary_database(params), "user": user, "host": host }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1358,7 +1382,7 @@ impl DatabaseDriver for RpcDriver {
             .call(
                 "apply_db_user_privileges",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "user": user,
                     "host": host,
                     "database": database,
@@ -1383,7 +1407,7 @@ impl DatabaseDriver for RpcDriver {
             .call(
                 "get_trigger_definition",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "trigger_name": trigger_name,
                     "table_name": table_name,
                     "schema": schema
@@ -1402,7 +1426,7 @@ impl DatabaseDriver for RpcDriver {
         self.process
             .call(
                 "create_trigger",
-                json!({ "params": params, "trigger_sql": trigger_sql, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "trigger_sql": trigger_sql, "schema": schema }),
             )
             .await?;
         Ok(())
@@ -1419,7 +1443,7 @@ impl DatabaseDriver for RpcDriver {
             .call(
                 "drop_trigger",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "trigger_name": trigger_name,
                     "table_name": table_name,
                     "schema": schema
@@ -1438,7 +1462,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_schema_snapshot",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1455,7 +1479,7 @@ impl DatabaseDriver for RpcDriver {
             .call(
                 "get_ai_schema_context",
                 json!({
-                    "params": params,
+                    "params": self.with_primary_database(params),
                     "schema": schema,
                     "max_tables": max_tables,
                 }),
@@ -1479,7 +1503,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_all_columns_batch",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -1494,7 +1518,7 @@ impl DatabaseDriver for RpcDriver {
             .process
             .call(
                 "get_all_foreign_keys_batch",
-                json!({ "params": params, "schema": schema }),
+                json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -2576,6 +2600,57 @@ mod tests {
             .test_connection(&params)
             .await
             .expect("test_connection must fall back to the postgres maintenance db");
+    }
+
+    /// Regression test for #822's second recurrence of the same bug: dropping
+    /// a table in the nested multi-db tree triggered a schema refresh that
+    /// omitted the per-call `database` override, sending the connection's raw
+    /// `Multiple(...)` straight to the plugin and crashing the whole
+    /// connection's sidebar with "Pool creation failed". `get_schemas` (and
+    /// every other RPC in this impl — see `with_primary_database`'s doc
+    /// comment) must coerce it the same way `ping`/`test_connection` already
+    /// did, so a gap like that degrades to the primary database instead of
+    /// crashing.
+    #[tokio::test]
+    async fn rpc_driver_get_schemas_coerces_multi_db_opt_in_when_no_override_is_applied() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "get_schemas");
+            assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+            json!(["public"])
+        });
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        driver
+            .get_schemas(&params)
+            .await
+            .expect("get_schemas must succeed once database is coerced to a string");
+    }
+
+    /// Same coverage as above but for the "all databases" default mode
+    /// (`Single("")`), and for `get_tables` — the other half of the
+    /// drop-table repro's actual call chain (`refreshTables` calls
+    /// `get_tables`, not `get_schemas`, without a database override).
+    #[tokio::test]
+    async fn rpc_driver_get_tables_falls_back_to_postgres_for_all_databases_mode() {
+        let mut driver = test_driver(|request| {
+            assert_eq!(request.method, "get_tables");
+            assert_eq!(request.params["params"]["database"], "postgres");
+            json!([])
+        });
+        driver.manifest.engine = Some("postgresql".to_string());
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+
+        driver
+            .get_tables(&params, None)
+            .await
+            .expect("get_tables must fall back to the postgres maintenance db");
     }
 }
 
