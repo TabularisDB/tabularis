@@ -183,6 +183,46 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }));
   }, []);
 
+  /**
+   * Applies a patch to one database's `NestedDatabaseData` within a
+   * connection's `nestedDatabaseDataMap`, reading the current value from the
+   * live `setConnectionDataMap` snapshot rather than a closure-captured
+   * `connectionDataMap`. Several nested-database updates for the same
+   * database can be queued back-to-back within one gesture (e.g. confirming
+   * a schema selection immediately kicks off loading it) — using a plain
+   * `updateConnectionData` call for each would race: every call rebuilds the
+   * whole `nestedDatabaseDataMap` from its own stale closure, so a later call
+   * can silently undo an earlier one's change (e.g. reverting
+   * `needsSchemaSelection` back to `true` right after it was cleared).
+   * Accepting a patch or an updater function keeps every write anchored to
+   * the latest pending state instead.
+   */
+  const updateNestedDatabaseData = useCallback((
+    connectionId: string,
+    database: string,
+    patch: Partial<NestedDatabaseData> | ((current: NestedDatabaseData) => Partial<NestedDatabaseData>),
+  ) => {
+    setConnectionDataMap(prev => {
+      const connData = prev[connectionId];
+      if (!connData) return prev;
+      const currentNested = connData.nestedDatabaseDataMap[database] ?? EMPTY_NESTED_DATABASE_DATA;
+      const resolvedPatch = typeof patch === 'function' ? patch(currentNested) : patch;
+      return {
+        ...prev,
+        [connectionId]: {
+          ...connData,
+          nestedDatabaseDataMap: {
+            ...connData.nestedDatabaseDataMap,
+            [database]: {
+              ...currentNested,
+              ...resolvedPatch,
+            },
+          },
+        },
+      };
+    });
+  }, []);
+
   const handleRoutineMetadataError = useCallback((error: unknown, schema?: string) => {
     const details = toErrorMessage(error);
     const message = schema
@@ -643,18 +683,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const existingSchemaData = currentNested.schemaDataMap[schema];
     if (existingSchemaData?.isLoaded || existingSchemaData?.isLoading) return;
 
-    updateConnectionData(connId, {
-      nestedDatabaseDataMap: {
-        ...currentData.nestedDatabaseDataMap,
-        [database]: {
-          ...currentNested,
-          schemaDataMap: {
-            ...currentNested.schemaDataMap,
-            [schema]: { tables: [], views: [], routines: [], triggers: [], isLoading: true, isLoaded: false },
-          },
-        },
+    updateNestedDatabaseData(connId, database, (nested) => ({
+      schemaDataMap: {
+        ...nested.schemaDataMap,
+        [schema]: { tables: [], views: [], routines: [], triggers: [], isLoading: true, isLoaded: false },
       },
-    });
+    }));
 
     try {
       const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
@@ -667,51 +701,31 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         loadOptionalMetadata(currentData.metadata?.capabilities.triggers, () => invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema, database }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
       ]);
 
-      const freshData = connectionDataMap[connId];
-      if (freshData) {
-        const freshNested = freshData.nestedDatabaseDataMap[database] ?? currentNested;
-        updateConnectionData(connId, {
-          nestedDatabaseDataMap: {
-            ...freshData.nestedDatabaseDataMap,
-            [database]: {
-              ...freshNested,
-              schemaDataMap: {
-                ...freshNested.schemaDataMap,
-                [schema]: {
-                  tables: tablesResult,
-                  views: viewsResult,
-                  materializedViews: materializedViewsResult,
-                  routines: routineMetadata.routines,
-                  triggers: triggersResult,
-                  routineError: routineMetadata.error,
-                  isLoading: false,
-                  isLoaded: true,
-                },
-              },
-            },
+      updateNestedDatabaseData(connId, database, (nested) => ({
+        schemaDataMap: {
+          ...nested.schemaDataMap,
+          [schema]: {
+            tables: tablesResult,
+            views: viewsResult,
+            materializedViews: materializedViewsResult,
+            routines: routineMetadata.routines,
+            triggers: triggersResult,
+            routineError: routineMetadata.error,
+            isLoading: false,
+            isLoaded: true,
           },
-        });
-      }
+        },
+      }));
     } catch (e) {
       console.error(`Failed to load schema data for ${database}.${schema}:`, e);
-      const freshData = connectionDataMap[connId];
-      if (freshData) {
-        const freshNested = freshData.nestedDatabaseDataMap[database] ?? currentNested;
-        updateConnectionData(connId, {
-          nestedDatabaseDataMap: {
-            ...freshData.nestedDatabaseDataMap,
-            [database]: {
-              ...freshNested,
-              schemaDataMap: {
-                ...freshNested.schemaDataMap,
-                [schema]: { tables: [], views: [], routines: [], triggers: [], isLoading: false, isLoaded: true },
-              },
-            },
-          },
-        });
-      }
+      updateNestedDatabaseData(connId, database, (nested) => ({
+        schemaDataMap: {
+          ...nested.schemaDataMap,
+          [schema]: { tables: [], views: [], routines: [], triggers: [], isLoading: false, isLoaded: true },
+        },
+      }));
     }
-  }, [activeConnectionId, connectionDataMap, updateConnectionData, handleRoutineMetadataError]);
+  }, [activeConnectionId, connectionDataMap, updateNestedDatabaseData, handleRoutineMetadataError]);
 
   const refreshNestedSchemaData = useCallback(async (database: string, schema: string, targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
@@ -720,24 +734,15 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const currentData = connectionDataMap[connId];
     if (!currentData) return;
 
-    const currentNested = currentData.nestedDatabaseDataMap[database] ?? EMPTY_NESTED_DATABASE_DATA;
-    const existingSchemaData = currentNested.schemaDataMap[schema];
-
-    updateConnectionData(connId, {
-      nestedDatabaseDataMap: {
-        ...currentData.nestedDatabaseDataMap,
-        [database]: {
-          ...currentNested,
-          schemaDataMap: {
-            ...currentNested.schemaDataMap,
-            [schema]: {
-              ...(existingSchemaData || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
-              isLoading: true,
-            },
-          },
+    updateNestedDatabaseData(connId, database, (nested) => ({
+      schemaDataMap: {
+        ...nested.schemaDataMap,
+        [schema]: {
+          ...(nested.schemaDataMap[schema] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
+          isLoading: true,
         },
       },
-    });
+    }));
 
     try {
       const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
@@ -750,54 +755,34 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         loadOptionalMetadata(currentData.metadata?.capabilities.triggers, () => invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema, database }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
       ]);
 
-      const freshData = connectionDataMap[connId];
-      if (freshData) {
-        const freshNested = freshData.nestedDatabaseDataMap[database] ?? currentNested;
-        updateConnectionData(connId, {
-          nestedDatabaseDataMap: {
-            ...freshData.nestedDatabaseDataMap,
-            [database]: {
-              ...freshNested,
-              schemaDataMap: {
-                ...freshNested.schemaDataMap,
-                [schema]: {
-                  tables: tablesResult,
-                  views: viewsResult,
-                  materializedViews: materializedViewsResult,
-                  routines: routineMetadata.routines,
-                  triggers: triggersResult,
-                  routineError: routineMetadata.error,
-                  isLoading: false,
-                  isLoaded: true,
-                },
-              },
-            },
+      updateNestedDatabaseData(connId, database, (nested) => ({
+        schemaDataMap: {
+          ...nested.schemaDataMap,
+          [schema]: {
+            tables: tablesResult,
+            views: viewsResult,
+            materializedViews: materializedViewsResult,
+            routines: routineMetadata.routines,
+            triggers: triggersResult,
+            routineError: routineMetadata.error,
+            isLoading: false,
+            isLoaded: true,
           },
-        });
-      }
+        },
+      }));
     } catch (e) {
       console.error(`Failed to refresh schema data for ${database}.${schema}:`, e);
-      const freshData = connectionDataMap[connId];
-      if (freshData) {
-        const freshNested = freshData.nestedDatabaseDataMap[database] ?? currentNested;
-        updateConnectionData(connId, {
-          nestedDatabaseDataMap: {
-            ...freshData.nestedDatabaseDataMap,
-            [database]: {
-              ...freshNested,
-              schemaDataMap: {
-                ...freshNested.schemaDataMap,
-                [schema]: {
-                  ...(freshNested.schemaDataMap[schema] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
-                  isLoading: false,
-                },
-              },
-            },
+      updateNestedDatabaseData(connId, database, (nested) => ({
+        schemaDataMap: {
+          ...nested.schemaDataMap,
+          [schema]: {
+            ...(nested.schemaDataMap[schema] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
+            isLoading: false,
           },
-        });
-      }
+        },
+      }));
     }
-  }, [activeConnectionId, connectionDataMap, updateConnectionData, handleRoutineMetadataError]);
+  }, [activeConnectionId, connectionDataMap, updateNestedDatabaseData, handleRoutineMetadataError]);
 
   const setSelectedSchemasForDatabase = useCallback(async (database: string, newSchemas: string[], targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
@@ -808,15 +793,13 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
     const currentNested = currentData.nestedDatabaseDataMap[database] ?? EMPTY_NESTED_DATABASE_DATA;
 
-    updateConnectionData(connId, {
-      nestedDatabaseDataMap: {
-        ...currentData.nestedDatabaseDataMap,
-        [database]: {
-          ...currentNested,
-          selectedSchemas: newSchemas,
-          needsSchemaSelection: false,
-        },
-      },
+    const activeSchemaNeedsChange = !currentNested.activeSchema || !newSchemas.includes(currentNested.activeSchema);
+    const nextSchema = activeSchemaNeedsChange ? (newSchemas[0] || null) : currentNested.activeSchema;
+
+    updateNestedDatabaseData(connId, database, {
+      selectedSchemas: newSchemas,
+      needsSchemaSelection: false,
+      activeSchema: nextSchema,
     });
 
     try {
@@ -836,20 +819,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
-    if (!currentNested.activeSchema || !newSchemas.includes(currentNested.activeSchema)) {
-      const nextSchema = newSchemas[0] || null;
-      const latestNested = connectionDataMap[connId]?.nestedDatabaseDataMap[database] ?? currentNested;
-      updateConnectionData(connId, {
-        nestedDatabaseDataMap: {
-          ...(connectionDataMap[connId]?.nestedDatabaseDataMap ?? currentData.nestedDatabaseDataMap),
-          [database]: { ...latestNested, activeSchema: nextSchema },
-        },
-      });
-      if (nextSchema) {
-        invoke('set_schema_preference', { connectionId: connId, schema: nextSchema, database }).catch(() => {});
-      }
+    if (activeSchemaNeedsChange && nextSchema) {
+      invoke('set_schema_preference', { connectionId: connId, schema: nextSchema, database }).catch(() => {});
     }
-  }, [activeConnectionId, connectionDataMap, updateConnectionData, loadNestedSchemaData]);
+  }, [activeConnectionId, connectionDataMap, updateNestedDatabaseData, loadNestedSchemaData]);
 
   /**
    * Fetches the schema list for one database of a schema-based multi-db
@@ -867,12 +840,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const currentNested = currentData.nestedDatabaseDataMap[database] ?? EMPTY_NESTED_DATABASE_DATA;
     if (currentNested.schemasLoaded || currentNested.isLoadingSchemas) return;
 
-    updateConnectionData(connId, {
-      nestedDatabaseDataMap: {
-        ...currentData.nestedDatabaseDataMap,
-        [database]: { ...currentNested, isLoadingSchemas: true },
-      },
-    });
+    updateNestedDatabaseData(connId, database, { isLoadingSchemas: true });
 
     try {
       const schemasResult = await invoke<string[]>('get_schemas', { connectionId: connId, database });
@@ -886,22 +854,13 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
       const validSelection = savedSelection.filter((s) => schemasResult.includes(s));
 
-      const freshData = connectionDataMap[connId];
-      const freshNested = freshData?.nestedDatabaseDataMap[database] ?? currentNested;
-
       if (validSelection.length === 0) {
-        updateConnectionData(connId, {
-          nestedDatabaseDataMap: {
-            ...(freshData?.nestedDatabaseDataMap ?? currentData.nestedDatabaseDataMap),
-            [database]: {
-              ...freshNested,
-              schemas: schemasResult,
-              schemasLoaded: true,
-              isLoadingSchemas: false,
-              selectedSchemas: [],
-              needsSchemaSelection: true,
-            },
-          },
+        updateNestedDatabaseData(connId, database, {
+          schemas: schemasResult,
+          schemasLoaded: true,
+          isLoadingSchemas: false,
+          selectedSchemas: [],
+          needsSchemaSelection: true,
         });
         return;
       }
@@ -916,37 +875,24 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         // Ignore - no saved preference exists yet
       }
 
-      updateConnectionData(connId, {
-        nestedDatabaseDataMap: {
-          ...(freshData?.nestedDatabaseDataMap ?? currentData.nestedDatabaseDataMap),
-          [database]: {
-            ...freshNested,
-            schemas: schemasResult,
-            schemasLoaded: true,
-            isLoadingSchemas: false,
-            selectedSchemas: validSelection,
-            needsSchemaSelection: false,
-            activeSchema: preferredSchema,
-          },
-        },
+      updateNestedDatabaseData(connId, database, {
+        schemas: schemasResult,
+        schemasLoaded: true,
+        isLoadingSchemas: false,
+        selectedSchemas: validSelection,
+        needsSchemaSelection: false,
+        activeSchema: preferredSchema,
       });
 
-      const existing = freshNested.schemaDataMap[preferredSchema];
-      if (!existing?.isLoaded && !existing?.isLoading) {
+      const existingSchemaData = currentNested.schemaDataMap[preferredSchema];
+      if (!existingSchemaData?.isLoaded && !existingSchemaData?.isLoading) {
         loadNestedSchemaData(database, preferredSchema, connId);
       }
     } catch (e) {
       console.error(`Failed to fetch schemas for database ${database}:`, e);
-      const freshData = connectionDataMap[connId];
-      const freshNested = freshData?.nestedDatabaseDataMap[database] ?? currentNested;
-      updateConnectionData(connId, {
-        nestedDatabaseDataMap: {
-          ...(freshData?.nestedDatabaseDataMap ?? currentData.nestedDatabaseDataMap),
-          [database]: { ...freshNested, isLoadingSchemas: false, schemasLoaded: true, schemas: [] },
-        },
-      });
+      updateNestedDatabaseData(connId, database, { isLoadingSchemas: false, schemasLoaded: true, schemas: [] });
     }
-  }, [activeConnectionId, connectionDataMap, updateConnectionData, loadNestedSchemaData]);
+  }, [activeConnectionId, connectionDataMap, updateNestedDatabaseData, loadNestedSchemaData]);
 
   const setSelectedDatabases = useCallback((newDatabases: string[], targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
