@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 550" font-family="JetBrains Mono, monospace">
+  <!-- Background -->
+  <rect width="900" height="550" fill="#1a1b26"/>
+
+  <!-- Summary Bar -->
+  <rect x="0" y="0" width="900" height="50" fill="#24283b"/>
+  <rect x="20" y="12" width="80" height="26" rx="13" fill="#22c55e20" stroke="#22c55e50"/>
+  <text x="35" y="30" font-size="11" fill="#22c55e">+12 added</text>
+  <rect x="110" y="12" width="90" height="26" rx="13" fill="#ef444420" stroke="#ef444450"/>
+  <text x="125" y="30" font-size="11" fill="#ef4444">-3 deleted</text>
+  <rect x="210" y="12" width="100" height="26" rx="13" fill="#3b82f620" stroke="#3b82f650"/>
+  <text x="225" y="30" font-size="11" fill="#3b82f6">~7 modified</text>
+  <rect x="320" y="12" width="90" height="26" rx="13" fill="#565f8920" stroke="#565f8950"/>
+  <text x="335" y="30" font-size="11" fill="#565f89">22 total</text>
+
+  <!-- Filter bar -->
+  <text x="520" y="30" font-size="11" fill="#565f89">Show:</text>
+  <rect x="560" y="12" width="50" height="26" rx="4" fill="#7aa2f730" stroke="#7aa2f7"/>
+  <text x="572" y="30" font-size="10" fill="#7aa2f7">All</text>
+  <rect x="616" y="12" width="24" height="26" rx="4" fill="#24283b" stroke="#3b4261"/>
+  <text x="622" y="30" font-size="12" fill="#22c55e">+</text>
+  <rect x="646" y="12" width="24" height="26" rx="4" fill="#24283b" stroke="#3b4261"/>
+  <text x="652" y="30" font-size="12" fill="#ef4444">−</text>
+  <rect x="676" y="12" width="24" height="26" rx="4" fill="#24283b" stroke="#3b4261"/>
+  <text x="682" y="30" font-size="12" fill="#3b82f6">~</text>
+
+  <!-- Nav arrows -->
+  <text x="750" y="30" font-size="11" fill="#565f89">3 of 22</text>
+  <rect x="810" y="12" width="26" height="26" rx="4" fill="#24283b" stroke="#3b4261"/>
+  <text x="818" y="30" font-size="12" fill="#a9b1d6">↑</text>
+  <rect x="842" y="12" width="26" height="26" rx="4" fill="#24283b" stroke="#3b4261"/>
+  <text x="850" y="30" font-size="12" fill="#a9b1d6">↓</text>
+
+  <!-- Column Headers - Left -->
+  <rect x="0" y="50" width="450" height="30" fill="#1e2030"/>
+  <text x="10" y="70" font-size="10" fill="#7aa2f7" font-weight="bold">LEFT: staging.users</text>
+
+  <!-- Column Headers - Right -->
+  <rect x="450" y="50" width="450" height="30" fill="#1e2030"/>
+  <text x="460" y="70" font-size="10" fill="#bb9af7" font-weight="bold">RIGHT: production.users</text>
+
+  <!-- Divider -->
+  <line x1="450" y1="50" x2="450" y2="500" stroke="#7aa2f7" stroke-width="2"/>
+
+  <!-- Sub-headers -->
+  <rect x="0" y="80" width="450" height="24" fill="#1a1b26"/>
+  <text x="15" y="96" font-size="10" fill="#565f89">id</text>
+  <text x="60" y="96" font-size="10" fill="#565f89">name</text>
+  <text x="160" y="96" font-size="10" fill="#565f89">email</text>
+  <text x="310" y="96" font-size="10" fill="#565f89">status</text>
+
+  <rect x="450" y="80" width="450" height="24" fill="#1a1b26"/>
+  <text x="465" y="96" font-size="10" fill="#565f89">id</text>
+  <text x="510" y="96" font-size="10" fill="#565f89">name</text>
+  <text x="610" y="96" font-size="10" fill="#565f89">email</text>
+  <text x="760" y="96" font-size="10" fill="#565f89">status</text>
+
+  <!-- Row 1: Identical (dimmed) -->
+  <rect x="0" y="104" width="900" height="28" fill="#1a1b26"/>
+  <text x="15" y="122" font-size="11" fill="#565f89">1</text>
+  <text x="60" y="122" font-size="11" fill="#565f89">Alice</text>
+  <text x="160" y="122" font-size="11" fill="#565f89">alice@ex.com</text>
+  <text x="310" y="122" font-size="11" fill="#565f89">active</text>
+  <text x="465" y="122" font-size="11" fill="#565f89">1</text>
+  <text x="510" y="122" font-size="11" fill="#565f89">Alice</text>
+  <text x="610" y="122" font-size="11" fill="#565f89">alice@ex.com</text>
+  <text x="760" y="122" font-size="11" fill="#565f89">active</text>
+
+  <!-- Row 2: Modified (blue highlight on changed cells) -->
+  <rect x="0" y="132" width="900" height="28" fill="#3b82f608"/>
+  <rect x="0" y="132" width="3" height="28" fill="#3b82f6"/>
+  <text x="15" y="150" font-size="11" fill="#a9b1d6">2</text>
+  <text x="60" y="150" font-size="11" fill="#a9b1d6">Bob</text>
+  <rect x="155" y="135" width="140" height="22" rx="2" fill="#3b82f620"/>
+  <text x="160" y="150" font-size="11" fill="#3b82f6">bob_new@ex.com</text>
+  <text x="310" y="150" font-size="11" fill="#a9b1d6">active</text>
+  <text x="465" y="150" font-size="11" fill="#a9b1d6">2</text>
+  <text x="510" y="150" font-size="11" fill="#a9b1d6">Bob</text>
+  <rect x="605" y="135" width="140" height="22" rx="2" fill="#3b82f620"/>
+  <text x="610" y="150" font-size="11" fill="#3b82f6">bob@ex.com</text>
+  <text x="760" y="150" font-size="11" fill="#a9b1d6">active</text>
+
+  <!-- Row 3: Modified (multiple cells) -->
+  <rect x="0" y="160" width="900" height="28" fill="#3b82f608"/>
+  <rect x="0" y="160" width="3" height="28" fill="#3b82f6"/>
+  <text x="15" y="178" font-size="11" fill="#a9b1d6">3</text>
+  <rect x="55" y="163" width="90" height="22" rx="2" fill="#3b82f620"/>
+  <text x="60" y="178" font-size="11" fill="#3b82f6">Charlie B.</text>
+  <text x="160" y="178" font-size="11" fill="#a9b1d6">charlie@ex.com</text>
+  <rect x="305" y="163" width="70" height="22" rx="2" fill="#3b82f620"/>
+  <text x="310" y="178" font-size="11" fill="#3b82f6">inactive</text>
+  <text x="465" y="178" font-size="11" fill="#a9b1d6">3</text>
+  <rect x="505" y="163" width="90" height="22" rx="2" fill="#3b82f620"/>
+  <text x="510" y="178" font-size="11" fill="#3b82f6">Charlie</text>
+  <text x="610" y="178" font-size="11" fill="#a9b1d6">charlie@ex.com</text>
+  <rect x="755" y="163" width="60" height="22" rx="2" fill="#3b82f620"/>
+  <text x="760" y="178" font-size="11" fill="#3b82f6">active</text>
+
+  <!-- Row 4: Added (only in left, green) -->
+  <rect x="0" y="188" width="450" height="28" fill="#22c55e10"/>
+  <rect x="450" y="188" width="450" height="28" fill="#ef444408"/>
+  <rect x="0" y="188" width="3" height="28" fill="#22c55e"/>
+  <text x="15" y="206" font-size="11" fill="#22c55e">5</text>
+  <text x="60" y="206" font-size="11" fill="#22c55e">Eve</text>
+  <text x="160" y="206" font-size="11" fill="#22c55e">eve@ex.com</text>
+  <text x="310" y="206" font-size="11" fill="#22c55e">active</text>
+  <text x="465" y="206" font-size="11" fill="#565f89">—</text>
+  <text x="510" y="206" font-size="11" fill="#565f89">—</text>
+  <text x="610" y="206" font-size="11" fill="#565f89">—</text>
+  <text x="760" y="206" font-size="11" fill="#565f89">—</text>
+
+  <!-- Row 5: Deleted (only in right, red) -->
+  <rect x="0" y="216" width="450" height="28" fill="#ef444408"/>
+  <rect x="450" y="216" width="450" height="28" fill="#ef444410"/>
+  <rect x="0" y="216" width="3" height="28" fill="#ef4444"/>
+  <text x="15" y="234" font-size="11" fill="#565f89">—</text>
+  <text x="60" y="234" font-size="11" fill="#565f89">—</text>
+  <text x="160" y="234" font-size="11" fill="#565f89">—</text>
+  <text x="310" y="234" font-size="11" fill="#565f89">—</text>
+  <text x="465" y="234" font-size="11" fill="#ef4444">8</text>
+  <text x="510" y="234" font-size="11" fill="#ef4444">Zoe</text>
+  <text x="610" y="234" font-size="11" fill="#ef4444">zoe@ex.com</text>
+  <text x="760" y="234" font-size="11" fill="#ef4444">inactive</text>
+
+  <!-- More rows indicator -->
+  <rect x="0" y="244" width="900" height="28" fill="#1a1b26"/>
+  <text x="15" y="262" font-size="11" fill="#565f89">4</text>
+  <text x="60" y="262" font-size="11" fill="#565f89">Dana</text>
+  <text x="160" y="262" font-size="11" fill="#565f89">dana@ex.com</text>
+  <text x="310" y="262" font-size="11" fill="#565f89">active</text>
+  <text x="465" y="262" font-size="11" fill="#565f89">4</text>
+  <text x="510" y="262" font-size="11" fill="#565f89">Dana</text>
+  <text x="610" y="262" font-size="11" fill="#565f89">dana@ex.com</text>
+  <text x="760" y="262" font-size="11" fill="#565f89">active</text>
+
+  <!-- Action Bar -->
+  <rect x="0" y="500" width="900" height="50" fill="#24283b"/>
+  <rect x="20" y="512" width="160" height="30" rx="4" fill="#7aa2f7"/>
+  <text x="42" y="532" font-size="11" fill="#1a1b26" font-weight="bold">Generate Sync SQL ▼</text>
+  <rect x="190" y="512" width="120" height="30" rx="4" fill="#24283b" stroke="#3b4261" stroke-width="1"/>
+  <text x="210" y="532" font-size="11" fill="#a9b1d6">Export Diff</text>
+  <rect x="320" y="512" width="100" height="30" rx="4" fill="#24283b" stroke="#3b4261" stroke-width="1"/>
+  <text x="340" y="532" font-size="11" fill="#a9b1d6">Refresh</text>
+
+  <text x="720" y="532" font-size="11" fill="#565f89">Compared 1,247 rows in 340ms</text>
+</svg>
