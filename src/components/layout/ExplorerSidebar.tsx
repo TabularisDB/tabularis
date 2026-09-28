@@ -2174,7 +2174,18 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               ...(ctxSchema ? { schema: ctxSchema } : {}),
                               ...(ctxDatabase ? { database: ctxDatabase } : {}),
                             });
-                            if (refreshTables) refreshTables();
+                            // A nested multi-db table's drop must refresh that
+                            // database's own schema data — the generic
+                            // connection-level refreshTables() calls get_tables
+                            // with no database override, which for a multi-db
+                            // opt-in connection sends the raw unresolved
+                            // selection to the plugin and (pre-driver.rs fix)
+                            // crashed the whole sidebar with "dbname not found".
+                            if (ctxDatabase) {
+                              await refreshNestedSchemaData(ctxDatabase, ctxSchema ?? "public");
+                            } else if (refreshTables) {
+                              refreshTables();
+                            }
                           } catch (e) {
                             console.error(e);
                             showAlert(t("sidebar.failDeleteTable") + String(e), { kind: "error" });
@@ -2868,7 +2879,18 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           filePath={importModal.filePath}
           schema={importModal.schema}
           onSuccess={() => {
-            if (refreshTables) refreshTables();
+            // Same nested-vs-generic distinction as the drop-table handler
+            // above. `importModal.database` is always populated (it falls
+            // back to activeDatabaseName for a plain single-db import), so
+            // `schema` — only ever set by the nested multi-db tree's own
+            // Import button (SidebarNestedDatabaseItem) — is the reliable
+            // signal that this import targeted a database inside the nested
+            // tree, not the connection's primary database.
+            if (importModal.schema) {
+              refreshNestedSchemaData(importModal.database, importModal.schema);
+            } else if (refreshTables) {
+              refreshTables();
+            }
           }}
         />
       )}
