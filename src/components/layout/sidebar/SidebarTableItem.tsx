@@ -94,16 +94,19 @@ const SidebarTableItemImpl = ({
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         }),
         invoke<ForeignKey[]>("get_foreign_keys", {
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         }),
         invoke<Index[]>("get_indexes", {
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         }),
       ]);
 
@@ -115,7 +118,7 @@ const SidebarTableItemImpl = ({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, table.name, schema]);
+  }, [connectionId, table.name, schema, database]);
 
   useEffect(() => {
     if (isExpanded) {

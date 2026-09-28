@@ -54,6 +54,7 @@ describe('areTableItemPropsEqual', () => {
     ['canManage', { canManage: false }],
     ['schemaVersion', { schemaVersion: 1 }],
     ['schema', { schema: 'analytics' }],
+    ['database', { database: 'tabularis_pr822_demo' }],
     [
       'capabilities',
       {
