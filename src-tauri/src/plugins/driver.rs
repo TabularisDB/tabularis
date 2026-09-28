@@ -13,9 +13,9 @@ use tokio::sync::{mpsc, oneshot, OnceCell};
 use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, PluginManifest};
 use crate::models::{
     AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
-    DbPrivilegeCatalog, DbUserInfo, ExplainQueryOutput, ForeignKey, Index, QueryResult,
-    RawExplainOutput, RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema,
-    TriggerInfo, ViewInfo,
+    DatabaseSelection, DbPrivilegeCatalog, DbUserInfo, ExplainQueryOutput, ForeignKey, Index,
+    QueryResult, RawExplainOutput, RoutineInfo, RoutineParameter, TableColumn, TableInfo,
+    TableSchema, TriggerInfo, ViewInfo,
 };
 use crate::plugins::connection_metadata::{ConnectionMetadataCache, ConnectionMetadataOverrides};
 use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse, PluginCallError};
@@ -345,6 +345,43 @@ impl RpcDriver {
         self.connection_metadata = enabled;
         self
     }
+
+    /// Coerce `database` to a single, non-empty primary database name before
+    /// a base connection-establishing RPC (`test_connection`, `ping`).
+    ///
+    /// Multi-database opt-in connections persist `database` as
+    /// `DatabaseSelection::Multiple(...)`, or as an empty `Single("")` for
+    /// "all databases" mode — both serialize to a JSON array/empty string.
+    /// Plugins only understand a single `database: Option<String>` field for
+    /// the pool they use to answer these RPCs: an un-coerced array silently
+    /// deserializes to `None`, and an empty string is rejected outright by
+    /// e.g. deadpool-postgres (`ConfigError::DbnameMissing`/`DbnameEmpty`),
+    /// so either shape fails pool creation before ever reaching the server.
+    ///
+    /// Per-table/schema commands already resolve a concrete database
+    /// override before reaching the driver (see `commands.rs`); this helper
+    /// only covers the RPCs that run before any such override exists.
+    ///
+    /// When there's no selection at all (empty "all databases" / an empty
+    /// `Multiple`), fall back to the engine's maintenance database — the
+    /// same convention the built-in Postgres driver already uses for
+    /// `get_databases` (`drivers/postgres/mod.rs`) — but only for engines
+    /// known to have one; other engines are left as-is so their own plugin
+    /// can apply whatever default makes sense for them.
+    fn with_primary_database(&self, params: &ConnectionParams) -> ConnectionParams {
+        let mut params = params.clone();
+        let primary = params.database.primary();
+        let dbname = if primary.is_empty() {
+            match self.manifest.engine.as_deref() {
+                Some("postgres" | "postgresql") => "postgres",
+                _ => primary,
+            }
+        } else {
+            primary
+        };
+        params.database = DatabaseSelection::Single(dbname.to_string());
+        params
+    }
 }
 
 #[async_trait]
@@ -424,11 +461,16 @@ impl DatabaseDriver for RpcDriver {
     }
 
     async fn ping(&self, params: &ConnectionParams) -> Result<(), String> {
-        match self.process.call("ping", json!({ "params": params })).await {
+        let params = self.with_primary_database(params);
+        match self
+            .process
+            .call("ping", json!({ "params": &params }))
+            .await
+        {
             Ok(_) => Ok(()),
             Err(e) if e.contains("Method not found") || e.contains("not implemented") => {
                 // Fallback for plugins that haven't implemented ping yet
-                self.test_connection(params).await
+                self.test_connection(&params).await
             }
             Err(e) => Err(e),
         }
@@ -436,9 +478,10 @@ impl DatabaseDriver for RpcDriver {
 
     async fn test_connection(&self, params: &ConnectionParams) -> Result<(), String> {
         // Delegate to the plugin process via RPC instead of using sqlx
+        let params = self.with_primary_database(params);
         let res = self
             .process
-            .call("test_connection", json!({ "params": params }))
+            .call("test_connection", json!({ "params": &params }))
             .await?;
         // If the plugin returns a success response (even null/true), connection is ok
         let _ = res;
@@ -2389,6 +2432,150 @@ mod tests {
 
         assert_eq!(driver.map_inferred_type("DATETIME"), "DATETIME");
         assert_eq!(driver.map_inferred_type("JSON"), "JSON");
+    }
+
+    #[tokio::test]
+    async fn with_primary_database_coerces_multiple_to_first_selected() {
+        let driver = test_driver(|_| json!(true));
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        let coerced = driver.with_primary_database(&params);
+
+        assert_eq!(coerced.database.primary(), "tabularis_pr822_demo");
+        assert!(matches!(coerced.database, DatabaseSelection::Single(_)));
+    }
+
+    #[tokio::test]
+    async fn with_primary_database_leaves_single_database_unchanged() {
+        let driver = test_driver(|_| json!(true));
+        let params = test_connection_params(); // database: Single("db")
+
+        let coerced = driver.with_primary_database(&params);
+
+        assert_eq!(coerced.database.primary(), "db");
+    }
+
+    /// Non-Postgres engines have no known maintenance database, so an empty
+    /// selection is left as-is — the plugin owns whatever default makes
+    /// sense for it.
+    #[tokio::test]
+    async fn with_primary_database_leaves_empty_selection_alone_for_unknown_engines() {
+        let driver = test_driver(|_| json!(true)); // test_manifest() -> engine: None
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+
+        let coerced = driver.with_primary_database(&params);
+
+        assert_eq!(coerced.database.primary(), "");
+    }
+
+    /// Regression test: "All databases" mode (the *default* radio selection
+    /// in the Databases tab) persists `database` as `Single("")`. Postgres
+    /// pool creation (deadpool-postgres) rejects both a missing AND an
+    /// empty dbname, so this must fall back to the "postgres" maintenance
+    /// database — the same convention the built-in Postgres driver already
+    /// uses for `get_databases` (`drivers/postgres/mod.rs`).
+    #[tokio::test]
+    async fn with_primary_database_falls_back_to_postgres_maintenance_db_for_postgresql_engine() {
+        let mut driver = test_driver(|_| json!(true));
+        driver.manifest.engine = Some("postgresql".to_string());
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+
+        let coerced = driver.with_primary_database(&params);
+
+        assert_eq!(coerced.database.primary(), "postgres");
+    }
+
+    /// Same fallback for an empty `Multiple` selection (belt-and-suspenders;
+    /// today's UI never persists an empty array, but `primary()` treats it
+    /// identically to `Single("")`).
+    #[tokio::test]
+    async fn with_primary_database_falls_back_to_postgres_maintenance_db_for_empty_multiple() {
+        let mut driver = test_driver(|_| json!(true));
+        driver.manifest.engine = Some("postgres".to_string());
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![]);
+
+        let coerced = driver.with_primary_database(&params);
+
+        assert_eq!(coerced.database.primary(), "postgres");
+    }
+
+    /// Regression test for the bug found while manually testing PR #822: a
+    /// PostgreSQL-plugin connection saved with "Choose databases" (multi-db
+    /// opt-in) persists `database` as `DatabaseSelection::Multiple(...)`,
+    /// which serializes to a bare JSON array. The plugin's
+    /// `database: Option<String>` field can't represent an array, so an
+    /// un-coerced `test_connection`/`ping` call silently resolved to `None`
+    /// on the plugin side and pool creation failed with a missing-dbname
+    /// error — even though the connection itself was perfectly valid.
+    #[tokio::test]
+    async fn rpc_driver_test_connection_sends_primary_database_for_multi_db_opt_in() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "test_connection");
+            // The plugin must see a plain string, never a JSON array.
+            assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+            json!(true)
+        });
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        driver
+            .test_connection(&params)
+            .await
+            .expect("test_connection must succeed once database is coerced to a string");
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_ping_sends_primary_database_for_multi_db_opt_in() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "ping");
+            assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+            json!(true)
+        });
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        driver
+            .ping(&params)
+            .await
+            .expect("ping must succeed once database is coerced to a string");
+    }
+
+    /// Regression test for the more severe sibling of the same bug: "All
+    /// databases" is the *default* radio selection in the Databases tab and
+    /// persists `database` as `Single("")`. Without the maintenance-db
+    /// fallback, every plugin-backed Postgres connection saved with the
+    /// default database mode would fail to connect at all.
+    #[tokio::test]
+    async fn rpc_driver_test_connection_falls_back_to_postgres_for_all_databases_mode() {
+        let mut driver = test_driver(|request| {
+            assert_eq!(request.method, "test_connection");
+            assert_eq!(request.params["params"]["database"], "postgres");
+            json!(true)
+        });
+        driver.manifest.engine = Some("postgresql".to_string());
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single(String::new());
+
+        driver
+            .test_connection(&params)
+            .await
+            .expect("test_connection must fall back to the postgres maintenance db");
     }
 }
 
