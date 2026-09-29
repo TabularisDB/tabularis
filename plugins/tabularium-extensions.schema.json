@@ -115,6 +115,11 @@
           "type": "boolean",
           "description": "Primary key is declared inline in the column definition (e.g. SQLite `AUTOINCREMENT`)."
         },
+        "table_query_templates": {
+          "type": "boolean",
+          "default": false,
+          "description": "Generate SQL SELECT/UPDATE/DELETE previews through the optional get_table_query_template RPC."
+        },
         "no_connection_required": {
           "type": "boolean",
           "description": "API-based driver with no host/port/credentials. Hides the connection form entirely."

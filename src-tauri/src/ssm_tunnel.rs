@@ -1,7 +1,9 @@
 use serde_json::json;
 use std::collections::HashMap;
+use std::ffi::{OsStr, OsString};
 use std::io::{BufRead, BufReader};
 use std::net::TcpListener;
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -111,8 +113,65 @@ pub fn build_start_session_args(
     args
 }
 
+/// Where the AWS CLI and the Session Manager plugin land, beyond whatever PATH
+/// the app inherited.
+///
+/// A desktop app is started by the OS session manager, not by a shell, so it
+/// gets a minimal PATH (`/usr/bin:/bin:/usr/sbin:/sbin` on macOS) with none of
+/// the profile edits that make `aws` work in a terminal. Both binaries are
+/// looked up here: `aws` by us, and `session-manager-plugin` by `aws` itself,
+/// which is why the augmented PATH is handed to the child rather than only
+/// used to resolve the program.
+#[cfg(unix)]
+const EXTRA_SEARCH_DIRS: &[&str] = &[
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/local/sessionmanagerplugin/bin",
+    "/opt/local/bin",
+];
+
+#[cfg(windows)]
+const EXTRA_SEARCH_DIRS: &[&str] = &[
+    r"C:\Program Files\Amazon\AWSCLIV2",
+    r"C:\Program Files\Amazon\SessionManagerPlugin\bin",
+];
+
+/// `inherited` with `extra` appended, skipping entries already present and
+/// those that do not exist. Inherited entries keep priority, so a user's own
+/// AWS CLI still wins over one in a well-known location.
+fn extend_path(inherited: &OsStr, extra: &[&str]) -> OsString {
+    let mut dirs: Vec<PathBuf> = std::env::split_paths(inherited).collect();
+    for candidate in extra {
+        let candidate = PathBuf::from(candidate);
+        if !dirs.contains(&candidate) && candidate.is_dir() {
+            dirs.push(candidate);
+        }
+    }
+    std::env::join_paths(dirs).unwrap_or_else(|_| inherited.to_os_string())
+}
+
+fn search_path() -> OsString {
+    extend_path(
+        &std::env::var_os("PATH").unwrap_or_default(),
+        EXTRA_SEARCH_DIRS,
+    )
+}
+
+/// Absolute path to the AWS CLI, or the bare name when it cannot be found so
+/// the spawn failure carries the usual "not found" error.
+fn aws_program() -> OsString {
+    let path = search_path();
+    match std::env::current_dir() {
+        Ok(cwd) => which::which_in(AWS_PROGRAM, Some(&path), cwd)
+            .map(OsString::from)
+            .unwrap_or_else(|_| AWS_PROGRAM.into()),
+        Err(_) => AWS_PROGRAM.into(),
+    }
+}
+
 fn aws_command() -> Command {
-    let mut command = Command::new(AWS_PROGRAM);
+    let mut command = Command::new(aws_program());
+    command.env("PATH", search_path());
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -131,8 +190,11 @@ fn aws_command() -> Command {
 fn aws_spawn_error(error: &std::io::Error) -> String {
     format!(
         "Failed to launch the AWS CLI: {}. Install the AWS CLI v2 and the \
-         Session Manager plugin, and ensure 'aws' is available in PATH.",
-        error
+         Session Manager plugin. A desktop app does not see the PATH from your \
+         shell profile, so an AWS CLI installed somewhere unusual is found only \
+         if it is linked into one of: {}.",
+        error,
+        EXTRA_SEARCH_DIRS.join(", ")
     )
 }
 

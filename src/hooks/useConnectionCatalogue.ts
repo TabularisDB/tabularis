@@ -14,6 +14,7 @@ import {
   type EngineGroup,
   type ParadigmFacet,
 } from '../utils/connectionCatalogue';
+import { pluginKind } from '../utils/plugins';
 
 const BUILTIN_META: Record<string, { engine: string; paradigms: string[] }> = {
   postgres: { engine: 'postgres', paradigms: ['sql'] },
@@ -66,6 +67,9 @@ export function useConnectionCatalogue(enabled = true): ConnectionCatalogue {
       // hasOwnProperty (not `in`) so plugin ids like "constructor"/"toString"
       // aren't matched against Object.prototype and wrongly hidden.
       .filter((p) => !Object.prototype.hasOwnProperty.call(BUILTIN_META, p.id))
+      // Only drivers can open a connection; theme plugins live in the
+      // Plugin Center, not the connection picker.
+      .filter((p) => pluginKind(p) === "driver")
       .map(toCatalogueDriver);
     // Locally-installed plugin drivers the registry doesn't list (e.g.
     // `just dev-install`ed, not yet published). Without this they load and

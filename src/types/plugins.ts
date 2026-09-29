@@ -35,6 +35,8 @@ export interface DriverCapabilities {
   auto_increment_keyword?: string;
   serial_type?: string;
   inline_pk?: boolean;
+  /** Opts Generate SQL into the optional get_table_query_template RPC. Defaults to false. */
+  table_query_templates?: boolean;
   // DDL capabilities (optional, default to false when not present)
   alter_column?: boolean;
   create_foreign_keys?: boolean;

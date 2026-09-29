@@ -827,5 +827,50 @@ describe('autocomplete', () => {
       expect(groups.tables).toBe(0);
       expect(groups.columns).toBe(0);
     });
+
+    it('gives shared column names the nearest table prefix over non-nearest tables', async () => {
+      const mockInvoke = invoke as unknown as ReturnType<typeof vi.fn>;
+      // Both orders and customers share an `id` column.
+      mockInvoke.mockImplementation(async (_cmd: string, args: { tableName: string }) => {
+        if (args.tableName === 'customers') {
+          return [
+            { name: 'id', data_type: 'INT' },
+            { name: 'customer_name', data_type: 'VARCHAR' },
+          ];
+        }
+        if (args.tableName === 'orders') {
+          return [
+            { name: 'id', data_type: 'INT' },
+            { name: 'order_total', data_type: 'INT' },
+          ];
+        }
+        return [];
+      });
+
+      const { parseTablesFromQuery } = await import('../../src/utils/sqlAnalysis');
+      (parseTablesFromQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+        new Map([
+          ['o', { name: 'orders' }],
+          ['c', { name: 'customers' }],
+        ]),
+      );
+
+      const provider = setup([{ name: 'orders' }, { name: 'customers' }]);
+      // In ON, the joined table `customers c` is nearest, but `orders o` comes
+      // first in alias insertion order: without nearest-first ordering the
+      // shared `id` label would be claimed by orders.
+      const onQuery = 'SELECT * FROM orders o JOIN customers c ON ';
+      const modelOn = createMockModel(onQuery);
+      const resultOn = await provider.provideCompletionItems(
+        modelOn,
+        { lineNumber: 1, column: onQuery.length + 1 },
+      );
+
+      const idSuggestions = resultOn.suggestions.filter((s: { label: string }) => s.label === 'id');
+      // Deduplicated to a single `id`, attributed to the nearest table.
+      expect(idSuggestions).toHaveLength(1);
+      expect(idSuggestions[0].sortText).toBe('0_0_id');
+      expect(idSuggestions[0].detail).toContain('customers');
+    });
   });
 });

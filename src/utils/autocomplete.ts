@@ -347,6 +347,24 @@ export const registerSqlAutocomplete = (
           return found.length > 0 ? found : [ref as TableInfo];
         });
 
+        // The nearest table (the one being joined in ON, the primary FROM table
+        // in WHERE, ...) goes first: it wins the label dedupe below for shared
+        // column names such as `id`, and it is never dropped by the fetch cap.
+        const nearestRef = sqlContext.lastTableRef?.toLowerCase();
+        const isNearestTable = (table: TableInfo): boolean =>
+          Boolean(
+            nearestRef &&
+              (table.name.toLowerCase() === nearestRef ||
+                Array.from(scopedAliases.entries()).some(
+                  ([alias, ref]) =>
+                    alias.toLowerCase() === nearestRef &&
+                    ref.name.toLowerCase() === table.name.toLowerCase() &&
+                    (!ref.schema || !table.schema || ref.schema.toLowerCase() === table.schema.toLowerCase()),
+                )),
+          );
+        const nearestTables = new Set(matchingTables.filter(isNearestTable));
+        matchingTables.sort((a, b) => Number(nearestTables.has(b)) - Number(nearestTables.has(a)));
+
         // Limit parallel fetches to prevent memory spikes
         const MAX_PARALLEL_FETCHES = 5;
         if (matchingTables.length > MAX_PARALLEL_FETCHES) {
@@ -359,20 +377,9 @@ export const registerSqlAutocomplete = (
 
         const seenColumns = new Set<string>();
 
-        const nearestRef = sqlContext.lastTableRef?.toLowerCase();
-
         matchingTables.forEach((table, idx) => {
           const columns = results[idx];
-          const isNearest = Boolean(
-            nearestRef &&
-              (table.name.toLowerCase() === nearestRef ||
-                Array.from(scopedAliases.entries()).some(
-                  ([alias, ref]) =>
-                    alias.toLowerCase() === nearestRef &&
-                    ref.name.toLowerCase() === table.name.toLowerCase() &&
-                    (!ref.schema || !table.schema || ref.schema.toLowerCase() === table.schema.toLowerCase()),
-                )),
-          );
+          const isNearest = nearestTables.has(table);
           const sortPrefix = matchingTables.length > 1 ? (isNearest ? "0_0_" : "0_1_") : "0_";
 
           columns.forEach(col => {

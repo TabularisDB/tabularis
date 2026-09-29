@@ -867,6 +867,7 @@
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Importar da Área de Transferência",
       "quickNavigator": "Navegador Rápido",
+      "commandPalette": "Paleta de Comandos",
       "commandPaletteActions": "Buscar ações",
       "triggerSuggestions": "Acionar sugestões",
       "formatSql": "Formatar SQL",
@@ -1171,6 +1172,9 @@
     "subtitle": "A conexão SSH precisa da sua entrada",
     "placeholder": "PIN ou frase-senha",
     "waiting": "Aguardando sua chave de segurança — toque nela para confirmar."
+  },
+  "dateInput": {
+    "useShownValue": "Usar este valor"
   },
   "dataGrid": {
     "noRowIdentity": "Não é possível editar as linhas: \"{{table}}\" não tem chave primária, então a edição exige que o resultado inclua todas as colunas da tabela. Selecione todas as colunas (ex.: SELECT *) ou adicione uma chave primária.",

@@ -631,6 +631,7 @@ pub fn run() {
             commands::get_ai_schema_context,
             commands::get_schema_snapshot,
             // DDL generation
+            commands::get_table_query_template,
             commands::get_create_table_sql,
             commands::get_add_column_sql,
             commands::get_alter_column_sql,

@@ -897,6 +897,7 @@
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Import from Clipboard",
       "quickNavigator": "Quick Navigator",
+      "commandPalette": "Command Palette",
       "commandPaletteActions": "Search actions",
       "triggerSuggestions": "Trigger suggestions",
       "formatSql": "Format SQL",
@@ -1200,6 +1201,9 @@
     "subtitle": "The SSH connection needs your input",
     "placeholder": "PIN or passphrase",
     "waiting": "Waiting for your security key — touch it to confirm."
+  },
+  "dateInput": {
+    "useShownValue": "Use this value"
   },
   "dataGrid": {
     "noRowIdentity": "Rows can't be edited: \"{{table}}\" has no primary key, so editing requires the result to include all table columns. Select all columns (e.g. SELECT *) or add a primary key.",

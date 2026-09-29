@@ -19,7 +19,10 @@ on:
 
 concurrency:
   group: nightly
-  cancel-in-progress: true
+  # Each platform publishes independently. Finish the current matrix before
+  # the next gate checks its tag, or a scheduled run can cancel the remaining
+  # platforms and then skip because the partially published tag already exists.
+  cancel-in-progress: false
 
 jobs:
   gate:

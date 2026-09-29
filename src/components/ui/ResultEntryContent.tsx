@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
+import type { Ref } from "react";
 import { CheckCircle2 } from "lucide-react";
-import { DataGrid } from "./DataGrid";
+import { DataGrid, type DataGridCommandTarget } from "./DataGrid";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { PaginationControls } from "./PaginationControls";
 import { formatDuration } from "../../utils/formatTime";
@@ -15,6 +16,7 @@ interface ResultEntryContentProps {
   csvIncludeHeaders: boolean;
   onPageChange: (page: number) => void;
   compact?: boolean;
+  commandTargetRef?: Ref<DataGridCommandTarget>;
 }
 
 export function ResultEntryContent({
@@ -25,6 +27,7 @@ export function ResultEntryContent({
   csvIncludeHeaders,
   onPageChange,
   compact,
+  commandTargetRef,
 }: ResultEntryContentProps) {
   const { t } = useTranslation();
 
@@ -110,6 +113,7 @@ export function ResultEntryContent({
     return (
       <div style={{ height: gridHeight }} className="overflow-hidden">
         <DataGrid
+          ref={commandTargetRef}
           key={`${entry.id}-${entry.result.rows.length}`}
           columns={entry.result.columns}
           data={entry.result.rows}
@@ -122,6 +126,8 @@ export function ResultEntryContent({
           csvDelimiter={csvDelimiter}
           csvIncludeHeaders={csvIncludeHeaders}
           readonly={true}
+          totalRows={entry.result.pagination?.total_rows}
+          hasMore={entry.result.pagination?.has_more}
         />
       </div>
     );
@@ -158,6 +164,7 @@ export function ResultEntryContent({
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         <DataGrid
+          ref={commandTargetRef}
           key={`${entry.id}-${entry.result.rows.length}`}
           columns={entry.result.columns}
           data={entry.result.rows}
@@ -170,6 +177,8 @@ export function ResultEntryContent({
           csvDelimiter={csvDelimiter}
           csvIncludeHeaders={csvIncludeHeaders}
           readonly={true}
+          totalRows={entry.result.pagination?.total_rows}
+          hasMore={entry.result.pagination?.has_more}
         />
       </div>
     </div>

@@ -163,6 +163,11 @@
           "default": false,
           "description": "true if primary key is defined inline in the column definition (e.g. SQLite AUTOINCREMENT style)."
         },
+        "table_query_templates": {
+          "type": "boolean",
+          "default": false,
+          "description": "Generate SQL SELECT/UPDATE/DELETE previews through the optional get_table_query_template RPC."
+        },
         "alter_column": {
           "type": "boolean",
           "default": false,

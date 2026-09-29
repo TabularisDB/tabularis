@@ -8,6 +8,7 @@ import { isTextCompositionKeyEvent } from "../utils/keyboardEvents";
 
 /** Shortcuts that must still fire while the user is typing in a field. */
 const TYPING_SAFE_SHORTCUTS = [
+  "command_palette",
   "quick_navigator",
   "command_palette_actions",
   "focus_table_filter",
@@ -43,6 +44,15 @@ export function useGlobalShortcuts() {
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||
         target.isContentEditable;
+      const isMonacoTarget =
+        target instanceof Element &&
+        target.closest(".monaco-editor") !== null;
+      const isMonacoChordPrefix =
+        isMonacoTarget &&
+        e.code === "KeyK" &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.ctrlKey !== e.metaKey;
       if (
         isTypingTarget &&
         !TYPING_SAFE_SHORTCUTS.some((id) => matchesShortcut(e, id))
@@ -85,6 +95,16 @@ export function useGlobalShortcuts() {
       if (matchesShortcut(e, "quick_navigator")) {
         e.preventDefault();
         togglePalette("objects");
+        return;
+      }
+
+      // Ctrl/Cmd+K starts Monaco chords, so the editor keeps it.
+      if (
+        !isMonacoChordPrefix &&
+        matchesShortcut(e, "command_palette")
+      ) {
+        e.preventDefault();
+        togglePalette("all");
         return;
       }
 

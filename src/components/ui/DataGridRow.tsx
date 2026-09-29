@@ -503,6 +503,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                           }
                           onBlur={handleEditCommit}
                           onKeyDown={handleKeyDown}
+                          onCommitValue={commitEditWithValue}
                           inputRef={editInputRef}
                         />
                       );

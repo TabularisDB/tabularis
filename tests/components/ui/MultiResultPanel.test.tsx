@@ -1,11 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { createRef } from "react";
 import { MultiResultPanel } from "../../../src/components/ui/MultiResultPanel";
+import type { DataGridCommandTarget } from "../../../src/components/ui/DataGrid";
 import type { QueryResultEntry, QueryResult } from "../../../src/types/editor";
 
 // Mock DataGrid
 vi.mock("../../../src/components/ui/DataGrid", () => ({
-  DataGrid: vi.fn(() => <div data-testid="data-grid" />),
+  DataGrid: vi.fn(({ ref, data }: { ref?: unknown; data: unknown[][] }) => (
+    <div
+      data-testid="data-grid"
+      data-has-command-target={String(Boolean(ref))}
+      data-first-value={String(data[0]?.[0] ?? "")}
+    />
+  )),
 }));
 
 // Mock ErrorDisplay
@@ -161,6 +169,52 @@ describe("MultiResultPanel", () => {
     );
     expect(screen.getByTestId("data-grid")).toBeInTheDocument();
     expect(screen.getByText(/editor\.rowsRetrieved/)).toBeInTheDocument();
+  });
+
+  it("connects the command target to the active result grid", () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <MultiResultPanel
+        {...defaultProps}
+        results={[
+          makeEntry({
+            id: "r-0",
+            isLoading: false,
+            result: makeResult(),
+          }),
+        ]}
+        activeResultId="r-0"
+        commandTargetRef={commandTargetRef}
+      />,
+    );
+
+    expect(screen.getByTestId("data-grid")).toHaveAttribute(
+      "data-has-command-target",
+      "true",
+    );
+  });
+
+  it("connects the command target only to the active grid in stacked view", () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <MultiResultPanel
+        {...defaultProps}
+        results={[
+          makeEntry({ id: "r-0", isLoading: false, result: makeResult([[1]]) }),
+          makeEntry({ id: "r-1", isLoading: false, result: makeResult([[2]]) }),
+        ]}
+        activeResultId="r-1"
+        commandTargetRef={commandTargetRef}
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle("editor.multiResult.viewStacked"));
+
+    const grids = screen.getAllByTestId("data-grid");
+    expect(grids).toHaveLength(2);
+    expect(grids[0]).toHaveAttribute("data-has-command-target", "false");
+    expect(grids[1]).toHaveAttribute("data-first-value", "2");
+    expect(grids[1]).toHaveAttribute("data-has-command-target", "true");
   });
 
   it("calls onSelectResult when clicking a tab", () => {

@@ -234,20 +234,11 @@ jobs:
       - name: Override app version (nightly channel)
         if: inputs.updater_version != ''
         shell: bash
-        run: |
-          set -euo pipefail
-          v='${{ inputs.updater_version }}'
-          node -e "const f='src-tauri/tauri.conf.json';const c=require('./'+f);const fs=require('fs');c.version=process.argv[1];fs.writeFileSync(f, JSON.stringify(c, null, 2)+'\n');" "$v"
-          # First version key in Cargo.toml is the [package] version.
-          # sed -i.bak keeps it portable across GNU and macOS BSD sed.
-          sed -i.bak "0,/^version = \".*\"/s//version = \"$v\"/" src-tauri/Cargo.toml && rm -f src-tauri/Cargo.toml.bak
-          # The frontend does not read tauri.conf.json: the About page, the
-          # Updates card and plugin compatibility checks all use the constant
-          # in src/version.ts (kept in sync by scripts/sync-version.js on
-          # release). Patch it too, or a nightly shows the stable version it
-          # was branched from instead of its own.
-          printf 'export const APP_VERSION = "%s";\n' "$v" > src/version.ts
-          echo "Patched version to $v"
+        env:
+          NIGHTLY_VERSION: ${{ inputs.updater_version }}
+        # One portable implementation keeps the bundle, Rust runtime floor
+        # checks and frontend aligned. BSD sed does not support GNU's 0,/.../.
+        run: node scripts/set-nightly-version.mjs "$NIGHTLY_VERSION"
 
       - name: Build signed bundles (+ upload to GitHub Release unless preview)
         if: env.CAN_SIGN == 'true'
