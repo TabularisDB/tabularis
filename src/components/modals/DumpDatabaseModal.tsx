@@ -38,7 +38,7 @@ export const DumpDatabaseModal = ({
   database: databaseProp,
 }: DumpDatabaseModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema: connectionActiveSchema, activeCapabilities, databaseDataMap, nestedDatabaseDataMap, refreshDatabaseData } =
+  const { activeSchema: connectionActiveSchema, activeCapabilities, databaseDataMap, nestedDatabaseDataMap, refreshDatabaseData, refreshNestedSchemaData } =
     useDatabase();
   const { showAlert } = useAlert();
   const [includeStructure, setIncludeStructure] = useState(true);
@@ -62,14 +62,21 @@ export const DumpDatabaseModal = ({
   // database. Reload it whenever the dialog opens so the dump reflects the
   // target database's current schema. A ref keeps refreshDatabaseData out of the
   // dependency list (its identity changes on every store update, which would
-  // otherwise loop).
+  // otherwise loop). The nested (schema-based) case needs the same refresh —
+  // relying on the sidebar having already expanded that schema left the
+  // table list permanently empty if it never was.
   const refreshRef = useRef(refreshDatabaseData);
   refreshRef.current = refreshDatabaseData;
+  const refreshNestedRef = useRef(refreshNestedSchemaData);
+  refreshNestedRef.current = refreshNestedSchemaData;
   useEffect(() => {
-    if (isOpen && isMultiDb && databaseName && !isSchemaBasedDump) {
+    if (!isOpen) return;
+    if (isSchemaBasedDump) {
+      void refreshNestedRef.current(databaseProp!, schemaProp!, connectionId);
+    } else if (isMultiDb && databaseName) {
       refreshRef.current(databaseName);
     }
-  }, [isOpen, isMultiDb, databaseName, isSchemaBasedDump]);
+  }, [isOpen, isMultiDb, databaseName, isSchemaBasedDump, databaseProp, schemaProp, connectionId]);
 
   // For multi-database connections read the table list straight from the target
   // database's freshly-loaded data (never the active-database fallback); other
