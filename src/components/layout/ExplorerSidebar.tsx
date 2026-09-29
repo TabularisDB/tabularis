@@ -335,6 +335,34 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     setSchemaVersion((v) => v + 1);
   };
 
+  /**
+   * Views and triggers share the same schema/database ambiguity as
+   * create-table: a nested multi-db tab's modal carries a real `database`,
+   * a flat (schema-less) multi-db tab's modal reuses the `schema` field to
+   * carry a *database* name (see the `onCreateView`/`onCreateTable` pair a
+   * few lines below each other at the SidebarDatabaseItem call sites), and
+   * a genuinely schema-based single connection's modal has a real `schema`.
+   * `activeCapabilities?.schemas` disambiguates the latter two, since each
+   * is only ever reachable from the sidebar branch gated on that same flag.
+   * Falls back to `fallback` (the modal's own top-level refresh) when
+   * neither is set, matching each caller's pre-existing behavior.
+   */
+  const refreshObjectScope = (
+    schema: string | undefined,
+    database: string | undefined,
+    fallback: () => void,
+  ) => {
+    if (database) {
+      refreshNestedSchemaData(database, schema ?? "public");
+    } else if (schema && activeCapabilities?.schemas === true) {
+      refreshSchemaData(schema);
+    } else if (schema) {
+      refreshDatabaseData(schema);
+    } else {
+      fallback();
+    }
+  };
+
   /** Table navigation goes through `objectNavigation`; this only opens consoles. */
   const runQuery = (sql: string, queryName?: string, preventAutoRun: boolean = false, schema?: string, database?: string) => {
     openEditor(navigate, {
@@ -2905,7 +2933,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           schema={viewEditorModal.schema}
           database={viewEditorModal.database}
           onSuccess={() => {
-            if (refreshViews) refreshViews();
+            refreshObjectScope(viewEditorModal.schema, viewEditorModal.database, () => {
+              if (refreshViews) refreshViews();
+            });
           }}
         />
       )}
@@ -2923,7 +2953,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           capabilities={activeCapabilities}
           isNewTrigger={triggerEditorModal.isNewTrigger}
           onSuccess={() => {
-            if (refreshTriggers) refreshTriggers();
+            refreshObjectScope(triggerEditorModal.schema, triggerEditorModal.database, () => {
+              if (refreshTriggers) refreshTriggers();
+            });
           }}
         />
       )}
