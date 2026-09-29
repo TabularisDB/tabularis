@@ -435,7 +435,7 @@ impl DatabaseDriver for RpcDriver {
             // The returned snapshot is already resolved for this operation.
             connection_metadata: false,
             metadata_cache: self.metadata_cache.clone(),
-            connection_params: Some(params.clone()),
+            connection_params: Some(self.with_primary_database(params)),
         })))
     }
 
@@ -2662,6 +2662,38 @@ mod tests {
             .ping(&params)
             .await
             .expect("ping must succeed once database is coerced to a string");
+    }
+
+    /// Regression test: `for_connection`'s metadata snapshot stored the raw
+    /// `params.clone()` as `connection_params`, which `call_with_connection`
+    /// injects verbatim into SQL-building RPCs (create-table/column/index/FK
+    /// DDL templates). A multi-db opt-in connection's `Multiple(...)`
+    /// selection would reach the plugin as a bare JSON array, exactly the
+    /// bug `with_primary_database` exists to prevent elsewhere.
+    #[tokio::test]
+    async fn for_connection_snapshot_coerces_database_for_sql_building_rpcs() {
+        let driver = test_driver(|request| match request.method.as_str() {
+            "get_connection_metadata" => json!({}),
+            "routine_create_template" => {
+                assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+                json!("CREATE FUNCTION my_routine() BEGIN END")
+            }
+            other => panic!("unexpected method {other}"),
+        })
+        .with_connection_metadata(true);
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        let snapshot = driver.for_connection(&params).await.unwrap().unwrap();
+        let sql = snapshot
+            .routine_create_template("FUNCTION", Some("public"))
+            .await
+            .expect("routine_create_template must succeed once database is coerced to a string");
+        assert_eq!(sql, "CREATE FUNCTION my_routine() BEGIN END");
     }
 
     /// Regression test for the more severe sibling of the same bug: "All
