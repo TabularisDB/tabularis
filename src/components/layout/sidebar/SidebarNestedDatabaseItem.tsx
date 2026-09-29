@@ -12,6 +12,7 @@ import {
   Settings2,
   Download,
   Upload,
+  Network,
 } from "lucide-react";
 import { SidebarSchemaItem } from "./SidebarSchemaItem";
 import type { NestedDatabaseData, RoutineInfo, TriggerInfo } from "../../../contexts/DatabaseContext";
@@ -64,6 +65,12 @@ interface SidebarNestedDatabaseItemProps {
    * within that database. */
   onDump?: (database: string, schema: string) => void;
   onImport?: (database: string, schema: string) => void;
+  /** The nested tree has no context menu on the database/schema row itself
+   * (only on a table, once one exists) to reach the flat multi-db tree's
+   * "View ER Diagram" — and the connection-level header button that used
+   * to still be visible here read the wrong (top-level, not per-database)
+   * schema/database state, opening an empty diagram (#822 follow-up). */
+  onViewERDiagram?: (database: string, schema?: string) => void;
   showTriggers?: boolean;
 }
 
@@ -105,6 +112,7 @@ export const SidebarNestedDatabaseItem = ({
   onCreateTrigger,
   onDump,
   onImport,
+  onViewERDiagram,
   showTriggers = false,
 }: SidebarNestedDatabaseItemProps) => {
   const { t } = useTranslation();
@@ -179,6 +187,18 @@ export const SidebarNestedDatabaseItem = ({
                 title={t("dump.dumpDatabase")}
               >
                 <Download size={12} />
+              </button>
+            )}
+            {onViewERDiagram && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewERDiagram(databaseName, activeSchema ?? undefined);
+                }}
+                className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                title={t("sidebar.viewERDiagram")}
+              >
+                <Network size={12} />
               </button>
             )}
             <button

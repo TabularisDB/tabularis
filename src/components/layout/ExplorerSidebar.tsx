@@ -520,6 +520,24 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     runQuery("", database ? `${database}.${schema}` : schema, true, schema, database);
   };
 
+  // The nested tree's own per-database action (unlike the header button it
+  // replaces — see isNestedMultiDb — this always has the right database and
+  // schema, since both come from the specific row the user clicked, not
+  // top-level connection state that a nested connection never populates).
+  const handleViewNestedERDiagram = async (database: string, schema?: string) => {
+    try {
+      await invoke("open_er_diagram_window", {
+        connectionId: activeConnectionId || "",
+        connectionName: activeConnectionName || "Unknown",
+        databaseName: database,
+        ...(schema ? { schema } : {}),
+        database,
+      });
+    } catch (e) {
+      console.error("Failed to open ER Diagram window:", e);
+    }
+  };
+
   const handleNestedRoutineDoubleClick = (routine: RoutineInfo, schema: string, database: string) => {
     objectNavigation?.openRoutineDefinition(routine, schema, database);
   };
@@ -602,6 +620,15 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   };
 
   const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
+  // The nested schema-based multi-db tree (Postgres) also has its own
+  // per-database action icons (SidebarNestedDatabaseItem), same as the flat
+  // multi-db case below — but the header actions dropdown's gate only ever
+  // checked the flat case, so it stayed visible for a nested connection
+  // too, using activeDatabaseName/activeSchema (the connection's top-level
+  // fields, which a nested connection never populates) instead of whichever
+  // database the user actually has open. Confirmed live: clicking "View ER
+  // Diagram" there opened a diagram with no schema and no tables.
+  const isNestedMultiDb = isSchemaBasedMultiDb(activeCapabilities, selectedDatabases);
 
   useEffect(() => {
     if (!activeTable) return;
@@ -684,7 +711,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           </div>
           <div className="flex items-center gap-1">
             {/* Global actions — hidden in multi-database mode (actions move to each database node) and for API-based plugins */}
-            {!isMultiDb && activeCapabilities?.no_connection_required !== true && (sidebarWidth < 200 ? (
+            {!isMultiDb && !isNestedMultiDb && activeCapabilities?.no_connection_required !== true && (sidebarWidth < 200 ? (
               <div className="relative">
                 <button
                   onClick={() => setIsActionsDropdownOpen(!isActionsDropdownOpen)}
@@ -1660,6 +1687,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       onImport={activeCapabilities?.no_connection_required !== true
                         ? (database, schema) => handleImportDatabase(database, schema)
                         : undefined}
+                      onViewERDiagram={handleViewNestedERDiagram}
                       onEditColumn={(t_name, c, schema, database) =>
                         setModifyColumnModal({ isOpen: true, tableName: t_name, column: c, schema, database })
                       }

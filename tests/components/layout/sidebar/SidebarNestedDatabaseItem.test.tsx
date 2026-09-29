@@ -126,4 +126,28 @@ describe("SidebarNestedDatabaseItem", () => {
       expect(onNewConsole).toHaveBeenCalledWith("public", "tabularis_pr822_demo");
     },
   );
+
+  it(
+    "opens an ER diagram scoped to the database (and its active schema) via the database row's " +
+      "own action icon (the nested tree has no context menu on the database/schema row to reach " +
+      "this any other way, and the connection-level header button it replaces read the wrong, " +
+      "top-level schema/database state — see ExplorerSidebar's isNestedMultiDb)",
+    () => {
+      const onViewERDiagram = vi.fn();
+
+      render(
+        <SidebarNestedDatabaseItem
+          {...baseProps}
+          nestedData={confirmedNestedData}
+          onSetSelectedSchemas={vi.fn()}
+          onViewERDiagram={onViewERDiagram}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("tabularis_pr822_demo"));
+      fireEvent.click(screen.getByTitle("sidebar.viewERDiagram"));
+
+      expect(onViewERDiagram).toHaveBeenCalledWith("tabularis_pr822_demo", "public");
+    },
+  );
 });
