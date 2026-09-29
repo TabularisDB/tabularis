@@ -246,6 +246,7 @@ mod tests {
             appearance: None,
             tag_ids: None,
             environment: None,
+            shared: None,
         }
     }
 
@@ -392,6 +393,7 @@ mod tests {
             key_passphrase: None,
             allow_passphrase_prompt: None,
             save_in_keychain: Some(false),
+            shared: None,
         });
 
         let out = apply(&p, &[res(0, "import")], &[]);

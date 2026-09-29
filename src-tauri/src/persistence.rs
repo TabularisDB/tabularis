@@ -1,8 +1,46 @@
-use crate::models::{ConnectionGroup, ConnectionsFile, SavedConnection};
+use crate::models::{ConnectionGroup, ConnectionsFile, SavedConnection, SshConnection};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+
+/// Load `ssh_connections.json`. A missing or unparseable file yields an empty
+/// list, matching what every call site did inline before.
+pub fn load_ssh_connections_file(path: &Path) -> Result<Vec<SshConnection>, String> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    Ok(serde_json::from_str(&content).unwrap_or_default())
+}
+
+/// Write `ssh_connections.json`, keeping the secrets of shared profiles out of
+/// it: those live in the team vault, and a copy here would survive the vault
+/// being locked. The single write path for this file, so no caller can leak
+/// one by accident.
+pub fn save_ssh_connections_file(
+    path: &Path,
+    connections: &[SshConnection],
+) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+    }
+    let to_save: Vec<SshConnection> = connections
+        .iter()
+        .map(|ssh| {
+            let mut copy = ssh.clone();
+            if copy.is_shared() {
+                copy.password = None;
+                copy.key_passphrase = None;
+            }
+            copy
+        })
+        .collect();
+    let json = serde_json::to_string_pretty(&to_save).map_err(|e| e.to_string())?;
+    fs::write(path, json).map_err(|e| e.to_string())
+}
 
 /// Parses connections file content already read from disk. Supports both
 /// the old format (a bare array of connections) and the new format (an
@@ -55,7 +93,12 @@ pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), 
     let mut connections_to_save = Vec::new();
     for conn in &file.connections {
         let mut c = conn.clone();
-        if c.params.save_in_keychain.unwrap_or(false) {
+        if c.is_shared() {
+            // Credentials of a shared connection live in the team vault only.
+            // Strip every secret here as well, so no code path can leak one
+            // into the local file.
+            crate::team_share::EntrySecrets::strip(&mut c.params);
+        } else if c.params.save_in_keychain.unwrap_or(false) {
             // Passwords are stored in keychain, remove from JSON
             c.params.password = None;
             c.params.ssh_password = None;
