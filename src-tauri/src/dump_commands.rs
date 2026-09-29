@@ -323,14 +323,27 @@ async fn export_table_data(
         // generic RPC surface every driver implements — paginate through
         // `execute_query` instead of a raw `sqlx`/`tokio-postgres` client.
         _ => {
+            // `schema` is dump_database's caller-supplied schema, defaulted
+            // to "public" unconditionally for every driver. Only a
+            // Postgres-flavored plugin actually has that schema concept —
+            // a non-Postgres plugin's "schema" RPC parameter may mean
+            // something else entirely (e.g. a database selector for a
+            // MySQL-like plugin with no real schema concept), so passing
+            // "public" there could silently retarget it to a database that
+            // doesn't exist instead of leaving the plugin's own default alone.
+            let fallback_schema = if is_postgres_driver(driver) {
+                Some(schema)
+            } else {
+                None
+            };
             let json_columns =
-                json_column_names(&drv.get_columns(params, table, Some(schema)).await?);
+                json_column_names(&drv.get_columns(params, table, fallback_schema).await?);
 
             let mut batch = Vec::new();
             let mut page = 1u32;
             loop {
                 let result = drv
-                    .execute_query(params, &query, Some(1000), page, Some(schema))
+                    .execute_query(params, &query, Some(1000), page, fallback_schema)
                     .await?;
                 let fetched = result.rows.len() as u32;
 
@@ -444,6 +457,16 @@ fn plugin_dump_has_more(pagination: Option<Pagination>, fetched: u32, page_size:
     pagination
         .map(|p| p.has_more)
         .unwrap_or(fetched >= page_size)
+}
+
+/// Whether a driver id is Postgres-flavored: the builtin `postgres` client,
+/// or the `postgresql` plugin. Only these actually have a `public`-schema
+/// convention for unqualified dump/import statements — used to decide
+/// whether the generic plugin-driver fallbacks in `export_table_data` and
+/// `import_database` may default a missing schema to "public", or must
+/// leave a non-Postgres plugin's own schema/database default alone.
+fn is_postgres_driver(driver: &str) -> bool {
+    driver == "postgres" || driver == "postgresql"
 }
 
 /// Column names whose PostgreSQL type is `json`/`jsonb`. Used to decide
@@ -645,7 +668,14 @@ pub async fn import_database<R: Runtime>(
         params.database = crate::models::DatabaseSelection::Single(db);
     }
     let driver = saved_conn.params.driver.clone();
-    let pg_schema = schema.unwrap_or_else(|| "public".to_string());
+    // Postgres dump files reference unqualified table names expecting the
+    // default `public` schema, so only Postgres(-flavored plugin) statements
+    // need that default. A non-Postgres plugin driver's `schema` parameter
+    // may mean something else entirely (a database selector, for a
+    // MySQL-like plugin with no real schema concept) - defaulting it to
+    // "public" there could silently retarget the connection to a database
+    // that doesn't exist instead of leaving the plugin's own default alone.
+    let pg_schema = schema.clone().unwrap_or_else(|| "public".to_string());
     let app_handle = app.clone();
     let conn_id = connection_id.clone();
     let drv = crate::drivers::registry::get_connection_driver(&params).await?;
@@ -783,7 +813,7 @@ pub async fn import_database<R: Runtime>(
             // on (the plugin owns its own pool inside its subprocess), and no
             // cross-process RPC for transaction begin/commit/rollback exists
             // yet. Execute each statement independently through the generic
-            // RPC surface instead — correct (each call passes `pg_schema` so
+            // RPC surface instead — correct (each call passes a schema so
             // schema-scoping doesn't depend on session state persisting
             // across pooled connections, unlike the builtin arms' `SET
             // search_path`), but NOT atomic: unlike the builtin drivers
@@ -792,9 +822,16 @@ pub async fn import_database<R: Runtime>(
             // transactional bulk-execute RPC would need to be added to the
             // plugin protocol to close that gap (followed up separately).
             _ => {
+                // Only default to "public" for a Postgres-flavored plugin;
+                // see is_postgres_driver's doc comment.
+                let fallback_schema = if is_postgres_driver(&driver) {
+                    Some(pg_schema.as_str())
+                } else {
+                    schema.as_deref()
+                };
                 macro_rules! execute_statement {
                     ($stmt:expr) => {
-                        drv.execute_query(&params, $stmt, None, 1, Some(pg_schema.as_str()))
+                        drv.execute_query(&params, $stmt, None, 1, fallback_schema)
                     };
                 }
 
@@ -1059,5 +1096,18 @@ mod tests {
     #[test]
     fn test_plugin_dump_has_more_an_empty_page_without_pagination_ends_the_fetch() {
         assert!(!plugin_dump_has_more(None, 0, 1000));
+    }
+
+    #[test]
+    fn test_is_postgres_driver_matches_builtin_and_plugin_ids() {
+        assert!(is_postgres_driver("postgres"));
+        assert!(is_postgres_driver("postgresql"));
+    }
+
+    #[test]
+    fn test_is_postgres_driver_rejects_other_drivers() {
+        assert!(!is_postgres_driver("mysql"));
+        assert!(!is_postgres_driver("sqlite"));
+        assert!(!is_postgres_driver("some-other-plugin"));
     }
 }
