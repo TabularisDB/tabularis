@@ -142,6 +142,13 @@ impl SshTunnel {
         tcp_host: Option<&str>,
         tcp_port: Option<u16>,
     ) -> Result<Self, String> {
+        // Resolve `%USERPROFILE%`, `$HOME`, `${HOME}` and `~` now rather than
+        // when the path was saved, so the stored profile stays portable across
+        // machines and platforms. Done here rather than in `new` so the
+        // proxy-fronted path gets it too.
+        let expanded_key_file = ssh_key_file.map(crate::path_vars::expand);
+        let ssh_key_file = expanded_key_file.as_deref();
+
         let use_system_ssh = should_use_system_ssh(ssh_password);
         let connect_host = tcp_host.unwrap_or(ssh_host);
         let connect_port = tcp_port.unwrap_or(ssh_port);
@@ -619,6 +626,11 @@ pub fn test_ssh_connection(
     ssh_key_passphrase: Option<&str>,
     ssh_allow_passphrase_prompt: bool,
 ) -> Result<String, String> {
+    // Expanded once here so both backends read the same file, and so "Test
+    // connection" behaves exactly like opening the tunnel.
+    let expanded_key_file = ssh_key_file.map(crate::path_vars::expand);
+    let ssh_key_file = expanded_key_file.as_deref();
+
     let use_system_ssh = should_use_system_ssh(ssh_password);
     eprintln!(
         "[SSH Test] Testing connection to {}:{} as {} (UseSystemSSH={}, AllowPrompt={})",
