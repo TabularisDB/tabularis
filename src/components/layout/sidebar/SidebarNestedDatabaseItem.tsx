@@ -31,6 +31,7 @@ interface SidebarNestedDatabaseItemProps {
   onSetSelectedSchemas: (database: string, schemas: string[]) => void;
   onLoadSchemaData: (database: string, schema: string) => void;
   onRefreshSchemaData: (database: string, schema: string) => void;
+  onNewConsole: (schema: string, database?: string) => void;
   onTableClick: (name: string, schema: string, database: string) => void;
   onTableDoubleClick: (name: string, schema: string, database: string) => void;
   onViewClick: (name: string) => void;
@@ -85,6 +86,7 @@ export const SidebarNestedDatabaseItem = ({
   onSetSelectedSchemas,
   onLoadSchemaData,
   onRefreshSchemaData,
+  onNewConsole,
   onTableClick,
   onTableDoubleClick,
   onViewClick,
@@ -411,6 +413,7 @@ export const SidebarNestedDatabaseItem = ({
                   database={databaseName}
                   onLoadSchema={() => onLoadSchemaData(databaseName, schemaName)}
                   onRefreshSchema={() => onRefreshSchemaData(databaseName, schemaName)}
+                  onNewConsole={onNewConsole}
                   onTableClick={(name, schema) => onTableClick(name, schema, databaseName)}
                   onTableDoubleClick={(name, schema) => onTableDoubleClick(name, schema, databaseName)}
                   onViewClick={onViewClick}

@@ -508,6 +508,18 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     objectNavigation?.open(viewName, schema, { materialized, title: `${viewName} (${database}.${schema})` }, database);
   };
 
+  // Shared by the single-schema tree and the nested multi-db tree (via
+  // SidebarSchemaItem, which passes its own `database` prop straight
+  // through — undefined for a plain single-database connection). The
+  // nested tree otherwise has no way to open an ad-hoc console against a
+  // database with no existing table/routine to anchor a context-menu
+  // action on (#822 follow-up) — the flat schema-less multi-db path
+  // already gets this via the console's own database-selector dropdown,
+  // which is deliberately hidden for a schema-based driver like Postgres.
+  const handleNewSchemaConsole = (schema: string, database?: string) => {
+    runQuery("", database ? `${database}.${schema}` : schema, true, schema, database);
+  };
+
   const handleNestedRoutineDoubleClick = (routine: RoutineInfo, schema: string, database: string) => {
     objectNavigation?.openRoutineDefinition(routine, schema, database);
   };
@@ -1237,6 +1249,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           schemaVersion={schemaVersion}
                           onLoadSchema={loadSchemaData}
                           onRefreshSchema={refreshSchemaData}
+                          onNewConsole={handleNewSchemaConsole}
                           onTableClick={(name, schema) => handleTableClick(name, schema)}
                           onTableDoubleClick={(name, schema) => handleOpenTable(name, schema)}
                           onViewClick={handleViewClick}
@@ -1630,6 +1643,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       onSetSelectedSchemas={setSelectedSchemasForDatabase}
                       onLoadSchemaData={loadNestedSchemaData}
                       onRefreshSchemaData={refreshNestedSchemaData}
+                      onNewConsole={handleNewSchemaConsole}
                       onTableClick={(name, schema) => handleTableClick(name, schema)}
                       onTableDoubleClick={handleOpenNestedTable}
                       onViewClick={handleViewClick}

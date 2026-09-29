@@ -36,6 +36,7 @@ const baseProps = {
   onCreateTable: vi.fn(),
   onCreateView: vi.fn(),
   onCreateTrigger: vi.fn(),
+  onNewConsole: vi.fn(),
 };
 
 const confirmedNestedData: NestedDatabaseData = {
@@ -99,4 +100,30 @@ describe("SidebarNestedDatabaseItem", () => {
     expect(screen.queryByTitle("sidebar.editSchemas")).not.toBeInTheDocument();
     expect(screen.getByText("sidebar.selectSchemasHint")).toBeInTheDocument();
   });
+
+  it(
+    "opens a new console scoped to the schema and database via the schema row's console button " +
+      "(the nested tree otherwise has no way to open one against an empty database with no " +
+      "existing table/routine to right-click)",
+    () => {
+      const onNewConsole = vi.fn();
+
+      render(
+        <SidebarNestedDatabaseItem
+          {...baseProps}
+          nestedData={confirmedNestedData}
+          onSetSelectedSchemas={vi.fn()}
+          onNewConsole={onNewConsole}
+        />,
+      );
+
+      // Expand the database. The "public" schema row is already expanded
+      // by default (confirmedNestedData.activeSchema === "public").
+      fireEvent.click(screen.getByText("tabularis_pr822_demo"));
+
+      fireEvent.click(screen.getByTitle("sidebar.newConsole"));
+
+      expect(onNewConsole).toHaveBeenCalledWith("public", "tabularis_pr822_demo");
+    },
+  );
 });
