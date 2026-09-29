@@ -280,4 +280,70 @@ describe("useCommandPaletteObjectItems", () => {
     expect(result.current.error).toBeNull();
     expect(result.current.items).toHaveLength(1);
   });
+
+  it("should load nested per-database schemas for a schema-based multi-db connection, not the top-level schema fields", () => {
+    const loadSchemaData = vi.fn();
+    const loadNestedSchemaData = vi.fn();
+    vi.mocked(useDatabase).mockImplementation(
+      () =>
+        ({
+          activeConnectionId: "connection-1",
+          connectionDataMap: {
+            "connection-1": {
+              driver: "postgresql",
+              capabilities: { schemas: true, file_based: false },
+              // Stale/unused top-level fields for a nested multi-db
+              // connection — must not be read by the effect below.
+              schemas: ["public"],
+              selectedSchemas: ["public"],
+              schemaDataMap: { public: { tables: [{ name: "stale" }], views: [], routines: [], triggers: [], isLoading: false, isLoaded: true } },
+              databaseDataMap: {},
+              selectedDatabases: ["analytics"],
+              nestedDatabaseDataMap: {
+                analytics: {
+                  schemas: ["public"],
+                  schemasLoaded: true,
+                  isLoadingSchemas: false,
+                  selectedSchemas: ["public"],
+                  activeSchema: "public",
+                  needsSchemaSelection: false,
+                  schemaDataMap: {
+                    public: {
+                      tables: [],
+                      views: [],
+                      routines: [],
+                      triggers: [],
+                      isLoading: false,
+                      isLoaded: false,
+                    },
+                  },
+                },
+              },
+              tables: [],
+              views: [],
+              routines: [],
+              triggers: [],
+              activeSchema: null,
+            },
+          },
+          connections: [
+            { id: "connection-1", params: { database: ["analytics"] } },
+          ],
+          loadDatabaseData: vi.fn(),
+          loadSchemaData,
+          loadNestedSchemaData,
+          setActiveTable: vi.fn(),
+        }) as unknown as ReturnType<typeof useDatabase>,
+    );
+
+    renderHook(() => useCommandPaletteObjectItems(vi.fn(), vi.fn()));
+
+    expect(loadNestedSchemaData).toHaveBeenCalledTimes(1);
+    expect(loadNestedSchemaData).toHaveBeenCalledWith(
+      "analytics",
+      "public",
+      "connection-1",
+    );
+    expect(loadSchemaData).not.toHaveBeenCalled();
+  });
 });
