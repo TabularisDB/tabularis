@@ -1093,11 +1093,15 @@ pub async fn get_table_query_template<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
     request: crate::models::TableQueryTemplateRequest,
+    database: Option<String>,
 ) -> Result<Option<String>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
     let drv = driver_for_params(&params).await?;
     drv.get_table_query_template(&params, &request).await
 }
