@@ -865,6 +865,7 @@
       "categories_notebook": "ノートブック",
       "pasteImportClipboard": "クリップボードからインポート",
       "quickNavigator": "クイックナビゲーター",
+      "commandPalette": "コマンドパレット",
       "commandPaletteActions": "アクションを検索",
       "triggerSuggestions": "候補を表示",
       "formatSql": "SQLをフォーマット",
@@ -1167,6 +1168,9 @@
     "placeholder": "PINまたはパスフレーズ",
     "waiting": "セキュリティキーを待っています — タッチして確認してください。"
   },
+  "dateInput": {
+    "useShownValue": "この値を使用"
+  },
   "dataGrid": {
     "noRowIdentity": "行を編集できません: \"{{table}}\" には主キーがないため、編集には結果にテーブルの全列が含まれている必要があります。すべての列を選択する(例: SELECT *)か、主キーを追加してください。",
     "resizeRelatedPanel": "ドラッグしてパネルのサイズを変更",
@@ -1207,6 +1211,7 @@
     "copyColumnName": "カラム名をコピー",
     "copyColumnNameQuoted": "`column` 形式でコピー",
     "copyColumnNameTable": "table.column 形式でコピー",
+    "copyColumnValuesIn": "列の値を SQL IN としてコピー",
     "copyCells": "{{count}} 個のセルをコピー",
     "copyRows": "{{count}} 行をコピー",
     "copied": "クリップボードにコピーしました",

@@ -127,6 +127,7 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `connection_string` | bool | Set `false` to hide the connection string import UI for this driver. Defaults to `true` for network drivers. `file_based` and `folder_based` drivers skip the import UI automatically regardless of this flag. |
 | `connection_string_example` | string | Optional placeholder example shown in the connection string import field (e.g. `"clickhouse://user:pass@localhost:9000/db"`). Also accepted as camelCase `connectionStringExample`. |
 | `identifier_quote` | string | Character used to quote SQL identifiers. Use `"\""` for ANSI standard or `` "`" `` for MySQL style. |
+| `table_query_templates` | bool | Opts the Generate SQL dialog into the optional `get_table_query_template` RPC for SELECT/UPDATE/DELETE previews. Defaults to `false`; older plugins and built-in drivers keep the existing host templates. See [Table Query Templates](#table-query-templates). |
 | `sql_dialect` | string | Optional statement-splitting dialect: `postgres`, `mysql`, `mssql`, `sqlite`, `oracle`, or `generic`. Oracle-like plugins, including DM/Dameng, should use `"oracle"`. |
 | `alter_primary_key` | bool | `true` if the database supports altering primary keys after table creation. |
 | `manage_tables` | bool | `true` to enable table and column management UI (Create Table, Add/Modify/Drop Column, Drop Table). Does not control index or FK operations. Defaults to `true`. |
@@ -1299,6 +1300,66 @@ Return foreign keys for all tables at once.
 **Params:** `{ "params": ConnectionParams, "schema": string | null, "tables": ["users", "orders"] }`
 
 **Result:** `{ "users": [ /* FKs */ ], "orders": [ /* FKs */ ] }`
+
+---
+
+### Table Query Templates
+
+`get_table_query_template` is an **optional, additive** RPC, called only when
+`capabilities.table_query_templates` is `true`. It returns a SQL preview and
+**must not execute** the generated statement.
+
+**Params:**
+
+```json
+{
+  "params": { "driver": "sqlserver", "connection_id": "..." },
+  "request": {
+    "table": "orders",
+    "schema": "sales",
+    "kind": "select",
+    "columns": ["id", "status"],
+    "limit": 100
+  }
+}
+```
+
+`params` is the usual resolved `ConnectionParams`. `request.kind` is `select`,
+`update` or `delete`. Table, schema and column names are **unquoted identifiers**,
+not SQL fragments; the driver must quote and escape them. `columns` defaults to
+`[]`: SELECT uses `*`, UPDATE produces an editable column placeholder. `schema`
+and `limit` may be omitted or null. `limit` is an unsigned 32-bit explicit SELECT
+row limit (including zero); UPDATE/DELETE reject a non-null limit. SELECT All
+passes no limit; SELECT Fields passes 100. UPDATE/DELETE templates must include
+`WHERE 1 = 0` to prevent accidental broad writes. UPDATE values use the host
+editor's named placeholders (`:value_1`, etc.), not driver-native bind markers.
+
+**Result:** a string, for example
+`"SELECT TOP (100) [id], [status] FROM [sales].[orders];"`.
+
+Compatibility:
+
+- Missing/false capability: no new RPC is sent; legacy generation is unchanged.
+- Remote JSON-RPC error **code** `-32601`: the host falls back to its legacy
+  template. Transport errors, other remote errors and malformed results are
+  surfaced, not silently replaced with another SQL dialect.
+- The Tauri command returns `string | null`; null is the host's fallback signal,
+  **not** a valid plugin success result.
+- Existing RPC signatures, built-in driver behavior and CREATE TABLE generation
+  are unchanged. This is not a replacement for the existing DDL methods.
+- Older hosts ignore the new manifest capability and never call the method.
+  Plugins need not raise `min_runtime_version` solely for this optional feature.
+- The capability is a static manifest opt-in, not a connection-metadata override.
+
+Registry rollout: add an optional boolean `table_query_templates` (default
+false) to the driver kind's `capabilities.properties` in Tabularium for schema
+validation and generated documentation. Do not make it required. The registry
+only distributes the manifest and release; it does not route the RPC. No change
+to registry endpoints, release formats or the Tabularium SDK is needed. Register
+the property before publishing: Tabularium ingestion uses lenient validation with
+AJV `removeAdditional: 'all'`, which strips undeclared capability keys even when
+the capabilities schema otherwise allows additional properties. Refresh an
+already-ingested manifest after updating the schema.
 
 ---
 

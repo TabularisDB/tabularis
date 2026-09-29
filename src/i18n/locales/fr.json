@@ -885,6 +885,7 @@
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Importer depuis le Presse-papiers",
       "quickNavigator": "Navigateur rapide",
+      "commandPalette": "Palette de commandes",
       "commandPaletteActions": "Rechercher des actions",
       "triggerSuggestions": "Afficher les suggestions",
       "formatSql": "Formater SQL",
@@ -1190,6 +1191,9 @@
     "subtitle": "La connexion SSH nécessite votre intervention",
     "placeholder": "PIN ou phrase secrète",
     "waiting": "En attente de votre clé de sécurité — touchez-la pour confirmer."
+  },
+  "dateInput": {
+    "useShownValue": "Utiliser cette valeur"
   },
   "dataGrid": {
     "noRowIdentity": "Impossible de modifier les lignes : \"{{table}}\" n'a pas de clé primaire, la modification nécessite donc que le résultat inclue toutes les colonnes de la table. Sélectionnez toutes les colonnes (p. ex. SELECT *) ou ajoutez une clé primaire.",

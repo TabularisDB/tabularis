@@ -2,6 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+mod table_query_template;
+pub use table_query_template::{TableQueryTemplateKind, TableQueryTemplateRequest};
+
 /// Returns the set of group IDs that form the subtree rooted at `root_id`,
 /// including the root itself. Walks `parent_id` pointers transitively so
 /// any number of nesting levels is collected. The caller is expected to

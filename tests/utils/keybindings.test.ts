@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import shortcutDefs from '../../src/config/shortcuts.json';
 import {
   resolveMatch,
   matchesEvent,
@@ -125,6 +126,19 @@ describe('matchesEvent', () => {
     const event = makeEvent({ key: 'б', code: 'Comma', metaKey: true });
 
     expect(matchesEvent(event, match)).toBe(true);
+  });
+
+  it('opens the command palette from the physical K key on another layout', () => {
+    const commandPalette = shortcutDefs.find(
+      (shortcut) => shortcut.id === 'command_palette',
+    );
+    const event = makeEvent({ key: 'л', code: 'KeyK', metaKey: true });
+
+    expect(commandPalette).toBeDefined();
+    expect(commandPalette?.macMatch.code).toBe('KeyK');
+    expect(commandPalette?.winMatch.code).toBe('KeyK');
+    expect(commandPalette?.i18nKey).toBe('settings.shortcuts.commandPalette');
+    expect(matchesEvent(event, commandPalette!.macMatch)).toBe(true);
   });
 
   it('matches the shortcut character on a different physical key', () => {
@@ -275,6 +289,15 @@ describe('keyMatchesOverlap', () => {
 });
 
 describe('connectionIndexFromShortcut', () => {
+  it('keeps the default connection shortcut aligned with its code-based matcher', () => {
+    const switchConnection = shortcutDefs.find(
+      (shortcut) => shortcut.id === 'switch_connection',
+    );
+
+    expect(switchConnection?.macMatch.code).toBe('Digit1');
+    expect(switchConnection?.winMatch.code).toBe('Digit1');
+  });
+
   it.each([
     { code: 'Digit2', index: 1 },
     { code: 'Digit9', index: 8 },
@@ -382,21 +405,48 @@ describe('matchesReservedShortcut', () => {
   });
 
   it.each([
-    { platform: 'macOS', isMac: true },
-    { platform: 'Windows', isMac: false },
+    {
+      id: 'jump_to_edge',
+      match: { key: 'ArrowRight', code: 'ArrowRight' },
+    },
+    {
+      id: 'extend_cell_range_to_edge',
+      match: { shiftKey: true, key: 'ArrowRight', code: 'ArrowRight' },
+    },
+    {
+      id: 'select_column',
+      match: { key: ' ', code: 'Space' },
+    },
   ])(
-    'does not reserve a shortcut with both primary modifiers on $platform',
-    ({ isMac }) => {
-      const match: KeyMatch = {
-        ctrlKey: true,
-        metaKey: true,
-        key: 'ArrowRight',
-        code: 'ArrowRight',
-      };
-
-      expect(matchesReservedShortcut('jump_to_edge', match, isMac)).toBe(false);
+    'reserves $id with both primary modifiers on macOS',
+    ({ id, match }) => {
+      expect(
+        matchesReservedShortcut(
+          id,
+          {
+            ...match,
+            ctrlKey: true,
+            metaKey: true,
+          },
+          true,
+        ),
+      ).toBe(true);
     },
   );
+
+  it('keeps switch-connection shortcuts exclusive to one primary modifier', () => {
+    const match: KeyMatch = {
+      ctrlKey: true,
+      metaKey: true,
+      shiftKey: true,
+      key: '!',
+      code: 'Digit1',
+    };
+
+    expect(
+      matchesReservedShortcut('switch_connection', match, true),
+    ).toBe(false);
+  });
 });
 
 // ─── mergeShortcuts ────────────────────────────────────────────────────────────
@@ -474,6 +524,12 @@ describe('formatEvent', () => {
     const event = makeEvent({ key: ' ', ctrlKey: true });
     expect(formatEvent(event, false)).toBe('Ctrl+Space');
   });
+
+  it('formats the logical key instead of the physical code', () => {
+    const event = makeEvent({ key: 'a', code: 'KeyQ', metaKey: true });
+
+    expect(formatEvent(event, true)).toBe('⌘+A');
+  });
 });
 
 // ─── formatMatch ──────────────────────────────────────────────────────────────
@@ -506,5 +562,11 @@ describe('formatMatch', () => {
   it('formats space key as Space', () => {
     const match: KeyMatch = { ctrlKey: true, key: ' ' };
     expect(formatMatch(match, false)).toBe('Ctrl+Space');
+  });
+
+  it('formats a recorded shortcut using its logical key', () => {
+    const match: KeyMatch = { metaKey: true, key: 'a', code: 'KeyQ' };
+
+    expect(formatMatch(match, true)).toBe('⌘+A');
   });
 });

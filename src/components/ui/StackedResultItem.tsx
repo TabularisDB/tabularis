@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Loader2,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { ResultEntryContent } from "./ResultEntryContent";
+import type { DataGridCommandTarget } from "./DataGrid";
 import { PaginationControls } from "./PaginationControls";
 import { ResizeHandle } from "../notebook/ResizeHandle";
 import { formatDuration } from "../../utils/formatTime";
@@ -36,6 +37,7 @@ interface StackedResultItemProps {
   onRerun: () => void;
   onAiRename: () => void;
   onClose: () => void;
+  commandTargetRef?: Ref<DataGridCommandTarget>;
 }
 
 export function StackedResultItem({
@@ -53,6 +55,7 @@ export function StackedResultItem({
   onRerun,
   onAiRename,
   onClose,
+  commandTargetRef,
 }: StackedResultItemProps) {
   const { t } = useTranslation();
   const [queryExpanded, setQueryExpanded] = useState(false);
@@ -301,6 +304,7 @@ export function StackedResultItem({
           ) : entry.error ? (
             <div className="max-h-[150px] overflow-auto">
               <ResultEntryContent
+                commandTargetRef={commandTargetRef}
                 entry={entry}
                 connectionId={connectionId}
                 copyFormat={copyFormat}
@@ -314,6 +318,7 @@ export function StackedResultItem({
             <>
               <div style={{ height: gridHeight }} className="overflow-hidden">
                 <ResultEntryContent
+                  commandTargetRef={commandTargetRef}
                   entry={entry}
                   connectionId={connectionId}
                   copyFormat={copyFormat}

@@ -284,6 +284,7 @@ fn plugin_manifest() -> PluginManifest {
             auto_increment_keyword: String::new(),
             serial_type: "SERIAL".into(),
             inline_pk: false,
+            table_query_templates: false,
             alter_column: true,
             create_foreign_keys: true,
             no_connection_required: false,

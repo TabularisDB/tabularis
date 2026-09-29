@@ -234,8 +234,8 @@
     "category": "navigation",
     "defaultMac": "⌘+Shift+1–9",
     "defaultWin": "Ctrl+Shift+1–9",
-    "macMatch": { "metaKey": true, "shiftKey": true, "key": "1" },
-    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "1" },
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "1", "code": "Digit1" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "1", "code": "Digit1" },
     "i18nKey": "settings.shortcuts.switchConnection",
     "overridable": false
   },
@@ -257,6 +257,16 @@
     "macMatch": { "metaKey": true, "shiftKey": true, "key": "Enter" },
     "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "Enter" },
     "i18nKey": "settings.shortcuts.notebookRunAll",
+    "overridable": true
+  },
+  {
+    "id": "command_palette",
+    "category": "navigation",
+    "defaultMac": "⌘+K",
+    "defaultWin": "Ctrl+K",
+    "macMatch": { "metaKey": true, "key": "k", "code": "KeyK" },
+    "winMatch": { "ctrlKey": true, "key": "k", "code": "KeyK" },
+    "i18nKey": "settings.shortcuts.commandPalette",
     "overridable": true
   },
   {

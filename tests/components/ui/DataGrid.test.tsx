@@ -1,8 +1,11 @@
-import { render, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, render, fireEvent, screen, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { useState } from "react";
+import { createRef, useState } from "react";
 import { vi } from "vitest";
-import { DataGrid } from "../../../src/components/ui/DataGrid";
+import {
+  DataGrid,
+  type DataGridCommandTarget,
+} from "../../../src/components/ui/DataGrid";
 import {
   buildPkMap,
   serializePkKey,
@@ -17,13 +20,40 @@ vi.mock("../../../src/hooks/useAlert", () => ({
   useAlert: () => ({ showAlert: vi.fn() }),
 }));
 
-const { showToastMock, openRowEditorMock } = vi.hoisted(() => ({
+const {
+  showToastMock,
+  openRowEditorMock,
+  translationMock,
+  scrollToIndexMock,
+  scrollToOffsetMock,
+  virtualizerRenderControl,
+} = vi.hoisted(() => ({
   showToastMock: vi.fn(),
   openRowEditorMock: vi.fn(),
+  translationMock: vi.fn((key: string) => key),
+  scrollToIndexMock: vi.fn(),
+  scrollToOffsetMock: vi.fn(),
+  // Lets a single test simulate the virtualizer's first, unmeasured commit,
+  // where it has no virtual items yet.
+  virtualizerRenderControl: { forceEmpty: false },
 }));
 
 vi.mock("../../../src/hooks/useToast", () => ({
   useToast: () => ({ showToast: showToastMock }),
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: translationMock,
+    i18n: {
+      language: "en",
+      changeLanguage: vi.fn(),
+    },
+  }),
+  initReactI18next: {
+    type: "3rdParty",
+    init: vi.fn(),
+  },
 }));
 
 vi.mock("../../../src/hooks/useSettings", () => ({
@@ -51,20 +81,40 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 
 // JSDOM has no layout, so the real virtualizer renders zero rows. Mock it to
-// render every row — tests here assert behavior, not virtualization.
+// render every row — tests here assert behavior, not virtualization. Unless
+// virtualizerRenderControl.forceEmpty is set, which simulates the real
+// virtualizer's first, unmeasured commit (no virtual items yet).
 vi.mock("@tanstack/react-virtual", () => ({
-  useVirtualizer: ({ count }: { count: number }) => ({
-    getVirtualItems: () =>
-      Array.from({ length: count }, (_, index) => ({
-        index,
-        key: index,
-        start: index * 35,
-        end: (index + 1) * 35,
-        size: 35,
-      })),
-    getTotalSize: () => count * 35,
-    scrollToIndex: () => {},
-  }),
+  useVirtualizer: ({
+    count,
+    getScrollElement,
+  }: {
+    count: number;
+    getScrollElement: () => HTMLElement | null;
+  }) => {
+    const items = virtualizerRenderControl.forceEmpty
+      ? []
+      : Array.from({ length: count }, (_, index) => ({
+          index,
+          key: index,
+          start: index * 35,
+          end: (index + 1) * 35,
+          size: 35,
+        }));
+    return {
+      getVirtualItems: () => items,
+      getTotalSize: () => count * 35,
+      scrollToIndex: scrollToIndexMock,
+      // The real virtualizer applies the offset to the scroll element
+      // itself, and — like a real, unmeasured browser viewport — clamps it
+      // to 0 when nothing has rendered yet.
+      scrollToOffset: (offset: number) => {
+        scrollToOffsetMock(offset);
+        const el = getScrollElement();
+        if (el) el.scrollTop = items.length > 0 ? offset : 0;
+      },
+    };
+  },
 }));
 
 class ResizeObserverMock {
@@ -523,6 +573,51 @@ describe("DataGrid keyboard editing", () => {
 
     expect(container.querySelector("textarea")).toHaveValue("");
   });
+
+  it("commits the prefilled date of an empty date cell once on Enter (#826)", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 27, 15, 30, 0));
+    try {
+      const onPendingChange = vi.fn();
+      const { container } = render(
+        <DataGrid
+          columns={["id", "due"]}
+          data={[[1, null]]}
+          tableName="tasks"
+          pkColumns={["id"]}
+          columnMetadata={[
+            {
+              name: "id",
+              data_type: "integer",
+              is_pk: true,
+              is_nullable: false,
+              is_auto_increment: false,
+            },
+            {
+              name: "due",
+              data_type: "date",
+              is_pk: false,
+              is_nullable: true,
+              is_auto_increment: false,
+            },
+          ]}
+          onPendingChange={onPendingChange}
+          selectedRows={new Set()}
+          onSelectionChange={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(cellAt(container, 0, 1));
+      fireEvent.keyDown(gridOf(container), { key: "Enter" });
+      fireEvent.keyDown(container.querySelector("td select")!, { key: "Enter" });
+
+      expect(onPendingChange).toHaveBeenCalledTimes(1);
+      expect(onPendingChange).toHaveBeenCalledWith({ id: 1 }, "due", "2026-09-27");
+      expect(gridOf(container)).toHaveFocus();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("DataGrid select all", () => {
@@ -537,10 +632,158 @@ describe("DataGrid select all", () => {
   beforeEach(() => {
     writeText.mockClear();
     showToastMock.mockClear();
+    translationMock.mockClear();
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText },
       configurable: true,
     });
+  });
+
+  it("copies pending insertions with all loaded rows", async () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <DataGrid
+        ref={commandTargetRef}
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    const command = commandTargetRef.current?.getResultCommands().copyAllRows;
+    expect(command?.count).toBe(2);
+    await act(async () => {
+      await command?.execute();
+    });
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
+  });
+
+  it("copies pending insertions with selected columns", async () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <DataGrid
+        ref={commandTargetRef}
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("name"), { metaKey: true });
+    const command =
+      commandTargetRef.current?.getResultCommands().copySelectedColumns;
+    await act(async () => {
+      await command?.execute();
+    });
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
+    expect(translationMock).toHaveBeenCalledWith("dataGrid.copiedRows", {
+      count: 2,
+    });
+  });
+
+  it("copies pending insertion values as a SQL IN clause", async () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <DataGrid
+        ref={commandTargetRef}
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("name"), { metaKey: true });
+    const command =
+      commandTargetRef.current?.getResultCommands().copyColumnValuesAsSqlIn;
+    await act(async () => {
+      await command?.execute();
+    });
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("'Alice'");
+    expect(writeText.mock.calls[0][0]).toContain("'Pending'");
+  });
+
+  it("copies selected pending insertions from the row context menu", async () => {
+    const { container } = render(
+      <DataGrid
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set([0, 1])}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(
+      container.querySelector('td[data-col-index="0"]')!,
+    );
+    fireEvent.click(await screen.findByText("dataGrid.copySelectedN"));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
+  });
+
+  it("copies pending insertion values from the column context menu", async () => {
+    const { container } = render(
+      <DataGrid
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelectorAll("th")[2]);
+    fireEvent.click(await screen.findByText("dataGrid.copyColumnValues"));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
   });
 
   it("selects all loaded rows with Cmd/Ctrl+A without copying", () => {
@@ -589,6 +832,37 @@ describe("DataGrid select all", () => {
         kind: "success",
       }),
     );
+  });
+
+  it("copies pending insertions when selected with Cmd/Ctrl+A", async () => {
+    const Harness = () => {
+      const [selected, setSelected] = useState<Set<number>>(new Set());
+      return (
+        <DataGrid
+          columns={columns}
+          data={[[1, "Alice"]]}
+          pendingInsertions={{
+            pending: {
+              tempId: "pending",
+              data: { id: 2, name: "Pending" },
+              displayIndex: 1,
+            },
+          }}
+          selectedRows={selected}
+          onSelectionChange={setSelected}
+          readonly
+        />
+      );
+    };
+    const { container } = render(<Harness />);
+
+    fireEvent.mouseDown(container.querySelector("table")!);
+    fireEvent.keyDown(document, { key: "a", metaKey: true });
+    fireEvent.keyDown(document, { key: "c", metaKey: true });
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
   });
 
   it("ignores Cmd/Ctrl+A when the grid was not interacted with", () => {
@@ -1240,5 +1514,173 @@ describe("DataGrid sensitive-column masking (#485)", () => {
     );
     fireEvent.doubleClick(cellAt(container, 0, 1));
     expect(container.querySelector("textarea")).toBeInTheDocument();
+  });
+});
+
+describe("DataGrid vertical scroll position across tab switches (#823)", () => {
+  // Editor.tsx keys the <DataGrid> it renders by the active tab's id (plus
+  // sort/filter/result state), so switching tabs fully unmounts the previous
+  // grid and mounts a fresh one for the newly active tab — it does not just
+  // hide it. Editor.tsx is expected to remember the last scrollTop it saw
+  // (via onScrollTopChange) and hand it back as initialScrollTop when the
+  // tab's grid is remounted.
+  it("restores the scrollTop the caller passes back in as initialScrollTop", () => {
+    scrollToOffsetMock.mockClear();
+    const columns = ["id"];
+    const data = Array.from({ length: 200 }, (_, i) => [i]);
+
+    const { container, unmount } = render(
+      <DataGrid
+        columns={columns}
+        data={data}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+    const scrollEl = container.querySelector(".overflow-auto") as HTMLElement;
+    expect(scrollEl).not.toBeNull();
+
+    fireEvent.scroll(scrollEl, { target: { scrollTop: 400 } });
+    expect(scrollEl.scrollTop).toBe(400);
+
+    // Simulate switching away and back to this tab: the old grid is gone,
+    // a brand new one is mounted in its place.
+    unmount();
+
+    const { container: container2 } = render(
+      <DataGrid
+        columns={columns}
+        data={data}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        initialScrollTop={400}
+      />,
+    );
+    const scrollEl2 = container2.querySelector(
+      ".overflow-auto",
+    ) as HTMLElement;
+
+    expect(scrollToOffsetMock).toHaveBeenCalledWith(400);
+    expect(scrollEl2.scrollTop).toBe(400);
+  });
+
+  it("reports scroll position changes via onScrollTopChange", () => {
+    const onScrollTopChange = vi.fn();
+    const { container } = render(
+      <DataGrid
+        columns={["id"]}
+        data={Array.from({ length: 200 }, (_, i) => [i])}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        onScrollTopChange={onScrollTopChange}
+      />,
+    );
+    const scrollEl = container.querySelector(".overflow-auto") as HTMLElement;
+
+    fireEvent.scroll(scrollEl, { target: { scrollTop: 250 } });
+
+    expect(onScrollTopChange).toHaveBeenCalledWith(250);
+  });
+
+  // Editor.tsx also remounts this grid when a pending insertion is added,
+  // and separately decides — outside this component's own lifecycle,
+  // because a fresh mount can never observe its own "count changed" —
+  // whether this mount is that kind of insert. It passes that decision in
+  // as scrollToNewInsertion, which must win over any restored offset from
+  // the grid's previous mount: an inserted row should always be scrolled
+  // into view, never left below a stale scroll position.
+  it("scrolls to the newly inserted row instead of restoring initialScrollTop when both are set", () => {
+    scrollToIndexMock.mockClear();
+    scrollToOffsetMock.mockClear();
+    const data = Array.from({ length: 200 }, (_, i) => [i]);
+
+    const { container } = render(
+      <DataGrid
+        columns={["id"]}
+        data={data}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        initialScrollTop={5000}
+        scrollToNewInsertion
+      />,
+    );
+
+    expect(scrollToIndexMock).toHaveBeenCalledWith(data.length - 1, {
+      align: "end",
+    });
+
+    // The restore path must not also have run: it goes through
+    // scrollToOffset, which would clobber whatever the (mocked)
+    // scroll-to-bottom did.
+    expect(scrollToOffsetMock).not.toHaveBeenCalled();
+    const scrollEl = container.querySelector(".overflow-auto") as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(0);
+  });
+
+  it("restores initialScrollTop when there is no new insertion to scroll to", () => {
+    scrollToIndexMock.mockClear();
+    scrollToOffsetMock.mockClear();
+    const data = Array.from({ length: 200 }, (_, i) => [i]);
+
+    const { container } = render(
+      <DataGrid
+        columns={["id"]}
+        data={data}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        initialScrollTop={400}
+        scrollToNewInsertion={false}
+      />,
+    );
+
+    expect(scrollToIndexMock).not.toHaveBeenCalled();
+    expect(scrollToOffsetMock).toHaveBeenCalledWith(400);
+    const scrollEl = container.querySelector(".overflow-auto") as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(400);
+  });
+
+  // The real virtualizer renders no rows on its very first commit, before
+  // it has measured the scroll container. Restoring then would call
+  // scrollToOffset while the container's scrollHeight still equals its
+  // clientHeight, which clamps the offset to 0 — and the has-run ref would
+  // then mark the restore done for good, so it never gets another chance.
+  it("restores initialScrollTop once the virtualizer has rendered rows, not on the first, empty render", () => {
+    scrollToOffsetMock.mockClear();
+    virtualizerRenderControl.forceEmpty = true;
+    let forceRerender = () => {};
+    const data = Array.from({ length: 200 }, (_, i) => [i]);
+    const Harness = () => {
+      const [, setTick] = useState(0);
+      forceRerender = () => setTick((n) => n + 1);
+      return (
+        <DataGrid
+          columns={["id"]}
+          data={data}
+          selectedRows={new Set()}
+          onSelectionChange={vi.fn()}
+          initialScrollTop={400}
+        />
+      );
+    };
+
+    try {
+      const { container } = render(<Harness />);
+      const scrollEl = container.querySelector(
+        ".overflow-auto",
+      ) as HTMLElement;
+
+      // No rows rendered yet: the restore must not fire.
+      expect(scrollToOffsetMock).not.toHaveBeenCalled();
+      expect(scrollEl.scrollTop).toBe(0);
+
+      // The virtualizer measures the viewport and re-renders with rows.
+      virtualizerRenderControl.forceEmpty = false;
+      act(() => forceRerender());
+
+      expect(scrollToOffsetMock).toHaveBeenCalledWith(400);
+      expect(scrollEl.scrollTop).toBe(400);
+    } finally {
+      virtualizerRenderControl.forceEmpty = false;
+    }
   });
 });

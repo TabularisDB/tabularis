@@ -14,7 +14,10 @@ import {
 import { useActiveCommandPaletteScope } from "../../src/hooks/useCommandPaletteScope";
 import { useCommandPaletteActionItems } from "../../src/hooks/useCommandPaletteActionItems";
 import { useEditor } from "../../src/hooks/useEditor";
-import type { CommandRuntime } from "../../src/types/commands";
+import type {
+  CommandRuntime,
+  CommandScope,
+} from "../../src/types/commands";
 import type { Tab } from "../../src/types/editor";
 import { ROOT_COMMAND_SCOPE_ID } from "../../src/utils/commandScopeStore";
 import { createEditorNavigationIntent } from "../../src/utils/editorNavigation";
@@ -64,11 +67,16 @@ function createDatabaseValue(
   connectionId: string,
   driver: string,
   schema: string,
+  overrides: Partial<DatabaseContextType> = {},
 ): DatabaseContextType {
   return {
     activeConnectionId: connectionId,
     activeDriver: driver,
     activeSchema: schema,
+    connections: [],
+    openConnectionIds: [],
+    switchConnection: vi.fn(),
+    ...overrides,
   } as DatabaseContextType;
 }
 
@@ -76,21 +84,37 @@ function Panel({
   connectionId,
   driver,
   openEditor,
+  getEditorCommands,
+  getResultCommands,
+  databaseOverrides,
   schema,
   scopeId = connectionId,
 }: {
   connectionId: string;
   driver: string;
   openEditor?: CommandRuntime["openEditor"];
+  getEditorCommands?: CommandScope["getEditorCommands"];
+  getResultCommands?: CommandScope["getResultCommands"];
+  databaseOverrides?: Partial<DatabaseContextType>;
   schema: string;
   scopeId?: string;
 }) {
   return (
     <DatabaseContext.Provider
-      value={createDatabaseValue(connectionId, driver, schema)}
+      value={createDatabaseValue(
+        connectionId,
+        driver,
+        schema,
+        databaseOverrides,
+      )}
     >
       <EditorProvider>
-        <PanelScopeBridge scopeId={scopeId} openEditor={openEditor} />
+        <PanelScopeBridge
+          scopeId={scopeId}
+          openEditor={openEditor}
+          getEditorCommands={getEditorCommands}
+          getResultCommands={getResultCommands}
+        />
         <PanelTabs connectionId={connectionId} />
       </EditorProvider>
     </DatabaseContext.Provider>
@@ -101,15 +125,21 @@ function Panel({
 function PanelScopeBridge({
   scopeId,
   openEditor,
+  getEditorCommands,
+  getResultCommands,
 }: {
   scopeId: string;
   openEditor?: CommandRuntime["openEditor"];
+  getEditorCommands?: CommandScope["getEditorCommands"];
+  getResultCommands?: CommandScope["getResultCommands"];
 }) {
   const { addTab } = useEditor();
 
   return (
     <CommandPaletteScopeBridge
       scopeId={scopeId}
+      getEditorCommands={getEditorCommands}
+      getResultCommands={getResultCommands}
       openEditor={
         openEditor ??
         ((request) => {
@@ -158,18 +188,55 @@ function ActiveTableCommand() {
   const command = items.find(
     (item) => item.id === "table.open-in-console",
   );
+  const resultCommand = items.find(
+    (item) => item.id === "result.copy-selected-cells",
+  );
+  const editorCommand = items.find((item) => item.id === "editor.run");
+  const connectionCommand = items.find((item) =>
+    item.id.startsWith("connection.switch:"),
+  );
 
-  if (!command) return <div>No table command</div>;
+  if (!command && !resultCommand && !editorCommand && !connectionCommand) {
+    return <div>No contextual command</div>;
+  }
 
   return (
     <>
-      <output data-testid="active-table">{command.description}</output>
-      <button
-        type="button"
-        onClick={() => void command.primaryAction.execute()}
-      >
-        Execute table command
-      </button>
+      {command && (
+        <>
+          <output data-testid="active-table">{command.description}</output>
+          <button
+            type="button"
+            onClick={() => void command.primaryAction.execute()}
+          >
+            Execute table command
+          </button>
+        </>
+      )}
+      {resultCommand && (
+        <button
+          type="button"
+          onClick={() => void resultCommand.primaryAction.execute()}
+        >
+          Execute result command
+        </button>
+      )}
+      {editorCommand && (
+        <button
+          type="button"
+          onClick={() => void editorCommand.primaryAction.execute()}
+        >
+          Execute editor command
+        </button>
+      )}
+      {connectionCommand && (
+        <button
+          type="button"
+          onClick={() => void connectionCommand.primaryAction.execute()}
+        >
+          Execute connection command
+        </button>
+      )}
     </>
   );
 }
@@ -400,5 +467,132 @@ describe("CommandPaletteProvider split-view scope", () => {
       targetConnectionId: "connection-b",
     });
     expect(openInPanelA).not.toHaveBeenCalled();
+  });
+
+  it("should execute result actions from the active split panel only", () => {
+    const copyFromPanelA = vi.fn();
+    const copyFromPanelB = vi.fn();
+
+    render(
+      <MemoryRouter initialEntries={["/editor"]}>
+        <CommandPaletteProvider>
+          <Panel
+            connectionId="connection-a"
+            driver="mysql"
+            schema="schema_a"
+            getResultCommands={() => ({
+              copySelectedCells: { count: 1, execute: copyFromPanelA },
+            })}
+          />
+          <Panel
+            connectionId="connection-b"
+            driver="postgres"
+            schema="schema_b"
+            getResultCommands={() => ({
+              copySelectedCells: { count: 2, execute: copyFromPanelB },
+            })}
+          />
+          <PaletteHarness />
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open actions" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Execute result command" }),
+    );
+
+    expect(copyFromPanelB).toHaveBeenCalledOnce();
+    expect(copyFromPanelA).not.toHaveBeenCalled();
+  });
+
+  it("should execute editor actions from the active split panel only", () => {
+    const runFromPanelA = vi.fn();
+    const runFromPanelB = vi.fn();
+
+    render(
+      <MemoryRouter initialEntries={["/editor"]}>
+        <CommandPaletteProvider>
+          <Panel
+            connectionId="connection-a"
+            driver="mysql"
+            schema="schema_a"
+            getEditorCommands={() => ({
+              run: { label: "Run A", execute: runFromPanelA },
+            })}
+          />
+          <Panel
+            connectionId="connection-b"
+            driver="postgres"
+            schema="schema_b"
+            getEditorCommands={() => ({
+              run: { label: "Run B", execute: runFromPanelB },
+            })}
+          />
+          <PaletteHarness />
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open actions" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Execute editor command" }),
+    );
+
+    expect(runFromPanelB).toHaveBeenCalledOnce();
+    expect(runFromPanelA).not.toHaveBeenCalled();
+  });
+
+  it("should switch connections through the active split panel only", () => {
+    const switchFromPanelA = vi.fn();
+    const switchFromPanelB = vi.fn();
+    const connections = [
+      {
+        id: "connection-a",
+        name: "Primary",
+        params: { driver: "mysql", database: "app" },
+      },
+      {
+        id: "connection-b",
+        name: "Analytics",
+        params: { driver: "postgres", database: "warehouse" },
+      },
+    ];
+
+    render(
+      <MemoryRouter initialEntries={["/editor"]}>
+        <CommandPaletteProvider>
+          <Panel
+            connectionId="connection-a"
+            driver="mysql"
+            schema="schema_a"
+            databaseOverrides={{
+              connections,
+              openConnectionIds: ["connection-a", "connection-b"],
+              switchConnection: switchFromPanelA,
+            }}
+          />
+          <Panel
+            connectionId="connection-b"
+            driver="postgres"
+            schema="schema_b"
+            databaseOverrides={{
+              connections,
+              openConnectionIds: ["connection-a", "connection-b"],
+              switchConnection: switchFromPanelB,
+            }}
+          />
+          <PaletteHarness />
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open actions" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Execute connection command" }),
+    );
+
+    expect(switchFromPanelB).toHaveBeenCalledWith("connection-a");
+    expect(switchFromPanelA).not.toHaveBeenCalled();
   });
 });

@@ -834,6 +834,7 @@
       "extendCellRangeToEdge": "셀 범위를 가장자리까지 확장",
       "selectRow": "행 선택",
       "selectColumn": "열 선택",
+      "commandPalette": "명령 팔레트",
       "commandPaletteActions": "작업 검색"
     },
     "aiActivity": "AI 활동",
@@ -1128,6 +1129,9 @@
     "placeholder": "PIN 또는 암호",
     "waiting": "보안 키를 기다리는 중 — 터치하여 확인하세요."
   },
+  "dateInput": {
+    "useShownValue": "이 값 사용"
+  },
   "dataGrid": {
     "noRowIdentity": "행을 편집할 수 없습니다: \"{{table}}\"에 기본 키가 없으므로 편집하려면 결과에 테이블의 모든 열이 포함되어야 합니다. 모든 열을 선택하거나(예: SELECT *) 기본 키를 추가하세요.",
     "resizeRelatedPanel": "드래그하여 패널 크기 조정",
@@ -1170,6 +1174,7 @@
     "copyColumnName": "컬럼 이름 복사",
     "copyColumnNameQuoted": "`column` 형식으로 복사",
     "copyColumnNameTable": "table.column 형식으로 복사",
+    "copyColumnValuesIn": "열 값을 SQL IN으로 복사",
     "copyCells": "{{count}}개 셀 복사",
     "copyRows": "{{count}}개 행 복사",
     "copied": "클립보드에 복사되었습니다",

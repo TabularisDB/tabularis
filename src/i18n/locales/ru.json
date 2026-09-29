@@ -844,6 +844,7 @@
       "categories_notebook": "Ноутбук",
       "pasteImportClipboard": "Импортировать из буфера обмена",
       "quickNavigator": "Быстрый навигатор",
+      "commandPalette": "Панель команд",
       "commandPaletteActions": "Поиск действий",
       "triggerSuggestions": "Показать подсказки",
       "formatSql": "Форматировать SQL",
@@ -1152,6 +1153,9 @@
     "placeholder": "PIN-код или парольная фраза",
     "waiting": "Ожидание ключа безопасности — коснитесь его для подтверждения."
   },
+  "dateInput": {
+    "useShownValue": "Использовать это значение"
+  },
   "dataGrid": {
     "noRowIdentity": "Строки нельзя редактировать: у \"{{table}}\" нет первичного ключа, поэтому результат должен включать все столбцы таблицы. Выберите все столбцы (например, SELECT *) или добавьте первичный ключ.",
     "resizeRelatedPanel": "Перетащите, чтобы изменить размер панели",
@@ -1196,6 +1200,7 @@
     "copyColumnName": "Копировать имя столбца",
     "copyColumnNameQuoted": "Копировать как `column`",
     "copyColumnNameTable": "Копировать как table.column",
+    "copyColumnValuesIn": "Копировать значения столбца как SQL IN",
     "copyCells": "Копировать {{count}} ячеек",
     "copyRows": "Копировать {{count}} строк",
     "copied": "Скопировано в буфер обмена",
