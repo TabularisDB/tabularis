@@ -180,6 +180,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         activeConnectionId,
         partial?.activeTable || undefined,
         partial?.schema,
+        partial?.database,
       );
       if (existing) {
         setActiveTabId(existing.id);
