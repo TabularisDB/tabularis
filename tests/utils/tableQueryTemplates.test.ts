@@ -21,6 +21,16 @@ describe("loadTableQueryTemplates", () => {
     }
   });
 
+  it("forwards an explicit database override to every RPC call", async () => {
+    invokeMock.mockResolvedValue("driver SQL");
+    await loadTableQueryTemplates("connection", "orders", "sales", ["id"], "analytics");
+    expect(invokeMock).toHaveBeenCalledWith("get_table_query_template", {
+      connectionId: "connection",
+      request: { table: "orders", schema: "sales", kind: "select", columns: [], limit: null },
+      database: "analytics",
+    });
+  });
+
   it("keeps null as the explicit fallback signal and propagates failures", async () => {
     invokeMock.mockResolvedValue(null);
     expect((await loadTableQueryTemplates("c", "t", "s", []))["select-fields"]).toBeNull();

@@ -2209,6 +2209,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           connectionId: activeConnectionId,
                           tableName: contextMenu.id,
                           schema: ctxSchema ?? activeSchema ?? undefined,
+                          database: ctxDatabase,
                         });
                       },
                     } : null,
