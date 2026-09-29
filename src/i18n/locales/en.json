@@ -1768,6 +1768,7 @@
     "exitFullscreen": "Exit Fullscreen",
     "noConnection": "No Connection ID",
     "noConnectionDesc": "Cannot display diagram without a connection ID.",
+    "loadError": "Failed to load diagram: {{message}}",
     "switchToVertical": "Switch to Vertical Layout",
     "switchToHorizontal": "Switch to Horizontal Layout",
     "lockNodes": "Lock node positions",

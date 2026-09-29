@@ -1737,6 +1737,7 @@
     "exitFullscreen": "Sair da Tela Cheia",
     "noConnection": "Nenhum ID de Conexão",
     "noConnectionDesc": "Não é possível exibir o diagrama sem um ID de conexão.",
+    "loadError": "Falha ao carregar o diagrama: {{message}}",
     "switchToVertical": "Alternar para Layout Vertical",
     "switchToHorizontal": "Alternar para Layout Horizontal",
     "lockNodes": "Bloquear posições dos nós",

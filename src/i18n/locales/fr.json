@@ -1757,6 +1757,7 @@
     "exitFullscreen": "Quitter le plein écran",
     "noConnection": "Aucun ID de connexion",
     "noConnectionDesc": "Impossible d’afficher le diagramme sans ID de connexion.",
+    "loadError": "Échec du chargement du diagramme : {{message}}",
     "switchToVertical": "Passer en disposition verticale",
     "switchToHorizontal": "Passer en disposition horizontale",
     "lockNodes": "Verrouiller la position des nœuds",

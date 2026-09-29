@@ -1464,8 +1464,33 @@ impl DatabaseDriver for RpcDriver {
                 "get_schema_snapshot",
                 json!({ "params": self.with_primary_database(params), "schema": schema }),
             )
-            .await?;
-        serde_json::from_value(res).map_err(|e| e.to_string())
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => {
+                // The plugin doesn't implement this batch RPC (the
+                // PostgreSQL plugin doesn't as of this writing — followed
+                // up separately). Unlike get_materialized_views' empty-Vec
+                // fallback above, an empty schema here would be actively
+                // misleading (it reads as "this schema has no tables", not
+                // "this driver has no fast batch endpoint"), so compose the
+                // same shape from get_tables/get_columns/get_foreign_keys
+                // instead, which the plugin does implement.
+                let tables = self.get_tables(params, schema).await?;
+                let mut snapshot = Vec::with_capacity(tables.len());
+                for table in tables {
+                    let columns = self.get_columns(params, &table.name, schema).await?;
+                    let foreign_keys = self.get_foreign_keys(params, &table.name, schema).await?;
+                    snapshot.push(TableSchema {
+                        name: table.name,
+                        columns,
+                        foreign_keys,
+                    });
+                }
+                Ok(snapshot)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     async fn get_ai_schema_context(
@@ -2293,6 +2318,40 @@ mod tests {
             .expect("fallback returns empty vec");
 
         assert!(views.is_empty());
+    }
+
+    /// Regression: the ER diagram against a plugin lacking `get_schema_snapshot`
+    /// (the PostgreSQL plugin, as of this writing) rendered a silently blank
+    /// canvas — the batch RPC failed with "method not found" and there was
+    /// no fallback, unlike get_materialized_views above. Unlike that one, an
+    /// empty-Vec fallback here would be actively misleading ("no tables"
+    /// instead of "no fast batch endpoint"), so this composes the same shape
+    /// from get_tables/get_columns/get_foreign_keys instead.
+    #[tokio::test]
+    async fn rpc_driver_get_schema_snapshot_falls_back_to_composed_metadata_when_method_missing() {
+        let driver = test_driver_result(|request| match request.method.as_str() {
+            "get_schema_snapshot" => Err("Method not found (-32601)".to_string()),
+            "get_tables" => Ok(json!([{ "name": "products" }])),
+            "get_columns" => Ok(json!([
+                { "name": "id", "data_type": "integer", "is_pk": true, "is_nullable": false, "is_auto_increment": true },
+            ])),
+            "get_foreign_keys" => Ok(json!([
+                { "name": "fk_products_category", "column_name": "category_id", "ref_table": "categories", "ref_column": "id" },
+            ])),
+            other => panic!("unexpected method: {other}"),
+        });
+
+        let snapshot = driver
+            .get_schema_snapshot(&test_connection_params(), Some("public"))
+            .await
+            .expect("fallback composes a snapshot from get_tables/get_columns/get_foreign_keys");
+
+        assert_eq!(snapshot.len(), 1);
+        assert_eq!(snapshot[0].name, "products");
+        assert_eq!(snapshot[0].columns.len(), 1);
+        assert_eq!(snapshot[0].columns[0].name, "id");
+        assert_eq!(snapshot[0].foreign_keys.len(), 1);
+        assert_eq!(snapshot[0].foreign_keys[0].ref_table, "categories");
     }
 
     #[tokio::test]

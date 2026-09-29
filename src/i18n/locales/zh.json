@@ -1660,6 +1660,7 @@
     "exitFullscreen": "退出全屏",
     "noConnection": "无连接 ID",
     "noConnectionDesc": "无法在没有连接 ID 的情况下显示图表。",
+    "loadError": "加载图表失败：{{message}}",
     "switchToVertical": "切换到垂直布局",
     "switchToHorizontal": "切换到水平布局",
     "lockNodes": "锁定节点位置",

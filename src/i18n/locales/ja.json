@@ -1727,6 +1727,7 @@
     "exitFullscreen": "フルスクリーンを終了",
     "noConnection": "接続 ID がありません",
     "noConnectionDesc": "接続 ID がないため、図を表示できません。",
+    "loadError": "図の読み込みに失敗しました: {{message}}",
     "switchToVertical": "垂直レイアウトに切り替え",
     "switchToHorizontal": "水平レイアウトに切り替え",
     "lockNodes": "ノードの位置を固定",
