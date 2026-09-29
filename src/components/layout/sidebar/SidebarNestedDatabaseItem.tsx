@@ -27,7 +27,7 @@ interface SidebarNestedDatabaseItemProps {
   connectionId: string;
   driver: string;
   schemaVersion: number;
-  onLoadSchemas: (database: string) => void;
+  onLoadSchemas: (database: string, force?: boolean) => void;
   onSetSelectedSchemas: (database: string, schemas: string[]) => void;
   onLoadSchemaData: (database: string, schema: string) => void;
   onRefreshSchemaData: (database: string, schema: string) => void;
@@ -184,7 +184,7 @@ export const SidebarNestedDatabaseItem = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onLoadSchemas(databaseName);
+                onLoadSchemas(databaseName, true);
               }}
               className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors mr-3"
               title={t("sidebar.refreshTables") || "Refresh"}

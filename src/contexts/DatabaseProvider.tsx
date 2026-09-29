@@ -830,7 +830,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
    * `needsSchemaSelection` when there is none), mirroring `connect()`'s own
    * schema-based branch but scoped to a single database.
    */
-  const loadNestedSchemas = useCallback(async (database: string, targetConnectionId?: string) => {
+  const loadNestedSchemas = useCallback(async (database: string, targetConnectionId?: string, force = false) => {
     const connId = targetConnectionId ?? activeConnectionId;
     if (!connId) return;
 
@@ -838,7 +838,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     if (!currentData) return;
 
     const currentNested = currentData.nestedDatabaseDataMap[database] ?? EMPTY_NESTED_DATABASE_DATA;
-    if (currentNested.schemasLoaded || currentNested.isLoadingSchemas) return;
+    // `schemasLoaded` only means "loaded at least once" — without `force`,
+    // this is the normal lazy-load-on-first-expand guard. The database
+    // row's own Refresh button passes `force: true` so it can pick up a
+    // schema created after the first load (e.g. via a console), which
+    // `schemasLoaded` would otherwise make a permanent no-op.
+    if ((currentNested.schemasLoaded && !force) || currentNested.isLoadingSchemas) return;
 
     updateNestedDatabaseData(connId, database, { isLoadingSchemas: true });
 

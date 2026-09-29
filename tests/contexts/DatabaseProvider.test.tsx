@@ -1090,5 +1090,61 @@ describe('DatabaseProvider', () => {
       // The other nested database must be untouched by this call.
       expect(result.current.nestedDatabaseDataMap['reporting']).toBeUndefined();
     });
+
+    it(
+      "regression: the database row's Refresh button must force a real re-fetch of the schema " +
+        "list, since schemasLoaded otherwise makes loadNestedSchemas a permanent no-op after " +
+        "the first load — a schema created afterwards (e.g. via the new per-schema console) " +
+        "would never appear no matter how many times Refresh was clicked",
+      async () => {
+        let schemaListCallCount = 0;
+        vi.mocked(invoke).mockImplementation((cmd: string) => {
+          if (cmd === 'get_connections') return Promise.resolve(mockNestedPgConnections);
+          if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+          if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
+          if (cmd === 'get_available_databases') return Promise.resolve(['analytics', 'reporting']);
+          if (cmd === 'get_schemas') {
+            schemaListCallCount += 1;
+            return Promise.resolve(schemaListCallCount === 1 ? ['public'] : ['public', 'store']);
+          }
+          if (cmd === 'get_selected_schemas') return Promise.resolve(['public']);
+          if (cmd === 'get_schema_preference') return Promise.resolve('public');
+          if (cmd === 'get_tables') return Promise.resolve([]);
+          if (cmd === 'get_views') return Promise.resolve([]);
+          if (cmd === 'get_routines') return Promise.resolve([]);
+          if (cmd === 'set_window_title') return Promise.resolve(undefined);
+          if (cmd === 'disconnect_connection') return Promise.resolve(undefined);
+          return Promise.resolve(undefined);
+        });
+
+        const { result } = renderHook(() => useDatabase(), { wrapper });
+
+        await act(async () => {
+          await result.current.connect('pg-nested-conn');
+        });
+
+        await waitFor(() => {
+          expect(result.current.nestedDatabaseDataMap['analytics']?.schemas).toEqual(['public']);
+        });
+
+        // Without force: the guard makes this a no-op even though the
+        // mocked server response has since changed underneath it.
+        await act(async () => {
+          await result.current.loadNestedSchemas('analytics', 'pg-nested-conn');
+        });
+        expect(result.current.nestedDatabaseDataMap['analytics']?.schemas).toEqual(['public']);
+
+        // With force: the new schema shows up, and the existing selection
+        // (confirmed via get_selected_schemas, unaffected by the new schema
+        // appearing) is preserved rather than reset.
+        await act(async () => {
+          await result.current.loadNestedSchemas('analytics', 'pg-nested-conn', true);
+        });
+        await waitFor(() => {
+          expect(result.current.nestedDatabaseDataMap['analytics']?.schemas).toEqual(['public', 'store']);
+        });
+        expect(result.current.nestedDatabaseDataMap['analytics']?.selectedSchemas).toEqual(['public']);
+      },
+    );
   });
 });

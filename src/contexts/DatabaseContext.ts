@@ -215,7 +215,7 @@ export interface DatabaseContextType {
    * connection and its saved schema selection/preference (scoped to that
    * database — see `schema_storage_key` on the backend). No-op if already
    * loaded/loading. */
-  loadNestedSchemas: (database: string, connectionId?: string) => Promise<void>;
+  loadNestedSchemas: (database: string, connectionId?: string, force?: boolean) => Promise<void>;
   /** Sets which schemas are selected for one database of a schema-based
    * multi-db connection, persists the selection, and loads any newly
    * selected schema's table/view/routine/trigger data. */

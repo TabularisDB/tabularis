@@ -1639,7 +1639,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       connectionId={activeConnectionId!}
                       driver={activeDriver!}
                       schemaVersion={schemaVersion}
-                      onLoadSchemas={loadNestedSchemas}
+                      onLoadSchemas={(database, force) => loadNestedSchemas(database, undefined, force)}
                       onSetSelectedSchemas={setSelectedSchemasForDatabase}
                       onLoadSchemaData={loadNestedSchemaData}
                       onRefreshSchemaData={refreshNestedSchemaData}
