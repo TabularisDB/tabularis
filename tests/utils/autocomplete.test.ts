@@ -856,32 +856,21 @@ describe('autocomplete', () => {
       );
 
       const provider = setup([{ name: 'orders' }, { name: 'customers' }]);
-      // In WHERE, `orders o` is the nearest table (primary FROM).
-      const whereQuery = 'SELECT * FROM orders o JOIN customers c ON o.cust_id = c.id WHERE ';
-      const modelWhere = createMockModel(whereQuery);
-      const resultWhere = await provider.provideCompletionItems(
-        modelWhere,
-        { lineNumber: 1, column: whereQuery.length + 1 },
+      // In ON, the joined table `customers c` is nearest, but `orders o` comes
+      // first in alias insertion order: without nearest-first ordering the
+      // shared `id` label would be claimed by orders.
+      const onQuery = 'SELECT * FROM orders o JOIN customers c ON ';
+      const modelOn = createMockModel(onQuery);
+      const resultOn = await provider.provideCompletionItems(
+        modelOn,
+        { lineNumber: 1, column: onQuery.length + 1 },
       );
 
-      const ordersId = resultWhere.suggestions.find(
-        (s: { label: string }) => s.label === 'id' && s.sortText?.startsWith('0_0_'),
-      );
-      // There should be exactly one `id` with the 0_0_ prefix (from the nearest table, orders).
-      expect(ordersId).toBeDefined();
-      expect(ordersId?.sortText).toBe('0_0_id');
-
-      // The non-nearest table's `id` (customers) should get 0_1_ or higher, or not appear.
-      const customersId = resultWhere.suggestions.find(
-        (s: { label: string; sortText?: string }) =>
-          s.label === 'id' && s.sortText !== undefined && !s.sortText.startsWith('0_0_'),
-      );
-      // If it appears, it must have a higher index prefix.
-      if (customersId) {
-        expect(customersId.sortText).toMatch(/^0_\d+_id$/);
-        const nonNearestIdx = parseInt(customersId.sortText.split('_')[1], 10);
-        expect(nonNearestIdx).toBeGreaterThan(0);
-      }
+      const idSuggestions = resultOn.suggestions.filter((s: { label: string }) => s.label === 'id');
+      // Deduplicated to a single `id`, attributed to the nearest table.
+      expect(idSuggestions).toHaveLength(1);
+      expect(idSuggestions[0].sortText).toBe('0_0_id');
+      expect(idSuggestions[0].detail).toContain('customers');
     });
   });
 });

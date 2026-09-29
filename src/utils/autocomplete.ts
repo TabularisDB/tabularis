@@ -347,35 +347,26 @@ export const registerSqlAutocomplete = (
           return found.length > 0 ? found : [ref as TableInfo];
         });
 
-        // Limit parallel fetches to prevent memory spikes.
-        // Sort by nearest-table preference first so the most relevant table's
-        // columns get the "0_0_" prefix, and shared column names are claimed
-        // by the nearest table rather than a non-nearest one.
-        const MAX_PARALLEL_FETCHES = 5;
+        // The nearest table (the one being joined in ON, the primary FROM table
+        // in WHERE, ...) goes first: it wins the label dedupe below for shared
+        // column names such as `id`, and it is never dropped by the fetch cap.
         const nearestRef = sqlContext.lastTableRef?.toLowerCase();
-        matchingTables.sort((a, b) => {
-          const aIsNearest = Boolean(
+        const isNearestTable = (table: TableInfo): boolean =>
+          Boolean(
             nearestRef &&
-              (a.name.toLowerCase() === nearestRef ||
+              (table.name.toLowerCase() === nearestRef ||
                 Array.from(scopedAliases.entries()).some(
                   ([alias, ref]) =>
                     alias.toLowerCase() === nearestRef &&
-                    ref.name.toLowerCase() === a.name.toLowerCase() &&
-                    (!ref.schema || !a.schema || ref.schema.toLowerCase() === a.schema.toLowerCase()),
+                    ref.name.toLowerCase() === table.name.toLowerCase() &&
+                    (!ref.schema || !table.schema || ref.schema.toLowerCase() === table.schema.toLowerCase()),
                 )),
           );
-          const bIsNearest = Boolean(
-            nearestRef &&
-              (b.name.toLowerCase() === nearestRef ||
-                Array.from(scopedAliases.entries()).some(
-                  ([alias, ref]) =>
-                    alias.toLowerCase() === nearestRef &&
-                    ref.name.toLowerCase() === b.name.toLowerCase() &&
-                    (!ref.schema || !b.schema || ref.schema.toLowerCase() === b.schema.toLowerCase()),
-                )),
-          );
-          return aIsNearest === bIsNearest ? 0 : aIsNearest ? -1 : 1;
-        });
+        const nearestTables = new Set(matchingTables.filter(isNearestTable));
+        matchingTables.sort((a, b) => Number(nearestTables.has(b)) - Number(nearestTables.has(a)));
+
+        // Limit parallel fetches to prevent memory spikes
+        const MAX_PARALLEL_FETCHES = 5;
         if (matchingTables.length > MAX_PARALLEL_FETCHES) {
           matchingTables.splice(MAX_PARALLEL_FETCHES);
         }
@@ -388,16 +379,7 @@ export const registerSqlAutocomplete = (
 
         matchingTables.forEach((table, idx) => {
           const columns = results[idx];
-          const isNearest = Boolean(
-            nearestRef &&
-              (table.name.toLowerCase() === nearestRef ||
-                Array.from(scopedAliases.entries()).some(
-                  ([alias, ref]) =>
-                    alias.toLowerCase() === nearestRef &&
-                    ref.name.toLowerCase() === table.name.toLowerCase() &&
-                    (!ref.schema || !table.schema || ref.schema.toLowerCase() === table.schema.toLowerCase()),
-                )),
-          );
+          const isNearest = nearestTables.has(table);
           const sortPrefix = matchingTables.length > 1 ? (isNearest ? "0_0_" : "0_1_") : "0_";
 
           columns.forEach(col => {
