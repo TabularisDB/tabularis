@@ -203,6 +203,7 @@ export const SidebarSchemaItem = ({
               }}
               className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors mr-0.5"
               title={t("sidebar.newConsole")}
+              aria-label={t("sidebar.newConsole")}
             >
               <FileCode size={12} />
             </button>
@@ -213,6 +214,7 @@ export const SidebarSchemaItem = ({
               }}
               className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
               title={t("sidebar.refreshTables") || "Refresh"}
+              aria-label={t("sidebar.refreshTables") || "Refresh"}
             >
               <RefreshCw size={12} />
             </button>

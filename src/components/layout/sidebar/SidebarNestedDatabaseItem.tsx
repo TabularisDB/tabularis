@@ -173,6 +173,7 @@ export const SidebarNestedDatabaseItem = ({
                 }}
                 className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
                 title={t("dump.importDatabase")}
+                aria-label={t("dump.importDatabase")}
               >
                 <Upload size={12} />
               </button>
@@ -185,6 +186,7 @@ export const SidebarNestedDatabaseItem = ({
                 }}
                 className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
                 title={t("dump.dumpDatabase")}
+                aria-label={t("dump.dumpDatabase")}
               >
                 <Download size={12} />
               </button>
@@ -197,6 +199,7 @@ export const SidebarNestedDatabaseItem = ({
                 }}
                 className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
                 title={t("sidebar.viewERDiagram")}
+                aria-label={t("sidebar.viewERDiagram")}
               >
                 <Network size={12} />
               </button>
@@ -208,6 +211,7 @@ export const SidebarNestedDatabaseItem = ({
               }}
               className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors mr-3"
               title={t("sidebar.refreshTables") || "Refresh"}
+              aria-label={t("sidebar.refreshTables") || "Refresh"}
             >
               <RefreshCw size={12} />
             </button>
