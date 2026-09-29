@@ -1142,6 +1142,7 @@ impl DatabaseDriver for RpcDriver {
         if !self.manifest.capabilities.table_query_templates {
             return Ok(None);
         }
+        let params = self.with_primary_database(params);
         match self
             .process
             .call_detailed(
