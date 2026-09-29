@@ -49,7 +49,7 @@ pub fn collect_group_ancestors<'a>(
     kept
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum DatabaseSelection {
     Single(String),
@@ -112,7 +112,7 @@ impl Default for DatabaseSelection {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct SshConnection {
     pub id: String,
     pub name: String,
@@ -175,7 +175,7 @@ pub struct SshTestParams {
     pub progress_id: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq, Eq)]
 pub struct ConnectionParams {
     pub driver: String,
     pub host: Option<String>,
@@ -294,7 +294,7 @@ pub struct ConnectionParams {
     pub connection_id: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum IconOverride {
     Pack { id: String },
@@ -302,7 +302,7 @@ pub enum IconOverride {
     Image { path: String },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionAppearance {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -369,7 +369,7 @@ pub struct ConnectionsFile {
     pub tags: Vec<ConnectionTag>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct K8sConnection {
     pub id: String,
     pub name: String,
