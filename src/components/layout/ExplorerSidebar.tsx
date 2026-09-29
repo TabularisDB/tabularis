@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { quoteTableRef } from "../../utils/identifiers";
+import { quoteIdentifier, quoteTableRef } from "../../utils/identifiers";
+import { isPostgresDriver, triggerFunctionName } from "../../utils/triggerSql";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Database,
@@ -2643,6 +2644,23 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                             ...(triggerSchema ? { schema: triggerSchema } : {}),
                                             ...(triggerDatabase ? { database: triggerDatabase } : {}),
                                           });
+                                          // PostgreSQL only: TriggerEditorModal's own create flow
+                                          // (issue #837) always pairs a trigger with a dedicated
+                                          // function named after it. Best-effort clean it up too —
+                                          // IF EXISTS with no CASCADE means this silently no-ops
+                                          // (and the catch below swallows it) if the function was
+                                          // hand-written, shared with another trigger, or already
+                                          // gone; it must never block the trigger drop itself.
+                                          if (isPostgresDriver(activeDriver ?? undefined)) {
+                                            const q = (id: string) => quoteIdentifier(id, activeCapabilities ?? activeDriver);
+                                            const fnPrefix = triggerSchema ? `${q(triggerSchema)}.` : "";
+                                            invoke("execute_query", {
+                                              connectionId: activeConnectionId,
+                                              query: `DROP FUNCTION IF EXISTS ${fnPrefix}${q(triggerFunctionName(String(contextMenu.id)))}()`,
+                                              ...(triggerSchema ? { schema: triggerSchema } : {}),
+                                              ...(triggerDatabase ? { database: triggerDatabase } : {}),
+                                            }).catch(() => {});
+                                          }
                                           refreshObjectScope(triggerSchema, triggerDatabase, () => {
                                             if (refreshTriggers) refreshTriggers();
                                           });

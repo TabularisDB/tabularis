@@ -7,7 +7,13 @@ import { useAlert } from "../../hooks/useAlert";
 import { Modal } from "../ui/Modal";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import { useDatabase } from "../../hooks/useDatabase";
-import { quoteIdentifier } from "../../utils/identifiers";
+import {
+  isPostgresDriver,
+  defaultTriggerBody,
+  buildTriggerFunctionSql as buildTriggerFunctionSqlUtil,
+  buildTriggerSql as buildTriggerSqlUtil,
+  type TriggerSqlInput,
+} from "../../utils/triggerSql";
 import type { DriverCapabilities } from "../../types/plugins";
 
 interface TriggerEditorModalProps {
@@ -72,7 +78,12 @@ export const TriggerEditorModal = ({
   const [tableName, setTableName] = useState(initialTableName ?? "");
   const [timing, setTiming] = useState("BEFORE");
   const [events, setEvents] = useState<string[]>(["INSERT"]);
-  const [body, setBody] = useState("BEGIN\n  -- trigger body\nEND");
+  // PostgreSQL has no inline trigger body — CREATE TRIGGER only references a
+  // separate trigger function, so the guided-mode body field holds that
+  // function's PL/pgSQL statements instead of a literal BEGIN/END block
+  // (see triggerSql.ts and issue #837).
+  const isPostgres = isPostgresDriver(driver);
+  const [body, setBody] = useState(defaultTriggerBody(driver));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +128,7 @@ export const TriggerEditorModal = ({
         setTableName(initialTableName ?? "");
         setTiming("BEFORE");
         setEvents(["INSERT"]);
-        setBody("BEGIN\n  -- trigger body\nEND");
+        setBody(defaultTriggerBody(driver));
         setRawSql("");
         setUseRawSql(false);
         setError(null);
@@ -127,22 +138,32 @@ export const TriggerEditorModal = ({
         loadTriggerDefinition(triggerName, initialTableName);
       }
     }
-  }, [isOpen, triggerName, initialTableName, isNewTrigger, loadTriggerDefinition]);
+  }, [isOpen, triggerName, initialTableName, isNewTrigger, loadTriggerDefinition, driver]);
+
+  const sqlInput: TriggerSqlInput = {
+    name,
+    tableName,
+    schema: resolvedSchema,
+    timing,
+    events,
+    body,
+    driver,
+    capabilities,
+  };
+
+  const buildTriggerFunctionSql = () => buildTriggerFunctionSqlUtil(sqlInput);
 
   const buildTriggerSql = (): string => {
     if (useRawSql) return rawSql;
-    const q = (id: string) => quoteIdentifier(id, capabilities ?? driver ?? "postgres");
-    // MySQL handles schema via the connection — including it in the ON clause causes error 1435
-    const isMysql = driver === "mysql";
-    const schemaPrefix = (!isMysql && resolvedSchema) ? `${q(resolvedSchema)}.` : "";
-    const eventStr = events.join(" OR ");
-    return [
-      `CREATE TRIGGER ${q(name)}`,
-      `${timing} ${eventStr}`,
-      `ON ${schemaPrefix}${q(tableName)}`,
-      `FOR EACH ROW`,
-      body,
-    ].join("\n");
+    return buildTriggerSqlUtil(sqlInput);
+  };
+
+  // What the "Generated SQL Preview" panel shows. For PostgreSQL this is
+  // both statements handleSave actually runs — the function on its own
+  // isn't meaningful to review without the trigger that will call it.
+  const buildPreviewSql = (): string => {
+    if (useRawSql) return rawSql;
+    return isPostgres ? `${buildTriggerFunctionSql()}\n\n${buildTriggerSql()}` : buildTriggerSql();
   };
 
   const toggleEvent = (ev: string) => {
@@ -182,6 +203,19 @@ export const TriggerEditorModal = ({
     setSaving(true);
     setError(null);
     try {
+      // PostgreSQL: create/replace the trigger function first (a single
+      // statement) — the trigger created just below references it and
+      // cannot exist as one combined statement, since neither the builtin
+      // driver nor the plugin's Postgres client executes multiple
+      // semicolon-separated commands in a single call (see issue #837).
+      if (isPostgres && !useRawSql) {
+        await invoke("execute_query", {
+          connectionId,
+          query: buildTriggerFunctionSql(),
+          ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+          ...(database ? { database } : {}),
+        });
+      }
       await invoke("create_trigger", {
         connectionId,
         triggerSql: sql,
@@ -368,7 +402,7 @@ export const TriggerEditorModal = ({
                   {t("triggers.sqlPreview")}
                 </div>
                 <pre className="p-3 text-xs text-secondary font-mono whitespace-pre-wrap overflow-auto max-h-32">
-                  {buildTriggerSql()}
+                  {buildPreviewSql()}
                 </pre>
               </div>
             </>
