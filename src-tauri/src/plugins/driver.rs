@@ -39,8 +39,21 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 /// the error *message* survives the response plumbing, so optional-method
 /// fallbacks match on the standard wording (and the code, for SDKs that
 /// embed it in the message).
-fn is_method_not_found(err: &str) -> bool {
-    err.to_lowercase().contains("method not found") || err.contains("-32601")
+/// A plugin's -32601 (method not found) is only reliably detectable on the
+/// structured `PluginCallError` — `Display` only ever writes `error.message`
+/// (see `rpc.rs`), never the JSON-RPC `code`, so a plugin whose message text
+/// doesn't happen to say "method not found" (a non-English message, or any
+/// other wording) would silently bypass every fallback below if this ran on
+/// an already-stringified error instead. `Transport` has no code at all
+/// (it's a local/IO failure, not a JSON-RPC response), so it keeps the
+/// string heuristic as a last resort.
+fn is_method_not_found(err: &PluginCallError) -> bool {
+    match err {
+        PluginCallError::Remote(remote) => remote.code == -32601,
+        PluginCallError::Transport(message) => {
+            message.to_lowercase().contains("method not found") || message.contains("-32601")
+        }
+    }
 }
 
 /// Message sent to the management task that owns the plugin child process.
@@ -328,17 +341,28 @@ impl RpcDriver {
 
     /// SQL-building methods historically had no connection parameters. Add
     /// them only for opted-in snapshots; legacy plugin request shapes stay intact.
-    async fn call_with_connection(
+    async fn call_with_connection(&self, method: &str, arguments: Value) -> Result<Value, String> {
+        self.call_with_connection_detailed(method, arguments)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    /// Same as `call_with_connection`, but preserves the structured
+    /// `PluginCallError` for callers that need to distinguish a -32601
+    /// (method not found) from any other failure — see `is_method_not_found`.
+    async fn call_with_connection_detailed(
         &self,
         method: &str,
         mut arguments: Value,
-    ) -> Result<Value, String> {
+    ) -> Result<Value, PluginCallError> {
         if let Some(params) = &self.connection_params {
             if let Some(object) = arguments.as_object_mut() {
                 object.entry("params").or_insert_with(|| json!(params));
             }
         }
-        self.process.call(method, arguments).await
+        self.process
+            .call_detailed(method, arguments, PLUGIN_CALL_TIMEOUT)
+            .await
     }
 
     pub fn with_connection_metadata(mut self, enabled: bool) -> Self {
@@ -676,15 +700,16 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<ViewInfo>, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "get_materialized_views",
                 json!({ "params": self.with_primary_database(params), "schema": schema }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
             Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
             Err(e) if is_method_not_found(&e) => Ok(Vec::new()),
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -696,15 +721,16 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<TableColumn>, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "get_materialized_view_columns",
                 json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
             Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
             Err(e) if is_method_not_found(&e) => Ok(Vec::new()),
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -716,9 +742,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<String, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "get_materialized_view_definition",
                 json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -726,7 +753,7 @@ impl DatabaseDriver for RpcDriver {
             Err(e) if is_method_not_found(&e) => {
                 Err("Materialized views are not supported by this driver".to_string())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -738,9 +765,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<(), String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "refresh_materialized_view",
                 json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -748,7 +776,7 @@ impl DatabaseDriver for RpcDriver {
             Err(e) if is_method_not_found(&e) => {
                 Err("Materialized views are not supported by this driver".to_string())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -811,9 +839,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<String, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "build_routine_call_sql",
                 json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "args": args, "schema": schema }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -827,7 +856,7 @@ impl DatabaseDriver for RpcDriver {
                     &self.manifest.capabilities.identifier_quote,
                 ))
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -837,7 +866,7 @@ impl DatabaseDriver for RpcDriver {
         schema: Option<&str>,
     ) -> Result<String, String> {
         let res = self
-            .call_with_connection(
+            .call_with_connection_detailed(
                 "routine_create_template",
                 json!({ "routine_type": routine_type, "schema": schema }),
             )
@@ -854,7 +883,7 @@ impl DatabaseDriver for RpcDriver {
                     "CREATE {keyword} my_routine()\nBEGIN\n    -- routine body\nEND"
                 ))
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -867,9 +896,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<String, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "get_routine_edit_script",
                 json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -878,7 +908,7 @@ impl DatabaseDriver for RpcDriver {
                 self.get_routine_definition(params, routine_name, routine_type, schema)
                     .await
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -891,9 +921,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<(), String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "drop_routine",
                 json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -909,7 +940,7 @@ impl DatabaseDriver for RpcDriver {
                     .await
                     .map(|_| ())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -936,7 +967,7 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<BatchStatementResult>, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "execute_query_batch",
                 json!({
                     "params": self.with_primary_database(params),
@@ -945,6 +976,7 @@ impl DatabaseDriver for RpcDriver {
                     "page": page,
                     "schema": schema
                 }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await;
 
@@ -972,7 +1004,7 @@ impl DatabaseDriver for RpcDriver {
                 }
                 Ok(results)
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -1083,7 +1115,7 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<(), String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "save_blob_to_file",
                 json!({
                     "params": self.with_primary_database(params),
@@ -1093,6 +1125,7 @@ impl DatabaseDriver for RpcDriver {
                     "schema": schema,
                     "file_path": file_path
                 }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -1100,7 +1133,7 @@ impl DatabaseDriver for RpcDriver {
             Err(e) if is_method_not_found(&e) => {
                 Err("BLOB file export not supported by this driver".into())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -1114,7 +1147,7 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<String, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "fetch_blob_as_data_url",
                 json!({
                     "params": self.with_primary_database(params),
@@ -1123,6 +1156,7 @@ impl DatabaseDriver for RpcDriver {
                     "pk_map": pk_map,
                     "schema": schema
                 }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -1130,7 +1164,7 @@ impl DatabaseDriver for RpcDriver {
             Err(e) if is_method_not_found(&e) => {
                 Err("BLOB preview not supported by this driver".into())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -1486,9 +1520,10 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<Vec<TableSchema>, String> {
         let res = self
             .process
-            .call(
+            .call_detailed(
                 "get_schema_snapshot",
                 json!({ "params": self.with_primary_database(params), "schema": schema }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -1515,7 +1550,7 @@ impl DatabaseDriver for RpcDriver {
                 }
                 Ok(snapshot)
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -1527,13 +1562,14 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<AiSchemaContext, String> {
         match self
             .process
-            .call(
+            .call_detailed(
                 "get_ai_schema_context",
                 json!({
                     "params": self.with_primary_database(params),
                     "schema": schema,
                     "max_tables": max_tables,
                 }),
+                PLUGIN_CALL_TIMEOUT,
             )
             .await
         {
@@ -1541,7 +1577,7 @@ impl DatabaseDriver for RpcDriver {
             Err(error) if is_method_not_found(&error) => {
                 crate::ai_schema_context::load_from_driver(self, params, schema, max_tables).await
             }
-            Err(error) => Err(error),
+            Err(error) => Err(error.to_string()),
         }
     }
 
@@ -1656,6 +1692,51 @@ where
     }
 }
 
+/// Like [`test_driver_result`], but lets the handler return a raw
+/// [`PluginCallError`] instead of always getting wrapped into `Transport` —
+/// needed to simulate a real JSON-RPC `Remote` error (with a `code`) for
+/// tests that must distinguish it from a transport-level failure, e.g.
+/// `is_method_not_found` matching on the code rather than the message text.
+#[cfg(test)]
+pub(crate) fn test_driver_detailed<F>(mut handle_request: F) -> RpcDriver
+where
+    F: FnMut(JsonRpcRequest) -> Result<Value, PluginCallError> + Send + 'static,
+{
+    let (tx, mut rx) = mpsc::channel::<PluginCommand>(8);
+    tokio::spawn(async move {
+        while let Some(command) = rx.recv().await {
+            if let PluginCommand::Call(request, response_tx) = command {
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    handle_request(request)
+                }))
+                .unwrap_or_else(|_| {
+                    Err(PluginCallError::Transport(
+                        "request assertion failed".to_string(),
+                    ))
+                });
+                let _ = response_tx.send(result);
+            }
+        }
+    });
+
+    let (shutdown_tx, _shutdown_rx) = oneshot::channel();
+    RpcDriver {
+        manifest: test_manifest(),
+        process: Arc::new(PluginProcess {
+            sender: tx,
+            next_id: AtomicU64::new(1),
+            shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
+            pid: None,
+            initialization_settings: None,
+            initialized: OnceCell::new(),
+        }),
+        data_types: Vec::new(),
+        connection_metadata: false,
+        metadata_cache: Arc::new(ConnectionMetadataCache::default()),
+        connection_params: None,
+    }
+}
+
 /// Overrides the manifest id of a driver built by [`test_driver`] /
 /// [`test_driver_result`] (both default to `"test-plugin"`), so a test that
 /// registers into the shared, process-global [`crate::drivers::registry`]
@@ -1670,6 +1751,7 @@ pub(crate) fn with_test_driver_id(mut driver: RpcDriver, id: &str) -> RpcDriver 
 mod tests {
     use super::*;
     use crate::models::DatabaseSelection;
+    use crate::plugins::rpc::JsonRpcError;
 
     fn test_connection_params() -> ConnectionParams {
         ConnectionParams {
@@ -2378,6 +2460,55 @@ mod tests {
         assert_eq!(snapshot[0].columns[0].name, "id");
         assert_eq!(snapshot[0].foreign_keys.len(), 1);
         assert_eq!(snapshot[0].foreign_keys[0].ref_table, "categories");
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_get_schema_snapshot_falls_back_on_the_json_rpc_code_not_the_message_text() {
+        // Regression: is_method_not_found used to check only the
+        // stringified error, but PluginCallError's Display never writes the
+        // JSON-RPC code (only the message) — a plugin returning a real
+        // -32601 with any message other than the English "method not
+        // found" would silently skip this fallback, and the ER diagram
+        // would show an error instead of composing from get_tables/
+        // get_columns/get_foreign_keys.
+        let driver = test_driver_detailed(|request| match request.method.as_str() {
+            "get_schema_snapshot" => Err(PluginCallError::Remote(JsonRpcError {
+                code: -32601,
+                message: "Méthode inconnue".to_string(),
+            })),
+            "get_tables" => Ok(json!([{ "name": "products" }])),
+            "get_columns" => Ok(json!([
+                { "name": "id", "data_type": "integer", "is_pk": true, "is_nullable": false, "is_auto_increment": true },
+            ])),
+            "get_foreign_keys" => Ok(json!([])),
+            other => panic!("unexpected method: {other}"),
+        });
+
+        let snapshot = driver
+            .get_schema_snapshot(&test_connection_params(), Some("public"))
+            .await
+            .expect("fallback must trigger on the JSON-RPC code, not the message text");
+
+        assert_eq!(snapshot.len(), 1);
+        assert_eq!(snapshot[0].name, "products");
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_get_schema_snapshot_does_not_fall_back_on_a_different_remote_error_code() {
+        // A structured error that isn't -32601 must still propagate as a
+        // real failure, not be swallowed as "method not found".
+        let driver = test_driver_detailed(|_| {
+            Err(PluginCallError::Remote(JsonRpcError {
+                code: -32000,
+                message: "connection lost".to_string(),
+            }))
+        });
+
+        let result = driver
+            .get_schema_snapshot(&test_connection_params(), Some("public"))
+            .await;
+
+        assert_eq!(result.unwrap_err(), "connection lost");
     }
 
     #[tokio::test]
