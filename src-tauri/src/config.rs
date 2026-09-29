@@ -639,6 +639,30 @@ fn schema_storage_key(connection_id: &str, database: Option<&str>) -> String {
     }
 }
 
+/// Looks up a schema preference, falling back to the pre-multi-db flat
+/// per-connection entry when the database-scoped key has never been set.
+///
+/// A connection's schema preference saved before it opted into
+/// multi-database browsing lives under the flat `connection_id` key. Once
+/// opted in, every lookup passes a database and scopes to
+/// `connection_id::database` instead — without this fallback, that old
+/// preference is orphaned and silently lost the first time each database is
+/// looked up under its new per-database key.
+fn resolve_schema_preference(
+    prefs: &HashMap<String, String>,
+    connection_id: &str,
+    database: Option<&str>,
+) -> Option<String> {
+    let key = schema_storage_key(connection_id, database);
+    if let Some(value) = prefs.get(&key) {
+        return Some(value.clone());
+    }
+    if key != connection_id {
+        return prefs.get(connection_id).cloned();
+    }
+    None
+}
+
 #[tauri::command]
 pub fn get_schema_preference(
     app: AppHandle,
@@ -646,10 +670,8 @@ pub fn get_schema_preference(
     database: Option<String>,
 ) -> Option<String> {
     let config = load_config_internal(&app);
-    let key = schema_storage_key(&connection_id, database.as_deref());
-    config
-        .schema_preferences
-        .and_then(|prefs| prefs.get(&key).cloned())
+    let prefs = config.schema_preferences.unwrap_or_default();
+    resolve_schema_preference(&prefs, &connection_id, database.as_deref())
 }
 
 #[tauri::command]
@@ -1136,6 +1158,60 @@ mod tests {
         let a = schema_storage_key("conn-1", Some("db_a"));
         let b = schema_storage_key("conn-1", Some("db_b"));
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn resolve_schema_preference_prefers_the_scoped_key_when_it_exists() {
+        let mut prefs = HashMap::new();
+        prefs.insert("conn-1".to_string(), "legacy_public".to_string());
+        prefs.insert(
+            "conn-1::analytics".to_string(),
+            "analytics_schema".to_string(),
+        );
+
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("analytics")),
+            Some("analytics_schema".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_schema_preference_falls_back_to_the_flat_key_after_a_multi_db_opt_in() {
+        // Regression: a connection's schema preference saved before it opted
+        // into multi-database browsing lives under the flat "conn-1" key.
+        // Once opted in, every lookup passes a database and would otherwise
+        // silently miss under the new "conn-1::analytics" key forever.
+        let mut prefs = HashMap::new();
+        prefs.insert("conn-1".to_string(), "legacy_public".to_string());
+
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("analytics")),
+            Some("legacy_public".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_schema_preference_returns_none_when_neither_key_exists() {
+        let prefs = HashMap::new();
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("analytics")),
+            None
+        );
+    }
+
+    #[test]
+    fn resolve_schema_preference_plain_connection_reads_only_the_flat_key() {
+        let mut prefs = HashMap::new();
+        prefs.insert("conn-1".to_string(), "public".to_string());
+
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", None),
+            Some("public".to_string())
+        );
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("")),
+            Some("public".to_string())
+        );
     }
 
     #[test]
