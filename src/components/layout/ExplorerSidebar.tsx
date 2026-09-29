@@ -550,7 +550,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         ...(database ? { database } : {}),
       });
       showAlert(t("routines.dropSuccess", { name }), { kind: "info" });
-      if (refreshRoutines) refreshRoutines();
+      refreshObjectScope(schema, database, () => {
+        if (refreshRoutines) refreshRoutines();
+      });
     } catch (e) {
       console.error(e);
       showAlert(t("routines.dropError") + String(e), { kind: "error" });
@@ -2395,7 +2397,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         ...((viewCtxSchema ?? activeSchema) ? { schema: viewCtxSchema ?? activeSchema } : {}),
                                         ...(viewCtxDatabase ? { database: viewCtxDatabase } : {}),
                                       });
-                                      if (refreshViews) refreshViews();
+                                      refreshObjectScope(viewCtxSchema ?? activeSchema ?? undefined, viewCtxDatabase, () => {
+                                        if (refreshViews) refreshViews();
+                                      });
                                     } catch (e) {
                                       console.error(e);
                                       showAlert(t("sidebar.failDropView") + String(e), { kind: "error" });
@@ -2639,7 +2643,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                             ...(triggerSchema ? { schema: triggerSchema } : {}),
                                             ...(triggerDatabase ? { database: triggerDatabase } : {}),
                                           });
-                                          if (refreshTriggers) refreshTriggers();
+                                          refreshObjectScope(triggerSchema, triggerDatabase, () => {
+                                            if (refreshTriggers) refreshTriggers();
+                                          });
                                         } catch (e) {
                                           console.error(e);
                                           showAlert(t("sidebar.failDropTrigger") + String(e), { kind: "error" });
