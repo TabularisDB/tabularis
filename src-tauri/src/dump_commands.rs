@@ -121,9 +121,29 @@ pub async fn dump_database<R: Runtime>(
                 writeln!(writer, "{}", drop_table_if_exists(&driver, &schema, &table))
                     .map_err(|e| e.to_string())?;
 
-                let ddl = drv.get_table_ddl(&params, &table, Some(&schema)).await?;
-
-                writeln!(writer, "{}\n", ddl).map_err(|e| e.to_string())?;
+                // A plugin that doesn't implement get_table_ddl must not
+                // abort the whole dump over one table's missing structure —
+                // the data step below still runs for it, and every other
+                // table's structure/data is unaffected. Composing an
+                // approximate CREATE TABLE from generic column/FK/index
+                // metadata was considered and rejected: a dump file is meant
+                // to be restored, and a plausible-looking but subtly wrong
+                // DDL statement (missed default, generated column, check
+                // constraint) is worse than a visible, honest gap.
+                match drv.get_table_ddl(&params, &table, Some(&schema)).await {
+                    Ok(ddl) => {
+                        writeln!(writer, "{}\n", ddl).map_err(|e| e.to_string())?;
+                    }
+                    Err(e) => {
+                        writeln!(
+                            writer,
+                            "-- WARNING: could not generate DDL for {}: {}\n",
+                            format_table_ref(&driver, &schema, &table),
+                            e
+                        )
+                        .map_err(|e| e.to_string())?;
+                    }
+                }
             }
 
             if options.data {
