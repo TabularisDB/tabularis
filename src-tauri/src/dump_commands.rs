@@ -3,12 +3,14 @@ use crate::commands::{
     register_abort_handle, resolve_connection_params_with_id, unregister_abort_handle,
     AbortHandleMap,
 };
+use crate::drivers::driver_trait::DatabaseDriver;
 use crate::dump_utils::{drop_table_if_exists, format_table_ref, insert_into_statement};
-use crate::models::ConnectionParams;
+use crate::models::{ConnectionParams, TableColumn};
 use crate::pool_manager::{get_mysql_pool, get_postgres_pool, get_sqlite_pool};
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::sync::{Arc, Mutex};
@@ -94,11 +96,12 @@ pub async fn dump_database<R: Runtime>(
         // (MySQL, SQLite) pass None — they ignore the schema arg and use
         // params.database to determine which tables to list, avoiding a
         // confusing `WHERE table_schema = 'public'` on a MySQL connection.
-        let schema_for_listing: Option<&str> = if driver.as_str() == "postgres" {
-            Some(&schema)
-        } else {
-            None
-        };
+        let schema_for_listing: Option<&str> =
+            if driver.as_str() == "postgres" || driver.as_str() == "postgresql" {
+                Some(&schema)
+            } else {
+                None
+            };
         let all_tables = drv.get_tables(&params, schema_for_listing).await?;
 
         let tables_to_process: Vec<String> = if let Some(selection) = &options.tables {
@@ -130,7 +133,7 @@ pub async fn dump_database<R: Runtime>(
                     format_table_ref(&driver, &schema, &table)
                 )
                 .map_err(|e| e.to_string())?;
-                export_table_data(&mut writer, &params, &driver, &table, &schema).await?;
+                export_table_data(&mut writer, &drv, &params, &driver, &table, &schema).await?;
                 writeln!(writer, "\n").map_err(|e| e.to_string())?;
             }
         }
@@ -154,6 +157,7 @@ pub async fn dump_database<R: Runtime>(
 
 async fn export_table_data(
     writer: &mut BufWriter<File>,
+    drv: &Arc<dyn DatabaseDriver>,
     params: &ConnectionParams,
     driver: &str,
     table: &str,
@@ -294,7 +298,55 @@ async fn export_table_data(
                 .map_err(|e| e.to_string())?;
             }
         }
-        _ => return Err("Unsupported driver".into()),
+        // Any plugin-backed driver: no local pool to stream from (the plugin
+        // owns its own pool inside its subprocess), so fall back to the
+        // generic RPC surface every driver implements — paginate through
+        // `execute_query` instead of a raw `sqlx`/`tokio-postgres` client.
+        _ => {
+            let json_columns =
+                json_column_names(&drv.get_columns(params, table, Some(schema)).await?);
+
+            let mut batch = Vec::new();
+            let mut page = 1u32;
+            loop {
+                let result = drv
+                    .execute_query(params, &query, Some(1000), page, Some(schema))
+                    .await?;
+
+                for row in result.rows {
+                    batch.push(format_row_values(
+                        row,
+                        &result.columns,
+                        &json_columns,
+                        driver,
+                    ));
+
+                    if batch.len() >= 100 {
+                        writeln!(
+                            writer,
+                            "{}",
+                            insert_into_statement(driver, schema, table, &batch.join(", "))
+                        )
+                        .map_err(|e| e.to_string())?;
+                        batch.clear();
+                    }
+                }
+
+                let has_more = result.pagination.map(|p| p.has_more).unwrap_or(false);
+                if !has_more {
+                    break;
+                }
+                page += 1;
+            }
+            if !batch.is_empty() {
+                writeln!(
+                    writer,
+                    "{}",
+                    insert_into_statement(driver, schema, table, &batch.join(", "))
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
     }
 
     Ok(())
@@ -354,6 +406,48 @@ fn escape_json_column_value(driver: &str, val: serde_json::Value) -> String {
         serde_json::Value::Null => "NULL".to_string(),
         other => escape_sql_string(driver, &other.to_string()),
     }
+}
+
+/// Column names whose PostgreSQL type is `json`/`jsonb`. Used to decide
+/// which cells in a row fetched through the generic (plugin-driver)
+/// `execute_query` RPC need `escape_json_column_value` rather than
+/// `escape_sql_value` — see `export_table_data`'s fallback arm. Unlike the
+/// builtin drivers' own extraction (which sees the source column type
+/// directly), `QueryResult` only carries column *names*, so a JSON column
+/// can't be told apart from a plain text column by inspecting a cell's
+/// value alone — both arrive as a `serde_json::Value::String`.
+fn json_column_names(columns: &[TableColumn]) -> HashSet<String> {
+    columns
+        .iter()
+        .filter(|c| {
+            let t = c.data_type.to_ascii_lowercase();
+            t == "json" || t == "jsonb"
+        })
+        .map(|c| c.name.clone())
+        .collect()
+}
+
+/// Formats one row from the generic `execute_query` RPC into a parenthesized
+/// SQL value list, e.g. `(1, 'Alice', NULL)`. `columns` must be the same
+/// `QueryResult.columns` the row's values came from, in the same order.
+fn format_row_values(
+    row: Vec<serde_json::Value>,
+    columns: &[String],
+    json_columns: &HashSet<String>,
+    driver: &str,
+) -> String {
+    let values: Vec<String> = row
+        .into_iter()
+        .zip(columns.iter())
+        .map(|(val, col_name)| {
+            if json_columns.contains(col_name) {
+                escape_json_column_value(driver, val)
+            } else {
+                escape_sql_value(driver, val)
+            }
+        })
+        .collect();
+    format!("({})", values.join(", "))
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -516,6 +610,7 @@ pub async fn import_database<R: Runtime>(
     let pg_schema = schema.unwrap_or_else(|| "public".to_string());
     let app_handle = app.clone();
     let conn_id = connection_id.clone();
+    let drv = crate::drivers::registry::get_connection_driver(&params).await?;
 
     // Spawn the import process
     let task = tokio::spawn(async move {
@@ -646,7 +741,27 @@ pub async fn import_database<R: Runtime>(
 
                 tx.commit().await.map_err(|e| e.to_string())?;
             }
-            _ => return Err("Unsupported driver".into()),
+            // Any plugin-backed driver: no local pool to open a transaction
+            // on (the plugin owns its own pool inside its subprocess), and no
+            // cross-process RPC for transaction begin/commit/rollback exists
+            // yet. Execute each statement independently through the generic
+            // RPC surface instead — correct (each call passes `pg_schema` so
+            // schema-scoping doesn't depend on session state persisting
+            // across pooled connections, unlike the builtin arms' `SET
+            // search_path`), but NOT atomic: unlike the builtin drivers
+            // above, a failure partway through leaves whatever ran so far
+            // committed rather than rolling the whole import back. A
+            // transactional bulk-execute RPC would need to be added to the
+            // plugin protocol to close that gap (followed up separately).
+            _ => {
+                macro_rules! execute_statement {
+                    ($stmt:expr) => {
+                        drv.execute_query(&params, $stmt, None, 1, Some(pg_schema.as_str()))
+                    };
+                }
+
+                execute_statements_streaming!(execute_statement, stream, app_handle)?;
+            }
         }
 
         Ok::<(), String>(())
@@ -799,6 +914,74 @@ mod tests {
         assert_eq!(
             escape_json_column_value("postgres", json!(false)),
             "'false'"
+        );
+    }
+
+    fn column(name: &str, data_type: &str) -> TableColumn {
+        TableColumn {
+            name: name.to_string(),
+            data_type: data_type.to_string(),
+            is_pk: false,
+            is_nullable: true,
+            is_auto_increment: false,
+            is_generated: false,
+            default_value: None,
+            character_maximum_length: None,
+            comment: None,
+        }
+    }
+
+    #[test]
+    fn test_json_column_names_matches_json_and_jsonb_case_insensitively() {
+        let columns = vec![
+            column("id", "integer"),
+            column("payload", "jsonb"),
+            column("meta", "JSON"),
+            column("name", "text"),
+        ];
+        let json_cols = json_column_names(&columns);
+        assert_eq!(json_cols.len(), 2);
+        assert!(json_cols.contains("payload"));
+        assert!(json_cols.contains("meta"));
+        assert!(!json_cols.contains("id"));
+        assert!(!json_cols.contains("name"));
+    }
+
+    #[test]
+    fn test_json_column_names_empty_for_no_json_columns() {
+        let columns = vec![column("id", "integer"), column("name", "text")];
+        assert!(json_column_names(&columns).is_empty());
+    }
+
+    #[test]
+    fn test_format_row_values_escapes_json_column_differently_from_plain_text() {
+        // Same underlying serde_json::Value::String("hi") in two columns:
+        // the plain text column keeps it literal, the JSON column re-encodes
+        // it as a JSON string literal (surrounding quotes preserved) --
+        // this is the whole reason json_column_names exists (#822 dump fix
+        // for plugin-backed drivers: QueryResult only carries column names,
+        // not types, so this can't be inferred from the value alone).
+        let columns = vec!["name".to_string(), "payload".to_string()];
+        let mut json_cols = HashSet::new();
+        json_cols.insert("payload".to_string());
+
+        let row = vec![json!("hi"), json!("hi")];
+        assert_eq!(
+            format_row_values(row, &columns, &json_cols, "postgres"),
+            r#"('hi', '"hi"')"#
+        );
+    }
+
+    #[test]
+    fn test_format_row_values_regression_json_object_and_null_round_trip() {
+        let columns = vec!["id".to_string(), "payload".to_string(), "note".to_string()];
+        let mut json_cols = HashSet::new();
+        json_cols.insert("payload".to_string());
+
+        let row = vec![json!(1), json!({"a": 1}), serde_json::Value::Null];
+        assert_eq!(
+            format_row_values(row, &columns, &json_cols, "postgres"),
+            r#"(1, '{"a":1}', NULL)"#
         );
     }
 }
