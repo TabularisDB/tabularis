@@ -22,7 +22,9 @@ vi.mock("../../../src/components/ui/GeometryInput", () => ({
 }));
 
 vi.mock("../../../src/components/ui/BlobInput", () => ({
-  BlobInput: () => <div data-testid="blob-download-input" />,
+  BlobInput: ({ schema, database }: { schema?: string | null; database?: string | null }) => (
+    <div data-testid="blob-download-input" data-schema={schema ?? ""} data-database={database ?? ""} />
+  ),
 }));
 
 // Mock geometry utilities
@@ -141,6 +143,25 @@ describe("FieldEditor", () => {
 
     expect(screen.queryByPlaceholderText("00 FF")).not.toBeInTheDocument();
     expect(screen.getByTestId("blob-download-input")).toBeInTheDocument();
+  });
+
+  it("forwards schema and database to BlobInput for a nested multi-db table", () => {
+    const onChange = vi.fn();
+    const wire = `BLOB:10241:application/octet-stream:${btoa("preview")}`;
+    render(
+      <FieldEditor
+        name="payload"
+        type="BLOB"
+        value={wire}
+        onChange={onChange}
+        schema="sales"
+        database="analytics"
+      />
+    );
+
+    const blobInput = screen.getByTestId("blob-download-input");
+    expect(blobInput).toHaveAttribute("data-schema", "sales");
+    expect(blobInput).toHaveAttribute("data-database", "analytics");
   });
 
   it("should edit a recognized file type as hex and preserve its MIME type", () => {

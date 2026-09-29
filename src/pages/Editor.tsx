@@ -5145,6 +5145,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       onForeignKeyShowPanel={handleForeignKeyShowPanel}
                       onForeignKeyHidePanel={() => setActiveFkQuery(null)}
                       connectionId={activeConnectionId}
+                      schema={activeTab.schema ?? activeSchema}
+                      database={activeTab.database}
                       onRefresh={handleRefresh}
                       pendingChanges={activeTab.pendingChanges}
                       pendingDeletions={activeTab.pendingDeletions}

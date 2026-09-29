@@ -62,6 +62,7 @@ export const RightSidebar = () => {
 					tableName={rowEditorData.tableName}
 					pkColumns={rowEditorData.pkColumns}
 					schema={rowEditorData.schema}
+					database={rowEditorData.database}
 					onClose={close}
 					isPinned={isPinned}
 					onTogglePin={togglePin}
