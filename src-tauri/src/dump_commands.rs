@@ -5,7 +5,7 @@ use crate::commands::{
 };
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::dump_utils::{drop_table_if_exists, format_table_ref, insert_into_statement};
-use crate::models::{ConnectionParams, TableColumn};
+use crate::models::{ConnectionParams, Pagination, TableColumn};
 use crate::pool_manager::{get_mysql_pool, get_postgres_pool, get_sqlite_pool};
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
@@ -312,6 +312,7 @@ async fn export_table_data(
                 let result = drv
                     .execute_query(params, &query, Some(1000), page, Some(schema))
                     .await?;
+                let fetched = result.rows.len() as u32;
 
                 for row in result.rows {
                     batch.push(format_row_values(
@@ -332,8 +333,8 @@ async fn export_table_data(
                     }
                 }
 
-                let has_more = result.pagination.map(|p| p.has_more).unwrap_or(false);
-                if !has_more {
+                let has_more = plugin_dump_has_more(result.pagination, fetched, 1000);
+                if fetched == 0 || !has_more {
                     break;
                 }
                 page += 1;
@@ -406,6 +407,23 @@ fn escape_json_column_value(driver: &str, val: serde_json::Value) -> String {
         serde_json::Value::Null => "NULL".to_string(),
         other => escape_sql_string(driver, &other.to_string()),
     }
+}
+
+/// Whether the plugin-driver fallback's paginated fetch loop (in
+/// `export_table_data`) should request another page.
+///
+/// A plugin's `execute_query` RPC may not populate `pagination` at all —
+/// defaulting the "no pagination info" case to `false` (as if the table
+/// were exhausted) would silently truncate a dump the moment a table has
+/// more rows than one page, with no error raised. Falling back to whether
+/// the page came back full instead matches `export.rs`'s established
+/// pattern for the same "driver doesn't report pagination" gap: it may
+/// cost one extra empty-page fetch when a table's row count is an exact
+/// multiple of the page size, but it never drops rows.
+fn plugin_dump_has_more(pagination: Option<Pagination>, fetched: u32, page_size: u32) -> bool {
+    pagination
+        .map(|p| p.has_more)
+        .unwrap_or(fetched >= page_size)
 }
 
 /// Column names whose PostgreSQL type is `json`/`jsonb`. Used to decide
@@ -983,5 +1001,43 @@ mod tests {
             format_row_values(row, &columns, &json_cols, "postgres"),
             r#"(1, '{"a":1}', NULL)"#
         );
+    }
+
+    fn pagination(has_more: bool) -> Pagination {
+        Pagination {
+            page: 1,
+            page_size: 1000,
+            total_rows: None,
+            has_more,
+        }
+    }
+
+    #[test]
+    fn test_plugin_dump_has_more_trusts_real_pagination_over_the_fallback() {
+        // A full page that the driver explicitly says is the last one must
+        // not be reinterpreted as "more rows" just because it's full.
+        assert!(!plugin_dump_has_more(Some(pagination(false)), 1000, 1000));
+        // A short page the driver explicitly says has more must still be
+        // honored, even though the fallback heuristic alone would say no.
+        assert!(plugin_dump_has_more(Some(pagination(true)), 10, 1000));
+    }
+
+    #[test]
+    fn test_plugin_dump_has_more_regression_a_full_page_without_pagination_is_not_treated_as_the_end(
+    ) {
+        // Regression: a plugin's execute_query RPC that never populates
+        // `pagination` used to default this to `false`, silently truncating
+        // any table with more rows than one page.
+        assert!(plugin_dump_has_more(None, 1000, 1000));
+    }
+
+    #[test]
+    fn test_plugin_dump_has_more_a_short_page_without_pagination_ends_the_fetch() {
+        assert!(!plugin_dump_has_more(None, 10, 1000));
+    }
+
+    #[test]
+    fn test_plugin_dump_has_more_an_empty_page_without_pagination_ends_the_fetch() {
+        assert!(!plugin_dump_has_more(None, 0, 1000));
     }
 }
