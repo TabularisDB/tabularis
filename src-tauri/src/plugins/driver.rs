@@ -35,10 +35,6 @@ const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-/// Heuristic for the JSON-RPC "method not found" error (code -32601). Only
-/// the error *message* survives the response plumbing, so optional-method
-/// fallbacks match on the standard wording (and the code, for SDKs that
-/// embed it in the message).
 /// A plugin's -32601 (method not found) is only reliably detectable on the
 /// structured `PluginCallError` — `Display` only ever writes `error.message`
 /// (see `rpc.rs`), never the JSON-RPC `code`, so a plugin whose message text
