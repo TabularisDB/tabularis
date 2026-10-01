@@ -10,13 +10,13 @@ on:
     paths:
       - 'src-tauri/**'
       - '.github/workflows/pg-integration.yml'
-      - 'tests/fixtures/**'
+      - 'tests/fixtures/*postgres*'
   pull_request:
     branches: [main]
     paths:
       - 'src-tauri/**'
       - '.github/workflows/pg-integration.yml'
-      - 'tests/fixtures/**'
+      - 'tests/fixtures/*postgres*'
   workflow_dispatch:
     inputs:
       regenerate_golden:
