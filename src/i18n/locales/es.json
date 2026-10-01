@@ -1696,6 +1696,7 @@
     "exitFullscreen": "Salir de Pantalla Completa",
     "noConnection": "Sin ID de Conexión",
     "noConnectionDesc": "No se puede mostrar el diagrama sin un ID de conexión.",
+    "loadError": "No se pudo cargar el diagrama: {{message}}",
     "switchToVertical": "Cambiar a Diseño Vertical",
     "switchToHorizontal": "Cambiar a Diseño Horizontal",
     "vertical": "Vertical",

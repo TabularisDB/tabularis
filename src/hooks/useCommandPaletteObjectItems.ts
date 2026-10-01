@@ -8,7 +8,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import type { TableTarget } from "../types/databaseObjects";
-import { usesMultiDatabaseLayout } from "../utils/database";
+import { isSchemaBasedMultiDb, usesMultiDatabaseLayout } from "../utils/database";
 import {
   createObjectPaletteItems,
   type ObjectPaletteRuntime,
@@ -39,12 +39,14 @@ export function useCommandPaletteObjectItems(
     connectionDataMap,
     loadDatabaseData,
     loadSchemaData,
+    loadNestedSchemaData,
     setActiveTable,
   } = useDatabase();
 
   const connectionId = scope?.connectionId ?? null;
   const requestDatabaseData = useEffectEvent(loadDatabaseData);
   const requestSchemaData = useEffectEvent(loadSchemaData);
+  const requestNestedSchemaData = useEffectEvent(loadNestedSchemaData);
   const loadAttemptsRef = useRef(new Map<string, number>());
   const [failedTargets, setFailedTargets] = useState<string[]>([]);
   const markFailed = (name: string) =>
@@ -97,9 +99,44 @@ export function useCommandPaletteObjectItems(
     connectionData?.capabilities,
     selectedDatabases,
   );
+  const isNestedMultiDatabase = isSchemaBasedMultiDb(
+    connectionData?.capabilities,
+    selectedDatabases,
+  );
 
   useEffect(() => {
     if (!enabled || !connectionId) return;
+
+    if (isNestedMultiDatabase) {
+      // Nested multi-db keeps its schema selection/data per database in
+      // nestedDatabaseDataMap, not in the top-level selectedSchemas/
+      // schemaDataMap the plain single-database branch below reads — those
+      // are unused for this connection shape, so falling through to that
+      // branch would silently load nothing.
+      selectedDatabases.forEach((database) => {
+        const nested = connectionData?.nestedDatabaseDataMap[database];
+        (nested?.selectedSchemas ?? []).forEach((schema) => {
+          const schemaData = nested?.schemaDataMap[schema];
+          const requestKey = `nested:${connectionId}:${database}:${schema}`;
+          const failedName = `${database}.${schema}`;
+          if (schemaData?.isLoaded) {
+            loadAttemptsRef.current.delete(requestKey);
+            clearFailed(failedName);
+            return;
+          }
+          if (schemaData?.isLoading) return;
+
+          const attempts = loadAttemptsRef.current.get(requestKey) ?? 0;
+          if (attempts >= MAX_OBJECT_LOAD_ATTEMPTS) {
+            markFailed(failedName);
+            return;
+          }
+          loadAttemptsRef.current.set(requestKey, attempts + 1);
+          void requestNestedSchemaData(database, schema, connectionId);
+        });
+      });
+      return;
+    }
 
     if (hasSchemas) {
       // Only the schemas selected in the explorer: a Postgres database with
@@ -149,12 +186,14 @@ export function useCommandPaletteObjectItems(
     }
   }, [
     connectionData?.databaseDataMap,
+    connectionData?.nestedDatabaseDataMap,
     connectionData?.schemaDataMap,
     connectionData?.selectedSchemas,
     connectionId,
     enabled,
     hasSchemas,
     isMultiDatabase,
+    isNestedMultiDatabase,
     selectedDatabases,
   ]);
 
@@ -164,10 +203,12 @@ export function useCommandPaletteObjectItems(
         activeConnectionId: connectionId,
         hasSchemas,
         isMultiDb: isMultiDatabase,
+        isNestedMultiDb: isNestedMultiDatabase,
         schemas: connectionData?.selectedSchemas ?? [],
         schemaDataMap: connectionData?.schemaDataMap ?? {},
         selectedDatabases,
         databaseDataMap: connectionData?.databaseDataMap ?? {},
+        nestedDatabaseDataMap: connectionData?.nestedDatabaseDataMap ?? {},
         tables: connectionData?.tables ?? [],
         views: connectionData?.views ?? [],
         routines: connectionData?.routines ?? [],
@@ -177,6 +218,7 @@ export function useCommandPaletteObjectItems(
     [
       connectionData?.activeSchema,
       connectionData?.databaseDataMap,
+      connectionData?.nestedDatabaseDataMap,
       connectionData?.routines,
       connectionData?.schemaDataMap,
       connectionData?.selectedSchemas,
@@ -186,6 +228,7 @@ export function useCommandPaletteObjectItems(
       connectionId,
       hasSchemas,
       isMultiDatabase,
+      isNestedMultiDatabase,
       selectedDatabases,
     ],
   );

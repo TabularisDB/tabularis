@@ -33,6 +33,7 @@ describe("SidebarSchemaItem — materialized view double-click", () => {
     schemaVersion: 1,
     onLoadSchema: vi.fn(),
     onRefreshSchema: vi.fn(),
+    onNewConsole: vi.fn(),
     onTableClick: vi.fn(),
     onTableDoubleClick: vi.fn(),
     onViewClick: vi.fn(),
@@ -95,5 +96,21 @@ describe("SidebarSchemaItem — materialized view double-click", () => {
       "public",
       true,
     );
+  });
+
+  it("opens a new console scoped to the schema, with no database, for a plain single-database connection", () => {
+    const onNewConsole = vi.fn();
+    render(
+      <SidebarSchemaItem
+        {...defaultProps}
+        onNewConsole={onNewConsole}
+        schemaData={baseSchemaData}
+      />,
+    );
+
+    // activeSchema === schemaName ("public") auto-expands the schema body.
+    fireEvent.click(screen.getByTitle("sidebar.newConsole"));
+
+    expect(onNewConsole).toHaveBeenCalledWith("public", undefined);
   });
 });

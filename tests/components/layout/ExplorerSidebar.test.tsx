@@ -333,7 +333,7 @@ describe("ExplorerSidebar — database object navigation", () => {
   it("context menu — show data opens the table", () => {
     openContextMenuOn("orders");
     fireEvent.click(screen.getByText("sidebar.showData"));
-    expect(objectNavigation.open).toHaveBeenCalledWith("orders", undefined);
+    expect(objectNavigation.open).toHaveBeenCalledWith("orders", undefined, undefined, undefined);
   });
 
   it("context menu — new console opens a console for the table", () => {
@@ -342,13 +342,14 @@ describe("ExplorerSidebar — database object navigation", () => {
     expect(objectNavigation.newConsole).toHaveBeenCalledWith(
       "orders",
       undefined,
+      undefined,
     );
   });
 
   it("context menu — count rows counts the table", () => {
     openContextMenuOn("orders");
     fireEvent.click(screen.getByText("sidebar.countRows"));
-    expect(objectNavigation.count).toHaveBeenCalledWith("orders", undefined);
+    expect(objectNavigation.count).toHaveBeenCalledWith("orders", undefined, undefined, undefined);
   });
 
   it("disables table actions that require an active connection", () => {

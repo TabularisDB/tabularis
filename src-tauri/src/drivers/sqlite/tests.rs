@@ -5,8 +5,8 @@ use super::{
     update_record,
 };
 use crate::models::{ConnectionParams, DatabaseSelection};
-use std::collections::HashMap;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::collections::HashMap;
 use tempfile::NamedTempFile;
 
 async fn setup_test_db() -> (ConnectionParams, NamedTempFile) {
@@ -261,10 +261,7 @@ async fn test_get_columns_excludes_hidden_virtual_table_columns() {
     let batch = get_all_columns_batch(&params, &["docs".to_string()])
         .await
         .expect("get batch columns");
-    let batch_col_names: Vec<&str> = batch["docs"]
-        .iter()
-        .map(|col| col.name.as_str())
-        .collect();
+    let batch_col_names: Vec<&str> = batch["docs"].iter().map(|col| col.name.as_str()).collect();
     assert_eq!(batch_col_names, vec!["title", "body"]);
 
     crate::pool_manager::close_pool(&params).await;
@@ -301,10 +298,7 @@ async fn test_generated_table_columns_are_not_inserted_or_updated() {
 
     let mut data = HashMap::new();
     data.insert("udate".to_string(), serde_json::json!(0));
-    data.insert(
-        "display_date".to_string(),
-        serde_json::json!("1970-01-01"),
-    );
+    data.insert("display_date".to_string(), serde_json::json!("1970-01-01"));
     let insert_err = insert_record(&params, "generated_dates", data, 1024)
         .await
         .expect_err("generated columns should be rejected on insert");

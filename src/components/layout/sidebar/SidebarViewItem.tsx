@@ -36,6 +36,7 @@ interface SidebarViewItemProps {
    * `SidebarColumnItem`, which prefers it over the bare `driver` id. */
   capabilities?: DriverCapabilities | null;
   schema?: string;
+  database?: string;
   materialized?: boolean;
   isRefreshing?: boolean;
 }
@@ -50,6 +51,7 @@ export const SidebarViewItem = ({
   driver,
   capabilities,
   schema,
+  database,
   materialized = false,
   isRefreshing = false,
 }: SidebarViewItemProps) => {
@@ -73,6 +75,7 @@ export const SidebarViewItem = ({
             connectionId,
             viewName: view.name,
             ...(schema ? { schema } : {}),
+            ...(database ? { database } : {}),
           },
         ),
         // Materialized views can carry indexes (regular views cannot).
@@ -81,6 +84,7 @@ export const SidebarViewItem = ({
             connectionId,
             tableName: view.name,
             ...(schema ? { schema } : {}),
+            ...(database ? { database } : {}),
           })
           : Promise.resolve([] as Index[]),
       ]);
@@ -91,7 +95,7 @@ export const SidebarViewItem = ({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, view.name, schema, materialized]);
+  }, [connectionId, view.name, schema, database, materialized]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -107,7 +111,7 @@ export const SidebarViewItem = ({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(e, materialized ? "materialized_view" : "view", view.name, view.name, { tableName: view.name, schema });
+    onContextMenu(e, materialized ? "materialized_view" : "view", view.name, view.name, { tableName: view.name, schema, database });
   };
 
   const groupedIndexes = React.useMemo(() => groupIndexes(indexes), [indexes]);
@@ -183,6 +187,8 @@ export const SidebarViewItem = ({
                     onRefresh={refreshColumns}
                     onEdit={() => {}}
                     isView={true}
+                    schema={schema}
+                    database={database}
                   />
                 ))}
               </div>

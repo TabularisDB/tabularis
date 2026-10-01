@@ -24,6 +24,7 @@ export interface RowEditorPanelData {
 	tableName?: string | null;
 	pkColumns?: string[] | null;
 	schema?: string | null;
+	database?: string | null;
 }
 
 export interface RightSidebarContextValue {

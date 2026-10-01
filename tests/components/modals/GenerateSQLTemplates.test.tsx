@@ -26,8 +26,8 @@ vi.mock("../../../src/components/ui/SqlPreview", () => ({ SqlPreview: ({ sql }: 
 const invokeMock = vi.mocked(invoke);
 const columns = [{ name: "order id", data_type: "INT", is_pk: true, is_nullable: false, is_auto_increment: false, default_value: null }];
 
-function modal(connectionId = "opted", openEditor = vi.fn()) {
-  return <MemoryRouter><GenerateSQLModal isOpen target={{ connectionId, tableName: "orders", schema: "sales" }} onClose={vi.fn()} openEditor={openEditor} /></MemoryRouter>;
+function modal(connectionId = "opted", openEditor = vi.fn(), database?: string) {
+  return <MemoryRouter><GenerateSQLModal isOpen target={{ connectionId, tableName: "orders", schema: "sales", database }} onClose={vi.fn()} openEditor={openEditor} /></MemoryRouter>;
 }
 
 function selectFields() {
@@ -96,6 +96,21 @@ describe("optional driver-owned SQL templates", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("driver failure");
     expect(screen.queryByTestId("preview")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "generateSQL.runInConsole" })).not.toBeInTheDocument();
+  });
+
+  it("forwards a nested multi-db target's database to every metadata and template call", async () => {
+    render(modal("opted", vi.fn(), "analytics"));
+    await screen.findByTestId("preview");
+    expect(invokeMock).toHaveBeenCalledWith("get_columns", { connectionId: "opted", tableName: "orders", schema: "sales", database: "analytics" });
+    expect(invokeMock).toHaveBeenCalledWith("get_foreign_keys", { connectionId: "opted", tableName: "orders", schema: "sales", database: "analytics" });
+    expect(invokeMock).toHaveBeenCalledWith("get_indexes", { connectionId: "opted", tableName: "orders", schema: "sales", database: "analytics" });
+    expect(invokeMock).toHaveBeenCalledWith("get_tables", { connectionId: "opted", schema: "sales", database: "analytics" });
+    selectFields();
+    expect(invokeMock).toHaveBeenCalledWith("get_table_query_template", {
+      connectionId: "opted",
+      request: { table: "orders", schema: "sales", kind: "select", columns: ["order id"], limit: 100 },
+      database: "analytics",
+    });
   });
 
   it("ignores a late response for a previous target", async () => {

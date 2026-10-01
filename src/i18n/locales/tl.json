@@ -1760,6 +1760,7 @@
     "exitFullscreen": "Lumabas sa Fullscreen",
     "noConnection": "Walang Connection ID",
     "noConnectionDesc": "Hindi maipakita ang diagram kung walang connection ID.",
+    "loadError": "Nabigo ang pag-load ng diagram: {{message}}",
     "switchToVertical": "Lumipat sa Vertical Layout",
     "switchToHorizontal": "Lumipat sa Horizontal Layout",
     "lockNodes": "I-lock ang posisyon ng mga node",

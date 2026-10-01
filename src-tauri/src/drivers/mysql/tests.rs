@@ -1,6 +1,6 @@
 use super::build_mysql_pk_where;
-use super::{is_text_protocol_stmt, push_mysql_update_value, MysqlDriver, TextProto};
 use super::helpers::{inline_str_placeholders, mysql_bytes_literal, mysql_string_literal};
+use super::{is_text_protocol_stmt, push_mysql_update_value, MysqlDriver, TextProto};
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::{ConnectionParams, DatabaseSelection};
 
@@ -534,10 +534,7 @@ mod routine_management {
                 arg("p_out", "OUT", None, false),
             ],
         );
-        assert_eq!(
-            sql,
-            "CALL `sp_out`(1, @p_out);\nSELECT @p_out AS `p_out`;"
-        );
+        assert_eq!(sql, "CALL `sp_out`(1, @p_out);\nSELECT @p_out AS `p_out`;");
     }
 
     #[test]
@@ -636,7 +633,9 @@ mod routine_management {
 #[cfg(test)]
 mod live_explain_tests {
     use crate::drivers::mysql::explain::explain_query;
-    use crate::models::{ConnectionParams, DatabaseSelection, ExplainQueryOutput, RawExplainOutput};
+    use crate::models::{
+        ConnectionParams, DatabaseSelection, ExplainQueryOutput, RawExplainOutput,
+    };
 
     fn unwrap_raw(output: ExplainQueryOutput) -> RawExplainOutput {
         match output {

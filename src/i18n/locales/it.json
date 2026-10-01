@@ -1763,6 +1763,7 @@
     "exitFullscreen": "Esci da Schermo Intero",
     "noConnection": "Nessun ID Connessione",
     "noConnectionDesc": "Impossibile visualizzare il diagramma senza un ID connessione.",
+    "loadError": "Impossibile caricare il diagramma: {{message}}",
     "switchToVertical": "Passa a Layout Verticale",
     "switchToHorizontal": "Passa a Layout Orizzontale",
     "lockNodes": "Blocca le posizioni dei nodi",

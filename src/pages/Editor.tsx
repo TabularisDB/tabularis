@@ -1268,6 +1268,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           // run would land on a different pooled connection each time.
           sessionId: targetTabId,
           ...(schema ? { schema } : {}),
+          ...(targetTab?.database ? { database: targetTab.database } : {}),
         });
         const end = performance.now();
 
@@ -1567,6 +1568,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             // this tab's connection so the next run continues it.
             sessionId: targetTabId,
             ...(schema ? { schema } : {}),
+            ...(targetTab?.database ? { database: targetTab.database } : {}),
           },
         );
       } catch (err) {
@@ -1725,6 +1727,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           // transaction, or it shows pre-transaction rows.
           sessionId: targetTabId,
           ...(schema ? { schema } : {}),
+          ...(currentTab?.database ? { database: currentTab.database } : {}),
         });
         const end = performance.now();
 
@@ -1830,6 +1833,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           connectionId: activeConnectionId,
           query: countTarget,
           schema: tab.schema ?? activeSchema,
+          database: tab.database,
           // Inside a transaction, count what the tab sees, uncommitted rows included.
           sessionId: transactionTabIdsRef.current.has(tab.id) ? tab.id : undefined,
         });
@@ -3105,6 +3109,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         activeCapabilities,
         activeTab?.schema,
         activeSchema,
+        activeTab?.database,
       );
 
       // Deletions
@@ -3765,10 +3770,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       // selected database so the query runs against the database the user is
       // viewing rather than the connection's primary database. The tab may not
       // carry its own schema (e.g. a console query), so fall back to the active
-      // database — mirroring how execute_query resolves the schema.
+      // database — mirroring how execute_query resolves the schema. A
+      // schema-based multi-db tab (Postgres) carries its own `database`
+      // field instead, since `schema` there is a real Postgres schema, not
+      // the database name.
       const targetDatabase = activeTab?.schema ?? activeSchema ?? undefined;
-      const databaseParam =
-        isMultiDatabaseCapable(activeCapabilities) && targetDatabase
+      const databaseParam = activeTab?.database
+        ? { database: activeTab.database }
+        : isMultiDatabaseCapable(activeCapabilities) && targetDatabase
           ? { database: targetDatabase }
           : {};
 
@@ -3841,6 +3850,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         // Copying every row must see what the tab's own transaction sees.
         sessionId: activeTab.id,
         ...(schema ? { schema } : {}),
+        ...(activeTab?.database ? { database: activeTab.database } : {}),
       });
       const text = formatRowsForCopy(res.rows, res.columns ?? columns, copyFormat, {
         withHeaders: true,
@@ -5241,6 +5251,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       onForeignKeyShowPanel={handleForeignKeyShowPanel}
                       onForeignKeyHidePanel={() => setActiveFkQuery(null)}
                       connectionId={activeConnectionId}
+                      schema={activeTab.schema ?? activeSchema}
+                      database={activeTab.database}
                       onRefresh={handleRefresh}
                       pendingChanges={activeTab.pendingChanges}
                       pendingDeletions={activeTab.pendingDeletions}
@@ -5405,6 +5417,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         query={visualExplainQuery ?? activeTab?.query ?? ""}
         connectionId={activeConnectionId ?? ""}
         schema={activeTab?.schema ?? activeSchema ?? undefined}
+        database={activeTab?.database}
       />
       <ExplainSelectionModal
         isOpen={isExplainSelectionOpen}

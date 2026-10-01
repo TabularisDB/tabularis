@@ -18,6 +18,7 @@ export async function loadTableQueryTemplates(
   table: string,
   schema: string | undefined,
   columns: string[],
+  database?: string,
 ): Promise<TableQueryTemplates> {
   const tabs: TableQueryTab[] = ["select-all", "select-fields", "update", "delete"];
   const entries = await Promise.all(tabs.map(async (tab) => {
@@ -28,7 +29,7 @@ export async function loadTableQueryTemplates(
       columns: tab === "select-fields" || tab === "update" ? columns : [],
       limit: tab === "select-fields" ? 100 : null,
     };
-    const sql = await invoke<string | null>("get_table_query_template", { connectionId, request });
+    const sql = await invoke<string | null>("get_table_query_template", { connectionId, request, database });
     return [tab, sql] as const;
   }));
   return Object.fromEntries(entries);

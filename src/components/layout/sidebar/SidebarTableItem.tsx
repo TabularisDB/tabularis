@@ -46,6 +46,7 @@ interface SidebarTableItemProps {
   onDropForeignKey: (tableName: string, fkName: string) => void;
   schemaVersion: number;
   schema?: string;
+  database?: string;
   canManage?: boolean;
 }
 
@@ -67,6 +68,7 @@ const SidebarTableItemImpl = ({
   onDropForeignKey,
   schemaVersion,
   schema,
+  database,
 }: SidebarTableItemProps) => {
   const { t } = useTranslation();
   // Prevent unused variable warning
@@ -92,16 +94,19 @@ const SidebarTableItemImpl = ({
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         }),
         invoke<ForeignKey[]>("get_foreign_keys", {
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         }),
         invoke<Index[]>("get_indexes", {
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         }),
       ]);
 
@@ -113,7 +118,7 @@ const SidebarTableItemImpl = ({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, table.name, schema]);
+  }, [connectionId, table.name, schema, database]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -134,7 +139,7 @@ const SidebarTableItemImpl = ({
   const handleContextMenu = (e: React.MouseEvent, type: string, name: string) => {
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(e, type, name, name, { tableName: table.name, schema });
+    onContextMenu(e, type, name, name, { tableName: table.name, schema, database });
   };
 
   const groupedIndexes = React.useMemo(() => groupIndexes(indexes), [indexes]);
@@ -245,6 +250,7 @@ const SidebarTableItemImpl = ({
                         onRefresh={refreshMetadata}
                         onEdit={(c) => onEditColumn(table.name, c)}
                         schema={schema}
+                        database={database}
                       />
                     ))}
                   </div>

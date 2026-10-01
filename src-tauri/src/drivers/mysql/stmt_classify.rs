@@ -187,9 +187,10 @@ fn token_matches(tok: &str, kw: &str) -> bool {
     }
     match tok.strip_prefix(kw) {
         None => false,
-        Some(rest) => rest.chars().next().map_or(true, |c| {
-            !(c.is_ascii_alphanumeric() || c == '_')
-        }),
+        Some(rest) => rest
+            .chars()
+            .next()
+            .map_or(true, |c| !(c.is_ascii_alphanumeric() || c == '_')),
     }
 }
 

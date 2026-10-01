@@ -21,6 +21,7 @@ export interface DatabaseObjectTarget {
   connectionId: string;
   objectName: string;
   schema?: string;
+  database?: string;
 }
 
 interface QueryableObjectOptions extends DatabaseObjectTarget {
@@ -45,6 +46,7 @@ export interface RoutineDefinitionTarget {
   routineName: string;
   routineType: string;
   schema?: string;
+  database?: string;
 }
 
 export interface TriggerDefinitionTarget {
@@ -52,12 +54,14 @@ export interface TriggerDefinitionTarget {
   triggerName: string;
   tableName: string;
   schema?: string;
+  database?: string;
 }
 
 interface DatabaseObjectBase {
   connectionId: string;
   name: string;
   schema?: string;
+  database?: string;
 }
 
 interface QueryableDatabaseObjectBase extends DatabaseObjectBase {
@@ -113,6 +117,7 @@ interface DefinitionRequestOptions {
   queryName: string;
   readOnly?: boolean;
   schema?: string;
+  database?: string;
 }
 
 function createCountRequest({
@@ -121,6 +126,7 @@ function createCountRequest({
   objectName,
   qualifySchema = true,
   schema,
+  database,
 }: CountRequestOptions): ConsoleEditorNavigationRequest {
   const quotedObject = quoteTableRef(
     objectName,
@@ -132,6 +138,7 @@ function createCountRequest({
     kind: "console",
     initialQuery: `SELECT COUNT(*) as count FROM ${quotedObject}`,
     schema,
+    database,
     targetConnectionId: connectionId,
   };
 }
@@ -146,6 +153,7 @@ export async function openObjectDefinition(
   runtime: DatabaseObjectActionRuntime,
 ): Promise<void> {
   const schemaParam = object.schema ? { schema: object.schema } : {};
+  const databaseParam = object.database ? { database: object.database } : {};
 
   try {
     const definition =
@@ -155,12 +163,14 @@ export async function openObjectDefinition(
             routineName: object.name,
             routineType: object.routineType,
             ...schemaParam,
+            ...databaseParam,
           })
         : await runtime.loadTriggerDefinition({
             connectionId: object.connectionId,
             triggerName: object.name,
             tableName: object.tableName,
             ...schemaParam,
+            ...databaseParam,
           });
 
     runtime.navigateToEditor(
@@ -170,6 +180,7 @@ export async function openObjectDefinition(
         queryName: `${object.name} Definition`,
         readOnly: object.type === "trigger",
         schema: object.schema,
+        database: object.database,
       }),
     );
   } catch (error) {
@@ -184,6 +195,7 @@ export function createQueryableObjectRequests({
   objectName,
   qualifySchema = true,
   schema,
+  database,
   title,
 }: QueryableObjectOptions): QueryableObjectRequests {
   const quotedObject = quoteTableRef(
@@ -193,6 +205,7 @@ export function createQueryableObjectRequests({
   );
   const base = {
     schema,
+    database,
     targetConnectionId: connectionId,
   };
 
@@ -211,6 +224,7 @@ export function createQueryableObjectRequests({
       objectName,
       qualifySchema,
       schema,
+      database,
     }),
   };
 }
@@ -231,6 +245,7 @@ export function createTableConsoleRequest(
     queryName: spec.title,
     preventAutoRun: true,
     schema: spec.schema,
+    database: target.database,
     targetConnectionId: target.connectionId,
   };
 }
@@ -251,6 +266,7 @@ export function createDefinitionRequest({
   queryName,
   readOnly,
   schema,
+  database,
 }: DefinitionRequestOptions): DefinitionEditorNavigationRequest {
   return {
     kind: "definition",
@@ -258,6 +274,7 @@ export function createDefinitionRequest({
     queryName,
     ...(readOnly ? { readOnly: true } : {}),
     schema,
+    database,
     targetConnectionId: connectionId,
   };
 }
@@ -270,6 +287,7 @@ export function loadRoutineDefinition(
     routineName: target.routineName,
     routineType: target.routineType,
     ...(target.schema ? { schema: target.schema } : {}),
+    ...(target.database ? { database: target.database } : {}),
   });
 }
 
@@ -281,5 +299,6 @@ export function loadTriggerDefinition(
     triggerName: target.triggerName,
     tableName: target.tableName,
     ...(target.schema ? { schema: target.schema } : {}),
+    ...(target.database ? { database: target.database } : {}),
   });
 }

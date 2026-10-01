@@ -128,6 +128,11 @@ interface DataGridProps {
   onForeignKeyShowPanel?: (fk: ForeignKey, value: unknown) => void;
   onForeignKeyHidePanel?: () => void;
   connectionId?: string | null;
+  /** The active tab's own schema/database — wins over the connection's
+   * globally active schema, which can point at a different tab's selection
+   * (see #822 follow-up). */
+  schema?: string | null;
+  database?: string | null;
   onRefresh?: () => void;
   pendingChanges?: Record<
     string,
@@ -220,6 +225,8 @@ export const DataGrid = React.memo(
     onForeignKeyShowPanel,
     onForeignKeyHidePanel,
     connectionId,
+    schema: schemaProp,
+    database,
     onRefresh,
     pendingChanges,
     pendingDeletions,
@@ -247,7 +254,8 @@ export const DataGrid = React.memo(
     scrollToNewInsertion,
   }: DataGridProps) {
     const { t } = useTranslation();
-    const { activeSchema, connections } = useDatabase();
+    const { activeSchema: globalActiveSchema, connections } = useDatabase();
+    const activeSchema = schemaProp ?? globalActiveSchema;
     const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
     const { showToast } = useToast();
@@ -835,6 +843,7 @@ export const DataGrid = React.memo(
           tableName,
           pkColumns,
           schema: activeSchema,
+          database,
         });
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -851,6 +860,7 @@ export const DataGrid = React.memo(
         tableName,
         pkColumns,
         activeSchema,
+        database,
         rightSidebar.openRowEditor,
       ],
     );
@@ -1170,6 +1180,7 @@ export const DataGrid = React.memo(
             colName,
             newVal: value,
             ...(activeSchema ? { schema: activeSchema } : {}),
+            ...(database ? { database } : {}),
           });
           if (onRefresh) onRefresh();
         } catch (e) {
@@ -1193,6 +1204,7 @@ export const DataGrid = React.memo(
       pkColumns,
       connectionId,
       activeSchema,
+      database,
       onRefresh,
       showAlert,
       t,
@@ -2983,6 +2995,7 @@ export const DataGrid = React.memo(
                       connectionId,
                       tableName,
                       schema: activeSchema,
+                      database,
                       columnName: contextMenu.colName,
                       rowIndex: contextMenu.rowIndex,
                       rowData: mergedRows[contextMenu.rowIndex]

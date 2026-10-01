@@ -21,6 +21,10 @@ interface ModifyColumnModalProps {
   connectionId: string;
   tableName: string;
   driver: string;
+  /** Schema/database this table belongs to; falls back to the connection's
+   * active schema when omitted (existing single-schema behavior). */
+  schema?: string;
+  database?: string;
   // If provided, we are in "Edit" mode. If null, "Add" mode.
   column?: {
     name: string;
@@ -38,10 +42,13 @@ export const ModifyColumnModal = ({
   connectionId,
   tableName,
   driver,
+  schema: schemaProp,
+  database,
   column,
 }: ModifyColumnModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema, connectionDataMap } = useDatabase();
+  const { activeSchema: connectionActiveSchema, connectionDataMap } = useDatabase();
+  const activeSchema = schemaProp ?? connectionActiveSchema;
   const { dataTypes } = useDataTypes(driver, connectionId);
   const { allDrivers } = useDrivers();
   const driverManifest = allDrivers.find((d) => d.id === driver);
@@ -182,6 +189,7 @@ export const ModifyColumnModal = ({
           connectionId,
           query: sql,
           ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(database ? { database } : {}),
         });
       }
 

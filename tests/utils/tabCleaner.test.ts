@@ -177,6 +177,28 @@ describe('tabCleaner', () => {
       expect(cleaned.sortClause).toBe('created_at DESC');
       expect(cleaned.limitClause).toBe(50);
     });
+
+    it('should preserve database for a nested multi-db table tab', () => {
+      const tab: Tab = {
+        id: 'tab-123',
+        title: 'users',
+        type: 'table',
+        query: 'SELECT * FROM users',
+        page: 1,
+        activeTable: 'users',
+        pkColumns: ['id'],
+        connectionId: 'conn-456',
+        schema: 'public',
+        database: 'db1',
+        result: null,
+        error: '',
+        executionTime: null,
+      };
+
+      const cleaned = cleanTabForStorage(tab);
+
+      expect(cleaned.database).toBe('db1');
+    });
   });
 
   describe('restoreTabFromStorage', () => {

@@ -29,6 +29,7 @@ interface RowEditorPanelProps {
 	tableName?: string | null;
 	pkColumns?: string[] | null;
 	schema?: string | null;
+	database?: string | null;
 	isPinned?: boolean;
 	onTogglePin?: () => void;
 }
@@ -51,6 +52,7 @@ export const RowEditorPanel = ({
 	tableName,
 	pkColumns,
 	schema,
+	database,
 	isPinned = false,
 	onTogglePin,
 }: RowEditorPanelProps) => {
@@ -112,6 +114,7 @@ export const RowEditorPanel = ({
 							connectionId,
 							tableName,
 							schema,
+							database,
 							rowData,
 							rowIndex,
 							isInsertion,
@@ -182,6 +185,7 @@ export const RowEditorPanel = ({
 								tableName={tableName}
 								pkMap={pkMap}
 								schema={schema}
+								database={database}
 							/>
 							<SlotAnchor
 								name="row-editor-sidebar.field.after"
@@ -189,6 +193,7 @@ export const RowEditorPanel = ({
 									connectionId,
 									tableName,
 									schema,
+									database,
 									columnName: column.name,
 									rowData: editedData,
 									rowIndex,
