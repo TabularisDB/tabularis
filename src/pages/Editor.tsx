@@ -10,7 +10,7 @@ import {
   getLoadedRowsExportLimit,
 } from "../utils/resultExport";
 import { serializePkKey, buildPkMap } from "../utils/dataGrid";
-import { tint } from "../utils/tones";
+import { TONE_SOFT_BG_CLASS, TONE_TEXT_CLASS, tint } from "../utils/tones";
 import {
   buildKeylessUpdatePlan,
   resolveRowIdentity,
@@ -108,6 +108,7 @@ import { splitQueries, splitStatements, findStatementAtOffset, extractTableName,
 import { resolveRunTarget, type RunContext } from "../utils/runTarget";
 import {
   createResultEntries,
+  clearEntryScrollTops as clearScrollTopsForTab,
   createEntriesFromResultSets,
   updateResultEntry,
   removeResultEntry,
@@ -305,6 +306,34 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     setActiveFkQuery(null);
   }, [activeTabId]);
 
+  // Tabs that left an explicit transaction open. Such a tab holds a pooled
+  // connection until it commits, rolls back or closes, so the state is shown
+  // on the tab and the connection is released when it goes away.
+  const [transactionTabIds, setTransactionTabIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const transactionTabIdsRef = useRef<ReadonlySet<string>>(transactionTabIds);
+  transactionTabIdsRef.current = transactionTabIds;
+
+  useEffect(() => {
+    const unlisten = listen<{ session_id: string; in_transaction: boolean }>(
+      "session-transaction-state",
+      (event) => {
+        const { session_id: sessionId, in_transaction: inTransaction } = event.payload;
+        setTransactionTabIds((prev) => {
+          if (prev.has(sessionId) === inTransaction) return prev;
+          const next = new Set(prev);
+          if (inTransaction) next.add(sessionId);
+          else next.delete(sessionId);
+          return next;
+        });
+      },
+    );
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
+
   useEffect(() => {
     const unlisten = listen<ExportProgress>("export_progress", (event) => {
       setExportState((prev) => ({
@@ -416,6 +445,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   // routing it through updateTab would fire EditorProvider's tabs-changed
   // effect (which persists via a Tauri invoke) on every scroll pixel.
   const scrollTopByTabIdRef = useRef<Map<string, number>>(new Map());
+  // Same, for each MultiResultPanel grid, keyed `${tabId}:${entryId}`.
+  const scrollTopByEntryKeyRef = useRef<Map<string, number>>(new Map());
   // Insertion count last seen per tab's DataGrid mount (#823 follow-up).
   // DataGrid remounts on every pendingInsertions size change, so it can't
   // detect the transition itself; tracked here so a real new insertion
@@ -911,26 +942,41 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const requestTabClosure = useCallback(
     (tabIds: string[], action: () => void) => {
-      if (!hasUnsavedSqlFileTabs(tabsRef.current, tabIds)) {
+      // EditorProvider releases a closed tab's session once it leaves the list.
+      const close = () => {
+        setTransactionTabIds((prev) => {
+          if (!tabIds.some((id) => prev.has(id))) return prev;
+          const next = new Set(prev);
+          for (const id of tabIds) next.delete(id);
+          return next;
+        });
         action();
+      };
+      if (!hasUnsavedSqlFileTabs(tabsRef.current, tabIds)) {
+        close();
         return;
       }
-      pendingTabCloseActionRef.current = action;
+      pendingTabCloseActionRef.current = close;
       setHasPendingSqlFileClose(true);
     },
     [],
   );
+
+  const clearEntryScrollTops = useCallback((tabId: string) => {
+    clearScrollTopsForTab(scrollTopByEntryKeyRef.current, tabId);
+  }, []);
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
       requestTabClosure([tabId], () => {
         delete editorsRef.current[tabId];
         scrollTopByTabIdRef.current.delete(tabId);
+        clearEntryScrollTops(tabId);
         prevInsertionCountByTabIdRef.current.delete(tabId);
         closeTab(tabId);
       });
     },
-    [closeTab, requestTabClosure],
+    [clearEntryScrollTops, closeTab, requestTabClosure],
   );
 
   const handleCloseOtherTabs = useCallback(
@@ -1191,6 +1237,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       // A fresh query's result set can be a different size (or empty), so an
       // old scroll offset from a larger one shouldn't linger (#823).
       scrollTopByTabIdRef.current.delete(targetTabId);
+      clearEntryScrollTops(targetTabId);
 
       const shouldRecordHistory =
         targetTab?.type === "console" || targetTab?.type === "query_builder";
@@ -1216,6 +1263,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           query: textToRun,
           limit: pageSize,
           page: pageNum,
+          // One statement at a time is how a transaction is driven: BEGIN,
+          // the changes, a verifying SELECT, COMMIT. Without the session the
+          // run would land on a different pooled connection each time.
+          sessionId: targetTabId,
           ...(schema ? { schema } : {}),
           ...(targetTab?.database ? { database: targetTab.database } : {}),
         });
@@ -1351,6 +1402,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       }
     },
     [
+      clearEntryScrollTops,
       activeConnectionId,
       updateTab,
       settings.resultPageSize,
@@ -1418,6 +1470,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         || (isMultiDb ? activeDatabaseName : undefined)
         || undefined;
 
+      // Entry ids are reused per tab, so drop offsets from the previous run.
+      clearEntryScrollTops(targetTabId);
       const entries = createResultEntries(targetTabId, queries);
 
       setIsResultsCollapsed(false);
@@ -1510,6 +1564,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             limit: pageSize,
             page: 1,
             batchId,
+            // The tab is the session: a transaction it leaves open keeps
+            // this tab's connection so the next run continues it.
+            sessionId: targetTabId,
             ...(schema ? { schema } : {}),
             ...(targetTab?.database ? { database: targetTab.database } : {}),
           },
@@ -1563,6 +1620,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       });
     },
     [
+      clearEntryScrollTops,
       activeConnectionId,
       updateTab,
       patchResultEntry,
@@ -1647,6 +1705,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       );
       const schema = currentTab?.schema ?? activeSchema;
 
+      scrollTopByEntryKeyRef.current.delete(`${targetTabId}:${entryId}`);
+
       // Mark this entry as loading
       if (currentTab?.results) {
         updateTab(targetTabId, {
@@ -1663,6 +1723,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           query: entry.query,
           limit: pageSize,
           page: pageNum,
+          // Paging within the tab has to read through the tab's own
+          // transaction, or it shows pre-transaction rows.
+          sessionId: targetTabId,
           ...(schema ? { schema } : {}),
           ...(currentTab?.database ? { database: currentTab.database } : {}),
         });
@@ -1771,6 +1834,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           query: countTarget,
           schema: tab.schema ?? activeSchema,
           database: tab.database,
+          // Inside a transaction, count what the tab sees, uncommitted rows included.
+          sessionId: transactionTabIdsRef.current.has(tab.id) ? tab.id : undefined,
         });
         const latest = tabsRef.current.find((t) => t.id === tab.id) ?? tab;
         if (!latest.result?.pagination) return;
@@ -2562,6 +2627,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       updateTab(activeTabIdRef.current, { selectedRows: Array.from(indices) });
     },
     [updateTab],
+  );
+
+  const handleEntryScrollTopChange = useCallback(
+    (tabId: string, entryId: string, scrollTop: number) => {
+      scrollTopByEntryKeyRef.current.set(`${tabId}:${entryId}`, scrollTop);
+    },
+    [],
   );
 
   const handleScrollTopChange = useCallback((scrollTop: number) => {
@@ -3716,6 +3788,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         format,
         csvDelimiter: format === "csv" ? csvDelimiter : undefined,
         ...databaseParam,
+        // Inside a transaction, export what the tab sees, uncommitted rows included.
+        sessionId:
+          activeTab && transactionTabIds.has(activeTab.id) ? activeTab.id : undefined,
       });
 
       // Success: update modal state instead of showing toast
@@ -3772,6 +3847,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         // a large practical cap; the toast reports the actual rows fetched.
         limit: totalRows ?? 1_000_000,
         page: 1,
+        // Copying every row must see what the tab's own transaction sees.
+        sessionId: activeTab.id,
         ...(schema ? { schema } : {}),
         ...(activeTab?.database ? { database: activeTab.database } : {}),
       });
@@ -3917,6 +3994,12 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           onDrop={handleTabsDrop}
           className="flex flex-1 overflow-x-auto no-scrollbar h-full relative"
         >
+          {/* Always mounted, so a screen reader announces when the active tab opens a transaction. */}
+          <span role="status" className="sr-only">
+            {activeTabId && transactionTabIds.has(activeTabId)
+              ? t("editor.transactionOpenHint")
+              : ""}
+          </span>
           {tabs.map((tab, index) => (
             <div
               key={tab.id}
@@ -4028,6 +4111,17 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   {tab.type === "console" && isMultiDb && (
                     <span className="text-muted shrink-0">
                       ({tab.schema || selectedDatabases[0]})
+                    </span>
+                  )}
+                  {transactionTabIds.has(tab.id) && (
+                    // This tab is holding a pooled connection open, and its
+                    // uncommitted changes are invisible to every other tab.
+                    <span
+                      className={`shrink-0 px-1 rounded text-[9px] font-semibold uppercase tracking-wide ${TONE_SOFT_BG_CLASS.warning} ${TONE_TEXT_CLASS.warning}`}
+                      title={t("editor.transactionOpenHint")}
+                      aria-label={t("editor.transactionOpenHint")}
+                    >
+                      {t("editor.transactionOpen")}
                     </span>
                   )}
                 </span>
@@ -4671,6 +4765,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             ) : activeTab.results && activeTab.results.length > 0 ? (
               <MultiResultPanel
                 commandTargetRef={dataGridCommandTargetRef}
+                getInitialScrollTop={(entryId) =>
+                  scrollTopByEntryKeyRef.current.get(
+                    `${activeTab.id}:${entryId}`,
+                  )
+                }
+                onScrollTopChange={(entryId, scrollTop) =>
+                  handleEntryScrollTopChange(activeTab.id, entryId, scrollTop)
+                }
                 results={activeTab.results}
                 activeResultId={activeTab.activeResultId}
                 tabId={activeTab.id}
@@ -4684,6 +4786,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 onRerunEntry={(entryId) => runResultEntryPage(entryId, 1)}
                 onPageChange={runResultEntryPage}
                 onCloseEntry={(entryId) => {
+                  scrollTopByEntryKeyRef.current.delete(
+                    `${activeTab.id}:${entryId}`,
+                  );
                   const { results: newResults, nextActiveId } =
                     removeResultEntry(
                       activeTab.results!,
@@ -4735,6 +4840,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   });
                 }}
                 onCloseAllEntries={() => {
+                  clearEntryScrollTops(activeTab.id);
                   updateTab(activeTab.id, {
                     results: undefined,
                     activeResultId: undefined,

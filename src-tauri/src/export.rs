@@ -74,6 +74,7 @@ pub async fn export_query_to_file<R: Runtime>(
     format: String,
     csv_delimiter: Option<String>,
     database: Option<String>,
+    session_id: Option<String>,
 ) -> Result<(), String> {
     let sanitized_query = sanitize_query(&query);
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
@@ -105,6 +106,7 @@ pub async fn export_query_to_file<R: Runtime>(
             writer,
             export_format,
             delimiter,
+            session_id.as_deref(),
         )
         .await
     });
@@ -137,6 +139,7 @@ async fn run_export<R: Runtime>(
     writer: BufWriter<File>,
     format: ExportFormat,
     delimiter: u8,
+    session_id: Option<&str>,
 ) -> Result<(), String> {
     let app_for_progress = app.clone();
     let mut progress = ProgressEmitter::new(DEFAULT_PROGRESS_INTERVAL, move |count| {
@@ -151,17 +154,17 @@ async fn run_export<R: Runtime>(
     match format {
         ExportFormat::Csv => {
             let mut sink = CsvSink::new(writer, delimiter);
-            stream_to_sink(driver, params, query, &mut sink, &mut progress).await?;
+            stream_to_sink(driver, params, query, session_id, &mut sink, &mut progress).await?;
             sink.finish()?;
         }
         ExportFormat::Json => {
             let mut sink = JsonSink::new(writer);
-            stream_to_sink(driver, params, query, &mut sink, &mut progress).await?;
+            stream_to_sink(driver, params, query, session_id, &mut sink, &mut progress).await?;
             sink.finish()?;
         }
         ExportFormat::Markdown => {
             let mut sink = MarkdownSink::new(writer);
-            stream_to_sink(driver, params, query, &mut sink, &mut progress).await?;
+            stream_to_sink(driver, params, query, session_id, &mut sink, &mut progress).await?;
             sink.finish()?;
         }
     }
@@ -174,6 +177,7 @@ async fn stream_to_sink<S, F>(
     driver: &str,
     params: &ConnectionParams,
     query: &str,
+    session_id: Option<&str>,
     sink: &mut S,
     progress: &mut ProgressEmitter<F>,
 ) -> Result<(), String>
@@ -187,13 +191,14 @@ where
         Ok(())
     };
 
+    // Only PostgreSQL connections pin, so only they receive a session.
     match driver {
         "mysql" => mysql::export::stream_query(params, query, &mut on_row).await,
-        "postgres" => postgres::export::stream_query(params, query, &mut on_row).await,
+        "postgres" => postgres::export::stream_query(params, query, session_id, &mut on_row).await,
         "sqlite" => sqlite::export::stream_query(params, query, &mut on_row).await,
         // External plugin drivers: page through the driver's own paginated
         // `execute_query` and forward every row to the sink.
-        other => stream_query_via_plugin(other, params, query, &mut on_row).await,
+        other => stream_query_via_plugin(other, params, query, session_id, &mut on_row).await,
     }
 }
 
@@ -205,6 +210,7 @@ async fn stream_query_via_plugin<F>(
     driver_id: &str,
     params: &ConnectionParams,
     query: &str,
+    session_id: Option<&str>,
     mut on_row: F,
 ) -> Result<(), String>
 where
@@ -219,9 +225,25 @@ where
 
     let mut page: u32 = 1;
     loop {
-        let result = driver
-            .execute_query(params, query, Some(PAGE_SIZE), page, None)
-            .await?;
+        let result = match session_id {
+            Some(id) => {
+                crate::commands::read_in_open_transaction(
+                    driver.as_ref(),
+                    params,
+                    query,
+                    Some(PAGE_SIZE),
+                    page,
+                    None,
+                    id,
+                )
+                .await?
+            }
+            None => {
+                driver
+                    .execute_query(params, query, Some(PAGE_SIZE), page, None)
+                    .await?
+            }
+        };
 
         for row in &result.rows {
             on_row(&result.columns, row)?;

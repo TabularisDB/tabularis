@@ -1,3 +1,4 @@
+pub mod call_timeout;
 pub mod commands;
 pub mod compat; // COMPAT(registry-ga): remove with the BC layer
 pub mod connection_metadata;

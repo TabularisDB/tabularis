@@ -52,3 +52,29 @@ pub enum JsonRpcResponse {
         id: u64,
     },
 }
+
+/// A JSON-RPC notification: no `id`, so the plugin must not reply.
+#[derive(Serialize, Debug)]
+pub struct JsonRpcNotification {
+    pub jsonrpc: String,
+    pub method: String,
+    pub params: Value,
+}
+
+/// Line written to the plugin's stdin when the host stops waiting for request
+/// `id` (call timeout). Plugins that support it cancel the in-flight work,
+/// e.g. the server-side statement; unknown ids must be ignored.
+pub fn cancel_notification_line(id: u64) -> String {
+    let notification = JsonRpcNotification {
+        jsonrpc: "2.0".to_string(),
+        method: "cancel".to_string(),
+        params: serde_json::json!({ "id": id }),
+    };
+    let mut line = serde_json::to_string(&notification).unwrap();
+    line.push('\n');
+    line
+}
+
+#[cfg(test)]
+#[path = "rpc_tests.rs"]
+mod tests;

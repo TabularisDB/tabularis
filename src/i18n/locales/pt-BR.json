@@ -720,6 +720,9 @@
     "erDiagramDefaultLayout": "Layout Padrão",
     "erDiagramDefaultLayoutDesc": "Escolha a direção padrão do layout para diagramas ER",
     "plugins": {
+      "runtimeTitle": "Execução de plugins",
+      "callTimeout": "Tempo limite de chamada",
+      "callTimeoutDesc": "Tempo máximo que o Tabularis aguarda a resposta de um plugin a uma única solicitação (incluindo consultas). Use 0 para desativar o limite. Cada plugin pode sobrescrever este valor nas próprias configurações.",
       "title": "Plugins",
       "overviewTitle": "Central de Plugins",
       "overviewDesc": "Instale extensões, gerencie drivers de plugins e mantenha as configurações de tempo de execução sob controle.",
@@ -793,6 +796,10 @@
         "configure": "Configurar Interpretador"
       },
       "pluginSettings": {
+        "callTimeout": "Tempo limite de chamada",
+        "callTimeoutDesc": "Sobrescreve o tempo limite global apenas para este plugin. Use 0 para desativar o limite; deixe em branco para herdar o valor global.",
+        "callTimeoutPlaceholder": "Herdar global ({{seconds}} s)",
+        "callTimeoutInherit": "Herdar o valor global",
         "title": "Configurações do Plugin",
         "interpreter": "Interpretador",
         "interpreterDesc": "Opcional. Especifique o executável usado para rodar este plugin (ex.: python3 no macOS/Linux, python ou um caminho completo no Windows). Deixe em branco para usar o padrão.",
@@ -1358,6 +1365,8 @@
     "rollback": "Reverter",
     "pendingCount": "{{count}} pendente(s)",
     "executingQuery": "Executando consulta...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transação aberta — esta aba mantém sua conexão até você fazer COMMIT ou ROLLBACK",
     "exporting": "Exportando...",
     "rowsProcessed": "Linhas Processadas",
     "exportLoadedRowsWarning": "Apenas {{loaded}} linhas carregadas de {{total}} linhas totais foram exportadas. Navegue pelas páginas do resultado ou execute uma consulta mais restrita antes de exportar se precisar de mais linhas.",

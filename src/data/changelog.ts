@@ -73,4 +73,6 @@ export const versionLinks: Record<string, string> = {
   "0.23.0": "https://tabularis.dev/blog/v0230-postgres-plugin-migration-sql-files-storage-location",
   "0.24.0": "https://tabularis.dev/blog/v0240-notebook-query-plans-proxy-settings-result-fonts",
   "0.25.0": "https://tabularis.dev/blog/v0250-installable-themes-aws-ssm-update-badges-mcp-toon",
+  "0.26.0":
+    "https://tabularis.dev/blog/v0260-postgres-tab-transactions-command-palette-accessible-themes",
 };

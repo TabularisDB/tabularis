@@ -59,6 +59,9 @@ interface MultiResultPanelProps {
   onCloseAllEntries: () => void;
   onRenameEntry: (entryId: string, label: string) => void;
   commandTargetRef?: Ref<DataGridCommandTarget>;
+  /** Scroll offset to restore for an entry's grid when it remounts (#823). */
+  getInitialScrollTop?: (entryId: string) => number | undefined;
+  onScrollTopChange?: (entryId: string, scrollTop: number) => void;
 }
 
 function ResultTab({
@@ -256,6 +259,8 @@ export function MultiResultPanel({
   onCloseAllEntries,
   onRenameEntry,
   commandTargetRef,
+  getInitialScrollTop,
+  onScrollTopChange,
 }: MultiResultPanelProps) {
   const { t } = useTranslation();
   const { settings } = useSettings();
@@ -474,6 +479,8 @@ export function MultiResultPanel({
               csvDelimiter={csvDelimiter}
               csvIncludeHeaders={csvIncludeHeaders}
               onPageChange={(page) => onPageChange(activeEntry.id, page)}
+              initialScrollTop={getInitialScrollTop?.(activeEntry.id)}
+              onScrollTopChange={(top) => onScrollTopChange?.(activeEntry.id, top)}
             />
           </div>
         </>
@@ -544,6 +551,8 @@ export function MultiResultPanel({
                 onRerun={() => onRerunEntry(entry.id)}
                 onAiRename={() => handleAiRename(entry.id)}
                 onClose={() => onCloseEntry(entry.id)}
+                initialScrollTop={getInitialScrollTop?.(entry.id)}
+                onScrollTopChange={(top) => onScrollTopChange?.(entry.id, top)}
               />
             ))}
           </div>

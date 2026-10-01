@@ -203,6 +203,34 @@ describe("EditorProvider", () => {
     expect(result.current.activeTabId).not.toBe(tabId);
   });
 
+  it("releases a closed tab's query session on its connection", async () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    act(() => {
+      result.current.addTab({ type: "console" });
+    });
+    act(() => {
+      result.current.addTab({ type: "console" });
+    });
+    const tabId = result.current.tabs[0].id;
+
+    act(() => {
+      result.current.closeTab(tabId);
+    });
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("release_query_session", {
+        connectionId: "conn-1",
+        sessionId: tabId,
+      }),
+    );
+    expect(invoke).not.toHaveBeenCalledWith(
+      "release_query_session",
+      expect.objectContaining({ sessionId: result.current.tabs[0].id }),
+    );
+  });
+
   it("should return empty tabs when closing last tab", () => {
     const wrapper = createWrapper("conn-1");
     const { result } = renderHook(() => useEditor(), { wrapper });

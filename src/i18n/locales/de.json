@@ -705,6 +705,9 @@
     "erDiagramDefaultLayout": "Standard-Layout",
     "erDiagramDefaultLayoutDesc": "Wähle die Standard-Layout-Richtung für ER-Diagramme",
     "plugins": {
+      "runtimeTitle": "Plugin-Laufzeit",
+      "callTimeout": "Aufruf-Timeout",
+      "callTimeoutDesc": "Maximale Zeit, die Tabularis auf die Antwort eines Plugins auf eine einzelne Anfrage (inkl. Abfragen) wartet. 0 deaktiviert das Limit. Jedes Plugin kann diesen Wert in seinen eigenen Einstellungen überschreiben.",
       "title": "Plugins",
       "overviewTitle": "Plugin-Center",
       "overviewDesc": "Installiere Erweiterungen, verwalte Plugin-Treiber und behalte Laufzeiteinstellungen im Blick.",
@@ -778,6 +781,10 @@
         "configure": "Interpreter konfigurieren"
       },
       "pluginSettings": {
+        "callTimeout": "Aufruf-Timeout",
+        "callTimeoutDesc": "Überschreibt das globale Plugin-Aufruf-Timeout nur für dieses Plugin. 0 deaktiviert das Limit, leer lassen, um den globalen Wert zu übernehmen.",
+        "callTimeoutPlaceholder": "Global übernehmen ({{seconds}} s)",
+        "callTimeoutInherit": "Globalen Wert übernehmen",
         "title": "Plugin-Einstellungen",
         "interpreter": "Interpreter",
         "interpreterDesc": "Optional. Gib die ausführbare Datei an, die zum Starten dieses Plugins verwendet wird (z. B. python3 unter macOS/Linux, python oder ein vollständiger Pfad unter Windows). Leer lassen, um den Standard zu verwenden.",
@@ -1339,6 +1346,8 @@
     "rollback": "Zurückrollen",
     "pendingCount": "{{count}} ausstehend",
     "executingQuery": "Abfrage wird ausgeführt...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transaktion offen — dieser Tab behält seine Verbindung bis zum COMMIT oder ROLLBACK",
     "exporting": "Wird exportiert...",
     "rowsProcessed": "Verarbeitete Zeilen",
     "exportLoadedRowsWarning": "Es wurden nur {{loaded}} geladene Zeilen von insgesamt {{total}} Zeilen exportiert. Blättere durch das Ergebnis oder führe eine eingeschränktere Abfrage aus, wenn du mehr Zeilen exportieren musst.",

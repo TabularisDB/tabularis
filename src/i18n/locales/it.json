@@ -738,6 +738,9 @@
     "erDiagramDefaultLayout": "Layout Predefinito",
     "erDiagramDefaultLayoutDesc": "Scegli la direzione di default per i diagrammi ER",
     "plugins": {
+      "runtimeTitle": "Runtime dei plugin",
+      "callTimeout": "Timeout delle chiamate",
+      "callTimeoutDesc": "Tempo massimo di attesa di Tabularis per la risposta di un plugin a una singola richiesta (query incluse). Imposta 0 per disattivare il limite. Ogni plugin può sovrascrivere questo valore nelle proprie impostazioni.",
       "title": "Plugin",
       "overviewTitle": "Centro Plugin",
       "overviewDesc": "Installa estensioni, gestisci i driver dei plugin e tieni sotto controllo le impostazioni di runtime.",
@@ -811,6 +814,10 @@
         "configure": "Configura Interprete"
       },
       "pluginSettings": {
+        "callTimeout": "Timeout delle chiamate",
+        "callTimeoutDesc": "Sovrascrive il timeout globale delle chiamate solo per questo plugin. Imposta 0 per disattivare il limite, lascia vuoto per ereditare il valore globale.",
+        "callTimeoutPlaceholder": "Eredita globale ({{seconds}} s)",
+        "callTimeoutInherit": "Eredita il valore globale",
         "title": "Impostazioni Plugin",
         "interpreter": "Interprete",
         "interpreterDesc": "Opzionale. Specifica l'eseguibile usato per avviare questo plugin (es. python3 su macOS/Linux, python o percorso completo su Windows). Lascia vuoto per usare il valore predefinito.",
@@ -1372,6 +1379,8 @@
     "rollback": "Annulla",
     "pendingCount": "{{count}} in sospeso",
     "executingQuery": "Esecuzione query...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transazione aperta — questa scheda mantiene la sua connessione fino a COMMIT o ROLLBACK",
     "exporting": "Esportazione in corso...",
     "rowsProcessed": "Righe processate",
     "exportLoadedRowsWarning": "Sono state esportate solo {{loaded}} righe caricate su {{total}} righe totali. Scorri le pagine del risultato o esegui una query più mirata prima di esportare se ti servono più righe.",

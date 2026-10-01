@@ -719,6 +719,9 @@
     "erDiagramDefaultLayout": "デフォルトレイアウト",
     "erDiagramDefaultLayoutDesc": "ER 図のデフォルトのレイアウト方向を選択します",
     "plugins": {
+      "runtimeTitle": "プラグインランタイム",
+      "callTimeout": "呼び出しタイムアウト",
+      "callTimeoutDesc": "Tabularis がプラグインからの単一リクエスト(クエリを含む)の応答を待つ最大時間です。0 で制限を無効にします。各プラグインは個別の設定でこの値を上書きできます。",
       "title": "プラグイン",
       "overviewTitle": "プラグインセンター",
       "overviewDesc": "拡張機能のインストール、プラグインドライバの管理、実行時設定のコントロールを行います。",
@@ -792,6 +795,10 @@
         "configure": "インタプリタを設定"
       },
       "pluginSettings": {
+        "callTimeout": "呼び出しタイムアウト",
+        "callTimeoutDesc": "このプラグインに限り、グローバルの呼び出しタイムアウトを上書きします。0 で制限を無効化、空欄でグローバル値を継承します。",
+        "callTimeoutPlaceholder": "グローバルを継承 ({{seconds}} 秒)",
+        "callTimeoutInherit": "グローバル値を継承",
         "title": "プラグイン設定",
         "interpreter": "インタプリタ",
         "interpreterDesc": "任意。このプラグインの実行に使用する実行ファイルを指定します (例: macOS/Linux では python3、Windows では python またはフルパス)。空欄の場合はデフォルトが使用されます。",
@@ -1350,6 +1357,8 @@
     "rollback": "ロールバック",
     "pendingCount": "保留中 {{count}}件",
     "executingQuery": "クエリを実行中...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "トランザクション実行中 — このタブは COMMIT または ROLLBACK まで接続を保持します",
     "exporting": "エクスポート中...",
     "rowsProcessed": "処理行数",
     "exportLoadedRowsWarning": "合計 {{total}} 行のうち、読み込み済みの {{loaded}} 行のみをエクスポートしました。さらに多くの行が必要な場合は、結果をページ送りするか、より絞り込んだクエリを実行してからエクスポートしてください。",

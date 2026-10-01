@@ -24,6 +24,8 @@ export type WindowDecorationsMode =
 export interface PluginConfig {
   interpreter?: string;
   settings?: Record<string, unknown>;
+  /** Per-plugin override of `pluginCallTimeoutSeconds`. Unset inherits the global value; 0 disables the timeout. */
+  callTimeoutSeconds?: number;
 }
 
 /** One entry in the append-only driver-migration history. Kept even after an
@@ -86,6 +88,8 @@ export interface Settings {
   /** Base URL of the Tabularium plugin registry. Defaults to the built-in instance when unset. */
   tabulariumRegistryUrl?: string;
   plugins?: Record<string, PluginConfig>;
+  /** Seconds the host waits for a plugin to answer a single call. 0 disables the timeout. Default: 120. */
+  pluginCallTimeoutSeconds?: number;
   editorTheme?: string;
   editorFontFamily?: string;
   editorFontSize?: number;

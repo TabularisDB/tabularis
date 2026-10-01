@@ -4559,6 +4559,7 @@ pub async fn execute_query<R: Runtime>(
     page: Option<u32>,
     schema: Option<String>,
     database: Option<String>,
+    session_id: Option<String>,
 ) -> Result<QueryResult, String> {
     log::info!(
         "Executing query on connection: {} | Query: {}",
@@ -4581,13 +4582,16 @@ pub async fn execute_query<R: Runtime>(
     let dropped = crate::sql_database_statements::dropped_database(&sanitized_query);
 
     let drv = driver_for_params(&params).await?;
+    let session_driver = drv.clone();
+    let session = session_id.clone();
     let task = tokio::spawn(async move {
-        drv.execute_query(
+        drv.execute_query_in_session(
             &params,
             &sanitized_query,
             limit,
             page.unwrap_or(1),
             schema.as_deref(),
+            session.as_deref(),
         )
         .await
     });
@@ -4600,11 +4604,17 @@ pub async fn execute_query<R: Runtime>(
     unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
 
     match result {
-        Ok(Ok(query_result)) => {
+        Ok(Ok((query_result, in_transaction))) => {
             log::info!(
                 "Query executed successfully, returned {} rows",
                 query_result.rows.len()
             );
+            // Driving a transaction one statement at a time is the whole
+            // point, so this path reports session state exactly as a batch
+            // does.
+            if let Some(id) = session_id.as_deref() {
+                emit_session_state(&app, &connection_id, id, in_transaction);
+            }
             if let Some(database) = &dropped {
                 emit_database_dropped(&app, &connection_id, database);
             }
@@ -4612,10 +4622,24 @@ pub async fn execute_query<R: Runtime>(
         }
         Ok(Err(e)) => {
             log::error!("Query execution failed: {}", e);
+            emit_session_state_after_failure(
+                &app,
+                &connection_id,
+                session_driver.as_ref(),
+                session_id.as_deref(),
+            )
+            .await;
             Err(e)
         }
         Err(_) => {
             log::warn!("Query was cancelled");
+            emit_session_state_after_failure(
+                &app,
+                &connection_id,
+                session_driver.as_ref(),
+                session_id.as_deref(),
+            )
+            .await;
             Err("Query cancelled".into())
         }
     }
@@ -4632,6 +4656,152 @@ struct BatchStatementEvent<'a> {
     batch_id: &'a str,
     index: usize,
     statement: &'a BatchStatementResult,
+}
+
+/// Payload for the `session-transaction-state` event, emitted after a batch
+/// that carried a `session_id` so the owning tab can show whether it is
+/// still inside an explicit transaction — and therefore still holding a
+/// pooled connection.
+#[derive(serde::Serialize, Clone)]
+struct SessionTransactionStateEvent<'a> {
+    session_id: &'a str,
+    in_transaction: bool,
+}
+
+/// Sessions last reported inside a transaction, per connection id, so a
+/// disconnect can release them through the driver.
+fn open_sessions() -> &'static Mutex<HashMap<String, std::collections::HashSet<String>>> {
+    static OPEN: std::sync::OnceLock<Mutex<HashMap<String, std::collections::HashSet<String>>>> =
+        std::sync::OnceLock::new();
+    OPEN.get_or_init(Default::default)
+}
+
+fn note_session_state(connection_id: &str, session_id: &str, in_transaction: bool) {
+    let mut open = open_sessions().lock().unwrap_or_else(|e| e.into_inner());
+    if in_transaction {
+        open.entry(connection_id.to_string())
+            .or_default()
+            .insert(session_id.to_string());
+    } else if let Some(ids) = open.get_mut(connection_id) {
+        ids.remove(session_id);
+        if ids.is_empty() {
+            open.remove(connection_id);
+        }
+    }
+}
+
+fn take_open_sessions(connection_id: &str) -> Vec<String> {
+    let mut open = open_sessions().lock().unwrap_or_else(|e| e.into_inner());
+    open.remove(connection_id)
+        .map(|ids| ids.into_iter().collect())
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod open_sessions_tests {
+    use super::{note_session_state, take_open_sessions};
+
+    #[test]
+    fn disconnect_takes_only_that_connections_open_sessions() {
+        note_session_state("os-conn-a", "tab-1", true);
+        note_session_state("os-conn-a", "tab-2", true);
+        note_session_state("os-conn-a", "tab-2", false);
+        note_session_state("os-conn-b", "tab-3", true);
+
+        assert_eq!(take_open_sessions("os-conn-a"), vec!["tab-1".to_string()]);
+        assert!(take_open_sessions("os-conn-a").is_empty());
+        assert_eq!(take_open_sessions("os-conn-b"), vec!["tab-3".to_string()]);
+    }
+}
+
+/// Tell the UI whether a tab is inside a transaction, and remember it for disconnect.
+fn emit_session_state<R: Runtime>(
+    app: &AppHandle<R>,
+    connection_id: &str,
+    session_id: &str,
+    in_transaction: bool,
+) {
+    note_session_state(connection_id, session_id, in_transaction);
+    let _ = app.emit(
+        "session-transaction-state",
+        SessionTransactionStateEvent {
+            session_id,
+            in_transaction,
+        },
+    );
+}
+
+/// Roll back the transactions a connection's tabs left open, for every path
+/// that closes it (disconnect, failed health check). The releases run in the
+/// background, so closing a connection never waits on a tab's in-flight run.
+/// Without `params` the bookkeeping is still cleared and the idle sweep
+/// reclaims the connections.
+pub(crate) async fn release_connection_sessions<R: Runtime>(
+    app: &AppHandle<R>,
+    connection_id: &str,
+    params: Option<&ConnectionParams>,
+) {
+    let open = take_open_sessions(connection_id);
+    if open.is_empty() {
+        return;
+    }
+    for id in &open {
+        let _ = app.emit(
+            "session-transaction-state",
+            SessionTransactionStateEvent {
+                session_id: id,
+                in_transaction: false,
+            },
+        );
+    }
+    let Some(params) = params else {
+        log::warn!("Could not resolve {connection_id} to release its open sessions");
+        return;
+    };
+    match driver_for_params(params).await {
+        Ok(drv) => {
+            tauri::async_runtime::spawn(async move {
+                for id in open {
+                    drv.release_session(&id).await;
+                }
+            });
+        }
+        Err(e) => log::warn!("Could not release open sessions of {connection_id}: {e}"),
+    }
+}
+
+/// A failed or cancelled run returns no session flag, so ask the driver, or
+/// the tab's TX badge would keep showing a transaction that already ended.
+async fn emit_session_state_after_failure<R: Runtime>(
+    app: &AppHandle<R>,
+    connection_id: &str,
+    drv: &dyn crate::drivers::driver_trait::DatabaseDriver,
+    session_id: Option<&str>,
+) {
+    let Some(id) = session_id else { return };
+    if let Some(in_transaction) = drv.session_in_transaction(id).await {
+        emit_session_state(app, connection_id, id, in_transaction);
+    }
+}
+
+/// Roll back and release the connection pinned to `session_id`.
+///
+/// Called when an editor tab closes, so an abandoned transaction cannot
+/// hold its locks until the idle sweep reclaims it.
+#[tauri::command]
+pub async fn release_query_session<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    session_id: String,
+) -> Result<(), String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let drv = driver_for_params(&params).await?;
+    drv.release_session(&session_id).await;
+    note_session_state(&connection_id, &session_id, false);
+    Ok(())
 }
 
 /// Runs a sequence of statements that share a single physical database
@@ -4657,6 +4827,7 @@ pub async fn execute_query_batch<R: Runtime>(
     schema: Option<String>,
     database: Option<String>,
     batch_id: Option<String>,
+    session_id: Option<String>,
 ) -> Result<Vec<BatchStatementResult>, String> {
     log::info!(
         "Executing query batch on connection: {} | {} statement(s)",
@@ -4703,13 +4874,16 @@ pub async fn execute_query_batch<R: Runtime>(
             cb
         });
 
+    let session_driver = drv.clone();
+    let session = session_id.clone();
     let task = tokio::spawn(async move {
-        drv.execute_batch(
+        drv.execute_batch_in_session(
             &params,
             &sanitized_queries,
             limit,
             page.unwrap_or(1),
             schema.as_deref(),
+            session.as_deref(),
             progress.as_deref(),
         )
         .await
@@ -4723,7 +4897,13 @@ pub async fn execute_query_batch<R: Runtime>(
     unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
 
     match result {
-        Ok(Ok(batch_results)) => {
+        Ok(Ok((batch_results, in_transaction))) => {
+            // The tab holds a pooled connection for as long as its
+            // transaction is open, so the UI has to be able to show it and
+            // release it on close.
+            if let Some(id) = session_id.as_deref() {
+                emit_session_state(&app, &connection_id, id, in_transaction);
+            }
             let success_count = batch_results.iter().filter(|r| r.result.is_some()).count();
             log::info!(
                 "Batch executed: {} succeeded, {} failed (of {} total)",
@@ -4745,10 +4925,24 @@ pub async fn execute_query_batch<R: Runtime>(
         }
         Ok(Err(e)) => {
             log::error!("Batch execution failed at setup: {}", e);
+            emit_session_state_after_failure(
+                &app,
+                &connection_id,
+                session_driver.as_ref(),
+                session_id.as_deref(),
+            )
+            .await;
             Err(e)
         }
         Err(_) => {
             log::warn!("Batch was cancelled");
+            emit_session_state_after_failure(
+                &app,
+                &connection_id,
+                session_driver.as_ref(),
+                session_id.as_deref(),
+            )
+            .await;
             Err("Query cancelled".into())
         }
     }
@@ -4819,6 +5013,38 @@ pub async fn explain_query_plan<R: Runtime>(
     }
 }
 
+/// Run a read on the connection pinned to `session_id`, inside its open
+/// transaction, so it sees the tab's uncommitted changes. A savepoint keeps a
+/// failing read from aborting the user's transaction.
+pub(crate) async fn read_in_open_transaction(
+    drv: &dyn crate::drivers::driver_trait::DatabaseDriver,
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    session_id: &str,
+) -> Result<QueryResult, String> {
+    let batch = [
+        "SAVEPOINT tabularis_read".to_string(),
+        query.to_string(),
+        "ROLLBACK TO SAVEPOINT tabularis_read".to_string(),
+        "RELEASE SAVEPOINT tabularis_read".to_string(),
+    ];
+    let (results, _) = drv
+        .execute_batch_in_session(params, &batch, limit, page, schema, Some(session_id), None)
+        .await?;
+    // With no transaction open (a stale badge) only the savepoint lines fail; the read still runs.
+    match results.into_iter().nth(1) {
+        Some(BatchStatementResult {
+            result: Some(result),
+            ..
+        }) => Ok(result),
+        Some(BatchStatementResult { error: Some(e), .. }) => Err(e),
+        _ => Err("The statement produced no result".to_string()),
+    }
+}
+
 // --- Count Query ---
 
 #[tauri::command]
@@ -4828,6 +5054,7 @@ pub async fn count_query<R: Runtime>(
     query: String,
     schema: Option<String>,
     database: Option<String>,
+    session_id: Option<String>,
 ) -> Result<u64, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
@@ -4842,9 +5069,25 @@ pub async fn count_query<R: Runtime>(
     let count_q = format!("SELECT COUNT(*) FROM ({}) as count_wrapper", sanitized);
 
     let drv = driver_for_params(&params).await?;
-    let result = drv
-        .execute_query(&params, &count_q, None, 1, schema.as_deref())
-        .await?;
+    // The editor sends a session only for a tab inside a transaction.
+    let result = match session_id.as_deref() {
+        Some(id) => {
+            read_in_open_transaction(
+                drv.as_ref(),
+                &params,
+                &count_q,
+                None,
+                1,
+                schema.as_deref(),
+                id,
+            )
+            .await?
+        }
+        None => {
+            drv.execute_query(&params, &count_q, None, 1, schema.as_deref())
+                .await?
+        }
+    };
 
     let total: u64 = result
         .rows
@@ -5805,6 +6048,8 @@ pub async fn disconnect_connection<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    release_connection_sessions(&app, &connection_id, Some(&params)).await;
 
     // Close the connection pool
     crate::pool_manager::close_pool_with_id(&params, Some(&connection_id)).await;

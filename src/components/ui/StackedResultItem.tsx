@@ -38,6 +38,8 @@ interface StackedResultItemProps {
   onAiRename: () => void;
   onClose: () => void;
   commandTargetRef?: Ref<DataGridCommandTarget>;
+  initialScrollTop?: number;
+  onScrollTopChange?: (scrollTop: number) => void;
 }
 
 export function StackedResultItem({
@@ -56,6 +58,8 @@ export function StackedResultItem({
   onAiRename,
   onClose,
   commandTargetRef,
+  initialScrollTop,
+  onScrollTopChange,
 }: StackedResultItemProps) {
   const { t } = useTranslation();
   const [queryExpanded, setQueryExpanded] = useState(false);
@@ -325,6 +329,8 @@ export function StackedResultItem({
                   csvDelimiter={csvDelimiter}
                   csvIncludeHeaders={csvIncludeHeaders}
                   onPageChange={onPageChange}
+                  initialScrollTop={initialScrollTop}
+                  onScrollTopChange={onScrollTopChange}
                   compact
                 />
               </div>

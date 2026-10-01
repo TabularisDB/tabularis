@@ -673,6 +673,21 @@ The `params.params` object is a `ConnectionParams` — the same values the user 
 | `-32602` | Invalid params |
 | `-32603` | Internal error |
 
+### Cancel Notification (Optional)
+
+When a call exceeds the configured plugin call timeout, Tabularis stops waiting and reports the error to the user. Right after that it writes a JSON-RPC **notification** (no top-level `id`) naming the abandoned request:
+
+```json
+{ "jsonrpc": "2.0", "method": "cancel", "params": { "id": 1 } }
+```
+
+`params.id` is the `id` of the original request. Handling it is optional, but recommended for drivers that run statements on a server: without it a timed-out `execute_query` keeps running there (and a `DELETE` or `UPDATE` still takes effect) even though the user already saw an error.
+
+- **Do not reply.** A notification has no response; writing one would put an unexpected line on `stdout`.
+- **Ignore unknown ids** (already finished, already cancelled, or not cancellable). A late or duplicate cancel must never be treated as an error.
+- **Keep reading `stdin` while a request runs.** A plugin that processes requests strictly one at a time only sees the cancel after the long call has finished.
+- No cancel is sent when the timeout is disabled (`0`): the call simply waits.
+
 ---
 
 ## 5. Required Methods

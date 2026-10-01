@@ -730,6 +730,9 @@
     "erDiagramDefaultLayout": "Diseño Predeterminado",
     "erDiagramDefaultLayoutDesc": "Elige la dirección de diseño predeterminada para los diagramas ER",
     "plugins": {
+      "runtimeTitle": "Ejecución de plugins",
+      "callTimeout": "Tiempo de espera de llamadas",
+      "callTimeoutDesc": "Tiempo máximo que Tabularis espera la respuesta de un plugin a una sola solicitud (incluidas las consultas). Usa 0 para desactivar el límite. Cada plugin puede sobrescribir este valor en su propia configuración.",
       "title": "Plugins",
       "overviewTitle": "Centro de plugins",
       "overviewDesc": "Instala extensiones, gestiona drivers de plugins y mantén bajo control los ajustes de ejecución.",
@@ -803,6 +806,10 @@
         "configure": "Configurar Intérprete"
       },
       "pluginSettings": {
+        "callTimeout": "Tiempo de espera de llamadas",
+        "callTimeoutDesc": "Sobrescribe el tiempo de espera global solo para este plugin. Usa 0 para desactivar el límite; déjalo vacío para heredar el valor global.",
+        "callTimeoutPlaceholder": "Heredar global ({{seconds}} s)",
+        "callTimeoutInherit": "Heredar el valor global",
         "title": "Configuración del Plugin",
         "interpreter": "Intérprete",
         "interpreterDesc": "Opcional. Especifica el ejecutable para iniciar este plugin (p.ej. python3 en macOS/Linux, python o ruta completa en Windows). Deja en blanco para usar el valor predeterminado.",
@@ -1360,6 +1367,8 @@
     "rollback": "Revertir",
     "pendingCount": "{{count}} pendientes",
     "executingQuery": "Ejecutando consulta...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transacción abierta — esta pestaña mantiene su conexión hasta que hagas COMMIT o ROLLBACK",
     "exporting": "Exportando...",
     "rowsProcessed": "Filas Procesadas",
     "exportLoadedRowsWarning": "Solo se exportaron {{loaded}} filas cargadas de {{total}} filas totales. Recorre las páginas del resultado o ejecuta una consulta más específica antes de exportar si necesitas más filas.",

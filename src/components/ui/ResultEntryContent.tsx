@@ -17,6 +17,8 @@ interface ResultEntryContentProps {
   onPageChange: (page: number) => void;
   compact?: boolean;
   commandTargetRef?: Ref<DataGridCommandTarget>;
+  initialScrollTop?: number;
+  onScrollTopChange?: (scrollTop: number) => void;
 }
 
 export function ResultEntryContent({
@@ -28,6 +30,8 @@ export function ResultEntryContent({
   onPageChange,
   compact,
   commandTargetRef,
+  initialScrollTop,
+  onScrollTopChange,
 }: ResultEntryContentProps) {
   const { t } = useTranslation();
 
@@ -128,6 +132,8 @@ export function ResultEntryContent({
           readonly={true}
           totalRows={entry.result.pagination?.total_rows}
           hasMore={entry.result.pagination?.has_more}
+          initialScrollTop={initialScrollTop}
+          onScrollTopChange={onScrollTopChange}
         />
       </div>
     );
@@ -179,6 +185,8 @@ export function ResultEntryContent({
           readonly={true}
           totalRows={entry.result.pagination?.total_rows}
           hasMore={entry.result.pagination?.has_more}
+          initialScrollTop={initialScrollTop}
+          onScrollTopChange={onScrollTopChange}
         />
       </div>
     </div>

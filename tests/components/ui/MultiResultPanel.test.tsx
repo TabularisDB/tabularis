@@ -7,13 +7,27 @@ import type { QueryResultEntry, QueryResult } from "../../../src/types/editor";
 
 // Mock DataGrid
 vi.mock("../../../src/components/ui/DataGrid", () => ({
-  DataGrid: vi.fn(({ ref, data }: { ref?: unknown; data: unknown[][] }) => (
-    <div
-      data-testid="data-grid"
-      data-has-command-target={String(Boolean(ref))}
-      data-first-value={String(data[0]?.[0] ?? "")}
-    />
-  )),
+  DataGrid: vi.fn(
+    ({
+      ref,
+      data,
+      initialScrollTop,
+      onScrollTopChange,
+    }: {
+      ref?: unknown;
+      data: unknown[][];
+      initialScrollTop?: number;
+      onScrollTopChange?: (scrollTop: number) => void;
+    }) => (
+      <div
+        data-testid="data-grid"
+        data-has-command-target={String(Boolean(ref))}
+        data-first-value={String(data[0]?.[0] ?? "")}
+        data-initial-scroll-top={String(initialScrollTop ?? "")}
+        onScroll={(e) => onScrollTopChange?.(e.currentTarget.scrollTop)}
+      />
+    ),
+  ),
 }));
 
 // Mock ErrorDisplay
@@ -437,5 +451,73 @@ describe("MultiResultPanel", () => {
       />,
     );
     expect(screen.getByText("My Query")).toBeInTheDocument();
+  });
+
+  describe("scroll position (#823)", () => {
+    const results = [
+      makeEntry({ id: "r-0", result: makeResult([[10]]), isLoading: false }),
+      makeEntry({ id: "r-1", result: makeResult([[20]]), isLoading: false }),
+    ];
+
+    it("passes each entry's offset to its grid in tabs view", () => {
+      const offsets: Record<string, number> = { "r-0": 120, "r-1": 340 };
+      const getInitialScrollTop = vi.fn((id: string) => offsets[id]);
+      const { rerender } = render(
+        <MultiResultPanel
+          {...defaultProps}
+          results={results}
+          activeResultId="r-0"
+          getInitialScrollTop={getInitialScrollTop}
+        />,
+      );
+      expect(
+        screen.getByTestId("data-grid").getAttribute("data-initial-scroll-top"),
+      ).toBe("120");
+
+      rerender(
+        <MultiResultPanel
+          {...defaultProps}
+          results={results}
+          activeResultId="r-1"
+          getInitialScrollTop={getInitialScrollTop}
+        />,
+      );
+      expect(
+        screen.getByTestId("data-grid").getAttribute("data-initial-scroll-top"),
+      ).toBe("340");
+    });
+
+    it("restores every grid's offset in stacked view", () => {
+      const offsets: Record<string, number> = { "r-0": 120, "r-1": 340 };
+      render(
+        <MultiResultPanel
+          {...defaultProps}
+          results={results}
+          activeResultId="r-0"
+          getInitialScrollTop={(id) => offsets[id]}
+        />,
+      );
+      fireEvent.click(screen.getByTitle("editor.multiResult.viewStacked"));
+      const grids = screen.getAllByTestId("data-grid");
+      expect(
+        grids.map((g) => g.getAttribute("data-initial-scroll-top")),
+      ).toEqual(["120", "340"]);
+    });
+
+    it("reports scroll changes with the entry id", () => {
+      const onScrollTopChange = vi.fn();
+      render(
+        <MultiResultPanel
+          {...defaultProps}
+          results={results}
+          activeResultId="r-0"
+          onScrollTopChange={onScrollTopChange}
+        />,
+      );
+      fireEvent.click(screen.getByTitle("editor.multiResult.viewStacked"));
+      const grids = screen.getAllByTestId("data-grid");
+      fireEvent.scroll(grids[1], { target: { scrollTop: 77 } });
+      expect(onScrollTopChange).toHaveBeenCalledWith("r-1", 77);
+    });
   });
 });

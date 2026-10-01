@@ -202,3 +202,16 @@ export function removeEntriesToLeft(
     nextActiveId: activeStillExists ? activeResultId : entryId,
   };
 }
+
+/**
+ * Removes the saved scroll offsets of every result entry of a tab.
+ * Keys are `${tabId}:${entryId}`.
+ */
+export function clearEntryScrollTops(
+  offsets: Map<string, number>,
+  tabId: string,
+): void {
+  for (const key of offsets.keys()) {
+    if (key.startsWith(`${tabId}:`)) offsets.delete(key);
+  }
+}

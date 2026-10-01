@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  clearEntryScrollTops,
   createResultEntries,
   createEntriesFromResultSets,
   updateResultEntry,
@@ -523,5 +524,17 @@ describe("multiResult", () => {
       expect(getStackedGridHeight(10)).toBe(385);
       expect(getStackedGridHeight(11)).toBe(400);
     });
+  });
+});
+
+describe("clearEntryScrollTops", () => {
+  it("removes only the given tab's entry offsets", () => {
+    const offsets = new Map([
+      ["tab1:tab1-result-0", 120],
+      ["tab1:tab1-result-1", 340],
+      ["tab10:tab10-result-0", 50],
+    ]);
+    clearEntryScrollTops(offsets, "tab1");
+    expect([...offsets.keys()]).toEqual(["tab10:tab10-result-0"]);
   });
 });

@@ -14,6 +14,9 @@ import { SlotAnchor } from "../ui/SlotAnchor";
 import {
   resolvePluginConfig,
   getDisplayInterpreter,
+  withCallTimeoutOverride,
+  resolveEffectiveCallTimeout,
+  MAX_PLUGIN_CALL_TIMEOUT_SECONDS,
   resolveSettingsWithDefaults,
   validateSettings,
 } from "../../utils/pluginConfig";
@@ -69,6 +72,13 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
   const currentConfig = settings.plugins?.[pluginId];
   const [interpreter, setInterpreter] = useState(
     getDisplayInterpreter(currentConfig),
+  );
+  const [callTimeout, setCallTimeout] = useState(
+    currentConfig?.callTimeoutSeconds?.toString() ?? "",
+  );
+  const inheritedCallTimeout = resolveEffectiveCallTimeout(
+    settings.pluginCallTimeoutSeconds,
+    undefined,
   );
   const definitions = useMemo(() => manifest?.settings ?? [], [manifest]);
   const [dynamicValues, setDynamicValues] = useState<
@@ -138,7 +148,10 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
       return;
     }
 
-    const baseConfig = resolvePluginConfig(currentConfig, interpreter);
+    const baseConfig = withCallTimeoutOverride(
+      resolvePluginConfig(currentConfig, interpreter),
+      callTimeout,
+    );
     const mergedSettings =
       definitions.length > 0
         ? { ...(baseConfig.settings ?? {}), ...dynamicValues }
@@ -172,6 +185,7 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
     definitions,
     dynamicValues,
     interpreter,
+    callTimeout,
     currentConfig,
     settings.plugins,
     updateSetting,
@@ -341,6 +355,48 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
                 {t("settings.plugins.pluginSettings.browse")}
               </button>
             </div>
+          </div>
+        </SettingSection>
+      )}
+
+      {!isBuiltin && (
+        <SettingSection
+          title={t("settings.plugins.pluginSettings.callTimeout")}
+          description={t("settings.plugins.pluginSettings.callTimeoutDesc")}
+        >
+          <div className="py-3 flex items-center gap-2">
+            <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
+              type="number"
+              min={0}
+              max={MAX_PLUGIN_CALL_TIMEOUT_SECONDS}
+              step={1}
+              value={callTimeout}
+              aria-label={t("settings.plugins.pluginSettings.callTimeout")}
+              placeholder={t(
+                "settings.plugins.pluginSettings.callTimeoutPlaceholder",
+                { seconds: inheritedCallTimeout },
+              )}
+              onChange={(e) => {
+                setCallTimeout(e.target.value);
+                setSaved(false);
+              }}
+              className="w-56 bg-base border border-default rounded-lg px-3 py-2 text-sm text-primary placeholder:text-muted focus:outline-none focus:border-focus/50"
+            />
+            <span className="text-sm text-muted">{t("settings.seconds")}</span>
+            {callTimeout !== "" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCallTimeout("");
+                  setSaved(false);
+                }}
+                className="inline-flex items-center justify-center w-8 h-8 border border-default rounded-md text-muted hover:text-primary hover:border-strong transition-colors shrink-0"
+                title={t("settings.plugins.pluginSettings.callTimeoutInherit")}
+                aria-label={t("settings.plugins.pluginSettings.callTimeoutInherit")}
+              >
+                <RotateCcw size={12} />
+              </button>
+            )}
           </div>
         </SettingSection>
       )}

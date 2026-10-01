@@ -3,6 +3,7 @@ use super::*;
 fn process_with_settings() -> (Arc<PluginProcess>, mpsc::Receiver<PluginCommand>) {
     let (sender, receiver) = mpsc::channel(8);
     let process = PluginProcess {
+        plugin_id: "test-plugin".to_string(),
         sender,
         next_id: AtomicU64::new(1),
         shutdown_tx: tokio::sync::Mutex::new(None),

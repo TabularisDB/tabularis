@@ -738,6 +738,9 @@
     "erDiagramDefaultLayout": "Disposition par défaut",
     "erDiagramDefaultLayoutDesc": "Choisissez la direction de disposition par défaut pour les diagrammes ER",
     "plugins": {
+      "runtimeTitle": "Exécution des plugins",
+      "callTimeout": "Délai d'appel",
+      "callTimeoutDesc": "Durée maximale pendant laquelle Tabularis attend la réponse d'un plugin à une requête (requêtes SQL comprises). Indiquez 0 pour désactiver la limite. Chaque plugin peut remplacer cette valeur dans ses propres paramètres.",
       "title": "Plugins",
       "overviewTitle": "Centre de plugins",
       "overviewDesc": "Installez des extensions, gérez les pilotes de plugins et gardez les paramètres d'exécution sous contrôle.",
@@ -811,6 +814,10 @@
         "configure": "Configurer l’interpréteur"
       },
       "pluginSettings": {
+        "callTimeout": "Délai d'appel",
+        "callTimeoutDesc": "Remplace le délai d'appel global pour ce plugin uniquement. Indiquez 0 pour désactiver la limite, laissez vide pour hériter de la valeur globale.",
+        "callTimeoutPlaceholder": "Hériter du global ({{seconds}} s)",
+        "callTimeoutInherit": "Hériter de la valeur globale",
         "title": "Paramètres du plugin",
         "interpreter": "Interpréteur",
         "interpreterDesc": "Optionnel. Spécifiez l’exécutable utilisé pour lancer ce plugin (ex. python3 sous macOS/Linux, python ou un chemin complet sous Windows). Laissez vide pour utiliser la valeur par défaut.",
@@ -1379,6 +1386,8 @@
     "rollback": "Annuler",
     "pendingCount": "{{count}} en attente",
     "executingQuery": "Exécution de la requête...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transaction ouverte — cet onglet conserve sa connexion jusqu'au COMMIT ou ROLLBACK",
     "exporting": "Exportation...",
     "rowsProcessed": "Lignes traitées",
     "exportLoadedRowsWarning": "Seules {{loaded}} lignes chargées sur {{total}} lignes au total ont été exportées. Parcourez les pages du résultat ou exécutez une requête plus restrictive avant d'exporter si vous avez besoin de plus de lignes.",

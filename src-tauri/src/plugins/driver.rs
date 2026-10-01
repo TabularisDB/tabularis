@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -18,15 +18,12 @@ use crate::models::{
     TableSchema, TriggerInfo, ViewInfo,
 };
 use crate::plugins::connection_metadata::{ConnectionMetadataCache, ConnectionMetadataOverrides};
-use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse, PluginCallError};
+use crate::plugins::rpc::{
+    cancel_notification_line, JsonRpcRequest, JsonRpcResponse, PluginCallError,
+};
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
-
-/// Maximum time to wait for a plugin to answer a single JSON-RPC call before
-/// giving up. Generous enough for slow query execution, bounded so a wedged
-/// plugin cannot block the (single-threaded) MCP request loop forever.
-const PLUGIN_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// The first operation waits for initialization of its own plugin only.
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
@@ -52,6 +49,79 @@ fn is_method_not_found(err: &PluginCallError) -> bool {
     }
 }
 
+/// Read an `execute_query` response in either supported shape.
+///
+/// A plugin written before session pinning answers with the `QueryResult`
+/// itself. One that supports it answers with an object carrying that result
+/// plus whether the session is still inside an explicit transaction. Both
+/// stay valid permanently, so core and plugin can be updated in either
+/// order.
+///
+/// The wrapper is recognised by its `in_transaction` key: a bare
+/// `QueryResult` has no such field, while its own `rows`/`columns` live one
+/// level down under `result`. A non-bool flag reads as `false`, as in
+/// [`parse_batch_response`].
+fn parse_query_response(value: Value) -> Result<(QueryResult, bool), String> {
+    if let Some(object) = value.as_object() {
+        if let (Some(result), Some(flag)) = (object.get("result"), object.get("in_transaction")) {
+            let parsed: QueryResult =
+                serde_json::from_value(result.clone()).map_err(|e| e.to_string())?;
+            return Ok((parsed, flag.as_bool().unwrap_or(false)));
+        }
+    }
+    let parsed: QueryResult = serde_json::from_value(value).map_err(|e| e.to_string())?;
+    Ok((parsed, false))
+}
+
+/// A session-aware plugin answers a failed statement with its error and the
+/// transaction state it left (a failed `COMMIT` has ended the transaction).
+fn parse_session_error(value: &Value) -> Option<(String, bool)> {
+    let object = value.as_object()?;
+    let error = object.get("error")?.as_str()?;
+    let in_transaction = object.get("in_transaction")?.as_bool().unwrap_or(false);
+    Some((error.to_string(), in_transaction))
+}
+
+/// The last `in_transaction` a plugin reported per session, so a failed or
+/// cancelled run can still be answered by `session_in_transaction`.
+fn plugin_session_states() -> &'static Mutex<HashMap<String, bool>> {
+    static STATES: std::sync::OnceLock<Mutex<HashMap<String, bool>>> = std::sync::OnceLock::new();
+    STATES.get_or_init(Default::default)
+}
+
+fn remember_session_state(session_id: Option<&str>, in_transaction: bool) {
+    if let Some(id) = session_id {
+        let mut states = plugin_session_states()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        states.insert(id.to_string(), in_transaction);
+    }
+}
+
+/// Read an `execute_query_batch` response in either supported shape.
+///
+/// A plugin written before session pinning answers with a bare array of
+/// per-statement results. One that supports it answers with an object
+/// carrying the same array plus whether the session is still inside an
+/// explicit transaction. Both stay valid permanently so the two repos can
+/// be updated in either order.
+fn parse_batch_response(value: Value) -> Result<(Vec<BatchStatementResult>, bool), String> {
+    if let Some(object) = value.as_object() {
+        if let Some(results) = object.get("results") {
+            let statements: Vec<BatchStatementResult> =
+                serde_json::from_value(results.clone()).map_err(|e| e.to_string())?;
+            let in_transaction = object
+                .get("in_transaction")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            return Ok((statements, in_transaction));
+        }
+    }
+    let statements: Vec<BatchStatementResult> =
+        serde_json::from_value(value).map_err(|e| e.to_string())?;
+    Ok((statements, false))
+}
+
 /// Message sent to the management task that owns the plugin child process.
 enum PluginCommand {
     /// Dispatch a JSON-RPC request and route the response back via the sender.
@@ -60,11 +130,14 @@ enum PluginCommand {
         oneshot::Sender<Result<Value, PluginCallError>>,
     ),
     /// Drop the pending entry for `id` because the caller stopped waiting
-    /// (timed out). Prevents an unbounded leak of orphaned response senders.
+    /// (timed out), and send the plugin a `cancel` notification for it.
+    /// Prevents an unbounded leak of orphaned response senders.
     Cancel(u64),
 }
 
 pub struct PluginProcess {
+    /// Plugin id used to resolve the configured call timeout.
+    plugin_id: String,
     sender: mpsc::Sender<PluginCommand>,
     next_id: AtomicU64,
     shutdown_tx: tokio::sync::Mutex<Option<oneshot::Sender<()>>>,
@@ -74,7 +147,11 @@ pub struct PluginProcess {
 }
 
 impl PluginProcess {
-    async fn new(executable_path: PathBuf, interpreter: Option<String>) -> Result<Self, String> {
+    async fn new(
+        plugin_id: String,
+        executable_path: PathBuf,
+        interpreter: Option<String>,
+    ) -> Result<Self, String> {
         let (tx, rx) = mpsc::channel::<PluginCommand>(100);
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
@@ -153,7 +230,19 @@ impl PluginProcess {
                             Some(PluginCommand::Cancel(id)) => {
                                 // Caller timed out; drop the orphaned sender so
                                 // pending_requests does not grow without bound.
-                                pending_requests.remove(&id);
+                                // If it was still pending, ask the plugin to stop
+                                // the work too, so e.g. a SQL statement does not
+                                // keep running on the server after the error.
+                                if pending_requests.remove(&id).is_some() {
+                                    let line = cancel_notification_line(id);
+                                    if let Err(e) = stdin.write_all(line.as_bytes()).await {
+                                        log::warn!(
+                                            "Failed to send cancel for plugin request {}: {}",
+                                            id,
+                                            e
+                                        );
+                                    }
+                                }
                             }
                             None => {
                                 // Channel closed without explicit shutdown — kill the process anyway.
@@ -198,6 +287,7 @@ impl PluginProcess {
         });
 
         Ok(Self {
+            plugin_id,
             sender: tx,
             next_id: AtomicU64::new(1),
             shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
@@ -214,32 +304,18 @@ impl PluginProcess {
         }
     }
 
+    /// Sends a JSON-RPC request to the plugin and waits at most the configured
+    /// call timeout (see [`crate::plugins::call_timeout`]) for a response. A
+    /// hung or unresponsive plugin therefore fails this single call instead of
+    /// blocking the caller — and, in the single-threaded MCP request loop,
+    /// every subsequent request — forever, unless the user disabled the limit.
     async fn call(&self, method: &str, params: Value) -> Result<Value, String> {
-        self.call_with_timeout(method, params, PLUGIN_CALL_TIMEOUT)
-            .await
-    }
-
-    /// Sends a JSON-RPC request to the plugin and waits at most `timeout` for a
-    /// response. A hung or unresponsive plugin therefore fails this single call
-    /// instead of blocking the caller — and, in the single-threaded MCP request
-    /// loop, every subsequent request — forever.
-    async fn call_with_timeout(
-        &self,
-        method: &str,
-        params: Value,
-        timeout: Duration,
-    ) -> Result<Value, String> {
-        self.call_detailed(method, params, timeout)
+        self.call_detailed(method, params)
             .await
             .map_err(|e| e.to_string())
     }
 
-    async fn call_detailed(
-        &self,
-        method: &str,
-        params: Value,
-        timeout: Duration,
-    ) -> Result<Value, PluginCallError> {
+    async fn call_detailed(&self, method: &str, params: Value) -> Result<Value, PluginCallError> {
         if let Some(settings) = &self.initialization_settings {
             self.initialized
                 .get_or_init(|| async {
@@ -249,7 +325,7 @@ impl PluginProcess {
                         .send_request(
                             "initialize",
                             json!({ "settings": settings }),
-                            PLUGIN_INIT_TIMEOUT,
+                            Some(PLUGIN_INIT_TIMEOUT),
                         )
                         .await
                     {
@@ -262,14 +338,16 @@ impl PluginProcess {
                 })
                 .await;
         }
+        let timeout = crate::plugins::call_timeout::for_plugin(&self.plugin_id);
         self.send_request(method, params, timeout).await
     }
 
+    /// `timeout: None` waits for the response indefinitely.
     async fn send_request(
         &self,
         method: &str,
         params: Value,
-        timeout: Duration,
+        timeout: Option<Duration>,
     ) -> Result<Value, PluginCallError> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let req = JsonRpcRequest {
@@ -284,6 +362,12 @@ impl PluginProcess {
             .send(PluginCommand::Call(req, tx))
             .await
             .map_err(|_| "Plugin process channel closed".to_string())?;
+
+        let Some(timeout) = timeout else {
+            return rx
+                .await
+                .unwrap_or_else(|_| Err("Plugin process did not respond".to_string().into()));
+        };
 
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(result)) => result,
@@ -320,7 +404,8 @@ impl RpcDriver {
         data_types: Vec<DataTypeInfo>,
         settings: HashMap<String, serde_json::Value>,
     ) -> Result<Self, String> {
-        let mut process = PluginProcess::new(executable_path, interpreter).await?;
+        let mut process =
+            PluginProcess::new(manifest.id.clone(), executable_path, interpreter).await?;
         // Register manifests immediately. Initialize only when this plugin is
         // actually used, so idle plugins cannot delay the GUI or MCP startup.
         process.initialization_settings = Some(settings);
@@ -356,9 +441,7 @@ impl RpcDriver {
                 object.entry("params").or_insert_with(|| json!(params));
             }
         }
-        self.process
-            .call_detailed(method, arguments, PLUGIN_CALL_TIMEOUT)
-            .await
+        self.process.call_detailed(method, arguments).await
     }
 
     pub fn with_connection_metadata(mut self, enabled: bool) -> Self {
@@ -433,7 +516,7 @@ impl DatabaseDriver for RpcDriver {
         let cell = self.metadata_cache.entry(params).await?;
         let metadata = cell.get_or_try_init(|| async {
             let overrides = match self.process.call_detailed(
-                "get_connection_metadata", json!({ "params": self.with_primary_database(params) }), PLUGIN_CALL_TIMEOUT,
+                "get_connection_metadata", json!({ "params": self.with_primary_database(params) }),
             ).await {
                 Ok(value) => serde_json::from_value::<ConnectionMetadataOverrides>(value)
                     .map_err(|e| format!("Invalid connection metadata: {}", e))?,
@@ -699,7 +782,6 @@ impl DatabaseDriver for RpcDriver {
             .call_detailed(
                 "get_materialized_views",
                 json!({ "params": self.with_primary_database(params), "schema": schema }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -720,7 +802,6 @@ impl DatabaseDriver for RpcDriver {
             .call_detailed(
                 "get_materialized_view_columns",
                 json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -741,7 +822,6 @@ impl DatabaseDriver for RpcDriver {
             .call_detailed(
                 "get_materialized_view_definition",
                 json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -764,7 +844,6 @@ impl DatabaseDriver for RpcDriver {
             .call_detailed(
                 "refresh_materialized_view",
                 json!({ "params": self.with_primary_database(params), "view_name": view_name, "schema": schema }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -838,7 +917,6 @@ impl DatabaseDriver for RpcDriver {
             .call_detailed(
                 "build_routine_call_sql",
                 json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "args": args, "schema": schema }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -895,7 +973,6 @@ impl DatabaseDriver for RpcDriver {
             .call_detailed(
                 "get_routine_edit_script",
                 json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -920,7 +997,6 @@ impl DatabaseDriver for RpcDriver {
             .call_detailed(
                 "drop_routine",
                 json!({ "params": self.with_primary_database(params), "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -972,7 +1048,6 @@ impl DatabaseDriver for RpcDriver {
                     "page": page,
                     "schema": schema
                 }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await;
 
@@ -1001,6 +1076,113 @@ impl DatabaseDriver for RpcDriver {
                 Ok(results)
             }
             Err(e) => Err(e.to_string()),
+        }
+    }
+
+    async fn execute_query_in_session(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        session_id: Option<&str>,
+    ) -> Result<(QueryResult, bool), String> {
+        let res = self
+            .process
+            .call(
+                "execute_query",
+                json!({
+                    "params": self.with_primary_database(params),
+                    "query": query,
+                    "limit": limit,
+                    "page": page,
+                    "schema": schema,
+                    "session_id": session_id
+                }),
+            )
+            .await?;
+        if let Some((error, in_transaction)) = parse_session_error(&res) {
+            remember_session_state(session_id, in_transaction);
+            return Err(error);
+        }
+        let (result, in_transaction) = parse_query_response(res)?;
+        remember_session_state(session_id, in_transaction);
+        Ok((result, in_transaction))
+    }
+
+    async fn execute_batch_in_session(
+        &self,
+        params: &ConnectionParams,
+        queries: &[String],
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        session_id: Option<&str>,
+        on_progress: Option<&BatchProgressFn>,
+    ) -> Result<(Vec<BatchStatementResult>, bool), String> {
+        let res = self
+            .process
+            .call_detailed(
+                "execute_query_batch",
+                json!({
+                    "params": self.with_primary_database(params),
+                    "queries": queries,
+                    "limit": limit,
+                    "page": page,
+                    "schema": schema,
+                    "session_id": session_id
+                }),
+            )
+            .await;
+
+        match res {
+            Ok(value) => {
+                let (results, in_transaction) = parse_batch_response(value)?;
+                remember_session_state(session_id, in_transaction);
+                if let Some(cb) = on_progress {
+                    for (idx, result) in results.iter().enumerate() {
+                        cb(idx, result);
+                    }
+                }
+                Ok((results, in_transaction))
+            }
+            // A plugin built before session pinning existed ignores
+            // `session_id` and answers with a bare array, which
+            // `parse_batch_response` already accepts. Only a missing
+            // `execute_query_batch` reaches the per-statement fallback.
+            Err(e) if is_method_not_found(&e) => {
+                let results = self
+                    .execute_batch(params, queries, limit, page, schema, on_progress)
+                    .await?;
+                Ok((results, false))
+            }
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
+    async fn session_in_transaction(&self, session_id: &str) -> Option<bool> {
+        let states = plugin_session_states()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        states.get(session_id).copied()
+    }
+
+    async fn release_session(&self, session_id: &str) {
+        plugin_session_states()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(session_id);
+        // Plugins that do not pin connections have no such method, and a
+        // failure here must not surface: the caller is closing a tab.
+        if let Err(e) = self
+            .process
+            .call_detailed("release_session", json!({ "session_id": session_id }))
+            .await
+        {
+            if !is_method_not_found(&e) {
+                log::warn!("Plugin driver: release_session({session_id}) failed: {e}");
+            }
         }
     }
 
@@ -1121,7 +1303,6 @@ impl DatabaseDriver for RpcDriver {
                     "schema": schema,
                     "file_path": file_path
                 }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -1152,7 +1333,6 @@ impl DatabaseDriver for RpcDriver {
                     "pk_map": pk_map,
                     "schema": schema
                 }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -1178,7 +1358,6 @@ impl DatabaseDriver for RpcDriver {
             .call_detailed(
                 "get_table_query_template",
                 json!({ "params": params, "request": request }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await
         {
@@ -1519,7 +1698,6 @@ impl DatabaseDriver for RpcDriver {
             .call_detailed(
                 "get_schema_snapshot",
                 json!({ "params": self.with_primary_database(params), "schema": schema }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await;
         match res {
@@ -1565,7 +1743,6 @@ impl DatabaseDriver for RpcDriver {
                     "schema": schema,
                     "max_tables": max_tables,
                 }),
-                PLUGIN_CALL_TIMEOUT,
             )
             .await
         {
@@ -1674,6 +1851,7 @@ where
     RpcDriver {
         manifest: test_manifest(),
         process: Arc::new(PluginProcess {
+            plugin_id: "test-plugin".to_string(),
             sender: tx,
             next_id: AtomicU64::new(1),
             shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
@@ -1719,6 +1897,7 @@ where
     RpcDriver {
         manifest: test_manifest(),
         process: Arc::new(PluginProcess {
+            plugin_id: "test-plugin".to_string(),
             sender: tx,
             next_id: AtomicU64::new(1),
             shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
@@ -2153,6 +2332,121 @@ mod tests {
             *seen.lock().expect("progress lock"),
             vec![(0, true), (1, false)]
         );
+    }
+
+    #[test]
+    fn parse_query_response_accepts_a_bare_query_result() {
+        // The shape a plugin built before session pinning answers with.
+        let value = serde_json::json!({
+            "columns": ["id"],
+            "rows": [[1]],
+            "affected_rows": 0,
+            "pagination": null
+        });
+        let (result, in_transaction) =
+            parse_query_response(value).expect("bare QueryResult is a valid response");
+        assert_eq!(result.columns, vec!["id".to_string()]);
+        assert!(!in_transaction);
+    }
+
+    #[test]
+    fn parse_query_response_reads_the_session_aware_wrapper() {
+        let value = serde_json::json!({
+            "result": {
+                "columns": ["id"],
+                "rows": [[1]],
+                "affected_rows": 0,
+                "pagination": null
+            },
+            "in_transaction": true
+        });
+        let (result, in_transaction) =
+            parse_query_response(value).expect("wrapper form is a valid response");
+        assert_eq!(result.columns, vec!["id".to_string()]);
+        assert!(in_transaction);
+    }
+
+    #[test]
+    fn parse_session_error_reads_a_failed_statement_and_its_state() {
+        let failed =
+            serde_json::json!({ "error": "deferred FK violated", "in_transaction": false });
+        assert_eq!(
+            parse_session_error(&failed),
+            Some(("deferred FK violated".to_string(), false))
+        );
+        // A result wrapper, or a bare result, is not an error.
+        let ok = serde_json::json!({ "result": { "columns": [] }, "in_transaction": true });
+        assert_eq!(parse_session_error(&ok), None);
+        let bare = serde_json::json!({ "columns": ["error"], "rows": [] });
+        assert_eq!(parse_session_error(&bare), None);
+    }
+
+    #[test]
+    fn parse_query_response_reads_a_null_flag_as_false() {
+        let value = serde_json::json!({
+            "result": {
+                "columns": ["id"],
+                "rows": [[1]],
+                "affected_rows": 0,
+                "pagination": null
+            },
+            "in_transaction": null
+        });
+        let (result, in_transaction) =
+            parse_query_response(value).expect("a null flag still marks the wrapper");
+        assert_eq!(result.columns, vec!["id".to_string()]);
+        assert!(!in_transaction);
+    }
+
+    #[test]
+    fn parse_query_response_treats_a_result_column_as_a_bare_result() {
+        // A query selecting a column literally named "result" must not be
+        // mistaken for the wrapper, which is why the wrapper is recognised
+        // by `in_transaction` being present too.
+        let value = serde_json::json!({
+            "columns": ["result"],
+            "rows": [["ok"]],
+            "affected_rows": 0,
+            "pagination": null,
+            "result": "not a wrapper"
+        });
+        let (result, in_transaction) =
+            parse_query_response(value).expect("a result column is not a wrapper");
+        assert_eq!(result.columns, vec!["result".to_string()]);
+        assert!(!in_transaction);
+    }
+
+    #[test]
+    fn parse_batch_response_accepts_a_bare_array() {
+        // The shape a plugin built before session pinning answers with.
+        let value = serde_json::json!([
+            { "result": null, "error": "boom", "execution_time_ms": 1.5 }
+        ]);
+        let (results, in_transaction) =
+            parse_batch_response(value).expect("bare array is a valid response");
+        assert_eq!(results.len(), 1);
+        assert!(!in_transaction);
+    }
+
+    #[test]
+    fn parse_batch_response_reads_the_session_aware_object() {
+        let value = serde_json::json!({
+            "results": [{ "result": null, "error": "boom", "execution_time_ms": 1.5 }],
+            "in_transaction": true
+        });
+        let (results, in_transaction) =
+            parse_batch_response(value).expect("object form is a valid response");
+        assert_eq!(results.len(), 1);
+        assert!(in_transaction);
+    }
+
+    #[test]
+    fn parse_batch_response_defaults_in_transaction_to_false() {
+        let value = serde_json::json!({ "results": [] });
+        let (results, in_transaction) =
+            parse_batch_response(value).expect("object without the flag is valid");
+        assert!(results.is_empty());
+        assert!(!in_transaction);
     }
 
     #[tokio::test]
@@ -2622,6 +2916,7 @@ mod tests {
         let driver = RpcDriver {
             manifest,
             process: Arc::new(PluginProcess {
+                plugin_id: "test-plugin".to_string(),
                 sender: tx,
                 next_id: AtomicU64::new(1),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
@@ -2653,6 +2948,7 @@ mod tests {
         let driver = RpcDriver {
             manifest: test_manifest(), // empty type_mappings
             process: Arc::new(PluginProcess {
+                plugin_id: "test-plugin".to_string(),
                 sender: tx,
                 next_id: AtomicU64::new(1),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
@@ -2905,3 +3201,7 @@ mod table_query_template_tests;
 #[cfg(test)]
 #[path = "startup_tests.rs"]
 mod startup_tests;
+
+#[cfg(test)]
+#[path = "cancel_tests.rs"]
+mod cancel_tests;
