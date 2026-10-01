@@ -3087,6 +3087,61 @@ mod tests {
             .expect("ping must succeed once database is coerced to a string");
     }
 
+    /// Regression test: upstream's session-pinning feature (merged into this
+    /// branch) added `execute_query_in_session`'s plugin RPC call with a raw
+    /// `params` — the same un-coerced-database bug `with_primary_database`
+    /// exists to prevent everywhere else in this file. A multi-db opt-in
+    /// connection's `Multiple(...)` selection would reach the plugin as a
+    /// bare JSON array on this path too.
+    #[tokio::test]
+    async fn rpc_driver_execute_query_in_session_sends_primary_database_for_multi_db_opt_in() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "execute_query");
+            assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+            json!({ "columns": [], "rows": [], "affected_rows": 0 })
+        });
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        driver
+            .execute_query_in_session(&params, "SELECT 1", None, 1, None, None)
+            .await
+            .expect("execute_query_in_session must succeed once database is coerced to a string");
+    }
+
+    /// Same regression, for `execute_batch_in_session`'s plugin RPC call.
+    #[tokio::test]
+    async fn rpc_driver_execute_batch_in_session_sends_primary_database_for_multi_db_opt_in() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "execute_query_batch");
+            assert_eq!(request.params["params"]["database"], "tabularis_pr822_demo");
+            json!([{ "result": { "columns": [], "rows": [], "affected_rows": 0 }, "error": null }])
+        });
+
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]);
+
+        driver
+            .execute_batch_in_session(
+                &params,
+                &["SELECT 1".to_string()],
+                None,
+                1,
+                None,
+                None,
+                None,
+            )
+            .await
+            .expect("execute_batch_in_session must succeed once database is coerced to a string");
+    }
+
     /// Regression test: `for_connection`'s metadata snapshot stored the raw
     /// `params.clone()` as `connection_params`, which `call_with_connection`
     /// injects verbatim into SQL-building RPCs (create-table/column/index/FK
