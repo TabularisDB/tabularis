@@ -104,7 +104,7 @@ import {
   ExportProgressModal,
   type ExportStatus,
 } from "../components/modals/ExportProgressModal";
-import { splitQueries, splitStatements, findStatementAtOffset, extractTableName, getExplainableQueries, statementLabel, type Statement } from "../utils/sql";
+import { splitQueries, splitStatements, splitBatches, findStatementAtOffset, extractTableName, getExplainableQueries, statementLabel, type Statement } from "../utils/sql";
 import { resolveRunTarget, type RunContext } from "../utils/runTarget";
 import {
   createResultEntries,
@@ -198,17 +198,23 @@ const CHEVRON_SELECT_STYLE: React.CSSProperties = {
   backgroundPosition: "right center",
 };
 
+// Execution units: one per `GO` batch on T-SQL, one per statement elsewhere.
+function splitBatchQueries(sql: string, dialect: string | undefined): string[] {
+  return splitBatches(sql, dialect).map((statement) => statement.text);
+}
+
 // Resolves the statement the cursor is currently inside (TablePlus-style
 // "run statement at cursor"), used by both the Run and Explain actions.
 function getStatementAtCursor(
   editor: Parameters<OnMount>[0],
   dialect: string | undefined,
+  split = splitBatches,
 ): Statement | undefined {
   const model = editor.getModel();
   const position = editor.getPosition();
   if (!model || !position) return undefined;
   const offset = model.getOffsetAt(position);
-  const statements = splitStatements(model.getValue(), dialect);
+  const statements = split(model.getValue(), dialect);
   return findStatementAtOffset(statements, offset);
 }
 
@@ -1174,7 +1180,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
       if (!textToRun || !textToRun.trim()) return;
 
-      const mayRun = await guardQueryExecution(textToRun);
+      // Guard per statement: a T-SQL batch can hide a DELETE behind a SELECT.
+      const mayRun = await guardQueryExecution(splitQueries(textToRun, activeDialect));
       if (!mayRun) return;
 
       // Check for parameters
@@ -1428,7 +1435,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       const targetTab = tabsRef.current.find((t) => t.id === targetTabId);
       if (!targetTab) return;
 
-      const mayRun = await guardQueryExecution(queries);
+      const mayRun = await guardQueryExecution(
+        queries.flatMap((q) => splitQueries(q, activeDialect)),
+      );
       if (!mayRun) return;
 
       // Collect all unique parameters across all queries
@@ -1640,7 +1649,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   // a single statement keeps the plain runQuery path.
   const runAutoQuery = useCallback(
     (sql: string, page: number, tabId: string) => {
-      const statements = splitQueries(sql, activeDialect);
+      const statements = splitBatchQueries(sql, activeDialect);
       if (statements.length > 1) {
         runMultipleQueries(statements);
       } else {
@@ -2104,7 +2113,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     const editor = editorsRef.current[activeTab.id];
     const text = (editor?.getModel()?.getValue() ?? activeTab.query ?? "").trim();
     if (!text) return;
-    const queries = splitQueries(text, activeDialect);
+    const queries = splitBatchQueries(text, activeDialect);
     if (queries.length <= 1) runQuery(queries[0] || text, 1);
     else runMultipleQueries(queries);
   }, [activeTab, activeDialect, runQuery, runMultipleQueries]);
@@ -2132,7 +2141,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       // fire a whole script the user didn't ask for — with more than one
       // statement, ask which one to run.
       if (activeTab.query?.trim()) {
-        const queries = splitQueries(activeTab.query, activeDialect);
+        const queries = splitBatchQueries(activeTab.query, activeDialect);
         if (queries.length <= 1) {
           runQuery(queries[0] || activeTab.query, 1);
         } else {
@@ -2152,7 +2161,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     const fullText = editor.getValue();
     if (!hasSelection && !fullText.trim()) return;
 
-    const queries = splitQueries(fullText, activeDialect);
+    const queries = splitBatchQueries(fullText, activeDialect);
     // Dispatch on the same resolution that labels the Run button, so the
     // label and the behaviour cannot drift apart.
     switch (
@@ -2163,7 +2172,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       })
     ) {
       case "selection": {
-        const selectedQueries = splitQueries(selectedText!, activeDialect);
+        const selectedQueries = splitBatchQueries(selectedText!, activeDialect);
         if (selectedQueries.length > 1) {
           runMultipleQueries(selectedQueries);
         } else {
@@ -2203,7 +2212,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       isReadOnly: activeTab.readOnly === true,
       isLoading: activeTab.isLoading === true,
       canSaveSqlFile: canSaveSqlFile(activeTab),
-      statementCount: splitQueries(editorText, activeDialect).length,
+      statementCount: splitBatchQueries(editorText, activeDialect).length,
       labels: {
         run: runLabel,
         runAll: t("editor.runAll"),
@@ -2305,7 +2314,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     }
 
     if (settings.runStatementUnderCursor !== false) {
-      const statement = getStatementAtCursor(editor, activeDialect);
+      // Explain needs the single statement, not the whole T-SQL batch.
+      const statement = getStatementAtCursor(editor, activeDialect, splitStatements);
       if (!statement) return;
       if (!statement.isExplainable) {
         showAlert(t("editor.statementNotExplainable"), { kind: "warning" });
@@ -3506,7 +3516,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           : undefined;
         const text = (selectedText || ed.getValue()).trim();
         if (!text) return;
-        const queries = splitQueries(text, activeDialectRef.current);
+        const queries = splitBatchQueries(text, activeDialectRef.current);
         if (queries.length > 1) {
           runMultipleQueriesRef.current(queries);
         } else {
@@ -3884,16 +3894,16 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             : undefined;
 
           if (selectedText && selection && !selection.isEmpty()) {
-            const queries = splitQueries(selectedText, activeDialect);
+            const queries = splitBatchQueries(selectedText, activeDialect);
             setSelectableQueries(queries);
           } else {
             const text = editor.getValue();
-            const queries = splitQueries(text, activeDialect);
+            const queries = splitBatchQueries(text, activeDialect);
             setSelectableQueries(queries);
           }
         } else if (activeTab.query?.trim()) {
           // Fallback: use saved query when editor ref is not available
-          const queries = splitQueries(activeTab.query, activeDialect);
+          const queries = splitBatchQueries(activeTab.query, activeDialect);
           setSelectableQueries(queries);
         }
       }
