@@ -240,6 +240,7 @@ yay -S tabularis-bin
 - Anthropic
 - MiniMax
 - OpenRouter
+- Requesty
 - Ollama
 - OpenAI 호환 API
 

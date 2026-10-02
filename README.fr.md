@@ -238,6 +238,7 @@ Fonctions optionnelles de text-to-SQL et d’explication de requêtes avec :
 - Anthropic
 - MiniMax
 - OpenRouter
+- Requesty
 - Ollama
 - APIs compatibles OpenAI
 
