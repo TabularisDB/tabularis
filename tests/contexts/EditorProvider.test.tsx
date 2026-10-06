@@ -169,6 +169,67 @@ describe("EditorProvider", () => {
     expect(result.current.activeTabId).toBe(firstTabId); // Should focus existing
   });
 
+  it("should insert a forced duplicate immediately after the source tab", () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    act(() => {
+      result.current.addTab({ type: "console", title: "First" });
+    });
+    act(() => {
+      result.current.addTab({
+        type: "table",
+        title: "users",
+        activeTable: "users",
+        query: "SELECT * FROM users WHERE id = :id",
+        queryParams: { id: "7" },
+        schema: "public",
+        sourceFilePath: "/tmp/users.sql",
+        result: {
+          columns: ["id"],
+          rows: [[1]],
+          affected_rows: 1,
+        },
+      });
+    });
+    act(() => {
+      result.current.addTab({ type: "console", title: "Last" });
+    });
+
+    const sourceId = result.current.tabs[1].id;
+
+    act(() => {
+      result.current.addTab(
+        {
+          type: "table",
+          title: "users (copy)",
+          activeTable: "users",
+          query: "SELECT * FROM users WHERE id = :id",
+          queryParams: { id: "7" },
+          schema: "public",
+        },
+        { insertAfterId: sourceId, forceNew: true },
+      );
+    });
+
+    expect(result.current.tabs.map((tab) => tab.title)).toEqual([
+      "First",
+      "users",
+      "users (copy)",
+      "Last",
+    ]);
+    const copy = result.current.tabs[2];
+    expect(result.current.activeTabId).toBe(copy.id);
+    expect(copy.type).toBe("table");
+    expect(copy.query).toBe("SELECT * FROM users WHERE id = :id");
+    expect(copy.queryParams).toEqual({ id: "7" });
+    expect(copy.activeTable).toBe("users");
+    expect(copy.schema).toBe("public");
+    expect(copy.result).toBeNull();
+    expect(copy.sourceFilePath).toBeUndefined();
+    expect(copy.notebookId).toBeUndefined();
+  });
+
   it("should add a query builder tab", () => {
     const wrapper = createWrapper("conn-1");
     const { result } = renderHook(() => useEditor(), { wrapper });

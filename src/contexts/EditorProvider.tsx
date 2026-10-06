@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import type { Tab, SchemaCache, TableSchema, QueryResultEntry } from "../types/editor";
-import { EditorContext } from "./EditorContext";
+import { EditorContext, type AddTabOptions } from "./EditorContext";
 import { useDatabase } from "../hooks/useDatabase";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -11,6 +11,7 @@ import {
   createInitialTabState,
   generateTabTitle,
   findExistingTableTab,
+  insertTabAfter,
   getConnectionTabs,
   getActiveTab,
   closeTabWithState,
@@ -193,18 +194,20 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const addTab = useCallback(
-    (partial?: Partial<Tab>) => {
+    (partial?: Partial<Tab>, options?: AddTabOptions) => {
       if (!activeConnectionId) return "";
 
-      const existing = findExistingTableTab(
-        tabsRef.current,
-        activeConnectionId,
-        partial?.activeTable || undefined,
-        partial?.schema,
-      );
-      if (existing) {
-        setActiveTabId(existing.id);
-        return existing.id;
+      if (!options?.forceNew) {
+        const existing = findExistingTableTab(
+          tabsRef.current,
+          activeConnectionId,
+          partial?.activeTable || undefined,
+          partial?.schema,
+        );
+        if (existing) {
+          setActiveTabId(existing.id);
+          return existing.id;
+        }
       }
 
       const id = generateTabId();
@@ -216,7 +219,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           connectionId: activeConnectionId,
           ...partial,
         });
-        return [...prev, newTab];
+        return options?.insertAfterId
+          ? insertTabAfter(prev, options.insertAfterId, newTab)
+          : [...prev, newTab];
       });
       setActiveTabId(id);
       return id;

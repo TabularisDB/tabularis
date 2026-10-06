@@ -6,6 +6,10 @@ import {
   generateTabTitle,
   getTabDisplayTitle,
   findExistingTableTab,
+  canDuplicateTab,
+  buildDuplicatedTab,
+  insertTabAfter,
+  DUPLICATE_TAB_TITLE_SUFFIX,
   getConnectionTabs,
   getActiveTab,
   closeTabWithState,
@@ -1115,6 +1119,180 @@ describe("editor", () => {
     it("should return an empty string when there are no values", () => {
       expect(toSqlList("")).toBe("");
       expect(toSqlList(" \n\t, ,\n")).toBe("");
+    });
+  });
+
+  describe("duplicate tab", () => {
+    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+      id: "tab-1",
+      title: "Orders",
+      type: "console",
+      query: "SELECT * FROM orders WHERE id = :id",
+      result: {
+        columns: ["id"],
+        rows: [[1]],
+        affected_rows: 1,
+      },
+      error: "boom",
+      executionTime: 12,
+      page: 3,
+      activeTable: "orders",
+      pkColumns: ["id"],
+      connectionId: "conn-1",
+      queryParams: { id: "7" },
+      schema: "public",
+      sourceFilePath: "/tmp/orders.sql",
+      sourceFileContent: "SELECT 1",
+      sourceFileDirty: true,
+      notebookId: "notebook-1",
+      results: [
+        {
+          id: "result-1",
+          queryIndex: 0,
+          query: "SELECT 1",
+          result: null,
+          error: "",
+          executionTime: 1,
+          isLoading: false,
+          page: 1,
+          activeTable: null,
+          pkColumns: null,
+        },
+      ],
+      ...overrides,
+    });
+
+    it("should allow console and table tabs only", () => {
+      expect(canDuplicateTab("console")).toBe(true);
+      expect(canDuplicateTab("table")).toBe(true);
+      expect(canDuplicateTab("notebook")).toBe(false);
+      expect(canDuplicateTab("query_builder")).toBe(false);
+      expect(canDuplicateTab("users")).toBe(false);
+      expect(canDuplicateTab(undefined)).toBe(false);
+    });
+
+    it("should copy sql, parameters, table, and schema with a copy title", () => {
+      const source = createMockTab({ type: "table", title: "orders" });
+      const duplicate = buildDuplicatedTab(source);
+
+      expect(duplicate).toEqual({
+        type: "table",
+        title: `orders${DUPLICATE_TAB_TITLE_SUFFIX}`,
+        query: source.query,
+        activeTable: "orders",
+        queryParams: { id: "7" },
+        schema: "public",
+      });
+      expect(duplicate?.queryParams).not.toBe(source.queryParams);
+    });
+
+    it("should leave results, the source file, and notebook ids behind", () => {
+      const source = createMockTab();
+      const duplicate = buildDuplicatedTab(source);
+
+      expect(duplicate).not.toHaveProperty("result");
+      expect(duplicate).not.toHaveProperty("results");
+      expect(duplicate).not.toHaveProperty("error");
+      expect(duplicate).not.toHaveProperty("sourceFilePath");
+      expect(duplicate).not.toHaveProperty("sourceFileContent");
+      expect(duplicate).not.toHaveProperty("sourceFileDirty");
+      expect(duplicate).not.toHaveProperty("notebookId");
+      expect(duplicate).not.toHaveProperty("notebookState");
+
+      const created = createInitialTabState("conn-1", duplicate ?? undefined);
+      expect(created.query).toBe(source.query);
+      expect(created.queryParams).toEqual({ id: "7" });
+      expect(created.result).toBeNull();
+      expect(created.results).toBeUndefined();
+      expect(created.sourceFilePath).toBeUndefined();
+      expect(created.notebookId).toBeUndefined();
+    });
+
+    it("should omit parameters and schema when the source has none", () => {
+      const duplicate = buildDuplicatedTab(
+        createMockTab({ queryParams: undefined, schema: undefined }),
+      );
+
+      expect(duplicate).not.toHaveProperty("queryParams");
+      expect(duplicate).not.toHaveProperty("schema");
+    });
+
+    it("should keep an empty schema", () => {
+      const duplicate = buildDuplicatedTab(createMockTab({ schema: "" }));
+      expect(duplicate?.schema).toBe("");
+    });
+
+    it("should refuse notebook, query builder, and users tabs", () => {
+      expect(buildDuplicatedTab(createMockTab({ type: "notebook" }))).toBeNull();
+      expect(
+        buildDuplicatedTab(createMockTab({ type: "query_builder" })),
+      ).toBeNull();
+      expect(buildDuplicatedTab(createMockTab({ type: "users" }))).toBeNull();
+    });
+
+    it("should not share parameter edits with the source tab", () => {
+      const source = createMockTab();
+      const duplicate = buildDuplicatedTab(source);
+      duplicate!.queryParams!.id = "changed";
+      expect(source.queryParams?.id).toBe("7");
+    });
+  });
+
+  describe("insertTabAfter", () => {
+    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+      id: "tab-1",
+      title: "Test",
+      type: "console",
+      query: "",
+      result: null,
+      error: "",
+      executionTime: null,
+      page: 1,
+      activeTable: null,
+      pkColumns: null,
+      connectionId: "conn-1",
+      ...overrides,
+    });
+
+    it("should insert immediately after the source tab", () => {
+      const first = createMockTab({ id: "a1", title: "First" });
+      const source = createMockTab({ id: "a2", title: "Source" });
+      const last = createMockTab({ id: "a3", title: "Last" });
+      const copy = createMockTab({ id: "copy", title: "Source (copy)" });
+      const tabs = [first, source, last];
+
+      const next = insertTabAfter(tabs, "a2", copy);
+
+      expect(next.map((tab) => tab.id)).toEqual(["a1", "a2", "copy", "a3"]);
+      expect(tabs.map((tab) => tab.id)).toEqual(["a1", "a2", "a3"]);
+    });
+
+    it("should keep the copy next to the source inside one connection", () => {
+      const source = createMockTab({ id: "a1", title: "Source" });
+      const other = createMockTab({
+        id: "b1",
+        connectionId: "conn-2",
+        title: "Other",
+      });
+      const last = createMockTab({ id: "a2", title: "Last" });
+      const copy = createMockTab({ id: "copy", title: "Source (copy)" });
+
+      const next = insertTabAfter([source, other, last], "a1", copy);
+
+      expect(next.map((tab) => tab.id)).toEqual(["a1", "copy", "b1", "a2"]);
+      expect(
+        next.filter((tab) => tab.connectionId === "conn-1").map((tab) => tab.id),
+      ).toEqual(["a1", "copy", "a2"]);
+    });
+
+    it("should append when the source id is missing", () => {
+      const first = createMockTab({ id: "a1" });
+      const copy = createMockTab({ id: "copy" });
+
+      expect(insertTabAfter([first], "missing", copy).map((tab) => tab.id)).toEqual([
+        "a1",
+        "copy",
+      ]);
     });
   });
 });

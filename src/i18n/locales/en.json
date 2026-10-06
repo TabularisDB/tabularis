@@ -1342,6 +1342,7 @@
       "detached": "Results detached to a separate window",
       "reattach": "Re-attach"
     },
+    "duplicateTab": "Duplicate Tab",
     "closeTab": "Close Tab",
     "closeOthers": "Close Other Tabs",
     "closeRight": "Close Tabs to Right",

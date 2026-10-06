@@ -1280,6 +1280,7 @@
       "reattach": "重新附加"
     },
     "tableRunPrompt": "按运行（Ctrl/Command+F5）加载表数据",
+    "duplicateTab": "复制标签",
     "closeTab": "关闭标签",
     "closeOthers": "关闭其他标签",
     "closeRight": "关闭右侧标签",

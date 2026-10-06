@@ -1334,6 +1334,7 @@
       "detached": "Résultats détachés dans une fenêtre séparée",
       "reattach": "Rattacher"
     },
+    "duplicateTab": "Dupliquer l’onglet",
     "closeTab": "Fermer l’onglet",
     "closeOthers": "Fermer les autres onglets",
     "closeRight": "Fermer les onglets à droite",
