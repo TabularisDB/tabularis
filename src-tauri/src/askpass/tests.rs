@@ -242,6 +242,62 @@ mod server_tests {
     }
 
     #[test]
+    fn test_socket_path_fits_macos_sun_path() {
+        let path = super::super::server::askpass_socket_path().expect("socket path");
+        let len = path.to_string_lossy().len();
+        assert!(
+            len <= 103,
+            "askpass socket path is {len} bytes, which cannot bind on macOS: {}",
+            path.display()
+        );
+    }
+
+    #[test]
+    fn test_stored_passphrase_and_password_skip_ui() {
+        let ui = Arc::new(StubUi::new(Some("should-not-be-used")));
+        let server = AskpassServer::start_with(
+            ui.clone(),
+            super::super::server::AskpassOptions {
+                password: Some("account-secret".to_string()),
+                key_passphrase: Some("key-secret".to_string()),
+                allow_ui: false,
+            },
+        )
+        .expect("start server");
+
+        let passphrase = exchange(
+            &server,
+            &encode_request(PromptKind::Secret, "Enter passphrase for key '/tmp/id_ed25519': "),
+        );
+        assert_eq!(decode_response(&passphrase), Some(Some("key-secret".to_string())));
+
+        let password = exchange(
+            &server,
+            &encode_request(PromptKind::Secret, "ploi@host's password: "),
+        );
+        assert_eq!(decode_response(&password), Some(Some("account-secret".to_string())));
+        assert!(ui.seen_prompts.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_unmatched_prompt_cancelled_when_ui_disabled() {
+        let ui = Arc::new(StubUi::new(Some("typed-by-user")));
+        let server = AskpassServer::start_with(
+            ui.clone(),
+            super::super::server::AskpassOptions {
+                key_passphrase: Some("key-secret".to_string()),
+                allow_ui: false,
+                ..super::super::server::AskpassOptions::default()
+            },
+        )
+        .expect("start server");
+
+        let reply = exchange(&server, &encode_request(PromptKind::Secret, "Enter PIN:"));
+        assert_eq!(decode_response(&reply), Some(None));
+        assert!(ui.seen_prompts.lock().unwrap().is_empty());
+    }
+
+    #[test]
     fn test_socket_removed_on_drop() {
         let ui = Arc::new(StubUi::new(None));
         let server = AskpassServer::start(ui).expect("start server");
