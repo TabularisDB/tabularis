@@ -188,9 +188,13 @@ mod server_tests {
     }
 
     fn exchange(server: &AskpassServer, request: &str) -> String {
+        authed_exchange(server, server.token(), request)
+    }
+
+    fn authed_exchange(server: &AskpassServer, token: &str, request: &str) -> String {
         let mut stream = UnixStream::connect(server.endpoint()).expect("connect to server");
         stream
-            .write_all(format!("{}\n", request).as_bytes())
+            .write_all(format!("AUTH {}\n{}\n", token, request).as_bytes())
             .expect("send request");
         let mut line = String::new();
         BufReader::new(stream)
@@ -227,7 +231,8 @@ mod server_tests {
         stream
             .write_all(
                 format!(
-                    "{}\n",
+                    "AUTH {}\n{}\n",
+                    server.token(),
                     encode_request(PromptKind::Notify, "Confirm user presence")
                 )
                 .as_bytes(),
@@ -280,8 +285,8 @@ mod server_tests {
     }
 
     #[test]
-    fn test_unmatched_prompt_cancelled_when_ui_disabled() {
-        let ui = Arc::new(StubUi::new(Some("typed-by-user")));
+    fn test_stored_secret_requires_token() {
+        let ui = Arc::new(StubUi::new(Some("should-not-be-used")));
         let server = AskpassServer::start_with(
             ui.clone(),
             super::super::server::AskpassOptions {
@@ -292,6 +297,41 @@ mod server_tests {
         )
         .expect("start server");
 
+        let prompt = encode_request(
+            PromptKind::Secret,
+            "Enter passphrase for key '/tmp/id_ed25519': ",
+        );
+        let missing = authed_exchange(&server, "", &prompt);
+        assert!(
+            missing.is_empty(),
+            "a connection without the token must not receive the passphrase"
+        );
+        let wrong = authed_exchange(&server, "not-the-token", &prompt);
+        assert!(
+            wrong.is_empty(),
+            "a connection with the wrong token must not receive the passphrase"
+        );
+        assert!(ui.seen_prompts.lock().unwrap().is_empty());
+
+        let authed = exchange(&server, &prompt);
+        assert_eq!(decode_response(&authed), Some(Some("key-secret".to_string())));
+    }
+
+    #[test]
+    fn test_unmatched_prompt_cancelled_when_ui_disabled() {
+        let ui = Arc::new(StubUi::new(Some("typed-by-user")));
+        let server = AskpassServer::start_with(
+            ui.clone(),
+            super::super::server::AskpassOptions {
+                password: Some("account-secret".to_string()),
+                key_passphrase: Some("key-secret".to_string()),
+                allow_ui: false,
+            },
+        )
+        .expect("start server");
+
+        // Neither keyword matches, and both secrets are stored, so the prompt
+        // is ambiguous. It must be cancelled instead of disclosing either one.
         let reply = exchange(&server, &encode_request(PromptKind::Secret, "Enter PIN:"));
         assert_eq!(decode_response(&reply), Some(None));
         assert!(ui.seen_prompts.lock().unwrap().is_empty());

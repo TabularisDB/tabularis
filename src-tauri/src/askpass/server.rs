@@ -13,9 +13,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use super::client::SOCKET_ENV;
-#[cfg(windows)]
-use super::client::TOKEN_ENV;
+use super::client::{SOCKET_ENV, TOKEN_ENV};
 use super::protocol::{decode_request, encode_response, PromptKind};
 
 const ACCEPT_POLL_MS: u64 = 100;
@@ -117,7 +115,6 @@ pub trait AskpassUi: Send + Sync {
 
 pub struct AskpassServer {
     endpoint: String,
-    #[cfg(windows)]
     token: String,
     pending: Arc<AtomicUsize>,
     stop: Arc<AtomicBool>,
@@ -148,6 +145,8 @@ impl AskpassServer {
             let listener = UnixListener::bind(&socket_path)
                 .map_err(|e| format!("Failed to bind askpass socket: {}", e))?;
             // The socket carries secrets: restrict it to the current user.
+            // Mode 0600 is not enough on its own — the path is listable — so
+            // clients must also present `token`.
             std::fs::set_permissions(&socket_path, std::fs::Permissions::from_mode(0o600))
                 .map_err(|e| format!("Failed to restrict askpass socket permissions: {}", e))?;
             listener
@@ -155,6 +154,7 @@ impl AskpassServer {
                 .map_err(|e| format!("Failed to configure askpass socket: {}", e))?;
 
             let endpoint = socket_path.to_string_lossy().to_string();
+            let token = uuid::Uuid::new_v4().simple().to_string();
             spawn_accept_loop(
                 listener,
                 ui,
@@ -162,9 +162,11 @@ impl AskpassServer {
                 stop.clone(),
                 secrets,
                 allow_ui,
+                token.clone(),
             );
             Ok(Self {
                 endpoint,
+                token,
                 pending,
                 stop,
                 socket_path,
@@ -217,10 +219,15 @@ impl AskpassServer {
         command
             .env("SSH_ASKPASS", exe)
             .env("SSH_ASKPASS_REQUIRE", "force")
-            .env(SOCKET_ENV, &self.endpoint);
-        #[cfg(windows)]
-        command.env(TOKEN_ENV, &self.token);
+            .env(SOCKET_ENV, &self.endpoint)
+            .env(TOKEN_ENV, &self.token);
         Ok(())
+    }
+
+    /// Shared secret the askpass client must send before any prompt is served.
+    #[cfg(test)]
+    pub(crate) fn token(&self) -> &str {
+        &self.token
     }
 
     /// Whether a prompt is currently waiting on the user. Callers use this to
@@ -246,6 +253,7 @@ fn spawn_accept_loop(
     stop: Arc<AtomicBool>,
     secrets: Arc<std::sync::Mutex<StoredSecrets>>,
     allow_ui: bool,
+    token: String,
 ) {
     thread::spawn(move || {
         while !stop.load(Ordering::Relaxed) {
@@ -254,8 +262,9 @@ fn spawn_accept_loop(
                     let ui = ui.clone();
                     let pending = pending.clone();
                     let secrets = secrets.clone();
+                    let token = token.clone();
                     thread::spawn(move || {
-                        handle_connection(stream, ui, pending, secrets, allow_ui)
+                        handle_connection(stream, ui, pending, secrets, allow_ui, &token)
                     });
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -320,14 +329,22 @@ fn handle_connection(
     pending: Arc<AtomicUsize>,
     secrets: Arc<std::sync::Mutex<StoredSecrets>>,
     allow_ui: bool,
+    token: &str,
 ) {
-    let reader = BufReader::new(match stream.try_clone() {
+    let mut reader = BufReader::new(match stream.try_clone() {
         Ok(s) => s,
         Err(e) => {
             eprintln!("[Askpass] Failed to clone stream: {}", e);
             return;
         }
     });
+    let mut auth = String::new();
+    if reader.read_line(&mut auth).is_err()
+        || auth.trim_end_matches(['\n', '\r']) != format!("AUTH {}", token)
+    {
+        eprintln!("[Askpass] Rejected connection with bad token");
+        return;
+    }
     handle_authenticated(reader, stream, ui, pending, secrets, allow_ui);
 }
 
