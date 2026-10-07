@@ -1236,6 +1236,84 @@ describe("editor", () => {
       duplicate!.queryParams!.id = "changed";
       expect(source.queryParams?.id).toBe("7");
     });
+
+    it("should keep a materialized table tab read-only", () => {
+      const source = createMockTab({
+        type: "table",
+        title: "mv_orders",
+        activeTable: "mv_orders",
+        query: "SELECT * FROM mv_orders",
+        materialized: true,
+        isLoading: true,
+        executionTime: 4,
+      });
+      const duplicate = buildDuplicatedTab(source);
+
+      expect(duplicate).toEqual({
+        type: "table",
+        title: `mv_orders${DUPLICATE_TAB_TITLE_SUFFIX}`,
+        query: source.query,
+        activeTable: "mv_orders",
+        queryParams: { id: "7" },
+        schema: "public",
+        materialized: true,
+      });
+      expect(duplicate).not.toHaveProperty("readOnly");
+      expect(duplicate).not.toHaveProperty("result");
+      expect(duplicate).not.toHaveProperty("error");
+      expect(duplicate).not.toHaveProperty("isLoading");
+
+      const created = createInitialTabState("conn-1", duplicate ?? undefined);
+      expect(created.id).not.toBe(source.id);
+      expect(created.materialized).toBe(true);
+      expect(created.readOnly).toBeUndefined();
+      expect(created.result).toBeNull();
+      expect(created.error).toBe("");
+      expect(created.isLoading).toBe(false);
+      expect(created.executionTime).toBeNull();
+    });
+
+    it("should keep a read-only definition tab from regaining Run", () => {
+      const source = createMockTab({
+        type: "console",
+        title: "trg_audit Definition",
+        query: "CREATE TRIGGER trg_audit",
+        activeTable: null,
+        readOnly: true,
+        queryParams: undefined,
+        schema: "public",
+        isLoading: true,
+      });
+      const duplicate = buildDuplicatedTab(source);
+
+      expect(duplicate).toEqual({
+        type: "console",
+        title: `trg_audit Definition${DUPLICATE_TAB_TITLE_SUFFIX}`,
+        query: source.query,
+        activeTable: null,
+        schema: "public",
+        readOnly: true,
+      });
+      expect(duplicate).not.toHaveProperty("materialized");
+      expect(duplicate).not.toHaveProperty("result");
+      expect(duplicate).not.toHaveProperty("error");
+
+      const created = createInitialTabState("conn-1", duplicate ?? undefined);
+      expect(created.id).not.toBe(source.id);
+      expect(created.readOnly).toBe(true);
+      expect(created.materialized).toBeUndefined();
+      expect(created.result).toBeNull();
+      expect(created.isLoading).toBe(false);
+    });
+
+    it("should omit editability flags that are not set", () => {
+      const duplicate = buildDuplicatedTab(
+        createMockTab({ materialized: false, readOnly: false }),
+      );
+
+      expect(duplicate).not.toHaveProperty("materialized");
+      expect(duplicate).not.toHaveProperty("readOnly");
+    });
   });
 
   describe("insertTabAfter", () => {

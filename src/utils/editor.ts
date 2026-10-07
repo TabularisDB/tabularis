@@ -176,7 +176,8 @@ export function canDuplicateTab(type: Tab["type"] | undefined): boolean {
 }
 
 /**
- * Fields copied into a new tab: SQL, parameters, table, and schema/database.
+ * Fields copied into a new tab: SQL, parameters, table, schema/database,
+ * and editability flags (`readOnly`, `materialized`).
  * Results, the source `.sql` path, and notebook ids are left behind.
  */
 export function buildDuplicatedTab(source: Tab): Partial<Tab> | null {
@@ -195,6 +196,14 @@ export function buildDuplicatedTab(source: Tab): Partial<Tab> | null {
 
   if (source.schema !== undefined) {
     duplicate.schema = source.schema;
+  }
+
+  if (source.materialized) {
+    duplicate.materialized = true;
+  }
+
+  if (source.readOnly) {
+    duplicate.readOnly = true;
   }
 
   return duplicate;

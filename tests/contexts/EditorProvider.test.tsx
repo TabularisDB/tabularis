@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { EditorProvider } from "../../src/contexts/EditorProvider";
 import { useEditor } from "../../src/hooks/useEditor";
+import { buildDuplicatedTab } from "../../src/utils/editor";
 import { DatabaseContext } from "../../src/contexts/DatabaseContext";
 import { invoke } from "@tauri-apps/api/core";
 import React from "react";
@@ -228,6 +229,84 @@ describe("EditorProvider", () => {
     expect(copy.result).toBeNull();
     expect(copy.sourceFilePath).toBeUndefined();
     expect(copy.notebookId).toBeUndefined();
+  });
+
+  it("should keep materialized and readOnly flags on a forced duplicate", () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    act(() => {
+      result.current.addTab({
+        type: "table",
+        title: "mv_orders",
+        activeTable: "mv_orders",
+        query: "SELECT * FROM mv_orders",
+        schema: "public",
+        materialized: true,
+        result: {
+          columns: ["id"],
+          rows: [[1]],
+          affected_rows: 1,
+        },
+        error: "boom",
+        isLoading: true,
+      });
+    });
+
+    const source = result.current.tabs[0];
+    const duplicate = buildDuplicatedTab(source);
+
+    act(() => {
+      result.current.addTab(duplicate ?? undefined, {
+        insertAfterId: source.id,
+        forceNew: true,
+      });
+    });
+
+    const copy = result.current.tabs[1];
+    expect(copy.id).not.toBe(source.id);
+    expect(copy.title).toBe("mv_orders (copy)");
+    expect(copy.type).toBe("table");
+    expect(copy.materialized).toBe(true);
+    expect(copy.readOnly).toBeUndefined();
+    expect(copy.query).toBe("SELECT * FROM mv_orders");
+    expect(copy.activeTable).toBe("mv_orders");
+    expect(copy.schema).toBe("public");
+    expect(copy.result).toBeNull();
+    expect(copy.error).toBe("");
+    expect(copy.isLoading).toBe(false);
+
+    act(() => {
+      result.current.addTab({
+        type: "console",
+        title: "trg_audit Definition",
+        query: "CREATE TRIGGER trg_audit",
+        activeTable: null,
+        readOnly: true,
+        error: "boom",
+        isLoading: true,
+      });
+    });
+
+    const definition = result.current.tabs[2];
+    const definitionCopy = buildDuplicatedTab(definition);
+
+    act(() => {
+      result.current.addTab(definitionCopy ?? undefined, {
+        insertAfterId: definition.id,
+        forceNew: true,
+      });
+    });
+
+    const readOnlyCopy = result.current.tabs[3];
+    expect(readOnlyCopy.id).not.toBe(definition.id);
+    expect(readOnlyCopy.title).toBe("trg_audit Definition (copy)");
+    expect(readOnlyCopy.type).toBe("console");
+    expect(readOnlyCopy.readOnly).toBe(true);
+    expect(readOnlyCopy.materialized).toBeUndefined();
+    expect(readOnlyCopy.result).toBeNull();
+    expect(readOnlyCopy.error).toBe("");
+    expect(readOnlyCopy.isLoading).toBe(false);
   });
 
   it("should add a query builder tab", () => {
