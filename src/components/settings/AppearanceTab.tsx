@@ -254,6 +254,27 @@ export function AppearanceTab() {
             </SettingRow>
           </SettingSection>
 
+          <SettingSection title={t("settings.autocomplete_title")}>
+            <SettingRow
+              label={t("settings.autocomplete_keywordCase")}
+              description={t("settings.autocomplete_keywordCaseDesc")}
+            >
+              <SettingButtonGroup
+                value={settings.autocompleteKeywordCase ?? "match"}
+                onChange={(v) => updateSetting("autocompleteKeywordCase", v)}
+                options={[
+                  {
+                    value: "match",
+                    label: t("settings.autocomplete_keywordCaseMatch"),
+                  },
+                  { value: "upper", label: "UPPER" },
+                  { value: "lower", label: "lower" },
+                ]}
+                mono
+              />
+            </SettingRow>
+          </SettingSection>
+
           <SettingSection title={t("settings.formatter_title")}>
             <SettingRow
               label={t("settings.formatter_keywordCase")}

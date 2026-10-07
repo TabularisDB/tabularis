@@ -139,6 +139,8 @@ pub struct AppConfig {
     pub formatter_function_case: Option<String>,
     pub formatter_lines_between_queries: Option<u32>,
     pub formatter_dense_operators: Option<bool>,
+    //SQLAutoComplete
+    pub autocomplete_keyword_case: Option<String>,
     /// Connection health check interval in seconds. 0 = disabled. Default: 30.
     pub ping_interval: Option<u32>,
     /// Maximum number of query history entries per connection. Default: 500.

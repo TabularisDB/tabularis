@@ -6,6 +6,33 @@ import { formatSqlIdentifier, getQuoteChar, quoteIdentifier } from "./identifier
 import { getCurrentStatement, parseTablesFromQuery, type ParsedTableRef } from "./sqlAnalysis";
 import { analyzeSqlContext, findStatementScopeEnd, getKeywordRelevance, getSuggestionKinds } from "./sqlContext";
 
+export type AutocompleteKeywordCase = "match" | "upper" | "lower";
+
+//Decide whether a keyword completion should be upper or lower case.
+
+export function resolveKeywordCase(
+  mode: AutocompleteKeywordCase | undefined,
+  typedPrefix: string,
+): "upper" | "lower" {
+  if (mode === "upper") return "upper";
+  if (mode === "lower") return "lower";
+
+  const letters = typedPrefix.replace(/[^A-Za-z]/g, "");
+  if (letters.length === 0) return "upper";
+  return letters === letters.toLowerCase() ? "lower" : "upper";
+}
+
+//Apply the keyword-case setting 
+export function applyKeywordCase(
+  keyword: string,
+  mode: AutocompleteKeywordCase | undefined,
+  typedPrefix: string,
+): string {
+  return resolveKeywordCase(mode, typedPrefix) === "lower"
+    ? keyword.toLowerCase()
+    : keyword.toUpperCase();
+}
+
 // Lightweight column cache with TTL and size limits
 interface CachedColumns {
   data: Array<{ label: string; detail: string }>;
@@ -119,13 +146,15 @@ export const registerSqlAutocomplete = (
   tables: TableInfo[],
   schema?: string | null,
   driver?: string | PluginManifest | DriverCapabilities | null,
+  keywordCase: AutocompleteKeywordCase = "match",
 ) => {
   const provider = monaco.languages.registerCompletionItemProvider("sql", {
     triggerCharacters: [".", " "],
-    provideCompletionItems: async (model: { getWordUntilPosition: (position: { lineNumber: number; column: number }) => { startColumn: number; endColumn: number }; getValueInRange: (range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => string; getValue: () => string; getOffsetAt: (position: { lineNumber: number; column: number }) => number }, position: { lineNumber: number; column: number }) => {
+    provideCompletionItems: async (model: { getWordUntilPosition: (position: { lineNumber: number; column: number }) => { word?: string; startColumn: number; endColumn: number }; getValueInRange: (range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => string; getValue: () => string; getOffsetAt: (position: { lineNumber: number; column: number }) => number }, position: { lineNumber: number; column: number }) => {
       if (!connectionId) return { suggestions: [] };
 
       const wordUntil = model.getWordUntilPosition(position);
+      const typedPrefix = wordUntil.word ?? "";
 
       const range = {
         startLineNumber: position.lineNumber,
@@ -420,13 +449,18 @@ export const registerSqlAutocomplete = (
             .filter(kw => !colLabels.has(kw))
             .map((kw) => ({ kw, relevance: getKeywordRelevance(sqlContext.clause, kw) }))
             .filter(({ relevance }) => relevance !== 'hidden')
-            .map(({ kw, relevance }) => ({
-              label: kw,
-              kind: monaco.languages.CompletionItemKind.Keyword,
-              insertText: kw,
-              range,
-              sortText: relevance === 'high' ? `2_0_${kw}` : `2_1_${kw}`
-            }))
+            .map(({ kw, relevance }) => {
+              // Only the displayed/inserted text is re-cased; filtering,
+              // relevance and sortText keep using the canonical uppercase kw.
+              const text = applyKeywordCase(kw, keywordCase, typedPrefix);
+              return {
+                label: text,
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: text,
+                range,
+                sortText: relevance === 'high' ? `2_0_${kw}` : `2_1_${kw}`
+              };
+            })
         : [];
 
       // ============================================

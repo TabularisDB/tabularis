@@ -126,7 +126,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const isLanguageSettled =
     !isLoading &&
     (currentLanguageApplied || trackedLanguageState?.settled === true);
-
   // Load settings from backend on mount
   const hasLoadedSettingsRef = useRef(false);
   useEffect(() => {
