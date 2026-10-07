@@ -501,12 +501,17 @@ export function SshConnectionsManager({
 
           {formData.auth_type === "ssh_key" && (
             <>
-              <SshInput
-                label={t("newConnection.sshKeyFile")}
-                value={formData.key_file}
-                onChange={(val) => updateField("key_file", val)}
-                placeholder={t("newConnection.sshKeyFilePlaceholder")}
-              />
+              <div className="flex flex-col">
+                <SshInput
+                  label={t("newConnection.sshKeyFile")}
+                  value={formData.key_file}
+                  onChange={(val) => updateField("key_file", val)}
+                  placeholder={t("newConnection.sshKeyFilePlaceholder")}
+                />
+                <span className="text-xs text-muted mt-1">
+                  {t("newConnection.sshKeyFileVarsHint")}
+                </span>
+              </div>
 
               <div className="flex flex-col">
                 <SshInput
