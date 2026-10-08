@@ -1,0 +1,173 @@
+# E2E (macOS, real IPC): drive the REAL tabularis app (real WKWebView + real
+# Tauri IPC) on a free, unattended GitHub-hosted macOS runner via tauri-webdriver.
+#
+# This is the only test mode that can catch the PR #822 frontend->backend
+# database-routing bug class (browser-mode testing mocks invoke() and cannot).
+# Built with `--features e2e-testing` so the in-app WebDriver server is compiled
+# in; normal and CI builds exclude it (zero impact).
+#
+# On-demand ONLY: never runs on push/PR. Trigger via the Actions tab
+# ("E2E (macOS, real IPC)" -> Run workflow).
+name: E2E (macOS, real IPC)
+
+concurrency:
+  group: e2e-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  native-macos:
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        # version resolved from package.json's packageManager field
+        uses: pnpm/action-setup@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: e2e-macos-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: e2e-macos-
+
+      - name: Provision PostgreSQL (port 54320)
+        run: |
+          brew install postgresql@16
+          # The brew service starts Postgres on its default port (5432). Stop it,
+          # set the port to 54320 (the repo's documented test convention, matching
+          # the Linux CI service container), then restart.
+          brew services stop postgresql@16 >/dev/null 2>&1 || true
+          PGDATA=/opt/homebrew/var/postgresql@16
+          echo "port = 54320" >> "$PGDATA/postgresql.conf"
+          echo "listen_addresses = '127.0.0.1'" >> "$PGDATA/postgresql.conf"
+          brew services start postgresql@16
+          # Fail loudly if Postgres doesn't come up on 54320 (don't fall through
+          # and let the seed step fail with a confusing connection-refused).
+          for i in $(seq 1 60); do
+            if pg_isready -h 127.0.0.1 -p 54320 >/dev/null 2>&1; then
+              echo "Postgres up on :54320"
+              break
+            fi
+            sleep 1
+            if [ "$i" = "60" ]; then
+              echo "Postgres failed to come up on :54320" >&2
+              brew services info postgresql@16 >&2 || true
+              exit 1
+            fi
+          done
+          # initdb names the superuser role after the OS user (`runner` on
+          # GitHub macOS images), NOT `postgres`. Connect via the local socket
+          # (trust auth) as the OS user to create the `postgres` role the seed
+          # script + integration tests expect, set its password, and create
+          # testdb. Use `postgres` as the maintenance DB for the CREATE ROLE.
+          OS_USER="$(whoami)"
+          psql -h 127.0.0.1 -p 54320 -U "$OS_USER" -d postgres -c \
+            "CREATE ROLE postgres SUPERUSER LOGIN PASSWORD 'password' CREATEDB;" || true
+          psql -h 127.0.0.1 -p 54320 -U postgres -d postgres -c \
+            "CREATE DATABASE testdb OWNER postgres;" 2>/dev/null || true
+          # Verify the role + db exist; fail loudly if not (don't let the seed
+          # step fail with a confusing "role does not exist").
+          psql -h 127.0.0.1 -p 54320 -U postgres -d testdb -c "SELECT 1;" >/dev/null \
+            || { echo "postgres role / testdb setup failed" >&2; exit 1; }
+
+      - name: Seed PostgreSQL (existing fixtures)
+        run: bash tests/fixtures/seed_postgres.sh
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "54320"
+          PGUSER: postgres
+          PGPASSWORD: password
+
+      - name: Seed E2E adversarial fixtures
+        run: bash tests/fixtures/seed_postgres_e2e.sh
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "54320"
+          PGUSER: postgres
+          PGPASSWORD: password
+
+      - name: Install PostgreSQL plugin
+        run: |
+          PLUGIN_DIR="$HOME/Library/Application Support/tabularis/plugins/drivers/postgresql"
+          mkdir -p "$PLUGIN_DIR"
+          curl -sL "https://github.com/TabularisDB/tabularis-postgresql-plugin/releases/download/v1.0.0-rc.6/default.tabularium" -o "$PLUGIN_DIR/.tabularium"
+          curl -sL "https://github.com/TabularisDB/tabularis-postgresql-plugin/releases/download/v1.0.0-rc.6/postgresql-plugin-darwin-arm64.zip" -o /tmp/pg-plugin.zip
+          unzip -o /tmp/pg-plugin.zip -d /tmp/pg-plugin-extract
+          cp /tmp/pg-plugin-extract/postgresql-plugin "$PLUGIN_DIR/postgresql-plugin"
+          chmod +x "$PLUGIN_DIR/postgresql-plugin"
+
+      - name: Install JS dependencies (repo root)
+        run: pnpm install --frozen-lockfile
+
+      - name: Install e2e JS dependencies (isolated workspace)
+        run: pnpm install --frozen-lockfile=false
+        working-directory: e2e
+
+      - name: Install tauri-wd CLI (WebDriver server)
+        run: cargo install tauri-webdriver-automation --version 0.1.3 --locked
+
+      - name: Build Tauri debug binary (with e2e-testing feature)
+        run: pnpm tauri build --debug --no-bundle -- --features e2e-testing
+
+      - name: Start Vite dev server (frontend for the debug binary)
+        run: |
+          pnpm dev --port 5173 --host 127.0.0.1 &
+          for i in $(seq 1 60); do
+            if curl -s http://127.0.0.1:5173 >/dev/null 2>&1; then
+              echo "Vite up on :5173"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Start tauri-wd (W3C WebDriver server on :4444)
+        run: |
+          tauri-wd --port 4444 &
+          for i in $(seq 1 60); do
+            if curl -s http://127.0.0.1:4444/status >/dev/null 2>&1; then
+              echo "tauri-wd up on :4444"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run WebDriverIO E2E tests (real WKWebView + real IPC)
+        run: ./node_modules/.bin/wdio run wdio.conf.ts
+        working-directory: e2e
+        env:
+          # Direct-DB assertions (the `pg` helper) reach the same Postgres the
+          # app connects to — both run on this runner.
+          PGHOST: 127.0.0.1
+          PGPORT: "54320"
+          PGUSER: postgres
+          PGPASSWORD: password
+          # Dialog-mock file paths for the dump/import tests (findings #2/#9).
+          # Pre-created temp files the mock returns in place of native pickers.
+          E2E_DIALOG_SAVE_PATH: /tmp/e2e-dump.sql
+          E2E_DIALOG_OPEN_PATH: /tmp/e2e-dump.sql
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: |
+            e2e/logs
+            e2e/*.log
+          if-no-files-found: ignore
