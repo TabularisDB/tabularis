@@ -3597,7 +3597,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   useSqlAutocompleteRegistration(activeConnectionId, {
     monaco: monacoInstance,
-    schema: activeSchema,
+    schema: activeTab?.schema ?? activeSchema,
+    database: activeTab?.database,
     enabled: !isNotebookTab && !isUsersTab,
   });
 

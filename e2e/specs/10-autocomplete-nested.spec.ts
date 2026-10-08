@@ -15,14 +15,28 @@ describe("Finding #10: nested autocomplete", () => {
     await openNewConsole("tabularis_test_secondary", "review");
     await browser.pause(3000);
 
-    // Set the query text via the Monaco editor hook.
+    // Set the query text via the Monaco editor hook, then move the cursor to
+    // the end so autocomplete triggers for the "only_" prefix (setValue leaves
+    // the cursor at position 0, not the end of the text).
     await browser.execute(() => {
-      (window as any).__e2e_editor.setValue("SELECT * FROM only_");
+      const editor = (window as any).__e2e_editor;
+      editor.setValue("SELECT * FROM only_");
+      // Move cursor to the end of the line.
+      const model = editor.getModel();
+      const lastLine = model.getLineCount();
+      const lastCol = model.getLineMaxColumn(lastLine);
+      editor.setPosition({ lineNumber: lastLine, column: lastCol });
+      editor.focus();
     });
-    await browser.pause(1000);
+    await browser.pause(3000);
 
-    // Trigger autocomplete via Ctrl+Space.
-    await browser.keys(["Control", "Space"]);
+    // Trigger autocomplete via Monaco's API (Ctrl+Space via browser.keys
+    // doesn't reliably reach Monaco's editor in WKWebView).
+    await browser.execute(() => {
+      const editor = (window as any).__e2e_editor;
+      editor.focus();
+      editor.trigger("e2e", "editor.action.triggerSuggest", {});
+    });
     await browser.pause(3000);
 
     // Check the autocomplete suggestion widget for only_secondary.
@@ -30,8 +44,6 @@ describe("Finding #10: nested autocomplete", () => {
       const rows = Array.from(document.querySelectorAll('.suggest-widget .monaco-list-row'));
       return rows.map(r => r.textContent?.trim().slice(0, 40));
     });
-    // BUG: reads databaseDataMap (not nestedDatabaseDataMap), so
-    // only_secondary is missing from autocomplete suggestions.
     expect(suggestions.some((s: string) => s.includes("only_secondary"))).toBe(true);
   });
 });
