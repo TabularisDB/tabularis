@@ -562,8 +562,6 @@
     "appearance_editorAcceptSuggestionOnEnterDesc": "Erlaubt der Eingabetaste (zusätzlich zu Tab), den aktiven Autovervollständigungsvorschlag zu übernehmen. Bei deaktivierter Option fügt Enter immer einen Zeilenumbruch ein.",
     "appearance_editorAutocompleteKeywordCase": "Schreibweise der Autovervollständigungs-Schlüsselwörter",
     "appearance_editorAutocompleteKeywordCaseMatch": "An Eingabe anpassen",
-    "appearance_editorAutocompleteKeywordCaseUpper": "Immer GROSS",
-    "appearance_editorAutocompleteKeywordCaseLower": "Immer klein",
     "queryExecution": "Abfrageausführung",
     "runStatementUnderCursor": "Anweisung unter dem Cursor ausführen",
     "runStatementUnderCursorDesc": "Wenn ein Skript mehrere Anweisungen enthält, wird die Anweisung unter dem Cursor ausgeführt, statt die Abfrageauswahl anzuzeigen. Markiere Text, um einen bestimmten Bereich auszuführen.",

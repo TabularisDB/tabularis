@@ -8,7 +8,7 @@ import { analyzeSqlContext, findStatementScopeEnd, getKeywordRelevance, getSugge
 
 export type AutocompleteKeywordCase = "match" | "upper" | "lower";
 
-//Decide whether a keyword completion should be upper or lower case.
+// Decide whether a keyword completion should be upper or lower case.
 
 export function resolveKeywordCase(
   mode: AutocompleteKeywordCase | undefined,
@@ -22,7 +22,7 @@ export function resolveKeywordCase(
   return letters === letters.toLowerCase() ? "lower" : "upper";
 }
 
-//Apply the keyword-case setting 
+// Apply the keyword-case setting
 export function applyKeywordCase(
   keyword: string,
   mode: AutocompleteKeywordCase | undefined,
@@ -31,6 +31,20 @@ export function applyKeywordCase(
   return resolveKeywordCase(mode, typedPrefix) === "lower"
     ? keyword.toLowerCase()
     : keyword.toUpperCase();
+}
+
+/**
+ * In "match" mode the case is decided by the first typed letters. When the
+ * list is opened with none yet (a trigger character such as " ", or Ctrl+Space
+ * on an empty word), Monaco would only re-filter the items it already has as
+ * the user types, keeping the fallback case. Marking that result incomplete
+ * makes Monaco ask the provider again once there is a letter to match.
+ */
+export function needsKeywordCaseRetrigger(
+  mode: AutocompleteKeywordCase | undefined,
+  typedPrefix: string,
+): boolean {
+  return (mode ?? "match") === "match" && !/[A-Za-z]/.test(typedPrefix);
 }
 
 // Lightweight column cache with TTL and size limits
@@ -482,6 +496,11 @@ export const registerSqlAutocomplete = (
           ...tableSuggestions,
           ...keywordSuggestions,
         ],
+        // See needsKeywordCaseRetrigger: re-query on the first typed letter.
+        ...(keywordSuggestions.length > 0 &&
+        needsKeywordCaseRetrigger(keywordCase, typedPrefix)
+          ? { incomplete: true }
+          : {}),
       };
     },
   });

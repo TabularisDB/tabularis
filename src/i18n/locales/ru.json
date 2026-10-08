@@ -557,8 +557,6 @@
     "appearance_editorAcceptSuggestionOnEnterDesc": "Разрешить Enter (в дополнение к Tab) для принятия активной подсказки автодополнения. При отключении Enter всегда вставляет новую строку.",
     "appearance_editorAutocompleteKeywordCase": "Регистр ключевых слов в автодополнении",
     "appearance_editorAutocompleteKeywordCaseMatch": "Как при вводе",
-    "appearance_editorAutocompleteKeywordCaseUpper": "Всегда ЗАГЛАВНЫЕ",
-    "appearance_editorAutocompleteKeywordCaseLower": "Всегда строчные",
     "queryExecution": "Выполнение запросов",
     "runStatementUnderCursor": "Выполнять запрос под курсором",
     "runStatementUnderCursorDesc": "Если скрипт содержит несколько запросов, выполняется тот, что под курсором, вместо показа списка запросов. Выделите текст, чтобы выполнить определённый фрагмент.",

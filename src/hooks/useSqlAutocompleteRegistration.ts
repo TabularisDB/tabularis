@@ -2,7 +2,7 @@ import { useContext, useEffect } from "react";
 import type { Monaco } from "@monaco-editor/react";
 import { ensureMonaco } from "../utils/monaco";
 import { useDatabase } from "./useDatabase";
-import { DEFAULT_SETTINGS, SettingsContext } from "../contexts/SettingsContext";
+import { SettingsContext } from "../contexts/SettingsContext";
 import { usesMultiDatabaseLayout } from "../utils/database";
 import { registerSqlAutocomplete, disposeSqlAutocomplete } from "../utils/autocomplete";
 
@@ -33,9 +33,7 @@ export function useSqlAutocompleteRegistration(
   } = useDatabase();
   const settingsContext = useContext(SettingsContext);
   const keywordCase =
-    settingsContext?.settings.autocompleteKeywordCase ??
-    DEFAULT_SETTINGS.autocompleteKeywordCase ??
-    "match";
+    settingsContext?.settings.autocompleteKeywordCase ??"match";
 
   const schema = options?.schema ?? activeSchema;
   const defaultNamespace =

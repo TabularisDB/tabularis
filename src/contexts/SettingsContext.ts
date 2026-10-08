@@ -104,7 +104,7 @@ export interface Settings {
   runStatementUnderCursor?: boolean;
   // Case of SQL keywords inserted by autocomplete
   autocompleteKeywordCase?: AutocompleteKeywordCase;
-  // Delay destructive-query and production-write confirmations for five seconds. Default: false. */
+  /**  Delay destructive-query and production-write confirmations for five seconds. Default: false. */
   safetyConfirmationDelayEnabled?: boolean;
   /** Send a desktop notification when a long-running query finishes while the window is unfocused. Default: true. */
   notifyLongQueries?: boolean;

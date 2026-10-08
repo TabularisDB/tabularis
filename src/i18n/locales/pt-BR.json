@@ -569,8 +569,6 @@
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permite que o Enter (além do Tab) aceite a sugestão de autocompletar ativa. Quando desativado, o Enter sempre insere uma nova linha.",
     "appearance_editorAutocompleteKeywordCase": "Caixa das palavras-chave no autocompletar",
     "appearance_editorAutocompleteKeywordCaseMatch": "Igual ao digitado",
-    "appearance_editorAutocompleteKeywordCaseUpper": "Sempre MAIÚSCULAS",
-    "appearance_editorAutocompleteKeywordCaseLower": "Sempre minúsculas",
     "queryExecution": "Execução de Consultas",
     "runStatementUnderCursor": "Executar instrução sob o cursor",
     "runStatementUnderCursorDesc": "Quando um script tem várias instruções, executa a que está sob o cursor em vez de mostrar o seletor de consultas. Selecione um texto para executar um intervalo específico.",

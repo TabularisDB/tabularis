@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   applyKeywordCase,
   clearAutocompleteCache,
+  needsKeywordCaseRetrigger,
   registerSqlAutocomplete,
   resolveKeywordCase,
   type AutocompleteKeywordCase,
@@ -930,6 +931,28 @@ describe('autocomplete', () => {
       });
     });
 
+    describe('needsKeywordCaseRetrigger', () => {
+      it('should ask again in match mode while no letter has been typed', () => {
+        expect(needsKeywordCaseRetrigger('match', '')).toBe(true);
+        expect(needsKeywordCaseRetrigger('match', '_1')).toBe(true);
+      });
+
+      it('should not ask again once the prefix has a letter', () => {
+        expect(needsKeywordCaseRetrigger('match', 'w')).toBe(false);
+        expect(needsKeywordCaseRetrigger('match', 'WH')).toBe(false);
+        expect(needsKeywordCaseRetrigger('match', '_w')).toBe(false);
+      });
+
+      it('should treat an undefined mode as match', () => {
+        expect(needsKeywordCaseRetrigger(undefined, '')).toBe(true);
+      });
+
+      it('should never ask again in forced modes', () => {
+        expect(needsKeywordCaseRetrigger('upper', '')).toBe(false);
+        expect(needsKeywordCaseRetrigger('lower', '')).toBe(false);
+      });
+    });
+
     describe('applyKeywordCase', () => {
       it('should lowercase the keyword when typing lowercase in match mode', () => {
         expect(applyKeywordCase('SELECT', 'match', 'sel')).toBe('select');
@@ -1010,6 +1033,7 @@ describe('autocomplete', () => {
       return {
         keywords: suggestions.filter((s) => s.kind === keywordKind),
         others: suggestions.filter((s) => s.kind !== keywordKind),
+        incomplete: result.incomplete as boolean | undefined,
       };
     };
 
@@ -1077,6 +1101,62 @@ describe('autocomplete', () => {
 
         expect(keywords.length).toBeGreaterThan(0);
         expect(keywords.every((k) => k.label === k.label.toLowerCase())).toBe(true);
+      });
+    });
+
+    describe('re-query while typing (match mode)', () => {
+      it('should mark the result incomplete when the list opens with no letters typed', async () => {
+        const { keywords, incomplete } = await complete({ keywordCase: 'match', word: '' });
+
+        expect(keywords.length).toBeGreaterThan(0);
+        expect(incomplete).toBe(true);
+      });
+
+      it('should not mark the result incomplete once a letter has been typed', async () => {
+        const lower = await complete({ keywordCase: 'match', word: 'w' });
+        const upper = await complete({ keywordCase: 'match', word: 'W' });
+
+        expect(lower.incomplete).toBeUndefined();
+        expect(upper.incomplete).toBeUndefined();
+      });
+
+      it('should not mark the result incomplete in forced modes', async () => {
+        const upper = await complete({ keywordCase: 'upper', word: '' });
+        const lower = await complete({ keywordCase: 'lower', word: '' });
+
+        expect(upper.incomplete).toBeUndefined();
+        expect(lower.incomplete).toBeUndefined();
+      });
+
+      it('should not mark the result incomplete when no keywords are offered', async () => {
+        const { keywords, incomplete } = await complete({
+          value: 'SELECT * FROM users',
+          keywordCase: 'match',
+          word: '',
+        });
+
+        // Mid-identifier buffers may or may not offer keywords; the flag must
+        // only be set when there are keywords whose case could still change.
+        expect(incomplete === true).toBe(keywords.length > 0);
+      });
+
+      it('should follow lowercase typing after the list was opened by a space', async () => {
+        // Simulates Monaco: the list opens on " " (empty word), then the user
+        // types "wh" and Monaco re-queries because the first result was incomplete.
+        const opened = await complete({ keywordCase: 'match', word: '' });
+        expect(opened.incomplete).toBe(true);
+        expect(labelsOf(opened.keywords)).toContain('WHERE');
+
+        const requeried = await complete({ keywordCase: 'match', word: 'w' });
+        expect(labelsOf(requeried.keywords)).toContain('where');
+        expect(labelsOf(requeried.keywords)).not.toContain('WHERE');
+        expect(requeried.incomplete).toBeUndefined();
+      });
+
+      it('should keep uppercase typing uppercase after the re-query', async () => {
+        const requeried = await complete({ keywordCase: 'match', word: 'W' });
+
+        expect(labelsOf(requeried.keywords)).toContain('WHERE');
       });
     });
 

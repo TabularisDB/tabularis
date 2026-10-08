@@ -592,8 +592,6 @@
     "appearance_editorAcceptSuggestionOnEnterDesc": "Autorise la touche Entrée (en plus de Tab) à accepter la suggestion d’autocomplétion active. Lorsqu’elle est désactivée, Entrée insère toujours un saut de ligne.",
     "appearance_editorAutocompleteKeywordCase": "Casse des mots-clés de l’autocomplétion",
     "appearance_editorAutocompleteKeywordCaseMatch": "Suivre la saisie",
-    "appearance_editorAutocompleteKeywordCaseUpper": "Toujours MAJUSCULES",
-    "appearance_editorAutocompleteKeywordCaseLower": "Toujours minuscules",
     "queryExecution": "Exécution des requêtes",
     "runStatementUnderCursor": "Exécuter l'instruction sous le curseur",
     "runStatementUnderCursorDesc": "Lorsqu'un script contient plusieurs instructions, exécute celle sous le curseur au lieu d'afficher le sélecteur de requêtes. Sélectionnez du texte pour exécuter une plage spécifique.",

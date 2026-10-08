@@ -554,8 +554,6 @@
     "spanish": "Español",
     "appearance_editorAutocompleteKeywordCase": "自动补全关键字大小写",
     "appearance_editorAutocompleteKeywordCaseMatch": "跟随输入",
-    "appearance_editorAutocompleteKeywordCaseUpper": "始终大写",
-    "appearance_editorAutocompleteKeywordCaseLower": "始终小写",
     "formatter_title": "SQL 格式化",
     "formatter_keywordCase": "关键字大小写",
     "formatter_keywordCaseDesc": "格式化后 SQL 关键字（SELECT、FROM、WHERE）的大小写处理。",

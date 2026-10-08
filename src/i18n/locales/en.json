@@ -598,8 +598,6 @@
     "appearance_editorAcceptSuggestionOnEnterDesc": "Allow Enter (in addition to Tab) to accept the active autocomplete suggestion. When off, Enter always inserts a newline.",
     "appearance_editorAutocompleteKeywordCase": "Autocomplete keyword case",
     "appearance_editorAutocompleteKeywordCaseMatch": "Match typing",
-    "appearance_editorAutocompleteKeywordCaseUpper": "Always UPPER",
-    "appearance_editorAutocompleteKeywordCaseLower": "Always lower",
     "queryExecution": "Query Execution",
     "runStatementUnderCursor": "Run statement under cursor",
     "runStatementUnderCursorDesc": "When a script has multiple statements, run the one under the cursor instead of showing the query picker. Select text to run a specific range.",

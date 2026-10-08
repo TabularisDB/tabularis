@@ -573,8 +573,6 @@
     "appearance_editorAcceptSuggestionOnEnterDesc": "Tab に加えて Enter でもオートコンプリートの候補を確定できるようにします。オフの場合、Enter は常に改行を挿入します。",
     "appearance_editorAutocompleteKeywordCase": "オートコンプリートのキーワードの大文字/小文字",
     "appearance_editorAutocompleteKeywordCaseMatch": "入力に合わせる",
-    "appearance_editorAutocompleteKeywordCaseUpper": "常に大文字",
-    "appearance_editorAutocompleteKeywordCaseLower": "常に小文字",
     "queryExecution": "クエリの実行",
     "runStatementUnderCursor": "カーソル位置のステートメントを実行",
     "runStatementUnderCursorDesc": "スクリプトに複数のステートメントがある場合、クエリ選択画面を表示せずにカーソル位置のステートメントを実行します。特定の範囲を実行するにはテキストを選択してください。",
