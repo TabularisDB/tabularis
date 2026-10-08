@@ -75,7 +75,11 @@ CREATE TABLE IF NOT EXISTS review.trigger_b (
 );
 
 -- Finding #3: an existing trigger on review.records for the guided-edit test.
-CREATE OR REPLACE FUNCTION review.trg_audit_fn() RETURNS TRIGGER AS $$
+-- The function name is table-scoped (records_trg_audit_fn) to match the fix
+-- for finding #4 (triggerFunctionName scopes by table). Drop the old
+-- non-scoped function name from prior runs.
+DROP FUNCTION IF EXISTS review.trg_audit_fn();
+CREATE OR REPLACE FUNCTION review.records_trg_audit_fn() RETURNS TRIGGER AS $$
 BEGIN
   NEW.note := NEW.note || ' (audited)';
   RETURN NEW;
@@ -83,10 +87,14 @@ END;
 $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg_audit ON review.records;
 CREATE TRIGGER trg_audit BEFORE INSERT ON review.records
-  FOR EACH ROW EXECUTE FUNCTION review.trg_audit_fn();
+  FOR EACH ROW EXECUTE FUNCTION review.records_trg_audit_fn();
 
--- Finding #4: same-named trigger `normalize` on two different tables, backed by
--- a single `normalize_fn` (the bug: CREATE OR REPLACE clobbers across tables).
+-- Finding #4: same-named trigger `normalize` on two different tables. Before
+-- the fix, both shared a single `normalize_fn` (CREATE OR REPLACE clobbers).
+-- After the fix, each table gets its own table-scoped function
+-- (trigger_a_normalize_fn, trigger_b_normalize_fn). The test creates these
+-- via __e2e_save_trigger_with_body, so the seed only needs the initial
+-- shared function for the pre-fix state.
 CREATE OR REPLACE FUNCTION review.normalize_fn() RETURNS TRIGGER AS $$
 BEGIN
   NEW.note := 'from A';

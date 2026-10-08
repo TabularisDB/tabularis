@@ -41,8 +41,13 @@ describe("triggerSql", () => {
   });
 
   describe("triggerFunctionName", () => {
-    it("suffixes the trigger name", () => {
+    it("suffixes the trigger name (no table scoping)", () => {
       expect(triggerFunctionName("trg_products_audit")).toBe("trg_products_audit_fn");
+    });
+
+    it("scopes by table name to avoid same-named trigger collisions", () => {
+      expect(triggerFunctionName("normalize", "trigger_a")).toBe("trigger_a_normalize_fn");
+      expect(triggerFunctionName("normalize", "trigger_b")).toBe("trigger_b_normalize_fn");
     });
   });
 
@@ -59,7 +64,7 @@ describe("triggerSql", () => {
   describe("buildTriggerFunctionSql", () => {
     it("wraps the body in a CREATE OR REPLACE FUNCTION ... RETURNS TRIGGER statement", () => {
       const sql = buildTriggerFunctionSql(base);
-      expect(sql).toContain('CREATE OR REPLACE FUNCTION "store"."trg_products_audit_fn"()');
+      expect(sql).toContain('CREATE OR REPLACE FUNCTION "store"."products_trg_products_audit_fn"()');
       expect(sql).toContain("RETURNS TRIGGER AS $$");
       expect(sql).toContain("LANGUAGE plpgsql");
       expect(sql).toContain(base.body);
@@ -67,7 +72,7 @@ describe("triggerSql", () => {
 
     it("omits the schema prefix when no schema is given", () => {
       const sql = buildTriggerFunctionSql({ ...base, schema: undefined });
-      expect(sql).toContain('CREATE OR REPLACE FUNCTION "trg_products_audit_fn"()');
+      expect(sql).toContain('CREATE OR REPLACE FUNCTION "products_trg_products_audit_fn"()');
     });
   });
 
@@ -83,7 +88,7 @@ describe("triggerSql", () => {
             "AFTER INSERT",
             'ON "store"."products"',
             "FOR EACH ROW",
-            'EXECUTE FUNCTION "store"."trg_products_audit_fn"();',
+            'EXECUTE FUNCTION "store"."products_trg_products_audit_fn"();',
           ].join("\n"),
         );
         expect(sql).not.toContain("BEGIN");
@@ -112,13 +117,13 @@ describe("triggerSql", () => {
 
     it("recognizes the postgresql plugin driver id the same as the builtin postgres driver", () => {
       const sql = buildTriggerSql({ ...base, driver: "postgresql" });
-      expect(sql).toContain('EXECUTE FUNCTION "store"."trg_products_audit_fn"();');
+      expect(sql).toContain('EXECUTE FUNCTION "store"."products_trg_products_audit_fn"();');
     });
 
     it("omits the schema prefix for postgres when no schema is given", () => {
       const sql = buildTriggerSql({ ...base, schema: undefined });
       expect(sql).toContain('ON "products"');
-      expect(sql).toContain('EXECUTE FUNCTION "trg_products_audit_fn"();');
+      expect(sql).toContain('EXECUTE FUNCTION "products_trg_products_audit_fn"();');
     });
 
     it(

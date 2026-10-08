@@ -32,11 +32,13 @@ export function defaultTriggerBody(driver?: string): string {
 
 /**
  * Deterministic name for the trigger function PostgreSQL requires.
- * CREATE OR REPLACE (see buildTriggerFunctionSql) makes re-saving the same
- * trigger idempotent rather than erroring on a name collision.
+ * Scoped by table so two same-named triggers on different tables don't share
+ * one function (CREATE OR REPLACE would clobber the other table's logic).
+ * CREATE OR REPLACE makes re-saving the same trigger idempotent rather than
+ * erroring on a name collision.
  */
-export function triggerFunctionName(name: string): string {
-  return `${name}_fn`;
+export function triggerFunctionName(name: string, tableName?: string): string {
+  return tableName ? `${tableName}_${name}_fn` : `${name}_fn`;
 }
 
 /**
@@ -54,7 +56,7 @@ export function triggerFunctionName(name: string): string {
 function qualifiedFunctionName(input: TriggerSqlInput): string {
   const q = (id: string) => quoteIdentifier(id, input.capabilities ?? input.driver ?? "postgres");
   const prefix = input.schema ? `${q(input.schema)}.` : "";
-  return `${prefix}${q(triggerFunctionName(input.name))}`;
+  return `${prefix}${q(triggerFunctionName(input.name, input.tableName))}`;
 }
 
 /** PostgreSQL only: the trigger function `buildTriggerSql`'s statement references. */

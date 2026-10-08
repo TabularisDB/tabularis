@@ -2716,7 +2716,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                             const fnPrefix = triggerSchema ? `${q(triggerSchema)}.` : "";
                                             invoke("execute_query", {
                                               connectionId: activeConnectionId,
-                                              query: `DROP FUNCTION IF EXISTS ${fnPrefix}${q(triggerFunctionName(String(contextMenu.id)))}()`,
+                                              query: `DROP FUNCTION IF EXISTS ${fnPrefix}${q(triggerFunctionName(String(contextMenu.id), triggerData?.table_name))}()`,
                                               ...(triggerSchema ? { schema: triggerSchema } : {}),
                                               ...(triggerDatabase ? { database: triggerDatabase } : {}),
                                             }).catch(() => {});

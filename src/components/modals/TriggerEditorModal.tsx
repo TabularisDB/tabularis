@@ -122,7 +122,7 @@ export const TriggerEditorModal = ({
         // already-dropped trigger gone — finding #3).
         if (isPostgresDriver(driver) && /EXECUTE\s+FUNCTION/i.test(parsed.body)) {
           try {
-            const fnName = triggerFunctionName(tName);
+            const fnName = triggerFunctionName(tName, tTable);
             const fnDef = await invoke<string>("get_routine_definition", {
               connectionId,
               routineName: fnName,
