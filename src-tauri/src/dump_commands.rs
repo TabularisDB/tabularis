@@ -422,10 +422,14 @@ fn escape_sql_value(driver: &str, val: serde_json::Value) -> String {
         serde_json::Value::Null => "NULL".to_string(),
         serde_json::Value::Number(n) => n.to_string(),
         serde_json::Value::Bool(b) => {
-            if b {
-                "1".to_string()
+            // Postgres boolean columns reject integer literals (SQLSTATE 42804)
+            // — emit TRUE/FALSE so dump/import round-trips. MySQL/SQLite accept
+            // 1/0 (and some configurations reject the keyword form), so keep the
+            // integer literal there.
+            if is_postgres_driver(driver) {
+                if b { "TRUE".to_string() } else { "FALSE".to_string() }
             } else {
-                "0".to_string()
+                if b { "1".to_string() } else { "0".to_string() }
             }
         } // Most SQL dialects
         serde_json::Value::String(s) => escape_sql_string(driver, &s),
@@ -908,14 +912,23 @@ mod tests {
             assert_eq!(escape_sql_value(driver, json!(null)), "NULL");
             assert_eq!(escape_sql_value(driver, json!(123)), "123");
             assert_eq!(escape_sql_value(driver, json!(12.34)), "12.34");
-            assert_eq!(escape_sql_value(driver, json!(true)), "1");
-            assert_eq!(escape_sql_value(driver, json!(false)), "0");
             assert_eq!(escape_sql_value(driver, json!("hello")), "'hello'");
             assert_eq!(escape_sql_value(driver, json!("O'Reilly")), "'O''Reilly'");
             assert_eq!(
                 escape_sql_value(driver, json!("Multi\nLine")),
                 "'Multi\nLine'"
             );
+        }
+        // Postgres boolean columns reject integer literals (SQLSTATE 42804) —
+        // the dump path must emit TRUE/FALSE so dump/import round-trips.
+        for pg_driver in ["postgres", "postgresql"] {
+            assert_eq!(escape_sql_value(pg_driver, json!(true)), "TRUE");
+            assert_eq!(escape_sql_value(pg_driver, json!(false)), "FALSE");
+        }
+        // MySQL/SQLite accept 1/0 for booleans.
+        for non_pg_driver in ["mysql", "sqlite"] {
+            assert_eq!(escape_sql_value(non_pg_driver, json!(true)), "1");
+            assert_eq!(escape_sql_value(non_pg_driver, json!(false)), "0");
         }
     }
 
