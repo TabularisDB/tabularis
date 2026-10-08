@@ -265,6 +265,7 @@ mod server_tests {
             super::super::server::AskpassOptions {
                 password: Some("account-secret".to_string()),
                 key_passphrase: Some("key-secret".to_string()),
+                key_path: Some("/tmp/id_ed25519".to_string()),
                 allow_ui: false,
             },
         )
@@ -272,15 +273,24 @@ mod server_tests {
 
         let passphrase = exchange(
             &server,
-            &encode_request(PromptKind::Secret, "Enter passphrase for key '/tmp/id_ed25519': "),
+            &encode_request(
+                PromptKind::Secret,
+                "Enter passphrase for key '/tmp/id_ed25519': ",
+            ),
         );
-        assert_eq!(decode_response(&passphrase), Some(Some("key-secret".to_string())));
+        assert_eq!(
+            decode_response(&passphrase),
+            Some(Some("key-secret".to_string()))
+        );
 
         let password = exchange(
             &server,
             &encode_request(PromptKind::Secret, "ploi@host's password: "),
         );
-        assert_eq!(decode_response(&password), Some(Some("account-secret".to_string())));
+        assert_eq!(
+            decode_response(&password),
+            Some(Some("account-secret".to_string()))
+        );
         assert!(ui.seen_prompts.lock().unwrap().is_empty());
     }
 
@@ -291,6 +301,7 @@ mod server_tests {
             ui.clone(),
             super::super::server::AskpassOptions {
                 key_passphrase: Some("key-secret".to_string()),
+                key_path: Some("/tmp/id_ed25519".to_string()),
                 allow_ui: false,
                 ..super::super::server::AskpassOptions::default()
             },
@@ -314,7 +325,10 @@ mod server_tests {
         assert!(ui.seen_prompts.lock().unwrap().is_empty());
 
         let authed = exchange(&server, &prompt);
-        assert_eq!(decode_response(&authed), Some(Some("key-secret".to_string())));
+        assert_eq!(
+            decode_response(&authed),
+            Some(Some("key-secret".to_string()))
+        );
     }
 
     #[test]
@@ -325,13 +339,14 @@ mod server_tests {
             super::super::server::AskpassOptions {
                 password: Some("account-secret".to_string()),
                 key_passphrase: Some("key-secret".to_string()),
+                key_path: Some("/tmp/id_ed25519".to_string()),
                 allow_ui: false,
             },
         )
         .expect("start server");
 
-        // Neither keyword matches, and both secrets are stored, so the prompt
-        // is ambiguous. It must be cancelled instead of disclosing either one.
+        // A PIN prompt is neither OpenSSH's local key prompt nor a password
+        // prompt, so neither stored secret may be disclosed.
         let reply = exchange(&server, &encode_request(PromptKind::Secret, "Enter PIN:"));
         assert_eq!(decode_response(&reply), Some(None));
         assert!(ui.seen_prompts.lock().unwrap().is_empty());

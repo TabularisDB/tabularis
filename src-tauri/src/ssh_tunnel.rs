@@ -276,8 +276,12 @@ impl SshTunnel {
         args.push("StrictHostKeyChecking=accept-new".to_string());
         args.push("-o".to_string());
         args.push(
-            batch_mode_arg(ssh_allow_passphrase_prompt, ssh_password, ssh_key_passphrase)
-                .to_string(),
+            batch_mode_arg(
+                ssh_allow_passphrase_prompt,
+                ssh_password,
+                ssh_key_passphrase,
+            )
+            .to_string(),
         );
 
         args.push(destination);
@@ -294,6 +298,7 @@ impl SshTunnel {
             &mut command,
             ssh_allow_passphrase_prompt,
             ssh_password,
+            ssh_key_file,
             ssh_key_passphrase,
         )?;
 
@@ -714,6 +719,7 @@ fn test_ssh_connection_system(
         &mut command,
         ssh_allow_passphrase_prompt,
         ssh_password,
+        ssh_key_file,
         ssh_key_passphrase,
     )?;
 
@@ -871,16 +877,19 @@ fn configure_askpass(
     command: &mut Command,
     ssh_allow_passphrase_prompt: bool,
     ssh_password: Option<&str>,
+    ssh_key_file: Option<&str>,
     ssh_key_passphrase: Option<&str>,
 ) -> Result<Option<crate::askpass::AskpassServer>, String> {
     let password = ssh_password.filter(|p| !p.trim().is_empty());
     let key_passphrase = ssh_key_passphrase.filter(|p| !p.trim().is_empty());
+    let key_path = ssh_key_file.filter(|p| !p.trim().is_empty());
     if !ssh_allow_passphrase_prompt && password.is_none() && key_passphrase.is_none() {
         return Ok(None);
     }
     let options = crate::askpass::AskpassOptions {
         password: password.map(str::to_string),
         key_passphrase: key_passphrase.map(str::to_string),
+        key_path: key_path.map(str::to_string),
         allow_ui: ssh_allow_passphrase_prompt,
     };
     match crate::askpass::start_frontend_server_with(options) {
