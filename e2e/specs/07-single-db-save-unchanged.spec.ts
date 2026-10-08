@@ -6,12 +6,13 @@
 //
 // This test creates a single-DB connection via the UI (using the connection
 // string field, which sets database to a plain string), then clicks Edit →
-// Save. The edit-init code sets loadAllDatabases=false and
-// selectedDatabasesState=[], so the validation fires.
+// Save. After the fix, the validation uses isOptedInMultiDb (which is false
+// for a plain-string database on a schema-based driver), so the error does
+// NOT appear and the save succeeds.
 import { waitForApp, clickSaveConnection, clickEditConnection } from "../helpers/navigation";
 
 describe("Finding #7: single-DB connection save unchanged", () => {
-  it("fails with 'Select at least one database' when saving an existing single-DB connection unchanged", async () => {
+  it("saves an existing single-DB connection unchanged without the spurious error", async () => {
     await waitForApp();
 
     // Open the catalogue and pick the plugin PostgreSQL card.
@@ -64,15 +65,17 @@ describe("Finding #7: single-DB connection save unchanged", () => {
     await clickEditConnection();
     await browser.pause(2000);
 
-    // Click Save without changing anything — the edit-init code sets
-    // loadAllDatabases=false and selectedDatabasesState=[], so isMultiDb
-    // validation fires: "Select at least one database".
+    // Click Save without changing anything. Before the fix, the edit-init
+    // code set loadAllDatabases=false and selectedDatabasesState=[], so
+    // isMultiDb validation fired: "Select at least one database". After the
+    // fix, isOptedInMultiDb is false for a plain-string database on a
+    // schema-based driver, so the validation is skipped and the save succeeds.
     await clickSaveConnection();
     await browser.pause(2000);
 
-    // Assert the error appears.
+    // Assert the error does NOT appear (the save succeeded).
     const err = await $('=Select at least one database');
     const present = await err.isExisting().catch(() => false);
-    expect(present).toBe(true);
+    expect(present).toBe(false);
   });
 });

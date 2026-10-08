@@ -664,6 +664,14 @@ export const NewConnectionModal = ({
   const isMultiDb =
     isFlatMultiDbDriver ||
     isSchemaBasedMultiDbCapable(activeDriver?.capabilities);
+  // Whether the connection has actually opted into database-selection browsing,
+  // not just whether the driver is *capable* of it. A traditional single-DB
+  // PostgreSQL connection (plain string database) has the capability but has
+  // NOT opted in — its save should keep the plain string, and the "Select at
+  // least one database" validation must not fire for it (finding #7).
+  const isOptedInMultiDb =
+    isFlatMultiDbDriver ||
+    hasOptedIntoDatabaseSelection(activeDriver?.capabilities, formData.database ?? "");
   const connectionStringExamples =
     activeDriver?.capabilities?.connection_string_examples ??
     activeDriver?.capabilities?.connectionStringExamples ??
@@ -2104,7 +2112,7 @@ export const NewConnectionModal = ({
           ...formData,
           port: formData.port != null ? Number(formData.port) : undefined,
           k8s_port: effectiveK8sPort,
-          database: isMultiDb
+          database: isOptedInMultiDb
             ? loadAllDatabases
               ? ""
               : (selectedDatabasesState[0] ??
@@ -2289,7 +2297,7 @@ export const NewConnectionModal = ({
         setTestResult("error");
         return;
       }
-      if (isMultiDb) {
+      if (isOptedInMultiDb) {
         if (!loadAllDatabases && selectedDatabasesState.length === 0) {
           setStatus("error");
           setMessage(t("newConnection.noDatabasesSelected"));
@@ -2319,7 +2327,7 @@ export const NewConnectionModal = ({
         ...formData,
         port: formData.port != null ? Number(formData.port) : undefined,
         k8s_port: effectiveK8sPort,
-        database: isMultiDb
+        database: isOptedInMultiDb
           ? loadAllDatabases
             ? // "All databases" mode: persisted as an empty database so the
               // list is fetched from the server on every connect.
