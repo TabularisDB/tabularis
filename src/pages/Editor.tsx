@@ -1055,9 +1055,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       generation: number,
       tabId?: string,
       tabSchema?: string,
+      tabDatabase?: string,
     ) => {
       if (!activeConnectionId) return;
       const effectiveSchema = tabSchema ?? activeSchema;
+      const effectiveDatabase = tabDatabase;
       const targetId = tabId || activeTabId;
       // A newer runQuery on this tab may have started (and kicked off its own
       // fetchPkColumn) while this call was still in flight — e.g. running two
@@ -1071,11 +1073,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             connectionId: activeConnectionId,
             tableName: table,
             ...(effectiveSchema ? { schema: effectiveSchema } : {}),
+            ...(effectiveDatabase ? { database: effectiveDatabase } : {}),
           }),
           invoke<ForeignKey[]>("get_foreign_keys", {
             connectionId: activeConnectionId,
             tableName: table,
             ...(effectiveSchema ? { schema: effectiveSchema } : {}),
+            ...(effectiveDatabase ? { database: effectiveDatabase } : {}),
           }).catch((e) => {
             console.warn("Failed to fetch foreign keys:", e);
             return [] as ForeignKey[];
@@ -1259,11 +1263,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         targetTab?.type === "console" || targetTab?.type === "query_builder";
 
       const schema = targetTab?.schema ?? activeSchema;
-      // For history: fall back to activeDatabaseName for multi-db connections
-      // where schema may not be set on the tab
-      const historyDb = schema
-        || (isMultiDb ? activeDatabaseName : undefined)
-        || undefined;
+      // For history: store the tab's database (not the schema) so replay
+      // reopens the tab scoped to the right database. The schema is NOT the
+      // database — storing it as `database` made replay open the primary
+      // instead of the source database (finding #6).
+      const historyDb = targetTab?.database
+        ?? (isMultiDb ? activeDatabaseName : undefined)
+        ?? schema
+        ?? undefined;
 
       try {
         const start = performance.now();
@@ -1381,7 +1388,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
           if (tableName) {
             // Fetch column metadata in the background; tab updates when ready
-            fetchPkColumn(tableName, generation, targetTabId, targetTab?.schema ?? undefined);
+            fetchPkColumn(tableName, generation, targetTabId, targetTab?.schema ?? undefined, targetTab?.database);
           } else {
             updateTab(targetTabId, { pkColumns: null });
           }
@@ -1484,9 +1491,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         settings.resultPageSize,
       );
       const schema = targetTab?.schema ?? activeSchema;
-      const historyDb = schema
-        || (isMultiDb ? activeDatabaseName : undefined)
-        || undefined;
+      const historyDb = targetTab?.database
+        ?? (isMultiDb ? activeDatabaseName : undefined)
+        ?? schema
+        ?? undefined;
 
       // Entry ids are reused per tab, so drop offsets from the previous run.
       clearEntryScrollTops(targetTabId);
@@ -2527,6 +2535,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         type: "table",
         activeTable: fk.ref_table,
         schema: targetSchema,
+        database: currentTab.database,
         filterClause,
         // Reset clauses that may linger on an existing dedup'd tab
         sortClause: "",
@@ -2918,6 +2927,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         connectionId: activeConnectionId,
         tableName: activeTab.activeTable,
         ...(activeSchema ? { schema: activeSchema } : {}),
+        ...(activeTab.database ? { database: activeTab.database } : {}),
       });
 
       if (!columns || columns.length === 0) {
@@ -3088,6 +3098,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           connectionId: activeConnectionId,
           tableName: activeTable,
           ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(activeTab?.database ? { database: activeTab.database } : {}),
         });
 
         const selectedDisplayIndices = new Set<number>();

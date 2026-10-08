@@ -43,7 +43,7 @@ describe("Finding #1: editing a secondary-db row", () => {
       return (window as any).__e2e_pendingChange(0, 3, "EDITED-10");
     });
     expect(staged).toBe(true);
-    await browser.pause(1000);
+    await browser.pause(2000);
 
     // Submit the changes.
     await clickSubmitChanges();

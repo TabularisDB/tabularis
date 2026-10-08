@@ -1007,7 +1007,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
               recoveryNotice={historyRecoveryNotice}
               onDismissRecoveryNotice={dismissHistoryRecoveryNotice}
               onDoubleClick={(entry) => {
-                runQuery(entry.sql, undefined, false, entry.database ?? undefined);
+                runQuery(entry.sql, undefined, false, undefined, entry.database ?? undefined);
               }}
               onContextMenu={(e, entry) => {
                 handleContextMenu(e, "history", entry.id, entry.sql, entry as unknown as ContextMenuData);
@@ -2786,17 +2786,17 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   {
                                     label: t("sidebar.insertToEditor"),
                                     icon: FileInput,
-                                    action: () => runQuery(historyEntry.sql, undefined, true, historyEntry.database ?? undefined),
+                                    action: () => runQuery(historyEntry.sql, undefined, true, undefined, historyEntry.database ?? undefined),
                                   },
                                   {
                                     label: t("sidebar.runQuery"),
                                     icon: Play,
-                                    action: () => runQuery(historyEntry.sql, undefined, false, historyEntry.database ?? undefined),
+                                    action: () => runQuery(historyEntry.sql, undefined, false, undefined, historyEntry.database ?? undefined),
                                   },
                                   {
                                     label: t("sidebar.openInNewTab"),
                                     icon: Plus,
-                                    action: () => runQuery(historyEntry.sql, undefined, true, historyEntry.database ?? undefined),
+                                    action: () => runQuery(historyEntry.sql, undefined, true, undefined, historyEntry.database ?? undefined),
                                   },
                                   {
                                     label: t("sidebar.addToFavorites"),
