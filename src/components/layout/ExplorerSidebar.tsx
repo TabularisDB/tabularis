@@ -217,7 +217,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [schemaModal, setSchemaModal] =
     useState<TableTarget | null>(null);
   const [runRoutineModal, setRunRoutineModal] = useState<{ routine: RoutineInfo; schema?: string } | null>(null);
-  const [routineDropConfirm, setRoutineDropConfirm] = useState<{ name: string; routineType: string; schema?: string } | null>(null);
+  const [routineDropConfirm, setRoutineDropConfirm] = useState<{ name: string; routineType: string; schema?: string; identityArgs?: string } | null>(null);
   const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
   const [createTableTarget, setCreateTableTarget] = useState<CreateTableTarget>(DEFAULT_CREATE_TABLE_TARGET);
   const [isClipboardImportOpen, setIsClipboardImportOpen] = useState(false);
@@ -466,7 +466,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
 
   const handleDropRoutine = async () => {
     if (!routineDropConfirm) return;
-    const { name, routineType, schema } = routineDropConfirm;
+    const { name, routineType, schema, identityArgs } = routineDropConfirm;
     setRoutineDropConfirm(null);
     try {
       await invoke("drop_routine", {
@@ -474,6 +474,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         routineName: name,
         routineType,
         ...(schema ? { schema } : {}),
+        // Named, this drops the overload that was clicked. Unnamed, the driver
+        // refuses as soon as the name has more than one, which is what it used
+        // to do for every overloaded routine (#893).
+        ...(identityArgs !== undefined ? { identityArgs } : {}),
       });
       showAlert(t("routines.dropSuccess", { name }), { kind: "info" });
       if (refreshRoutines) refreshRoutines();
@@ -2292,6 +2296,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       },
                                       routineSchema,
                                     );
+                                    /* The fallback carries no signature, and
+                                       cannot: it is built from a name alone. It
+                                       is only reached when the menu was opened
+                                       without the row's data. */
                                   },
                                 },
                                 canManageRoutines ? {
@@ -2304,6 +2312,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         routineName: contextMenu.id,
                                         routineType: routineType,
                                         ...(routineSchema ? { schema: routineSchema } : {}),
+                                        ...(routineData?.identity_args !== undefined
+                                          ? { identityArgs: routineData.identity_args }
+                                          : {}),
                                       });
                                       runQuery(script, `${contextMenu.id} Edit`, true, routineSchema);
                                     } catch (e) {
@@ -2324,6 +2335,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       name: contextMenu.id,
                                       routineType,
                                       schema: routineSchema,
+                                      identityArgs: routineData?.identity_args,
                                     });
                                   },
                                 } : null,

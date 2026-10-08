@@ -87,6 +87,7 @@ async fn parity_drop_routine() {
                 "parity_drop_fn",
                 "FUNCTION",
                 Some("test_schema"),
+                None,
             )
             .await
             .unwrap_or_else(|e| panic!("drop_routine failed on {}: {}", target, e));

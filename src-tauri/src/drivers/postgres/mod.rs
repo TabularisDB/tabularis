@@ -1601,25 +1601,36 @@ pub async fn get_routines(
     .try_get("v")
     .unwrap_or(0);
 
+    // `pg_get_function_identity_arguments` comes along so the sidebar can tell
+    // overloads apart. Without it a name was the whole identity: four functions
+    // called `f` arrived as four identical rows, and every read that followed a
+    // click fell back to `LIMIT 1` (#893). The ORDER BY takes the signature as
+    // a second key so the order is stable rather than whatever the scan returns.
     let query = if server_version_num >= 110000 {
         r#"
-            SELECT proname, prokind
+            SELECT
+                proname,
+                prokind,
+                pg_get_function_identity_arguments(oid) AS identity_args
             FROM pg_proc
             WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1)
             AND prokind IN ('f', 'p')
-            ORDER BY proname
+            ORDER BY proname, identity_args
         "#
     } else {
         // Pre-11: procedures don't exist; exclude aggregates and window
         // functions and report everything else as a plain function ('f').
         // Cast to the internal "char" type so it maps to i8 like prokind.
         r#"
-            SELECT proname, 'f'::"char" AS prokind
+            SELECT
+                proname,
+                'f'::"char" AS prokind,
+                pg_get_function_identity_arguments(oid) AS identity_args
             FROM pg_proc
             WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1)
             AND NOT proisagg
             AND NOT proiswindow
-            ORDER BY proname
+            ORDER BY proname, identity_args
         "#
     };
 
@@ -1638,32 +1649,67 @@ pub async fn get_routines(
                 name: r.try_get("proname").unwrap_or_default(),
                 routine_type: routine_type.to_string(),
                 definition: None,
+                // Always Some on this driver, including the empty string a
+                // no-argument routine has: that empty signature is what tells
+                // `f()` apart from `f(a integer)`, so it is a value and not an
+                // absence. `None` would mean "this dialect does not overload".
+                identity_args: Some(r.try_get("identity_args").unwrap_or_default()),
             }
         })
         .collect())
 }
 
+/// One routine's parameters, and its return type where it is a function.
+///
+/// Both reads are keyed on `specific_name` when the caller passes a signature.
+/// Filtered on schema and name alone, as they used to be, the return type came
+/// from `LIMIT 1` over the overloads and the parameter join came back with ALL
+/// of their parameters in one list: measured on PostgreSQL 18, three overloads
+/// of `f` answered four rows, two of them at `ordinal_position` 1 with
+/// different types. So the Run dialog could offer one overload's arguments
+/// under another's name, and did (#893).
 pub async fn get_routine_parameters(
     params: &ConnectionParams,
     routine_name: &str,
     schema: &str,
+    identity_args: Option<&str>,
 ) -> Result<Vec<RoutineParameter>, String> {
     let pool = get_postgres_pool(params).await?;
-
-    // 1. Get return type for functions
-    let return_type_query = r#"
-            SELECT data_type, routine_type
-            FROM information_schema.routines
-            WHERE routine_schema = $1 AND routine_name = $2
-            LIMIT 1
-        "#;
-
     let client = pool.get().await.map_err(|e| e.to_string())?;
 
-    let routine_info = client
-        .query_opt(return_type_query, &[&schema, &routine_name])
-        .await
-        .map_err(|e| format_pg_error(&e))?;
+    // `information_schema` cannot be reached from a signature, so the key it
+    // CAN be filtered by is derived from `pg_proc` first. A signature that
+    // names nothing leaves this None and both reads fall back to the old
+    // name-only form rather than answering about no routine at all.
+    let specific_name: Option<String> = match identity_args {
+        Some(identity) => client
+            .query_opt(
+                routines::ROUTINE_SPECIFIC_NAME_SQL,
+                &[&schema, &routine_name, &identity],
+            )
+            .await
+            .map_err(|e| format_pg_error(&e))?
+            .and_then(|row| row.try_get("specific_name").ok()),
+        None => None,
+    };
+
+    // 1. Get return type for functions
+    let routine_info = match specific_name.as_deref() {
+        Some(specific) => client
+            .query_opt(
+                routines::routine_return_type_sql(true),
+                &[&schema, &specific],
+            )
+            .await
+            .map_err(|e| format_pg_error(&e))?,
+        None => client
+            .query_opt(
+                routines::routine_return_type_sql(false),
+                &[&schema, &routine_name],
+            )
+            .await
+            .map_err(|e| format_pg_error(&e))?,
+    };
 
     let mut parameters = Vec::new();
 
@@ -1685,18 +1731,19 @@ pub async fn get_routine_parameters(
     }
 
     // 2. Get parameters
-    let query = r#"
-            SELECT p.parameter_name, p.data_type, p.parameter_mode, p.ordinal_position
-            FROM information_schema.parameters p
-            JOIN information_schema.routines r ON p.specific_name = r.specific_name
-            WHERE r.routine_schema = $1 AND r.routine_name = $2
-            ORDER BY p.ordinal_position
-        "#;
-
-    let rows = client
-        .query(query, &[&schema, &routine_name])
-        .await
-        .map_err(|e| format_pg_error(&e))?;
+    let rows = match specific_name.as_deref() {
+        Some(specific) => client
+            .query(routines::routine_parameters_sql(true), &[&schema, &specific])
+            .await
+            .map_err(|e| format_pg_error(&e))?,
+        None => client
+            .query(
+                routines::routine_parameters_sql(false),
+                &[&schema, &routine_name],
+            )
+            .await
+            .map_err(|e| format_pg_error(&e))?,
+    };
 
     parameters.extend(rows.iter().map(|r| RoutineParameter {
         name: r.try_get("parameter_name").unwrap_or_default(),
@@ -1708,23 +1755,46 @@ pub async fn get_routine_parameters(
     Ok(parameters)
 }
 
+/// One routine's `CREATE OR REPLACE` statement.
+///
+/// A schema and a name do not identify a routine in PostgreSQL, they identify
+/// a set of overloads, so this used to take `LIMIT 1` out of that set and
+/// answer about whichever row the scan returned: measured on 18, four
+/// functions named `f` and View Definition showed `f()` for all of them (#893).
+///
+/// `identity_args` is the signature `get_routines` reported for the row the
+/// user clicked, and filtering on it picks exactly that routine. It is compared
+/// as a string against the catalog's own rendering of the same thing, so the
+/// two can only agree, and the empty string is the real signature of a
+/// no-argument routine rather than a missing value. `None` keeps the old
+/// lookup, for the callers that have no signature to pass.
 pub async fn get_routine_definition(
     params: &ConnectionParams,
     routine_name: &str,
     _routine_type: &str,
     schema: &str,
+    identity_args: Option<&str>,
 ) -> Result<String, String> {
     let pool = get_postgres_pool(params).await?;
 
-    let query = r#"
-            SELECT pg_get_functiondef(p.oid) as definition
-            FROM pg_proc p
-            JOIN pg_namespace n ON p.pronamespace = n.oid
-            WHERE n.nspname = $1 AND p.proname = $2
-            LIMIT 1
-        "#;
-
-    let row = query_one(&pool, &query, &[&schema, &routine_name]).await?;
+    let row = match identity_args {
+        Some(identity) => {
+            query_one(
+                &pool,
+                routines::routine_definition_sql(true),
+                &[&schema, &routine_name, &identity],
+            )
+            .await?
+        }
+        None => {
+            query_one(
+                &pool,
+                routines::routine_definition_sql(false),
+                &[&schema, &routine_name],
+            )
+            .await?
+        }
+    };
 
     let definition: String = row.try_get("definition").unwrap_or_default();
     Ok(definition)
@@ -1738,8 +1808,31 @@ pub async fn drop_routine(
     routine_name: &str,
     routine_type: &str,
     schema: &str,
+    identity_args: Option<&str>,
 ) -> Result<(), String> {
     let pool = get_postgres_pool(params).await?;
+
+    // The signature the caller clicked, where it has one. Before #893 nothing
+    // reached here but a name, so a name with overloads had no answer but to
+    // refuse and tell the reader to go and write the DROP themselves.
+    if let Some(identity) = identity_args {
+        let exists = query_all(
+            &pool,
+            routines::routine_exists_sql(),
+            &[&schema, &routine_name, &identity],
+        )
+        .await?;
+
+        if exists.is_empty() {
+            return Err(format!(
+                "Routine '{}({})' not found in schema '{}'",
+                routine_name, identity, schema
+            ));
+        }
+
+        let sql = routines::drop_routine_sql(routine_name, routine_type, identity, Some(schema));
+        return execute(&pool, &sql, &[]).await.map(|_| ());
+    }
 
     let query = r#"
             SELECT pg_get_function_identity_arguments(p.oid) AS args
@@ -2193,8 +2286,15 @@ impl DatabaseDriver for PostgresDriver {
         params: &crate::models::ConnectionParams,
         routine_name: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<Vec<crate::models::RoutineParameter>, String> {
-        get_routine_parameters(params, routine_name, self.resolve_schema(schema)).await
+        get_routine_parameters(
+            params,
+            routine_name,
+            self.resolve_schema(schema),
+            identity_args,
+        )
+        .await
     }
 
     async fn get_routine_definition(
@@ -2203,12 +2303,14 @@ impl DatabaseDriver for PostgresDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<String, String> {
         get_routine_definition(
             params,
             routine_name,
             routine_type,
             self.resolve_schema(schema),
+            identity_args,
         )
         .await
     }
@@ -2249,8 +2351,16 @@ impl DatabaseDriver for PostgresDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<(), String> {
-        drop_routine(params, routine_name, routine_type, self.resolve_schema(schema)).await
+        drop_routine(
+            params,
+            routine_name,
+            routine_type,
+            self.resolve_schema(schema),
+            identity_args,
+        )
+        .await
     }
 
     async fn get_triggers(

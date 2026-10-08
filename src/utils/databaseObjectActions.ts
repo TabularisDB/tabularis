@@ -45,6 +45,8 @@ export interface RoutineDefinitionTarget {
   routineName: string;
   routineType: string;
   schema?: string;
+  /** The clicked overload's signature, where the dialect has overloads (#893). */
+  identityArgs?: string;
 }
 
 export interface TriggerDefinitionTarget {
@@ -80,6 +82,8 @@ export interface ViewDatabaseObject
 export interface RoutineDatabaseObject extends DatabaseObjectBase {
   type: "routine";
   routineType: string;
+  /** The clicked overload's signature, where the dialect has overloads (#893). */
+  identityArgs?: string;
 }
 
 export interface TriggerDatabaseObject extends DatabaseObjectBase {
@@ -155,6 +159,9 @@ export async function openObjectDefinition(
             routineName: object.name,
             routineType: object.routineType,
             ...schemaParam,
+            ...(object.identityArgs !== undefined
+              ? { identityArgs: object.identityArgs }
+              : {}),
           })
         : await runtime.loadTriggerDefinition({
             connectionId: object.connectionId,
@@ -270,6 +277,12 @@ export function loadRoutineDefinition(
     routineName: target.routineName,
     routineType: target.routineType,
     ...(target.schema ? { schema: target.schema } : {}),
+    // `!== undefined` rather than truthiness: "" is the signature of a
+    // no-argument routine, and dropping it would ask for an arbitrary overload
+    // again on exactly the routine that has none.
+    ...(target.identityArgs !== undefined
+      ? { identityArgs: target.identityArgs }
+      : {}),
   });
 }
 

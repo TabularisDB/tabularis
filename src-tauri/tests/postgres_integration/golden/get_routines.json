@@ -2,26 +2,31 @@
   {
     "name": "add_numbers",
     "routine_type": "FUNCTION",
-    "definition": null
+    "definition": null,
+    "identity_args": "a integer, b integer"
   },
   {
     "name": "add_numbers",
     "routine_type": "FUNCTION",
-    "definition": null
+    "definition": null,
+    "identity_args": "a integer, b integer, c integer"
   },
   {
     "name": "audit_trigger_fn",
     "routine_type": "FUNCTION",
-    "definition": null
+    "definition": null,
+    "identity_args": ""
   },
   {
     "name": "get_user",
     "routine_type": "FUNCTION",
-    "definition": null
+    "definition": null,
+    "identity_args": "uid integer"
   },
   {
     "name": "reset_orders",
     "routine_type": "PROCEDURE",
-    "definition": null
+    "definition": null,
+    "identity_args": ""
   }
 ]

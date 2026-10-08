@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupRoutinesByType, type GroupedRoutines } from '../../src/utils/routines';
+import { groupRoutinesByType, routineLabel, type GroupedRoutines } from '../../src/utils/routines';
 import type { RoutineInfo } from '../../src/contexts/DatabaseContext';
 
 describe('groupRoutinesByType', () => {
@@ -46,5 +46,40 @@ describe('groupRoutinesByType', () => {
       ],
     };
     expect(groupRoutinesByType(routines)).toEqual(expected);
+  });
+});
+
+describe('routineLabel', () => {
+  it('shows a bare name where the dialect cannot overload', () => {
+    // MySQL and SQLite report no signature, and adding '()' there would claim a
+    // distinction the dialect does not have.
+    expect(routineLabel('do_thing', undefined)).toBe('do_thing');
+  });
+
+  it('shows empty parentheses for a routine that takes no arguments', () => {
+    // The empty signature is a VALUE: it is what tells f() apart from f(a int).
+    expect(routineLabel('f', '')).toBe('f()');
+  });
+
+  it('shows the signature so overloads are distinguishable', () => {
+    expect(routineLabel('f', 'a integer')).toBe('f(a integer)');
+    expect(routineLabel('f', 'a text')).toBe('f(a text)');
+    expect(routineLabel('f', 'a integer, b integer')).toBe('f(a integer, b integer)');
+  });
+
+  it('gives four overloads of one name four different labels', () => {
+    // The defect in one assertion: these four used to render identically.
+    const labels = ['', 'a integer', 'a text', 'a integer, b integer'].map((args) =>
+      routineLabel('f', args),
+    );
+    expect(new Set(labels).size).toBe(4);
+  });
+
+  it('keeps the argument modes PostgreSQL renders, rather than tidying them away', () => {
+    // A procedure's signature carries an IN prefix and a function's can carry
+    // OUT. Both are what DROP and ALTER accept, so the label shows what the
+    // catalog said rather than a prettier version of it.
+    expect(routineLabel('p', 'IN a integer')).toBe('p(IN a integer)');
+    expect(routineLabel('g', 'a integer, OUT b integer')).toBe('g(a integer, OUT b integer)');
   });
 });

@@ -548,11 +548,18 @@ pub trait DatabaseDriver: Send + Sync {
         schema: Option<&str>,
     ) -> Result<Vec<RoutineInfo>, String>;
 
+    /// `identity_args` narrows the lookup to ONE routine where a name is not
+    /// enough to name one. PostgreSQL overloads, so a schema and a name there
+    /// identify a set, and every read below used to take `LIMIT 1` out of it
+    /// and answer about whichever row came back (#893). Carries the signature
+    /// `get_routines` reported for the row the user clicked; `None` asks for
+    /// the old behaviour, still right on the dialects that cannot overload.
     async fn get_routine_parameters(
         &self,
         params: &ConnectionParams,
         routine_name: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<Vec<RoutineParameter>, String>;
 
     async fn get_routine_definition(
@@ -561,6 +568,7 @@ pub trait DatabaseDriver: Send + Sync {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<String, String>;
 
     // --- Routine management (gated by `DriverCapabilities::routine_management`)
@@ -618,8 +626,9 @@ pub trait DatabaseDriver: Send + Sync {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<String, String> {
-        self.get_routine_definition(params, routine_name, routine_type, schema)
+        self.get_routine_definition(params, routine_name, routine_type, schema, identity_args)
             .await
     }
 
@@ -632,6 +641,9 @@ pub trait DatabaseDriver: Send + Sync {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        /* Unused by the generic statement: a dialect that needs a signature to
+           name one routine overrides this, as the PostgreSQL driver does */
+        _identity_args: Option<&str>,
     ) -> Result<(), String> {
         let sql = crate::drivers::common::generic_drop_routine_sql(
             routine_name,

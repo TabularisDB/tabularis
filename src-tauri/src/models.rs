@@ -592,6 +592,13 @@ pub struct RoutineInfo {
     pub name: String,
     pub routine_type: String, // "PROCEDURE" | "FUNCTION"
     pub definition: Option<String>,
+    /// The routine's argument signature, where the dialect needs one to tell
+    /// two routines of the same name apart. PostgreSQL does: a name alone
+    /// identifies a set of overloads rather than a routine, so every read that
+    /// followed a click had to pick one of them arbitrarily (#893). Carries the
+    /// output of `pg_get_function_identity_arguments`, which is what `DROP`,
+    /// `ALTER` and a catalog lookup all accept. `None` where a name is enough.
+    pub identity_args: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

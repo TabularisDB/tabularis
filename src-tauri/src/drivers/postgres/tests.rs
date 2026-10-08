@@ -1407,3 +1407,322 @@ mod pg_vector_binding_tests {
         assert!(err.contains("Invalid vector value"), "{err}");
     }
 }
+
+/// The catalog lookups that identify ONE routine out of a name's overloads (#893).
+///
+/// Pure string builders, so what is asserted is the shape of the predicate: a
+/// signature-keyed lookup names one row and must not fall back to `LIMIT 1`,
+/// which is what silently answered about an arbitrary overload before.
+mod routine_overload_sql_tests {
+    use super::super::routines::{
+        routine_definition_sql, routine_exists_sql, routine_parameters_sql,
+        routine_return_type_sql, ROUTINE_SPECIFIC_NAME_SQL,
+    };
+
+    #[test]
+    fn definition_by_identity_filters_on_the_signature() {
+        let sql = routine_definition_sql(true);
+        assert!(sql.contains("pg_get_function_identity_arguments(p.oid) = $3"));
+        assert!(sql.contains("pg_get_functiondef(p.oid)"));
+    }
+
+    #[test]
+    fn definition_by_identity_takes_no_limit() {
+        // A LIMIT here would mean the signature had not actually narrowed it.
+        assert!(!routine_definition_sql(true)
+            .to_uppercase()
+            .contains("LIMIT"));
+    }
+
+    #[test]
+    fn definition_without_an_identity_keeps_the_old_lookup() {
+        let sql = routine_definition_sql(false);
+        assert!(sql.to_uppercase().contains("LIMIT 1"));
+        assert!(!sql.contains("pg_get_function_identity_arguments"));
+    }
+
+    #[test]
+    fn the_two_definition_forms_are_not_the_same_statement() {
+        assert_ne!(routine_definition_sql(true), routine_definition_sql(false));
+    }
+
+    #[test]
+    fn exists_check_is_keyed_on_all_three_parts() {
+        let sql = routine_exists_sql();
+        assert!(sql.contains("n.nspname = $1"));
+        assert!(sql.contains("p.proname = $2"));
+        assert!(sql.contains("pg_get_function_identity_arguments(p.oid) = $3"));
+    }
+
+    #[test]
+    fn specific_name_is_derived_from_pg_proc_and_the_signature() {
+        // information_schema offers no way to reach specific_name from a
+        // signature, so it is built from the name and the OID. Verified against
+        // information_schema.routines on PostgreSQL 18 over four overloads.
+        assert!(ROUTINE_SPECIFIC_NAME_SQL.contains("p.proname || '_' || p.oid"));
+        assert!(
+            ROUTINE_SPECIFIC_NAME_SQL.contains("pg_get_function_identity_arguments(p.oid) = $3")
+        );
+    }
+
+    #[test]
+    fn return_type_by_specific_name_drops_the_limit() {
+        let sql = routine_return_type_sql(true);
+        assert!(sql.contains("r.specific_name = $2"));
+        assert!(!sql.to_uppercase().contains("LIMIT"));
+    }
+
+    #[test]
+    fn return_type_without_one_keeps_the_old_lookup() {
+        let sql = routine_return_type_sql(false);
+        assert!(sql.to_uppercase().contains("LIMIT 1"));
+        assert!(!sql.contains("specific_name"));
+    }
+
+    #[test]
+    fn parameters_by_specific_name_need_no_join() {
+        // The join on routines existed only to filter by routine_name, which is
+        // what let every overload's parameters into one list.
+        let sql = routine_parameters_sql(true);
+        assert!(sql.contains("p.specific_name = $2"));
+        assert!(sql.contains("p.specific_schema = $1"));
+        assert!(!sql.to_uppercase().contains("JOIN"));
+    }
+
+    #[test]
+    fn parameters_without_one_keep_the_old_join() {
+        let sql = routine_parameters_sql(false);
+        assert!(sql.to_uppercase().contains("JOIN"));
+        assert!(sql.contains("r.routine_name = $2"));
+    }
+
+    #[test]
+    fn every_form_still_orders_parameters_by_position() {
+        for sql in [routine_parameters_sql(true), routine_parameters_sql(false)] {
+            assert!(sql.contains("ORDER BY p.ordinal_position"));
+        }
+    }
+}
+
+/// Overloaded routines, against a real server (#893).
+///
+/// These are the assertions the pure tests above cannot make: that the
+/// signature the sidebar reports and the one the catalog renders are the same
+/// string, so filtering on it reaches exactly the routine the user clicked.
+///   TABULARIS_TEST_PG=1 cargo test --lib live_pg_routine_overloads -- --ignored
+#[cfg(test)]
+mod live_pg_routine_overloads {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+
+    fn test_params() -> Option<ConnectionParams> {
+        if std::env::var("TABULARIS_TEST_PG").is_err() {
+            return None;
+        }
+        Some(ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some(
+                std::env::var("TABULARIS_TEST_PG_HOST").unwrap_or_else(|_| "localhost".to_string()),
+            ),
+            port: std::env::var("TABULARIS_TEST_PG_PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .or(Some(55432)),
+            username: Some(
+                std::env::var("TABULARIS_TEST_PG_USER").unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            password: Some(
+                std::env::var("TABULARIS_TEST_PG_PASSWORD")
+                    .unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            database: DatabaseSelection::Single(
+                std::env::var("TABULARIS_TEST_PG_DB").unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            ..Default::default()
+        })
+    }
+
+    /// One schema per test, because `cargo test` runs them in parallel and a
+    /// shared one races on its own CREATE: three of four lost that race before
+    /// this took the name as an argument.
+    async fn seed(params: &ConnectionParams, schema: &str) {
+        let pool = crate::pool_manager::get_postgres_pool(params)
+            .await
+            .expect("connect to test postgres");
+        let client = pool.get().await.expect("get client");
+        client
+            .batch_execute(&format!(
+                "DROP SCHEMA IF EXISTS {schema} CASCADE;
+                 CREATE SCHEMA {schema};
+                 CREATE FUNCTION {schema}.f() RETURNS integer LANGUAGE sql AS $$ SELECT 0 $$;
+                 CREATE FUNCTION {schema}.f(a integer) RETURNS integer LANGUAGE sql AS $$ SELECT a + 1 $$;
+                 CREATE FUNCTION {schema}.f(a text) RETURNS text LANGUAGE sql AS $$ SELECT a || '!' $$;
+                 CREATE FUNCTION {schema}.f(a integer, b integer) RETURNS integer LANGUAGE sql AS $$ SELECT a + b $$;
+                 CREATE PROCEDURE {schema}.p(a integer) LANGUAGE plpgsql AS $$ BEGIN RAISE NOTICE '%', a; END $$;"
+            ))
+            .await
+            .expect("seed schema");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_routine_overloads_are_listed_one_row_each_with_a_signature() {
+        let Some(params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+        let schema = "tabularis_893_list";
+        seed(&params, schema).await;
+
+        let routines = super::super::get_routines(&params, schema)
+            .await
+            .expect("list routines");
+
+        let f: Vec<_> = routines.iter().filter(|r| r.name == "f").collect();
+        assert_eq!(f.len(), 4, "four overloads of f");
+
+        // The signature is what tells them apart, and the empty one is a value:
+        // it is the signature of f(), not a missing field.
+        let mut signatures: Vec<&str> = f
+            .iter()
+            .map(|r| {
+                r.identity_args
+                    .as_deref()
+                    .expect("a signature per overload")
+            })
+            .collect();
+        signatures.sort_unstable();
+        assert_eq!(
+            signatures,
+            vec!["", "a integer", "a integer, b integer", "a text"]
+        );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_definition_follows_the_signature_rather_than_limit_one() {
+        let Some(params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+        let schema = "tabularis_893_def";
+        seed(&params, schema).await;
+
+        // Each overload asked for by its own signature answers its own body.
+        for (identity, body) in [
+            ("a integer", "SELECT a + 1"),
+            ("a text", "SELECT a || '!'"),
+            ("a integer, b integer", "SELECT a + b"),
+            ("", "SELECT 0"),
+        ] {
+            let definition = super::super::get_routine_definition(
+                &params,
+                "f",
+                "FUNCTION",
+                schema,
+                Some(identity),
+            )
+            .await
+            .unwrap_or_else(|e| panic!("definition for f({identity}): {e}"));
+            assert!(
+                definition.contains(body),
+                "f({identity}) answered the wrong overload: {definition}"
+            );
+        }
+
+        // Without a signature it is still the pre-#893 read, which answers about
+        // whichever row the scan returns. Asserted as "one of them" rather than
+        // a particular one, because which it is was never a promise.
+        let any = super::super::get_routine_definition(&params, "f", "FUNCTION", schema, None)
+            .await
+            .expect("definition without a signature");
+        assert!(any.contains(&format!("CREATE OR REPLACE FUNCTION {schema}.f")));
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_parameters_are_one_overloads_own() {
+        let Some(params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+        let schema = "tabularis_893_params";
+        seed(&params, schema).await;
+
+        // f(a integer, b integer) has two parameters plus the return row.
+        let two = super::super::get_routine_parameters(
+            &params,
+            "f",
+            schema,
+            Some("a integer, b integer"),
+        )
+        .await
+        .expect("parameters for f(a integer, b integer)");
+        let names: Vec<&str> = two
+            .iter()
+            .filter(|p| !p.name.is_empty())
+            .map(|p| p.name.as_str())
+            .collect();
+        assert_eq!(names, vec!["a", "b"]);
+
+        // f(a text) has one, and it is a text one: with the old name-only filter
+        // this list carried every overload's parameters at once.
+        let one = super::super::get_routine_parameters(&params, "f", schema, Some("a text"))
+            .await
+            .expect("parameters for f(a text)");
+        let typed: Vec<(&str, &str)> = one
+            .iter()
+            .filter(|p| !p.name.is_empty())
+            .map(|p| (p.name.as_str(), p.data_type.as_str()))
+            .collect();
+        assert_eq!(typed, vec![("a", "text")]);
+
+        // f() has none.
+        let none = super::super::get_routine_parameters(&params, "f", schema, Some(""))
+            .await
+            .expect("parameters for f()");
+        assert!(
+            none.iter().all(|p| p.name.is_empty()),
+            "f() takes no arguments"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_drop_takes_the_named_overload_and_leaves_the_rest() {
+        let Some(params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+        let schema = "tabularis_893_drop";
+        seed(&params, schema).await;
+
+        super::super::drop_routine(&params, "f", "FUNCTION", schema, Some("a text"))
+            .await
+            .expect("drop f(a text)");
+
+        let left = super::super::get_routines(&params, schema)
+            .await
+            .expect("list routines");
+        let mut signatures: Vec<&str> = left
+            .iter()
+            .filter(|r| r.name == "f")
+            .map(|r| r.identity_args.as_deref().unwrap_or("?"))
+            .collect();
+        signatures.sort_unstable();
+        assert_eq!(signatures, vec!["", "a integer", "a integer, b integer"]);
+
+        // A signature the server does not have is refused rather than dropping
+        // something else, which is the whole point of naming one.
+        let refused =
+            super::super::drop_routine(&params, "f", "FUNCTION", schema, Some("a text")).await;
+        assert!(
+            refused.is_err(),
+            "a missing overload must not be a silent no-op"
+        );
+
+        // A procedure's signature carries an IN prefix, and DROP accepts it.
+        super::super::drop_routine(&params, "p", "PROCEDURE", schema, Some("IN a integer"))
+            .await
+            .expect("drop p(IN a integer)");
+    }
+}
