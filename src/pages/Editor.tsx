@@ -2536,6 +2536,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         activeTable: fk.ref_table,
         schema: targetSchema,
         database: currentTab.database,
+        title: currentTab.database
+          ? `${fk.ref_table} (${currentTab.database}${targetSchema ? `.${targetSchema}` : ""})`
+          : fk.ref_table,
         filterClause,
         // Reset clauses that may linger on an existing dedup'd tab
         sortClause: "",
@@ -3612,6 +3615,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     database: activeTab?.database,
     enabled: !isNotebookTab && !isUsersTab,
   });
+
+  // E2E: expose a submit-changes hook for tauri-wd tests. The WDIO
+  // element.click() on the Submit button doesn't reliably trigger React's
+  // onClick in WKWebView, so the test calls this directly. This mirrors
+  // handleSubmitChanges: builds the update from the DataGrid's
+  // pendingChanges and rowIdentity, calling update_record for each.
+  (window as unknown as Record<string, unknown>).__e2e_submitChanges = handleSubmitChanges;
 
   useEffect(() => {
     const intent = parseEditorNavigationIntent(

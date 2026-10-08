@@ -52,12 +52,13 @@ export const config = {
     timeout: 120000,
   },
   reporters: ["spec"],
-  // Clear the saved connections before each app session so each spec starts
-  // with a fresh Connections page. The dev build reads
-  // connections.dev.json on launch.
+  // Reset state before each app session: clear saved connections AND re-seed the
+  // adversarial fixtures. Each spec must start with a clean DB so prior-run
+  // side effects (edits, trigger drops/creates) don't leak.
   beforeSession: async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
+    const { execSync } = await import("node:child_process");
     const dir = path.join(process.env.HOME || "", "Library/Application Support/tabularis");
     const connFile = path.join(dir, "connections.dev.json");
     try {
@@ -65,6 +66,15 @@ export const config = {
       fs.writeFileSync(connFile, '{"groups": [], "connections": []}');
     } catch {
       // Best effort — the app may create the dir on first save.
+    }
+    // Re-seed the adversarial fixtures (idempotent via ON CONFLICT DO UPDATE)
+    if (process.env.PGUSER) {
+      try {
+        const seedScript = path.join(__dirname, "..", "tests", "fixtures", "seed_postgres_e2e.sh");
+        execSync(`bash ${seedScript}`, { env: { ...process.env } });
+      } catch (e) {
+          console.error("Failed to re-seed: " + e);
+        }
     }
   },
 };

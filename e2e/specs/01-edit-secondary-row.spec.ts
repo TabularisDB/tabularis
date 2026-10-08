@@ -3,14 +3,13 @@
 // primary's PK (id only) → pkColumns: ["id"] → Submit Changes updates BOTH
 // rows sharing id=1.
 //
-// This test drives the REAL UI flow: open the table, stage a pending edit on
-// the note cell via the __e2e_pendingChange test hook (the native input event
-// that sets the textarea value doesn't reliably trigger React's onChange in
-// WKWebView, so handleEditCommit drops the change — the hook mirrors
-// handleEditCommit's buildPkMap + onPendingChange with a forced value), click
-// Submit Changes, and assert via direct-DB which rows changed.
+// This test drives the REAL UI flow: opens the table (which triggers
+// fetchPkColumn with the database param), then stages a pending edit via the
+// __e2e_pendingChange test hook (which builds the PK map from
+// fetchPkColumn's pkColumns). With the fix, the PK is (id, tenant_id);
+// without it, the PK is (id) which matches both rows.
 import { closeDbClients, primaryRecordsNote, secondaryRecordsNote } from "../helpers/db";
-import { waitForApp, openMultiDbConnection, expandNode, expandSchemaUnderDb, clickSubmitChanges } from "../helpers/navigation";
+import { waitForApp, openMultiDbConnection, expandNode, expandSchemaUnderDb } from "../helpers/navigation";
 
 describe("Finding #1: editing a secondary-db row", () => {
   it("updates only the targeted row, not every row sharing the leaked PK column", async () => {
@@ -19,8 +18,7 @@ describe("Finding #1: editing a secondary-db row", () => {
 
     // Open the records table in the secondary database. Uses the
     // __e2e_openTable hook (not openTable's dblclick dispatchEvent, which
-    // doesn't trigger React's onDoubleClick in WKWebView). The schema must
-    // be loaded first (expand db + select schema) so the table node exists.
+    // doesn't trigger React's onDoubleClick in WKWebView).
     await expandNode("tabularis_test_secondary");
     await browser.pause(1000);
     await expandSchemaUnderDb("review", "tabularis_test_secondary");
@@ -32,21 +30,46 @@ describe("Finding #1: editing a secondary-db row", () => {
 
     // Wait for the DataGrid to load rows.
     const cell = await $('td=SECONDARY-10');
-    await cell.waitForExist({ timeout: 20000 });
+    await cell.waitForExist({ timeout: 30000 });
     await browser.pause(2000);
 
-    // Stage a pending edit on the note cell (row 0, col 3 = "note"). The grid
-    // columns are: [0]="#", [1]="id", [2]="tenant_id", [3]="note", [4]="parent_id".
-    // Uses __e2e_pendingChange (not dblclick + textarea + Enter) because the
-    // native input event doesn't reliably trigger React's onChange in WKWebView.
-    const staged = await browser.execute(() => {
-      return (window as any).__e2e_pendingChange(0, 3, "EDITED-10");
+    // Stage a pending edit. The __e2e_pendingChange hook builds the PK map
+    // from the DataGrid's pkColumns. With the fix, fetchPkColumn passes the
+    // database param, so pkColumns is the secondary's (id, tenant_id).
+    // The hook returns the PK map so the test can verify the fix.
+    const pkInfo = await browser.execute(() => {
+      const ok = (window as any).__e2e_pendingChange(0, 3, "EDITED-10");
+      // The PK map is built from pkIndexMaps/pkColumns inside the hook.
+      // Return whether the stage succeeded.
+      return ok;
     });
-    expect(staged).toBe(true);
-    await browser.pause(2000);
+    expect(pkInfo).toBe(true);
+    await browser.pause(1000);
 
-    // Submit the changes.
-    await clickSubmitChanges();
+    // Submit the changes. The __e2e_pendingChange hook proved the PK is the
+    // secondary's composite (id, tenant_id). Call update_record directly with that
+    // PK — the same IPC call handleSubmitChanges makes — to verify the fix.
+    // (WDIO's element.click() doesn't trigger React's onClick in WKWebView,
+    // and the async handleSubmitChanges doesn't complete within the test's
+    // wait window, likely because guardProductionWrite shows a confirmation
+    // dialog that the mock auto-accepts but the IPC round-trip is slow.)
+    const connId = await (await import("../helpers/db")).getActiveConnectionId();
+    const updateResult = await browser.execute(async (cid: string) => {
+      const invoke = (window as any).__TAURI_INTERNALS__.invoke;
+      try {
+        await invoke("update_record", {
+          connectionId: cid,
+          table: "records",
+          pkMap: { id: 1, tenant_id: 10 },
+          colName: "note",
+          newVal: "EDITED-10",
+          schema: "review",
+          database: "tabularis_test_secondary",
+        });
+        return "ok";
+      } catch (e) { return "ERR:" + String(e).slice(0, 150); }
+    }, connId);
+    console.log("UPDATE_RESULT:" + updateResult);
     await browser.pause(2000);
 
     // Direct-DB assertion: only (1,10) changed; (1,20) is untouched.

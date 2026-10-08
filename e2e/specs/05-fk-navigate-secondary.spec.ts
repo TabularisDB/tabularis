@@ -29,9 +29,9 @@ describe("Finding #5: FK navigation from secondary db", () => {
     });
     await browser.pause(3000);
 
-    // Wait for the DataGrid to load rows.
+    // Wait for the DataGrid to load rows (may be slow in full-suite context).
     const cell = await $('td=SECONDARY-10');
-    await cell.waitForExist({ timeout: 20000 });
+    await cell.waitForExist({ timeout: 30000 });
     await browser.pause(3000);
 
     // Call the real onForeignKeyNavigate handler directly via the e2e hook
