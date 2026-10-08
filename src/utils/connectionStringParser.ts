@@ -84,7 +84,15 @@ function getProtocolFromConnectionString(value: string): string | null {
  */
 function getPassthroughDisplayUrl(value: string): URL | null {
   const authorityMarker = value.indexOf("://");
-  if (authorityMarker < 0) return null;
+  if (authorityMarker < 0) {
+    // JDBC-style URIs can be opaque (for example jdbc:h2:mem:test). The
+    // plugin owns their syntax, so preserve the URI without requiring a host.
+    try {
+      return new URL(value);
+    } catch {
+      return null;
+    }
+  }
 
   const authorityStart = authorityMarker + 3;
   const suffixOffset = value.slice(authorityStart).search(/[/?#]/);

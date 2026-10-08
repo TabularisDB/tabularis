@@ -9,6 +9,7 @@ import {
   getResultValueType,
   buildPkMap,
   serializePkKey,
+  isZebraStripedRow,
   DATA_GRID_ROW_HEIGHT,
   type ColumnDisplayInfo,
   type MergedRow,
@@ -65,6 +66,8 @@ export interface RowCtx {
   pkIndexMaps: number[];
   parentViewportWidth: number;
   readonly: boolean | undefined;
+  /** Optional alternating row background (Settings > Appearance > Data Grid). */
+  zebraStripes: boolean;
   updateSelection: (s: Set<number>) => void;
   /** Sensitive-column masking (#485): columns rendered masked until revealed. */
   maskedColIndices: Set<number>;
@@ -195,6 +198,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
     pkIndexMaps,
     parentViewportWidth,
     readonly: readonlyProp,
+    zebraStripes,
     maskedColIndices,
     revealedColIndices,
     revealedCells,
@@ -260,7 +264,9 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
               ? "bg-semantic-new/8 border-l-4 border-semantic-new"
               : isPendingDelete
                 ? "bg-semantic-deleted/10 opacity-60"
-                : "hover:bg-surface-secondary/50"
+                : isZebraStripedRow(rowIndex, zebraStripes)
+                  ? "bg-surface-secondary/40 hover:bg-surface-secondary/90"
+                  : "hover:bg-surface-secondary/50"
         }`}
       >
         <td
@@ -283,7 +289,9 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                 ? "bg-semantic-deleted/25 text-semantic-deleted line-through"
                 : isSelected
                   ? "bg-accent-primary/20 text-accent font-bold"
-                  : "bg-base text-muted hover:bg-surface-secondary"
+                  : isZebraStripedRow(rowIndex, zebraStripes)
+                    ? "bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-base))] text-muted hover:bg-surface-tertiary"
+                    : "bg-base text-muted hover:bg-surface-secondary"
           }`}
         >
           {isInsertion ? "NEW" : rowIndex + 1}

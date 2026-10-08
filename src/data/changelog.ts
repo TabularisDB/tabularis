@@ -75,4 +75,6 @@ export const versionLinks: Record<string, string> = {
   "0.25.0": "https://tabularis.dev/blog/v0250-installable-themes-aws-ssm-update-badges-mcp-toon",
   "0.26.0":
     "https://tabularis.dev/blog/v0260-postgres-tab-transactions-command-palette-accessible-themes",
+  "0.27.0":
+    "https://tabularis.dev/blog/v0270-cell-value-filter-stable-columns-tsql-batches",
 };

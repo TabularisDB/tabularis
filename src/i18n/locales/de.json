@@ -514,6 +514,10 @@
     "fontSizeDesc": "Passt die in der gesamten Anwendung verwendete Grundschriftgröße an (10-20 px).",
     "preview": "Vorschau",
     "fontPreviewText": "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern",
+    "dataGrid": {
+      "zebraStripes": "Abwechselnder Zeilenhintergrund",
+      "zebraStripesDesc": "Hebt jede zweite Zeile hervor, damit Sie eine Zeile auch in breiten Tabellen leichter verfolgen können."
+    },
     "appearance_general": "Allgemein",
     "appearance_sqlEditor": "SQL-Editor",
     "appearance_editorTheme": "Editor-Thema",
@@ -1207,6 +1211,10 @@
     "copyColumnNameQuoted": "Als `column` kopieren",
     "copyColumnNameTable": "Als table.column kopieren",
     "copyColumnValuesIn": "Spaltenwerte als SQL IN kopieren",
+    "filterEquals": "Filtern: {{column}} = dieser Wert",
+    "filterNotEquals": "Filtern: {{column}} <> dieser Wert",
+    "filterIsNull": "Filtern: {{column}} IS NULL",
+    "filterIsNotNull": "Filtern: {{column}} IS NOT NULL",
     "copyCells": "{{count}} Zelle(n) kopieren",
     "copyRows": "{{count}} Zeile(n) kopieren",
     "copied": "In Zwischenablage kopiert",
@@ -1353,6 +1361,7 @@
     "exportLoadedRowsWarning": "Es wurden nur {{loaded}} geladene Zeilen von insgesamt {{total}} Zeilen exportiert. Blättere durch das Ergebnis oder führe eine eingeschränktere Abfrage aus, wenn du mehr Zeilen exportieren musst.",
     "queryParameters": "Abfrageparameter",
     "formatSql": "SQL formatieren",
+    "convertSelectionToSqlList": "Auswahl in SQL-Liste umwandeln",
     "convertToConsole": "In Konsole umwandeln",
     "parameters": "Parameter",
     "paramValuePlaceholder": "Wert (z. B. 'Text' oder 123)",
@@ -2197,7 +2206,6 @@
     "outputParameter": "Ausgabeparameter — wird als Ergebnis zurückgegeben",
     "rawLabel": "Raw",
     "rawHint": "Wert unverändert einfügen, ohne String-Quoting (Zahlen, Ausdrücke)",
-    "runButton": "Ausführen",
     "runTabPrefix": "Ausführen",
     "returnValue": "Rückgabe"
   },

@@ -277,6 +277,7 @@ fn plugin_manifest() -> PluginManifest {
             folder_based: false,
             connection_string: true,
             connection_string_example: "postgres://user:pass@localhost:5432/db".into(),
+            connection_string_examples: Vec::new(),
             connection_uri: false,
             connection_uri_schemes: Vec::new(),
             identifier_quote: "\"".into(),

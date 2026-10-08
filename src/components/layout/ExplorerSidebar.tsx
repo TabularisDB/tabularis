@@ -3094,7 +3094,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           schema={runRoutineModal.schema}
           database={runRoutineModal.database}
           onRun={(sql) => {
-            runQuery(sql, `${t("routines.runTabPrefix")} ${runRoutineModal.routine.name}`, false, runRoutineModal.schema, runRoutineModal.database);
+            runQuery(sql, `${t("routines.runTabPrefix")} ${runRoutineModal.routine.name}`, true, runRoutineModal.schema, runRoutineModal.database);
           }}
         />
       )}

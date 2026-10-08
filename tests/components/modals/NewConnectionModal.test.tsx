@@ -95,6 +95,13 @@ vi.mock("../../../src/hooks/useDrivers", () => ({
           file_based: false,
           folder_based: false,
           connection_string: true,
+          connection_string_examples: [
+            {
+              label: "Local MySQL",
+              value: "mysql://root:pass@127.0.0.1:3306/shop",
+              description: "Connect to a local database.",
+            },
+          ],
           supports_ssl: true,
         },
       },
@@ -339,6 +346,29 @@ describe("NewConnectionModal layout", () => {
     k8sMocks.getK8sResources.mockResolvedValue(["mysql-svc"]);
     k8sMocks.getK8sResourcePorts.mockResolvedValue([6543]);
     k8sMocks.validateK8sPath.mockResolvedValue(undefined);
+  });
+
+  it("fills and parses a selected connection string example", async () => {
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === "list_databases" ? [] : "ok",
+    );
+    renderModal();
+    pickEngineFromCatalogue();
+
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: "newConnection.connectionStringExample",
+      }),
+      { target: { value: "mysql://root:pass@127.0.0.1:3306/shop" } },
+    );
+
+    expect(
+      screen.getByPlaceholderText("newConnection.connectionStringPlaceholder"),
+    ).toHaveValue("mysql://root:pass@127.0.0.1:3306/shop");
+    expect(screen.getByText("Connect to a local database.")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText("localhost")).toHaveValue("127.0.0.1"),
+    );
   });
 
   it("keeps the dialog shell at a stable viewport-bounded height", () => {

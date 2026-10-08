@@ -42,7 +42,7 @@ async function updateRoadmap() {
     // Look for ## Roadmap followed by the list and then the next section
     readme = readme.replace(
       /(## Roadmap\n\n)([\s\S]*?)(\n## \w)/,
-      `$1${roadmapMarkdown}$3`
+      `$1${roadmapMarkdown}\n$3`
     );
 
     fs.writeFileSync(readmePath, readme);

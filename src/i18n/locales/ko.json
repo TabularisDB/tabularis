@@ -489,6 +489,10 @@
       "confirm": "확인",
       "cancel": "취소"
     },
+    "dataGrid": {
+      "zebraStripes": "줄무늬 행 배경",
+      "zebraStripesDesc": "넓은 테이블에서 행을 더 쉽게 추적할 수 있도록 한 행 건너 음영을 적용합니다."
+    },
     "appearance_general": "일반",
     "appearance_sqlEditor": "SQL 에디터",
     "appearance_editorTheme": "에디터 테마",
@@ -1182,6 +1186,10 @@
     "copyColumnNameQuoted": "`column` 형식으로 복사",
     "copyColumnNameTable": "table.column 형식으로 복사",
     "copyColumnValuesIn": "열 값을 SQL IN으로 복사",
+    "filterEquals": "필터: {{column}} = 이 값",
+    "filterNotEquals": "필터: {{column}} <> 이 값",
+    "filterIsNull": "필터: {{column}} IS NULL",
+    "filterIsNotNull": "필터: {{column}} IS NOT NULL",
     "copyCells": "{{count}}개 셀 복사",
     "copyRows": "{{count}}개 행 복사",
     "copied": "클립보드에 복사되었습니다",
@@ -1328,6 +1336,7 @@
     "exportLoadedRowsWarning": "총 {{total}}개 행 중 로드된 {{loaded}}개 행만 내보냈습니다. 더 많은 행이 필요하면 결과 페이지를 넘기거나 더 좁은 쿼리를 실행한 뒤 내보내세요.",
     "queryParameters": "쿼리 매개변수",
     "formatSql": "SQL 포맷",
+    "convertSelectionToSqlList": "선택 영역을 SQL 목록으로 변환",
     "convertToConsole": "콘솔로 변환",
     "parameters": "매개변수",
     "paramValuePlaceholder": "값 (예: 'text' 또는 123)",
@@ -2201,7 +2210,6 @@
     "outputParameter": "출력 매개변수 — 결과로 반환됨",
     "rawLabel": "원본",
     "rawHint": "문자열 인용 없이 값을 그대로 삽입합니다 (숫자, 표현식)",
-    "runButton": "실행",
     "runTabPrefix": "실행",
     "returnValue": "반환"
   },

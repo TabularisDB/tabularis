@@ -544,6 +544,10 @@
       "confirm": "Kumpirmahin",
       "cancel": "Kanselahin"
     },
+    "dataGrid": {
+      "zebraStripes": "Magkakahaliling background ng row",
+      "zebraStripesDesc": "I-shade bawat ikalawang row para mas madaling sundan ang isang row sa mga malapad na table."
+    },
     "appearance_general": "Pangkalahatan",
     "appearance_sqlEditor": "SQL Editor",
     "appearance_editorTheme": "Theme ng Editor",
@@ -1238,6 +1242,10 @@
     "copyColumnNameQuoted": "Kopyahin bilang `column`",
     "copyColumnNameTable": "Kopyahin bilang table.column",
     "copyColumnValuesIn": "Kopyahin ang mga value ng column bilang SQL IN",
+    "filterEquals": "Filter: {{column}} = value na ito",
+    "filterNotEquals": "Filter: {{column}} <> value na ito",
+    "filterIsNull": "Filter: {{column}} IS NULL",
+    "filterIsNotNull": "Filter: {{column}} IS NOT NULL",
     "copyCells": "Kopyahin ang {{count}} Cell",
     "copyRows": "Kopyahin ang {{count}} Row",
     "copied": "Nakopya sa clipboard",
@@ -1384,6 +1392,7 @@
     "exportLoadedRowsWarning": "{{loaded}} lang na na-load na row ang na-export mula sa kabuuang {{total}} row. Mag-page sa resulta o magpatakbo ng mas makitid na query bago mag-export kung kailangan mo ng mas maraming row.",
     "queryParameters": "Mga Parameter ng Query",
     "formatSql": "I-format ang SQL",
+    "convertSelectionToSqlList": "I-convert ang napili sa listahan ng SQL",
     "convertToConsole": "I-convert sa Console",
     "parameters": "Mga Parameter",
     "paramValuePlaceholder": "Value (hal. 'text' o 123)",
@@ -2267,7 +2276,6 @@
     "outputParameter": "Output parameter — ibabalik bilang resulta",
     "rawLabel": "Raw",
     "rawHint": "Ipasok ang halaga nang verbatim, walang string quoting (mga numero, expression)",
-    "runButton": "Patakbuhin",
     "runTabPrefix": "Patakbuhin",
     "returnValue": "nagbabalik ng"
   },

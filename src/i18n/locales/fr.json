@@ -544,6 +544,10 @@
       "confirm": "Confirmer",
       "cancel": "Annuler"
     },
+    "dataGrid": {
+      "zebraStripes": "Arrière-plan alterné des lignes",
+      "zebraStripesDesc": "Ombrage une ligne sur deux pour suivre plus facilement une ligne dans les tableaux larges."
+    },
     "appearance_general": "Général",
     "appearance_sqlEditor": "Éditeur SQL",
     "appearance_editorTheme": "Thème de l’éditeur",
@@ -1247,6 +1251,10 @@
     "copyColumnNameTable": "Copier comme table.column",
     "copyColumnValues": "Copier les valeurs de la colonne",
     "copyColumnValuesIn": "Copier les valeurs comme liste SQL IN",
+    "filterEquals": "Filtrer : {{column}} = cette valeur",
+    "filterNotEquals": "Filtrer : {{column}} <> cette valeur",
+    "filterIsNull": "Filtrer : {{column}} IS NULL",
+    "filterIsNotNull": "Filtrer : {{column}} IS NOT NULL",
     "copyCells": "Copier {{count}} cellule(s)",
     "copyRows": "Copier {{count}} ligne(s)",
     "copied": "Copié dans le presse-papiers",
@@ -1393,6 +1401,7 @@
     "exportLoadedRowsWarning": "Seules {{loaded}} lignes chargées sur {{total}} lignes au total ont été exportées. Parcourez les pages du résultat ou exécutez une requête plus restrictive avant d'exporter si vous avez besoin de plus de lignes.",
     "queryParameters": "Paramètres de requête",
     "formatSql": "Formater SQL",
+    "convertSelectionToSqlList": "Convertir la sélection en liste SQL",
     "convertToConsole": "Convertir en console",
     "parameters": "Paramètres",
     "paramValuePlaceholder": "Valeur (ex. 'texte' ou 123)",
@@ -2277,7 +2286,6 @@
     "outputParameter": "Paramètre de sortie — renvoyé comme résultat",
     "rawLabel": "Brut",
     "rawHint": "Insère la valeur telle quelle, sans guillemets de chaîne (nombres, expressions)",
-    "runButton": "Exécuter",
     "runTabPrefix": "Exécuter",
     "returnValue": "retourne"
   },

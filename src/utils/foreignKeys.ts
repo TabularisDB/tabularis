@@ -104,7 +104,7 @@ export function isNumericColumnType(type: string | undefined): boolean {
   return NUMERIC_TYPE_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-function formatSqlValueForFilter(value: unknown, columnType?: string): string {
+export function formatSqlValueForFilter(value: unknown, columnType?: string): string {
   if (typeof value === "number" || typeof value === "bigint") {
     return String(value);
   }

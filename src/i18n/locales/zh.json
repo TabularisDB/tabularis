@@ -514,6 +514,10 @@
     "fontSizeDesc": "调整整个应用使用的基础字体大小（10-20px）。",
     "preview": "预览",
     "fontPreviewText": "The quick brown fox jumps over the lazy dog",
+    "dataGrid": {
+      "zebraStripes": "交替行背景",
+      "zebraStripesDesc": "为每隔一行添加底色，便于在宽表中横向追踪某一行。"
+    },
     "language": "语言",
     "languageDesc": "选择您的首选语言。自动\"将使用您的系统语言。",
     "languageSearch": "搜索语言...",
@@ -1175,6 +1179,10 @@
     "copyColumnNameQuoted": "复制为 `列`",
     "copyColumnNameTable": "复制为 表.列",
     "copyColumnValuesIn": "将列值复制为 SQL IN",
+    "filterEquals": "筛选：{{column}} = 此值",
+    "filterNotEquals": "筛选：{{column}} <> 此值",
+    "filterIsNull": "筛选：{{column}} IS NULL",
+    "filterIsNotNull": "筛选：{{column}} IS NOT NULL",
     "copyCells": "复制 {{count}} 个单元格",
     "copyRows": "复制 {{count}} 行",
     "copied": "已复制到剪贴板",
@@ -1320,6 +1328,7 @@
     "exportLoadedRowsWarning": "仅导出了总计 {{total}} 行中的 {{loaded}} 行已加载数据。如果需要更多行，请先翻页加载结果或运行范围更窄的查询后再导出。",
     "queryParameters": "查询参数",
     "formatSql": "格式化 SQL",
+    "convertSelectionToSqlList": "将所选内容转换为 SQL 列表",
     "convertToConsole": "转换为控制台",
     "parameters": "参数",
     "paramValuePlaceholder": "值（例如 'text' 或 123）",
@@ -2139,7 +2148,6 @@
     "outputParameter": "输出参数 — 作为结果返回",
     "rawLabel": "原始值",
     "rawHint": "按原样插入值，不加字符串引号（数字、表达式）",
-    "runButton": "运行",
     "runTabPrefix": "运行",
     "returnValue": "返回值"
   },

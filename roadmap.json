@@ -1,13 +1,33 @@
 [
   {
+    "label": "Plugin registry platform — OAuth publishing, release sync, download analytics",
+    "done": true,
+    "url": "https://github.com/TabularisDB/tabularis/issues/196"
+  },
+  {
+    "label": "SQL Server driver — implementation roadmap & call for contributors",
+    "done": true,
+    "url": "https://github.com/TabularisDB/tabularis/issues/150"
+  },
+  {
     "label": "[Feat]: Allow loading of multiple Databases per connection",
     "done": true,
     "url": "https://github.com/TabularisDB/tabularis/issues/47"
   },
   {
+    "label": "Command Palette",
+    "done": true,
+    "url": "https://github.com/TabularisDB/tabularis/issues/25"
+  },
+  {
     "label": "JSON/JSONB Editor & Viewer",
     "done": true,
     "url": "https://github.com/TabularisDB/tabularis/issues/24"
+  },
+  {
+    "label": "SQL Formatting / Prettier",
+    "done": true,
+    "url": "https://github.com/TabularisDB/tabularis/issues/23"
   },
   {
     "label": "Visual Explain Analyze",
@@ -25,34 +45,14 @@
     "url": "https://github.com/TabularisDB/tabularis/issues/18"
   },
   {
-    "label": "Plugin registry platform — OAuth publishing, release sync, download analytics",
-    "done": false,
-    "url": "https://github.com/TabularisDB/tabularis/issues/196"
-  },
-  {
     "label": "UI design system & visual identity — call for contributors",
     "done": false,
     "url": "https://github.com/TabularisDB/tabularis/issues/195"
   },
   {
-    "label": "SQL Server driver — implementation roadmap & call for contributors",
-    "done": false,
-    "url": "https://github.com/TabularisDB/tabularis/issues/150"
-  },
-  {
     "label": "Feature: Remote Control",
     "done": false,
     "url": "https://github.com/TabularisDB/tabularis/issues/46"
-  },
-  {
-    "label": "Command Palette",
-    "done": false,
-    "url": "https://github.com/TabularisDB/tabularis/issues/25"
-  },
-  {
-    "label": "SQL Formatting / Prettier",
-    "done": false,
-    "url": "https://github.com/TabularisDB/tabularis/issues/23"
   },
   {
     "label": "Data Compare / Diff Tool",

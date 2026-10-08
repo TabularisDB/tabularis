@@ -315,8 +315,101 @@ describe('sql utils', () => {
       expect(isDataModifyingQuery("  DELETE FROM t")).toBe(true);
     });
 
-    it("should not flag WITH queries", () => {
+    it("should not flag read-only WITH queries", () => {
       expect(isDataModifyingQuery("WITH cte AS (SELECT 1) SELECT * FROM cte")).toBe(false);
+    });
+
+    it.each([
+      "REPLACE INTO t (id) VALUES (1)",
+      "replace into t (id) values (1)",
+      "MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE",
+      "merge into t using s on t.id = s.id when matched then delete",
+      "UPSERT INTO t (id) VALUES (1)",
+      "CREATE TABLE t2 AS SELECT * FROM t",
+      "GRANT SELECT ON t TO app",
+      "REVOKE SELECT ON t FROM app",
+      "CALL refresh_totals()",
+      "EXEC dbo.refresh_totals",
+      "EXECUTE dbo.refresh_totals",
+    ])("should detect %s", (sql) => {
+      expect(isDataModifyingQuery(sql)).toBe(true);
+    });
+
+    it.each([
+      "-- note\nDELETE FROM t",
+      "/* note */ DELETE FROM t",
+      "-- one\n/* two */\n  update t set a = 1",
+      "-- note\nREPLACE INTO t (id) VALUES (1)",
+    ])("should detect a statement after leading comments: %j", (sql) => {
+      expect(isDataModifyingQuery(sql)).toBe(true);
+    });
+
+    it.each([
+      "WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d",
+      "with d as (delete from t returning *) select * from d",
+      "WITH i AS (INSERT INTO t (id) VALUES (1) RETURNING id) SELECT * FROM i",
+      "WITH u AS (UPDATE t SET a = 1 RETURNING *) SELECT count(*) FROM u",
+      "WITH s AS (SELECT id FROM src) MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE",
+      "WITH x AS (SELECT id FROM o) UPDATE orders SET status = 'x' FROM x WHERE orders.id = x.id",
+      "WITH x AS (SELECT 1 AS id) DELETE FROM t WHERE id IN (SELECT id FROM x)",
+      "-- note\nWITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d",
+    ])("should detect a data-modifying CTE: %j", (sql) => {
+      expect(isDataModifyingQuery(sql)).toBe(true);
+    });
+
+    it.each([
+      "WITH c AS (SELECT 'DELETE FROM t' AS q) SELECT * FROM c",
+      "WITH c AS (SELECT 1) /* UPDATE t */ SELECT * FROM c",
+      "WITH c AS (SELECT 1) -- delete later\nSELECT * FROM c",
+      'WITH c AS (SELECT "update" FROM t) SELECT * FROM c',
+      "WITH c AS (SELECT last_update, deleted_at FROM t) SELECT * FROM c",
+      "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 3) SELECT * FROM n",
+    ])("should not flag a read-only CTE: %j", (sql) => {
+      expect(isDataModifyingQuery(sql)).toBe(false);
+    });
+
+    it("should not let a MySQL-escaped quote hide a write in a CTE", () => {
+      // Under standard rules `'it\'` closes the literal early and the rest
+      // of the text would be read as one long string.
+      expect(
+        isDataModifyingQuery(
+          "WITH c AS (SELECT 'it\\'s') DELETE FROM t WHERE note = 'x'",
+        ),
+      ).toBe(true);
+    });
+
+    it.each([
+      "WITH c AS (SELECT $$it's$$ AS a) DELETE FROM t",
+      "WITH c AS (SELECT $tag$don't$tag$ AS a) UPDATE t SET a = 1",
+      "WITH c AS (SELECT E'\\'' AS a, 'C:\\' AS b) DELETE FROM t WHERE x = 'y'",
+      "WITH c AS (SELECT 1 AS [it's]) DELETE FROM t",
+    ])("should not let another dialect's literal hide a write in a CTE: %j", (sql) => {
+      // Each literal lexes only under its own dialect; under the others its
+      // apostrophe opens a string that runs to the end of the text.
+      expect(isDataModifyingQuery(sql)).toBe(true);
+    });
+
+    it.each([
+      "SELECT * INTO t2 FROM t",
+      "select id into archive from t where id < 10",
+      "SELECT * INTO #recent FROM t",
+      "WITH c AS (SELECT 1 AS id) SELECT * INTO t2 FROM c",
+      "SELECT $$it's$$ AS a INTO t2",
+    ])("should detect SELECT ... INTO: %j", (sql) => {
+      expect(isDataModifyingQuery(sql)).toBe(true);
+    });
+
+    it.each([
+      "-- note\nSELECT * FROM t",
+      "(SELECT 1) UNION ALL (SELECT 2)",
+      "TABLE t",
+      "SELECT replace(name, 'a', 'b') FROM t",
+      "SELECT * FROM updates",
+      "SELECT 'insert into t' AS note FROM t",
+      "SELECT * FROM t -- into archive later",
+      "SELECT intouch, into_date FROM t",
+    ])("should not flag a read-only statement: %j", (sql) => {
+      expect(isDataModifyingQuery(sql)).toBe(false);
     });
   });
 });

@@ -84,10 +84,9 @@ pub fn error_response(id: Value, code: i64, message: &str) -> Value {
     })
 }
 
+/// Keep code -32601 and "Method not found" in the message: most host fallbacks
+/// for optional methods (batch execution, materialized views, BLOBs, ...)
+/// match on the message text, a few on the code.
 pub fn not_implemented(id: Value, method: &str) -> Value {
-    error_response(
-        id,
-        -32601,
-        &format!("method '{method}' is not implemented by this plugin yet"),
-    )
+    error_response(id, -32601, &format!("Method not found: {method}"))
 }
