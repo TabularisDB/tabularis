@@ -118,9 +118,6 @@ pub async fn dump_database<R: Runtime>(
                     format_table_ref(&driver, &schema, &table)
                 )
                 .map_err(|e| e.to_string())?;
-                writeln!(writer, "{}", drop_table_if_exists(&driver, &schema, &table))
-                    .map_err(|e| e.to_string())?;
-
                 // A plugin that doesn't implement get_table_ddl must not
                 // abort the whole dump over one table's missing structure —
                 // the data step below still runs for it, and every other
@@ -130,14 +127,26 @@ pub async fn dump_database<R: Runtime>(
                 // to be restored, and a plausible-looking but subtly wrong
                 // DDL statement (missed default, generated column, check
                 // constraint) is worse than a visible, honest gap.
+                //
+                // The DROP TABLE IF EXISTS is written only when DDL is
+                // available, not unconditionally before the DDL fetch: writing
+                // the DROP first then failing to emit a CREATE TABLE produces a
+                // dump file whose import deletes the restore target with no way
+                // to recreate it (the builtin drivers wrap import in a
+                // transaction that rolls back, but plugin drivers execute each
+                // statement independently — the DROP commits and the table is
+                // gone). Skipping both when DDL fails leaves the existing table
+                // intact (issue #822, finding #2).
                 match drv.get_table_ddl(&params, &table, Some(&schema)).await {
                     Ok(ddl) => {
+                        writeln!(writer, "{}", drop_table_if_exists(&driver, &schema, &table))
+                            .map_err(|e| e.to_string())?;
                         writeln!(writer, "{}\n", ddl).map_err(|e| e.to_string())?;
                     }
                     Err(e) => {
                         writeln!(
                             writer,
-                            "-- WARNING: could not generate DDL for {}: {}\n",
+                            "-- WARNING: could not generate DDL for {}: {} (table left unchanged)\n",
                             format_table_ref(&driver, &schema, &table),
                             e
                         )

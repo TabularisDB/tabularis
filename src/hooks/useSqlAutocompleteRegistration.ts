@@ -71,6 +71,11 @@ export function useSqlAutocompleteRegistration(
         defaultNamespace,
         activeCapabilities ?? activeDriver ?? null,
       );
+
+      // E2E: expose the effective tables for tauri-wd tests. The bug: this
+      // hook reads databaseDataMap (not nestedDatabaseDataMap), so nested-database
+      // tables (e.g. secondary-only tables) are missing from autocomplete.
+      (window as unknown as Record<string, unknown>).__e2e_autocomplete_tables = effectiveTables;
     };
 
     const cleanup = () => {

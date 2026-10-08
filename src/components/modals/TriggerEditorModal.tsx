@@ -235,6 +235,42 @@ export const TriggerEditorModal = ({
     }
   };
 
+  // E2E: expose hooks for tauri-wd tests. The Monaco editor's setValue doesn't
+  // reliably update the `body` React state that handleSave reads (onChange is
+  // debounced), so expose a direct save-with-body that calls the IPC commands.
+  (window as unknown as Record<string, unknown>).__e2e_save_trigger = handleSave;
+  (window as unknown as Record<string, unknown>).__e2e_set_trigger_body = setBody;
+  (window as unknown as Record<string, unknown>).__e2e_get_trigger_table = () => tableName;
+  (window as unknown as Record<string, unknown>).__e2e_save_trigger_with_body = async (body: string) => {
+    const input = {
+      name, tableName, schema: resolvedSchema, timing, events,
+      body, driver, capabilities,
+    };
+    // Mirror handleSave's full flow: drop_trigger → create function → create
+    // trigger (for existing triggers, the drop is required first).
+    await invoke("drop_trigger", {
+      connectionId,
+      triggerName: name,
+      tableName,
+      ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+      ...(database ? { database } : {}),
+    });
+    const fnSql = buildTriggerFunctionSqlUtil(input);
+    await invoke("execute_query", {
+      connectionId,
+      query: fnSql,
+      ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+      ...(database ? { database } : {}),
+    });
+    const triggerSql = buildTriggerSqlUtil(input);
+    await invoke("create_trigger", {
+      connectionId,
+      triggerSql,
+      ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+      ...(database ? { database } : {}),
+    });
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[800px] max-h-[90vh] overflow-hidden flex flex-col">

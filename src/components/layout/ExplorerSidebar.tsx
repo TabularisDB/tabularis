@@ -314,6 +314,14 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     isNewTrigger?: boolean;
   }>({ isOpen: false });
 
+  // E2E: expose a hook to open the trigger editor for an existing trigger
+  // (tauri-wd can't trigger the right-click context menu).
+  (window as unknown as Record<string, unknown>).__e2e_open_trigger_editor = (
+    triggerName: string, tableName: string, schema?: string, database?: string,
+  ) => {
+    setTriggerEditorModal({ isOpen: true, triggerName, tableName, schema, database, isNewTrigger: false });
+  };
+
   const groupedRoutines = routines ? groupRoutinesByType(routines) : { procedures: [], functions: [] };
 
   const openCreateTableModal = (target: CreateTableTarget) => {
@@ -497,6 +505,15 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const handleOpenNestedTable = (tableName: string, schema: string, database: string) => {
     setActiveTable(tableName, schema);
     objectNavigation?.open(tableName, schema, { title: `${tableName} (${database}.${schema})` }, database);
+  };
+
+  // E2E: expose a hook to open a nested-database table directly (tauri-wd
+  // can't trigger React's onDoubleClick via dispatchEvent in WKWebView).
+  (window as unknown as Record<string, unknown>).__e2e_openTable = (
+    tableName: string, schema: string, database: string,
+  ) => {
+    handleOpenNestedTable(tableName, schema, database);
+    return true;
   };
 
   const handleOpenNestedView = (
