@@ -33,7 +33,7 @@ export function useSqlAutocompleteRegistration(
   } = useDatabase();
   const settingsContext = useContext(SettingsContext);
   const keywordCase =
-    settingsContext?.settings.autocompleteKeywordCase ??"match";
+    settingsContext?.settings.autocompleteKeywordCase ?? "match";
 
   const schema = options?.schema ?? activeSchema;
   const defaultNamespace =
