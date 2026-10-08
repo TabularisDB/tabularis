@@ -1,3 +1,32 @@
+# [0.27.0](https://github.com/TabularisDB/tabularis/compare/v0.26.0...v0.27.0) (2026-10-08)
+
+
+### Bug Fixes
+
+* **create-plugin:** answer unimplemented methods with "Method not found" ([237daf2](https://github.com/TabularisDB/tabularis/commit/237daf25ff8e2f26b0854671231572c699d419f6)), closes [#890](https://github.com/TabularisDB/tabularis/issues/890)
+* **create-plugin:** correct method-not-found guidance, tighten test ([0817b6f](https://github.com/TabularisDB/tabularis/commit/0817b6f328b99328a172f9c9761269a0feb39a97))
+* **datagrid:** keep column widths stable while scrolling ([2017ff3](https://github.com/TabularisDB/tabularis/commit/2017ff305c0ebaf310227ae4de6d48eb1b3f902e)), closes [#844](https://github.com/TabularisDB/tabularis/issues/844)
+* **datagrid:** keep masked cell values out of filter-by-value ([853cc02](https://github.com/TabularisDB/tabularis/commit/853cc02965da361fea0bfd3c28390fca8d44eb43))
+* **editor:** guard each statement of a T-SQL batch ([6e7f487](https://github.com/TabularisDB/tabularis/commit/6e7f487f23eb4826ec3f9164ca3d61bf6d139940))
+* **editor:** keep T-SQL routine bodies whole in the query guard ([c2dbeb9](https://github.com/TabularisDB/tabularis/commit/c2dbeb9a1eb9ae86710abe024128320b4e9e0e04))
+* **editor:** scope the routine-definition guard exemption to its own batch ([93236f3](https://github.com/TabularisDB/tabularis/commit/93236f3a15b6a8cd10c6d9ded7a15d1bea2c9f64))
+* **explain:** default Analyze off for every data-modifying statement ([61dba51](https://github.com/TabularisDB/tabularis/commit/61dba5156141d0d793246d94a7de46f688901d51)), closes [#884](https://github.com/TabularisDB/tabularis/issues/884)
+* **explain:** mask strings under every dialect and catch SELECT INTO ([86967a5](https://github.com/TabularisDB/tabularis/commit/86967a54d8f666ab6aaabbbe48251173fba3bef2))
+* run T-SQL scripts as one batch instead of per statement ([3e5095a](https://github.com/TabularisDB/tabularis/commit/3e5095a2bc1899f7a8869f190b2d148da6473e95))
+* **settings:** persist zebra stripes and sticky headers; tune striped row colors ([e1c7a7f](https://github.com/TabularisDB/tabularis/commit/e1c7a7fd0c665ddb9359799f6f68e419ea627a5b))
+* **sidebar:** label the routine dialog button "Open in Editor" ([c9e527c](https://github.com/TabularisDB/tabularis/commit/c9e527cef4a12f27050cb6ef5a18d23b214a74b4))
+* **sidebar:** open the Run… routine call for review instead of executing it ([e563d56](https://github.com/TabularisDB/tabularis/commit/e563d56b3e460fd5815ac26b249e4472df31e025)), closes [#887](https://github.com/TabularisDB/tabularis/issues/887)
+
+
+### Features
+
+* **connections:** reorder connections within a group by drag ([e24cf9f](https://github.com/TabularisDB/tabularis/commit/e24cf9fa140b52fbf592e94885917a7831dcf8c4))
+* **datagrid:** filter by this value from the cell context menu ([#853](https://github.com/TabularisDB/tabularis/issues/853)) ([ac240f0](https://github.com/TabularisDB/tabularis/commit/ac240f020811c642d5fa2091e52724b56885070d))
+* **datagrid:** optional alternating row background ([f30ab78](https://github.com/TabularisDB/tabularis/commit/f30ab78d3d322c22dc2d5b66715f9f1faaef988f)), closes [#854](https://github.com/TabularisDB/tabularis/issues/854)
+* **editor:** convert selection to SQL list ([242a5e6](https://github.com/TabularisDB/tabularis/commit/242a5e64a2051f71ac12f0bf8b3a8619426ac615)), closes [#870](https://github.com/TabularisDB/tabularis/issues/870)
+* **editor:** show the schema on same-name table tabs ([b678226](https://github.com/TabularisDB/tabularis/commit/b678226737a006010fa0d21b31ee76e6047a990e))
+* name result tabs from leading SQL comments ([7ffa5d8](https://github.com/TabularisDB/tabularis/commit/7ffa5d8b2e92491808e9be7e681d246830ff7227))
+
 # [0.26.0](https://github.com/TabularisDB/tabularis/compare/v0.25.0...v0.26.0) (2026-10-01)
 
 

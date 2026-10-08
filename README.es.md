@@ -70,11 +70,11 @@ sudo snap install tabularis       # Linux
 
 O descarga un instalador directamente:
 
-- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.26.0/tabularis_0.26.0_x64-setup.exe)
+- **Windows:** &nbsp;[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.27.0/tabularis_0.27.0_x64-setup.exe)
 
-- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.26.0/tabularis_0.26.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.26.0/tabularis_0.26.0_x64.dmg)
+- **macOS:** &nbsp;[![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.27.0/tabularis_0.27.0_aarch64.dmg)&nbsp;[![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.27.0/tabularis_0.27.0_x64.dmg)
 
-- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.26.0/tabularis_0.26.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.26.0/tabularis_0.26.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.26.0/tabularis-0.26.0-1.x86_64.rpm)
+- **Linux:** &nbsp;[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.27.0/tabularis_0.27.0_amd64.AppImage)&nbsp;[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.27.0/tabularis_0.27.0_amd64.deb)&nbsp;[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.27.0/tabularis-0.27.0-1.x86_64.rpm)
 
 La interfaz de la aplicación está disponible en inglés, italiano, español, chino (simplificado), francés, alemán, japonés, ruso, coreano, tagalo y portugués (brasileño).
 
@@ -375,7 +375,6 @@ El roadmap se genera automáticamente a partir de las issues de GitHub. Consulta
 
 Las contribuciones son bienvenidas, consulta [CONTRIBUTING.md](./CONTRIBUTING.md). Buenos puntos para empezar:
 
-- [Plugin de driver de SQL Server: prueba el driver y reclama issues abiertas](https://github.com/TabularisDB/tabularis-sqlserver-plugin)
 - [Sistema de diseño de UI e identidad visual: llamada a contribuidores](https://github.com/TabularisDB/tabularis/issues/195)
 - Escribe un plugin de driver en cualquier lenguaje con la [Guía de Plugins](./plugins/PLUGIN_GUIDE.md)
 

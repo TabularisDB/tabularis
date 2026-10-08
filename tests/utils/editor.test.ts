@@ -4,6 +4,7 @@ import {
   generateTabId,
   createInitialTabState,
   generateTabTitle,
+  getTabDisplayTitle,
   findExistingTableTab,
   getConnectionTabs,
   getActiveTab,
@@ -20,6 +21,7 @@ import {
   validatePageNumber,
   calculateTotalPages,
   resolveTabPageSize,
+  toSqlList,
 } from "../../src/utils/editor";
 
 describe("editor", () => {
@@ -163,6 +165,69 @@ describe("editor", () => {
       ];
       const title = generateTabTitle(tabs, "conn-1", { type: "console" });
       expect(title).toBe("Console 2");
+    });
+  });
+
+  describe("getTabDisplayTitle", () => {
+    const tableTab = (overrides: Partial<Tab> = {}): Tab => ({
+      id: "tab-1",
+      title: "clubs",
+      type: "table",
+      query: "",
+      result: null,
+      error: "",
+      executionTime: null,
+      page: 1,
+      activeTable: "clubs",
+      schema: "mira",
+      pkColumns: null,
+      connectionId: "conn-1",
+      ...overrides,
+    });
+
+    it("prefixes the schema when the same table is open from another schema", () => {
+      const mira = tableTab();
+      const dev = tableTab({ id: "tab-2", schema: "mira_dev" });
+      expect(getTabDisplayTitle(mira, [mira, dev])).toBe("mira.clubs");
+      expect(getTabDisplayTitle(dev, [mira, dev])).toBe("mira_dev.clubs");
+    });
+
+    it("keeps the plain title when the table name is unique", () => {
+      const clubs = tableTab();
+      const users = tableTab({
+        id: "tab-2",
+        title: "users",
+        activeTable: "users",
+        schema: "mira_dev",
+      });
+      expect(getTabDisplayTitle(clubs, [clubs, users])).toBe("clubs");
+    });
+
+    it("ignores tabs from other connections", () => {
+      const mira = tableTab();
+      const other = tableTab({
+        id: "tab-2",
+        schema: "mira_dev",
+        connectionId: "conn-2",
+      });
+      expect(getTabDisplayTitle(mira, [mira, other])).toBe("clubs");
+    });
+
+    it("keeps a title that no longer equals the table name", () => {
+      const custom = tableTab({ title: "clubs (db.mira)" });
+      const dev = tableTab({ id: "tab-2", schema: "mira_dev" });
+      expect(getTabDisplayTitle(custom, [custom, dev])).toBe("clubs (db.mira)");
+    });
+
+    it("ignores a same-table tab whose title was customised", () => {
+      const mira = tableTab();
+      const copy = tableTab({ id: "tab-2", schema: "mira_dev", title: "clubs (db.mira_dev)" });
+      expect(getTabDisplayTitle(mira, [mira, copy])).toBe("clubs");
+    });
+
+    it("leaves non-table tabs untouched", () => {
+      const console = tableTab({ type: "console", title: "Console" });
+      expect(getTabDisplayTitle(console, [console])).toBe("Console");
     });
   });
 
@@ -998,6 +1063,58 @@ describe("editor", () => {
       expect(resolveTabPageSize(undefined, 0)).toBe(100);
       expect(resolveTabPageSize(undefined, -5)).toBe(100);
       expect(resolveTabPageSize(-1, undefined)).toBe(100);
+    });
+  });
+
+  describe("toSqlList", () => {
+    it("should quote each line for an IN list", () => {
+      expect(toSqlList("alice@example.com\nbob@example.com")).toBe(
+        "'alice@example.com', 'bob@example.com'",
+      );
+    });
+
+    it("should split on newlines, CRLF, tabs and commas", () => {
+      expect(toSqlList("a\r\nb\tc,d")).toBe("'a', 'b', 'c', 'd'");
+    });
+
+    it("should trim values and skip blanks", () => {
+      expect(toSqlList("  a  \n\n\t\n , b ,\n")).toBe("'a', 'b'");
+    });
+
+    it("should escape embedded single quotes", () => {
+      expect(toSqlList("O'Brien\nD'Angelo")).toBe("'O''Brien', 'D''Angelo'");
+    });
+
+    it("should leave numeric-only input unquoted", () => {
+      expect(toSqlList("1\n2\n3")).toBe("1, 2, 3");
+      expect(toSqlList("-4\t0\t3.25")).toBe("-4, 0, 3.25");
+    });
+
+    it("should quote every value when numbers and text are mixed", () => {
+      expect(toSqlList("1\nabc\n3")).toBe("'1', 'abc', '3'");
+    });
+
+    it("should keep identifiers with a leading zero or plus sign quoted", () => {
+      expect(toSqlList("007\n42")).toBe("'007', '42'");
+      expect(toSqlList("+15551234567")).toBe("'+15551234567'");
+    });
+
+    it("should keep duplicates unless dedupe is set", () => {
+      expect(toSqlList("a\nb\na")).toBe("'a', 'b', 'a'");
+      expect(toSqlList("a\nb\na", { dedupe: true })).toBe("'a', 'b'");
+      expect(toSqlList("2\n1\n2", { dedupe: true })).toBe("2, 1");
+    });
+
+    it("should support a custom quote and separator", () => {
+      expect(toSqlList('a\nsay "hi"', { quote: '"', separator: "," })).toBe(
+        '"a","say ""hi"""',
+      );
+      expect(toSqlList("a\nb", { separator: ",\n" })).toBe("'a',\n'b'");
+    });
+
+    it("should return an empty string when there are no values", () => {
+      expect(toSqlList("")).toBe("");
+      expect(toSqlList(" \n\t, ,\n")).toBe("");
     });
   });
 });

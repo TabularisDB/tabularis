@@ -374,3 +374,17 @@ export function generateConnectionName(
   const host = params.host || "localhost";
   return `${params.database}@${host}`;
 }
+
+export function connectionOrderAfterMove(
+  ids: string[],
+  fromId: string,
+  toId: string,
+): Array<[string, number]> | null {
+  const fromIdx = ids.indexOf(fromId);
+  const toIdx = ids.indexOf(toId);
+  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return null;
+  const next = [...ids];
+  next.splice(fromIdx, 1);
+  next.splice(toIdx, 0, fromId);
+  return next.map((id, i) => [id, i]);
+}

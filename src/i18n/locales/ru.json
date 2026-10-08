@@ -509,6 +509,10 @@
     "fontSizeDesc": "Базовый размер шрифта во всём приложении (10–20 пикселей).",
     "preview": "Предпросмотр",
     "fontPreviewText": "Съешь же ещё этих мягких французских булок, да выпей чаю",
+    "dataGrid": {
+      "zebraStripes": "Чередующийся фон строк",
+      "zebraStripesDesc": "Затеняет каждую вторую строку, чтобы строку было легче проследить в широких таблицах."
+    },
     "appearance_general": "Общие",
     "appearance_sqlEditor": "SQL-редактор",
     "appearance_editorTheme": "Тема редактора",
@@ -1208,6 +1212,10 @@
     "copyColumnNameQuoted": "Копировать как `column`",
     "copyColumnNameTable": "Копировать как table.column",
     "copyColumnValuesIn": "Копировать значения столбца как SQL IN",
+    "filterEquals": "Фильтр: {{column}} = это значение",
+    "filterNotEquals": "Фильтр: {{column}} <> это значение",
+    "filterIsNull": "Фильтр: {{column}} IS NULL",
+    "filterIsNotNull": "Фильтр: {{column}} IS NOT NULL",
     "copyCells": "Копировать {{count}} ячеек",
     "copyRows": "Копировать {{count}} строк",
     "copied": "Скопировано в буфер обмена",
@@ -1355,6 +1363,7 @@
     "exportLoadedRowsWarning": "Экспортированы только {{loaded}} загруженных строк из {{total}} строк. Если нужны дополнительные строки, пролистайте результат или выполните более узкий запрос перед экспортом.",
     "queryParameters": "Параметры запроса",
     "formatSql": "Форматировать SQL",
+    "convertSelectionToSqlList": "Преобразовать выделение в список SQL",
     "convertToConsole": "Преобразовать в консоль",
     "parameters": "Параметры",
     "paramValuePlaceholder": "Значение (например, 'текст' или 123)",
@@ -2273,7 +2282,6 @@
     "outputParameter": "Выходной параметр — возвращается как результат",
     "rawLabel": "Raw",
     "rawHint": "Вставить значение как есть, без строковых кавычек (числа, выражения)",
-    "runButton": "Выполнить",
     "runTabPrefix": "Выполнить",
     "returnValue": "возвращает"
   },

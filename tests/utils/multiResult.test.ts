@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   clearEntryScrollTops,
   createResultEntries,
+  extractResultLabel,
   createEntriesFromResultSets,
   updateResultEntry,
   findActiveEntry,
@@ -16,6 +17,7 @@ import {
   getStackedGridHeight,
 } from "../../src/utils/multiResult";
 import type { QueryResult, QueryResultEntry } from "../../src/types/editor";
+import { splitQueries } from "../../src/utils/sqlSplitter";
 
 function makeEntry(overrides: Partial<QueryResultEntry> = {}): QueryResultEntry {
   return {
@@ -43,6 +45,62 @@ function makeResult(overrides: Partial<QueryResult> = {}): QueryResult {
 }
 
 describe("multiResult", () => {
+  describe("extractResultLabel", () => {
+    it.each([
+      ["-- monthly totals\nSELECT 1", "monthly totals"],
+      [" \t\n--  monthly totals  \r\nSELECT 1", "monthly totals"],
+      ["/* top customers */ SELECT 1", "top customers"],
+      ["\n /* top\n  customers\tby sales */ SELECT 1", "top customers by sales"],
+      ["-- first\n-- second\nSELECT 1", "first"],
+      ["/* first */ /* second */ SELECT 1", "first"],
+      ["-- name; with punctuation\nSELECT 1", "name; with punctuation"],
+      ["-- résumé 月次集計\nSELECT 1", "résumé 月次集計"],
+    ])("extracts the first leading comment from %j", (query, label) => {
+      expect(extractResultLabel(query)).toBe(label);
+    });
+
+    it.each([
+      "", " \n\t", "SELECT 1", "SELECT 1 -- trailing",
+      "SELECT /* inline */ 1", "SELECT '-- not a label'",
+      "SELECT '/* not a label */'", "/* unterminated",
+      "-- \nSELECT 1", "/**/ SELECT 1", "/* \n\t */ SELECT 1",
+    ])("keeps the fallback for %j", (query) => {
+      expect(extractResultLabel(query)).toBeUndefined();
+    });
+
+    it("caps labels at 80 characters without splitting a Unicode character", () => {
+      const label = "a".repeat(79) + "😀";
+      expect(extractResultLabel(`-- ${label}extra\nSELECT 1`)).toBe(label);
+      expect(extractResultLabel(`/* ${"b".repeat(100)} */ SELECT 1`)).toBe("b".repeat(80));
+    });
+  });
+
+  describe("automatic result labels", () => {
+    it.each(["postgres", "mysql", "sqlite", "mssql", "oracle", "generic"])(
+      "keeps leading comments attached to split statements for %s",
+      (dialect) => {
+        const queries = splitQueries(
+          "-- monthly totals\nSELECT 1;\n\n/* top customers */\nSELECT 2;\nSELECT 3;",
+          dialect,
+        );
+        const entries = createResultEntries("t", queries);
+        expect(entries.map((entry) => getEntryDisplayLabel(entry, "Query")))
+          .toEqual(["monthly totals", "top customers", "Query 3"]);
+      },
+    );
+
+    it("lets manual rename override the comment and keeps it through result updates", () => {
+      const entries = createResultEntries("t", ["-- automatic\nSELECT 1"]);
+      expect(entries[0].label).toBe("automatic");
+      const renamed = updateResultEntry(entries, entries[0].id, { label: "My result" });
+      const resolved = updateResultEntry(renamed, entries[0].id, {
+        isLoading: false, result: makeResult(),
+      });
+      expect(getEntryDisplayLabel(resolved[0], "Query")).toBe("My result");
+      expect(entries[0].label).toBe("automatic");
+    });
+  });
+
   describe("createEntriesFromResultSets", () => {
     it("should create one entry per result set (primary + additional)", () => {
       const result = makeResult({

@@ -1317,11 +1317,16 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
   const moveConnectionToGroup = useCallback(async (
     connectionId: string,
-    groupId: string | null
+    groupId: string | null,
+    sortOrder?: number
   ): Promise<void> => {
-    await invoke('move_connection_to_group', { connectionId, groupId });
+    await invoke('move_connection_to_group', { connectionId, groupId, sortOrder });
     setConnections(prev =>
-      prev.map(c => (c.id === connectionId ? { ...c, group_id: groupId ?? undefined } : c))
+      prev.map(c =>
+        c.id === connectionId
+          ? { ...c, group_id: groupId ?? undefined, sort_order: sortOrder ?? c.sort_order }
+          : c
+      )
     );
   }, []);
 

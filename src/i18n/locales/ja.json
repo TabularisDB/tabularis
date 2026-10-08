@@ -525,6 +525,10 @@
     "fontSizeDesc": "アプリケーション全体で使用される基本フォントサイズを調整します (10〜20px)。",
     "preview": "プレビュー",
     "fontPreviewText": "いろはにほへと ちりぬるを わかよたれそ つねならむ",
+    "dataGrid": {
+      "zebraStripes": "交互の行背景",
+      "zebraStripesDesc": "1行おきに背景を網掛けし、横幅の広いテーブルでも行を追いやすくします。"
+    },
     "appearance_general": "一般",
     "appearance_sqlEditor": "SQL エディタ",
     "appearance_editorTheme": "エディタテーマ",
@@ -1219,6 +1223,10 @@
     "copyColumnNameQuoted": "`column` 形式でコピー",
     "copyColumnNameTable": "table.column 形式でコピー",
     "copyColumnValuesIn": "列の値を SQL IN としてコピー",
+    "filterEquals": "フィルター：{{column}} = この値",
+    "filterNotEquals": "フィルター：{{column}} <> この値",
+    "filterIsNull": "フィルター：{{column}} IS NULL",
+    "filterIsNotNull": "フィルター：{{column}} IS NOT NULL",
     "copyCells": "{{count}} 個のセルをコピー",
     "copyRows": "{{count}} 行をコピー",
     "copied": "クリップボードにコピーしました",
@@ -1364,6 +1372,7 @@
     "exportLoadedRowsWarning": "合計 {{total}} 行のうち、読み込み済みの {{loaded}} 行のみをエクスポートしました。さらに多くの行が必要な場合は、結果をページ送りするか、より絞り込んだクエリを実行してからエクスポートしてください。",
     "queryParameters": "クエリパラメータ",
     "formatSql": "SQLをフォーマット",
+    "convertSelectionToSqlList": "選択範囲をSQLリストに変換",
     "convertToConsole": "コンソールに変換",
     "parameters": "パラメータ",
     "paramValuePlaceholder": "値 (例: 'text' や 123)",
@@ -2214,7 +2223,6 @@
     "outputParameter": "出力パラメータ — 結果として返されます",
     "rawLabel": "Raw",
     "rawHint": "文字列クォートなしでそのまま挿入します（数値・式）",
-    "runButton": "実行",
     "runTabPrefix": "実行",
     "returnValue": "戻り値"
   },

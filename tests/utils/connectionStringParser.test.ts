@@ -71,6 +71,22 @@ const URI_PASSTHROUGH_DRIVERS: ConnectionStringDriver[] = [
   },
 ];
 
+const JDBC_DRIVER: ConnectionStringDriver = {
+  id: "jdbc",
+  capabilities: {
+    schemas: false,
+    views: false,
+    routines: false,
+    file_based: false,
+    folder_based: false,
+    connection_string: true,
+    connection_string_example: "jdbc:h2:tcp://localhost/~/test",
+    connection_uri: true,
+    identifier_quote: '"',
+    alter_primary_key: false,
+  },
+};
+
 const ATLAS_URI =
   "mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/?tls=true&retryWrites=true&w=majority&appName=Cluster0";
 
@@ -511,6 +527,21 @@ describe("connectionStringParser", () => {
     });
   });
   describe("URI passthrough drivers", () => {
+    it.each([
+      "jdbc:h2:mem:test",
+      "jdbc:h2:./data/test",
+      "jdbc:h2:tcp://localhost/~/test",
+      "jdbc:h2:ssl://localhost/~/test",
+    ])("preserves an H2 connection string (%s)", (uri) => {
+      const result = parseConnectionString(uri, [JDBC_DRIVER]);
+      expect(result.success).toBe(true);
+      expect(looksLikeConnectionString(uri, [JDBC_DRIVER])).toBe(true);
+      if (result.success) {
+        expect(result.params.driver).toBe("jdbc");
+        expect(result.params.connection_uri).toBe(uri);
+      }
+    });
+
     it("should accept a plugin-declared extra scheme", () => {
       expect(
         getSupportedConnectionStringProtocols(URI_PASSTHROUGH_DRIVERS),

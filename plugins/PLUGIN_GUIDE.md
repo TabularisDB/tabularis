@@ -126,6 +126,7 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `no_connection_required` | bool | `true` for API-based plugins that need no host, port, or credentials (e.g. a public REST API). Hides the entire connection form — the user only fills in the connection name. |
 | `connection_string` | bool | Set `false` to hide the connection string import UI for this driver. Defaults to `true` for network drivers. `file_based` and `folder_based` drivers skip the import UI automatically regardless of this flag. |
 | `connection_string_example` | string | Optional placeholder example shown in the connection string import field (e.g. `"clickhouse://user:pass@localhost:9000/db"`). Also accepted as camelCase `connectionStringExample`. |
+| `connection_string_examples` | array | Optional connection string presets shown beside the import field. Each item has a required `label` and `value`, plus an optional `description`. Selecting one fills the field; `connection_string_example` remains the placeholder. Also accepted as camelCase `connectionStringExamples`. |
 | `identifier_quote` | string | Character used to quote SQL identifiers. Use `"\""` for ANSI standard or `` "`" `` for MySQL style. |
 | `table_query_templates` | bool | Opts the Generate SQL dialog into the optional `get_table_query_template` RPC for SELECT/UPDATE/DELETE previews. Defaults to `false`; older plugins and built-in drivers keep the existing host templates. See [Table Query Templates](#table-query-templates). |
 | `sql_dialect` | string | Optional statement-splitting dialect: `postgres`, `mysql`, `mssql`, `sqlite`, `oracle`, or `generic`. Oracle-like plugins, including DM/Dameng, should use `"oracle"`. |
@@ -134,6 +135,19 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `readonly` | bool | When `true`, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. The add/delete row buttons, inline cell editing, and context menu edit actions are hidden. Table and column management is also hidden regardless of `manage_tables`. Defaults to `false`. |
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
+
+For drivers with several URL forms, declare the single example as the placeholder and add selectable presets:
+
+```json
+{
+  "connection_string_example": "jdbc:h2:tcp://localhost/~/test",
+  "connection_string_examples": [
+    { "label": "In-memory", "value": "jdbc:h2:mem:test", "description": "A named in-memory database." },
+    { "label": "Local file", "value": "jdbc:h2:./data/test" },
+    { "label": "TCP server", "value": "jdbc:h2:tcp://localhost/~/test" }
+  ]
+}
+```
 
 ### Data Types
 
@@ -692,7 +706,7 @@ When a call exceeds the configured plugin call timeout, Tabularis stops waiting 
 
 ## 5. Required Methods
 
-Your plugin must respond to the following JSON-RPC methods. For unsupported features, return an empty array `[]` or a `-32601` (Method not found) error.
+Your plugin must respond to the following JSON-RPC methods. For unsupported features, return an empty array `[]` or a `-32601` (Method not found) error: return code `-32601` and a message containing `Method not found` (e.g. `Method not found: execute_query_batch`). Most fallbacks for optional methods match on the message; a few, such as `get_connection_metadata` and `get_table_query_template`, match on the code.
 
 ### Connection
 
@@ -1536,7 +1550,7 @@ fn dispatch(method: &str, params: &Value, id: Value) -> Value {
             "jsonrpc": "2.0",
             "error": {
                 "code": -32601,
-                "message": format!("Method '{}' not implemented", method)
+                "message": format!("Method not found: {}", method)
             },
             "id": id
         }),

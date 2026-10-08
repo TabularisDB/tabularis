@@ -2740,7 +2740,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           routine={runRoutineModal.routine}
           schema={runRoutineModal.schema}
           onRun={(sql) => {
-            runQuery(sql, `${t("routines.runTabPrefix")} ${runRoutineModal.routine.name}`, false, runRoutineModal.schema);
+            runQuery(sql, `${t("routines.runTabPrefix")} ${runRoutineModal.routine.name}`, true, runRoutineModal.schema);
           }}
         />
       )}

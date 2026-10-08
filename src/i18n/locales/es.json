@@ -539,6 +539,10 @@
     "fontSizeDesc": "Ajusta el tamaño base de fuente usado en la aplicación (10-20px).",
     "preview": "Vista Previa",
     "fontPreviewText": "El veloz zorro marrón salta sobre el perro perezoso",
+    "dataGrid": {
+      "zebraStripes": "Fondo de filas alternas",
+      "zebraStripesDesc": "Sombrea una fila de cada dos para seguir más fácilmente una fila en tablas anchas."
+    },
     "appearance_general": "General",
     "appearance_sqlEditor": "Editor SQL",
     "appearance_editorTheme": "Tema del Editor",
@@ -1235,6 +1239,10 @@
     "copyColumnNameQuoted": "Copiar como `columna`",
     "copyColumnNameTable": "Copiar como tabla.columna",
     "copyColumnValuesIn": "Copiar valores de columna como SQL IN",
+    "filterEquals": "Filtrar: {{column}} = este valor",
+    "filterNotEquals": "Filtrar: {{column}} <> este valor",
+    "filterIsNull": "Filtrar: {{column}} IS NULL",
+    "filterIsNotNull": "Filtrar: {{column}} IS NOT NULL",
     "copyCells": "Copiar {{count}} Celdas",
     "copyRows": "Copiar {{count}} Filas",
     "copied": "Copiado al portapapeles",
@@ -1374,6 +1382,7 @@
     "exportLoadedRowsWarning": "Solo se exportaron {{loaded}} filas cargadas de {{total}} filas totales. Recorre las páginas del resultado o ejecuta una consulta más específica antes de exportar si necesitas más filas.",
     "queryParameters": "Parámetros de Consulta",
     "formatSql": "Formatear SQL",
+    "convertSelectionToSqlList": "Convertir selección en lista SQL",
     "convertToConsole": "Convertir a Consola",
     "parameters": "Parámetros",
     "paramValuePlaceholder": "Valor (ej. 'texto' o 123)",
@@ -2130,7 +2139,6 @@
     "outputParameter": "Parámetro de salida — devuelto como resultado",
     "rawLabel": "Raw",
     "rawHint": "Inserta el valor tal cual, sin comillas de cadena (números, expresiones)",
-    "runButton": "Ejecutar",
     "runTabPrefix": "Ejecutar",
     "returnValue": "devuelve"
   },

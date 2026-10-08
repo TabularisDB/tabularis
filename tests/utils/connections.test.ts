@@ -9,6 +9,7 @@ import {
   getCardClass,
   updateExtraField,
   migrationDirectionForDriver,
+  connectionOrderAfterMove,
   type ConnectionParams,
   type DatabaseDriver,
 } from '../../src/utils/connections';
@@ -701,6 +702,31 @@ describe('connections', () => {
       ];
       expect(migrationDirectionForDriver('mysql', drivers)).toBeNull();
       expect(migrationDirectionForDriver('mysql-plugin', drivers)).toBeNull();
+    });
+  });
+
+  describe('connectionOrderAfterMove', () => {
+    const ids = ['a', 'b', 'c', 'd'];
+
+    it('moves a connection down into the target slot', () => {
+      expect(connectionOrderAfterMove(ids, 'a', 'c')).toEqual([
+        ['b', 0], ['c', 1], ['a', 2], ['d', 3],
+      ]);
+    });
+
+    it('moves a connection up into the target slot', () => {
+      expect(connectionOrderAfterMove(ids, 'd', 'b')).toEqual([
+        ['a', 0], ['d', 1], ['b', 2], ['c', 3],
+      ]);
+    });
+
+    it('returns null when dropped on itself', () => {
+      expect(connectionOrderAfterMove(ids, 'b', 'b')).toBeNull();
+    });
+
+    it('returns null when either id is not in the list', () => {
+      expect(connectionOrderAfterMove(ids, 'x', 'b')).toBeNull();
+      expect(connectionOrderAfterMove(ids, 'a', 'x')).toBeNull();
     });
   });
 });

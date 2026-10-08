@@ -52,6 +52,10 @@ pub struct AppConfig {
     /// "string", "date", "boolean". Missing keys fall back to the active theme's
     /// semantic colors.
     pub result_type_colors: Option<HashMap<String, String>>,
+    /// Keep data grid column headers pinned while scrolling. Default: true.
+    pub sticky_column_headers: Option<bool>,
+    /// Alternate the background of data grid rows. Default: false.
+    pub result_zebra_stripes: Option<bool>,
     pub ai_enabled: Option<bool>,
     pub ai_provider: Option<String>,
     pub ai_model: Option<String>,
@@ -410,6 +414,12 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.result_type_colors.is_some() {
             existing_config.result_type_colors = config.result_type_colors;
+        }
+        if config.sticky_column_headers.is_some() {
+            existing_config.sticky_column_headers = config.sticky_column_headers;
+        }
+        if config.result_zebra_stripes.is_some() {
+            existing_config.result_zebra_stripes = config.result_zebra_stripes;
         }
         if config.ai_enabled.is_some() {
             existing_config.ai_enabled = config.ai_enabled;

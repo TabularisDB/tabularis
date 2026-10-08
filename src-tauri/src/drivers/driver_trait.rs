@@ -39,6 +39,15 @@ pub enum SqlDialect {
     Generic,
 }
 
+/// A labeled connection URI preset displayed in the connection modal.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ConnectionStringExample {
+    pub label: String,
+    pub value: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
 /// Capabilities advertised by a driver.
 /// The frontend uses these flags to decide which UI sections to show.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -72,6 +81,9 @@ pub struct DriverCapabilities {
     /// Optional placeholder example shown for connection string input.
     #[serde(default, alias = "connectionStringExample")]
     pub connection_string_example: String,
+    /// Optional connection URI presets shown in the connection modal.
+    #[serde(default, alias = "connectionStringExamples")]
+    pub connection_string_examples: Vec<ConnectionStringExample>,
     /// The driver consumes the raw connection URI verbatim instead of the
     /// decomposed host/port/database fields. Set by drivers whose scheme
     /// carries semantics the decomposition would destroy (e.g. the DNS

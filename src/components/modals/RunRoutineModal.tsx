@@ -236,7 +236,7 @@ export const RunRoutineModal = ({
             className="px-4 py-2 bg-accent-success hover:bg-accent-success/90 disabled:opacity-50 text-on-accent-success rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
             {isBuilding && <Loader2 size={16} className="animate-spin" />}
-            {t("routines.runButton")}
+            {t("sidebar.openInEditor")}
           </button>
         </div>
       </div>

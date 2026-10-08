@@ -5,6 +5,8 @@ import {
   stripLeadingComments,
   isExplainable,
 } from './sqlSplitter';
+import { leadingKeyword } from './sqlSplitter/classify';
+import { maskNonCode } from './queryParameters';
 
 export type SqlDialect = Dialect;
 export type { Statement };
@@ -15,23 +17,64 @@ export const stripLeadingSqlComments = stripLeadingComments;
 
 export const isExplainableQuery = isExplainable;
 
+const DATA_MODIFYING_KEYWORDS: ReadonlySet<string> = new Set([
+  "INSERT",
+  "UPDATE",
+  "DELETE",
+  "MERGE",
+  "REPLACE",
+  "UPSERT",
+  "TRUNCATE",
+  "CREATE",
+  "DROP",
+  "ALTER",
+  "GRANT",
+  "REVOKE",
+  "CALL",
+  "EXEC",
+  "EXECUTE",
+]);
+
+// A `WITH` statement writes when its main statement or any CTE body does.
+// `INTO` also covers `SELECT ... INTO new_table`, which creates the table.
+const CTE_WRITE_RE = /\b(?:INSERT|UPDATE|DELETE|MERGE|INTO)\b/i;
+
+const SELECT_INTO_RE = /\bINTO\b/i;
+
+const MASK_DIALECTS: readonly SqlDialect[] = [
+  "postgres",
+  "mysql",
+  "mssql",
+  "sqlite",
+  "oracle",
+  "generic",
+];
+
 /**
  * Whether a statement changes data, so callers can warn before running it under
  * `EXPLAIN ANALYZE` — which really executes it.
+ *
+ * It reads the statement, not what it calls: a function with side effects
+ * (`SELECT nextval('s')`, `SELECT purge_old_rows()`) is not detected.
  *
  * A question about a query, not about a plan: it belongs with the other SQL
  * helpers rather than in the plan analysis package.
  */
 export function isDataModifyingQuery(query: string): boolean {
-  const trimmed = query.trim().toUpperCase();
-  return (
-    trimmed.startsWith("INSERT") ||
-    trimmed.startsWith("UPDATE") ||
-    trimmed.startsWith("DELETE") ||
-    trimmed.startsWith("DROP") ||
-    trimmed.startsWith("ALTER") ||
-    trimmed.startsWith("TRUNCATE")
-  );
+  const keyword = leadingKeyword(query);
+  if (DATA_MODIFYING_KEYWORDS.has(keyword)) return true;
+  if (keyword === "SELECT") return matchesOutsideStrings(query, SELECT_INTO_RE);
+  if (keyword === "WITH") return matchesOutsideStrings(query, CTE_WRITE_RE);
+  return false;
+}
+
+// Look for a keyword outside strings and comments. The connection's dialect is
+// not known here, and a dialect that does not lex a literal (Postgres dollar
+// quoting, E-strings, T-SQL bracket identifiers, MySQL backslash escapes) can
+// read an apostrophe in it as an unterminated string that hides everything
+// after it. The real dialect always lexes it, so a match under any one counts.
+function matchesOutsideStrings(query: string, pattern: RegExp): boolean {
+  return MASK_DIALECTS.some((dialect) => pattern.test(maskNonCode(query, dialect)));
 }
 
 function isIdentifierChar(char: string): boolean {

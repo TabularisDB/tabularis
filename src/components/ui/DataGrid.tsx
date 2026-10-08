@@ -34,6 +34,7 @@ import {
   Eraser,
   FileDigit,
   ExternalLink,
+  Filter,
   PanelBottomOpen,
   Eye,
   EyeOff,
@@ -64,6 +65,9 @@ import {
   buildCellRange,
   extendCellRange,
   moveCellPosition,
+  getColumnLayoutKey,
+  resolveLockedColumnWidths,
+  type LockedColumnWidths,
   createDataGridResultCommands,
   type RangeExtendKey,
 } from "../../utils/dataGrid";
@@ -81,6 +85,10 @@ import {
   pickPrimaryForeignKeyByColumn,
   getForeignKeyForPreview,
 } from "../../utils/foreignKeys";
+import {
+  getCellValueFilterOperators,
+  type CellValueFilterOperator,
+} from "../../utils/cellValueFilter";
 import {
   getDateInputMode,
   parseDateTime,
@@ -125,6 +133,12 @@ interface DataGridProps {
   columnMetadata?: TableColumn[];
   foreignKeys?: ForeignKey[];
   onForeignKeyNavigate?: (fk: ForeignKey, value: unknown) => void;
+  onFilterByValue?: (
+    column: string,
+    operator: CellValueFilterOperator,
+    value: unknown,
+    columnType?: string,
+  ) => void;
   onForeignKeyShowPanel?: (fk: ForeignKey, value: unknown) => void;
   onForeignKeyHidePanel?: () => void;
   connectionId?: string | null;
@@ -204,6 +218,14 @@ const RANGE_EXTEND_KEYS = new Set([
   "ArrowRight",
 ]);
 
+// i18n label per "Filter by this value" operator.
+const CELL_VALUE_FILTER_LABEL_KEYS: Record<CellValueFilterOperator, string> = {
+  "=": "dataGrid.filterEquals",
+  "<>": "dataGrid.filterNotEquals",
+  "IS NULL": "dataGrid.filterIsNull",
+  "IS NOT NULL": "dataGrid.filterIsNotNull",
+};
+
 export const DataGrid = React.memo(
   function DataGrid({
     ref,
@@ -217,6 +239,7 @@ export const DataGrid = React.memo(
     columnMetadata,
     foreignKeys,
     onForeignKeyNavigate,
+    onFilterByValue,
     onForeignKeyShowPanel,
     onForeignKeyHidePanel,
     connectionId,
@@ -255,6 +278,7 @@ export const DataGrid = React.memo(
     const rightSidebar = useRightSidebar();
     const colorByType = settings.resultColorByType ?? false;
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
+    const zebraStripes = settings.resultZebraStripes ?? false;
 
     // Sensitive-column masking (#485): display-only — copy/export keep the
     // real values; only the rendered grid masks them.
@@ -1469,6 +1493,48 @@ export const DataGrid = React.memo(
       hasRenderedRows,
     ]);
 
+    // Lock the column widths once the first rows are on screen (#844). The
+    // table starts in auto layout so the browser sizes each column to its
+    // header and the rendered values; those widths are then measured and
+    // held with a fixed layout, so scrolling through rows that are wider or
+    // narrower no longer reflows the columns. Re-measured only when the
+    // column set changes.
+    const theadRowRef = useRef<HTMLTableRowElement>(null);
+    const [lockedColumnWidths, setLockedColumnWidths] =
+      useState<LockedColumnWidths | null>(null);
+    const columnLayoutKey = useMemo(
+      () =>
+        getColumnLayoutKey(
+          tableColumns.map((col) => col.id ?? ""),
+          tableRows.length > 0,
+        ),
+      [tableColumns, tableRows.length],
+    );
+    const columnWidths = resolveLockedColumnWidths(
+      lockedColumnWidths,
+      columnLayoutKey,
+      tableColumns.length + 1,
+    );
+    useLayoutEffect(() => {
+      if (columnWidths) return;
+      // Wait until the grid is visible and its rows are rendered: a hidden
+      // grid (inactive tab) or a not-yet-virtualized body measures wrong.
+      if (parentViewportWidth === 0) return;
+      if (tableRows.length > 0 && !hasRenderedRows) return;
+      const headerRow = theadRowRef.current;
+      if (!headerRow) return;
+      const widths = Array.from(headerRow.children).map(
+        (cell) => cell.getBoundingClientRect().width,
+      );
+      setLockedColumnWidths({ key: columnLayoutKey, widths });
+    }, [
+      columnWidths,
+      columnLayoutKey,
+      parentViewportWidth,
+      tableRows.length,
+      hasRenderedRows,
+    ]);
+
     const handleContextMenu = useCallback(
       (
         e: React.MouseEvent,
@@ -2503,6 +2569,7 @@ export const DataGrid = React.memo(
         onPendingInsertionChange,
         openJsonViewerWindow,
         editInputRef,
+        zebraStripes,
       }),
       [
         columns,
@@ -2547,6 +2614,7 @@ export const DataGrid = React.memo(
         onPendingInsertionChange,
         openJsonViewerWindow,
         editInputRef,
+        zebraStripes,
       ],
     );
 
@@ -2579,12 +2647,22 @@ export const DataGrid = React.memo(
           onScroll={handleScroll}
           className="h-full overflow-auto border border-default rounded bg-elevated relative focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
         >
-          <table className="w-full text-left border-collapse">
+          <table
+            className="w-full text-left border-collapse"
+            style={columnWidths ? { tableLayout: "fixed" } : undefined}
+          >
+            {columnWidths && (
+              <colgroup>
+                {columnWidths.map((width, index) => (
+                  <col key={index} style={{ width }} />
+                ))}
+              </colgroup>
+            )}
             <thead
               className={`bg-base z-10 shadow-sm ${stickyColumnHeaders ? "sticky top-0" : ""}`}
             >
               {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
+                <tr key={headerGroup.id} ref={theadRowRef}>
                   <th
                     onClick={handleSelectAll}
                     title={
@@ -2797,6 +2875,46 @@ export const DataGrid = React.memo(
                   icon: Braces,
                   action: openJsonEditor,
                 });
+              }
+
+              // "Filter by this value": hidden for blobs/JSON (their wire
+              // formats don't survive a WHERE comparison) and for insertion
+              // rows, which have no stored value to filter on yet. Masking is
+              // display-only, so a masked cell only gets IS NULL / IS NOT NULL
+              // and its real value never reaches the WHERE input.
+              if (onFilterByValue && tableName && !isInsertion) {
+                const isContextCellMasked = isCellMasked(
+                  contextMenu.rowIndex,
+                  contextMenu.colIndex,
+                );
+                const isBlobCell =
+                  isBlobColumn(colDataType, columnLengthMap?.get(colName)) ||
+                  isBlobWireFormat(contextCellValue);
+                if (
+                  !isBlobCell &&
+                  !isJsonCellTarget(colDataType, contextCellValue)
+                ) {
+                  for (const op of getCellValueFilterOperators(
+                    contextCellValue,
+                    { masked: isContextCellMasked },
+                  )) {
+                    menuItems.push({
+                      label: t(CELL_VALUE_FILTER_LABEL_KEYS[op], {
+                        column: colName,
+                      }),
+                      icon: Filter,
+                      action: () => {
+                        onFilterByValue(
+                          colName,
+                          op,
+                          isContextCellMasked ? null : contextCellValue,
+                          colDataType || undefined,
+                        );
+                        setContextMenu(null);
+                      },
+                    });
+                  }
+                }
               }
 
               // Separator before row actions

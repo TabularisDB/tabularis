@@ -212,7 +212,7 @@ export interface DatabaseContextType {
    * Tauri command's `Option<String>` parameter). */
   moveGroupToParent: (id: string, parentId: string | null) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
-  moveConnectionToGroup: (connectionId: string, groupId: string | null) => Promise<void>;
+  moveConnectionToGroup: (connectionId: string, groupId: string | null, sortOrder?: number) => Promise<void>;
   reorderGroups: (groupOrders: Array<[string, number]>) => Promise<void>;
   reorderConnectionsInGroup: (connectionOrders: Array<[string, number]>) => Promise<void>;
   toggleGroupCollapsed: (groupId: string) => Promise<void>;

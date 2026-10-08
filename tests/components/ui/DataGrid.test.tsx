@@ -1,6 +1,6 @@
 import { act, render, fireEvent, screen, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { createRef, useState } from "react";
+import { createRef, useState, type ComponentProps } from "react";
 import { vi } from "vitest";
 import {
   DataGrid,
@@ -1514,6 +1514,168 @@ describe("DataGrid sensitive-column masking (#485)", () => {
     );
     fireEvent.doubleClick(cellAt(container, 0, 1));
     expect(container.querySelector("textarea")).toBeInTheDocument();
+  });
+});
+
+describe("DataGrid filter-by-value context menu", () => {
+  const cellAt = (container: HTMLElement, rowIndex: number, colIndex: number) =>
+    container.querySelector(
+      `tr[data-row-index="${rowIndex}"] td[data-col-index="${colIndex}"]`,
+    )!;
+
+  const usersMetadata = [
+    {
+      name: "id",
+      data_type: "integer",
+      is_pk: true,
+      is_nullable: false,
+      is_auto_increment: false,
+    },
+    {
+      name: "name",
+      data_type: "character varying(255)",
+      is_pk: false,
+      is_nullable: true,
+      is_auto_increment: false,
+    },
+    {
+      name: "email",
+      data_type: "character varying(255)",
+      is_pk: false,
+      is_nullable: true,
+      is_auto_increment: false,
+    },
+    {
+      name: "avatar",
+      data_type: "bytea",
+      is_pk: false,
+      is_nullable: true,
+      is_auto_increment: false,
+    },
+    {
+      name: "settings",
+      data_type: "jsonb",
+      is_pk: false,
+      is_nullable: true,
+      is_auto_increment: false,
+    },
+  ];
+
+  const renderUsersGrid = (
+    overrides: Partial<ComponentProps<typeof DataGrid>> = {},
+  ) => {
+    const onFilterByValue = vi.fn();
+    const utils = render(
+      <DataGrid
+        columns={["id", "name", "email", "avatar", "settings"]}
+        data={[[1, "Alice", "alice@example.com", "BLOB:3:image/png:AAEC", { theme: "dark" }]]}
+        tableName="users"
+        pkColumns={["id"]}
+        columnMetadata={usersMetadata}
+        onFilterByValue={onFilterByValue}
+        // Read-only keeps the editing items (and their icons) out of the
+        // menu; the filter items only depend on tableName.
+        readonly
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        {...overrides}
+      />,
+    );
+    return { ...utils, onFilterByValue };
+  };
+
+  it("offers = / <> on a regular cell and passes the cell value", async () => {
+    const { container, onFilterByValue } = renderUsersGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 1));
+    fireEvent.click(await screen.findByText("dataGrid.filterEquals"));
+
+    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+    expect(onFilterByValue).toHaveBeenCalledWith(
+      "name",
+      "=",
+      "Alice",
+      "character varying(255)",
+    );
+  });
+
+  it("offers only IS NULL / IS NOT NULL on a masked cell and never passes its value", async () => {
+    const { container, onFilterByValue } = renderUsersGrid();
+
+    // "email" is masked by DEFAULT_MASKING_PATTERNS (settings mock is `{}`).
+    expect(cellAt(container, 0, 2)).toHaveTextContent("••••••");
+    fireEvent.contextMenu(cellAt(container, 0, 2));
+
+    expect(await screen.findByText("dataGrid.filterIsNull")).toBeInTheDocument();
+    expect(screen.getByText("dataGrid.filterIsNotNull")).toBeInTheDocument();
+    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterNotEquals")).toBeNull();
+
+    fireEvent.click(screen.getByText("dataGrid.filterIsNotNull"));
+    expect(onFilterByValue).toHaveBeenCalledWith(
+      "email",
+      "IS NOT NULL",
+      null,
+      "character varying(255)",
+    );
+    expect(JSON.stringify(onFilterByValue.mock.calls)).not.toContain(
+      "alice@example.com",
+    );
+  });
+
+  it("offers = / <> again once the masked cell is revealed", async () => {
+    const { container } = renderUsersGrid();
+
+    fireEvent.click(
+      cellAt(container, 0, 2).querySelector(
+        'button[title="dataGrid.revealCell"]',
+      )!,
+    );
+    fireEvent.contextMenu(cellAt(container, 0, 2));
+
+    expect(await screen.findByText("dataGrid.filterEquals")).toBeInTheDocument();
+    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+  });
+
+  it("hides the items on BLOB and JSON cells", async () => {
+    const { container } = renderUsersGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 3));
+    // Wait for the menu itself, then check the filter items are absent.
+    await screen.findByText("dataGrid.copyCell");
+    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    fireEvent.contextMenu(cellAt(container, 0, 4));
+    await screen.findByText("contextMenu.openJsonEditor");
+    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+  });
+
+  it("hides the items on pending insertion rows", async () => {
+    const { container } = renderUsersGrid({
+      pendingInsertions: {
+        pending: {
+          tempId: "pending",
+          data: { id: 2, name: "Bob" },
+          displayIndex: 1,
+        },
+      },
+    });
+
+    fireEvent.contextMenu(cellAt(container, 1, 1));
+    await screen.findByText("dataGrid.copyCell");
+    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+  });
+
+  it("hides the items when there is no table (query results)", async () => {
+    const { container } = renderUsersGrid({ tableName: null });
+
+    fireEvent.contextMenu(cellAt(container, 0, 1));
+    await screen.findByText("dataGrid.copyCell");
+    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
   });
 });
 

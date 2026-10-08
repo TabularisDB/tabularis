@@ -10,6 +10,7 @@ import { useDrivers } from "../../../src/hooks/useDrivers";
 import { useEditor } from "../../../src/hooks/useEditor";
 import { useSettings } from "../../../src/hooks/useSettings";
 import { useDatabaseObjectNavigation } from "../../../src/hooks/useDatabaseObjectNavigation";
+import { openEditor } from "../../../src/utils/editorNavigation";
 
 const translateMock = vi.hoisted(() => (key: string) => key);
 
@@ -41,6 +42,20 @@ vi.mock("../../../src/utils/notebookStore", async (importOriginal) => {
     ),
   };
 });
+vi.mock("../../../src/utils/editorNavigation", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("../../../src/utils/editorNavigation")
+    >();
+  return { ...actual, openEditor: vi.fn() };
+});
+
+// Stand-in for the parameter dialog: submitting hands the generated SQL to the sidebar's onRun.
+vi.mock("../../../src/components/modals/RunRoutineModal", () => ({
+  RunRoutineModal: ({ onRun }: { onRun: (sql: string) => void }) => (
+    <button onClick={() => onRun("SELECT refresh_orders()")}>run-routine-modal</button>
+  ),
+}));
 
 // ExplorerSidebar pulls in many lucide icons; use the real module so every icon resolves
 // (the global setup mock only stubs a fixed subset).
@@ -349,6 +364,27 @@ describe("ExplorerSidebar — database object navigation", () => {
     openContextMenuOn("orders");
     fireEvent.click(screen.getByText("sidebar.countRows"));
     expect(objectNavigation.count).toHaveBeenCalledWith("orders", undefined);
+  });
+
+  it("context menu — run routine opens the call for review without executing it", () => {
+    vi.mocked(useDatabase).mockReturnValue({
+      ...databaseState,
+      activeCapabilities: { ...databaseState.activeCapabilities, routine_management: true },
+    } as unknown as ReturnType<typeof useDatabase>);
+    renderSidebar();
+    fireEvent.click(screen.getByText("sidebar.routines (1)"));
+    fireEvent.contextMenu(screen.getByText("refresh_orders"));
+    fireEvent.click(screen.getByText("routines.menuRun"));
+    fireEvent.click(screen.getByText("run-routine-modal"));
+
+    expect(openEditor).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        kind: "console",
+        initialQuery: "SELECT refresh_orders()",
+        preventAutoRun: true,
+      }),
+    );
   });
 
   it("disables table actions that require an active connection", () => {

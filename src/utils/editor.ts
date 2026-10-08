@@ -135,6 +135,22 @@ export function generateTabTitle(
   return consoleCount === 0 ? "Console" : `Console ${consoleCount + 1}`;
 }
 
+export function getTabDisplayTitle(tab: Tab, tabs: Tab[]): string {
+  if (tab.type !== "table" || !tab.schema || tab.title !== tab.activeTable) {
+    return tab.title;
+  }
+  const sameTableOtherSchema = tabs.some(
+    (t) =>
+      t.id !== tab.id &&
+      t.connectionId === tab.connectionId &&
+      t.type === "table" &&
+      t.title === t.activeTable &&
+      t.activeTable === tab.activeTable &&
+      t.schema !== tab.schema,
+  );
+  return sameTableOtherSchema ? `${tab.schema}.${tab.title}` : tab.title;
+}
+
 export function findExistingTableTab(
   tabs: Tab[],
   connectionId: string,
@@ -435,4 +451,42 @@ export function resolveTabPageSize(
   if (tabPageSize === 0) return undefined;
   if (tabPageSize && tabPageSize > 0) return tabPageSize;
   return globalPageSize && globalPageSize > 0 ? globalPageSize : 100;
+}
+
+export interface SqlListOptions {
+  /** Character wrapped around each non-numeric value. Defaults to `'`. */
+  quote?: string;
+  /** Text placed between values. Defaults to `", "`. */
+  separator?: string;
+  /** Drop repeated values, keeping the first occurrence. Defaults to false. */
+  dedupe?: boolean;
+}
+
+// Plain decimal numbers only: a leading zero ("007") or a leading "+" usually
+// marks an identifier or phone number that has to stay a quoted string.
+const SQL_LIST_NUMBER = /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/;
+
+/**
+ * Turns pasted values (one per line, or separated by tabs or commas) into a
+ * list ready for `IN (...)`. Values are trimmed and blanks skipped. When every
+ * value is a number the list is left unquoted; otherwise every value is quoted
+ * and embedded quotes are escaped by doubling them (`O'Brien` → `'O''Brien'`).
+ *
+ * @param text - Raw text, e.g. a column copied from a spreadsheet
+ * @param options - Quote character, separator, and whether to drop duplicates
+ * @returns The formatted list, or an empty string when there are no values
+ */
+export function toSqlList(text: string, options: SqlListOptions = {}): string {
+  const { quote = "'", separator = ", ", dedupe = false } = options;
+  let values = text
+    .split(/[\r\n\t,]+/)
+    .map((value) => value.trim())
+    .filter((value) => value !== "");
+  if (dedupe) values = [...new Set(values)];
+  if (values.length > 0 && values.every((value) => SQL_LIST_NUMBER.test(value))) {
+    return values.join(separator);
+  }
+  return values
+    .map((value) => `${quote}${value.split(quote).join(quote + quote)}${quote}`)
+    .join(separator);
 }
