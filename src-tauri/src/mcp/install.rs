@@ -1,6 +1,3 @@
-#[cfg(target_os = "windows")]
-use directories::ProjectDirs;
-
 use directories::BaseDirs;
 
 use serde_json::json;
@@ -41,8 +38,12 @@ fn get_all_clients() -> Vec<McpClient> {
         }
         #[cfg(target_os = "windows")]
         {
-            ProjectDirs::from("", "", "Claude")
-                .map(|p| p.config_dir().join("claude_desktop_config.json"))
+            // %APPDATA%\Claude\claude_desktop_config.json
+            base.as_ref().map(|b| {
+                b.config_dir()
+                    .join("Claude")
+                    .join("claude_desktop_config.json")
+            })
         }
         #[cfg(target_os = "linux")]
         {
