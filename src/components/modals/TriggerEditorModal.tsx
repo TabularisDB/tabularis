@@ -12,6 +12,8 @@ import {
   defaultTriggerBody,
   buildTriggerFunctionSql as buildTriggerFunctionSqlUtil,
   buildTriggerSql as buildTriggerSqlUtil,
+  triggerFunctionName,
+  extractFunctionBody,
   type TriggerSqlInput,
 } from "../../utils/triggerSql";
 import type { DriverCapabilities } from "../../types/plugins";
@@ -112,7 +114,36 @@ export const TriggerEditorModal = ({
         setEvents(parsed.events);
       }
       if (parsed.body) {
-        setBody(parsed.body);
+        // PostgreSQL: the trigger definition's body is `EXECUTE FUNCTION fn()`
+        // — not a PL/pgSQL function body. Fetch the actual function definition
+        // to get the real body statements, so the guided-save recreates the
+        // function with its original logic (not the EXECUTE clause, which is
+        // invalid PL/pgSQL and would fail the CREATE OR REPLACE, leaving the
+        // already-dropped trigger gone — finding #3).
+        if (isPostgresDriver(driver) && /EXECUTE\s+FUNCTION/i.test(parsed.body)) {
+          try {
+            const fnName = triggerFunctionName(tName);
+            const fnDef = await invoke<string>("get_routine_definition", {
+              connectionId,
+              routineName: fnName,
+              routineType: "FUNCTION",
+              ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+              ...(database ? { database } : {}),
+            });
+            const fnBody = extractFunctionBody(fnDef);
+            if (fnBody) {
+              setBody(fnBody);
+            } else {
+              setBody(parsed.body);
+            }
+          } catch {
+            // Can't fetch the function definition — fall back to the parsed
+            // body (the user can edit it before saving).
+            setBody(parsed.body);
+          }
+        } else {
+          setBody(parsed.body);
+        }
       }
     } catch (e) {
       setError(t("triggers.failLoadDefinition") + String(e));

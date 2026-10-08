@@ -5,6 +5,7 @@ import {
   triggerFunctionName,
   buildTriggerFunctionSql,
   buildTriggerSql,
+  extractFunctionBody,
   type TriggerSqlInput,
 } from "../../src/utils/triggerSql";
 
@@ -138,6 +139,26 @@ describe("triggerSql", () => {
     it("joins multiple events with OR", () => {
       const sql = buildTriggerSql({ ...base, events: ["INSERT", "UPDATE"] });
       expect(sql).toContain("AFTER INSERT OR UPDATE");
+    });
+  });
+
+  describe("extractFunctionBody", () => {
+    it("extracts the PL/pgSQL body from a pg_get_functiondef result", () => {
+      const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
+  RETURNS trigger
+  LANGUAGE plpgsql
+AS $function$
+BEGIN
+  NEW.note := NEW.note || ' (audited)';
+  RETURN NEW;
+END;
+$function$`;
+      const body = extractFunctionBody(fnDef);
+      expect(body).toBe(`NEW.note := NEW.note || ' (audited)';\n  RETURN NEW;`);
+    });
+
+    it("returns null when there is no BEGIN/END block", () => {
+      expect(extractFunctionBody("CREATE FUNCTION fn() RETURNS void AS $$ $$ LANGUAGE sql")).toBeNull();
     });
   });
 });

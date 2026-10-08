@@ -69,6 +69,30 @@ export function buildTriggerFunctionSql(input: TriggerSqlInput): string {
 }
 
 /**
+ * Extracts the PL/pgSQL body statements from a `pg_get_functiondef` result.
+ * The function definition looks like:
+ *   CREATE OR REPLACE FUNCTION review.fn() RETURNS trigger LANGUAGE plpgsql
+ *   AS $function$
+ *   BEGIN
+ *     NEW.note := ...;
+ *     RETURN NEW;
+ *   END;
+ *   $function$
+ * This returns the statements between `BEGIN` and `END;` (trimmed), which is
+ * what the guided-mode body field holds — so the guided-save can recreate the
+ * function with its original logic.
+ */
+export function extractFunctionBody(fnDef: string): string | null {
+  const beginMatch = fnDef.match(/\bBEGIN\b/);
+  const endMatch = fnDef.match(/\bEND\s*;/);
+  if (!beginMatch || !endMatch || beginMatch.index === undefined || endMatch.index === undefined) {
+    return null;
+  }
+  const body = fnDef.slice(beginMatch.index + beginMatch[0].length, endMatch.index).trim();
+  return body || null;
+}
+
+/**
  * The CREATE TRIGGER statement itself. For PostgreSQL this references the
  * function from `buildTriggerFunctionSql` (created separately — see
  * TriggerEditorModal.handleSave and issue #837) instead of an inline body,
