@@ -991,7 +991,21 @@ pub async fn set_selected_databases<R: Runtime>(
         .find(|c| c.id == connection_id)
         .ok_or("Connection not found")?;
 
-    conn.params.database = if databases.len() == 1 {
+    // Schema-based multi-db drivers (PostgreSQL) distinguish a one-element
+    // selection (array) from the traditional single-database mode (plain
+    // string) — the array shape is the opt-in signal
+    // (hasOptedIntoDatabaseSelection). Collapsing a singleton to Single here
+    // would lose that signal, so the next reconnect falls back to the flat
+    // schema-only layout. Flat multi-db drivers (MySQL) have no such
+    // ambiguity — a plain string is already an explicit one-element
+    // selection, so collapsing is correct there.
+    let is_schema_based = driver_for_saved(&app, conn)
+        .await
+        .ok()
+        .map(|drv| drv.manifest().capabilities.schemas)
+        .unwrap_or(false);
+
+    conn.params.database = if databases.len() == 1 && !is_schema_based {
         crate::models::DatabaseSelection::Single(databases.remove(0))
     } else {
         crate::models::DatabaseSelection::Multiple(databases)
