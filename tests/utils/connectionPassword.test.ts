@@ -102,6 +102,7 @@ describe("connectionPassword", () => {
         connectionName: "Vault DB",
         username: "app",
         error: PG_AUTH,
+        remember: true,
       });
       expect(calls("test_connection")[1]).toEqual({
         request: {
@@ -140,9 +141,26 @@ describe("connectionPassword", () => {
         connectionName: "Vault DB",
         username: "app",
         error: "password authentication failed again",
+        remember: true,
       });
       expect(calls("set_connection_password")).toEqual([
         { connectionId: "c1", password: "right", remember: true },
+      ]);
+    });
+
+    it("keeps the save choice from the previous attempt when asking again", async () => {
+      failTestsWith(PG_AUTH, "password authentication failed again");
+      const requestPassword = vi
+        .fn()
+        .mockResolvedValueOnce({ password: "wrong", remember: false })
+        .mockResolvedValueOnce({ password: "right", remember: false });
+
+      await testSavedConnection(conn(), requestPassword);
+
+      expect(requestPassword.mock.calls[0][0].remember).toBe(true);
+      expect(requestPassword.mock.calls[1][0].remember).toBe(false);
+      expect(calls("set_connection_password")).toEqual([
+        { connectionId: "c1", password: "right", remember: false },
       ]);
     });
 

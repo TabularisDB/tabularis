@@ -56,6 +56,7 @@ export const PasswordPromptProvider = ({
           connectionName={current.connectionName}
           username={current.username}
           error={current.error}
+          initialRemember={current.remember}
           onSubmit={settle}
           onClose={handleCancel}
         />

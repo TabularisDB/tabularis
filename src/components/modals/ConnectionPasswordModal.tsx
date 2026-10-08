@@ -12,6 +12,8 @@ interface ConnectionPasswordModalProps {
   username?: string;
   /** Why the server rejected the previous password. */
   error?: string;
+  /** Initial state of the "Save password" checkbox. */
+  initialRemember: boolean;
   onSubmit: (result: PasswordPromptResult) => void;
 }
 
@@ -26,6 +28,7 @@ export const ConnectionPasswordModal = ({
   connectionName,
   username,
   error,
+  initialRemember,
   onSubmit,
 }: ConnectionPasswordModalProps) => {
   const { t } = useTranslation();
@@ -33,7 +36,7 @@ export const ConnectionPasswordModal = ({
   const inputId = useId();
   const rememberId = useId();
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(true);
+  const [remember, setRemember] = useState(initialRemember);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

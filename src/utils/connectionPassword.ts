@@ -6,6 +6,11 @@ export interface PasswordPromptRequest {
   username?: string;
   /** Why the server rejected the previous password, shown above the field. */
   error?: string;
+  /**
+   * Initial state of the "Save password" checkbox: checked on the first
+   * prompt, then whatever the user chose in the previous attempt.
+   */
+  remember: boolean;
 }
 
 export interface PasswordPromptResult {
@@ -96,14 +101,17 @@ async function retryWithPromptedPassword<P extends TestableConnection["params"]>
   firstError: string,
 ): Promise<void> {
   let error = firstError;
+  let remember = true;
   for (;;) {
     const result = await requestPassword({
       connectionName: conn.name,
       username: conn.params.username,
       error,
+      remember,
     });
     if (result === null) throw new ConnectionCancelledError();
-    const { password, remember } = result;
+    const { password } = result;
+    remember = result.remember;
 
     try {
       await invoke<string>("test_connection", {

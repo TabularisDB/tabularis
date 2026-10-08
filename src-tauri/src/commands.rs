@@ -3226,6 +3226,19 @@ mod tests {
     }
 
     #[test]
+    fn saving_ssh_credentials_keeps_the_session_password() {
+        let cache = credential_cache::CredentialCache::default();
+        credential_cache::set_session_db_password(&cache, "conn-1", "rotated");
+
+        credential_cache::invalidate_ssh_key_passphrase(&cache, "conn-1");
+
+        assert_eq!(
+            credential_cache::get_session_db_password(&cache, "conn-1").as_deref(),
+            Some("rotated")
+        );
+    }
+
+    #[test]
     fn apply_connection_password_rejects_unknown_connection() {
         let mut file = one_conn_file("conn-1", None);
         assert!(apply_connection_password(&mut file, "missing", "pwd").is_err());

@@ -266,7 +266,6 @@ pub fn invalidate_ssh_password(cache: &CredentialCache, connection_id: &str) {
 
 pub fn invalidate_ssh_key_passphrase(cache: &CredentialCache, connection_id: &str) {
     cache.ssh_passphrases.lock().unwrap().remove(connection_id);
-    cache.session_db_passwords.lock().unwrap().remove(connection_id);
 }
 
 pub fn invalidate_ai_key(cache: &CredentialCache, provider: &str) {
