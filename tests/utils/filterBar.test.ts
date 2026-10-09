@@ -412,6 +412,64 @@ describe("filterBar utils", () => {
     });
   });
 
+  describe("buildStructuredFilterClause with incomplete filters", () => {
+    it("should ignore a filter with an empty value", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "id", operator: "=", value: "" },
+      ];
+      expect(buildStructuredFilterClause(filters, "postgres")).toBe("");
+    });
+
+    it("should keep complete filters and drop empty ones", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "id", operator: "=", value: "" },
+        { id: "2", column: "status", operator: "=", value: "active" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe("status = 'active'");
+    });
+
+    it("should keep IS NULL and IS NOT NULL without a value", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "IS NULL", value: "" },
+        { id: "2", column: "b", operator: "IS NOT NULL", value: "" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe(
+        "a IS NULL AND b IS NOT NULL"
+      );
+    });
+
+    it("should ignore BETWEEN when a bound is missing", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "BETWEEN", value: "1", value2: "" },
+        { id: "2", column: "b", operator: "BETWEEN", value: "", value2: "5" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe("");
+    });
+
+    it("should keep BETWEEN when both bounds are set", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "BETWEEN", value: "1", value2: "5" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe("a BETWEEN 1 AND 5");
+    });
+
+    it("should ignore IN and NOT IN without any item", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "IN", value: "" },
+        { id: "2", column: "b", operator: "NOT IN", value: " , " },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe("");
+    });
+
+    it("should ignore empty filters with OR and not parenthesize the rest", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "=", value: "" },
+        { id: "2", column: "b", operator: "=", value: "2" },
+      ];
+      expect(buildStructuredFilterClause(filters, null, "OR")).toBe("b = 2");
+    });
+  });
+
   describe("createEmptyFilter", () => {
     it("should return filter with first column name", () => {
       const columns = [makeColumn("id", "INTEGER"), makeColumn("name", "VARCHAR")];

@@ -202,8 +202,29 @@ function quoteIfNeeded(value: string): string {
 }
 
 /**
+ * Whether a filter has everything its operator needs to produce a valid clause.
+ * IS NULL / IS NOT NULL need no value; BETWEEN needs both bounds; IN / NOT IN
+ * need at least one non-empty item; every other operator needs a value.
+ */
+export function isFilterComplete(filter: StructuredFilter): boolean {
+  switch (filter.operator) {
+    case "IS NULL":
+    case "IS NOT NULL":
+      return true;
+    case "BETWEEN":
+      return filter.value !== "" && (filter.value2 ?? "") !== "";
+    case "IN":
+    case "NOT IN":
+      return filter.value.split(",").some((v) => v.trim() !== "");
+    default:
+      return filter.value !== "";
+  }
+}
+
+/**
  * Builds a complete WHERE clause string from an array of StructuredFilter joined
- * by the given combinator (AND by default). OR output with several clauses is
+ * by the given combinator (AND by default). Disabled and incomplete filters
+ * (e.g. the empty row added when the panel opens) are ignored. OR output with several clauses is
  * wrapped in parentheses so it composes safely with other clauses.
  * Returns empty string if there is no active filter.
  */
@@ -213,7 +234,7 @@ export function buildStructuredFilterClause(
   combinator: FilterCombinator = "AND"
 ): string {
   const clauses = filters
-    .filter((f) => f.column && f.enabled !== false)
+    .filter((f) => f.column && f.enabled !== false && isFilterComplete(f))
     .map((f) => buildSingleFilterClause(f, driver));
   const joined = clauses.join(` ${combinator} `);
   return combinator === "OR" && clauses.length > 1 ? `(${joined})` : joined;
