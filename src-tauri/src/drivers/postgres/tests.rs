@@ -1726,3 +1726,69 @@ mod live_pg_routine_overloads {
             .expect("drop p(IN a integer)");
     }
 }
+
+/// What `RoutineInfo` puts on the wire for each kind of dialect (#893).
+///
+/// The field is read in TypeScript, where `null` and `undefined` are different
+/// values and only one of them is what the declaration promises. A serialized
+/// `None` arrived as `null`, and the label rendered every routine of a dialect
+/// without signatures as `name(null)`, so the shape is pinned here rather than
+/// left to whoever next reads the struct.
+#[cfg(test)]
+mod routine_info_wire_shape_tests {
+    use crate::models::RoutineInfo;
+
+    fn info(identity_args: Option<&str>) -> RoutineInfo {
+        RoutineInfo {
+            name: "f".to_string(),
+            routine_type: "FUNCTION".to_string(),
+            definition: None,
+            identity_args: identity_args.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn a_dialect_without_signatures_omits_the_field_entirely() {
+        // MySQL and SQLite send None. Absent reaches TypeScript as `undefined`,
+        // which is what `identity_args?: string` promises; `null` did not.
+        let json = serde_json::to_value(info(None)).expect("serialize");
+        assert!(
+            json.get("identity_args").is_none(),
+            "identity_args must be absent, not null: {json}"
+        );
+    }
+
+    #[test]
+    fn a_signature_is_carried_verbatim() {
+        let json = serde_json::to_value(info(Some("a integer"))).expect("serialize");
+        assert_eq!(json["identity_args"], "a integer");
+    }
+
+    #[test]
+    fn the_empty_signature_is_carried_rather_than_skipped() {
+        // THE case the skip must not swallow: "" is a no-argument routine's own
+        // signature, and it is what tells f() apart from f(a integer). Only
+        // `None` means "this dialect does not overload".
+        let json = serde_json::to_value(info(Some(""))).expect("serialize");
+        assert_eq!(json["identity_args"], "");
+        assert!(json.get("identity_args").is_some());
+    }
+
+    #[test]
+    fn an_absent_field_round_trips_back_to_none() {
+        // A plugin driver may send RoutineInfo without the field at all.
+        let info: RoutineInfo =
+            serde_json::from_str(r#"{"name":"f","routine_type":"FUNCTION","definition":null}"#)
+                .expect("deserialize without identity_args");
+        assert_eq!(info.identity_args, None);
+    }
+
+    #[test]
+    fn an_explicit_null_from_a_plugin_still_deserializes_to_none() {
+        let info: RoutineInfo = serde_json::from_str(
+            r#"{"name":"f","routine_type":"FUNCTION","definition":null,"identity_args":null}"#,
+        )
+        .expect("deserialize with an explicit null");
+        assert_eq!(info.identity_args, None);
+    }
+}

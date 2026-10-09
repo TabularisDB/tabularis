@@ -33,9 +33,12 @@ export const groupRoutinesByType = (routines: RoutineInfo[]): GroupedRoutines =>
  * reader needs. Only a MISSING signature means "this dialect does not
  * overload", and there the bare name is the whole truth.
  *
- * Missing is `== null`, not `=== undefined`: `identity_args` is an
- * `Option<String>` that serde writes as JSON `null`, so MySQL's `None` arrives
- * as `null` and a strict check rendered every one of its routines `name(null)`.
+ * Missing is `== null` rather than `=== undefined`, which is belt and braces.
+ * The field is an `Option<String>`, and serializing a `None` as JSON `null` is
+ * what rendered every MySQL routine `name(null)`; that is fixed at the source
+ * now, with `skip_serializing_if` on the Rust side, so the field arrives absent
+ * rather than null. The loose check means removing that attribute cannot bring
+ * the defect back through this function.
  */
 export const routineLabel = (name: string, identityArgs?: string | null): string =>
   identityArgs == null ? name : `${name}(${identityArgs})`;
