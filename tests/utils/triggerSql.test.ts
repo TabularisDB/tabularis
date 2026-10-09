@@ -6,6 +6,7 @@ import {
   buildTriggerFunctionSql,
   buildTriggerSql,
   extractFunctionBody,
+  parseTriggerFunctionName,
   type TriggerSqlInput,
 } from "../../src/utils/triggerSql";
 
@@ -222,6 +223,50 @@ $function$`;
       expect(body).toContain("RETURN NEW;");
       // The outer END; is NOT included — only the body between BEGIN and the matching END.
       expect(body).not.toMatch(/^END;$/m);
+    });
+  });
+
+  describe("parseTriggerFunctionName", () => {
+    it("extracts an unqualified function name from EXECUTE FUNCTION", () => {
+      const sql = [
+        'CREATE TRIGGER "trg_audit"',
+        "AFTER INSERT",
+        'ON "store"."products"',
+        "FOR EACH ROW",
+        "EXECUTE FUNCTION my_audit();",
+      ].join("\n");
+      expect(parseTriggerFunctionName(sql)).toBe("my_audit");
+    });
+
+    it("extracts a schema-qualified function name, dropping the quotes", () => {
+      const sql = 'EXECUTE FUNCTION "store"."trg_fn"();';
+      expect(parseTriggerFunctionName(sql)).toBe("store.trg_fn");
+    });
+
+    it("extracts the function name from EXECUTE PROCEDURE (older PG syntax)", () => {
+      expect(parseTriggerFunctionName("EXECUTE PROCEDURE legacy_fn();")).toBe("legacy_fn");
+    });
+
+    it("is case-insensitive on the EXECUTE FUNCTION|PROCEDURE keywords", () => {
+      expect(parseTriggerFunctionName("execute function lower_fn();")).toBe("lower_fn");
+    });
+
+    it("returns null when there is no EXECUTE FUNCTION|PROCEDURE clause", () => {
+      const mysql = [
+        "CREATE TRIGGER `trg`",
+        "AFTER INSERT",
+        "ON `products`",
+        "FOR EACH ROW",
+        "BEGIN",
+        "  -- body",
+        "END",
+      ].join("\n");
+      expect(parseTriggerFunctionName(mysql)).toBeNull();
+    });
+
+    it("returns null for an empty or malformed clause", () => {
+      expect(parseTriggerFunctionName("EXECUTE FUNCTION ();")).toBeNull();
+      expect(parseTriggerFunctionName("")).toBeNull();
     });
   });
 });

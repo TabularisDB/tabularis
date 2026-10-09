@@ -1879,7 +1879,8 @@
     "createSuccess": "Trigger created successfully",
     "updateSuccess": "Trigger updated successfully",
     "recreateTrigger": "Recreate Trigger",
-    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?"
+    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?",
+    "functionNameCollision": "A function named \"{{name}}\" already exists. Rename the trigger or drop the function first."
   },
   "community": {
     "title": "Join the Community",

@@ -14,6 +14,7 @@ import {
   buildTriggerSql as buildTriggerSqlUtil,
   triggerFunctionName,
   extractFunctionBody,
+  parseTriggerFunctionName,
   type TriggerSqlInput,
 } from "../../utils/triggerSql";
 import type { DriverCapabilities } from "../../types/plugins";
@@ -115,19 +116,38 @@ export const TriggerEditorModal = ({
       }
       if (parsed.body) {
         // PostgreSQL: the trigger definition's body is `EXECUTE FUNCTION fn()`
-        // — not a PL/pgSQL function body. Fetch the actual function definition
-        // to get the real body statements, so the guided-save recreates the
-        // function with its original logic (not the EXECUTE clause, which is
-        // invalid PL/pgSQL and would fail the CREATE OR REPLACE, leaving the
-        // already-dropped trigger gone — finding #3).
-        if (isPostgresDriver(driver) && /EXECUTE\s+FUNCTION/i.test(parsed.body)) {
+        // (or legacy `EXECUTE PROCEDURE fn()`) — not a PL/pgSQL function body.
+        // Fetch the actual function definition to get the real body statements,
+        // so the guided-save recreates the function with its original logic
+        // (not the EXECUTE clause, which is invalid PL/pgSQL and would fail the
+        // CREATE OR REPLACE, leaving the already-dropped trigger gone).
+        //
+        // Parse the real function name from the EXECUTE clause rather than
+        // assuming the `<table>_<trigger>_fn` convention — a trigger whose
+        // function follows a different naming scheme would otherwise fail the
+        // lookup and fall back to the invalid EXECUTE string (debba review, PR
+        // #822, blocking 3).
+        if (isPostgresDriver(driver) && /\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\b/i.test(parsed.body)) {
           try {
-            const fnName = triggerFunctionName(tName, tTable);
+            const parsedFnName = parseTriggerFunctionName(def);
+            // A schema-qualified name ("schema.fn") must be split for the RPC,
+            // which takes routineName + schema separately; fall back to the
+            // trigger's own schema for an unqualified function name.
+            let fnName: string;
+            let fnSchema: string | undefined;
+            if (parsedFnName && parsedFnName.includes(".")) {
+              const [s, ...rest] = parsedFnName.split(".");
+              fnSchema = s;
+              fnName = rest.join(".");
+            } else {
+              fnName = parsedFnName ?? triggerFunctionName(tName, tTable);
+              fnSchema = resolvedSchema;
+            }
             const fnDef = await invoke<string>("get_routine_definition", {
               connectionId,
               routineName: fnName,
               routineType: "FUNCTION",
-              ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+              ...(fnSchema ? { schema: fnSchema } : {}),
               ...(database ? { database } : {}),
             });
             const fnBody = extractFunctionBody(fnDef);
@@ -216,30 +236,46 @@ export const TriggerEditorModal = ({
         { title: t("triggers.recreateTrigger"), kind: "warning" }
       );
       if (!confirmed) return;
-
-      try {
-        await invoke("drop_trigger", {
-          connectionId,
-          triggerName: name,
-          tableName,
-          ...(resolvedSchema ? { schema: resolvedSchema } : {}),
-          ...(database ? { database } : {}),
-        });
-      } catch (e) {
-        setError(t("triggers.dropError") + String(e));
-        return;
-      }
     }
 
     setSaving(true);
     setError(null);
     try {
-      // PostgreSQL: create/replace the trigger function first (a single
-      // statement) — the trigger created just below references it and
-      // cannot exist as one combined statement, since neither the builtin
-      // driver nor the plugin's Postgres client executes multiple
-      // semicolon-separated commands in a single call (see issue #837).
+      // PostgreSQL: the trigger function must exist before the trigger can
+      // reference it, and the two can't run as one combined statement (neither
+      // the builtin driver nor the plugin's Postgres client executes multiple
+      // semicolon-separated commands in a single call — see issue #837).
+      //
+      // ORDERING (debba review, PR #822, blocking 3): create/replace the
+      // function BEFORE dropping the existing trigger, so a failure in the
+      // function step leaves the existing trigger intact. Previously the drop
+      // ran first, so a failed function creation left the trigger gone with no
+      // rollback. CREATE OR REPLACE is idempotent for an existing function
+      // (the edit path); for a brand-new trigger we first probe that no
+      // unrelated function already owns the generated name, so we never
+      // silently clobber a user function.
       if (isPostgres && !useRawSql) {
+        if (isNewTrigger) {
+          // Refuse to silently overwrite an existing function that happens to
+          // share the generated name — the user can rename the trigger instead.
+          try {
+            await invoke<string>("get_routine_definition", {
+              connectionId,
+              routineName: triggerFunctionName(name, tableName),
+              routineType: "FUNCTION",
+              ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+              ...(database ? { database } : {}),
+            });
+            setError(
+              t("triggers.functionNameCollision", {
+                name: triggerFunctionName(name, tableName),
+              }),
+            );
+            return;
+          } catch {
+            // The function doesn't exist — expected for a new trigger; proceed.
+          }
+        }
         await invoke("execute_query", {
           connectionId,
           query: buildTriggerFunctionSql(),
@@ -247,6 +283,24 @@ export const TriggerEditorModal = ({
           ...(database ? { database } : {}),
         });
       }
+
+      if (!isNewTrigger) {
+        // Drop the existing trigger only AFTER the function step succeeded, so
+        // a function-creation failure never leaves the trigger dropped.
+        try {
+          await invoke("drop_trigger", {
+            connectionId,
+            triggerName: name,
+            tableName,
+            ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+            ...(database ? { database } : {}),
+          });
+        } catch (e) {
+          setError(t("triggers.dropError") + String(e));
+          return;
+        }
+      }
+
       await invoke("create_trigger", {
         connectionId,
         triggerSql: sql,
@@ -277,19 +331,20 @@ export const TriggerEditorModal = ({
       name, tableName, schema: resolvedSchema, timing, events,
       body, driver, capabilities,
     };
-    // Mirror handleSave's full flow: drop_trigger → create function → create
-    // trigger (for existing triggers, the drop is required first).
-    await invoke("drop_trigger", {
-      connectionId,
-      triggerName: name,
-      tableName,
-      ...(resolvedSchema ? { schema: resolvedSchema } : {}),
-      ...(database ? { database } : {}),
-    });
+    // Mirror handleSave's edit-path flow: create/replace function → drop_trigger
+    // → create_trigger. The function is created BEFORE the drop so a failure in
+    // the function step leaves the existing trigger intact (debba review, #822).
     const fnSql = buildTriggerFunctionSqlUtil(input);
     await invoke("execute_query", {
       connectionId,
       query: fnSql,
+      ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+      ...(database ? { database } : {}),
+    });
+    await invoke("drop_trigger", {
+      connectionId,
+      triggerName: name,
+      tableName,
       ...(resolvedSchema ? { schema: resolvedSchema } : {}),
       ...(database ? { database } : {}),
     });

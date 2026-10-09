@@ -42,6 +42,28 @@ export function triggerFunctionName(name: string, tableName?: string): string {
 }
 
 /**
+ * Parses the actual function name a PostgreSQL trigger references in its
+ * `EXECUTE FUNCTION <name>()` (or legacy `EXECUTE PROCEDURE <name>()`) clause,
+ * so the editor can fetch that function's real definition on load — instead of
+ * assuming the `<table>_<trigger>_fn` convention, which fails for triggers whose
+ * function follows a different naming scheme and left the body falling back to
+ * the invalid `EXECUTE FUNCTION ...` string (debba review, PR #822, blocking 3).
+ *
+ * Returns the name with quotes stripped and schema qualification preserved
+ * (`schema.name`), or `null` when the clause is absent or malformed. Handles
+ * both quoted (`"schema"."name"`) and unqualified (`name`) forms.
+ */
+export function parseTriggerFunctionName(triggerSql: string): string | null {
+  const match = triggerSql.match(
+    /\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\s+((?:"[^"]+"\s*\.\s*)*"[^"]+"|(?:[A-Za-z_][\w$]*\s*\.\s*)*[A-Za-z_][\w$]*)\s*\(\s*\)/i,
+  );
+  if (!match) return null;
+  // Strip double-quotes and the spaces around the dot, collapsing
+  // `"store"."trg_fn"` → `store.trg_fn` and `my_audit` → `my_audit`.
+  return match[1].replace(/"\s*\.\s*"/g, ".").replace(/"/g, "").trim();
+}
+
+/**
  * Schema-qualified reference to the trigger function, e.g. `"store"."trg_fn"`.
  * Both statements below must use this — not just the bare name — because
  * `CREATE FUNCTION` and `CREATE TRIGGER ... EXECUTE FUNCTION` run as two
