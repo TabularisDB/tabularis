@@ -133,19 +133,52 @@ pub(super) fn routine_exists_sql() -> &'static str {
 /// `information_schema.specific_name` for one overload, from its signature.
 ///
 /// That column is the only key `information_schema.parameters` can be filtered
-/// by, and the two views offer no way to reach it from a signature, so it is
-/// derived: it is documented as the routine's name, an underscore, and its OID,
-/// and `pg_proc` has both. Verified against `information_schema.routines` on
-/// PostgreSQL 18 over a set of four overloads - each row's own `specific_name`
-/// matches this expression and no other row's does.
-pub(super) const ROUTINE_SPECIFIC_NAME_SQL: &str = r#"
-            SELECT p.proname || '_' || p.oid AS specific_name
+/// by, and the two views offer no way to reach it from a signature, so it has
+/// to be derived. The derivation uses the SAME function the view does rather
+/// than reimplementing it, because the obvious reimplementation is wrong.
+///
+/// `proname || '_' || oid` is what it looks like, and it does not fit in a
+/// `name`. Since PostgreSQL 12 the view builds the column with
+/// `nameconcatoid`, which truncates the NAME part so the OID survives inside 63
+/// bytes; the plain concatenation does not truncate at all. Measured on
+/// PostgreSQL 18 with a 60-character routine name:
+///
+/// ```text
+/// proname || '_' || oid  fn_with_a_really_long_name_to_hit_namedatalen_limit_abcdefgh_16385
+/// nameconcatoid          fn_with_a_really_long_name_to_hit_namedatalen_limit_abcde_16385
+/// specific_name          fn_with_a_really_long_name_to_hit_namedatalen_limit_abcde_16385
+/// ```
+///
+/// So the plain form matched nothing for a long-named routine, and the caller
+/// answered with no parameters and no return type - for every long-named
+/// routine on the server, overloaded or not, because the UI always sends a
+/// signature on this driver (#926 review).
+///
+/// Before 12 the view cast the whole concatenation to `name`, which truncates
+/// from the RIGHT and so loses OID digits instead. Measured on the same row,
+/// the two forms disagree: `..._abcdefgh_16` against `..._abcde_16385`. Each
+/// version therefore gets the expression its own `information_schema` uses.
+pub(super) fn routine_specific_name_sql(has_nameconcatoid: bool) -> &'static str {
+    if has_nameconcatoid {
+        r#"
+            SELECT nameconcatoid(p.proname, p.oid)::text AS specific_name
             FROM pg_proc p
             JOIN pg_namespace n ON p.pronamespace = n.oid
             WHERE n.nspname = $1
             AND   p.proname = $2
             AND   pg_get_function_identity_arguments(p.oid) = $3
-        "#;
+        "#
+    } else {
+        r#"
+            SELECT (p.proname || '_' || p.oid)::name::text AS specific_name
+            FROM pg_proc p
+            JOIN pg_namespace n ON p.pronamespace = n.oid
+            WHERE n.nspname = $1
+            AND   p.proname = $2
+            AND   pg_get_function_identity_arguments(p.oid) = $3
+        "#
+    }
+}
 
 /// The return type of one routine, by `specific_name` where the caller has one.
 ///

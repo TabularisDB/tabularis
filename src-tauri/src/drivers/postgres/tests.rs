@@ -1416,7 +1416,7 @@ mod pg_vector_binding_tests {
 mod routine_overload_sql_tests {
     use super::super::routines::{
         routine_definition_sql, routine_exists_sql, routine_parameters_sql,
-        routine_return_type_sql, ROUTINE_SPECIFIC_NAME_SQL,
+        routine_return_type_sql, routine_specific_name_sql,
     };
 
     #[test]
@@ -1455,14 +1455,40 @@ mod routine_overload_sql_tests {
     }
 
     #[test]
-    fn specific_name_is_derived_from_pg_proc_and_the_signature() {
-        // information_schema offers no way to reach specific_name from a
-        // signature, so it is built from the name and the OID. Verified against
-        // information_schema.routines on PostgreSQL 18 over four overloads.
-        assert!(ROUTINE_SPECIFIC_NAME_SQL.contains("p.proname || '_' || p.oid"));
-        assert!(
-            ROUTINE_SPECIFIC_NAME_SQL.contains("pg_get_function_identity_arguments(p.oid) = $3")
-        );
+    fn specific_name_uses_the_view_s_own_function_rather_than_reimplementing_it() {
+        // The obvious `proname || '_' || oid` is WRONG, and this test used to
+        // pin it, which is how it shipped. `information_schema` builds the
+        // column with `nameconcatoid`, which truncates the name part so the OID
+        // survives 63 bytes; the plain concatenation does not truncate at all,
+        // so a long-named routine matched nothing (#926 review).
+        let sql = routine_specific_name_sql(true);
+        assert!(sql.contains("nameconcatoid(p.proname, p.oid)::text"));
+        assert!(!sql.contains("p.proname || '_' || p.oid AS"));
+        assert!(sql.contains("pg_get_function_identity_arguments(p.oid) = $3"));
+    }
+
+    #[test]
+    fn specific_name_before_postgresql_12_casts_to_name_as_that_view_did() {
+        // `nameconcatoid` arrived in 12 and referencing it earlier fails at
+        // parse time. Those versions cast the whole concatenation to `name`,
+        // which truncates from the RIGHT and loses OID digits - measured as
+        // `..._abcdefgh_16` against 12's `..._abcde_16385`, so the two forms
+        // genuinely differ and each version needs its own.
+        let sql = routine_specific_name_sql(false);
+        assert!(sql.contains("(p.proname || '_' || p.oid)::name::text"));
+        assert!(!sql.contains("nameconcatoid"));
+    }
+
+    #[test]
+    fn both_specific_name_forms_are_keyed_on_all_three_parts() {
+        for sql in [
+            routine_specific_name_sql(true),
+            routine_specific_name_sql(false),
+        ] {
+            assert!(sql.contains("n.nspname = $1"));
+            assert!(sql.contains("p.proname = $2"));
+            assert!(sql.contains("pg_get_function_identity_arguments(p.oid) = $3"));
+        }
     }
 
     #[test]
@@ -1683,6 +1709,69 @@ mod live_pg_routine_overloads {
         assert!(
             none.iter().all(|p| p.name.is_empty()),
             "f() takes no arguments"
+        );
+    }
+
+    /// A routine whose name is long enough that `information_schema` truncates
+    /// its `specific_name`, which the parameter read is keyed on (#926 review).
+    ///
+    /// Not an overload case at all, and that is the point: the UI sends a
+    /// signature for every routine on this driver, so a derivation that did not
+    /// truncate the same way the view does answered with no parameters for
+    /// long-named routines that work fine on main.
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_parameters_survive_a_name_information_schema_truncates() {
+        let Some(params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+        let schema = "tabularis_893_long";
+        let long_name = "fn_with_a_really_long_name_to_hit_namedatalen_limit_abcdefgh";
+        assert!(long_name.len() > 40, "the name has to be long enough to truncate");
+
+        let pool = crate::pool_manager::get_postgres_pool(&params)
+            .await
+            .expect("connect to test postgres");
+        let client = pool.get().await.expect("get client");
+        client
+            .batch_execute(&format!(
+                "DROP SCHEMA IF EXISTS {schema} CASCADE;
+                 CREATE SCHEMA {schema};
+                 CREATE FUNCTION {schema}.{long_name}(a integer, b text)
+                     RETURNS integer LANGUAGE sql AS $$ SELECT a $$;"
+            ))
+            .await
+            .expect("seed the long-named routine");
+
+        // The signature the listing reports, which is what the UI sends back.
+        let listed = super::super::get_routines(&params, schema)
+            .await
+            .expect("list routines");
+        let identity = listed
+            .iter()
+            .find(|r| r.name == long_name)
+            .and_then(|r| r.identity_args.as_deref())
+            .expect("the long-named routine is listed with a signature");
+
+        let parameters = super::super::get_routine_parameters(&params, long_name, schema, Some(identity))
+            .await
+            .expect("parameters for the long-named routine");
+
+        let named: Vec<&str> = parameters
+            .iter()
+            .filter(|p| !p.name.is_empty())
+            .map(|p| p.name.as_str())
+            .collect();
+        assert_eq!(
+            named,
+            vec!["a", "b"],
+            "a truncated specific_name left this empty, got: {named:?}"
+        );
+        // And the return type row, which came from the same lookup.
+        assert!(
+            parameters.iter().any(|p| p.name.is_empty() && p.mode == "OUT"),
+            "the return type row is missing: {parameters:?}"
         );
     }
 

@@ -283,9 +283,9 @@ export function loadRoutineDefinition(
     ...(target.schema ? { schema: target.schema } : {}),
     // `!= null` rather than truthiness: "" is the signature of a no-argument
     // routine, and dropping it would ask for an arbitrary overload again on
-    // exactly the routine that has none. Loose rather than strict so a `null`
-    // is not forwarded as if it were a signature, which the wire no longer
-    // sends but the type still admits.
+    // exactly the routine that has none. Loose rather than strict because the
+    // type admits `null`, which the host no longer sends - `identity_args` is
+    // skipped when it is `None` - so this is belt and braces, not the live case.
     ...(target.identityArgs != null
       ? { identityArgs: target.identityArgs }
       : {}),

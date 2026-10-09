@@ -87,7 +87,7 @@ import type { TableColumn } from "../../types/schema";
 import type { ContextMenuData } from "../../types/sidebar";
 import type { TableTarget } from "../../types/databaseObjects";
 import type { RoutineInfo, TriggerInfo } from "../../contexts/DatabaseContext";
-import { groupRoutinesByType } from "../../utils/routines";
+import { groupRoutinesByType, routineLabel } from "../../utils/routines";
 import { formatObjectCount } from "../../utils/schema";
 import { groupByDate, formatHistoryTime } from "../../utils/dateGroups";
 import { SqlHighlight } from "../ui/SqlHighlight";
@@ -479,7 +479,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         // to do for every overloaded routine (#893).
         ...(identityArgs != null ? { identityArgs } : {}),
       });
-      showAlert(t("routines.dropSuccess", { name }), { kind: "info" });
+      showAlert(t("routines.dropSuccess", { name: routineLabel(name, identityArgs) }), { kind: "info" });
       if (refreshRoutines) refreshRoutines();
     } catch (e) {
       console.error(e);
@@ -1857,7 +1857,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               />
                               {functionsOpen && groupedRoutines.functions.map((routine) => (
                                 <SidebarRoutineItem
-                                  key={routine.name}
+                                  key={routineLabel(routine.name, routine.identity_args)}
                                   routine={routine}
                                   connectionId={activeConnectionId!}
                                   onContextMenu={handleContextMenu}
@@ -1878,7 +1878,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               />
                               {proceduresOpen && groupedRoutines.procedures.map((routine) => (
                                 <SidebarRoutineItem
-                                  key={routine.name}
+                                  key={routineLabel(routine.name, routine.identity_args)}
                                   routine={routine}
                                   connectionId={activeConnectionId!}
                                   onContextMenu={handleContextMenu}
@@ -2762,7 +2762,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         isOpen={routineDropConfirm !== null}
         onClose={() => setRoutineDropConfirm(null)}
         title={t("routines.dropConfirmTitle")}
-        message={t("routines.dropConfirmMessage", { name: routineDropConfirm?.name ?? "" })}
+        message={t("routines.dropConfirmMessage", {
+          // The signature, or two overloads of one name ask the same question.
+          name: routineDropConfirm
+            ? routineLabel(routineDropConfirm.name, routineDropConfirm.identityArgs)
+            : "",
+        })}
         onConfirm={handleDropRoutine}
       />
     </>

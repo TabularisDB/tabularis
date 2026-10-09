@@ -20,7 +20,7 @@ import { SidebarTriggerItem } from "./SidebarTriggerItem";
 import type { SchemaData, RoutineInfo, TriggerInfo } from "../../../contexts/DatabaseContext";
 import type { TableColumn } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
-import { groupRoutinesByType } from "../../../utils/routines";
+import { groupRoutinesByType, routineLabel } from "../../../utils/routines";
 import { formatObjectCount } from "../../../utils/schema";
 import { fuzzyFilter } from "../../../utils/fuzzy";
 import { onActivationKey } from "../../../utils/keyboardEvents";
@@ -441,7 +441,7 @@ export const SidebarSchemaItem = ({
                         />
                         {functionsOpen && groupedRoutines.functions.map((routine) => (
                           <SidebarRoutineItem
-                            key={routine.name}
+                            key={routineLabel(routine.name, routine.identity_args)}
                             routine={routine}
                             connectionId={connectionId}
                             onContextMenu={onContextMenu}
@@ -463,7 +463,7 @@ export const SidebarSchemaItem = ({
                         />
                         {proceduresOpen && groupedRoutines.procedures.map((routine) => (
                           <SidebarRoutineItem
-                            key={routine.name}
+                            key={routineLabel(routine.name, routine.identity_args)}
                             routine={routine}
                             connectionId={connectionId}
                             onContextMenu={onContextMenu}

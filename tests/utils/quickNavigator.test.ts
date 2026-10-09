@@ -126,8 +126,9 @@ describe("quickNavigator utility", () => {
     });
 
     it('labels a routine with no signature by its bare name (#893)', () => {
-      // MySQL's identity_args is None, which serde writes as JSON null, so the
-      // label has to treat null as absent or every row reads name(null).
+      // A dialect that cannot overload reports no signature. The host skips the
+      // field when it is None, so it arrives absent; `null` is covered too,
+      // because the type still admits it and the label must not read (null).
       const params: NavigatorItemParams = {
         activeConnectionId: 'conn-1',
         hasSchemas: false,

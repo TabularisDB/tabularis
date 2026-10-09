@@ -1681,15 +1681,32 @@ pub async fn get_routine_parameters(
     // CAN be filtered by is derived from `pg_proc` first. A signature that
     // names nothing leaves this None and both reads fall back to the old
     // name-only form rather than answering about no routine at all.
+    //
+    // `nameconcatoid` is how the view itself builds that key, and it exists
+    // from PostgreSQL 12. Referencing it on an older server fails at parse
+    // time, so the expression is picked by version, exactly as the `prokind`
+    // read above is.
     let specific_name: Option<String> = match identity_args {
-        Some(identity) => client
-            .query_opt(
-                routines::ROUTINE_SPECIFIC_NAME_SQL,
-                &[&schema, &routine_name, &identity],
-            )
-            .await
-            .map_err(|e| format_pg_error(&e))?
-            .and_then(|row| row.try_get("specific_name").ok()),
+        Some(identity) => {
+            let server_version_num: i32 = client
+                .query_one(
+                    "SELECT current_setting('server_version_num')::int4 AS v",
+                    &[],
+                )
+                .await
+                .map_err(|e| format_pg_error(&e))?
+                .try_get("v")
+                .unwrap_or(0);
+
+            client
+                .query_opt(
+                    routines::routine_specific_name_sql(server_version_num >= 120000),
+                    &[&schema, &routine_name, &identity],
+                )
+                .await
+                .map_err(|e| format_pg_error(&e))?
+                .and_then(|row| row.try_get("specific_name").ok())
+        }
         None => None,
     };
 
