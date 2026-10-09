@@ -50,6 +50,57 @@ describe("quickNavigator utility", () => {
       expect(result[3]).toEqual({ name: "on_users_insert", type: "trigger", schema: "default_db", detail: "on users", item: params.triggers[0] });
     });
 
+    it('labels overloaded routines by signature so the palette entries differ (#893)', () => {
+      // Four overloads of one name were four identical palette entries, and
+      // picking one of them opened whichever the catalog returned first.
+      const params: NavigatorItemParams = {
+        activeConnectionId: 'conn-1',
+        hasSchemas: false,
+        isMultiDb: false,
+        schemas: [],
+        schemaDataMap: {},
+        selectedDatabases: [],
+        databaseDataMap: {},
+        tables: [],
+        views: [],
+        routines: [
+          { name: 'f', routine_type: 'FUNCTION', identity_args: '' },
+          { name: 'f', routine_type: 'FUNCTION', identity_args: 'a integer' },
+          { name: 'f', routine_type: 'FUNCTION', identity_args: 'a text' },
+        ],
+        triggers: [],
+        activeSchema: 'default_db',
+      };
+
+      const names = getNavigatorItems(params).map((i) => i.name);
+      expect(names).toEqual(['f()', 'f(a integer)', 'f(a text)']);
+      expect(new Set(names).size).toBe(3);
+    });
+
+    it('carries the signature into the object descriptor the palette opens (#893)', () => {
+      // Without this the palette kept opening an arbitrary overload while the
+      // sidebar opened the right one, which is worse than both being wrong.
+      const item = {
+        name: 'f(a text)',
+        type: 'routine' as const,
+        schema: 'default_db',
+        detail: 'FUNCTION',
+        item: { name: 'f', routine_type: 'FUNCTION', identity_args: 'a text' },
+      };
+
+      const descriptor = toDatabaseObject(item, {
+        connectionId: 'conn-1',
+        driver: 'postgres',
+        isMultiDatabase: false,
+      });
+
+      expect(descriptor).toMatchObject({
+        type: 'routine',
+        routineType: 'FUNCTION',
+        identityArgs: 'a text',
+      });
+    });
+
     it("should extract items in schema mode", () => {
       const mockSchemaData: SchemaData = {
         tables: [{ name: "orders" }],

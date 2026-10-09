@@ -7,6 +7,7 @@ import type {
 } from "../contexts/DatabaseContext";
 import type { DatabaseObject } from "./databaseObjectActions";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
+import { routineLabel } from "./routines";
 
 interface NavigatorItemBase {
   name: string;
@@ -80,7 +81,10 @@ function createNavigatorItems({
     ),
     ...(data.routines ?? []).map(
       (item): NavigatorItem => ({
-        name: item.name,
+        // Labelled with the signature where the dialect reports one, for the
+        // same reason the sidebar is: four overloads of a name are otherwise
+        // four identical palette entries (#893).
+        name: routineLabel(item.name, item.identity_args),
         type: "routine",
         schema: group,
         detail: item.routine_type,
@@ -172,6 +176,7 @@ export function toDatabaseObject(
         ...base,
         type: "routine",
         routineType: item.item.routine_type,
+        identityArgs: item.item.identity_args,
       };
     case "trigger":
       return {
