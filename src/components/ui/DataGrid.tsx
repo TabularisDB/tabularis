@@ -73,6 +73,7 @@ import {
 } from "../../utils/dataGrid";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { useSettings } from "../../hooks/useSettings";
+import { useJsonEditorActivity } from "../../hooks/useJsonEditorActivity";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
 import {
@@ -119,6 +120,7 @@ import { MemoRow, type RowCtx } from "./DataGridRow";
 
 export interface DataGridCommandTarget {
   getResultCommands: () => ResultCommands;
+  isEditing: () => boolean;
 }
 
 interface DataGridProps {
@@ -143,6 +145,7 @@ interface DataGridProps {
   onForeignKeyHidePanel?: () => void;
   connectionId?: string | null;
   onRefresh?: () => void;
+  onEditingChange?: (editing: boolean) => void;
   pendingChanges?: Record<
     string,
     { pkOriginalValue: unknown; changes: Record<string, unknown> }
@@ -244,6 +247,7 @@ export const DataGrid = React.memo(
     onForeignKeyHidePanel,
     connectionId,
     onRefresh,
+    onEditingChange,
     pendingChanges,
     pendingDeletions,
     pendingInsertions,
@@ -276,6 +280,8 @@ export const DataGrid = React.memo(
     const { showToast } = useToast();
     const { settings } = useSettings();
     const rightSidebar = useRightSidebar();
+    const { count: jsonEditorCount, begin: beginJsonEdit, watch: watchJsonEditor,
+      release: releaseJsonEditor, isEditing: isJsonEditing } = useJsonEditorActivity();
     const colorByType = settings.resultColorByType ?? false;
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
     const zebraStripes = settings.resultZebraStripes ?? false;
@@ -402,6 +408,13 @@ export const DataGrid = React.memo(
     const pendingJsonSessions = useRef<
       Map<string, { colName: string; rowData: unknown[]; isInsertion: boolean; tempId?: string }>
     >(new Map());
+
+    const isGridEditing = !!editingCell || !!expandedCell || jsonEditorCount > 0 ||
+      (rightSidebar.isOpen && rightSidebar.activePanel === "row-editor");
+    useLayoutEffect(() => {
+      onEditingChange?.(isGridEditing);
+    }, [onEditingChange, isGridEditing]);
+    useLayoutEffect(() => () => onEditingChange?.(false), [onEditingChange]);
 
     const selectedRowIndices =
       externalSelectedRows || internalSelectedRowIndices;
@@ -540,6 +553,8 @@ export const DataGrid = React.memo(
         tempId: string | undefined,
         readOnly: boolean,
       ) => {
+        const editable = !readOnly && ((isInsertion && !!tempId) || pkIndexMaps.length > 0);
+        const end = editable ? beginJsonEdit() : undefined;
         try {
           const rowLabel = buildRowLabel(rowData, rowIndex, isInsertion);
           let cellKey: string | null = null;
@@ -569,11 +584,13 @@ export const DataGrid = React.memo(
             isInsertion,
             tempId,
           });
+          if (end) void watchJsonEditor(sessionId, end);
         } catch (e) {
+          end?.();
           console.error("Failed to open JSON viewer window:", e);
         }
       },
-      [buildRowLabel, pkIndexMaps, pkColumns],
+      [buildRowLabel, pkIndexMaps, pkColumns, beginJsonEdit, watchJsonEditor],
     );
 
     useEffect(() => {
@@ -592,12 +609,13 @@ export const DataGrid = React.memo(
             const pkMapVal = buildPkMap(pkColumns!, rowData, pkIndexMaps);
             onPendingChange(pkMapVal, colName, value);
           }
+          releaseJsonEditor(session_id);
         },
       );
       return () => {
         unlistenPromise.then((fn) => fn());
       };
-    }, [onPendingChange, onPendingInsertionChange, pkIndexMaps, pkColumns]);
+    }, [onPendingChange, onPendingInsertionChange, pkIndexMaps, pkColumns, releaseJsonEditor]);
 
     const fksByColumn = useMemo(
       () => pickPrimaryForeignKeyByColumn(foreignKeys),
@@ -1232,6 +1250,8 @@ export const DataGrid = React.memo(
         // exits — committing via blur must leave focus wherever the user clicked.
         parentRef.current?.focus({ preventScroll: true });
       } else if (e.key === "Escape") {
+        // Moving focus fires blur synchronously; cancellation must precede it.
+        editingCellRef.current = null;
         setEditingCell(null);
         parentRef.current?.focus({ preventScroll: true });
       } else if (e.key === "Tab") {
@@ -2008,7 +2028,10 @@ export const DataGrid = React.memo(
       ],
     );
 
-    useImperativeHandle(ref, () => ({ getResultCommands }), [getResultCommands]);
+    useImperativeHandle(ref, () => ({
+      getResultCommands,
+      isEditing: () => isGridEditing || !!editingCellRef.current || isJsonEditing(),
+    }), [getResultCommands, isGridEditing, isJsonEditing]);
 
     const copyCellFromContext = useCallback(async () => {
       if (!contextMenu) return;

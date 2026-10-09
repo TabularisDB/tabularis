@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { ExplorerSidebar } from "../../../src/components/layout/ExplorerSidebar";
 import { useDatabase } from "../../../src/hooks/useDatabase";
@@ -55,6 +55,16 @@ vi.mock("../../../src/utils/editorNavigation", async (importOriginal) => {
 vi.mock("../../../src/components/modals/RunRoutineModal", () => ({
   RunRoutineModal: ({ onRun }: { onRun: (sql: string) => void }) => (
     <button onClick={() => onRun("SELECT refresh_orders()")}>run-routine-modal</button>
+  ),
+}));
+
+// Stand-in for the import dialog: one button reports a finished import, the other closes the dialog.
+vi.mock("../../../src/components/modals/ClipboardImportModal", () => ({
+  ClipboardImportModal: ({ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void }) => (
+    <>
+      <button onClick={onSuccess}>clipboard-import-success</button>
+      <button onClick={onClose}>clipboard-import-close</button>
+    </>
   ),
 }));
 
@@ -421,6 +431,67 @@ describe("ExplorerSidebar — database object navigation", () => {
       connectionId: "c1",
       routineType: "PROCEDURE",
       schema: "sales",
+    });
+  });
+
+  describe("Import from Clipboard", () => {
+    const refreshTables = vi.fn();
+    const refreshSchemaData = vi.fn();
+    const refreshDatabaseData = vi.fn();
+
+    const importFromClipboard = (state: Record<string, unknown>) => {
+      vi.mocked(useDatabase).mockReturnValue({
+        ...databaseState,
+        refreshTables,
+        refreshSchemaData,
+        refreshDatabaseData,
+        ...state,
+      } as unknown as ReturnType<typeof useDatabase>);
+      renderSidebar();
+      act(() => {
+        window.dispatchEvent(new Event("tabularis:paste-import"));
+      });
+      // Count only the refreshes the finished import triggers.
+      for (const refresh of [refreshTables, refreshSchemaData, refreshDatabaseData]) refresh.mockClear();
+      fireEvent.click(screen.getByText("clipboard-import-success"));
+    };
+
+    it("refreshes the active schema in the schema layout", async () => {
+      importFromClipboard({
+        activeCapabilities: { schemas: true },
+        activeSchema: "public",
+        schemas: ["public", "sales"],
+      });
+
+      await waitFor(() => expect(refreshSchemaData).toHaveBeenCalledWith("public"));
+      expect(refreshTables).not.toHaveBeenCalled();
+    });
+
+    it("refreshes the active database in the multi-database layout", async () => {
+      importFromClipboard({
+        activeDriver: "mysql",
+        activeCapabilities: { schemas: false, file_based: false },
+        activeSchema: "tabularis_demo",
+        selectedDatabases: ["tabularis_demo", "analytics"],
+        loadDatabaseData: vi.fn(),
+      });
+
+      await waitFor(() => expect(refreshDatabaseData).toHaveBeenCalledWith("tabularis_demo"));
+      expect(refreshTables).not.toHaveBeenCalled();
+    });
+
+    it("refreshes the table list in the flat layout", async () => {
+      importFromClipboard({});
+
+      await waitFor(() => expect(refreshTables).toHaveBeenCalledTimes(1));
+    });
+
+    it("keeps the dialog on its success message until it is closed", () => {
+      importFromClipboard({});
+
+      expect(screen.getByText("clipboard-import-success")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("clipboard-import-close"));
+      expect(screen.queryByText("clipboard-import-success")).not.toBeInTheDocument();
     });
   });
 

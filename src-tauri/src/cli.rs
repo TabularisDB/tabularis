@@ -13,7 +13,7 @@ pub struct Args {
     #[arg(long)]
     pub mcp: bool,
 
-    /// Enable debug logging (including sqlx queries)
+    /// Enable debug logging (including sqlx queries and other dependencies)
     #[arg(long)]
     pub debug: bool,
 
@@ -24,6 +24,16 @@ pub struct Args {
 }
 
 impl Args {
+    /// Log level for this run: `Debug` with `--debug` (which also lets sqlx's
+    /// query logging through), `Info` otherwise.
+    pub fn log_level(&self) -> log::LevelFilter {
+        if self.debug {
+            log::LevelFilter::Debug
+        } else {
+            log::LevelFilter::Info
+        }
+    }
+
     fn defaults() -> Self {
         Self {
             mcp: false,
@@ -50,3 +60,7 @@ pub fn parse() -> Args {
         Args::defaults()
     })
 }
+
+#[cfg(test)]
+#[path = "cli_tests.rs"]
+mod tests;

@@ -717,6 +717,10 @@ describe("EditorProvider connection switching (#292)", () => {
     // Storage load brings in conn-1's tab (result-stripped, as persisted).
     await waitFor(() => expect(result.current.tabs).toHaveLength(1));
     expect(result.current.tabs[0].id).toBe("tab-1");
+    const schedule = result.current.getAutoRefreshSchedule("tab-1");
+    schedule.configure(30000);
+    schedule.complete();
+    const deadline = schedule.getSnapshot().nextDueAt;
 
     // Running the query fills in the live result.
     const liveResult = {
@@ -745,6 +749,10 @@ describe("EditorProvider connection switching (#292)", () => {
     const tab1 = result.current.tabs.find((t) => t.id === "tab-1");
     expect(tab1?.query).toBe("select * from users");
     expect(tab1?.result).toBe(liveResult);
+    expect(result.current.getAutoRefreshSchedule("tab-1")).toBe(schedule);
+    expect(schedule.getSnapshot().nextDueAt).toBe(deadline);
+    act(() => { result.current.closeTab("tab-1"); });
+    expect(result.current.getAutoRefreshSchedule("tab-1")).not.toBe(schedule);
 
     // The storage loader never ran for conn-1 a second time.
     const conn1Loads = vi

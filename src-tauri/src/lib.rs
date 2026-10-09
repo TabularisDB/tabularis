@@ -193,15 +193,15 @@ pub fn run() {
         // Initialize the logger so plugin-loading and driver RPC errors (which
         // use the `log` crate) are visible. The custom logger writes to stderr
         // only, leaving the stdout JSON-RPC stream clean.
-        init_logger(create_log_buffer(1000), log::LevelFilter::Info);
+        init_logger(create_log_buffer(1000), args.log_level());
         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
         rt.block_on(mcp::run_mcp_server());
         return;
     }
 
-    // Configure log level based on debug flag
-    // Default to Info level so users can see application logs
-    let log_level = log::LevelFilter::Info;
+    // Info by default so users can see application logs; --debug raises it
+    // to Debug, which includes sqlx queries.
+    let log_level = args.log_level();
 
     // Store debug flag in global state
     DEBUG_MODE.store(args.debug, Ordering::Relaxed);
