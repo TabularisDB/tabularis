@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import { hasPendingTableEdits, tableRefreshIdentity } from "../utils/autoRefresh";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -270,6 +272,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     closeOtherTabs,
     closeTabsToLeft,
     closeTabsToRight,
+    getAutoRefreshSchedule,
     reopenClosedTab,
     canReopenClosedTab,
   } = useEditor();
@@ -712,6 +715,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const tabsRef = useRef<Tab[]>([]);
   const activeTabIdRef = useRef<string | null>(null);
+  const activeConnectionIdRef = useRef(activeConnectionId);
   const pendingTabCloseActionRef = useRef<(() => void) | null>(null);
   const [hasPendingSqlFileClose, setHasPendingSqlFileClose] = useState(false);
   // Last executed SQL per tab — used to preserve the loaded row count across
@@ -956,11 +960,12 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     activeTab?.pendingInsertions,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     tabsRef.current = tabs;
     activeTabIdRef.current = activeTabId;
+    activeConnectionIdRef.current = activeConnectionId;
     detachedTabIdsRef.current = detachedTabIds;
-  }, [tabs, activeTabId, detachedTabIds]);
+  }, [tabs, activeTabId, activeConnectionId, detachedTabIds]);
 
   const requestTabClosure = useCallback(
     (tabIds: string[], action: () => void) => {
@@ -1156,312 +1161,376 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       // Skips tab state (which may not have re-rendered yet) when the page
       // size is changed and re-run in the same handler; 0 = no pagination.
       pageSizeOverride?: number,
+      refreshOptions: { background?: boolean; automatic?: boolean } = {},
     ) => {
+      const backgroundRefresh = refreshOptions.background === true;
+      const automaticRefresh = refreshOptions.automatic === true;
       const targetTabId = tabId || activeTabIdRef.current;
       if (!activeConnectionId || !targetTabId) return;
 
-      const targetTab = tabsRef.current.find((t) => t.id === targetTabId);
-      if (!targetTab) return;
+      const originalTab = tabsRef.current.find((t) => t.id === targetTabId);
+      if (!originalTab) return;
+      const targetConnectionId = originalTab.connectionId;
+      const schedule = getAutoRefreshSchedule(targetTabId);
+      if (!automaticRefresh) schedule.invalidate();
 
-      // When the target tab's results live in a detached window, this run was
-      // triggered from that window: don't touch main-window-only UI state
-      // (results panel, params modal) — it belongs to whatever tab is active here.
-      const isDetached = detachedTabIdsRef.current.has(targetTabId);
+      const execute = async () => {
+        const targetTab = tabsRef.current.find((t) => t.id === targetTabId);
+        if (!targetTab || targetTab.connectionId !== targetConnectionId) return false;
+        const revision = schedule.getSnapshot().revision;
+        const identity = tableRefreshIdentity(targetTab);
+        const canApplyRefresh = (tab: Tab) =>
+          activeTabIdRef.current === targetTabId &&
+          activeConnectionIdRef.current === targetConnectionId &&
+          schedule.getSnapshot().revision === revision &&
+          (!automaticRefresh || schedule.getSnapshot().intervalMs > 0) &&
+          !schedule.getSnapshot().editing &&
+          !dataGridCommandTargetRef.current?.isEditing() &&
+          !hasPendingTableEdits(tab) && tableRefreshIdentity(tab) === identity &&
+          // selectedRows are row indexes: new rows would shift them onto other
+          // records, so automatic ticks wait until the selection is cleared.
+          (!automaticRefresh || !tab.selectedRows?.length);
+        if (backgroundRefresh && (!canApplyRefresh(targetTab) || (automaticRefresh && targetTab.isLoading))) return false;
 
-      // Prefer the exact statement that produced the tab's current result
-      // over the raw editor buffer — the buffer can hold several statements
-      // (e.g. cursor-driven Run on one of several in the same tab), and
-      // callers like pagination/refresh that omit `sql` mean "re-run what's
-      // currently shown", not "run everything in the editor".
-      let textToRun =
-        sql?.trim() || lastRunQueryRef.current[targetTabId] || targetTab?.query;
-      // For Table Tabs, reconstruct query if filter/sort are present
-      if (targetTab?.type === "table" && targetTab.activeTable) {
-        const effectiveSchema =
-          activeCapabilities?.schemas === true ? targetTab.schema : undefined;
-        const tabForQuery = { ...targetTab, schema: effectiveSchema };
-        textToRun = reconstructTableQuery(
-          tabForQuery,
-          activeCapabilities ?? activeDriver ?? undefined,
-          {
-            filterOverride:
-              filterOverride !== undefined ? filterOverride : undefined,
-            sortOverride: sortOverride !== undefined ? sortOverride : undefined,
-            limitOverride:
-              limitOverride !== undefined ? limitOverride : undefined,
-            wrapLimitSubquery: true,
-          },
-        );
-      }
+        // When the target tab's results live in a detached window, this run was
+        // triggered from that window: don't touch main-window-only UI state
+        // (results panel, params modal) — it belongs to whatever tab is active here.
+        const isDetached = detachedTabIdsRef.current.has(targetTabId);
 
-      if (!textToRun || !textToRun.trim()) return;
-
-      // Guard per statement: a T-SQL batch can hide a DELETE behind a SELECT.
-      const mayRun = await guardQueryExecution(splitQueries(textToRun, activeDialect));
-      if (!mayRun) return;
-
-      // Check for parameters
-      const params = extractQueryParams(textToRun, activeDialect);
-      if (params.length > 0) {
-        const storedParams = paramsOverride || targetTab.queryParams || {};
-        const missingParams = params.filter(
-          (p) => storedParams[p] === undefined || storedParams[p].trim() === "",
-        );
-
-        // If we have missing params
-        if (missingParams.length > 0) {
-          // The params modal lives in the main window; don't pop it for a run
-          // triggered from a detached window (it would hijack the active tab).
-          if (!isDetached) {
-            setQueryParamsModal({
-              isOpen: true,
-              sql: textToRun,
-              parameters: params,
-              pendingPageNum: pageNum,
-              pendingTabId: targetTabId,
-              mode: "run",
-            });
-          }
-          return;
+        // Prefer the exact statement that produced the tab's current result
+        // over the raw editor buffer — the buffer can hold several statements
+        // (e.g. cursor-driven Run on one of several in the same tab), and
+        // callers like pagination/refresh that omit `sql` mean "re-run what's
+        // currently shown", not "run everything in the editor".
+        let textToRun =
+          sql?.trim() || lastRunQueryRef.current[targetTabId] || targetTab?.query;
+        // For Table Tabs, reconstruct query if filter/sort are present
+        if (targetTab?.type === "table" && targetTab.activeTable) {
+          const effectiveSchema =
+            activeCapabilities?.schemas === true ? targetTab.schema : undefined;
+          const tabForQuery = { ...targetTab, schema: effectiveSchema };
+          textToRun = reconstructTableQuery(
+            tabForQuery,
+            activeCapabilities ?? activeDriver ?? undefined,
+            {
+              filterOverride:
+                filterOverride !== undefined ? filterOverride : undefined,
+              sortOverride: sortOverride !== undefined ? sortOverride : undefined,
+              limitOverride:
+                limitOverride !== undefined ? limitOverride : undefined,
+              wrapLimitSubquery: true,
+            },
+          );
         }
 
-        // Interpolate parameters before execution
-        textToRun = interpolateQueryParams(textToRun, storedParams, activeDialect);
-      }
+        if (!textToRun || !textToRun.trim()) return;
 
-      // Automatically open the results panel when running a query — but only
-      // for the main window; a detached run must not re-expand the main panel.
-      if (!isDetached) {
-        setIsResultsCollapsed(false);
-      }
+        // Guard per statement: a T-SQL batch can hide a DELETE behind a SELECT.
+        const mayRun = await guardQueryExecution(splitQueries(textToRun, activeDialect));
+        if (!mayRun) return true;
+        if (backgroundRefresh && !canApplyRefresh(targetTab)) return false;
 
-      // Preserve total_rows across page changes so the count doesn't disappear
-      const previousTotalRows =
-        targetTab?.result?.pagination?.total_rows ?? null;
-
-      const generation = (queryGenerationRef.current[targetTabId] ?? 0) + 1;
-      queryGenerationRef.current[targetTabId] = generation;
-
-      updateTab(targetTabId, {
-        isLoading: true,
-        error: "",
-        result: null,
-        executionTime: null,
-        page: pageNum,
-        // Clear multi-result state when running a single query
-        results: undefined,
-        activeResultId: undefined,
-        // Clear pending changes and selection when running a new query (unless preserving)
-        pendingChanges: preservePendingChanges?.pendingChanges,
-        pendingDeletions: preservePendingChanges?.pendingDeletions,
-        pendingInsertions: preservePendingChanges?.pendingInsertions,
-        selectedRows: [],
-      });
-      // A fresh query's result set can be a different size (or empty), so an
-      // old scroll offset from a larger one shouldn't linger (#823).
-      scrollTopByTabIdRef.current.delete(targetTabId);
-      clearEntryScrollTops(targetTabId);
-
-      const shouldRecordHistory =
-        targetTab?.type === "console" || targetTab?.type === "query_builder";
-
-      const schema = targetTab?.schema ?? activeSchema;
-      // For history: fall back to activeDatabaseName for multi-db connections
-      // where schema may not be set on the tab
-      const historyDb = schema
-        || (isMultiDb ? activeDatabaseName : undefined)
-        || undefined;
-
-      const start = performance.now();
-
-      try {
-        // Per-tab page size (falling back to the global Result Page Size)
-        // drives pagination; the "Total Limit" input is handled in the SQL.
-        // undefined disables pagination entirely (the user picked "All").
-        const pageSize = resolveTabPageSize(
-          pageSizeOverride ?? targetTab.pageSize,
-          settings.resultPageSize,
-        );
-        const res = await invoke<QueryResult>("execute_query", {
-          connectionId: activeConnectionId,
-          query: textToRun,
-          limit: pageSize,
-          page: pageNum,
-          // One statement at a time is how a transaction is driven: BEGIN,
-          // the changes, a verifying SELECT, COMMIT. Without the session the
-          // run would land on a different pooled connection each time.
-          sessionId: targetTabId,
-          ...(schema ? { schema } : {}),
-        });
-        const end = performance.now();
-
-        // A single statement can return several result sets (e.g. a MySQL
-        // CALL to a procedure with multiple SELECTs): show them as separate
-        // result tabs, reusing the multi-statement results UI. Row editing
-        // metadata (activeTable / pkColumns) is skipped — procedure output
-        // is not row-editable.
-        if (res.additional_results && res.additional_results.length > 0) {
-          const entries = createEntriesFromResultSets(
-            targetTabId,
-            textToRun,
-            res,
-            end - start,
-            t("editor.multiResult.resultSetPrefix"),
+        // Check for parameters
+        const params = extractQueryParams(textToRun, activeDialect);
+        if (params.length > 0) {
+          const storedParams = paramsOverride || targetTab.queryParams || {};
+          const missingParams = params.filter(
+            (p) => storedParams[p] === undefined || storedParams[p].trim() === "",
           );
-          updateTab(targetTabId, {
-            results: entries,
-            activeResultId: entries[0].id,
-            result: null,
-            executionTime: end - start,
-            isLoading: false,
-            activeTable: null,
-            pkColumns: null,
+
+          // If we have missing params
+          if (missingParams.length > 0) {
+            // The params modal lives in the main window; don't pop it for a run
+            // triggered from a detached window (it would hijack the active tab).
+            if (!isDetached) {
+              setQueryParamsModal({
+                isOpen: true,
+                sql: textToRun,
+                parameters: params,
+                pendingPageNum: pageNum,
+                pendingTabId: targetTabId,
+                mode: "run",
+              });
+            }
+            return true;
+          }
+
+          // Interpolate parameters before execution
+          textToRun = interpolateQueryParams(textToRun, storedParams, activeDialect);
+        }
+
+        // Automatically open the results panel when running a query — but only
+        // for the main window; a detached run must not re-expand the main panel.
+        if (!isDetached) {
+          setIsResultsCollapsed(false);
+        }
+
+        // Preserve total_rows across page changes so the count doesn't disappear
+        const previousTotalRows =
+          targetTab?.result?.pagination?.total_rows ?? null;
+
+        const generation = (queryGenerationRef.current[targetTabId] ?? 0) + 1;
+        queryGenerationRef.current[targetTabId] = generation;
+
+        updateTab(targetTabId, backgroundRefresh ? {
+          isLoading: true,
+          isAutoRefreshing: true,
+          autoRefreshError: "",
+        } : {
+          isLoading: true,
+          isAutoRefreshing: false,
+          autoRefreshError: "",
+          error: "",
+          result: null,
+          executionTime: null,
+          page: pageNum,
+          // Clear multi-result state when running a single query
+          results: undefined,
+          activeResultId: undefined,
+          // Clear pending changes and selection when running a new query (unless preserving)
+          pendingChanges: preservePendingChanges?.pendingChanges,
+          pendingDeletions: preservePendingChanges?.pendingDeletions,
+          pendingInsertions: preservePendingChanges?.pendingInsertions,
+          selectedRows: [],
+        });
+        // A fresh query's result set can be a different size (or empty), so an
+        // old scroll offset from a larger one shouldn't linger (#823).
+        if (!backgroundRefresh) {
+          scrollTopByTabIdRef.current.delete(targetTabId);
+          clearEntryScrollTops(targetTabId);
+        }
+
+        const shouldRecordHistory =
+          targetTab?.type === "console" || targetTab?.type === "query_builder";
+
+        const schema = targetTab?.schema ?? activeSchema;
+        // For history: fall back to activeDatabaseName for multi-db connections
+        // where schema may not be set on the tab
+        const historyDb = schema
+          || (isMultiDb ? activeDatabaseName : undefined)
+          || undefined;
+
+        const start = performance.now();
+
+        try {
+          // Per-tab page size (falling back to the global Result Page Size)
+          // drives pagination; the "Total Limit" input is handled in the SQL.
+          // undefined disables pagination entirely (the user picked "All").
+          const pageSize = resolveTabPageSize(
+            pageSizeOverride ?? targetTab.pageSize,
+            settings.resultPageSize,
+          );
+          const res = await invoke<QueryResult>("execute_query", {
+            connectionId: targetConnectionId,
+            query: textToRun,
+            limit: pageSize,
+            page: pageNum,
+            // One statement at a time is how a transaction is driven: BEGIN,
+            // the changes, a verifying SELECT, COMMIT. Without the session the
+            // run would land on a different pooled connection each time.
+            sessionId: targetTabId,
+            ...(schema ? { schema } : {}),
           });
+          const end = performance.now();
+          const latestTab = tabsRef.current.find((tab) => tab.id === targetTabId);
+          if (backgroundRefresh && (!latestTab || !canApplyRefresh(latestTab))) return false;
+
+          // A single statement can return several result sets (e.g. a MySQL
+          // CALL to a procedure with multiple SELECTs): show them as separate
+          // result tabs, reusing the multi-statement results UI. Row editing
+          // metadata (activeTable / pkColumns) is skipped — procedure output
+          // is not row-editable.
+          if (res.additional_results && res.additional_results.length > 0) {
+            const entries = createEntriesFromResultSets(
+              targetTabId,
+              textToRun,
+              res,
+              end - start,
+              t("editor.multiResult.resultSetPrefix"),
+            );
+            updateTab(targetTabId, {
+              results: entries,
+              activeResultId: entries[0].id,
+              result: null,
+              executionTime: end - start,
+              isLoading: false,
+              activeTable: null,
+              pkColumns: null,
+            });
+            if (shouldRecordHistory) {
+              addHistoryEntry(
+                textToRun,
+                end - start,
+                "success",
+                null,
+                null,
+                historyDb,
+              );
+            }
+            // Automatic ticks never notify: a background window would get one on
+            // every refresh once the query crosses the threshold.
+            if (!automaticRefresh) {
+              void notifyQueryFinished({
+                enabled: settings.notifyLongQueries,
+                thresholdSec: settings.notifyLongQueriesThresholdSec,
+                durationMs: end - start,
+                content: {
+                  title: t("editor.queryNotification.successTitle"),
+                  body: t("editor.queryNotification.body", {
+                    tab: targetTab.title,
+                    duration: formatDuration(end - start),
+                  }),
+                },
+              });
+            }
+            return;
+          }
+
+          // Fetch PK column if this is a Table Tab (activeTable is authoritative
+          // and fixed there) OR if the query references a table. A console/query
+          // tab's activeTable is just a leftover from whatever ran last on it —
+          // trusting it here would skip re-deriving the table for a *different*
+          // statement run on the same tab (e.g. cursor-driven Run on statement 2
+          // after statement 1 already set activeTable).
+          const currentTab = tabsRef.current.find((t) => t.id === targetTabId);
+          let tableName =
+            currentTab?.type === "table" ? currentTab.activeTable : undefined;
+
+          if (!tableName && textToRun) {
+            const extracted = extractTableName(
+              textToRun,
+              schema ?? activeDatabaseName,
+            );
+            // Reject views and materialized views — they are not row-editable
+            // (materialized views only accept REFRESH, not INSERT/UPDATE/DELETE).
+            if (
+              extracted &&
+              !views.some((v) => v.name === extracted) &&
+              !materializedViews.some((v) => v.name === extracted)
+            ) {
+              tableName = extracted;
+            }
+          }
+
+          const isSameQuery = lastRunQueryRef.current[targetTabId] === textToRun;
+          lastRunQueryRef.current[targetTabId] = textToRun;
+          const resultWithCount =
+            res.pagination &&
+            res.pagination.total_rows === null &&
+            previousTotalRows !== null &&
+            isSameQuery
+              ? {
+                  ...res,
+                  pagination: {
+                    ...res.pagination,
+                    total_rows: previousTotalRows,
+                  },
+                }
+              : res;
+
+          // A newer runQuery may have started on this tab while this one was
+          // in flight (e.g. cursor-driven Run on two different statements back
+          // to back). Drop this now-stale response instead of clobbering the
+          // newer one's displayed result/table.
+          const isStaleRun = queryGenerationRef.current[targetTabId] !== generation;
+
+          if (!isStaleRun) {
+            updateTab(targetTabId, (tab) =>
+              backgroundRefresh && !canApplyRefresh(tab) ? {} : {
+                result: resultWithCount,
+                executionTime: end - start,
+                isLoading: false,
+                activeTable: tableName || null,
+                // A manual Refresh keeps the grid in place, but the indexes
+                // may now point at different records, so drop the selection.
+                ...(backgroundRefresh && tab.selectedRows?.length ? { selectedRows: [] } : {}),
+              });
+
+            if (tableName && !backgroundRefresh) {
+              // Fetch column metadata in the background; tab updates when ready
+              fetchPkColumn(tableName, generation, targetTabId, targetTab?.schema ?? undefined);
+            } else if (!tableName) {
+              updateTab(targetTabId, { pkColumns: null });
+            }
+
+            // Automatic ticks never notify: a background window would get one on
+            // every refresh once the query crosses the threshold.
+            if (!automaticRefresh) {
+              void notifyQueryFinished({
+                enabled: settings.notifyLongQueries,
+                thresholdSec: settings.notifyLongQueriesThresholdSec,
+                durationMs: end - start,
+                content: {
+                  title: t("editor.queryNotification.successTitle"),
+                  body: t("editor.queryNotification.body", {
+                    tab: targetTab.title,
+                    duration: formatDuration(end - start),
+                  }),
+                },
+              });
+            }
+          }
+
           if (shouldRecordHistory) {
             addHistoryEntry(
               textToRun,
               end - start,
               "success",
-              null,
+              res.pagination?.total_rows ?? null,
               null,
               historyDb,
             );
           }
-          void notifyQueryFinished({
-            enabled: settings.notifyLongQueries,
-            thresholdSec: settings.notifyLongQueriesThresholdSec,
-            durationMs: end - start,
-            content: {
-              title: t("editor.queryNotification.successTitle"),
-              body: t("editor.queryNotification.body", {
-                tab: targetTab.title,
-                duration: formatDuration(end - start),
-              }),
-            },
-          });
-          return;
-        }
+        } catch (err) {
+          const latestTab = tabsRef.current.find((tab) => tab.id === targetTabId);
+          if (backgroundRefresh && (!latestTab || !canApplyRefresh(latestTab))) return false;
+          if (queryGenerationRef.current[targetTabId] === generation) {
+            updateTab(targetTabId, (tab) =>
+              backgroundRefresh && !canApplyRefresh(tab) ? {} : {
+                ...(backgroundRefresh
+                  ? { autoRefreshError: typeof err === "string" ? err : t("editor.queryFailed") }
+                  : { error: typeof err === "string" ? err : t("editor.queryFailed") }),
+                isLoading: false,
+              });
 
-        // Fetch PK column if this is a Table Tab (activeTable is authoritative
-        // and fixed there) OR if the query references a table. A console/query
-        // tab's activeTable is just a leftover from whatever ran last on it —
-        // trusting it here would skip re-deriving the table for a *different*
-        // statement run on the same tab (e.g. cursor-driven Run on statement 2
-        // after statement 1 already set activeTable).
-        const currentTab = tabsRef.current.find((t) => t.id === targetTabId);
-        let tableName =
-          currentTab?.type === "table" ? currentTab.activeTable : undefined;
-
-        if (!tableName && textToRun) {
-          const extracted = extractTableName(
-            textToRun,
-            schema ?? activeDatabaseName,
-          );
-          // Reject views and materialized views — they are not row-editable
-          // (materialized views only accept REFRESH, not INSERT/UPDATE/DELETE).
-          if (
-            extracted &&
-            !views.some((v) => v.name === extracted) &&
-            !materializedViews.some((v) => v.name === extracted)
-          ) {
-            tableName = extracted;
-          }
-        }
-
-        const isSameQuery = lastRunQueryRef.current[targetTabId] === textToRun;
-        lastRunQueryRef.current[targetTabId] = textToRun;
-        const resultWithCount =
-          res.pagination &&
-          res.pagination.total_rows === null &&
-          previousTotalRows !== null &&
-          isSameQuery
-            ? {
-                ...res,
-                pagination: {
-                  ...res.pagination,
-                  total_rows: previousTotalRows,
+            const errorElapsed = performance.now() - start;
+            if (!automaticRefresh) {
+              void notifyQueryFinished({
+                enabled: settings.notifyLongQueries,
+                thresholdSec: settings.notifyLongQueriesThresholdSec,
+                durationMs: errorElapsed,
+                content: {
+                  title: t("editor.queryNotification.errorTitle"),
+                  body: t("editor.queryNotification.body", {
+                    tab: targetTab.title,
+                    duration: formatDuration(errorElapsed),
+                  }),
                 },
-              }
-            : res;
-
-        // A newer runQuery may have started on this tab while this one was
-        // in flight (e.g. cursor-driven Run on two different statements back
-        // to back). Drop this now-stale response instead of clobbering the
-        // newer one's displayed result/table.
-        const isStaleRun = queryGenerationRef.current[targetTabId] !== generation;
-
-        if (!isStaleRun) {
-          updateTab(targetTabId, {
-            result: resultWithCount,
-            executionTime: end - start,
-            isLoading: false,
-            activeTable: tableName || null,
-          });
-
-          if (tableName) {
-            // Fetch column metadata in the background; tab updates when ready
-            fetchPkColumn(tableName, generation, targetTabId, targetTab?.schema ?? undefined);
-          } else {
-            updateTab(targetTabId, { pkColumns: null });
+              });
+            }
           }
 
-          void notifyQueryFinished({
-            enabled: settings.notifyLongQueries,
-            thresholdSec: settings.notifyLongQueriesThresholdSec,
-            durationMs: end - start,
-            content: {
-              title: t("editor.queryNotification.successTitle"),
-              body: t("editor.queryNotification.body", {
-                tab: targetTab.title,
-                duration: formatDuration(end - start),
-              }),
-            },
-          });
+          if (shouldRecordHistory) {
+            addHistoryEntry(
+              textToRun,
+              null,
+              "error",
+              null,
+              typeof err === "string" ? err : t("editor.queryFailed"),
+              historyDb,
+            );
+          }
+        } finally {
+          if (queryGenerationRef.current[targetTabId] === generation) {
+            updateTab(targetTabId, { isLoading: false, isAutoRefreshing: false });
+          }
+          if (!automaticRefresh && targetTab.type === "table") schedule.complete();
         }
-
-        if (shouldRecordHistory) {
-          addHistoryEntry(
-            textToRun,
-            end - start,
-            "success",
-            res.pagination?.total_rows ?? null,
-            null,
-            historyDb,
-          );
-        }
-      } catch (err) {
-        if (queryGenerationRef.current[targetTabId] === generation) {
-          updateTab(targetTabId, {
-            error: typeof err === "string" ? err : t("editor.queryFailed"),
-            isLoading: false,
-          });
-
-          const errorElapsed = performance.now() - start;
-          void notifyQueryFinished({
-            enabled: settings.notifyLongQueries,
-            thresholdSec: settings.notifyLongQueriesThresholdSec,
-            durationMs: errorElapsed,
-            content: {
-              title: t("editor.queryNotification.errorTitle"),
-              body: t("editor.queryNotification.body", {
-                tab: targetTab.title,
-                duration: formatDuration(errorElapsed),
-              }),
-            },
-          });
-        }
-
-        if (shouldRecordHistory) {
-          addHistoryEntry(
-            textToRun,
-            null,
-            "error",
-            null,
-            typeof err === "string" ? err : t("editor.queryFailed"),
-            historyDb,
-          );
-        }
-      }
+        return true;
+      };
+      return originalTab.type === "table"
+        ? schedule.run(execute, automaticRefresh).then((attempted) => attempted ?? false)
+        : execute();
     },
     [
       clearEntryScrollTops,
@@ -1482,6 +1551,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       addHistoryEntry,
       guardQueryExecution,
       activeDialect,
+      getAutoRefreshSchedule,
     ],
   );
 
@@ -1928,25 +1998,30 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       // a count triggered from a detached window (its own window owns its spinner).
       const isDetached = detachedTabIdsRef.current.has(tab.id);
       if (!isDetached) setIsCountLoading(true);
-      try {
-        const total = await invoke<number>("count_query", {
-          connectionId: activeConnectionId,
-          query: countTarget,
-          schema: tab.schema ?? activeSchema,
-          // Inside a transaction, count what the tab sees, uncommitted rows included.
-          sessionId: transactionTabIdsRef.current.has(tab.id) ? tab.id : undefined,
-        });
-        const latest = tabsRef.current.find((t) => t.id === tab.id) ?? tab;
-        if (!latest.result?.pagination) return;
-        updateTab(tab.id, {
-          result: {
-            ...latest.result,
-            pagination: { ...latest.result.pagination, total_rows: total },
-          },
-        });
-      } finally {
-        if (!isDetached) setIsCountLoading(false);
-      }
+      const schedule = getAutoRefreshSchedule(tab.id);
+      const execute = async () => {
+        try {
+          const total = await invoke<number>("count_query", {
+            connectionId: tab.connectionId,
+            query: countTarget,
+            schema: tab.schema ?? activeSchema,
+            // Inside a transaction, count what the tab sees, uncommitted rows included.
+            sessionId: transactionTabIdsRef.current.has(tab.id) ? tab.id : undefined,
+          });
+          const latest = tabsRef.current.find((t) => t.id === tab.id) ?? tab;
+          if (!latest.result?.pagination) return;
+          updateTab(tab.id, {
+            result: {
+              ...latest.result,
+              pagination: { ...latest.result.pagination, total_rows: total },
+            },
+          });
+        } finally {
+          if (!isDetached) setIsCountLoading(false);
+          if (tab.type === "table") schedule.complete();
+        }
+      };
+      return tab.type === "table" ? schedule.run(execute) : execute();
     },
     [
       activeTab,
@@ -1955,6 +2030,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       activeDriver,
       activeCapabilities,
       updateTab,
+      getAutoRefreshSchedule,
     ],
   );
 
@@ -2085,15 +2161,29 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             // parameters; the last run text is what produced this result.
             lastRunQueryRef.current[tab.id] ?? tab.query;
 
-      return fetchAllRows(
-        query,
-        tab.result,
-        tab.schema ?? activeSchema,
-        tab.activeTable,
-        tab.id,
-      );
+      const fetch = () =>
+        fetchAllRows(
+          query,
+          tab.result,
+          tab.schema ?? activeSchema,
+          tab.activeTable,
+          tab.id,
+        );
+      if (tab.type !== "table") return fetch();
+
+      // Table tabs share one queue with runs and auto-refresh ticks, so the
+      // full fetch never races a refresh on the same session.
+      const schedule = getAutoRefreshSchedule(tab.id);
+      const rows = await schedule.run(async () => {
+        try {
+          return await fetch();
+        } finally {
+          schedule.complete();
+        }
+      });
+      return rows ?? null;
     },
-    [activeCapabilities, activeDriver, activeSchema, fetchAllRows],
+    [activeCapabilities, activeDriver, activeSchema, fetchAllRows, getAutoRefreshSchedule],
   );
 
   const fetchEntryAllRows = useCallback(
@@ -2676,8 +2766,44 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       (t) => t.id === activeTabIdRef.current,
     );
     if (currentTab?.activeTable && activeConnectionId)
-      runQuery(undefined, currentTab.page);
+      return runQuery(undefined, currentTab.page, currentTab.id,
+        undefined, undefined, undefined, undefined, undefined, undefined, { background: !!currentTab.result });
   }, [activeConnectionId, runQuery]);
+
+  const refreshSchedule = useMemo(
+    () => getAutoRefreshSchedule(activeTabId ?? ""),
+    [activeTabId, getAutoRefreshSchedule],
+  );
+  const refreshBlockedByEdits = !!activeTab && (hasPendingTableEdits(activeTab) || showNewRowModal);
+  // Row selection is index-based, so a refresh that brings in new rows would
+  // move it onto other records. Pause automatic ticks while rows are selected.
+  const refreshBlockedBySelection = !!activeTab?.selectedRows?.length;
+  const refreshSnapshot = useAutoRefresh(
+    activeTab?.autoRefreshIntervalMs ?? 0,
+    activeTab?.type === "table" && activeTab.connectionId === activeConnectionId && !detachedTabIds.has(activeTab.id),
+    () => activeTab ? runQuery(undefined, activeTab.page, activeTab.id,
+      undefined, undefined, undefined, undefined, undefined, undefined, { background: true, automatic: true }) : false,
+    refreshSchedule,
+    refreshBlockedByEdits || refreshBlockedBySelection || !!activeTab?.isLoading || isCountLoading || !activeTab?.result,
+  );
+  const handleEditingChange = useCallback((editing: boolean) => {
+    refreshSchedule.setEditing(editing || showNewRowModal);
+  }, [refreshSchedule, showNewRowModal]);
+
+  useLayoutEffect(() => {
+    // Paste, deletion and insertion can start without opening a cell editor.
+    if (refreshBlockedByEdits) refreshSchedule.invalidate();
+  }, [refreshBlockedByEdits, refreshSchedule]);
+
+  useEffect(() => {
+    if (activeTab?.type === "table" && activeTab.autoRefreshIntervalMs &&
+      !activeTab.result && !activeTab.error && !activeTab.isLoading &&
+      !refreshSchedule.getSnapshot().busy && !refreshBlockedByEdits &&
+      refreshSchedule.getSnapshot().lastCompletedAt === null) {
+      // Restored tabs have an interval but no runtime deadline or result.
+      void runQuery(undefined, activeTab.page, activeTab.id);
+    }
+  }, [activeTab, refreshSchedule, refreshBlockedByEdits, runQuery]);
 
   const handleToolbarUpdate = useCallback(
     (filter: string, sort: string, limit: number | undefined) => {
@@ -4854,6 +4980,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         <>
           {isTableTab ? (
             <TableToolbar
+              key={activeTab?.id}
               initialFilter={activeTab?.filterClause}
               initialSort={activeTab?.sortClause}
               initialLimit={activeTab?.limitClause}
@@ -4862,6 +4989,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               defaultLimit={settings.resultPageSize || 100}
               columnMetadata={activeTab?.columnMetadata}
               onUpdate={handleToolbarUpdate}
+              onRefresh={handleRefresh}
+              refreshDisabled={!!activeTab.isLoading || refreshBlockedByEdits || refreshSnapshot.editing}
+              autoRefreshIntervalMs={activeTab.autoRefreshIntervalMs}
+              onAutoRefreshChange={(interval) => {
+                refreshSchedule.configure(interval);
+                updateTab(activeTab.id, { autoRefreshIntervalMs: interval });
+              }}
+              autoRefreshPaused={!!activeTab.autoRefreshIntervalMs && (refreshBlockedByEdits || refreshSnapshot.editing || refreshBlockedBySelection)}
+              autoRefreshPausedReason={refreshBlockedByEdits || refreshSnapshot.editing ? "editing" : "selection"}
             />
           ) : (
             <div
@@ -5047,7 +5183,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   });
                 }}
               />
-            ) : activeTab.isLoading ? (
+            ) : activeTab.isLoading && !activeTab.isAutoRefreshing ? (
               <div className="flex flex-col items-center justify-center h-full text-muted">
                 <div className="w-12 h-12 border-4 border-surface-secondary border-t-accent-primary rounded-full animate-spin mb-4"></div>
                 <p className="text-sm">{t("editor.executingQuery")}</p>
@@ -5083,6 +5219,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               (activeTab.pendingInsertions &&
                 Object.keys(activeTab.pendingInsertions).length > 0) ? (
               <div className="flex-1 min-h-0 flex flex-col">
+                {activeTab.autoRefreshError && (
+                  <div role="alert" className="px-3 py-2 text-sm text-accent-error bg-elevated border-b border-default">
+                    {t("toolbar.autoRefresh.failed", { error: activeTab.autoRefreshError })}
+                  </div>
+                )}
                 {activeTab.result && (
                   <div className="@container p-2 bg-elevated text-xs text-secondary border-b border-default flex justify-between items-center gap-2 shrink-0">
                     <div className="flex items-center gap-2 @[480px]:gap-4 min-w-0">
@@ -5428,7 +5569,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   <div className="flex-1 min-h-0 overflow-hidden">
                     <DataGrid
                       ref={dataGridCommandTargetRef}
-                      key={`${activeTab.id}-${activeTab.sortClause || "none"}-${activeTab.filterClause || "none"}-${activeTab.result?.rows.length || 0}-${Object.keys(activeTab.pendingInsertions || {}).length}`}
+                      key={`${activeTab.id}-${activeTab.sortClause || "none"}-${activeTab.filterClause || "none"}-${activeTab.type === "table" ? "table" : activeTab.result?.rows.length || 0}-${Object.keys(activeTab.pendingInsertions || {}).length}`}
                       columns={activeTab.result?.columns || []}
                       data={activeTab.result?.rows || []}
                       tableName={activeTab.activeTable}
@@ -5448,6 +5589,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       }
                       connectionId={activeConnectionId}
                       onRefresh={handleRefresh}
+                      onEditingChange={handleEditingChange}
                       pendingChanges={activeTab.pendingChanges}
                       pendingDeletions={activeTab.pendingDeletions}
                       pendingInsertions={activeTab.pendingInsertions}
