@@ -12,6 +12,11 @@ export type FilterOperator =
   | "<="
   | "LIKE"
   | "NOT LIKE"
+  | "contains"
+  | "starts with"
+  | "ends with"
+  | "is empty"
+  | "is not empty"
   | "IS NULL"
   | "IS NOT NULL"
   | "IN"
@@ -126,7 +131,18 @@ export function getOperatorsForType(dataType: string): FilterOperator[] {
   }
 
   if (isString) {
-    return [...base, "LIKE", "NOT LIKE", "IN", "NOT IN"];
+    return [
+      ...base,
+      "LIKE",
+      "NOT LIKE",
+      "contains",
+      "starts with",
+      "ends with",
+      "is empty",
+      "is not empty",
+      "IN",
+      "NOT IN",
+    ];
   }
 
   // Default: all operators
@@ -157,7 +173,7 @@ export function buildSingleFilterClause(
   driver?: string | PluginManifest | DriverCapabilities | null
 ): string {
   const col = formatSqlIdentifier(filter.column, driver);
-    const op = filter.operator;
+  const op = filter.operator;
 
   if (op === "IS NULL") {
     return `${col} IS NULL`;
@@ -165,6 +181,32 @@ export function buildSingleFilterClause(
 
   if (op === "IS NOT NULL") {
     return `${col} IS NOT NULL`;
+  }
+
+  if (op === "is empty") {
+    return `(${col} IS NULL OR ${col} = '')`;
+  }
+
+  if (op === "is not empty") {
+    return `NOT (${col} IS NULL OR ${col} = '')`;
+  }
+
+  if (op === "contains" || op === "starts with" || op === "ends with") {
+    const escaped = escapeLikePattern(filter.value);
+    let pattern: string;
+    if (op === "contains") {
+      pattern = `%${escaped}%`;
+    } else if (op === "starts with") {
+      pattern = `${escaped}%`;
+    } else {
+      pattern = `%${escaped}`;
+    }
+    // MySQL/MariaDB (default sql_mode) treat backslash as an escape inside
+    // string literals, so a literal backslash must be doubled to survive.
+    const literal = usesBackslashStringEscapes(driver)
+      ? pattern.replace(/\\/g, "\\\\")
+      : pattern;
+    return `${col} LIKE ${quoteLiteral(literal)} ESCAPE '${LIKE_ESCAPE}'`;
   }
 
   if (op === "BETWEEN") {
@@ -186,6 +228,49 @@ export function buildSingleFilterClause(
   return `${col} ${op} ${val}`;
 }
 
+/**
+ * Escape character used in generated LIKE … ESCAPE clauses.
+ * `!` rather than a backslash: `ESCAPE '\'` is a syntax error on MySQL/MariaDB with
+ * the default sql_mode (the backslash escapes the closing quote), while `!`
+ * has no special meaning inside string literals on any supported dialect.
+ */
+const LIKE_ESCAPE = "!";
+
+/**
+ * Escapes LIKE wildcards and the escape character so the value matches literally.
+ * `value` is a raw UI filter string (not a pre-escaped SQL fragment). Escape
+ * the escape character first, then % and _, so user-typed wildcards are
+ * matched literally. Do not reorder unless the input contract changes.
+ */
+function escapeLikePattern(value: string): string {
+  return value
+    .replace(/!/g, "!!")
+    .replace(/%/g, "!%")
+    .replace(/_/g, "!_");
+}
+
+/**
+ * True for dialects whose string literals treat backslash as an escape
+ * character by default (MySQL and MariaDB without NO_BACKSLASH_ESCAPES).
+ */
+function usesBackslashStringEscapes(
+  driver: string | PluginManifest | DriverCapabilities | null | undefined
+): boolean {
+  if (typeof driver === "string") {
+    return driver === "mysql" || driver === "mariadb";
+  }
+  if (!driver) return false;
+  const caps = "capabilities" in driver ? driver.capabilities : driver;
+  if (caps?.sql_dialect) return caps.sql_dialect === "mysql";
+  const id = "id" in driver ? driver.id : undefined;
+  return id === "mysql" || id === "mariadb";
+}
+
+/** Always quote a SQL string literal, doubling embedded single quotes. */
+function quoteLiteral(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
 function quoteIfNeeded(value: string): string {
   if (value === "") return "''";
   // If it's a pure number (integer or decimal), don't quote
@@ -198,7 +283,7 @@ function quoteIfNeeded(value: string): string {
     return value;
   }
   // Escape single quotes inside the value
-  return `'${value.replace(/'/g, "''")}'`;
+  return quoteLiteral(value);
 }
 
 /**

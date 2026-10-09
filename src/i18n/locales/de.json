@@ -1,5 +1,14 @@
 {
   "toolbar": {
+    "autoRefresh": {
+      "label": "Automatisch aktualisieren",
+      "off": "Aus",
+      "seconds": "{{seconds}} s",
+      "paused": "Während der Bearbeitung pausiert",
+      "pausedSelection": "Pausiert, solange Zeilen ausgewählt sind",
+      "refresh": "Tabelle aktualisieren",
+      "failed": "Aktualisierung fehlgeschlagen: {{error}}"
+    },
     "filters": "Filter",
     "toggleFilterPanel": "Strukturiertes Filterpanel ein-/ausblenden",
     "filterConditions": "Filterbedingungen",
@@ -24,7 +33,12 @@
     "selectForApplyAll": "Für \"Alle anwenden\" auswählen",
     "valuePlaceholder": "Wert",
     "fromPlaceholder": "von",
-    "toPlaceholder": "bis"
+    "toPlaceholder": "bis",
+    "opContains": "enthält",
+    "opStartsWith": "beginnt mit",
+    "opEndsWith": "endet mit",
+    "opIsEmpty": "ist leer",
+    "opIsNotEmpty": "ist nicht leer"
   },
   "tags": {
     "label": "Tags",

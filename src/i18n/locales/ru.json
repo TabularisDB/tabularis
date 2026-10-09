@@ -1,5 +1,14 @@
 {
   "toolbar": {
+    "autoRefresh": {
+      "label": "Автообновление",
+      "off": "Выкл.",
+      "seconds": "{{seconds}} с",
+      "paused": "Приостановлено на время редактирования",
+      "pausedSelection": "Приостановлено, пока выбраны строки",
+      "refresh": "Обновить таблицу",
+      "failed": "Не удалось обновить: {{error}}"
+    },
     "filters": "Фильтры",
     "toggleFilterPanel": "Открыть/закрыть панель фильтров",
     "filterConditions": "Условия фильтрации",
@@ -24,7 +33,12 @@
     "selectForApplyAll": "Добавить в «Применить все»",
     "valuePlaceholder": "значение",
     "fromPlaceholder": "от",
-    "toPlaceholder": "до"
+    "toPlaceholder": "до",
+    "opContains": "содержит",
+    "opStartsWith": "начинается с",
+    "opEndsWith": "заканчивается на",
+    "opIsEmpty": "пусто",
+    "opIsNotEmpty": "не пусто"
   },
   "tags": {
     "label": "Теги",

@@ -31,6 +31,63 @@ describe('TableToolbar', () => {
     expect(screen.getByText('LIMIT')).toBeInTheDocument();
   });
 
+  it('exposes a controlled, labeled refresh interval beside manual refresh', () => {
+    const onChange = vi.fn();
+    const onRefresh = vi.fn();
+    const { rerender } = render(<TableToolbar {...defaultProps} autoRefreshIntervalMs={10000}
+      onAutoRefreshChange={onChange} onRefresh={onRefresh} />);
+    const select = screen.getByRole('combobox', { name: 'toolbar.autoRefresh.label' });
+    expect(select).toHaveValue('10000');
+    expect(select.querySelectorAll('option')).toHaveLength(5);
+    fireEvent.change(select, { target: { value: '5000' } });
+    expect(onChange).toHaveBeenCalledWith(5000);
+    expect(select).toHaveValue('10000');
+    fireEvent.click(screen.getByRole('button', { name: 'toolbar.autoRefresh.refresh' }));
+    expect(onRefresh).toHaveBeenCalledOnce();
+    rerender(<TableToolbar {...defaultProps} autoRefreshIntervalMs={5000}
+      onAutoRefreshChange={onChange} onRefresh={onRefresh} autoRefreshPaused refreshDisabled />);
+    expect(select).toHaveValue('5000');
+    expect(screen.getByRole('status')).toHaveTextContent('toolbar.autoRefresh.paused');
+    expect(screen.getByRole('button', { name: 'toolbar.autoRefresh.refresh' })).toBeDisabled();
+  });
+
+  it('keeps the auto-refresh live region mounted and names the pause reason', () => {
+    const props = { ...defaultProps, onAutoRefreshChange: vi.fn(), onRefresh: vi.fn(), autoRefreshIntervalMs: 5000 as const };
+    const { rerender } = render(<TableToolbar {...props} />);
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('');
+    rerender(<TableToolbar {...props} autoRefreshPaused autoRefreshPausedReason="selection" />);
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status).toHaveTextContent('toolbar.autoRefresh.pausedSelection');
+    rerender(<TableToolbar {...props} autoRefreshPaused autoRefreshPausedReason="editing" />);
+    expect(status).toHaveTextContent('toolbar.autoRefresh.paused');
+  });
+
+  it('renders a single refresh button and marks a non-Off interval as active', () => {
+    const props = { ...defaultProps, onAutoRefreshChange: vi.fn(), onRefresh: vi.fn() };
+    const { rerender } = render(<TableToolbar {...props} autoRefreshIntervalMs={0} />);
+    expect(screen.getAllByRole('button', { name: 'toolbar.autoRefresh.refresh' })).toHaveLength(1);
+    const select = screen.getByRole('combobox', { name: 'toolbar.autoRefresh.label' });
+    expect(select).not.toHaveAttribute('data-active');
+    expect(select).toHaveClass('border-default', 'text-secondary');
+
+    rerender(<TableToolbar {...props} autoRefreshIntervalMs={30000} />);
+    expect(select).toHaveAttribute('data-active', 'true');
+    expect(select).toHaveClass('border-accent-primary/50', 'text-accent');
+    expect(select).not.toHaveClass('border-default');
+    expect(screen.getByRole('button', { name: 'toolbar.autoRefresh.refresh' })).toHaveClass('text-accent');
+
+    rerender(<TableToolbar {...props} autoRefreshIntervalMs={0} />);
+    expect(select).not.toHaveAttribute('data-active');
+    expect(screen.getByRole('button', { name: 'toolbar.autoRefresh.refresh' })).toHaveClass('text-muted');
+  });
+
+  it('omits the refresh controls when auto-refresh is not wired', () => {
+    render(<TableToolbar {...defaultProps} />);
+    expect(screen.queryByRole('button', { name: 'toolbar.autoRefresh.refresh' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'toolbar.autoRefresh.label' })).toBeNull();
+  });
+
   it('renders with initial values', () => {
     render(
       <TableToolbar
@@ -266,5 +323,43 @@ describe('TableToolbar', () => {
     fireEvent.keyDown(filterInput, { key: 'Enter' });
 
     expect(mockOnUpdate).toHaveBeenCalledWith('id = 1', 'id ASC', 10);
+  });
+
+  describe('filter panel', () => {
+    const panelProps = {
+      ...defaultProps,
+      columnMetadata: [
+        { name: 'id', data_type: 'int', is_pk: true, is_nullable: false, is_auto_increment: true },
+      ],
+    };
+    const openPanel = () => {
+      fireEvent.click(screen.getByTitle('toolbar.toggleFilterPanel'));
+      // the WHERE input is hidden while the panel is open
+      expect(screen.queryByText('WHERE')).not.toBeInTheDocument();
+    };
+
+    it('stays open when clicking outside of it', () => {
+      render(
+        <div>
+          <TableToolbar {...panelProps} />
+          <div data-testid="grid">grid</div>
+        </div>
+      );
+      openPanel();
+
+      fireEvent.mouseDown(screen.getByTestId('grid'));
+      fireEvent.click(screen.getByTestId('grid'));
+
+      expect(screen.queryByText('WHERE')).not.toBeInTheDocument();
+    });
+
+    it('is closed when remounted with another key (table tab switch)', () => {
+      const { rerender } = render(<TableToolbar key="customers" {...panelProps} />);
+      openPanel();
+
+      rerender(<TableToolbar key="orders" {...panelProps} />);
+
+      expect(screen.getByText('WHERE')).toBeInTheDocument();
+    });
   });
 });

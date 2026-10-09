@@ -97,6 +97,7 @@ import { newConsoleForDatabase } from "../../utils/newConsole";
 import { openEditor } from "../../utils/editorNavigation";
 import {
   DEFAULT_CREATE_TABLE_TARGET,
+  getClipboardImportTarget,
   getCreateTableRefreshPlan,
   type CreateTableTarget,
 } from "../../utils/createTable";
@@ -304,8 +305,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     setIsCreateTableModalOpen(true);
   };
 
-  const refreshAfterCreateTable = async () => {
-    const refreshPlan = getCreateTableRefreshPlan(createTableTarget);
+  const refreshAfterCreateTable = async (target: CreateTableTarget) => {
+    const refreshPlan = getCreateTableRefreshPlan(target);
 
     if (refreshPlan.scope === "schema") {
       await refreshSchemaData(refreshPlan.schema);
@@ -2563,7 +2564,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         <CreateTableModal
           isOpen={isCreateTableModalOpen}
           onClose={() => setIsCreateTableModalOpen(false)}
-          onSuccess={refreshAfterCreateTable}
+          onSuccess={() => refreshAfterCreateTable(createTableTarget)}
           schema={createTableTarget.schema}
         />
       )}
@@ -2572,11 +2573,14 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         <ClipboardImportModal
           isOpen={isClipboardImportOpen}
           onClose={() => setIsClipboardImportOpen(false)}
-          onSuccess={() => {
-            if (refreshTables) refreshTables();
-            setSchemaVersion((v) => v + 1);
-            setIsClipboardImportOpen(false);
-          }}
+          onSuccess={() =>
+            refreshAfterCreateTable(
+              getClipboardImportTarget(activeSchema, {
+                schemaLayout: activeCapabilities?.schemas === true && schemas.length > 0,
+                multiDatabaseLayout: isMultiDb,
+              }),
+            )
+          }
         />
       )}
 
