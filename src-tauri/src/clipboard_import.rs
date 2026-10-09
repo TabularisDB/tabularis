@@ -43,13 +43,45 @@ fn escape_sql_string(s: &str) -> String {
     format!("'{}'", s.replace('\'', "''"))
 }
 
-fn row_to_values_clause(row: &[Option<String>]) -> String {
+/// The SQL literal for a value the clipboard parser accepts as a boolean.
+fn boolean_literal(value: &str) -> Option<&'static str> {
+    match value.to_ascii_lowercase().as_str() {
+        "true" | "yes" | "1" => Some("TRUE"),
+        "false" | "no" | "0" => Some("FALSE"),
+        _ => None,
+    }
+}
+
+/// MySQL creates BOOLEAN as TINYINT(1) and, in strict mode, rejects quoted words
+/// like 'true', so the BOOLEAN columns this import created get TRUE/FALSE
+/// literals. Columns that already existed keep quoted values: their real type
+/// isn't known here.
+fn boolean_literal_columns(
+    req: &ClipboardImportRequest,
+    driver_id: &str,
+    table_created: bool,
+) -> Vec<bool> {
+    req.columns
+        .iter()
+        .map(|col| {
+            driver_id == "mysql"
+                && col.data_type.eq_ignore_ascii_case("BOOLEAN")
+                && (table_created || req.add_columns.iter().any(|added| added.name == col.name))
+        })
+        .collect()
+}
+
+fn row_to_values_clause(row: &[Option<String>], boolean_columns: &[bool]) -> String {
     let values: Vec<String> = row
         .iter()
-        .map(|cell| match cell {
+        .enumerate()
+        .map(|(i, cell)| match cell {
             None => "NULL".to_string(),
             Some(v) if v.is_empty() => "NULL".to_string(),
-            Some(v) => escape_sql_string(v),
+            Some(v) => match boolean_literal(v) {
+                Some(literal) if boolean_columns.get(i) == Some(&true) => literal.to_string(),
+                _ => escape_sql_string(v),
+            },
         })
         .collect();
     format!("({})", values.join(", "))
@@ -197,11 +229,16 @@ async fn insert_rows(
         .collect::<Vec<_>>()
         .join(", ");
 
+    let boolean_columns = boolean_literal_columns(req, &drv.manifest().id, table_created);
+
     const BATCH_SIZE: usize = 500;
     let mut rows_inserted = 0;
 
     for chunk in req.rows.chunks(BATCH_SIZE) {
-        let values_clauses: Vec<String> = chunk.iter().map(|r| row_to_values_clause(r)).collect();
+        let values_clauses: Vec<String> = chunk
+            .iter()
+            .map(|r| row_to_values_clause(r, &boolean_columns))
+            .collect();
         let insert_sql = format!(
             "INSERT INTO {} ({}) VALUES {}",
             tbl_ref,
