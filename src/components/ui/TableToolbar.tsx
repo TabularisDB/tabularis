@@ -15,6 +15,7 @@ import {
   replaceCurrentWord,
   buildStructuredFilterClause,
   buildSingleFilterClause,
+  isFilterComplete,
   createEmptyFilter,
 } from "../../utils/filterBar";
 import type { StructuredFilter, FilterCombinator } from "../../utils/filterBar";
@@ -198,7 +199,7 @@ const TableToolbarInternal = ({
   const handleApplySingle = useCallback(
     (filter: StructuredFilter) => {
       onUpdate(
-        buildSingleFilterClause(filter, quotingDriver),
+        isFilterComplete(filter) ? buildSingleFilterClause(filter, quotingDriver) : "",
         formatSortClause(sortInput, quotingDriver),
         getLimitVal(limitInput),
       );

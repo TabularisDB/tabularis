@@ -267,4 +267,37 @@ describe('TableToolbar', () => {
 
     expect(mockOnUpdate).toHaveBeenCalledWith('id = 1', 'id ASC', 10);
   });
+
+  describe('per-row Apply', () => {
+    const panelProps = {
+      ...defaultProps,
+      columnMetadata: [
+        { name: 'id', data_type: 'int', is_pk: true, is_nullable: false, is_auto_increment: true },
+      ],
+    };
+
+    it('does not apply an incomplete filter', () => {
+      render(<TableToolbar {...panelProps} />);
+      fireEvent.click(screen.getByTitle('toolbar.toggleFilterPanel'));
+      mockOnUpdate.mockClear();
+
+      fireEvent.click(screen.getByText('toolbar.apply'));
+
+      expect(mockOnUpdate).toHaveBeenCalledTimes(1);
+      expect(mockOnUpdate.mock.calls[0][0]).toBe('');
+    });
+
+    it('applies a complete filter', () => {
+      render(<TableToolbar {...panelProps} />);
+      fireEvent.click(screen.getByTitle('toolbar.toggleFilterPanel'));
+      fireEvent.change(screen.getByPlaceholderText('toolbar.valuePlaceholder'), {
+        target: { value: '5' },
+      });
+      mockOnUpdate.mockClear();
+
+      fireEvent.click(screen.getByText('toolbar.apply'));
+
+      expect(mockOnUpdate.mock.calls[0][0]).toBe('id = 5');
+    });
+  });
 });
