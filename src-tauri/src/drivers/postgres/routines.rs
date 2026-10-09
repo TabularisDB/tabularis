@@ -154,10 +154,22 @@ pub(super) fn routine_exists_sql() -> &'static str {
 /// routine on the server, overloaded or not, because the UI always sends a
 /// signature on this driver (#926 review).
 ///
-/// Before 12 the view cast the whole concatenation to `name`, which truncates
-/// from the RIGHT and so loses OID digits instead. Measured on the same row,
-/// the two forms disagree: `..._abcdefgh_16` against `..._abcde_16385`. Each
-/// version therefore gets the expression its own `information_schema` uses.
+/// Before 12 nothing is truncated at all, so the plain concatenation is right
+/// there. `sql_identifier` was a domain over `character varying` until 12 turned
+/// it into `name` and added `nameconcatoid` in the same release. Measured on
+/// PostgreSQL 11.16, same routine:
+///
+/// ```text
+/// sql_identifier base type  character varying
+/// specific_name             fn_..._abcdefgh_16385   (66 characters, untruncated)
+/// (proname || '_' || oid)::text   matches
+/// (proname || '_' || oid)::name   does NOT match - truncated to 63
+/// ```
+///
+/// So casting to `name` on an old server is the mirror of the first bug: it
+/// truncates where the view does not, and a long-named routine would answer
+/// with no parameters there too. Each version gets the expression its own
+/// `information_schema` uses, and neither gets the other's.
 pub(super) fn routine_specific_name_sql(has_nameconcatoid: bool) -> &'static str {
     if has_nameconcatoid {
         r#"
@@ -170,7 +182,7 @@ pub(super) fn routine_specific_name_sql(has_nameconcatoid: bool) -> &'static str
         "#
     } else {
         r#"
-            SELECT (p.proname || '_' || p.oid)::name::text AS specific_name
+            SELECT (p.proname || '_' || p.oid)::text AS specific_name
             FROM pg_proc p
             JOIN pg_namespace n ON p.pronamespace = n.oid
             WHERE n.nspname = $1

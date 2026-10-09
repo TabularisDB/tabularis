@@ -1468,14 +1468,19 @@ mod routine_overload_sql_tests {
     }
 
     #[test]
-    fn specific_name_before_postgresql_12_casts_to_name_as_that_view_did() {
+    fn specific_name_before_postgresql_12_does_not_truncate_because_the_view_did_not() {
         // `nameconcatoid` arrived in 12 and referencing it earlier fails at
-        // parse time. Those versions cast the whole concatenation to `name`,
-        // which truncates from the RIGHT and loses OID digits - measured as
-        // `..._abcdefgh_16` against 12's `..._abcde_16385`, so the two forms
-        // genuinely differ and each version needs its own.
+        // parse time, so those versions need their own expression - and theirs
+        // truncates nothing. `sql_identifier` was a domain over `character
+        // varying` until 12 made it a `name`, so the view carried the whole
+        // concatenation. Measured on 11.16: specific_name is the full 66
+        // characters, the `::text` form matches it and a `::name` cast does not.
+        //
+        // Casting to `name` here would be the mirror of the bug this function
+        // exists to fix: truncating where the view does not.
         let sql = routine_specific_name_sql(false);
-        assert!(sql.contains("(p.proname || '_' || p.oid)::name::text"));
+        assert!(sql.contains("(p.proname || '_' || p.oid)::text"));
+        assert!(!sql.contains("::name"));
         assert!(!sql.contains("nameconcatoid"));
     }
 
@@ -1809,10 +1814,19 @@ mod live_pg_routine_overloads {
             "a missing overload must not be a silent no-op"
         );
 
-        // A procedure's signature carries an IN prefix, and DROP accepts it.
-        super::super::drop_routine(&params, "p", "PROCEDURE", schema, Some("IN a integer"))
+        // A procedure too, by whatever signature the listing reported for it.
+        // Read rather than written out: PostgreSQL 18 renders a procedure's
+        // argument as `IN a integer` and 11.16 as `a integer`, so a literal
+        // here tested the server's spelling instead of the driver's round trip.
+        let procedure_identity = left
+            .iter()
+            .find(|r| r.name == "p")
+            .and_then(|r| r.identity_args.as_deref())
+            .expect("the procedure is listed with a signature");
+
+        super::super::drop_routine(&params, "p", "PROCEDURE", schema, Some(procedure_identity))
             .await
-            .expect("drop p(IN a integer)");
+            .unwrap_or_else(|e| panic!("drop p({procedure_identity}): {e}"));
     }
 }
 
