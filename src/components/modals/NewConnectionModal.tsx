@@ -374,6 +374,13 @@ export const NewConnectionModal = ({
   // server is loaded automatically at connect (persisted as an empty
   // database param). Default for new connections.
   const [loadAllDatabases, setLoadAllDatabases] = useState(true);
+  // Whether the user has explicitly opted a schema-based driver (PostgreSQL)
+  // into multi-database browsing. Starts false for new connections so the
+  // Database field shows and the Databases tab is hidden by default — a new
+  // PG connection stays single-database unless the user checks the opt-in.
+  // Set from the saved connection's opt-in signal on edit load. Flat multi-db
+  // drivers (MySQL) ignore this — they have no single-database mode.
+  const [optedIntoSchemaMultiDb, setOptedIntoSchemaMultiDb] = useState(false);
   const [dbSearchQuery, setDbSearchQuery] = useState("");
   const [detectJsonInTextColumns, setDetectJsonInTextColumns] = useState(false);
   const [passwordDirty, setPasswordDirty] = useState(false);
@@ -661,17 +668,24 @@ export const NewConnectionModal = ({
       defaultValue: "e.g. mysql://user:pass@localhost:3306/db",
     });
   const isFlatMultiDbDriver = isMultiDatabaseCapable(activeDriver?.capabilities);
-  const isMultiDb =
-    isFlatMultiDbDriver ||
-    isSchemaBasedMultiDbCapable(activeDriver?.capabilities);
+  const schemaBasedMultiDbCapable = isSchemaBasedMultiDbCapable(activeDriver?.capabilities);
   // Whether the connection has actually opted into database-selection browsing,
   // not just whether the driver is *capable* of it. A traditional single-DB
   // PostgreSQL connection (plain string database) has the capability but has
   // NOT opted in — its save should keep the plain string, and the "Select at
   // least one database" validation must not fire for it (finding #7).
+  //
+  // Flat multi-db drivers (MySQL) have no single-database mode, so capability
+  // alone is the gate. Schema-based drivers (PostgreSQL) use the explicit
+  // opt-in checkbox state — NOT the database param — because the empty-string
+  // default of a new/edited form is indistinguishable from the persisted "all
+  // databases" signal, so the form must not infer opt-in from formData.database
+  // alone (debba review, PR #822, blocking 2).
   const isOptedInMultiDb =
     isFlatMultiDbDriver ||
-    hasOptedIntoDatabaseSelection(activeDriver?.capabilities, formData.database ?? "");
+    (schemaBasedMultiDbCapable
+      ? optedIntoSchemaMultiDb
+      : hasOptedIntoDatabaseSelection(activeDriver?.capabilities, formData.database ?? ""));
   const connectionStringExamples =
     activeDriver?.capabilities?.connection_string_examples ??
     activeDriver?.capabilities?.connectionStringExamples ??
@@ -938,7 +952,7 @@ export const NewConnectionModal = ({
       sshMode,
       k8sMode,
       effectiveK8sPort,
-      isMultiDb,
+      isOptedInMultiDb,
       noConnectionRequired,
       initialConnection,
       kubectlPath: pathOverrides.kubectlPath,
@@ -953,7 +967,7 @@ export const NewConnectionModal = ({
       effectiveK8sPort,
       formData,
       initialConnection,
-      isMultiDb,
+      isOptedInMultiDb,
       k8sMode,
       name,
       noConnectionRequired,
@@ -1871,6 +1885,12 @@ export const NewConnectionModal = ({
           (d) => d.id === initialConnection.params.driver,
         );
         const editIsMultiDb = hasOptedIntoDatabaseSelection(editDriverForDb?.capabilities, db);
+        // Sync the schema-based opt-in checkbox to the saved connection's state.
+        // hasOptedIntoDatabaseSelection returns true when db is an array or ""
+        // (all-databases mode), false for a plain single-database string — so a
+        // non-opted-in PG connection shows the Database field, and an opted-in
+        // one shows the Databases tab (debba review, PR #822, blocking 2).
+        setOptedIntoSchemaMultiDb(editIsMultiDb);
         if (Array.isArray(db)) {
           setSelectedDatabasesState(db);
           setLoadAllDatabases(false);
@@ -1946,6 +1966,7 @@ export const NewConnectionModal = ({
         });
         setSelectedDatabasesState([]);
         setLoadAllDatabases(true);
+        setOptedIntoSchemaMultiDb(false);
         setSshMode("existing");
         setK8sMode("existing");
         resetK8sPathOverrides();
@@ -2013,6 +2034,7 @@ export const NewConnectionModal = ({
     setK8sSelectionError(null);
     setSelectedDatabasesState([]);
     setLoadAllDatabases(true);
+    setOptedIntoSchemaMultiDb(false);
     setDbSearchQuery("");
     setAvailableDatabases([]);
     setDatabaseLoadError(null);
@@ -2566,6 +2588,15 @@ export const NewConnectionModal = ({
           setLoadAllDatabases(true);
         }
       }
+      // Sync the schema-based opt-in checkbox to the parsed URI's inferred
+      // state. A Postgres URI without a database (postgresql://host) means
+      // "browse everything" → opt in; one with a database (postgresql://host/db)
+      // means single-database → opt out. Use the PARSED driver's capability,
+      // not the closure's activeDriver, since the import may have switched
+      // drivers (debba review, PR #822, blocking 2).
+      if (isSchemaBasedMultiDbCapable(parsedDriver?.capabilities)) {
+        setOptedIntoSchemaMultiDb(parsedIsMultiDb);
+      }
 
       if (driverChanged) {
         setDriver(newDriver);
@@ -2841,8 +2872,9 @@ export const NewConnectionModal = ({
             </div>
           )}
 
-          {/* Database (single) — only shown for non-multi-db drivers */}
-          {!isUriPassthrough && !isMultiDb && !singleDatabase && (
+          {/* Database (single) — shown unless the connection has opted into
+              multi-database selection (flat drivers are always opted in) */}
+          {!isUriPassthrough && !isOptedInMultiDb && !singleDatabase && (
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
@@ -2902,6 +2934,43 @@ export const NewConnectionModal = ({
                 </div>
               )}
             </div>
+          )}
+
+          {/* Schema-based multi-database opt-in (PostgreSQL): browse multiple
+              databases on one connection. Off by default so new and existing
+              single-database connections keep the traditional single Database
+              field and no Databases tab. Checking it switches to multi-database
+              mode (debba review, PR #822, blocking 2). */}
+          {schemaBasedMultiDbCapable && !isUriPassthrough && (
+            <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+              <input
+                type="checkbox"
+                checked={optedIntoSchemaMultiDb}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setOptedIntoSchemaMultiDb(checked);
+                  if (checked) {
+                    // Entering multi-database mode: clear the single database
+                    // field so the save path persists the opt-in signal (empty
+                    // string = "all databases"), default to all-databases mode,
+                    // and jump to the Databases tab.
+                    setFormData((prev) => ({ ...prev, database: "" }));
+                    setSelectedDatabasesState([]);
+                    setLoadAllDatabases(true);
+                    setActiveTab("databases");
+                  } else {
+                    // Leaving multi-database mode: restore a blank single
+                    // database field so the user can type the one database.
+                    setFormData((prev) => ({ ...prev, database: "" }));
+                    setSelectedDatabasesState([]);
+                  }
+                }}
+                className="accent-accent-primary w-3.5 h-3.5 rounded"
+              />
+              <span className="text-xs text-secondary">
+                {t("newConnection.browseMultipleDatabases")}
+              </span>
+            </label>
           )}
 
           {/* Keychain */}
@@ -4436,7 +4505,7 @@ export const NewConnectionModal = ({
                       defaultValue: "General",
                     }),
                   },
-                  ...(isMultiDb
+                  ...(isOptedInMultiDb
                     ? [
                         {
                           id: "databases",
