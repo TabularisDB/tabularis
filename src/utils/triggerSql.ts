@@ -1,6 +1,6 @@
 export type TriggerDialect = "postgres" | "mysql" | "sqlite";
 export type TriggerTiming = "BEFORE" | "AFTER" | "INSTEAD OF";
-export type TriggerEvent = "INSERT" | "UPDATE" | "DELETE" | "TRUNCATE";
+export type TriggerEvent = "INSERT" | "UPDATE" | "DELETE";
 
 export const TRIGGER_CAPS: Record<
   TriggerDialect,
@@ -8,7 +8,7 @@ export const TRIGGER_CAPS: Record<
 > = {
   postgres: {
     timings: ["BEFORE", "AFTER", "INSTEAD OF"],
-    events: ["INSERT", "UPDATE", "DELETE", "TRUNCATE"],
+    events: ["INSERT", "UPDATE", "DELETE"],
     multiEvent: true,
   },
   mysql: {
@@ -22,6 +22,13 @@ export const TRIGGER_CAPS: Record<
     multiEvent: false,
   },
 };
+
+/** Same default the modal used before: anything that is not mysql/sqlite is treated as postgres-like. */
+export function resolveTriggerDialect(driver?: string): TriggerDialect {
+  if (driver === "mysql") return "mysql";
+  if (driver === "sqlite") return "sqlite";
+  return "postgres";
+}
 
 /** Default body shown in the editor, per dialect. */
 export const defaultTriggerBody = (d: TriggerDialect): string =>
@@ -51,62 +58,86 @@ export interface BuildTriggerArgs {
   table: string;
   timing: TriggerTiming;
   events: TriggerEvent[];
-  forEach: "ROW" | "STATEMENT";
-  body: string; // pg: inner statements; mysql/sqlite: full BEGIN ... END block
+  forEach?: "ROW" | "STATEMENT";
+  /** pg: statements inside the function; mysql/sqlite: full BEGIN ... END block */
+  body: string;
+  /** Capability-aware identifier quoting supplied by the caller. */
+  quote?: (id: string) => string;
+  /**
+   * postgres only: reuse an existing trigger function. Text that follows
+   * `FOR EACH ROW`, e.g. `EXECUTE FUNCTION public.fn()`. No function is created.
+   */
+  existingTail?: string;
 }
 
-export function buildCreateTriggerSql(a: BuildTriggerArgs): string {
-  const q = (s: string) => quoteIdent(a.dialect, s);
+/** Statements to run, in order. Postgres needs two (function + trigger). */
+export function buildCreateTriggerStatements(a: BuildTriggerArgs): string[] {
+  const q = a.quote ?? ((s: string) => quoteIdent(a.dialect, s));
   const { timing, events } = normalizeSelection(a.dialect, a.timing, a.events);
   const eventSql = events.join(" OR ");
+  const forEach = a.forEach ?? "ROW";
 
   if (a.dialect === "postgres") {
-    const fn = `${a.schema ? q(a.schema) + "." : ""}${q(a.name + "_fn")}`;
-    const table = `${a.schema ? q(a.schema) + "." : ""}${q(a.table)}`;
-    const returnsRow = a.forEach === "ROW" && timing !== "AFTER";
+    const sp = a.schema ? `${q(a.schema)}.` : "";
+    const table = `${sp}${q(a.table)}`;
+    const trigger = (tail: string) =>
+      [
+        `CREATE TRIGGER ${q(a.name)}`,
+        `${timing} ${eventSql} ON ${table}`,
+        `FOR EACH ${forEach}`,
+        tail.trim().endsWith(";") ? tail.trim() : `${tail.trim()};`,
+      ].join("\n");
+
+    if (a.existingTail) return [trigger(a.existingTail)];
+
+    const fn = `${sp}${q(a.name + "_fn")}`;
+    const returnsRow = forEach === "ROW" && timing !== "AFTER";
     const ret = returnsRow
       ? "  IF (TG_OP = 'DELETE') THEN RETURN OLD; END IF;\n  RETURN NEW;"
       : "  RETURN NULL;";
-    return [
+    const func = [
       `CREATE OR REPLACE FUNCTION ${fn}() RETURNS TRIGGER AS $$`,
       `BEGIN`,
       a.body.trim() ? a.body.replace(/\s+$/, "") : "  -- trigger body",
       ret,
       `END;`,
       `$$ LANGUAGE plpgsql;`,
-      ``,
-      `CREATE TRIGGER ${q(a.name)}`,
-      `${timing} ${eventSql} ON ${table}`,
-      `FOR EACH ${a.forEach}`,
-      `EXECUTE FUNCTION ${fn}();`,
     ].join("\n");
+    return [func, trigger(`EXECUTE FUNCTION ${fn}()`)];
   }
 
   if (a.dialect === "mysql") {
-    const prefix = a.schema ? q(a.schema) + "." : "";
+    // MySQL takes the schema from the connection; qualifying ON causes error 1435.
     return [
-      `CREATE TRIGGER ${prefix}${q(a.name)}`,
-      `${timing} ${eventSql}`,
-      `ON ${prefix}${q(a.table)}`,
-      `FOR EACH ROW`,
-      a.body,
-    ].join("\n");
+      [
+        `CREATE TRIGGER ${q(a.name)}`,
+        `${timing} ${eventSql}`,
+        `ON ${q(a.table)}`,
+        `FOR EACH ROW`,
+        a.body,
+      ].join("\n"),
+    ];
   }
 
   return [
-    `CREATE TRIGGER ${q(a.name)}`,
-    `${timing} ${eventSql} ON ${q(a.table)}`,
-    `FOR EACH ROW`,
-    a.body,
-  ].join("\n");
+    [
+      `CREATE TRIGGER ${q(a.name)}`,
+      `${timing} ${eventSql} ON ${q(a.table)}`,
+      `FOR EACH ROW`,
+      a.body,
+    ].join("\n"),
+  ];
 }
 
-/** Parse timing + ALL events from an existing definition. */
+export const buildCreateTriggerSql = (a: BuildTriggerArgs): string =>
+  buildCreateTriggerStatements(a).join("\n\n");
+
+/** Parse timing + ALL events from the header of an existing definition. */
 export function parseTriggerDefinition(def: string): {
   timing: TriggerTiming | null;
   events: TriggerEvent[];
 } {
-  const ev = "INSERT|UPDATE|DELETE|TRUNCATE";
+  const ev = "INSERT|UPDATE|DELETE";
   const re = new RegExp(
     `\\b(BEFORE|AFTER|INSTEAD\\s+OF)\\s+((?:${ev})(?:\\s+OR\\s+(?:${ev}))*)`,
     "i",
@@ -117,4 +148,72 @@ export function parseTriggerDefinition(def: string): {
     timing: m[1].toUpperCase().replace(/\s+/g, " ") as TriggerTiming,
     events: m[2].split(/\s+OR\s+/i).map((e) => e.toUpperCase() as TriggerEvent),
   };
+}
+
+/** Split on `;` outside of quotes, comments and $$ blocks (postgres). */
+export function splitSqlStatements(sql: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let i = 0;
+  let dollar: string | null = null;
+  let quote: string | null = null;
+  while (i < sql.length) {
+    const ch = sql[i];
+    if (dollar) {
+      if (sql.startsWith(dollar, i)) {
+        cur += dollar;
+        i += dollar.length;
+        dollar = null;
+      } else {
+        cur += ch;
+        i++;
+      }
+      continue;
+    }
+    if (quote) {
+      cur += ch;
+      if (ch === quote) {
+        if (sql[i + 1] === quote) {
+          cur += sql[i + 1];
+          i += 2;
+          continue;
+        }
+        quote = null;
+      }
+      i++;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      cur += ch;
+      i++;
+      continue;
+    }
+    if (ch === "-" && sql[i + 1] === "-") {
+      const nl = sql.indexOf("\n", i);
+      const end = nl === -1 ? sql.length : nl;
+      cur += sql.slice(i, end);
+      i = end;
+      continue;
+    }
+    if (ch === "$") {
+      const m = /^\$[A-Za-z_]*\$/.exec(sql.slice(i));
+      if (m) {
+        dollar = m[0];
+        cur += m[0];
+        i += m[0].length;
+        continue;
+      }
+    }
+    if (ch === ";") {
+      if (cur.trim()) out.push(cur.trim());
+      cur = "";
+      i++;
+      continue;
+    }
+    cur += ch;
+    i++;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
 }

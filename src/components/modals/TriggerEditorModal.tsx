@@ -9,6 +9,18 @@ import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import { useDatabase } from "../../hooks/useDatabase";
 import { quoteIdentifier } from "../../utils/identifiers";
 import type { DriverCapabilities } from "../../types/plugins";
+import {
+  TRIGGER_CAPS,
+  buildCreateTriggerStatements,
+  defaultTriggerBody,
+  normalizeSelection,
+  parseTriggerDefinition,
+  resolveTriggerDialect,
+  splitSqlStatements,
+  type TriggerDialect,
+  type TriggerEvent,
+  type TriggerTiming,
+} from "../../utils/triggerSql";
 
 interface TriggerEditorModalProps {
   isOpen: boolean;
@@ -28,25 +40,28 @@ interface TriggerEditorModalProps {
   onSuccess?: () => void;
 }
 
-const TIMING_OPTIONS = ["BEFORE", "AFTER", "INSTEAD OF"];
-const EVENT_OPTIONS = ["INSERT", "UPDATE", "DELETE"];
+interface ParsedTrigger {
+  timing: TriggerTiming | null;
+  events: TriggerEvent[];
+  /** mysql/sqlite: text after FOR EACH ROW */
+  body: string | null;
+  /** postgres: text after FOR EACH ROW|STATEMENT (WHEN ... EXECUTE FUNCTION fn()) */
+  tail: string | null;
+  forEach: "ROW" | "STATEMENT";
+}
 
-function parseTriggerSql(sql: string): { timing: string | null; events: string[] | null; body: string | null } {
-  // Restrict header to the part before FOR EACH ROW to avoid matching keywords in the body
-  const forEachRowMatch = sql.match(/\bFOR\s+EACH\s+ROW\b/i);
-  const header = forEachRowMatch?.index !== undefined ? sql.slice(0, forEachRowMatch.index) : sql;
+function parseTriggerSql(sql: string, dialect: TriggerDialect): ParsedTrigger {
+  // Restrict header to the part before FOR EACH to avoid matching keywords in the body
+  const m = sql.match(/\bFOR\s+EACH\s+(ROW|STATEMENT)\b/i);
+  const hasSplit = m?.index !== undefined;
+  const header = hasSplit ? sql.slice(0, m!.index) : sql;
+  const rest = hasSplit ? sql.slice(m!.index! + m![0].length).trim() : null;
+  const { timing, events } = parseTriggerDefinition(header);
+  const forEach = m && m[1].toUpperCase() === "STATEMENT" ? "STATEMENT" : "ROW";
 
-  const timingMatch = header.match(/\b(INSTEAD\s+OF|BEFORE|AFTER)\b/i);
-  const timing = timingMatch ? timingMatch[1].toUpperCase().replace(/\s+/, " ") : null;
-
-  const eventMatch = header.match(/\b(INSERT|UPDATE|DELETE)\b/i);
-  const events = eventMatch ? [eventMatch[1].toUpperCase()] : null;
-
-  const body = forEachRowMatch?.index !== undefined
-    ? sql.slice(forEachRowMatch.index + forEachRowMatch[0].length).trim()
-    : null;
-
-  return { timing, events, body };
+  return dialect === "postgres"
+    ? { timing, events, body: null, tail: rest, forEach }
+    : { timing, events, body: rest, tail: null, forEach };
 }
 
 export const TriggerEditorModal = ({
@@ -66,16 +81,26 @@ export const TriggerEditorModal = ({
   const resolvedSchema = schemaProp ?? activeSchema ?? undefined;
   const { showAlert } = useAlert();
 
+  const dialect = resolveTriggerDialect(driver);
+  const caps = TRIGGER_CAPS[dialect];
+
   const [name, setName] = useState("");
   const [tableName, setTableName] = useState(initialTableName ?? "");
-  const [timing, setTiming] = useState("BEFORE");
-  const [events, setEvents] = useState<string[]>(["INSERT"]);
-  const [body, setBody] = useState("BEGIN\n  -- trigger body\nEND");
+  const [timing, setTiming] = useState<TriggerTiming>("BEFORE");
+  const [events, setEvents] = useState<TriggerEvent[]>(["INSERT"]);
+  const [body, setBody] = useState(defaultTriggerBody(dialect));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawSql, setRawSql] = useState("");
   const [useRawSql, setUseRawSql] = useState(false);
+  // Definition as loaded from the database; used to restore it if an edit fails.
+  const [originalSql, setOriginalSql] = useState("");
+  // Postgres edit: keep the existing trigger function instead of regenerating it.
+  const [pgExisting, setPgExisting] = useState<{
+    tail: string;
+    forEach: "ROW" | "STATEMENT";
+  } | null>(null);
 
   const loadTriggerDefinition = useCallback(async (tName: string, tTable: string) => {
     setLoading(true);
@@ -88,24 +113,22 @@ export const TriggerEditorModal = ({
         ...(resolvedSchema ? { schema: resolvedSchema } : {}),
       });
       setRawSql(def);
+      setOriginalSql(def);
 
       // Populate guided mode fields so switching tabs shows real values
-      const parsed = parseTriggerSql(def);
-      if (parsed.timing && TIMING_OPTIONS.includes(parsed.timing)) {
-        setTiming(parsed.timing);
-      }
-      if (parsed.events) {
-        setEvents(parsed.events);
-      }
-      if (parsed.body) {
-        setBody(parsed.body);
-      }
+      const parsed = parseTriggerSql(def, dialect);
+      if (parsed.timing) setTiming(parsed.timing);
+      if (parsed.events.length) setEvents(parsed.events);
+      if (parsed.body) setBody(parsed.body);
+      setPgExisting(
+        parsed.tail ? { tail: parsed.tail, forEach: parsed.forEach } : null,
+      );
     } catch (e) {
       setError(t("triggers.failLoadDefinition") + String(e));
     } finally {
       setLoading(false);
     }
-  }, [connectionId, t, resolvedSchema]);
+  }, [connectionId, t, resolvedSchema, dialect]);
 
   useEffect(() => {
     if (isOpen) {
@@ -114,8 +137,10 @@ export const TriggerEditorModal = ({
         setTableName(initialTableName ?? "");
         setTiming("BEFORE");
         setEvents(["INSERT"]);
-        setBody("BEGIN\n  -- trigger body\nEND");
+        setBody(defaultTriggerBody(dialect));
         setRawSql("");
+        setOriginalSql("");
+        setPgExisting(null);
         setUseRawSql(false);
         setError(null);
       } else if (triggerName && initialTableName) {
@@ -124,33 +149,70 @@ export const TriggerEditorModal = ({
         loadTriggerDefinition(triggerName, initialTableName);
       }
     }
-  }, [isOpen, triggerName, initialTableName, isNewTrigger, loadTriggerDefinition]);
+  }, [isOpen, triggerName, initialTableName, isNewTrigger, loadTriggerDefinition, dialect]);
 
-  const buildTriggerSql = (): string => {
-    if (useRawSql) return rawSql;
+  // Keep timing/events within what the driver supports (e.g. one event on MySQL/SQLite).
+  useEffect(() => {
+    const n = normalizeSelection(dialect, timing, events);
+    if (n.timing !== timing) setTiming(n.timing);
+    if (n.events.join() !== events.join()) setEvents(n.events);
+  }, [dialect, timing, events]);
+
+  const buildGuidedStatements = (): string[] => {
     const q = (id: string) => quoteIdentifier(id, capabilities ?? driver ?? "postgres");
-    // MySQL handles schema via the connection — including it in the ON clause causes error 1435
-    const isMysql = driver === "mysql";
-    const schemaPrefix = (!isMysql && resolvedSchema) ? `${q(resolvedSchema)}.` : "";
-    const eventStr = events.join(" OR ");
-    return [
-      `CREATE TRIGGER ${q(name)}`,
-      `${timing} ${eventStr}`,
-      `ON ${schemaPrefix}${q(tableName)}`,
-      `FOR EACH ROW`,
+    return buildCreateTriggerStatements({
+      dialect,
+      name,
+      schema: resolvedSchema,
+      table: tableName,
+      timing,
+      events,
+      forEach: pgExisting?.forEach ?? "ROW",
       body,
-    ].join("\n");
+      quote: q,
+      existingTail: !isNewTrigger && pgExisting ? pgExisting.tail : undefined,
+    });
   };
 
-  const toggleEvent = (ev: string) => {
+  const buildStatements = (): string[] => {
+    if (useRawSql) {
+      return dialect === "postgres" ? splitSqlStatements(rawSql) : [rawSql];
+    }
+    return buildGuidedStatements();
+  };
+
+  const buildTriggerSql = (): string =>
+    useRawSql ? rawSql : buildGuidedStatements().join("\n\n");
+
+  const toggleEvent = (ev: TriggerEvent) => {
+    if (!caps.multiEvent) {
+      setEvents([ev]);
+      return;
+    }
     setEvents(prev =>
       prev.includes(ev) ? prev.filter(e => e !== ev) : [...prev, ev]
     );
   };
 
+  const switchToRaw = () => {
+    // Start raw mode from what guided mode would generate (valid for this dialect).
+    if (!rawSql.trim()) setRawSql(buildGuidedStatements().join("\n\n"));
+    setUseRawSql(true);
+  };
+
+  const createAll = async (statements: string[]) => {
+    for (const triggerSql of statements) {
+      await invoke("create_trigger", {
+        connectionId,
+        triggerSql,
+        ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+      });
+    }
+  };
+
   const handleSave = async () => {
-    const sql = buildTriggerSql();
-    if (!sql.trim()) {
+    const statements = buildStatements().filter(s => s.trim());
+    if (statements.length === 0) {
       showAlert(t("triggers.sqlRequired"), { kind: "error" });
       return;
     }
@@ -161,7 +223,12 @@ export const TriggerEditorModal = ({
         { title: t("triggers.recreateTrigger"), kind: "warning" }
       );
       if (!confirmed) return;
+    }
 
+    setSaving(true);
+    setError(null);
+
+    if (!isNewTrigger) {
       try {
         await invoke("drop_trigger", {
           connectionId,
@@ -171,18 +238,13 @@ export const TriggerEditorModal = ({
         });
       } catch (e) {
         setError(t("triggers.dropError") + String(e));
+        setSaving(false);
         return;
       }
     }
 
-    setSaving(true);
-    setError(null);
     try {
-      await invoke("create_trigger", {
-        connectionId,
-        triggerSql: sql,
-        ...(resolvedSchema ? { schema: resolvedSchema } : {}),
-      });
+      await createAll(statements);
       showAlert(
         isNewTrigger ? t("triggers.createSuccess") : t("triggers.updateSuccess"),
         { kind: "info" }
@@ -190,11 +252,28 @@ export const TriggerEditorModal = ({
       onSuccess?.();
       onClose();
     } catch (e) {
-      setError(t("triggers.saveError") + String(e));
+      let message = t("triggers.saveError") + String(e);
+      if (!isNewTrigger && originalSql.trim()) {
+        // The old trigger was already dropped: put it back so a failed edit loses nothing.
+        try {
+          await createAll(
+            dialect === "postgres" ? splitSqlStatements(originalSql) : [originalSql]
+          );
+          message += "\n" + t("triggers.originalRestored", "The original trigger was restored.");
+        } catch (restoreError) {
+          message +=
+            "\n" +
+            t("triggers.restoreFailed", "Restoring the original trigger also failed: ") +
+            String(restoreError);
+        }
+      }
+      setError(message);
     } finally {
       setSaving(false);
     }
   };
+
+  const keepsExistingFunction = !isNewTrigger && dialect === "postgres" && !!pgExisting;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -229,7 +308,7 @@ export const TriggerEditorModal = ({
           {error && (
             <div className="bg-accent-error/10 border border-accent-error/25 text-accent-error px-4 py-3 rounded-lg flex items-start gap-2">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
-              <div className="text-sm">{error}</div>
+              <div className="text-sm whitespace-pre-wrap">{error}</div>
             </div>
           )}
 
@@ -249,7 +328,7 @@ export const TriggerEditorModal = ({
               {t("triggers.guidedMode")}
             </button>
             <button
-              onClick={() => setUseRawSql(true)}
+              onClick={switchToRaw}
               className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${useRawSql ? "bg-accent-primary text-inverse" : "text-secondary hover:text-primary border border-strong"}`}
             >
               {t("triggers.rawSqlMode")}
@@ -313,7 +392,7 @@ export const TriggerEditorModal = ({
                     {t("triggers.timing")}
                   </label>
                   <div className="flex gap-2">
-                    {TIMING_OPTIONS.map((opt) => (
+                    {caps.timings.map((opt) => (
                       <button
                         key={opt}
                         onClick={() => setTiming(opt)}
@@ -329,7 +408,7 @@ export const TriggerEditorModal = ({
                     {t("triggers.events")}
                   </label>
                   <div className="flex gap-2">
-                    {EVENT_OPTIONS.map((opt) => (
+                    {caps.events.map((opt) => (
                       <button
                         key={opt}
                         onClick={() => toggleEvent(opt)}
@@ -339,23 +418,37 @@ export const TriggerEditorModal = ({
                       </button>
                     ))}
                   </div>
+                  {!caps.multiEvent && (
+                    <p className="text-xs text-muted mt-1">
+                      {t("triggers.singleEventHint", "This database allows one event per trigger.")}
+                    </p>
+                  )}
                 </div>
               </div>
 
               {/* Trigger body */}
-              <div>
-                <label className="text-xs uppercase font-bold text-muted mb-1 block">
-                  {t("triggers.body")}
-                </label>
-                <div className="border border-strong rounded-lg overflow-hidden h-48">
-                  <SqlEditorWrapper
-                    initialValue={body}
-                    onChange={setBody}
-                    height="100%"
-                    onRun={handleSave}
-                  />
+              {keepsExistingFunction ? (
+                <p className="text-xs text-muted">
+                  {t(
+                    "triggers.existingFunctionHint",
+                    "This trigger keeps its existing function. Edit the function itself in the SQL editor or raw SQL mode."
+                  )}
+                </p>
+              ) : (
+                <div>
+                  <label className="text-xs uppercase font-bold text-muted mb-1 block">
+                    {t("triggers.body")}
+                  </label>
+                  <div className="border border-strong rounded-lg overflow-hidden h-48">
+                    <SqlEditorWrapper
+                      initialValue={body}
+                      onChange={setBody}
+                      height="100%"
+                      onRun={handleSave}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* SQL preview */}
               <div className="border border-default rounded-lg overflow-hidden">
