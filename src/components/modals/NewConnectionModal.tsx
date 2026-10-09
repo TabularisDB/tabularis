@@ -2515,6 +2515,7 @@ export const NewConnectionModal = ({
         driver: newDriver,
         host: parsed.host || "localhost",
         port: parsed.port,
+        ssl_mode: parsed.ssl_mode ?? "",
         database: parsed.database || "",
         connection_uri: parsed.connection_uri,
         connection_uri_in_keychain: false,
