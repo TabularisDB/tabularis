@@ -465,6 +465,13 @@ describe("connectionStringParser", () => {
       const opaque = "jdbc:h2:mem:test";
       const result = parseConnectionString(opaque, [JDBC_DRIVER]);
       expect(result.success && result.params.connection_uri).toBe(opaque);
+
+      // A separately installed JDBC passthrough driver remains authoritative
+      // even when its URI uses a PostgreSQL-like nested scheme.
+      const nested = "jdbc:postgresql://host/app";
+      const nestedResult = parseConnectionString(nested, [JDBC_DRIVER, ...CAPABILITY_DRIVERS]);
+      expect(nestedResult.success && nestedResult.params.driver).toBe("jdbc");
+      expect(nestedResult.success && nestedResult.params.connection_uri).toBe(nested);
     });
 
     it("does not rewrite passthrough MongoDB URIs or their credentials", () => {
