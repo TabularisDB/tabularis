@@ -55,6 +55,12 @@ fn row_to_values_clause(row: &[Option<String>]) -> String {
     format!("({})", values.join(", "))
 }
 
+/// The driver's declared identifier quote, for static and dynamic drivers alike
+/// (MySQL rejects double-quoted identifiers without ANSI_QUOTES).
+fn import_identifier_quote(drv: &dyn DatabaseDriver) -> &str {
+    drv.manifest().capabilities.identifier_quote.as_str()
+}
+
 fn quote_identifier(name: &str, quote: &str) -> String {
     format!("{quote}{}{quote}", name.replace(quote, &quote.repeat(2)))
 }
@@ -90,14 +96,8 @@ pub async fn execute_clipboard_import<R: Runtime>(
         .await
         .ok_or_else(|| format!("Unsupported driver: {}", saved_conn.params.driver))?;
 
-    let dynamic_metadata = drv.has_connection_metadata();
     let drv = drv.for_connection(&params).await?.unwrap_or(drv);
-    // Preserve the legacy import quoting for static drivers.
-    let quote = if dynamic_metadata {
-        drv.manifest().capabilities.identifier_quote.as_str()
-    } else {
-        "\""
-    };
+    let quote = import_identifier_quote(drv.as_ref());
     let schema_ref = req.schema.as_deref();
     let tbl_ref = table_ref(&req.table_name, schema_ref, quote);
     let mut table_created = false;
