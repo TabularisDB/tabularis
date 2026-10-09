@@ -2423,6 +2423,10 @@
       "summary": "Sessione AWS SSM non riuscita",
       "recovery": "Apri i dettagli per l'errore AWS esatto. Verifica che la CLI di AWS e il plugin Session Manager siano installati, che le credenziali siano valide e che il nodo gestito sia online."
     },
+    "keychain": {
+      "summary": "Portachiavi di sistema non disponibile",
+      "recovery": "Tabularis non è riuscito a raggiungere l'archivio credenziali del sistema per salvare le password. Su Linux, verifica che un provider Secret Service (GNOME Keyring, KWallet, KeePassXC) sia attivo e sbloccato, oppure disattiva \"Salva password nel Portachiavi\" per questa connessione."
+    },
     "db-auth": {
       "summary": "Autenticazione al database fallita",
       "recovery": "Controlla nome utente e password del database."

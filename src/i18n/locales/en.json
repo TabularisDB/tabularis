@@ -2501,6 +2501,10 @@
       "summary": "AWS SSM session failed",
       "recovery": "Open the details for the exact AWS error. Check that the AWS CLI and the Session Manager plugin are installed, that your credentials are current, and that the managed node is online."
     },
+    "keychain": {
+      "summary": "System keychain unavailable",
+      "recovery": "Tabularis could not reach the OS credential store to save the passwords. On Linux, make sure a Secret Service provider (GNOME Keyring, KWallet, KeePassXC) is running and unlocked, or turn off \"Save passwords in Keychain\" for this connection."
+    },
     "db-auth": {
       "summary": "Database authentication failed",
       "recovery": "Check the database username and password."

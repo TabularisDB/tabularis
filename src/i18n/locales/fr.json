@@ -2492,6 +2492,10 @@
       "summary": "Échec de la session AWS SSM",
       "recovery": "Ouvrez les détails pour voir l'erreur AWS exacte. Vérifiez que l'AWS CLI et le plugin Session Manager sont installés, que vos identifiants sont à jour et que le nœud géré est en ligne."
     },
+    "keychain": {
+      "summary": "Trousseau système indisponible",
+      "recovery": "Tabularis n'a pas pu joindre le magasin d'identifiants du système pour enregistrer les mots de passe. Sous Linux, vérifiez qu'un fournisseur Secret Service (GNOME Keyring, KWallet, KeePassXC) est lancé et déverrouillé, ou désactivez « Enregistrer les mots de passe dans le trousseau » pour cette connexion."
+    },
     "db-auth": {
       "summary": "Échec de l’authentification à la base de données",
       "recovery": "Vérifiez le nom d’utilisateur et le mot de passe de la base de données."

@@ -2412,6 +2412,10 @@
       "summary": "AWS-SSM-Sitzung fehlgeschlagen",
       "recovery": "Öffnen Sie die Details für den genauen AWS-Fehler. Prüfen Sie, ob die AWS CLI und das Session-Manager-Plugin installiert sind, ob Ihre Anmeldedaten aktuell sind und ob der verwaltete Knoten online ist."
     },
+    "keychain": {
+      "summary": "System-Schlüsselbund nicht verfügbar",
+      "recovery": "Tabularis konnte den Anmeldedatenspeicher des Systems nicht erreichen, um die Passwörter zu speichern. Stelle unter Linux sicher, dass ein Secret-Service-Anbieter (GNOME Keyring, KWallet, KeePassXC) läuft und entsperrt ist, oder deaktiviere \"Passwörter im Keychain speichern\" für diese Verbindung."
+    },
     "db-auth": {
       "summary": "Datenbank-Authentifizierung fehlgeschlagen",
       "recovery": "Benutzername und Passwort der Datenbank prüfen."

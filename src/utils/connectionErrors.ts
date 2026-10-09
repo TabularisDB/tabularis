@@ -11,6 +11,7 @@ export type ConnectionErrorKind =
   | "ssh-unreachable"
   | "ssh"
   | "ssm"
+  | "keychain"
   | "db-auth"
   | "network"
   | "db-not-found"
@@ -33,6 +34,11 @@ export function sanitizeErrorDetail(raw: string): string {
     .replace(/(password\s*=\s*)[^\s&;,]+/gi, "$1[redacted]");
 }
 
+// OS credential store failures (Secret Service, macOS Keychain, Windows
+// Credential Manager). A Secret Service timeout talks about "reply timeout"
+// and a "broken" connection, so it must be matched before the SSH and network
+// rules or a healthy tunnel gets blamed for it.
+const KEYCHAIN = /secure storage|keychain|keyring|secret service|org\.freedesktop\.secrets/i;
 const SSH_CONTEXT = /\bssh\b|tunnel/i;
 const SSH_AUTH =
   /auth|password|passphrase|credential|permission denied|publickey|keyboard-interactive/i;
@@ -53,6 +59,9 @@ const DB_NOT_FOUND =
  * dialed through 127.0.0.1, so "connection refused" points at the tunnel, not
  * at the database host. `ssmEnabled` does the same for an SSM session.
  *
+ * Keychain failures come first: saving or connecting can fail on the OS
+ * credential store alone, and its errors read like network ones.
+ *
  * AWS SSM failures are matched before the database categories because the AWS
  * CLI reports an IAM denial as "Access denied", which would otherwise be read
  * as a database login failure and hide the hint naming the missing permission.
@@ -72,6 +81,7 @@ export function classifyConnectionError(
     detail,
   });
 
+  if (KEYCHAIN.test(raw)) return build("keychain");
   if (SSH_CONTEXT.test(raw)) {
     if (SSH_AUTH.test(raw)) return build("ssh-auth");
     if (SSH_UNREACHABLE.test(raw)) return build("ssh-unreachable");
