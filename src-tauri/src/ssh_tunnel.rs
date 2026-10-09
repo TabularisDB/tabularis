@@ -986,10 +986,15 @@ async fn authenticate_password(
             KeyboardInteractiveAuthResponse::Success => return Ok(true),
             KeyboardInteractiveAuthResponse::Failure => return Ok(false),
             KeyboardInteractiveAuthResponse::InfoRequest { prompts, .. } => {
-                let prompt_count = prompts.len();
+                if !prompts
+                    .iter()
+                    .any(|prompt| prompt.prompt.to_ascii_lowercase().contains("password"))
+                {
+                    return Ok(false);
+                }
                 let answers = prompts
                     .iter()
-                    .map(|prompt| password_for_prompt(&prompt.prompt, prompt_count, password))
+                    .map(|prompt| password_for_prompt(&prompt.prompt, password))
                     .collect();
                 pending = handle
                     .authenticate_keyboard_interactive_respond(answers)
@@ -1001,9 +1006,8 @@ async fn authenticate_password(
     Ok(false)
 }
 
-fn password_for_prompt(prompt: &str, prompt_count: usize, password: &str) -> String {
-    let lower = prompt.to_ascii_lowercase();
-    if prompt_count == 1 || lower.contains("password") || lower.contains("passphrase") {
+fn password_for_prompt(prompt: &str, password: &str) -> String {
+    if prompt.to_ascii_lowercase().contains("password") {
         password.to_string()
     } else {
         String::new()
@@ -1150,6 +1154,26 @@ mod tests {
         #[test]
         fn test_content_with_whitespace_is_not_empty() {
             assert!(!is_empty_or_whitespace(Some("  content  ")));
+        }
+    }
+
+    mod password_for_prompt_tests {
+        use super::*;
+
+        #[test]
+        fn test_password_prompt_returns_password() {
+            assert_eq!(
+                password_for_prompt("user@host's password: ", "account-secret"),
+                "account-secret"
+            );
+        }
+
+        #[test]
+        fn test_verification_code_is_not_answered() {
+            assert_eq!(
+                password_for_prompt("Verification code:", "account-secret"),
+                ""
+            );
         }
     }
 }

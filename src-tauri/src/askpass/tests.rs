@@ -372,3 +372,117 @@ mod server_tests {
         panic!("condition not met within timeout");
     }
 }
+
+mod take_for_prompt_tests {
+    use super::super::server::{
+        openssh_key_passphrase_prompt, StoredSecrets, OPENSSH_KEY_PATH_PROMPT_BYTES,
+    };
+
+    fn secrets(
+        password: Option<&str>,
+        passphrase: Option<&str>,
+        key_path: Option<&str>,
+    ) -> StoredSecrets {
+        StoredSecrets {
+            password: password.map(str::to_string),
+            key_passphrase: passphrase.map(str::to_string),
+            key_path: key_path.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn exact_local_prompt_returns_passphrase_once() {
+        let path = "/tmp/id_ed25519";
+        let mut stored = secrets(Some("account"), Some("key-secret"), Some(path));
+        let prompt = openssh_key_passphrase_prompt(path);
+        assert_eq!(prompt, "Enter passphrase for key '/tmp/id_ed25519': ");
+        assert_eq!(
+            stored.take_for_prompt(&prompt).as_deref(),
+            Some("key-secret")
+        );
+        assert_eq!(stored.take_for_prompt(&prompt), None);
+    }
+
+    #[test]
+    fn passphrase_prompt_without_selected_path_is_ignored() {
+        let mut stored = secrets(None, Some("key-secret"), Some("/tmp/id_ed25519"));
+        assert_eq!(stored.take_for_prompt("Enter passphrase for key:"), None);
+        assert_eq!(
+            stored.take_for_prompt("Enter passphrase for key '/tmp/other': "),
+            None
+        );
+        assert_eq!(stored.key_passphrase.as_deref(), Some("key-secret"));
+    }
+
+    #[test]
+    fn generic_prompt_does_not_use_the_only_stored_secret() {
+        let mut passphrase_only = secrets(None, Some("key-secret"), Some("/tmp/id_ed25519"));
+        assert_eq!(passphrase_only.take_for_prompt("Verification code:"), None);
+        assert_eq!(
+            passphrase_only.key_passphrase.as_deref(),
+            Some("key-secret")
+        );
+
+        let mut password_only = secrets(Some("account-secret"), None, None);
+        assert_eq!(password_only.take_for_prompt("Verification code:"), None);
+        assert_eq!(password_only.password.as_deref(), Some("account-secret"));
+    }
+
+    #[test]
+    fn password_prompt_returns_account_password() {
+        let mut stored = secrets(
+            Some("account-secret"),
+            Some("key-secret"),
+            Some("/tmp/id_ed25519"),
+        );
+        assert_eq!(
+            stored.take_for_prompt("user@host's password: ").as_deref(),
+            Some("account-secret")
+        );
+        assert_eq!(stored.key_passphrase.as_deref(), Some("key-secret"));
+    }
+
+    #[test]
+    fn long_path_matches_openssh_truncated_prompt() {
+        let path = format!("/tmp/{}", "k".repeat(120));
+        assert!(path.len() > OPENSSH_KEY_PATH_PROMPT_BYTES);
+        let mut stored = secrets(None, Some("key-secret"), Some(&path));
+        let prompt = openssh_key_passphrase_prompt(&path);
+        let shown = &path[..OPENSSH_KEY_PATH_PROMPT_BYTES];
+        assert_eq!(prompt, format!("Enter passphrase for key '{shown}': "));
+        assert_eq!(
+            stored.take_for_prompt(&prompt).as_deref(),
+            Some("key-secret")
+        );
+    }
+
+    #[test]
+    fn missing_key_path_does_not_release_passphrase() {
+        let mut stored = secrets(None, Some("key-secret"), None);
+        assert_eq!(
+            stored.take_for_prompt("Enter passphrase for key '/tmp/id_ed25519': "),
+            None
+        );
+    }
+
+    #[test]
+    fn tilde_key_path_matches_expanded_home_prompt() {
+        let home = directories::BaseDirs::new()
+            .expect("home directory")
+            .home_dir()
+            .to_string_lossy()
+            .into_owned();
+        let mut stored = secrets(None, Some("key-secret"), Some("~/.ssh/id_ed25519"));
+        let expanded = format!("Enter passphrase for key '{home}/.ssh/id_ed25519': ");
+        assert_eq!(
+            stored.take_for_prompt(&expanded).as_deref(),
+            Some("key-secret")
+        );
+
+        let mut stored = secrets(None, Some("key-secret"), Some("~/.ssh/id_ed25519"));
+        assert_eq!(
+            stored.take_for_prompt("Enter passphrase for key '~/.ssh/id_ed25519': "),
+            None
+        );
+    }
+}

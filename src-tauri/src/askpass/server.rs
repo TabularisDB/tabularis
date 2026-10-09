@@ -47,15 +47,15 @@ impl AskpassOptions {
 }
 
 #[derive(Default)]
-struct StoredSecrets {
-    password: Option<String>,
-    key_passphrase: Option<String>,
-    key_path: Option<String>,
+pub(super) struct StoredSecrets {
+    pub(super) password: Option<String>,
+    pub(super) key_passphrase: Option<String>,
+    pub(super) key_path: Option<String>,
 }
 
 /// Bytes of the key path OpenSSH includes in its local passphrase prompt
 /// (`%.100s` in `authfile.c`).
-const OPENSSH_KEY_PATH_PROMPT_BYTES: usize = 100;
+pub(super) const OPENSSH_KEY_PATH_PROMPT_BYTES: usize = 100;
 
 impl StoredSecrets {
     fn from_options(options: &AskpassOptions) -> Self {
@@ -73,9 +73,11 @@ impl StoredSecrets {
     /// the selected key. A remote keyboard-interactive prompt can say
     /// "passphrase" but cannot know that full local path. The account password
     /// is released for password prompts, because that secret is for this server.
-    fn take_for_prompt(&mut self, prompt: &str) -> Option<String> {
+    pub(super) fn take_for_prompt(&mut self, prompt: &str) -> Option<String> {
         if let Some(path) = self.key_path.as_deref() {
-            if prompt == openssh_key_passphrase_prompt(path) {
+            // OpenSSH expands a leading `~` in `-i` before building the prompt.
+            let expanded = expand_leading_tilde(path);
+            if prompt == openssh_key_passphrase_prompt(&expanded) {
                 return self.key_passphrase.take();
             }
         }
@@ -86,8 +88,27 @@ impl StoredSecrets {
     }
 }
 
+/// Expand a leading `~` or `~/` to the current user's home directory.
+/// `~otheruser` is left unchanged. If the home directory is unavailable, the
+/// path is returned as typed.
+fn expand_leading_tilde(path: &str) -> String {
+    let relative = if path == "~" {
+        Some("")
+    } else {
+        path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\"))
+    };
+    match (relative, directories::BaseDirs::new()) {
+        (Some(rest), Some(base_dirs)) => base_dirs
+            .home_dir()
+            .join(rest)
+            .to_string_lossy()
+            .into_owned(),
+        _ => path.to_string(),
+    }
+}
+
 /// `Enter passphrase for key '<path>': `, matching OpenSSH `authfile.c`.
-fn openssh_key_passphrase_prompt(key_path: &str) -> String {
+pub(super) fn openssh_key_passphrase_prompt(key_path: &str) -> String {
     let shown = openssh_displayed_key_path(key_path);
     format!("Enter passphrase for key '{shown}': ")
 }
@@ -463,97 +484,5 @@ struct PendingGuard(Arc<AtomicUsize>);
 impl Drop for PendingGuard {
     fn drop(&mut self) {
         self.0.fetch_sub(1, Ordering::Relaxed);
-    }
-}
-
-#[cfg(test)]
-mod take_for_prompt_tests {
-    use super::StoredSecrets;
-
-    fn secrets(
-        password: Option<&str>,
-        passphrase: Option<&str>,
-        key_path: Option<&str>,
-    ) -> StoredSecrets {
-        StoredSecrets {
-            password: password.map(str::to_string),
-            key_passphrase: passphrase.map(str::to_string),
-            key_path: key_path.map(str::to_string),
-        }
-    }
-
-    #[test]
-    fn exact_local_prompt_returns_passphrase_once() {
-        let path = "/tmp/id_ed25519";
-        let mut stored = secrets(Some("account"), Some("key-secret"), Some(path));
-        let prompt = super::openssh_key_passphrase_prompt(path);
-        assert_eq!(prompt, "Enter passphrase for key '/tmp/id_ed25519': ");
-        assert_eq!(
-            stored.take_for_prompt(&prompt).as_deref(),
-            Some("key-secret")
-        );
-        assert_eq!(stored.take_for_prompt(&prompt), None);
-    }
-
-    #[test]
-    fn passphrase_prompt_without_selected_path_is_ignored() {
-        let mut stored = secrets(None, Some("key-secret"), Some("/tmp/id_ed25519"));
-        assert_eq!(stored.take_for_prompt("Enter passphrase for key:"), None);
-        assert_eq!(
-            stored.take_for_prompt("Enter passphrase for key '/tmp/other': "),
-            None
-        );
-        assert_eq!(stored.key_passphrase.as_deref(), Some("key-secret"));
-    }
-
-    #[test]
-    fn generic_prompt_does_not_use_the_only_stored_secret() {
-        let mut passphrase_only = secrets(None, Some("key-secret"), Some("/tmp/id_ed25519"));
-        assert_eq!(passphrase_only.take_for_prompt("Verification code:"), None);
-        assert_eq!(
-            passphrase_only.key_passphrase.as_deref(),
-            Some("key-secret")
-        );
-
-        let mut password_only = secrets(Some("account-secret"), None, None);
-        assert_eq!(password_only.take_for_prompt("Verification code:"), None);
-        assert_eq!(password_only.password.as_deref(), Some("account-secret"));
-    }
-
-    #[test]
-    fn password_prompt_returns_account_password() {
-        let mut stored = secrets(
-            Some("account-secret"),
-            Some("key-secret"),
-            Some("/tmp/id_ed25519"),
-        );
-        assert_eq!(
-            stored.take_for_prompt("user@host's password: ").as_deref(),
-            Some("account-secret")
-        );
-        assert_eq!(stored.key_passphrase.as_deref(), Some("key-secret"));
-    }
-
-    #[test]
-    fn long_path_matches_openssh_truncated_prompt() {
-        let path = format!("/tmp/{}", "k".repeat(120));
-        assert!(path.len() > super::OPENSSH_KEY_PATH_PROMPT_BYTES);
-        let mut stored = secrets(None, Some("key-secret"), Some(&path));
-        let prompt = super::openssh_key_passphrase_prompt(&path);
-        let shown = &path[..super::OPENSSH_KEY_PATH_PROMPT_BYTES];
-        assert_eq!(prompt, format!("Enter passphrase for key '{shown}': "));
-        assert_eq!(
-            stored.take_for_prompt(&prompt).as_deref(),
-            Some("key-secret")
-        );
-    }
-
-    #[test]
-    fn missing_key_path_does_not_release_passphrase() {
-        let mut stored = secrets(None, Some("key-secret"), None);
-        assert_eq!(
-            stored.take_for_prompt("Enter passphrase for key '/tmp/id_ed25519': "),
-            None
-        );
     }
 }
