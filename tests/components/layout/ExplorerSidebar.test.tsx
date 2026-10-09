@@ -58,10 +58,20 @@ vi.mock("../../../src/components/modals/RunRoutineModal", () => ({
   ),
 }));
 
-// Stand-in for the import dialog: one button reports a finished import, the other closes the dialog.
+// Stand-in for the import dialog: it shows the schema it targets, one button reports a
+// finished import and the other closes the dialog.
 vi.mock("../../../src/components/modals/ClipboardImportModal", () => ({
-  ClipboardImportModal: ({ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void }) => (
+  ClipboardImportModal: ({
+    schema,
+    onSuccess,
+    onClose,
+  }: {
+    schema?: string;
+    onSuccess: () => void;
+    onClose: () => void;
+  }) => (
     <>
+      <span>{`clipboard-import-schema:${schema ?? "active"}`}</span>
       <button onClick={onSuccess}>clipboard-import-success</button>
       <button onClick={onClose}>clipboard-import-close</button>
     </>
@@ -463,8 +473,43 @@ describe("ExplorerSidebar — database object navigation", () => {
         schemas: ["public", "sales"],
       });
 
+      expect(screen.getByText("clipboard-import-schema:active")).toBeInTheDocument();
       await waitFor(() => expect(refreshSchemaData).toHaveBeenCalledWith("public"));
       expect(refreshTables).not.toHaveBeenCalled();
+    });
+
+    it("imports into the schema of the table it was opened from", async () => {
+      vi.mocked(useDatabase).mockReturnValue({
+        ...databaseState,
+        refreshTables,
+        refreshSchemaData,
+        refreshDatabaseData,
+        activeCapabilities: { schemas: true },
+        activeSchema: "public",
+        schemas: ["public", "sales"],
+        selectedSchemas: ["sales"],
+        schemaDataMap: {
+          sales: {
+            tables: [{ name: "sales_orders" }],
+            views: [],
+            routines: [],
+            triggers: [],
+            isLoaded: true,
+            isLoading: false,
+          },
+        },
+      } as unknown as ReturnType<typeof useDatabase>);
+      renderSidebar();
+
+      fireEvent.click(screen.getByText("sales"));
+      fireEvent.contextMenu(screen.getByText("sales_orders"));
+      fireEvent.click(screen.getByText("clipboardImport.contextMenuLabel"));
+      expect(screen.getByText("clipboard-import-schema:sales")).toBeInTheDocument();
+
+      for (const refresh of [refreshTables, refreshSchemaData, refreshDatabaseData]) refresh.mockClear();
+      fireEvent.click(screen.getByText("clipboard-import-success"));
+      await waitFor(() => expect(refreshSchemaData).toHaveBeenCalledWith("sales"));
+      expect(refreshSchemaData).not.toHaveBeenCalledWith("public");
     });
 
     it("refreshes the active database in the multi-database layout", async () => {
