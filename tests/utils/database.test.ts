@@ -10,6 +10,7 @@ import {
   getDatabaseList,
   getEffectiveDatabase,
   reconcileDatabaseSelection,
+  resolveHistoryDatabase,
 } from '../../src/utils/database';
 import type { DriverCapabilities } from '../../src/types/plugins';
 
@@ -355,5 +356,53 @@ describe('hasOptedIntoDatabaseSelection', () => {
 
   it('is false for null capabilities', () => {
     expect(hasOptedIntoDatabaseSelection(null, ['a'])).toBe(false);
+  });
+});
+
+describe('resolveHistoryDatabase', () => {
+  // resolveHistoryDatabase decides what value (if any) is stored as the
+  // `database` field of a query-history entry. The schema must NEVER leak into
+  // the database field — replaying a history entry passes its `database` as a
+  // real connection override, so a schema name like "public" would make replay
+  // try to connect to a database literally named "public" (debba review, PR #822).
+
+  it('returns undefined for a plain single-database tab with no per-tab database (schema must not leak in)', () => {
+    // Plain PostgreSQL: not multi-db, tab.database is unset, schema is "public".
+    // Before the fix the chain fell through to `schema` and stored "public".
+    expect(
+      resolveHistoryDatabase({ database: undefined, schema: 'public' }, false, null),
+    ).toBeUndefined();
+  });
+
+  it('returns the tab database for a nested (schema-based) multi-db tab', () => {
+    // Nested multi-db PostgreSQL: tab.database is the selected database.
+    expect(
+      resolveHistoryDatabase({ database: 'analytics', schema: 'public' }, false, null),
+    ).toBe('analytics');
+  });
+
+  it('returns the tab schema (the tab database) for a flat multi-db tab that has one', () => {
+    // Flat multi-db MySQL reuses the tab.schema field for the tab's database.
+    expect(
+      resolveHistoryDatabase({ database: undefined, schema: 'secondarydb' }, true, 'primary'),
+    ).toBe('secondarydb');
+  });
+
+  it('falls back to the active database name for a flat multi-db tab with no schema', () => {
+    expect(
+      resolveHistoryDatabase({ database: undefined, schema: undefined }, true, 'primary'),
+    ).toBe('primary');
+  });
+
+  it('returns undefined for a flat multi-db tab with neither schema nor active database', () => {
+    expect(
+      resolveHistoryDatabase({ database: undefined, schema: undefined }, true, null),
+    ).toBeUndefined();
+  });
+
+  it('prefers the per-tab database over the schema for a flat multi-db tab', () => {
+    expect(
+      resolveHistoryDatabase({ database: 'explicit', schema: 'secondarydb' }, true, 'primary'),
+    ).toBe('explicit');
   });
 });

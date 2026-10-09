@@ -86,6 +86,37 @@ export function isSchemaBasedMultiDb(
   return isSchemaBasedMultiDbCapable(capabilities) && selectedDatabases.length >= 1;
 }
 
+/**
+ * Resolves the database value to store on a query-history entry, so replay
+ * reopens the tab scoped to the same database the query originally ran against.
+ *
+ * The schema is a different qualifier and must NEVER leak in here: replay passes
+ * this value as a real connection database override, so a schema name like
+ * `"public"` would make replay try to connect to a database literally named
+ * `"public"` (debba review, PR #822). For a plain single-database connection the
+ * tab has no per-tab database, so this returns `undefined` and replay uses the
+ * connection's own database — the behavior it always had before multi-database
+ * support.
+ *
+ * `isMultiDb` is `usesMultiDatabaseLayout` (flat multi-db only — it is always
+ * `false` for schema-based drivers, whose nested tabs carry an explicit
+ * `database` instead). For a flat multi-db tab the database lives in the tab's
+ * `schema` field (reused), so that is preferred over the connection-level active
+ * database so a query run on a non-primary database replays against that
+ * database, not the primary.
+ */
+export function resolveHistoryDatabase(
+  tab: { database?: string | null; schema?: string | null },
+  isMultiDb: boolean,
+  activeDatabaseName: string | null | undefined,
+): string | undefined {
+  if (tab.database) return tab.database;
+  if (isMultiDb) {
+    return tab.schema ?? activeDatabaseName ?? undefined;
+  }
+  return undefined;
+}
+
 export function getTableDataChangeScope(
   capabilities: DriverCapabilities | null | undefined,
   tabSchema: string | null | undefined,

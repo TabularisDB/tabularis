@@ -23,6 +23,7 @@ import {
   getTableDataChangeScope,
   isMultiDatabaseCapable,
   usesMultiDatabaseLayout,
+  resolveHistoryDatabase,
 } from "../utils/database";
 import { isReadonly, supportsExplain } from "../utils/driverCapabilities";
 import { useClickOutside } from "../hooks/useClickOutside";
@@ -1273,11 +1274,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       // For history: store the tab's database (not the schema) so replay
       // reopens the tab scoped to the right database. The schema is NOT the
       // database — storing it as `database` made replay open the primary
-      // instead of the source database (finding #6).
-      const historyDb = targetTab?.database
-        ?? (isMultiDb ? activeDatabaseName : undefined)
-        ?? schema
-        ?? undefined;
+      // instead of the source database (finding #6), and for a plain
+      // single-database connection it made replay try to connect to a
+      // database literally named after the schema (e.g. "public"). See
+      // resolveHistoryDatabase in utils/database.ts (debba review, PR #822).
+      const historyDb = resolveHistoryDatabase(
+        { database: targetTab?.database, schema: targetTab?.schema },
+        isMultiDb,
+        activeDatabaseName,
+      );
 
       const start = performance.now();
 
@@ -1540,10 +1545,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         settings.resultPageSize,
       );
       const schema = targetTab?.schema ?? activeSchema;
-      const historyDb = targetTab?.database
-        ?? (isMultiDb ? activeDatabaseName : undefined)
-        ?? schema
-        ?? undefined;
+      const historyDb = resolveHistoryDatabase(
+        { database: targetTab?.database, schema: targetTab?.schema },
+        isMultiDb,
+        activeDatabaseName,
+      );
 
       // Entry ids are reused per tab, so drop offsets from the previous run.
       clearEntryScrollTops(targetTabId);
