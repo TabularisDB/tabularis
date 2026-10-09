@@ -1,5 +1,14 @@
 {
   "toolbar": {
+    "autoRefresh": {
+      "label": "Awtomatikong pag-refresh",
+      "off": "Naka-off",
+      "seconds": "{{seconds}}s",
+      "paused": "Naka-pause habang nag-e-edit",
+      "pausedSelection": "Naka-pause habang may napiling row",
+      "refresh": "I-refresh ang talahanayan",
+      "failed": "Hindi na-refresh: {{error}}"
+    },
     "filters": "Mga Filter",
     "toggleFilterPanel": "I-toggle ang structured filter panel",
     "filterConditions": "Mga kondisyon ng filter",
@@ -24,7 +33,12 @@
     "selectForApplyAll": "Piliin para sa Ilapat Lahat",
     "valuePlaceholder": "halaga",
     "fromPlaceholder": "mula",
-    "toPlaceholder": "hanggang"
+    "toPlaceholder": "hanggang",
+    "opContains": "naglalaman",
+    "opStartsWith": "nagsisimula sa",
+    "opEndsWith": "nagtatapos sa",
+    "opIsEmpty": "walang laman",
+    "opIsNotEmpty": "may laman"
   },
   "tags": {
     "label": "Mga tag",

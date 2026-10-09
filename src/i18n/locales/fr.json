@@ -1,5 +1,14 @@
 {
   "toolbar": {
+    "autoRefresh": {
+      "label": "Actualisation automatique",
+      "off": "Désactivée",
+      "seconds": "{{seconds}} s",
+      "paused": "En pause pendant la modification",
+      "pausedSelection": "En pause tant que des lignes sont sélectionnées",
+      "refresh": "Actualiser la table",
+      "failed": "Échec de l’actualisation : {{error}}"
+    },
     "filters": "Filtres",
     "toggleFilterPanel": "Afficher/masquer le panneau de filtres structurés",
     "filterConditions": "Conditions de filtre",
@@ -24,7 +33,12 @@
     "selectForApplyAll": "Sélectionner pour Tout appliquer",
     "valuePlaceholder": "valeur",
     "fromPlaceholder": "de",
-    "toPlaceholder": "à"
+    "toPlaceholder": "à",
+    "opContains": "contient",
+    "opStartsWith": "commence par",
+    "opEndsWith": "se termine par",
+    "opIsEmpty": "est vide",
+    "opIsNotEmpty": "n'est pas vide"
   },
   "tags": {
     "label": "Tags",

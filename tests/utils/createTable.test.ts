@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_CREATE_TABLE_TARGET,
+  getClipboardImportTarget,
   getCreateTableRefreshPlan,
   resolveCreateTableSchema,
   type CreateTableTarget,
@@ -31,6 +32,34 @@ describe("createTable", () => {
         scope: "database",
         schema: "analytics",
       });
+    });
+  });
+
+  describe("getClipboardImportTarget", () => {
+    it("targets the active schema in the schema layout", () => {
+      expect(getClipboardImportTarget("public", { schemaLayout: true, multiDatabaseLayout: false })).toEqual({
+        kind: "schema",
+        schema: "public",
+      });
+    });
+
+    it("targets the active database in the multi-database layout", () => {
+      expect(getClipboardImportTarget("analytics", { schemaLayout: false, multiDatabaseLayout: true })).toEqual({
+        kind: "database",
+        schema: "analytics",
+      });
+    });
+
+    it("targets the connection table list in the flat layout", () => {
+      expect(getClipboardImportTarget("public", { schemaLayout: false, multiDatabaseLayout: false })).toEqual(
+        DEFAULT_CREATE_TABLE_TARGET,
+      );
+    });
+
+    it("targets the connection table list without an active schema", () => {
+      expect(getClipboardImportTarget(null, { schemaLayout: true, multiDatabaseLayout: true })).toEqual(
+        DEFAULT_CREATE_TABLE_TARGET,
+      );
     });
   });
 

@@ -1,7 +1,9 @@
 import { createContext } from 'react';
 import type { Tab, TableSchema, QueryResultEntry } from '../types/editor';
+import type { AutoRefreshSchedule } from '../utils/autoRefresh';
 
 export interface EditorContextType {
+  getAutoRefreshSchedule: (tabId: string) => AutoRefreshSchedule;
   tabs: Tab[];
   activeTabId: string | null;
   activeTab: Tab | null;

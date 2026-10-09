@@ -1,5 +1,14 @@
 {
   "toolbar": {
+    "autoRefresh": {
+      "label": "Auto-refresh",
+      "off": "Off",
+      "seconds": "{{seconds}}s",
+      "paused": "Paused while editing",
+      "pausedSelection": "Paused while rows are selected",
+      "refresh": "Refresh table",
+      "failed": "Refresh failed: {{error}}"
+    },
     "filters": "Filters",
     "toggleFilterPanel": "Toggle structured filter panel",
     "filterConditions": "Filter conditions",
@@ -24,7 +33,12 @@
     "selectForApplyAll": "Select for Apply All",
     "valuePlaceholder": "value",
     "fromPlaceholder": "from",
-    "toPlaceholder": "to"
+    "toPlaceholder": "to",
+    "opContains": "contains",
+    "opStartsWith": "starts with",
+    "opEndsWith": "ends with",
+    "opIsEmpty": "is empty",
+    "opIsNotEmpty": "is not empty"
   },
   "tags": {
     "label": "Tags",

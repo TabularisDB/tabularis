@@ -6,7 +6,21 @@ import { getOperatorsForType } from "../../utils/filterBar";
 import type { StructuredFilter, FilterOperator } from "../../utils/filterBar";
 import { StyledSelect } from "./StyledSelect";
 
-const NO_VALUE_OPS: FilterOperator[] = ["IS NULL", "IS NOT NULL"];
+const NO_VALUE_OPS: FilterOperator[] = [
+  "IS NULL",
+  "IS NOT NULL",
+  "is empty",
+  "is not empty",
+];
+
+/** i18n keys for text-friendly operators (SQL tokens keep their raw labels). */
+const OPERATOR_LABEL_KEYS: Partial<Record<FilterOperator, string>> = {
+  contains: "toolbar.opContains",
+  "starts with": "toolbar.opStartsWith",
+  "ends with": "toolbar.opEndsWith",
+  "is empty": "toolbar.opIsEmpty",
+  "is not empty": "toolbar.opIsNotEmpty",
+};
 
 export interface FilterRowProps {
   filter: StructuredFilter;
@@ -57,6 +71,11 @@ export const FilterRow = ({
     }
   };
 
+  const operatorLabel = (op: string) => {
+    const key = OPERATOR_LABEL_KEYS[op as FilterOperator];
+    return key ? t(key) : op;
+  };
+
   return (
     <div className="flex items-center gap-2 px-3 py-2 hover:bg-surface-secondary/40 transition-colors group">
       {/* Checkbox -- selected for Apply All */}
@@ -85,7 +104,8 @@ export const FilterRow = ({
         value={filter.operator}
         onChange={(op) => onChange({ ...filter, operator: op as FilterOperator })}
         options={operators}
-        className="w-28"
+        getOptionLabel={operatorLabel}
+        className="w-36"
       />
 
       {/* Value */}

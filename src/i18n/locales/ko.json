@@ -1,5 +1,14 @@
 {
   "toolbar": {
+    "autoRefresh": {
+      "label": "자동 새로고침",
+      "off": "끄기",
+      "seconds": "{{seconds}}초",
+      "paused": "편집 중 일시 중지됨",
+      "pausedSelection": "행이 선택된 동안 일시 중지됨",
+      "refresh": "테이블 새로고침",
+      "failed": "새로고침 실패: {{error}}"
+    },
     "filters": "필터",
     "toggleFilterPanel": "구조화된 필터 패널 토글",
     "filterConditions": "필터 조건",
@@ -24,7 +33,12 @@
     "selectForApplyAll": "전체 적용에 포함",
     "valuePlaceholder": "값",
     "fromPlaceholder": "시작",
-    "toPlaceholder": "끝"
+    "toPlaceholder": "끝",
+    "opContains": "포함",
+    "opStartsWith": "으로 시작",
+    "opEndsWith": "으로 끝남",
+    "opIsEmpty": "비어 있음",
+    "opIsNotEmpty": "비어 있지 않음"
   },
   "common": {
     "save": "저장",

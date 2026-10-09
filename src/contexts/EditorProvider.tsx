@@ -23,6 +23,7 @@ import {
   createSchemaCacheEntry,
 } from "../utils/editor";
 import { moveTab } from "../utils/tabDnd";
+import { createAutoRefreshSchedule, type AutoRefreshSchedule } from "../utils/autoRefresh";
 import {
   pushClosedTabs,
   popClosedTab,
@@ -49,6 +50,25 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
   const schemaCacheRef = useRef<Record<string, SchemaCache>>({});
   const tabsRef = useRef<Tab[]>([]);
+  const refreshSchedules = useRef(new Map<string, AutoRefreshSchedule>());
+  const getAutoRefreshSchedule = useCallback((tabId: string) => {
+    let schedule = refreshSchedules.current.get(tabId);
+    if (!schedule) {
+      schedule = createAutoRefreshSchedule();
+      refreshSchedules.current.set(tabId, schedule);
+    }
+    return schedule;
+  }, []);
+
+  useEffect(() => {
+    const open = new Set(tabs.map((tab) => tab.id));
+    for (const [id, schedule] of refreshSchedules.current) {
+      if (!open.has(id)) {
+        schedule.invalidate();
+        refreshSchedules.current.delete(id);
+      }
+    }
+  }, [tabs]);
   // A notebook the user asked to open from a different connection. Resolved
   // once that connection's tabs have finished loading (see effect below), so
   // the freshly-added tab isn't wiped by the in-flight preference load.
@@ -533,6 +553,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       reopenClosedTab,
       canReopenClosedTab,
       getSchema,
+      getAutoRefreshSchedule,
     }),
     [
       connectionTabs,
@@ -552,6 +573,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       reopenClosedTab,
       canReopenClosedTab,
       getSchema,
+      getAutoRefreshSchedule,
     ],
   );
 
