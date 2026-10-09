@@ -8,8 +8,10 @@
 // for the seeded `trg_audit` trigger (via __e2e_open_trigger_editor —
 // tauri-wd can't trigger the right-click context menu), then calls
 // __e2e_save_trigger (which runs handleSave → ask() auto-accept →
-// drop_trigger → buggy function creation → create_trigger). Asserts the
-// trigger is gone.
+// create/replace function → drop_trigger → create_trigger). Asserts the
+// trigger survives the guided-save flow (after the fix: the function is
+// created first using the real function name from parseTriggerFunctionName,
+// so a function-creation failure never leaves the trigger dropped).
 import { closeDbClients, secondaryTriggerNames } from "../helpers/db";
 import { waitForApp, openMultiDbConnection } from "../helpers/navigation";
 
@@ -28,16 +30,17 @@ describe("Finding #3: trigger guided-mode save", () => {
     });
     await browser.pause(2000);
 
-    // Click Save Changes via the hook (runs handleSave, which does:
-    // ask() → drop_trigger → buggy buildTriggerFunctionSql → create_trigger).
+    // Click Save Changes via the hook (runs handleSave, which after the fix
+    // does: ask() → create/replace function → drop_trigger → create_trigger,
+    // so the trigger is recreated successfully and survives the save).
     await browser.execute(async () => {
       await (window as any).__e2e_save_trigger();
     });
     await browser.pause(3000);
 
-    // BUG: the trigger is now gone (dropped + not recreated because the
-    // generated function SQL is invalid). After the fix, the guided-save
-    // would either not drop the trigger or recreate it successfully.
+    // After the fix, the trigger is recreated successfully (the function is
+    // created first using the real function name, so the guided-save flow no
+    // longer drops the trigger without recreating it).
     const triggersAfter = await secondaryTriggerNames("records");
     expect(triggersAfter).toContain("trg_audit");
 

@@ -237,7 +237,15 @@ export async function openMultiDbConnection(
   await reactSetValue('input[type="password"]', "password");
   await browser.pause(500);
 
-  // 4. Open the Databases tab and switch to "Choose databases" mode.
+  // 4. Opt into multi-database mode via the "Browse multiple databases"
+  // checkbox (PR #822 fix 2: a new PG connection defaults to single-database,
+  // so the Databases tab is hidden until the user checks this checkbox).
+  const optInCheckbox = await $('//label[contains(., "Browse multiple databases")]//input[@type="checkbox"]');
+  await optInCheckbox.waitForExist({ timeout: 10000 });
+  await optInCheckbox.click();
+  await browser.pause(500);
+
+  // 5. Open the Databases tab and switch to "Choose databases" mode.
   const dbTab = await $('button=Databases');
   await dbTab.waitForExist({ timeout: 10000 });
   await dbTab.click();

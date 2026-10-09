@@ -5,8 +5,10 @@
 //
 // This test drives the REAL UI: opens the TriggerEditorModal for the existing
 // `normalize` trigger, then calls __e2e_save_trigger_with_body (which mirrors
-// handleSave: drop_trigger → create function → create trigger). Inserts a
-// fresh row into trigger_a to observe the current trigger behavior.
+// handleSave: create/replace function → drop_trigger → create trigger —
+// the function is created before the drop so a failure leaves the trigger
+// intact). Inserts a fresh row into trigger_a to observe the current trigger
+// behavior.
 import { closeDbClients, querySecondary } from "../helpers/db";
 import { waitForApp, openMultiDbConnection } from "../helpers/navigation";
 
