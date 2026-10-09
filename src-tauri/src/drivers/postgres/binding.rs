@@ -61,10 +61,19 @@ pub(super) fn build_pk_predicate(
     match pk_val {
         serde_json::Value::Number(n) => {
             let bound = bind_pg_number(&n, placeholder_idx)?;
+            // Short float4 decimals must compare at the column's precision.
+            let sql = if matches!(
+                pk_type.map(extract_base_type).as_deref(),
+                Some("REAL" | "FLOAT4")
+            ) {
+                format!("CAST({} AS real)", bound.sql)
+            } else {
+                bound.sql
+            };
             let param = bound
                 .param
                 .ok_or_else(|| "Internal PostgreSQL numeric binding error".to_string())?;
-            Ok((format!("{} = {}", col, bound.sql), Some(param)))
+            Ok((format!("{} = {}", col, sql), Some(param)))
         }
         serde_json::Value::String(s) => {
             let base = pk_type.map(|t| extract_base_type(t).to_lowercase());

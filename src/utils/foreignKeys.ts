@@ -1,6 +1,6 @@
 import type { ForeignKey } from "../types/schema";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { quoteIdentifier } from "./identifiers";
+import { quoteIdentifier, shouldQuoteIdentifiers } from "./identifiers";
 
 const NUMERIC_TYPE_KEYWORDS = [
   "int",
@@ -95,7 +95,10 @@ export function buildForeignKeyFilterClause(
   sourceColumnType?: string,
 ): string {
   const col = quoteIdentifier(fk.ref_column, driver);
-  return `${col} = ${formatSqlValueForFilter(value, sourceColumnType)}`;
+  const literal = formatSqlValueForFilter(value, sourceColumnType);
+  const isPostgresReal = shouldQuoteIdentifiers(driver) &&
+    /^(real|float4)$/i.test(sourceColumnType?.trim() ?? "");
+  return `${col} = ${isPostgresReal ? `CAST(${literal} AS real)` : literal}`;
 }
 
 export function isNumericColumnType(type: string | undefined): boolean {

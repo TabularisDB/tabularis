@@ -865,6 +865,27 @@ mod build_pk_predicate_tests {
     }
 
     #[test]
+    fn real_row_identity_compares_at_column_precision() {
+        for column_type in ["real", "float4", "REAL"] {
+            let (sql, param) =
+                build_pk_predicate("price", serde_json::json!(89.9), 2, Some(column_type)).unwrap();
+            assert_eq!(
+                sql,
+                "\"price\" = CAST(CAST($2 AS double precision) AS real)"
+            );
+            assert_eq!(param.unwrap().1, tokio_postgres::types::Type::FLOAT8);
+        }
+        let (sql, _) = build_pk_predicate(
+            "price",
+            serde_json::json!(89.9),
+            2,
+            Some("double precision"),
+        )
+        .unwrap();
+        assert_eq!(sql, "\"price\" = CAST($2 AS double precision)");
+    }
+
+    #[test]
     fn uuid_string_pk_binds_without_cast() {
         let uuid = "550e8400-e29b-41d4-a716-446655440000";
         let (sql, _) = build_pk_predicate("uuid", serde_json::json!(uuid), 1, None).unwrap();
