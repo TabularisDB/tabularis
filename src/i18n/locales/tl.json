@@ -206,6 +206,20 @@
     "noQueryHistory": "Walang kasaysayan ng query",
     "noHistorySearchResults": "Walang query na tumugma sa iyong paghahanap",
     "searchHistory": "Maghanap sa kasaysayan...",
+    "historyFilterOutcome": "Resulta",
+    "historyFilterTime": "Saklaw ng oras",
+    "historyOutcome": {
+      "any": "Anumang resulta",
+      "success": "Matagumpay",
+      "error": "Nabigo"
+    },
+    "historyTime": {
+      "all": "Lahat ng oras",
+      "hour": "Nakaraang oras",
+      "today": "Ngayon",
+      "7d": "Nakaraang 7 araw",
+      "30d": "Nakaraang 30 araw"
+    },
     "clearAllHistory": "Burahin ang Lahat ng Kasaysayan",
     "historyRecoveredTitle": "Na-reset ang kasaysayan ng query",
     "historyRecoveredBody": "Sira ang file ng kasaysayan at inilipat ito. Normal na maitatala ang mga bagong query. Backup file:",

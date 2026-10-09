@@ -206,6 +206,20 @@
     "noQueryHistory": "Aucun historique de requêtes",
     "noHistorySearchResults": "Aucune requête ne correspond à votre recherche",
     "searchHistory": "Rechercher dans l’historique...",
+    "historyFilterOutcome": "Résultat",
+    "historyFilterTime": "Période",
+    "historyOutcome": {
+      "any": "Tous les résultats",
+      "success": "Réussies",
+      "error": "Échouées"
+    },
+    "historyTime": {
+      "all": "Toute la période",
+      "hour": "Dernière heure",
+      "today": "Aujourd'hui",
+      "7d": "7 derniers jours",
+      "30d": "30 derniers jours"
+    },
     "clearAllHistory": "Effacer tout l’historique",
     "historyRecoveredTitle": "Historique des requêtes réinitialisé",
     "historyRecoveredBody": "Le fichier d’historique était corrompu et a été mis de côté. Les nouvelles requêtes seront enregistrées normalement. Fichier de sauvegarde :",

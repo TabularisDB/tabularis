@@ -193,6 +193,20 @@
     "noQueryHistory": "Kein Abfrageverlauf",
     "noHistorySearchResults": "Keine Abfragen entsprechen deiner Suche",
     "searchHistory": "Verlauf durchsuchen...",
+    "historyFilterOutcome": "Ergebnis",
+    "historyFilterTime": "Zeitraum",
+    "historyOutcome": {
+      "any": "Alle Ergebnisse",
+      "success": "Erfolgreich",
+      "error": "Fehlgeschlagen"
+    },
+    "historyTime": {
+      "all": "Gesamter Zeitraum",
+      "hour": "Letzte Stunde",
+      "today": "Heute",
+      "7d": "Letzte 7 Tage",
+      "30d": "Letzte 30 Tage"
+    },
     "clearAllHistory": "Gesamten Verlauf löschen",
     "historyRecoveredTitle": "Abfrageverlauf zurückgesetzt",
     "historyRecoveredBody": "Die Verlaufsdatei war beschädigt und wurde beiseitegelegt. Neue Abfragen werden wie gewohnt aufgezeichnet. Sicherungsdatei:",

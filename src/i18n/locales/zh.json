@@ -192,6 +192,20 @@
     "noQueryHistory": "暂无查询历史",
     "noHistorySearchResults": "没有匹配的查询",
     "searchHistory": "搜索历史...",
+    "historyFilterOutcome": "结果",
+    "historyFilterTime": "时间范围",
+    "historyOutcome": {
+      "any": "所有结果",
+      "success": "成功",
+      "error": "失败"
+    },
+    "historyTime": {
+      "all": "全部时间",
+      "hour": "最近一小时",
+      "today": "今天",
+      "7d": "最近 7 天",
+      "30d": "最近 30 天"
+    },
     "clearAllHistory": "清除所有历史",
     "historyRecoveredTitle": "查询历史已重置",
     "historyRecoveredBody": "历史文件已损坏并被移至备份。新的查询将正常记录。备份文件：",

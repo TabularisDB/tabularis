@@ -183,6 +183,20 @@
     "noQueryHistory": "Nenhum histórico de consultas",
     "noHistorySearchResults": "Nenhuma consulta corresponde à sua busca",
     "searchHistory": "Buscar no histórico...",
+    "historyFilterOutcome": "Resultado",
+    "historyFilterTime": "Período",
+    "historyOutcome": {
+      "any": "Qualquer resultado",
+      "success": "Bem-sucedidas",
+      "error": "Com falha"
+    },
+    "historyTime": {
+      "all": "Todo o período",
+      "hour": "Última hora",
+      "today": "Hoje",
+      "7d": "Últimos 7 dias",
+      "30d": "Últimos 30 dias"
+    },
     "clearAllHistory": "Limpar Todo o Histórico",
     "historyRecoveredTitle": "O histórico de consultas foi reiniciado",
     "historyRecoveredBody": "O arquivo de histórico estava corrompido e foi movido para outro local. Novas consultas serão registradas normalmente. Arquivo de backup:",

@@ -193,6 +193,20 @@
     "noQueryHistory": "Sin historial de consultas",
     "noHistorySearchResults": "Ninguna consulta coincide con la busqueda",
     "searchHistory": "Buscar en el historial...",
+    "historyFilterOutcome": "Resultado",
+    "historyFilterTime": "Rango de tiempo",
+    "historyOutcome": {
+      "any": "Cualquier resultado",
+      "success": "Exitosas",
+      "error": "Fallidas"
+    },
+    "historyTime": {
+      "all": "Todo el tiempo",
+      "hour": "Última hora",
+      "today": "Hoy",
+      "7d": "Últimos 7 días",
+      "30d": "Últimos 30 días"
+    },
     "clearAllHistory": "Borrar Todo el Historial",
     "historyRecoveredTitle": "Historial de consultas restablecido",
     "historyRecoveredBody": "El archivo de historial estaba corrupto y se ha movido a un respaldo. Las nuevas consultas se registrarán con normalidad. Archivo de respaldo:",

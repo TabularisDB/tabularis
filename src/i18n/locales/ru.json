@@ -206,6 +206,20 @@
     "noQueryHistory": "История запросов пуста",
     "noHistorySearchResults": "Запросы не найдены",
     "searchHistory": "Поиск в истории...",
+    "historyFilterOutcome": "Результат",
+    "historyFilterTime": "Период",
+    "historyOutcome": {
+      "any": "Любой результат",
+      "success": "Успешные",
+      "error": "С ошибкой"
+    },
+    "historyTime": {
+      "all": "Всё время",
+      "hour": "Последний час",
+      "today": "Сегодня",
+      "7d": "Последние 7 дней",
+      "30d": "Последние 30 дней"
+    },
     "clearAllHistory": "Очистить всю историю",
     "historyRecoveredTitle": "История запросов сброшена",
     "historyRecoveredBody": "Файл истории был повреждён и перенесён в резервную копию. Новые запросы будут записываться как обычно. Резервный файл:",

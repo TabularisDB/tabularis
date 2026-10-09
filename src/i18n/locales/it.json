@@ -193,6 +193,20 @@
     "noQueryHistory": "Nessuna cronologia query",
     "noHistorySearchResults": "Nessuna query corrisponde alla ricerca",
     "searchHistory": "Cerca nella cronologia...",
+    "historyFilterOutcome": "Esito",
+    "historyFilterTime": "Intervallo di tempo",
+    "historyOutcome": {
+      "any": "Qualsiasi esito",
+      "success": "Riuscite",
+      "error": "Fallite"
+    },
+    "historyTime": {
+      "all": "Tutto il periodo",
+      "hour": "Ultima ora",
+      "today": "Oggi",
+      "7d": "Ultimi 7 giorni",
+      "30d": "Ultimi 30 giorni"
+    },
     "clearAllHistory": "Cancella Tutta la Cronologia",
     "historyRecoveredTitle": "Cronologia query azzerata",
     "historyRecoveredBody": "Il file di cronologia era corrotto ed è stato spostato in backup. Le nuove query verranno registrate normalmente. File di backup:",

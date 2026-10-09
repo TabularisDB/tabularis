@@ -5,6 +5,15 @@ import { groupByDate, formatHistoryTime } from "../../../utils/dateGroups";
 import { SqlHighlight } from "../../ui/SqlHighlight";
 import { formatSqlPreview } from "../../../utils/sqlHighlight";
 import { useSettings } from "../../../hooks/useSettings";
+import {
+  filterQueryHistory,
+  hasActiveHistoryFilters,
+  HISTORY_OUTCOME_FILTERS,
+  HISTORY_TIME_FILTERS,
+  DEFAULT_HISTORY_FILTERS,
+  type HistoryOutcomeFilter,
+  type HistoryTimeFilter,
+} from "../../../utils/queryHistoryFilter";
 import type {
   QueryHistoryEntry,
   QueryHistoryRecoveryNotice,
@@ -35,18 +44,27 @@ export function QueryHistorySection({
   const { t } = useTranslation();
   const { settings } = useSettings();
   const [search, setSearch] = useState("");
+  const [outcome, setOutcome] = useState<HistoryOutcomeFilter>(
+    DEFAULT_HISTORY_FILTERS.outcome,
+  );
+  const [time, setTime] = useState<HistoryTimeFilter>(DEFAULT_HISTORY_FILTERS.time);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const filteredEntries = useMemo(() => {
-    if (!search.trim()) return entries;
-    const lower = search.toLowerCase();
-    return entries.filter((e) => e.sql.toLowerCase().includes(lower));
-  }, [entries, search]);
+  const filters = useMemo(() => ({ search, outcome, time }), [search, outcome, time]);
+  const filtersActive = hasActiveHistoryFilters(filters);
+
+  const filteredEntries = useMemo(
+    () => filterQueryHistory(entries, filters, new Date(), settings.displayTimezone),
+    [entries, filters, settings.displayTimezone],
+  );
 
   const groupedEntries = useMemo(
     () => groupByDate(filteredEntries, (e) => e.executedAt, settings.displayTimezone),
     [filteredEntries, settings.displayTimezone],
   );
+
+  const selectClass =
+    "flex-1 min-w-0 px-1.5 py-1 text-xs bg-surface-secondary border border-default rounded text-primary focus:outline-none focus:border-focus/50";
 
   const formatDuration = (ms: number | null): string => {
     if (ms === null) return "";
@@ -132,8 +150,38 @@ export function QueryHistorySection({
         </button>
       </div>
 
-      {/* Search result count */}
-      {search.trim() && (
+      {/* Outcome and time range filters */}
+      <div className="px-2 pb-1.5 flex items-center gap-1">
+        <select
+          value={outcome}
+          onChange={(e) => setOutcome(e.target.value as HistoryOutcomeFilter)}
+          aria-label={t("sidebar.historyFilterOutcome")}
+          title={t("sidebar.historyFilterOutcome")}
+          className={selectClass}
+        >
+          {HISTORY_OUTCOME_FILTERS.map((value) => (
+            <option key={value} value={value}>
+              {t(`sidebar.historyOutcome.${value}`)}
+            </option>
+          ))}
+        </select>
+        <select
+          value={time}
+          onChange={(e) => setTime(e.target.value as HistoryTimeFilter)}
+          aria-label={t("sidebar.historyFilterTime")}
+          title={t("sidebar.historyFilterTime")}
+          className={selectClass}
+        >
+          {HISTORY_TIME_FILTERS.map((value) => (
+            <option key={value} value={value}>
+              {t(`sidebar.historyTime.${value}`)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Filter result count */}
+      {filtersActive && (
         <div className="px-3 pb-1 text-[10px] text-muted">
           {filteredEntries.length} / {entries.length}
         </div>

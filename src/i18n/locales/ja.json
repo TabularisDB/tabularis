@@ -206,6 +206,20 @@
     "noQueryHistory": "クエリ履歴はありません",
     "noHistorySearchResults": "検索に一致するクエリがありません",
     "searchHistory": "履歴を検索...",
+    "historyFilterOutcome": "結果",
+    "historyFilterTime": "期間",
+    "historyOutcome": {
+      "any": "すべての結果",
+      "success": "成功",
+      "error": "失敗"
+    },
+    "historyTime": {
+      "all": "全期間",
+      "hour": "過去1時間",
+      "today": "今日",
+      "7d": "過去7日間",
+      "30d": "過去30日間"
+    },
     "clearAllHistory": "すべての履歴を削除",
     "historyRecoveredTitle": "クエリ履歴をリセットしました",
     "historyRecoveredBody": "履歴ファイルが破損していたためバックアップに移動しました。新しいクエリは通常どおり記録されます。バックアップ ファイル:",

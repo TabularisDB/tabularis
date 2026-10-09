@@ -183,6 +183,20 @@
     "noQueryHistory": "쿼리 기록이 없습니다",
     "noHistorySearchResults": "검색과 일치하는 쿼리가 없습니다",
     "searchHistory": "기록 검색...",
+    "historyFilterOutcome": "결과",
+    "historyFilterTime": "기간",
+    "historyOutcome": {
+      "any": "모든 결과",
+      "success": "성공",
+      "error": "실패"
+    },
+    "historyTime": {
+      "all": "전체 기간",
+      "hour": "최근 1시간",
+      "today": "오늘",
+      "7d": "최근 7일",
+      "30d": "최근 30일"
+    },
     "clearAllHistory": "전체 기록 지우기",
     "historyRecoveredTitle": "쿼리 기록이 초기화되었습니다",
     "historyRecoveredBody": "기록 파일이 손상되어 별도로 이동했습니다. 이후 쿼리는 정상적으로 기록됩니다. 백업 파일:",
