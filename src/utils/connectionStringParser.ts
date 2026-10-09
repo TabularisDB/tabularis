@@ -283,9 +283,14 @@ export function parseConnectionString(
     return { success: false, error: "Connection string is empty" };
   }
 
-  const trimmed = normalizeJdbcConnectionString(connectionString.trim());
-
   const registry = buildProtocolRegistry(drivers);
+  const raw = connectionString.trim();
+  // A driver explicitly registering the JDBC scheme may own its URI syntax.
+  // Normalize only when JDBC is not being handled as an opaque passthrough.
+  const declaredJdbcDriver = registry.get(getProtocolFromConnectionString(raw) ?? "");
+  const trimmed = declaredJdbcDriver?.passthrough
+    ? raw
+    : normalizeJdbcConnectionString(raw);
   const declaredProtocol = getProtocolFromConnectionString(trimmed);
   const declaredDriver = declaredProtocol
     ? registry.get(declaredProtocol)
@@ -428,9 +433,12 @@ export function looksLikeConnectionString(
 ): boolean {
   if (!value || !value.trim()) return false;
 
-  const trimmed = normalizeJdbcConnectionString(value.trim());
-
   const registry = buildProtocolRegistry(drivers);
+  const raw = value.trim();
+  const declaredJdbcDriver = registry.get(getProtocolFromConnectionString(raw) ?? "");
+  const trimmed = declaredJdbcDriver?.passthrough
+    ? raw
+    : normalizeJdbcConnectionString(raw);
   const declaredProtocol = getProtocolFromConnectionString(trimmed);
   const declaredDriver = declaredProtocol
     ? registry.get(declaredProtocol)
