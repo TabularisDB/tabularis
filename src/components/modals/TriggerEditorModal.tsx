@@ -170,7 +170,7 @@ export const TriggerEditorModal = ({
     } finally {
       setLoading(false);
     }
-  }, [connectionId, t, resolvedSchema, database]);
+  }, [connectionId, t, resolvedSchema, database, driver]);
 
   useEffect(() => {
     if (isOpen) {

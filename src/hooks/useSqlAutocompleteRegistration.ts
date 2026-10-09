@@ -147,6 +147,7 @@ export function useSqlAutocompleteRegistration(
     enabled,
     options?.monaco,
     schema,
+    tabDatabase,
     defaultNamespace,
     tables,
     activeDriver,
