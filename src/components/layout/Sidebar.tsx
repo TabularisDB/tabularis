@@ -1,7 +1,24 @@
-import { lazy, Suspense, useState, useEffect, useMemo, useCallback, useRef } from "react";
+import {
+  lazy,
+  Suspense,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Plug2, Settings, Cpu, PanelLeft, Layers, Star, Clock, BookOpen } from "lucide-react";
+import {
+  Plug2,
+  Settings,
+  Cpu,
+  PanelLeft,
+  Layers,
+  Star,
+  Clock,
+  BookOpen,
+} from "lucide-react";
 import { DiscordIcon } from "../icons/DiscordIcon";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { DISCORD_URL } from "../../config/links";
@@ -24,24 +41,28 @@ import { useSidebarResize } from "../../hooks/useSidebarResize";
 import { useConnectionManager } from "../../hooks/useConnectionManager";
 import { useOpenConnectionInNewWindow } from "../../hooks/useOpenConnectionInNewWindow";
 import { useConnectionLayoutContext } from "../../hooks/useConnectionLayoutContext";
-import { canAddToSplit, isConnectionGrouped } from "../../utils/connectionLayout";
+import {
+  canAddToSplit,
+  isConnectionGrouped,
+} from "../../utils/connectionLayout";
 import { rectContains, startPointerDrag } from "../../utils/pointerDrag";
 import { useDrivers } from "../../hooks/useDrivers";
 import { useKeybindings } from "../../hooks/useKeybindings";
 import { useAvailableUpdates } from "../../hooks/useAvailableUpdates";
 import { UpdateBadge } from "../ui/UpdateBadge";
 
-const ExplorerSidebar = lazy(() => import("./ExplorerSidebar").then((module) => ({ default: module.ExplorerSidebar })));
+const ExplorerSidebar = lazy(() =>
+  import("./ExplorerSidebar").then((module) => ({
+    default: module.ExplorerSidebar,
+  })),
+);
 
 export const Sidebar = () => {
   const { t } = useTranslation();
   const updates = useAvailableUpdates();
   const { currentTheme } = useTheme();
   const isDarkTheme = !currentTheme?.id?.includes("-light");
-  const {
-    activeConnectionId,
-    connections,
-  } = useDatabase();
+  const { activeConnectionId, connections } = useDatabase();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -53,12 +74,13 @@ export const Sidebar = () => {
   useEffect(() => {
     const handler = () => setIsExplorerCollapsed((prev) => !prev);
     window.addEventListener("tabularis:toggle-sidebar", handler);
-    return () => window.removeEventListener("tabularis:toggle-sidebar", handler);
+    return () =>
+      window.removeEventListener("tabularis:toggle-sidebar", handler);
   }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const modifierHeld = isMac ? (e.metaKey || e.ctrlKey) : e.ctrlKey;
+      const modifierHeld = isMac ? e.metaKey || e.ctrlKey : e.ctrlKey;
       if (modifierHeld && e.shiftKey) setShowShortcutHints(true);
     };
     const handleKeyUp = () => setShowShortcutHints(false);
@@ -88,7 +110,7 @@ export const Sidebar = () => {
     activateSplit,
     hideSplitView,
     addConnectionToSplit,
-    explorerConnectionId
+    explorerConnectionId,
   } = useConnectionLayoutContext();
 
   const collapseExplorer = useCallback(() => setIsExplorerCollapsed(true), []);
@@ -99,7 +121,9 @@ export const Sidebar = () => {
 
   // Build a flat list of non-split open connections, sorted by sidebar order
   const sortedSidebarConnections = useMemo(() => {
-    const nonSplit = openConnections.filter(conn => !isConnectionGrouped(conn.id, splitView));
+    const nonSplit = openConnections.filter(
+      (conn) => !isConnectionGrouped(conn.id, splitView),
+    );
     const orderMap = new Map(sidebarOrder.map((id, i) => [id, i]));
     return nonSplit.sort((a, b) => {
       const oa = orderMap.get(a.id);
@@ -114,73 +138,93 @@ export const Sidebar = () => {
 
   // Pointer-based rail drag: reorder connections or drop one onto the split
   // group badge (HTML5 DnD can freeze the WebKitGTK compositor)
-  const [dropTarget, setDropTarget] = useState<{ id: string; position: 'above' | 'below' } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    id: string;
+    position: "above" | "below";
+  } | null>(null);
   const [isGroupDropTarget, setIsGroupDropTarget] = useState(false);
   const itemRefs = useRef(new Map<string, HTMLDivElement>());
   const groupRef = useRef<HTMLDivElement | null>(null);
-  const railDropRef = useRef<{ id: string; position: 'above' | 'below' } | 'group' | null>(null);
+  const railDropRef = useRef<
+    { id: string; position: "above" | "below" } | "group" | null
+  >(null);
 
-  const applySidebarReorder = useCallback((draggedId: string, target: { id: string; position: 'above' | 'below' }) => {
-    const currentOrder = sortedSidebarConnections.map(c => c.id);
-    const reordered = currentOrder.filter(id => id !== draggedId);
-    let toIdx = reordered.indexOf(target.id);
-    if (target.position === 'below') toIdx += 1;
-    reordered.splice(toIdx, 0, draggedId);
-    setSidebarOrder(reordered);
-  }, [sortedSidebarConnections]);
+  const applySidebarReorder = useCallback(
+    (
+      draggedId: string,
+      target: { id: string; position: "above" | "below" },
+    ) => {
+      const currentOrder = sortedSidebarConnections.map((c) => c.id);
+      const reordered = currentOrder.filter((id) => id !== draggedId);
+      let toIdx = reordered.indexOf(target.id);
+      if (target.position === "below") toIdx += 1;
+      reordered.splice(toIdx, 0, draggedId);
+      setSidebarOrder(reordered);
+    },
+    [sortedSidebarConnections],
+  );
 
-  const handleConnectionMoveStart = useCallback((connId: string, connName: string, e: React.MouseEvent) => {
-    if (e.button !== 0 || e.ctrlKey || e.metaKey) return;
-    startPointerDrag(e.clientX, e.clientY, {
-      threshold: 5,
-      createGhost: () => {
-        const ghost = document.createElement('div');
-        ghost.className = 'px-2 py-1 rounded text-xs bg-surface-secondary text-primary border border-default shadow-lg';
-        ghost.textContent = connName;
-        return ghost;
-      },
-      onDragMove: (x, y) => {
-        const groupEl = groupRef.current;
-        if (
-          groupEl &&
-          canAddToSplit(splitView, connId) &&
-          rectContains(groupEl.getBoundingClientRect(), x, y)
-        ) {
-          railDropRef.current = 'group';
-          setIsGroupDropTarget(true);
-          setDropTarget(null);
-          return;
-        }
-        let found: { id: string; position: 'above' | 'below' } | null = null;
-        for (const [id, el] of itemRefs.current) {
-          if (id === connId) continue;
-          const rect = el.getBoundingClientRect();
-          if (rectContains(rect, x, y)) {
-            found = { id, position: y < rect.top + rect.height / 2 ? 'above' : 'below' };
-            break;
+  const handleConnectionMoveStart = useCallback(
+    (connId: string, connName: string, e: React.MouseEvent) => {
+      if (e.button !== 0 || e.ctrlKey || e.metaKey) return;
+      startPointerDrag(e.clientX, e.clientY, {
+        threshold: 5,
+        createGhost: () => {
+          const ghost = document.createElement("div");
+          ghost.className =
+            "px-2 py-1 rounded text-xs bg-surface-secondary text-primary border border-default shadow-lg";
+          ghost.textContent = connName;
+          return ghost;
+        },
+        onDragMove: (x, y) => {
+          const groupEl = groupRef.current;
+          if (
+            groupEl &&
+            canAddToSplit(splitView, connId) &&
+            rectContains(groupEl.getBoundingClientRect(), x, y)
+          ) {
+            railDropRef.current = "group";
+            setIsGroupDropTarget(true);
+            setDropTarget(null);
+            return;
           }
-        }
-        railDropRef.current = found;
-        setIsGroupDropTarget(false);
-        setDropTarget(prev =>
-          prev?.id === found?.id && prev?.position === found?.position ? prev : found,
-        );
-      },
-      onDrop: () => {
-        const target = railDropRef.current;
-        if (target === 'group') {
-          addConnectionToSplit(connId);
-        } else if (target) {
-          applySidebarReorder(connId, target);
-        }
-      },
-      onEnd: () => {
-        railDropRef.current = null;
-        setDropTarget(null);
-        setIsGroupDropTarget(false);
-      },
-    });
-  }, [splitView, addConnectionToSplit, applySidebarReorder]);
+          let found: { id: string; position: "above" | "below" } | null = null;
+          for (const [id, el] of itemRefs.current) {
+            if (id === connId) continue;
+            const rect = el.getBoundingClientRect();
+            if (rectContains(rect, x, y)) {
+              found = {
+                id,
+                position: y < rect.top + rect.height / 2 ? "above" : "below",
+              };
+              break;
+            }
+          }
+          railDropRef.current = found;
+          setIsGroupDropTarget(false);
+          setDropTarget((prev) =>
+            prev?.id === found?.id && prev?.position === found?.position
+              ? prev
+              : found,
+          );
+        },
+        onDrop: () => {
+          const target = railDropRef.current;
+          if (target === "group") {
+            addConnectionToSplit(connId);
+          } else if (target) {
+            applySidebarReorder(connId, target);
+          }
+        },
+        onEnd: () => {
+          railDropRef.current = null;
+          setDropTarget(null);
+          setIsGroupDropTarget(false);
+        },
+      });
+    },
+    [splitView, addConnectionToSplit, applySidebarReorder],
+  );
 
   const handleSwitchToConnection = (connectionId: string) => {
     handleSwitch(connectionId);
@@ -217,14 +261,17 @@ export const Sidebar = () => {
   const openConnectionInNewWindow = useOpenConnectionInNewWindow();
 
   const handleOpenInNewWindow = (connectionId: string) => {
-    const conn = connections.find(c => c.id === connectionId);
+    const conn = connections.find((c) => c.id === connectionId);
     // Rail connections are already open (known-good), so this won't re-validate.
-    void openConnectionInNewWindow(connectionId, conn?.name ?? null).catch((e) => {
-      console.error(`[Sidebar] Failed to open connection in new window:`, e);
-    });
+    void openConnectionInNewWindow(connectionId, conn?.name ?? null).catch(
+      (e) => {
+        console.error(`[Sidebar] Failed to open connection in new window:`, e);
+      },
+    );
   };
 
-  const explorerConnId = (splitView && isSplitVisible) ? explorerConnectionId : activeConnectionId;
+  const explorerConnId =
+    splitView && isSplitVisible ? explorerConnectionId : activeConnectionId;
   const shouldShowExplorer =
     !!explorerConnId &&
     location.pathname !== "/settings" &&
@@ -237,9 +284,9 @@ export const Sidebar = () => {
       <aside className="w-16 bg-elevated border-r border-default flex flex-col items-center py-4 z-20">
         <div className="mb-8" title="tabularis">
           <img
-            src="/logo.png"
+            src="/logo.svg"
             alt="tabularis"
-            className="w-12 h-12 p-2 rounded-2xl mx-auto mb-4 shadow-lg shadow-accent-primary/30"
+            className="w-12 h-12 p-1.5 rounded-2xl mx-auto mb-4 shadow-lg shadow-accent-primary/30"
             style={{
               backgroundColor: isDarkTheme
                 ? currentTheme?.colors?.surface?.secondary || "#334155"
@@ -263,7 +310,7 @@ export const Sidebar = () => {
               {splitView && (
                 <div ref={groupRef} className="w-full">
                   <ConnectionGroupItem
-                    connections={openConnections.filter(c =>
+                    connections={openConnections.filter((c) =>
                       isConnectionGrouped(c.id, splitView),
                     )}
                     mode={splitView.mode}
@@ -284,19 +331,27 @@ export const Sidebar = () => {
                 >
                   <OpenConnectionItem
                     connection={conn}
-                    driverManifest={allDrivers.find(d => d.id === conn.driver)}
+                    driverManifest={allDrivers.find(
+                      (d) => d.id === conn.driver,
+                    )}
                     isSelected={selectedConnectionIds.has(conn.id)}
                     onSwitch={() => handleSwitchOrSetExplorer(conn.id)}
                     onOpenInEditor={() => handleOpenInEditor(conn.id)}
                     onOpenInNewWindow={() => handleOpenInNewWindow(conn.id)}
                     onDisconnect={() => handleDisconnectConnection(conn.id)}
-                    onToggleSelect={(isCtrlHeld) => toggleSelection(conn.id, isCtrlHeld)}
+                    onToggleSelect={(isCtrlHeld) =>
+                      toggleSelection(conn.id, isCtrlHeld)
+                    }
                     selectedConnectionIds={selectedConnectionIds}
                     onActivateSplit={activateSplit}
                     shortcutIndex={idx + 1}
                     showShortcutHint={showShortcutHints && idx < 9}
-                    onMoveMouseDown={(e) => handleConnectionMoveStart(conn.id, conn.name, e)}
-                    dropIndicator={dropTarget?.id === conn.id ? dropTarget.position : null}
+                    onMoveMouseDown={(e) =>
+                      handleConnectionMoveStart(conn.id, conn.name, e)
+                    }
+                    dropIndicator={
+                      dropTarget?.id === conn.id ? dropTarget.position : null
+                    }
                   />
                 </div>
               ))}
@@ -321,11 +376,7 @@ export const Sidebar = () => {
             <DiscordCommunityCallout />
           </div>
 
-          <NavItem
-            to="/mcp"
-            icon={Cpu}
-            label={t("sidebar.mcpServer")}
-          />
+          <NavItem to="/mcp" icon={Cpu} label={t("sidebar.mcpServer")} />
 
           <NavItem
             to="/settings"
@@ -354,14 +405,20 @@ export const Sidebar = () => {
       {/* Secondary Sidebar (Schema Explorer) */}
       {shouldShowExplorer && !isExplorerCollapsed && explorerConnId && (
         <PanelDatabaseProvider connectionId={explorerConnId}>
-          <Suspense fallback={<div style={{ width: sidebarWidth }}><LoadingState /></div>}>
-          <ExplorerSidebar
-            sidebarWidth={sidebarWidth}
-            startResize={startResize}
-            onCollapse={() => setIsExplorerCollapsed(true)}
-            sidebarTab={sidebarTab}
-            onSidebarTabChange={setSidebarTab}
-          />
+          <Suspense
+            fallback={
+              <div style={{ width: sidebarWidth }}>
+                <LoadingState />
+              </div>
+            }
+          >
+            <ExplorerSidebar
+              sidebarWidth={sidebarWidth}
+              startResize={startResize}
+              onCollapse={() => setIsExplorerCollapsed(true)}
+              sidebarTab={sidebarTab}
+              onSidebarTabChange={setSidebarTab}
+            />
           </Suspense>
         </PanelDatabaseProvider>
       )}
@@ -380,12 +437,28 @@ export const Sidebar = () => {
             </span>
           </button>
           <div className="w-6 h-px bg-default my-1" />
-          {([
-            { id: "structure" as SidebarTab, icon: Layers, label: t("sidebar.structure") },
-            { id: "favorites" as SidebarTab, icon: Star, label: t("sidebar.favorites") },
-            { id: "history" as SidebarTab, icon: Clock, label: t("sidebar.queryHistory") },
-            { id: "notebooks" as SidebarTab, icon: BookOpen, label: t("sidebar.notebooks.tab") },
-          ]).map((tab) => (
+          {[
+            {
+              id: "structure" as SidebarTab,
+              icon: Layers,
+              label: t("sidebar.structure"),
+            },
+            {
+              id: "favorites" as SidebarTab,
+              icon: Star,
+              label: t("sidebar.favorites"),
+            },
+            {
+              id: "history" as SidebarTab,
+              icon: Clock,
+              label: t("sidebar.queryHistory"),
+            },
+            {
+              id: "notebooks" as SidebarTab,
+              icon: BookOpen,
+              label: t("sidebar.notebooks.tab"),
+            },
+          ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => {
