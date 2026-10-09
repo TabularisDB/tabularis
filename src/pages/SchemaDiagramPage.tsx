@@ -124,6 +124,7 @@ export const SchemaDiagramPage = () => {
                   disabled={loadingSchemas}
                   className="px-2 py-1 bg-surface-secondary border border-strong rounded text-sm text-primary focus:outline-none focus:border-focus disabled:opacity-50 max-w-[180px] truncate"
                   title={t('sidebar.schemas')}
+                  aria-label={t('sidebar.schemas')}
                 >
                   {availableSchemas.map((s) => (
                     <option key={s} value={s}>{s}</option>

@@ -103,6 +103,8 @@ describe("SchemaDiagramPage schema picker", () => {
       "analytics",
     ]);
     expect(select).toHaveValue("public");
+    // The picker exposes an accessible name (debba review, gap 8).
+    expect(select).toHaveAttribute("aria-label", "sidebar.schemas");
   });
 
   it("updates the diagram's schema and triggers a refresh when the picker changes", async () => {
