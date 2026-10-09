@@ -4,6 +4,9 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogEntry {
     pub timestamp: String,
@@ -87,6 +90,68 @@ pub type SharedLogBuffer = Arc<Mutex<LogBuffer>>;
 
 pub fn create_log_buffer(max_size: usize) -> SharedLogBuffer {
     Arc::new(Mutex::new(LogBuffer::new(max_size)))
+}
+
+/// Resolve the log level from the `RUST_LOG` environment variable.
+///
+/// `Args::log_level` already turns `--debug` into `Debug`; this covers the case
+/// where neither `--debug` nor an explicit level was given, letting a user
+/// raise or lower verbosity without the flag. An unset or unparseable
+/// `RUST_LOG` falls back to `Info` rather than failing to boot.
+///
+/// The `log` crate has no per-target filter machinery of its own, so only the
+/// level part of a directive can be honoured, and a comma-separated list
+/// collapses onto the most verbose level it names. `sqlx=debug` therefore
+/// yields `Debug`, and `warn,sqlx=debug` also yields `Debug` — the closest safe
+/// approximation of `env_logger`'s behaviour for a single-stream logger.
+///
+/// Note that `Debug` and `Trace` are only safe to reach here because
+/// `log_commands` releases the buffer lock before logging (see the comment in
+/// `read_logs`); the capturing logger locks the same mutex.
+pub fn resolve_log_level_from_env() -> log::LevelFilter {
+    match std::env::var("RUST_LOG") {
+        Ok(value) => parse_rust_log_level(&value).unwrap_or(log::LevelFilter::Info),
+        Err(_) => log::LevelFilter::Info,
+    }
+}
+
+/// Map a `RUST_LOG` value onto a single [`log::LevelFilter`], if any directive
+/// in it names a level.
+fn parse_rust_log_level(value: &str) -> Option<log::LevelFilter> {
+    value
+        .split(',')
+        .filter_map(|directive| {
+            directive
+                .rsplit('=')
+                .next()
+                .map(str::trim)
+                .and_then(level_from_str)
+        })
+        .max_by_key(verbosity)
+}
+
+fn level_from_str(value: &str) -> Option<log::LevelFilter> {
+    match value.to_ascii_lowercase().as_str() {
+        "off" => Some(log::LevelFilter::Off),
+        "error" => Some(log::LevelFilter::Error),
+        "warn" => Some(log::LevelFilter::Warn),
+        "info" => Some(log::LevelFilter::Info),
+        "debug" => Some(log::LevelFilter::Debug),
+        "trace" => Some(log::LevelFilter::Trace),
+        _ => None,
+    }
+}
+
+/// Ordering key so `max_by_key` picks the most verbose level.
+fn verbosity(level: &log::LevelFilter) -> u8 {
+    match level {
+        log::LevelFilter::Off => 0,
+        log::LevelFilter::Error => 1,
+        log::LevelFilter::Warn => 2,
+        log::LevelFilter::Info => 3,
+        log::LevelFilter::Debug => 4,
+        log::LevelFilter::Trace => 5,
+    }
 }
 
 pub fn format_timestamp() -> String {
