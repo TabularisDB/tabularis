@@ -212,7 +212,7 @@ export function App() {
       </AlertProvider>
 
       <UpdateNotificationModal
-        isOpen={true}
+        isOpen={!!updateInfo}
         onClose={dismissUpdate}
         updateInfo={updateInfo!}
         isDownloading={isDownloading}
