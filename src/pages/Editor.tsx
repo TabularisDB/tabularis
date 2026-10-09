@@ -1274,10 +1274,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       // For history: store the tab's database (not the schema) so replay
       // reopens the tab scoped to the right database. The schema is NOT the
       // database — storing it as `database` made replay open the primary
-      // instead of the source database (finding #6), and for a plain
-      // single-database connection it made replay try to connect to a
-      // database literally named after the schema (e.g. "public"). See
-      // resolveHistoryDatabase in utils/database.ts (debba review, PR #822).
+      // instead of the source database, and for a plain single-database
+      // connection it made replay try to connect to a database literally named
+      // after the schema (e.g. "public"). See resolveHistoryDatabase in
+      // utils/database.ts.
       const historyDb = resolveHistoryDatabase(
         { database: targetTab?.database, schema: targetTab?.schema },
         isMultiDb,

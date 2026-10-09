@@ -673,7 +673,7 @@ export const NewConnectionModal = ({
   // not just whether the driver is *capable* of it. A traditional single-DB
   // PostgreSQL connection (plain string database) has the capability but has
   // NOT opted in — its save should keep the plain string, and the "Select at
-  // least one database" validation must not fire for it (finding #7).
+  // least one database" validation must not fire for it.
   //
   // Flat multi-db drivers (MySQL) have no single-database mode, so capability
   // alone is the gate. Schema-based drivers (PostgreSQL) use the explicit

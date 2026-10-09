@@ -136,7 +136,7 @@ pub async fn dump_database<R: Runtime>(
                 // transaction that rolls back, but plugin drivers execute each
                 // statement independently — the DROP commits and the table is
                 // gone). Skipping both when DDL fails leaves the existing table
-                // intact (issue #822, finding #2).
+                // intact.
                 match drv.get_table_ddl(&params, &table, Some(&schema)).await {
                     Ok(ddl) => {
                         writeln!(writer, "{}", drop_table_if_exists(&driver, &schema, &table))
