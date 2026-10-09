@@ -46,6 +46,8 @@ interface ResolvedDriver {
   local: boolean;
   /** The driver takes the raw URI verbatim; decomposing it would lose meaning. */
   passthrough: boolean;
+  /** The declared example uses a scheme without an authority. */
+  opaque: boolean;
 }
 
 /**
@@ -82,9 +84,10 @@ function getProtocolFromConnectionString(value: string): string | null {
  * first host for display and leave validation of the complete URI to the
  * driver that receives the original value.
  */
-function getPassthroughDisplayUrl(value: string): URL | null {
-  const authorityMarker = value.indexOf("://");
-  if (authorityMarker < 0) {
+function getPassthroughDisplayUrl(value: string, allowOpaque: boolean): URL | null {
+  const schemeEnd = value.indexOf(":");
+  if (!value.startsWith("//", schemeEnd + 1)) {
+    if (!allowOpaque) return null;
     // JDBC-style URIs can be opaque (for example jdbc:h2:mem:test). The
     // plugin owns their syntax, so preserve the URI without requiring a host.
     try {
@@ -94,7 +97,7 @@ function getPassthroughDisplayUrl(value: string): URL | null {
     }
   }
 
-  const authorityStart = authorityMarker + 3;
+  const authorityStart = schemeEnd + 3;
   const suffixOffset = value.slice(authorityStart).search(/[/?#]/);
   const authorityEnd =
     suffixOffset < 0 ? value.length : authorityStart + suffixOffset;
@@ -176,6 +179,13 @@ function buildProtocolRegistry(
       id: driver.id,
       local,
       passthrough: uriPassthroughEnabled(driver.capabilities),
+      opaque: /^[a-z][a-z\d+.-]*:(?!\/\/)/i.test(
+        (
+          driver.capabilities?.connection_string_example ??
+          driver.capabilities?.connectionStringExample ??
+          ""
+        ).trim(),
+      ),
     };
 
     const idProtocol = normalizeProtocol(driver.id);
@@ -245,7 +255,7 @@ export function parseConnectionString(
   // Resolve passthrough before using WHATWG URL: it rejects valid MongoDB
   // replica-set URIs because their authority contains multiple hosts.
   if (declaredDriver?.passthrough) {
-    const url = getPassthroughDisplayUrl(trimmed);
+    const url = getPassthroughDisplayUrl(trimmed, declaredDriver.opaque);
     if (!url) {
       return { success: false, error: "Invalid connection string format" };
     }
@@ -378,7 +388,7 @@ export function looksLikeConnectionString(
     : undefined;
 
   if (declaredDriver?.passthrough) {
-    return getPassthroughDisplayUrl(trimmed) !== null;
+    return getPassthroughDisplayUrl(trimmed, declaredDriver.opaque) !== null;
   }
 
   let url: URL;

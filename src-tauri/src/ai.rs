@@ -918,21 +918,27 @@ async fn generate_openrouter(
     Ok(clean_response(content))
 }
 
+/// Builds the Messages API body. No `temperature` is sent: newer Claude
+/// models (e.g. the 5.5 family) reject the parameter, and older ones work
+/// fine without it.
+fn anthropic_request_body(model: &str, system_prompt: &str, prompt: &str) -> serde_json::Value {
+    json!({
+        "model": model,
+        "system": system_prompt,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 1024
+    })
+}
+
 async fn generate_anthropic(
     client: &Client,
     api_key: &str,
     req: &AiGenerateRequest,
     system_prompt: &str,
 ) -> Result<String, String> {
-    let body = json!({
-        "model": req.model,
-        "system": system_prompt,
-        "messages": [
-            {"role": "user", "content": req.prompt}
-        ],
-        "max_tokens": 1024,
-        "temperature": 0.0
-    });
+    let body = anthropic_request_body(&req.model, system_prompt, &req.prompt);
 
     let res = client
         .post("https://api.anthropic.com/v1/messages")
@@ -1109,6 +1115,16 @@ mod tests {
         assert_eq!(MINIMAX_ENDPOINTS[cn_first[1]].region, "global");
 
         assert_eq!(minimax_endpoint_order(usize::MAX), [0, 1]);
+    }
+
+    #[test]
+    fn test_anthropic_request_body_omits_temperature() {
+        let body = anthropic_request_body("claude-sonnet-5-5", "system", "count users");
+        assert!(body.get("temperature").is_none());
+        assert_eq!(body["model"], "claude-sonnet-5-5");
+        assert_eq!(body["system"], "system");
+        assert_eq!(body["messages"][0]["content"], "count users");
+        assert_eq!(body["max_tokens"], 1024);
     }
 
     #[test]

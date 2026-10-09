@@ -60,6 +60,16 @@
     "overridable": true
   },
   {
+    "id": "reopen_closed_tab",
+    "category": "editor",
+    "defaultMac": "⌘+⇧+T",
+    "defaultWin": "Ctrl+Shift+T",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "t" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "t" },
+    "i18nKey": "settings.shortcuts.reopenClosedTab",
+    "overridable": true
+  },
+  {
     "id": "next_page",
     "category": "data_grid",
     "defaultMac": "⌘+→",

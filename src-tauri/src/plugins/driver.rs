@@ -261,14 +261,21 @@ impl PluginProcess {
                             Ok(_) => {
                                 match serde_json::from_str::<JsonRpcResponse>(&line_buf) {
                                     Ok(JsonRpcResponse::Success { result, id, .. }) => {
-                                        if let Some(tx) = pending_requests.remove(&id) {
+                                        if let Some(tx) = id.and_then(|id| pending_requests.remove(&id)) {
                                             let _ = tx.send(Ok(result));
                                         }
                                     }
-                                    Ok(JsonRpcResponse::Error { error, id, .. }) => {
+                                    Ok(JsonRpcResponse::Error { error, id: Some(id), .. }) => {
                                         if let Some(tx) = pending_requests.remove(&id) {
                                             let _ = tx.send(Err(PluginCallError::Remote(error)));
                                         }
+                                    }
+                                    Ok(JsonRpcResponse::Error { error, id: None, .. }) => {
+                                        log::error!(
+                                            "Plugin returned an error without a request id ({}): {}",
+                                            error.code,
+                                            error.message
+                                        );
                                     }
                                     Err(e) => {
                                         log::error!("Failed to parse plugin response: {}", e);

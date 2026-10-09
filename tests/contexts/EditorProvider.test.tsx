@@ -533,6 +533,120 @@ describe("EditorProvider", () => {
     // Should show no tabs for conn-2
     expect(resultConn2.current.tabs).toHaveLength(0);
   });
+
+  it("reopens the last closed tab at its previous position and activates it (#866)", () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    act(() => {
+      result.current.addTab({ type: "console" });
+    });
+    act(() => {
+      result.current.addTab({ type: "table", activeTable: "users" });
+    });
+    act(() => {
+      result.current.addTab({ type: "console" });
+    });
+
+    const tableTabId = result.current.tabs[1].id;
+    act(() => {
+      result.current.updateTab(tableTabId, { query: "SELECT * FROM users" });
+    });
+
+    act(() => {
+      result.current.closeTab(tableTabId);
+    });
+
+    expect(result.current.tabs).toHaveLength(2);
+    expect(result.current.canReopenClosedTab).toBe(true);
+
+    let restoredId: string | null = null;
+    act(() => {
+      restoredId = result.current.reopenClosedTab();
+    });
+
+    expect(restoredId).toBe(tableTabId);
+    expect(result.current.tabs).toHaveLength(3);
+    expect(result.current.tabs[1].id).toBe(tableTabId);
+    expect(result.current.tabs[1].activeTable).toBe("users");
+    expect(result.current.tabs[1].query).toBe("SELECT * FROM users");
+    expect(result.current.activeTabId).toBe(tableTabId);
+  });
+
+  it("restores two quick closes in LIFO order and then reports nothing to reopen", () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    for (let i = 0; i < 3; i++) {
+      act(() => {
+        result.current.addTab({ type: "console" });
+      });
+    }
+    const [firstId, secondId, thirdId] = result.current.tabs.map((t) => t.id);
+
+    act(() => {
+      result.current.closeTab(firstId);
+    });
+    act(() => {
+      result.current.closeTab(secondId);
+    });
+
+    expect(result.current.tabs).toHaveLength(1);
+
+    let firstReopen: string | null = null;
+    let secondReopen: string | null = null;
+    act(() => {
+      firstReopen = result.current.reopenClosedTab();
+    });
+    act(() => {
+      secondReopen = result.current.reopenClosedTab();
+    });
+
+    // Newest close comes back first. Each close records the index relative to
+    // the list as it stood, so LIFO reopens rebuild the original order.
+    expect(firstReopen).toBe(secondId);
+    expect(secondReopen).toBe(firstId);
+    expect(result.current.tabs.map((t) => t.id)).toEqual([
+      firstId,
+      secondId,
+      thirdId,
+    ]);
+    expect(result.current.canReopenClosedTab).toBe(false);
+    act(() => {
+      expect(result.current.reopenClosedTab()).toBeNull();
+    });
+  });
+
+  it("pushes closeOtherTabs victims so the right-most reopens first", () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    for (let i = 0; i < 3; i++) {
+      act(() => {
+        result.current.addTab({ type: "console" });
+      });
+    }
+    const [keepId, secondId, thirdId] = result.current.tabs.map((t) => t.id);
+
+    act(() => {
+      result.current.closeOtherTabs(keepId);
+    });
+
+    expect(result.current.tabs).toHaveLength(1);
+
+    act(() => {
+      result.current.reopenClosedTab();
+    });
+    act(() => {
+      result.current.reopenClosedTab();
+    });
+
+    expect(result.current.tabs.map((t) => t.id)).toEqual([
+      keepId,
+      secondId,
+      thirdId,
+    ]);
+  });
 });
 
 describe("EditorProvider connection switching (#292)", () => {
@@ -641,5 +755,75 @@ describe("EditorProvider connection switching (#292)", () => {
           (args as { connectionId?: string })?.connectionId === "conn-1",
       );
     expect(conn1Loads).toHaveLength(1);
+  });
+});
+
+describe("EditorProvider reopen closed tab across connections (#866)", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === "save_editor_preferences") {
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(null);
+    });
+  });
+
+  it("keeps the closed-tab stack per connection", async () => {
+    const conn = { current: "conn-1" };
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(
+        DatabaseContext.Provider,
+        {
+          value: {
+            activeConnectionId: conn.current,
+            activeDriver: "mysql",
+            activeTable: null,
+            activeConnectionName: "Test Connection",
+            activeDatabaseName: "testdb",
+            tables: [],
+            isLoadingTables: false,
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+            setActiveTable: vi.fn(),
+            refreshTables: vi.fn(),
+          },
+        },
+        React.createElement(EditorProvider, null, children),
+      );
+
+    const { result, rerender } = renderHook(() => useEditor(), { wrapper });
+
+    await waitFor(() => expect(result.current.tabs).toHaveLength(1));
+    const closedId = result.current.tabs[0].id;
+
+    act(() => {
+      result.current.closeTab(closedId);
+    });
+    expect(result.current.canReopenClosedTab).toBe(true);
+
+    // On another connection there is nothing to reopen.
+    conn.current = "conn-2";
+    rerender();
+    await waitFor(() =>
+      expect(result.current.tabs.some((t) => t.connectionId === "conn-2")).toBe(
+        true,
+      ),
+    );
+    expect(result.current.canReopenClosedTab).toBe(false);
+    act(() => {
+      expect(result.current.reopenClosedTab()).toBeNull();
+    });
+
+    // Back on conn-1 the closed tab is still restorable.
+    conn.current = "conn-1";
+    rerender();
+    expect(result.current.canReopenClosedTab).toBe(true);
+    let restoredId: string | null = null;
+    act(() => {
+      restoredId = result.current.reopenClosedTab();
+    });
+    expect(restoredId).toBe(closedId);
+    expect(result.current.activeTabId).toBe(closedId);
   });
 });

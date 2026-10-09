@@ -2745,27 +2745,21 @@ export const NewConnectionModal = ({
               </div>
               {connectionStringExamples.length > 0 && (
                 <>
-                  <select
-                    aria-label={t("newConnection.connectionStringExample", {
+                  <Select
+                    ariaLabel={t("newConnection.connectionStringExample", {
                       defaultValue: "Connection string example",
                     })}
-                    value=""
-                    onChange={(event) =>
-                      handleConnectionStringChange(event.target.value)
-                    }
-                    className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary focus:border-focus focus:outline-none"
-                  >
-                    <option value="" disabled>
-                      {t("newConnection.chooseConnectionStringExample", {
-                        defaultValue: "Choose an example",
-                      })}
-                    </option>
-                    {connectionStringExamples.map((example) => (
-                      <option key={`${example.label}:${example.value}`} value={example.value}>
-                        {example.label}
-                      </option>
-                    ))}
-                  </select>
+                    value={selectedConnectionStringExample?.value ?? null}
+                    options={connectionStringExamples.map((example) => example.value)}
+                    labels={Object.fromEntries(
+                      connectionStringExamples.map((example) => [example.value, example.label]),
+                    )}
+                    onChange={handleConnectionStringChange}
+                    placeholder={t("newConnection.chooseConnectionStringExample", {
+                      defaultValue: "Choose an example",
+                    })}
+                    searchable={false}
+                  />
                   {selectedConnectionStringExample?.description && (
                     <p className="text-xs text-secondary">
                       {selectedConnectionStringExample.description}

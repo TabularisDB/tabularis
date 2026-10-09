@@ -17,6 +17,14 @@ export interface EditorContextType {
   closeOtherTabs: (id: string) => void;
   closeTabsToLeft: (id: string) => void;
   closeTabsToRight: (id: string) => void;
+  /**
+   * Reopen the most recently closed tab of the active connection: re-insert
+   * it at its previous position among that connection's tabs and activate it.
+   * Returns the restored tab's id, or null when nothing was closed.
+   */
+  reopenClosedTab: () => string | null;
+  /** True when the active connection has at least one closed tab to reopen. */
+  canReopenClosedTab: boolean;
   updateTab: (
     id: string,
     partial: Partial<Tab> | ((tab: Tab) => Partial<Tab>),

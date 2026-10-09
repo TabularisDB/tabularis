@@ -449,6 +449,28 @@ describe('matchesReservedShortcut', () => {
   });
 });
 
+// ─── default shortcut conflicts ──────────────────────────────────────────────
+
+describe('default shortcut conflicts', () => {
+  it('reopen_closed_tab does not overlap any other default shortcut', () => {
+    const reopen = shortcutDefs.find(
+      (shortcut) => shortcut.id === 'reopen_closed_tab',
+    );
+    expect(reopen).toBeDefined();
+    expect(reopen?.i18nKey).toBe('settings.shortcuts.reopenClosedTab');
+
+    for (const other of shortcutDefs) {
+      if (other.id === 'reopen_closed_tab') continue;
+      expect(keyMatchesOverlap(reopen!.macMatch, other.macMatch, true)).toBe(
+        false,
+      );
+      expect(keyMatchesOverlap(reopen!.winMatch, other.winMatch, false)).toBe(
+        false,
+      );
+    }
+  });
+});
+
 // ─── mergeShortcuts ────────────────────────────────────────────────────────────
 
 describe('mergeShortcuts', () => {

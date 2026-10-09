@@ -27,3 +27,31 @@ fn cancel_notification_line_keeps_large_ids_exact() {
 
     assert_eq!(value["params"]["id"].as_u64(), Some(u64::MAX));
 }
+
+#[test]
+fn error_response_with_null_id_deserializes() {
+    let line = r#"{"jsonrpc":"2.0","error":{"code":-32700,"message":"parse error"},"id":null}"#;
+
+    match serde_json::from_str::<JsonRpcResponse>(line).unwrap() {
+        JsonRpcResponse::Error { error, id, .. } => {
+            assert_eq!(error.code, -32700);
+            assert_eq!(id, None);
+        }
+        other => panic!("expected an error response, got {other:?}"),
+    }
+}
+
+#[test]
+fn responses_with_numeric_ids_still_deserialize() {
+    let success = r#"{"jsonrpc":"2.0","result":{"ok":true},"id":3}"#;
+    match serde_json::from_str::<JsonRpcResponse>(success).unwrap() {
+        JsonRpcResponse::Success { id, .. } => assert_eq!(id, Some(3)),
+        other => panic!("expected a success response, got {other:?}"),
+    }
+
+    let error = r#"{"jsonrpc":"2.0","error":{"code":-32601,"message":"Method not found"},"id":4}"#;
+    match serde_json::from_str::<JsonRpcResponse>(error).unwrap() {
+        JsonRpcResponse::Error { id, .. } => assert_eq!(id, Some(4)),
+        other => panic!("expected an error response, got {other:?}"),
+    }
+}

@@ -13,6 +13,7 @@ import {
   SettingButtonGroup,
   SettingNumberInput,
 } from "./SettingControls";
+import { DEFAULT_NOTIFY_THRESHOLD_SEC } from "../../utils/queryNotification";
 
 export function GeneralTab() {
   const { t } = useTranslation();
@@ -189,6 +190,38 @@ export function GeneralTab() {
             onChange={(v) =>
               updateSetting("safetyConfirmationDelayEnabled", v)
             }
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t("settings.notifyLongQueries")}
+          description={t("settings.notifyLongQueriesDesc")}
+        >
+          <SettingToggle
+            checked={settings.notifyLongQueries !== false}
+            onChange={(v) => updateSetting("notifyLongQueries", v)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t("settings.notifyLongQueriesThreshold")}
+          description={t("settings.notifyLongQueriesThresholdDesc")}
+        >
+          <SettingNumberInput
+            value={
+              settings.notifyLongQueriesThresholdSec ??
+              DEFAULT_NOTIFY_THRESHOLD_SEC
+            }
+            onChange={(v) =>
+              updateSetting(
+                "notifyLongQueriesThresholdSec",
+                v ?? DEFAULT_NOTIFY_THRESHOLD_SEC,
+              )
+            }
+            min={1}
+            max={3600}
+            suffix={t("settings.seconds")}
+            fallback={DEFAULT_NOTIFY_THRESHOLD_SEC}
           />
         </SettingRow>
       </SettingSection>

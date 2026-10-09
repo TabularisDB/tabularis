@@ -378,6 +378,38 @@ describe("filterBar utils", () => {
         "a = 1 AND b IS NULL AND c LIKE '%x%'"
       );
     });
+
+    it("should join multiple filters with OR in parentheses", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "status", operator: "=", value: "failed" },
+        { id: "2", column: "retries", operator: ">", value: "3" },
+      ];
+      expect(buildStructuredFilterClause(filters, null, "OR")).toBe(
+        "(status = 'failed' OR retries > 3)"
+      );
+    });
+
+    it("should not parenthesize a single filter with OR", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "id", operator: ">", value: "5" },
+      ];
+      expect(buildStructuredFilterClause(filters, null, "OR")).toBe("id > 5");
+    });
+
+    it("should ignore disabled filters with OR", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "=", value: "1" },
+        { id: "2", column: "b", operator: "=", value: "2", enabled: false },
+        { id: "3", column: "c", operator: "=", value: "3" },
+      ];
+      expect(buildStructuredFilterClause(filters, null, "OR")).toBe(
+        "(a = 1 OR c = 3)"
+      );
+    });
+
+    it("should return empty string for OR with no filters", () => {
+      expect(buildStructuredFilterClause([], null, "OR")).toBe("");
+    });
   });
 
   describe("createEmptyFilter", () => {

@@ -34,6 +34,8 @@ const buildEditorContext = (
   closeOtherTabs: vi.fn(),
   closeTabsToLeft: vi.fn(),
   closeTabsToRight: vi.fn(),
+  reopenClosedTab: vi.fn(),
+  canReopenClosedTab: false,
   updateTab: vi.fn(),
   setActiveTabId: vi.fn(),
   getSchema: vi.fn(async () => []),

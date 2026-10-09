@@ -44,12 +44,14 @@ pub enum JsonRpcResponse {
     Success {
         jsonrpc: String,
         result: Value,
-        id: u64,
+        id: Option<u64>,
     },
+    /// `id` is `null` when the plugin couldn't determine the request id,
+    /// e.g. parse errors (-32700) and invalid requests (-32600).
     Error {
         jsonrpc: String,
         error: JsonRpcError,
-        id: u64,
+        id: Option<u64>,
     },
 }
 

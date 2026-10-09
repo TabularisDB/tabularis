@@ -64,6 +64,7 @@ import {
   ArrowRightToLine,
   XCircle,
   Trash2,
+  Undo2,
   Check,
   BookOpen,
   UsersRound,
@@ -126,6 +127,7 @@ import {
   interpolateQueryParams,
 } from "../utils/queryParameters";
 import { formatDuration } from "../utils/formatTime";
+import { notifyQueryFinished } from "../utils/queryNotification";
 import {
   buildSyncPayload,
   applyAction,
@@ -133,6 +135,9 @@ import {
   RESULTS_ACTION_EVENT,
   RESULTS_READY_EVENT,
   RESULTS_CLOSED_EVENT,
+  RESULTS_COPY_EVENT,
+  type CopiedRows,
+  type ResultsCopyPayload,
   type ResultsWindowActionHandlers,
   type ResultsReadyPayload,
   type ResultsActionEnvelope,
@@ -265,6 +270,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     closeOtherTabs,
     closeTabsToLeft,
     closeTabsToRight,
+    reopenClosedTab,
+    canReopenClosedTab,
   } = useEditor();
   const location = useLocation();
   const { matchesShortcut, isMac } = useKeybindings();
@@ -1272,8 +1279,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         ?? schema
         ?? undefined;
 
+      const start = performance.now();
+
       try {
-        const start = performance.now();
         // Per-tab page size (falling back to the global Result Page Size)
         // drives pagination; the "Total Limit" input is handled in the SQL.
         // undefined disables pagination entirely (the user picked "All").
@@ -1327,6 +1335,18 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               historyDb,
             );
           }
+          void notifyQueryFinished({
+            enabled: settings.notifyLongQueries,
+            thresholdSec: settings.notifyLongQueriesThresholdSec,
+            durationMs: end - start,
+            content: {
+              title: t("editor.queryNotification.successTitle"),
+              body: t("editor.queryNotification.body", {
+                tab: targetTab.title,
+                duration: formatDuration(end - start),
+              }),
+            },
+          });
           return;
         }
 
@@ -1392,6 +1412,19 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           } else {
             updateTab(targetTabId, { pkColumns: null });
           }
+
+          void notifyQueryFinished({
+            enabled: settings.notifyLongQueries,
+            thresholdSec: settings.notifyLongQueriesThresholdSec,
+            durationMs: end - start,
+            content: {
+              title: t("editor.queryNotification.successTitle"),
+              body: t("editor.queryNotification.body", {
+                tab: targetTab.title,
+                duration: formatDuration(end - start),
+              }),
+            },
+          });
         }
 
         if (shouldRecordHistory) {
@@ -1409,6 +1442,20 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           updateTab(targetTabId, {
             error: typeof err === "string" ? err : t("editor.queryFailed"),
             isLoading: false,
+          });
+
+          const errorElapsed = performance.now() - start;
+          void notifyQueryFinished({
+            enabled: settings.notifyLongQueries,
+            thresholdSec: settings.notifyLongQueriesThresholdSec,
+            durationMs: errorElapsed,
+            content: {
+              title: t("editor.queryNotification.errorTitle"),
+              body: t("editor.queryNotification.body", {
+                tab: targetTab.title,
+                duration: formatDuration(errorElapsed),
+              }),
+            },
           });
         }
 
@@ -1429,6 +1476,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       activeConnectionId,
       updateTab,
       settings.resultPageSize,
+      settings.notifyLongQueries,
+      settings.notifyLongQueriesThresholdSec,
       fetchPkColumn,
       t,
       activeDriver,
@@ -1603,6 +1652,18 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         // mark only the entries that haven't already resolved via a live event
         // as failed, so statements that completed first keep their results.
         const fallbackElapsed = performance.now() - batchStart;
+        void notifyQueryFinished({
+          enabled: settings.notifyLongQueries,
+          thresholdSec: settings.notifyLongQueriesThresholdSec,
+          durationMs: fallbackElapsed,
+          content: {
+            title: t("editor.queryNotification.errorTitle"),
+            body: t("editor.queryNotification.body", {
+              tab: targetTab.title,
+              duration: formatDuration(fallbackElapsed),
+            }),
+          },
+        });
         const message = typeof err === "string" ? err : t("editor.queryFailed");
         entries.forEach((entry, idx) => {
           if (applied.has(idx)) return;
@@ -1644,6 +1705,28 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           ? { activeResultId: entries[firstResultEntry].id }
           : {}),
       });
+
+      const failed = batchResults.filter((r) => r?.error).length;
+      const succeeded = batchResults.length - failed;
+      const total = performance.now() - batchStart;
+      void notifyQueryFinished({
+        enabled: settings.notifyLongQueries,
+        thresholdSec: settings.notifyLongQueriesThresholdSec,
+        durationMs: total,
+        content: {
+          title: t(
+            failed > 0
+              ? "editor.queryNotification.batchErrorTitle"
+              : "editor.queryNotification.batchSuccessTitle",
+          ),
+          body: t("editor.queryNotification.batchBody", {
+            tab: targetTab.title,
+            succeeded,
+            failed,
+            duration: formatDuration(total),
+          }),
+        },
+      });
     },
     [
       clearEntryScrollTops,
@@ -1651,6 +1734,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       updateTab,
       patchResultEntry,
       settings.resultPageSize,
+      settings.notifyLongQueries,
+      settings.notifyLongQueriesThresholdSec,
       activeSchema,
       t,
       isMultiDb,
@@ -1951,6 +2036,122 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     }
   }, [tabs, detachedTabIds]);
 
+  // Re-runs a query without pagination and formats the full result set for the
+  // clipboard. Returns null when there is nothing to copy.
+  const fetchAllRows = useCallback(
+    async (
+      query: string,
+      result: QueryResult | null,
+      schema: string | null | undefined,
+      tableName: string | null,
+      sessionId: string,
+      database?: string | null,
+    ): Promise<CopiedRows | null> => {
+      const columns = result?.columns ?? [];
+      if (!activeConnectionId || columns.length === 0 || !query.trim()) {
+        return null;
+      }
+      const totalRows = result?.pagination?.total_rows;
+
+      const res = await invoke<QueryResult>("execute_query", {
+        connectionId: activeConnectionId,
+        query,
+        // When the total is unknown (no row count requested yet), fall back to
+        // a large practical cap; the toast reports the actual rows fetched.
+        limit: totalRows ?? 1_000_000,
+        page: 1,
+        // Copying every row must see what the tab's own transaction sees.
+        sessionId,
+        ...(schema ? { schema } : {}),
+        // Nested multi-db (Postgres): without this, "Copy All Rows" on a
+        // secondary database silently re-queries the primary — the same
+        // database-routing bug class as findings #1/#5/#6.
+        ...(database ? { database } : {}),
+      });
+      const text = formatRowsForCopy(res.rows, res.columns ?? columns, copyFormat, {
+        withHeaders: true,
+        csvIncludeHeaders,
+        csvDelimiter,
+        tableName,
+      });
+      return { text, count: res.rows.length };
+    },
+    [activeConnectionId, copyFormat, csvDelimiter, csvIncludeHeaders],
+  );
+
+  // Schema resolution mirrors runQuery so the full fetch targets the same
+  // database/schema as the page the user is looking at.
+  const fetchTabAllRows = useCallback(
+    async (tabId: string) => {
+      const tab = tabsRef.current.find((t) => t.id === tabId);
+      if (!tab) return null;
+
+      const effectiveSchema =
+        activeCapabilities?.schemas === true ? tab.schema : undefined;
+      const query =
+        tab.type === "table" && tab.activeTable
+          ? // limitOverride: copy-all goes beyond the tab's "Total Limit" — the
+            // user explicitly asked for every row. Sort is kept so the copy
+            // matches the on-screen order.
+            reconstructTableQuery(
+              { ...tab, schema: effectiveSchema },
+              activeCapabilities ?? activeDriver ?? undefined,
+              { limitOverride: null },
+            )
+          : // The editor buffer can hold several statements or unresolved
+            // parameters; the last run text is what produced this result.
+            lastRunQueryRef.current[tab.id] ?? tab.query;
+
+      return fetchAllRows(
+        query,
+        tab.result,
+        tab.schema ?? activeSchema,
+        tab.activeTable,
+        tab.id,
+        tab.database,
+      );
+    },
+    [activeCapabilities, activeDriver, activeSchema, fetchAllRows],
+  );
+
+  const fetchEntryAllRows = useCallback(
+    async (entryId: string, tabIdArg?: string) => {
+      const tabId = tabIdArg ?? activeTabIdRef.current;
+      const tab = tabsRef.current.find((t) => t.id === tabId);
+      const entry = tab?.results?.find((r) => r.id === entryId);
+      if (!tab || !entry) return null;
+
+      return fetchAllRows(
+        entry.query,
+        entry.result,
+        tab.schema ?? activeSchema,
+        entry.activeTable,
+        tab.id,
+        tab.database,
+      );
+    },
+    [activeSchema, fetchAllRows],
+  );
+
+  const copyAllRows = useCallback(
+    async (rows: Promise<CopiedRows | null>) => {
+      try {
+        const copied = await rows;
+        if (!copied) return;
+        await copyTextToClipboard(copied.text);
+        showToast(t("dataGrid.copiedRows", { count: copied.count }), {
+          kind: "success",
+        });
+      } catch (e) {
+        showAlert(t("common.error") + ": " + e, {
+          title: t("common.error"),
+          kind: "error",
+        });
+      }
+    },
+    [showAlert, showToast, t],
+  );
+
   // Respond to the detached windows' handshakes and forwarded actions. The main
   // window owns all query/DB logic, so actions map onto the existing handlers
   // targeting the tab named in each event (not necessarily the active one).
@@ -1981,11 +2182,25 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         const tab = tabsRef.current.find((t) => t.id === tabId);
         return tab && tab.results ? tab : null;
       };
+      const sendCopyResult = async (rows: Promise<CopiedRows | null>) => {
+        let payload: ResultsCopyPayload;
+        try {
+          const copied = await rows;
+          if (!copied) return;
+          payload = { tabId, ...copied };
+        } catch (e) {
+          payload = { tabId, error: String(e) };
+        }
+        emit(RESULTS_COPY_EVENT, payload);
+      };
       return {
         onRunQueryPage: (query, page) => runQuery(query, page, tabId),
         onPageChange: (entryId, page) => runResultEntryPage(entryId, page, tabId),
         onRerunEntry: (entryId) => runResultEntryPage(entryId, 1, tabId),
         onLoadCount: () => loadCount(tabId),
+        onCopyAllRows: () => sendCopyResult(fetchTabAllRows(tabId)),
+        onCopyEntryAllRows: (entryId) =>
+          sendCopyResult(fetchEntryAllRows(entryId, tabId)),
         onSelectResult: (entryId) =>
           updateTab(tabId, { activeResultId: entryId }),
         onCloseEntry: (entryId) => {
@@ -2094,6 +2309,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     runQuery,
     runResultEntryPage,
     loadCount,
+    fetchTabAllRows,
+    fetchEntryAllRows,
     updateTab,
   ]);
 
@@ -2416,6 +2633,12 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         return;
       }
 
+      if (matchesShortcut(e, "reopen_closed_tab")) {
+        e.preventDefault();
+        reopenClosedTab();
+        return;
+      }
+
       if (matchesShortcut(e, "new_tab")) {
         e.preventDefault();
         addTab({ type: "console" });
@@ -2463,6 +2686,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     matchesShortcut,
     addTab,
     handleCloseTab,
+    reopenClosedTab,
     runQuery,
   ]);
 
@@ -3884,76 +4108,6 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const handleExportJSON = () => handleExportCommon("json");
   const handleExportMarkdown = () => handleExportCommon("markdown");
 
-  // Re-runs the active tab's query without pagination and copies the full
-  // result set to the clipboard. Triggered from the grid's select-all flow
-  // when the result continues beyond the loaded page.
-  const handleCopyAllRows = useCallback(async () => {
-    if (!activeTab || !activeConnectionId) return;
-    const totalRows = activeTab.result?.pagination?.total_rows;
-    const columns = activeTab.result?.columns ?? [];
-    if (columns.length === 0) return;
-
-    const effectiveSchema =
-      activeCapabilities?.schemas === true ? activeTab.schema : undefined;
-    const tabForQuery = { ...activeTab, schema: effectiveSchema };
-    const query =
-      activeTab.type === "table" && activeTab.activeTable
-        ? // limitOverride: copy-all goes beyond the tab's "Total Limit" — the
-          // user explicitly asked for every row. Sort is kept so the copy
-          // matches the on-screen order.
-          reconstructTableQuery(tabForQuery, activeCapabilities ?? activeDriver ?? undefined, {
-            limitOverride: null,
-          })
-        : activeTab.query;
-    if (!query || !query.trim()) return;
-
-    // Mirror runQuery's schema resolution so the full fetch targets the same
-    // database/schema as the page the user is looking at.
-    const schema = activeTab?.schema ?? activeSchema;
-
-    try {
-      const res = await invoke<QueryResult>("execute_query", {
-        connectionId: activeConnectionId,
-        query,
-        // When the total is unknown (no row count requested yet), fall back to
-        // a large practical cap; the toast reports the actual rows fetched.
-        limit: totalRows ?? 1_000_000,
-        page: 1,
-        // Copying every row must see what the tab's own transaction sees.
-        sessionId: activeTab.id,
-        ...(schema ? { schema } : {}),
-        ...(activeTab?.database ? { database: activeTab.database } : {}),
-      });
-      const text = formatRowsForCopy(res.rows, res.columns ?? columns, copyFormat, {
-        withHeaders: true,
-        csvIncludeHeaders,
-        csvDelimiter,
-        tableName: activeTab.activeTable,
-      });
-      await copyTextToClipboard(text);
-      showToast(t("dataGrid.copiedRows", { count: res.rows.length }), {
-        kind: "success",
-      });
-    } catch (e) {
-      showAlert(t("common.error") + ": " + e, {
-        title: t("common.error"),
-        kind: "error",
-      });
-    }
-  }, [
-    activeTab,
-    activeConnectionId,
-    activeCapabilities,
-    activeDriver,
-    activeSchema,
-    copyFormat,
-    csvDelimiter,
-    csvIncludeHeaders,
-    showAlert,
-    showToast,
-    t,
-  ]);
-
   const handleRunDropdownToggle = useCallback(() => {
     if (!isRunDropdownOpen) {
       // Monaco Editor: split queries from editor
@@ -4857,6 +5011,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 }
                 onRerunEntry={(entryId) => runResultEntryPage(entryId, 1)}
                 onPageChange={runResultEntryPage}
+                onCopyAllRows={(entryId) =>
+                  copyAllRows(fetchEntryAllRows(entryId))
+                }
                 onCloseEntry={(entryId) => {
                   scrollTopByEntryKeyRef.current.delete(
                     `${activeTab.id}:${entryId}`,
@@ -5356,7 +5513,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       readonly={driverReadonly || !!activeTab.materialized}
                       totalRows={activeTab.result?.pagination?.total_rows}
                       hasMore={activeTab.result?.pagination?.has_more}
-                      onCopyAllRows={handleCopyAllRows}
+                      onCopyAllRows={() =>
+                        copyAllRows(fetchTabAllRows(activeTab.id))
+                      }
                       initialScrollTop={scrollTopByTabIdRef.current.get(
                         activeTab.id,
                       )}
@@ -5549,6 +5708,12 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   },
                 ]
               : []),
+            {
+              label: t("editor.reopenClosedTab"),
+              icon: Undo2,
+              disabled: !canReopenClosedTab,
+              action: () => reopenClosedTab(),
+            },
             {
               label: t("editor.closeTab"),
               icon: X,

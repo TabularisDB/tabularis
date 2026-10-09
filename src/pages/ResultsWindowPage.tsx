@@ -4,12 +4,18 @@ import { useSearchParams } from "react-router-dom";
 import { emit, listen } from "@tauri-apps/api/event";
 import { MultiResultPanel } from "../components/ui/MultiResultPanel";
 import { ResultEntryContent } from "../components/ui/ResultEntryContent";
+import { useAlert } from "../hooks/useAlert";
+import { useToast } from "../hooks/useToast";
+import { copyTextToClipboard } from "../utils/clipboard";
 import {
   RESULTS_SYNC_EVENT,
   RESULTS_ACTION_EVENT,
   RESULTS_READY_EVENT,
+  RESULTS_COPY_EVENT,
+  applyCopyResult,
   hasMultiResults,
   singleResultToEntry,
+  type ResultsCopyPayload,
   type ResultsSyncPayload,
   type ResultsWindowAction,
 } from "../utils/resultsWindowSync";
@@ -23,6 +29,8 @@ import {
  */
 export const ResultsWindowPage = () => {
   const { t } = useTranslation();
+  const { showAlert } = useAlert();
+  const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const tabId = searchParams.get("tab") ?? "";
   const [payload, setPayload] = useState<ResultsSyncPayload | null>(null);
@@ -42,6 +50,35 @@ export const ResultsWindowPage = () => {
       unlistenPromise.then((unlisten) => unlisten());
     };
   }, [tabId]);
+
+  // Copy-all runs in the main window; the clipboard write and its feedback
+  // happen here, in the window the user clicked.
+  useEffect(() => {
+    if (!tabId) return;
+    const showError = (error: unknown) =>
+      showAlert(t("common.error") + ": " + error, {
+        title: t("common.error"),
+        kind: "error",
+      });
+    const unlistenPromise = listen<ResultsCopyPayload>(
+      RESULTS_COPY_EVENT,
+      (event) =>
+        applyCopyResult(event.payload, tabId, {
+          onCopied: ({ text, count }) =>
+            copyTextToClipboard(text)
+              .then(() =>
+                showToast(t("dataGrid.copiedRows", { count }), {
+                  kind: "success",
+                }),
+              )
+              .catch(showError),
+          onError: showError,
+        }),
+    );
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [tabId, showAlert, showToast, t]);
 
   const send = useCallback(
     (action: ResultsWindowAction) => {
@@ -88,6 +125,9 @@ export const ResultsWindowPage = () => {
           onRenameEntry={(entryId, label) =>
             send({ type: "rename-entry", entryId, label })
           }
+          onCopyAllRows={(entryId) =>
+            send({ type: "copy-entry-all-rows", entryId })
+          }
         />
       ) : payload.result || payload.error || payload.isLoading ? (
         <ResultEntryContent
@@ -99,6 +139,7 @@ export const ResultsWindowPage = () => {
           onPageChange={(page) =>
             send({ type: "run-query-page", query: payload.query, page })
           }
+          onCopyAllRows={() => send({ type: "copy-all-rows" })}
         />
       ) : (
         <div className="flex items-center justify-center h-full text-surface-tertiary text-sm">

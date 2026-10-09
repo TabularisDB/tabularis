@@ -24,6 +24,12 @@ import {
 } from "../utils/editor";
 import { moveTab } from "../utils/tabDnd";
 import {
+  pushClosedTabs,
+  popClosedTab,
+  insertReopenedTab,
+  type ClosedTabsByConnection,
+} from "../utils/closedTabs";
+import {
   createNotebookFromState,
   evictFromCache,
   flushAllPendingSaves,
@@ -34,6 +40,12 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabIds, setActiveTabIds] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
+
+  // Closed tabs per connection, for "reopen closed tab". The state mirrors
+  // closedTabsRef (kept in sync immediately) so consumers re-render on
+  // canReopenClosedTab while reads stay synchronous across quick presses.
+  const [closedTabs, setClosedTabs] = useState<ClosedTabsByConnection>({});
+  const closedTabsRef = useRef<ClosedTabsByConnection>({});
 
   const schemaCacheRef = useRef<Record<string, SchemaCache>>({});
   const tabsRef = useRef<Tab[]>([]);
@@ -258,6 +270,15 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     resolvePendingNotebook();
   }, [resolvePendingNotebook]);
 
+  // Record tabs closed by the close actions below on their connection's
+  // reopen stack. Runs outside the setTabs updater so React strict mode's
+  // double invocation cannot push an entry twice.
+  const rememberClosedTabs = useCallback((closedIds: string[]) => {
+    const next = pushClosedTabs(closedTabsRef.current, tabsRef.current, closedIds);
+    closedTabsRef.current = next;
+    setClosedTabs(next);
+  }, []);
+
   const closeTab = useCallback(
     (id: string) => {
       // Flush and evict notebook cache for the closed tab
@@ -265,6 +286,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       if (closedTab?.notebookId) {
         evictFromCache(closedTab.notebookId);
       }
+
+      rememberClosedTabs([id]);
 
       setTabs((prev) => {
         const {
@@ -287,11 +310,16 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         return newTabs;
       });
     },
-    [activeConnectionId, activeTabId],
+    [activeConnectionId, activeTabId, rememberClosedTabs],
   );
 
   const closeAllTabs = useCallback(() => {
     if (!activeConnectionId) return;
+    rememberClosedTabs(
+      tabsRef.current
+        .filter((t) => t.connectionId === activeConnectionId)
+        .map((t) => t.id),
+    );
     setTabs((prev) => {
       const { newTabs, newActiveTabId } = closeAllTabsForConnection(
         prev,
@@ -303,11 +331,16 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       }));
       return newTabs;
     });
-  }, [activeConnectionId]);
+  }, [activeConnectionId, rememberClosedTabs]);
 
   const closeOtherTabs = useCallback(
     (id: string) => {
       if (!activeConnectionId) return;
+      rememberClosedTabs(
+        tabsRef.current
+          .filter((t) => t.connectionId === activeConnectionId && t.id !== id)
+          .map((t) => t.id),
+      );
       setTabs((prev) => {
         const newTabs = closeOtherTabsForConnection(
           prev,
@@ -321,12 +354,21 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         return newTabs;
       });
     },
-    [activeConnectionId],
+    [activeConnectionId, rememberClosedTabs],
   );
 
   const closeTabsToLeftInternal = useCallback(
     (id: string) => {
       if (!activeConnectionId) return;
+      const connTabs = tabsRef.current.filter(
+        (t) => t.connectionId === activeConnectionId,
+      );
+      const targetIndex = connTabs.findIndex((t) => t.id === id);
+      rememberClosedTabs(
+        targetIndex === -1
+          ? []
+          : connTabs.slice(0, targetIndex).map((t) => t.id),
+      );
       setTabs((prev) => {
         const { newTabs, newActiveTabId } = closeTabsToLeft(
           prev,
@@ -343,12 +385,21 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         return newTabs;
       });
     },
-    [activeConnectionId, activeTabId],
+    [activeConnectionId, activeTabId, rememberClosedTabs],
   );
 
   const closeTabsToRightInternal = useCallback(
     (id: string) => {
       if (!activeConnectionId) return;
+      const connTabs = tabsRef.current.filter(
+        (t) => t.connectionId === activeConnectionId,
+      );
+      const targetIndex = connTabs.findIndex((t) => t.id === id);
+      rememberClosedTabs(
+        targetIndex === -1
+          ? []
+          : connTabs.slice(targetIndex + 1).map((t) => t.id),
+      );
       setTabs((prev) => {
         const { newTabs, newActiveTabId } = closeTabsToRight(
           prev,
@@ -365,8 +416,28 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         return newTabs;
       });
     },
-    [activeConnectionId, activeTabId],
+    [activeConnectionId, activeTabId, rememberClosedTabs],
   );
+
+  // Reopen the most recently closed tab of the active connection at its
+  // previous position and activate it. Reads both mirrors through refs so
+  // two quick presses restore two different tabs (LIFO).
+  const reopenClosedTab = useCallback((): string | null => {
+    if (!activeConnectionId) return null;
+    const { entry, stacks } = popClosedTab(closedTabsRef.current, activeConnectionId);
+    if (!entry) return null;
+    closedTabsRef.current = stacks;
+    setClosedTabs(stacks);
+
+    const { newTabs, tab } = insertReopenedTab(
+      tabsRef.current,
+      activeConnectionId,
+      entry,
+    );
+    setTabs(newTabs);
+    setActiveTabId(tab.id);
+    return tab.id;
+  }, [activeConnectionId, setActiveTabId]);
 
   const updateTab = useCallback(
     (id: string, partial: Partial<Tab> | ((tab: Tab) => Partial<Tab>)) => {
@@ -440,6 +511,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     return getConnectionTabs(tabs, activeConnectionId);
   }, [tabs, activeConnectionId]);
 
+  const canReopenClosedTab =
+    !!activeConnectionId && (closedTabs[activeConnectionId]?.length ?? 0) > 0;
+
   const contextValue = useMemo(
     () => ({
       tabs: connectionTabs,
@@ -456,6 +530,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       closeOtherTabs,
       closeTabsToLeft: closeTabsToLeftInternal,
       closeTabsToRight: closeTabsToRightInternal,
+      reopenClosedTab,
+      canReopenClosedTab,
       getSchema,
     }),
     [
@@ -473,6 +549,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       closeOtherTabs,
       closeTabsToLeftInternal,
       closeTabsToRightInternal,
+      reopenClosedTab,
+      canReopenClosedTab,
       getSchema,
     ],
   );

@@ -12,6 +12,7 @@ import type {
 } from "../../../src/types/pluginSlots";
 
 interface MockSelectProps {
+  ariaLabel?: string;
   value: string | null;
   options: string[];
   onChange: (value: string) => void;
@@ -66,9 +67,9 @@ vi.mock("../../../src/components/ui/Modal", () => ({
 }));
 
 vi.mock("../../../src/components/ui/Select", () => ({
-  Select: ({ value, options, onChange, placeholder, labels }: MockSelectProps) => (
+  Select: ({ ariaLabel, value, options, onChange, placeholder, labels }: MockSelectProps) => (
     <select
-      aria-label={placeholder ?? "select"}
+      aria-label={ariaLabel ?? placeholder ?? "select"}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
     >

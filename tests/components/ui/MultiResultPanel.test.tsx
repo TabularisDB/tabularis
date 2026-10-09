@@ -13,11 +13,13 @@ vi.mock("../../../src/components/ui/DataGrid", () => ({
       data,
       initialScrollTop,
       onScrollTopChange,
+      onCopyAllRows,
     }: {
       ref?: unknown;
       data: unknown[][];
       initialScrollTop?: number;
       onScrollTopChange?: (scrollTop: number) => void;
+      onCopyAllRows?: () => void;
     }) => (
       <div
         data-testid="data-grid"
@@ -25,7 +27,11 @@ vi.mock("../../../src/components/ui/DataGrid", () => ({
         data-first-value={String(data[0]?.[0] ?? "")}
         data-initial-scroll-top={String(initialScrollTop ?? "")}
         onScroll={(e) => onScrollTopChange?.(e.currentTarget.scrollTop)}
-      />
+      >
+        <button type="button" onClick={onCopyAllRows}>
+          copy-all
+        </button>
+      </div>
     ),
   ),
 }));
@@ -94,6 +100,7 @@ describe("MultiResultPanel", () => {
   const mockOnCloseEntriesToLeft = vi.fn();
   const mockOnCloseAllEntries = vi.fn();
   const mockOnRenameEntry = vi.fn();
+  const mockOnCopyAllRows = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -114,6 +121,7 @@ describe("MultiResultPanel", () => {
     onCloseEntriesToLeft: mockOnCloseEntriesToLeft,
     onCloseAllEntries: mockOnCloseAllEntries,
     onRenameEntry: mockOnRenameEntry,
+    onCopyAllRows: mockOnCopyAllRows,
   };
 
   it("renders tab buttons for each result entry", () => {
@@ -229,6 +237,24 @@ describe("MultiResultPanel", () => {
     expect(grids[0]).toHaveAttribute("data-has-command-target", "false");
     expect(grids[1]).toHaveAttribute("data-first-value", "2");
     expect(grids[1]).toHaveAttribute("data-has-command-target", "true");
+  });
+
+  it("routes copy-all from each stacked grid to its own entry", () => {
+    render(
+      <MultiResultPanel
+        {...defaultProps}
+        results={[
+          makeEntry({ id: "r-0", isLoading: false, result: makeResult() }),
+          makeEntry({ id: "r-1", isLoading: false, result: makeResult() }),
+        ]}
+        activeResultId="r-1"
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle("editor.multiResult.viewStacked"));
+    fireEvent.click(screen.getAllByText("copy-all")[0]);
+
+    expect(mockOnCopyAllRows).toHaveBeenCalledWith("r-0");
   });
 
   it("calls onSelectResult when clicking a tab", () => {
@@ -415,6 +441,22 @@ describe("MultiResultPanel", () => {
     );
     fireEvent.click(screen.getByTitle("pagination.nextPage"));
     expect(mockOnPageChange).toHaveBeenCalledWith("r-0", 2);
+  });
+
+  it("routes copy-all from the grid to the active entry", () => {
+    const results = [
+      makeEntry({ id: "r-0", isLoading: false, result: makeResult() }),
+      makeEntry({ id: "r-1", isLoading: false, result: makeResult() }),
+    ];
+    render(
+      <MultiResultPanel
+        {...defaultProps}
+        results={results}
+        activeResultId="r-1"
+      />,
+    );
+    fireEvent.click(screen.getByText("copy-all"));
+    expect(mockOnCopyAllRows).toHaveBeenCalledWith("r-1");
   });
 
   it("shows scroll arrows for tab bar", () => {

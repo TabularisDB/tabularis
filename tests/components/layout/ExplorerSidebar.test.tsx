@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
 import { ExplorerSidebar } from "../../../src/components/layout/ExplorerSidebar";
 import { useDatabase } from "../../../src/hooks/useDatabase";
 import { useSavedQueries } from "../../../src/hooks/useSavedQueries";
@@ -386,6 +387,42 @@ describe("ExplorerSidebar — database object navigation", () => {
         preventAutoRun: true,
       }),
     );
+  });
+
+  it("schema layout — New routine targets the schema it was opened from, not the active one", async () => {
+    vi.mocked(useDatabase).mockReturnValue({
+      ...databaseState,
+      activeCapabilities: { schemas: true, routines: true, routine_management: true },
+      activeSchema: "public",
+      schemas: ["public", "sales"],
+      selectedSchemas: ["sales"],
+      schemaDataMap: {
+        sales: { tables: [], views: [], routines: [], triggers: [], isLoaded: true, isLoading: false },
+      },
+    } as unknown as ReturnType<typeof useDatabase>);
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === "get_routine_create_template" ? "CREATE PROCEDURE sales.my_procedure()" : undefined,
+    );
+    renderSidebar();
+
+    fireEvent.click(screen.getByText("sales"));
+    fireEvent.click(screen.getByTitle("routines.newRoutine"));
+    fireEvent.click(screen.getByText("routines.newProcedure"));
+
+    await waitFor(() =>
+      expect(openEditor).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          initialQuery: "CREATE PROCEDURE sales.my_procedure()",
+          schema: "sales",
+        }),
+      ),
+    );
+    expect(invoke).toHaveBeenCalledWith("get_routine_create_template", {
+      connectionId: "c1",
+      routineType: "PROCEDURE",
+      schema: "sales",
+    });
   });
 
   it("disables table actions that require an active connection", () => {

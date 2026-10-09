@@ -527,6 +527,17 @@ describe("connectionStringParser", () => {
     });
   });
   describe("URI passthrough drivers", () => {
+    it.each(["mongodb:", "mongodb:foo", "mongodb:foo://bar", "mongodb+srv:foo"])(
+      "rejects an opaque MongoDB URI (%s)",
+      (uri) => {
+        expect(parseConnectionString(uri, URI_PASSTHROUGH_DRIVERS)).toEqual({
+          success: false,
+          error: "Invalid connection string format",
+        });
+        expect(looksLikeConnectionString(uri, URI_PASSTHROUGH_DRIVERS)).toBe(false);
+      },
+    );
+
     it.each([
       "jdbc:h2:mem:test",
       "jdbc:h2:./data/test",

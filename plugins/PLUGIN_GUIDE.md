@@ -138,6 +138,8 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 
 For drivers with several URL forms, declare the single example as the placeholder and add selectable presets:
 
+For URI passthrough drivers, an opaque placeholder (such as `jdbc:h2:mem:test`) permits opaque inputs. An authority-based placeholder (such as `mongodb://localhost/db`) requires `://` and a host in imported strings.
+
 ```json
 {
   "connection_string_example": "jdbc:h2:tcp://localhost/~/test",

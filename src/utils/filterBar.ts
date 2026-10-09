@@ -20,6 +20,8 @@ export type FilterOperator =
 
 export type FilterMode = "sql" | "structured";
 
+export type FilterCombinator = "AND" | "OR";
+
 export interface StructuredFilter {
   id: string;
   column: string;
@@ -200,17 +202,21 @@ function quoteIfNeeded(value: string): string {
 }
 
 /**
- * Builds a complete WHERE clause string from an array of StructuredFilter joined by AND.
- * Returns empty string if filters array is empty.
+ * Builds a complete WHERE clause string from an array of StructuredFilter joined
+ * by the given combinator (AND by default). OR output with several clauses is
+ * wrapped in parentheses so it composes safely with other clauses.
+ * Returns empty string if there is no active filter.
  */
 export function buildStructuredFilterClause(
   filters: StructuredFilter[],
-  driver?: string | PluginManifest | DriverCapabilities | null
+  driver?: string | PluginManifest | DriverCapabilities | null,
+  combinator: FilterCombinator = "AND"
 ): string {
   const clauses = filters
     .filter((f) => f.column && f.enabled !== false)
     .map((f) => buildSingleFilterClause(f, driver));
-  return clauses.join(" AND ");
+  const joined = clauses.join(` ${combinator} `);
+  return combinator === "OR" && clauses.length > 1 ? `(${joined})` : joined;
 }
 
 /**

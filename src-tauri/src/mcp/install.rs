@@ -1,11 +1,8 @@
-#[cfg(target_os = "windows")]
-use directories::ProjectDirs;
-
 use directories::BaseDirs;
 
 use serde_json::json;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Runtime};
 
 /// "file"  → standard mcpServers JSON config file
@@ -28,28 +25,19 @@ struct McpClient {
     client_type: &'static str,
 }
 
+/// Claude Desktop keeps its config in a `Claude` folder directly under the OS
+/// config dir (`BaseDirs::config_dir()`): `~/Library/Application Support` on
+/// macOS, `%APPDATA%` (Roaming) on Windows, `$XDG_CONFIG_HOME` on Linux.
+fn claude_desktop_config_path(config_dir: &Path) -> PathBuf {
+    config_dir.join("Claude").join("claude_desktop_config.json")
+}
+
 fn get_all_clients() -> Vec<McpClient> {
     let base = BaseDirs::new();
 
-    let claude_path = {
-        #[cfg(target_os = "macos")]
-        {
-            base.as_ref().map(|b| {
-                b.home_dir()
-                    .join("Library/Application Support/Claude/claude_desktop_config.json")
-            })
-        }
-        #[cfg(target_os = "windows")]
-        {
-            ProjectDirs::from("", "", "Claude")
-                .map(|p| p.config_dir().join("claude_desktop_config.json"))
-        }
-        #[cfg(target_os = "linux")]
-        {
-            base.as_ref()
-                .map(|b| b.config_dir().join("Claude/claude_desktop_config.json"))
-        }
-    };
+    let claude_path = base
+        .as_ref()
+        .map(|b| claude_desktop_config_path(b.config_dir()));
 
     // Claude Code stores user-scope MCP in ~/.claude.json
     let claude_code_path = base.as_ref().map(|b| b.home_dir().join(".claude.json"));
@@ -286,6 +274,36 @@ pub async fn install_mcp_config<R: Runtime>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn claude_desktop_config_sits_directly_in_the_claude_folder() {
+        // Roaming AppData on Windows: Claude Desktop reads
+        // %APPDATA%\Claude\claude_desktop_config.json, with no `config` subfolder.
+        let roaming = PathBuf::from("C:/Users/alice/AppData/Roaming");
+        assert_eq!(
+            claude_desktop_config_path(&roaming),
+            roaming.join("Claude").join("claude_desktop_config.json")
+        );
+    }
+
+    #[test]
+    fn lists_claude_desktop_under_the_os_config_dir() {
+        let clients = get_all_clients();
+        let claude = clients
+            .iter()
+            .find(|client| client.id == "claude")
+            .expect("Claude Desktop should be listed as an MCP client");
+        let config_dir = BaseDirs::new()
+            .expect("home directory")
+            .config_dir()
+            .to_path_buf();
+
+        assert_eq!(claude.client_type, "file");
+        assert_eq!(
+            claude.config_path,
+            Some(config_dir.join("Claude").join("claude_desktop_config.json"))
+        );
+    }
 
     #[test]
     fn lists_codex_as_command_client() {

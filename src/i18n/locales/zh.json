@@ -3,6 +3,9 @@
     "filters": "筛选器",
     "toggleFilterPanel": "切换结构化筛选面板",
     "filterConditions": "筛选条件",
+    "matchMode": "匹配模式",
+    "matchAll": "全部匹配",
+    "matchAny": "任一匹配",
     "activeOf": "{{active}} / {{total}} 已激活",
     "noFilters": "无筛选器 —",
     "addFirstFilter": "添加第一个筛选器",
@@ -643,7 +646,7 @@
     "clearLogs": "清除日志",
     "clearLogsConfirm": "确定要清除所有日志吗？",
     "exportLogs": "导出日志",
-    "exportLogsSuccess": "日志已导出到剪贴板",
+    "exportLogsSuccess": "日志已导出",
     "noLogs": "无日志可用",
     "refreshLogs": "刷新",
     "logLevel": "级别",
@@ -817,6 +820,7 @@
       "newConnection": "新建连接",
       "newTab": "新建标签",
       "closeTab": "关闭标签",
+      "reopenClosedTab": "重新打开已关闭的标签",
       "nextPage": "下一页",
       "prevPage": "上一页",
       "switchConnection": "切换到连接 1–9",
@@ -917,7 +921,11 @@
     "runStatementUnderCursor": "执行光标所在的语句",
     "runStatementUnderCursorDesc": "当脚本包含多条语句时，执行光标所在的语句，而不显示查询选择器。选中文本可执行指定范围。",
     "safetyConfirmationDelay": "延迟安全确认",
-    "safetyConfirmationDelayDesc": "对于破坏性查询和生产环境写入，将确认按钮禁用五秒。"
+    "safetyConfirmationDelayDesc": "对于破坏性查询和生产环境写入，将确认按钮禁用五秒。",
+    "notifyLongQueries": "长查询完成时通知",
+    "notifyLongQueriesDesc": "当 Tabularis 处于后台时，查询完成后发送桌面通知。",
+    "notifyLongQueriesThreshold": "通知阈值",
+    "notifyLongQueriesThresholdDesc": "仅通知运行时间不短于此值的查询。"
   },
   "update": {
     "badges": {
@@ -993,6 +1001,10 @@
     "dbNameRequired": "数据库名称是必需的",
     "connectionUriRequiresKeychain": "连接 URI 必须保存在操作系统密钥链中。请启用“在密钥链中保存密码”后继续。",
     "connectionUriRequired": "连接 URI 是必需的",
+    "connectionString": "?????",
+    "connectionStringPlaceholder": "?? mysql://user:pass@localhost:3306/db",
+    "connectionStringExample": "???????",
+    "chooseConnectionStringExample": "????",
     "dbType": "数据库类型",
     "host": "主机",
     "port": "端口",
@@ -1281,6 +1293,7 @@
     },
     "tableRunPrompt": "按运行（Ctrl/Command+F5）加载表数据",
     "closeTab": "关闭标签",
+    "reopenClosedTab": "重新打开已关闭的标签",
     "closeOthers": "关闭其他标签",
     "closeRight": "关闭右侧标签",
     "closeLeft": "关闭左侧标签",
@@ -1586,6 +1599,14 @@
       "generatingName": "正在生成名称...",
       "resultSetPrefix": "结果",
       "results": "结果"
+    },
+    "queryNotification": {
+      "successTitle": "查询完成",
+      "errorTitle": "查询失败",
+      "body": "{{tab}} · {{duration}}",
+      "batchSuccessTitle": "全部运行完成",
+      "batchErrorTitle": "全部运行完成，但有错误",
+      "batchBody": "{{tab}} · {{succeeded}} 成功, {{failed}} 失败 · {{duration}}"
     }
   },
   "createTable": {

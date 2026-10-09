@@ -103,6 +103,10 @@ export interface Settings {
   runStatementUnderCursor?: boolean;
   /** Delay destructive-query and production-write confirmations for five seconds. Default: false. */
   safetyConfirmationDelayEnabled?: boolean;
+  /** Send a desktop notification when a long-running query finishes while the window is unfocused. Default: true. */
+  notifyLongQueries?: boolean;
+  /** Minimum execution time in seconds before a finished query triggers a notification. Default: 20. */
+  notifyLongQueriesThresholdSec?: number;
   // SQL Formatter
   formatterKeywordCase?: "upper" | "lower" | "preserve";
   formatterIndentStyle?: "standard" | "tabularLeft" | "tabularRight";
@@ -246,6 +250,8 @@ export const DEFAULT_SETTINGS: Settings = {
   editorAcceptSuggestionOnEnter: true,
   runStatementUnderCursor: true,
   safetyConfirmationDelayEnabled: false,
+  notifyLongQueries: true,
+  notifyLongQueriesThresholdSec: 20,
   formatterKeywordCase: "upper",
   formatterIndentStyle: "standard",
   formatterTabWidth: 2,
