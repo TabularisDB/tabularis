@@ -58,25 +58,27 @@ pub(super) fn build_pk_predicate(
     pk_type: Option<&str>,
 ) -> Result<(String, Option<TypedPgParam>), String> {
     let col = format!("\"{}\"", escape_identifier(pk_col));
+    let base_type = pk_type.map(extract_base_type);
+    let is_real = matches!(base_type.as_deref(), Some("REAL" | "FLOAT4"));
+    // Numeric and numeric-string float4 values must compare at column precision.
+    let row_value_sql = |sql: String| {
+        if is_real {
+            format!("CAST({sql} AS real)")
+        } else {
+            sql
+        }
+    };
     match pk_val {
         serde_json::Value::Number(n) => {
             let bound = bind_pg_number(&n, placeholder_idx)?;
-            // Short float4 decimals must compare at the column's precision.
-            let sql = if matches!(
-                pk_type.map(extract_base_type).as_deref(),
-                Some("REAL" | "FLOAT4")
-            ) {
-                format!("CAST({} AS real)", bound.sql)
-            } else {
-                bound.sql
-            };
+            let sql = row_value_sql(bound.sql);
             let param = bound
                 .param
                 .ok_or_else(|| "Internal PostgreSQL numeric binding error".to_string())?;
             Ok((format!("{} = {}", col, sql), Some(param)))
         }
         serde_json::Value::String(s) => {
-            let base = pk_type.map(|t| extract_base_type(t).to_lowercase());
+            let base = base_type.as_deref().map(str::to_lowercase);
 
             if matches!(base.as_deref(), Some("uuid") | None) {
                 if let Ok(uuid) = s.parse::<uuid::Uuid>() {
@@ -101,7 +103,10 @@ pub(super) fn build_pk_predicate(
                     let param = bound
                         .param
                         .ok_or_else(|| "Internal PostgreSQL numeric binding error".to_string())?;
-                    return Ok((format!("{} = {}", col, bound.sql), Some(param)));
+                    return Ok((
+                        format!("{} = {}", col, row_value_sql(bound.sql)),
+                        Some(param),
+                    ));
                 }
             }
 

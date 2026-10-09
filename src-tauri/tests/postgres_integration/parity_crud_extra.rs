@@ -9,6 +9,86 @@ use crate::parity::ParityHarness;
 
 #[tokio::test]
 #[ignore]
+async fn parity_keyless_real_two_column_update_accepts_string_identity() {
+    require_pg!();
+    let harness = ParityHarness::new().await;
+    for (target, driver) in harness.targets() {
+        for query in [
+            "DROP TABLE IF EXISTS test_schema.float4_keyless_edit",
+            "CREATE TABLE test_schema.float4_keyless_edit (price real, label text)",
+            "INSERT INTO test_schema.float4_keyless_edit VALUES (89.9, 'a')",
+        ] {
+            driver
+                .execute_query(&harness.params, query, None, 1, Some("test_schema"))
+                .await
+                .unwrap();
+        }
+        let mut identity = HashMap::from([
+            ("price".to_string(), json!(89.9)),
+            ("label".to_string(), json!("a")),
+        ]);
+        let edited_price = json!("59.99");
+        let first = driver
+            .update_record(
+                &harness.params,
+                "float4_keyless_edit",
+                &identity,
+                "price",
+                edited_price.clone(),
+                Some("test_schema"),
+                0,
+            )
+            .await
+            .unwrap();
+        assert_eq!(first, 1, "{target}: price update");
+        // The next keyless step carries the editor's string without re-reading the row.
+        identity.insert("price".to_string(), edited_price);
+        let second = driver
+            .update_record(
+                &harness.params,
+                "float4_keyless_edit",
+                &identity,
+                "label",
+                json!("b"),
+                Some("test_schema"),
+                0,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            second, 1,
+            "{target}: label update with string REAL identity"
+        );
+        let result = driver
+            .execute_query(
+                &harness.params,
+                "SELECT price, label FROM test_schema.float4_keyless_edit",
+                None,
+                1,
+                Some("test_schema"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            result.rows,
+            vec![vec![json!(59.99), json!("b")]],
+            "{target}"
+        );
+        driver
+            .execute_query(
+                &harness.params,
+                "DROP TABLE test_schema.float4_keyless_edit",
+                None,
+                1,
+                Some("test_schema"),
+            )
+            .await
+            .unwrap();
+    }
+}
+
+#[tokio::test]
+#[ignore]
 async fn parity_real_primary_keys_round_trip_through_json() {
     require_pg!();
     let harness = ParityHarness::new().await;
