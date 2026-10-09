@@ -24,7 +24,7 @@ export interface RoutineInfo {
    * one of them arbitrarily (#893). Absent on the dialects where a name is
    * enough; an EMPTY string is the real signature of a no-argument routine.
    */
-  identity_args?: string;
+  identity_args?: string | null;
 }
 
 export interface TriggerInfo {

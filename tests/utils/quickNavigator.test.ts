@@ -101,6 +101,54 @@ describe("quickNavigator utility", () => {
       });
     });
 
+    it('keeps the BARE name on the descriptor, not the display label (#893)', () => {
+      // DatabaseObject.name is an identifier, not a label: it reaches
+      // get_routine_definition as routineName and the catalog filters
+      // p.proname on it, and Copy name puts it on the clipboard. Carrying the
+      // label through broke every PostgreSQL routine opened from the palette,
+      // overloaded or not, because `f()` is a label too.
+      const item = {
+        name: 'f(a text)',
+        type: 'routine' as const,
+        schema: 'default_db',
+        detail: 'FUNCTION',
+        item: { name: 'f', routine_type: 'FUNCTION', identity_args: 'a text' },
+      };
+
+      const descriptor = toDatabaseObject(item, {
+        connectionId: 'conn-1',
+        driver: 'postgres',
+        isMultiDatabase: false,
+      });
+
+      expect(descriptor.name).toBe('f');
+      expect(descriptor.name).not.toContain('(');
+    });
+
+    it('labels a routine with no signature by its bare name (#893)', () => {
+      // MySQL's identity_args is None, which serde writes as JSON null, so the
+      // label has to treat null as absent or every row reads name(null).
+      const params: NavigatorItemParams = {
+        activeConnectionId: 'conn-1',
+        hasSchemas: false,
+        isMultiDb: false,
+        schemas: [],
+        schemaDataMap: {},
+        selectedDatabases: [],
+        databaseDataMap: {},
+        tables: [],
+        views: [],
+        routines: [
+          { name: 'do_thing', routine_type: 'PROCEDURE', identity_args: null },
+          { name: 'do_other', routine_type: 'PROCEDURE' },
+        ],
+        triggers: [],
+        activeSchema: 'default_db',
+      };
+
+      expect(getNavigatorItems(params).map((i) => i.name)).toEqual(['do_thing', 'do_other']);
+    });
+
     it("should extract items in schema mode", () => {
       const mockSchemaData: SchemaData = {
         tables: [{ name: "orders" }],

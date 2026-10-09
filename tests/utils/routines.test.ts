@@ -50,6 +50,13 @@ describe('groupRoutinesByType', () => {
 });
 
 describe('routineLabel', () => {
+  it('shows a bare name when the signature arrives as null', () => {
+    // identity_args is an Option<String> and serde writes None as JSON null,
+    // so this is what MySQL actually sends. A strict undefined check rendered
+    // every one of its routines as do_thing(null).
+    expect(routineLabel('do_thing', null)).toBe('do_thing');
+  });
+
   it('shows a bare name where the dialect cannot overload', () => {
     // MySQL and SQLite report no signature, and adding '()' there would claim a
     // distinction the dialect does not have.

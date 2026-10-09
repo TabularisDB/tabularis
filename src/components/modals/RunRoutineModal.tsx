@@ -50,7 +50,7 @@ export const RunRoutineModal = ({
       // Without this the form offered one overload's arguments under another's
       // name: the parameter read used to filter on schema and name only, so it
       // answered with every overload's parameters in one list (#893).
-      ...(routine.identity_args !== undefined
+      ...(routine.identity_args != null
         ? { identityArgs: routine.identity_args }
         : {}),
     })

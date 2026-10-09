@@ -45,8 +45,12 @@ export interface RoutineDefinitionTarget {
   routineName: string;
   routineType: string;
   schema?: string;
-  /** The clicked overload's signature, where the dialect has overloads (#893). */
-  identityArgs?: string;
+  /**
+   * The clicked overload's signature, where the dialect has overloads (#893).
+   * `null` as well as absent, because it reaches here from an `Option<String>`
+   * that serde writes as JSON `null`.
+   */
+  identityArgs?: string | null;
 }
 
 export interface TriggerDefinitionTarget {
@@ -83,7 +87,7 @@ export interface RoutineDatabaseObject extends DatabaseObjectBase {
   type: "routine";
   routineType: string;
   /** The clicked overload's signature, where the dialect has overloads (#893). */
-  identityArgs?: string;
+  identityArgs?: string | null;
 }
 
 export interface TriggerDatabaseObject extends DatabaseObjectBase {
@@ -159,7 +163,7 @@ export async function openObjectDefinition(
             routineName: object.name,
             routineType: object.routineType,
             ...schemaParam,
-            ...(object.identityArgs !== undefined
+            ...(object.identityArgs != null
               ? { identityArgs: object.identityArgs }
               : {}),
           })
@@ -277,10 +281,11 @@ export function loadRoutineDefinition(
     routineName: target.routineName,
     routineType: target.routineType,
     ...(target.schema ? { schema: target.schema } : {}),
-    // `!== undefined` rather than truthiness: "" is the signature of a
-    // no-argument routine, and dropping it would ask for an arbitrary overload
-    // again on exactly the routine that has none.
-    ...(target.identityArgs !== undefined
+    // `!= null` rather than truthiness: "" is the signature of a no-argument
+    // routine, and dropping it would ask for an arbitrary overload again on
+    // exactly the routine that has none. Loose, because a dialect without
+    // signatures sends JSON `null` and there is nothing to forward.
+    ...(target.identityArgs != null
       ? { identityArgs: target.identityArgs }
       : {}),
   });

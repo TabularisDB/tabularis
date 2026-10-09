@@ -59,7 +59,7 @@ export const SidebarRoutineItem = ({
           connectionId,
           routineName: routine.name,
           ...(schema ? { schema } : {}),
-          ...(routine.identity_args !== undefined
+          ...(routine.identity_args != null
             ? { identityArgs: routine.identity_args }
             : {}),
         },

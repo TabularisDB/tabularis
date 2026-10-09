@@ -174,6 +174,15 @@ export function toDatabaseObject(
     case "routine":
       return {
         ...base,
+        // The BARE name, overriding the label `base` carried in from the
+        // navigator entry. `DatabaseObject.name` is an identifier: it reaches
+        // `get_routine_definition` as `routineName` and the catalog filters
+        // `p.proname` on it, and Copy name puts it on the clipboard for pasting
+        // into SQL. A label there broke every PostgreSQL routine opened from
+        // the palette, not only the overloaded ones, because `f()` is a label
+        // too. The signature travels in `identityArgs`, which is where the
+        // lookup can use it.
+        name: item.item.name,
         type: "routine",
         routineType: item.item.routine_type,
         identityArgs: item.item.identity_args,

@@ -217,7 +217,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [schemaModal, setSchemaModal] =
     useState<TableTarget | null>(null);
   const [runRoutineModal, setRunRoutineModal] = useState<{ routine: RoutineInfo; schema?: string } | null>(null);
-  const [routineDropConfirm, setRoutineDropConfirm] = useState<{ name: string; routineType: string; schema?: string; identityArgs?: string } | null>(null);
+  const [routineDropConfirm, setRoutineDropConfirm] = useState<{ name: string; routineType: string; schema?: string; identityArgs?: string | null } | null>(null);
   const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
   const [createTableTarget, setCreateTableTarget] = useState<CreateTableTarget>(DEFAULT_CREATE_TABLE_TARGET);
   const [isClipboardImportOpen, setIsClipboardImportOpen] = useState(false);
@@ -477,7 +477,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         // Named, this drops the overload that was clicked. Unnamed, the driver
         // refuses as soon as the name has more than one, which is what it used
         // to do for every overloaded routine (#893).
-        ...(identityArgs !== undefined ? { identityArgs } : {}),
+        ...(identityArgs != null ? { identityArgs } : {}),
       });
       showAlert(t("routines.dropSuccess", { name }), { kind: "info" });
       if (refreshRoutines) refreshRoutines();
@@ -2312,7 +2312,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         routineName: contextMenu.id,
                                         routineType: routineType,
                                         ...(routineSchema ? { schema: routineSchema } : {}),
-                                        ...(routineData?.identity_args !== undefined
+                                        ...(routineData?.identity_args != null
                                           ? { identityArgs: routineData.identity_args }
                                           : {}),
                                       });
