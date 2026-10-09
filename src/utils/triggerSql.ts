@@ -75,22 +75,67 @@ export function buildTriggerFunctionSql(input: TriggerSqlInput): string {
  * The function definition looks like:
  *   CREATE OR REPLACE FUNCTION review.fn() RETURNS trigger LANGUAGE plpgsql
  *   AS $function$
+ *   DECLARE
+ *     n integer := 0;
  *   BEGIN
  *     NEW.note := ...;
  *     RETURN NEW;
  *   END;
  *   $function$
- * This returns the statements between `BEGIN` and `END;` (trimmed), which is
- * what the guided-mode body field holds — so the guided-save can recreate the
- * function with its original logic.
+ * This returns the statements that the guided-mode body field holds — including
+ * a `DECLARE` block when present — so the guided-save recreates the function with
+ * its original logic (variables and all). The body runs from the `DECLARE` (or
+ * `BEGIN` when there are no declarations) through the matching outer `END;`.
+ *
+ * Nesting is tracked because a function body can contain nested `BEGIN/END`
+ * (e.g. inside a loop) and `END IF;`/`END LOOP;` clauses whose `END;`-adjacent
+ * tokens the naive first-`END;` regex matched too early, truncating the body
+ * (debba review, PR #822). `CASE ... END` and `LOOP ... END` are matched via a
+ * depth counter on the `BEGIN` keyword and the standalone `END` that closes it.
  */
 export function extractFunctionBody(fnDef: string): string | null {
+  // Locate the outermost BEGIN. A DECLARE block (optional) precedes it and must
+  // be preserved in the extracted body.
+  const declareMatch = fnDef.match(/\bDECLARE\b/);
   const beginMatch = fnDef.match(/\bBEGIN\b/);
-  const endMatch = fnDef.match(/\bEND\s*;/);
-  if (!beginMatch || !endMatch || beginMatch.index === undefined || endMatch.index === undefined) {
-    return null;
+  if (!beginMatch || beginMatch.index === undefined) return null;
+
+  // Start from DECLARE if it appears before BEGIN; otherwise start at BEGIN's
+  // body (after the BEGIN keyword itself).
+  const start = declareMatch && declareMatch.index !== undefined && declareMatch.index < beginMatch.index
+    ? declareMatch.index
+    : beginMatch.index + beginMatch[0].length;
+
+  // Walk the string from the outer BEGIN, counting BEGIN/END depth so nested
+  // blocks don't close the function early. In PL/pgSQL, only a bare `END;`
+  // closes a `BEGIN` block — `END IF;`, `END CASE;`, and `END LOOP;` close
+  // IF/CASE/LOOP constructs and must NOT decrement the BEGIN/END depth. So we
+  // match BEGIN always, but END only when NOT followed by IF/CASE/LOOP.
+  let depth = 0;
+  let end = -1;
+  const tail = fnDef.slice(beginMatch.index);
+  const keyword = /\bBEGIN\b|\bEND\b(?!\s+(?:IF|CASE|LOOP)\b)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = keyword.exec(tail)) !== null) {
+    if (m[0].toUpperCase() === "BEGIN") {
+      depth += 1;
+    } else {
+      // A bare END — closes one BEGIN. The function body ends at depth 0.
+      depth -= 1;
+      if (depth === 0) {
+        end = beginMatch.index + m.index;
+        break;
+      }
+    }
   }
-  const body = fnDef.slice(beginMatch.index + beginMatch[0].length, endMatch.index).trim();
+  if (end === -1) return null;
+
+  // The body spans from the start (DECLARE, or just after BEGIN) up to the
+  // matching END. When a DECLARE block is present the slice includes the
+  // `BEGIN` keyword that separates declarations from statements — remove
+  // just that line so the body field holds declarations + statements, not
+  // the wrapper, preserving the indentation of the statements that follow.
+  const body = fnDef.slice(start, end).replace(/^[ \t]*BEGIN[ \t]*\r?\n/m, "").trim();
   return body || null;
 }
 

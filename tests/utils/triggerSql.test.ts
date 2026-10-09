@@ -165,5 +165,63 @@ $function$`;
     it("returns null when there is no BEGIN/END block", () => {
       expect(extractFunctionBody("CREATE FUNCTION fn() RETURNS void AS $$ $$ LANGUAGE sql")).toBeNull();
     });
+
+    it("preserves a DECLARE block before BEGIN (debba review, PR #822)", () => {
+      // pg_get_functiondef includes DECLARE for functions with local variables.
+      // The naive first-BEGIN slice dropped it, losing the declarations on save.
+      const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
+  RETURNS trigger
+  LANGUAGE plpgsql
+AS $function$
+DECLARE
+  n integer := 0;
+BEGIN
+  n := n + 1;
+  RETURN NEW;
+END;
+$function$`;
+      const body = extractFunctionBody(fnDef);
+      expect(body).toBe(`DECLARE\n  n integer := 0;\n  n := n + 1;\n  RETURN NEW;`);
+    });
+
+    it("stops at the matching outer END;, not a nested IF/CASE END (debba review, PR #822)", () => {
+      // A body with IF ... END IF; has an inner END; that the naive first-END
+      // regex matched, truncating everything after the nested block.
+      const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
+  RETURNS trigger
+  LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.amount < 0 THEN
+    NEW.note := 'negative';
+  END IF;
+  RETURN NEW;
+END;
+$function$`;
+      const body = extractFunctionBody(fnDef);
+      expect(body).toBe(`IF NEW.amount < 0 THEN\n    NEW.note := 'negative';\n  END IF;\n  RETURN NEW;`);
+    });
+
+    it("handles multiple nested BEGIN/END blocks (loop bodies) at the correct depth", () => {
+      const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
+  RETURNS trigger
+  LANGUAGE plpgsql
+AS $function$
+BEGIN
+  FOR i IN 1..10 LOOP
+    BEGIN
+      NEW.total := NEW.total + i;
+    END;
+  END LOOP;
+  RETURN NEW;
+END;
+$function$`;
+      const body = extractFunctionBody(fnDef);
+      expect(body).toContain("FOR i IN 1..10 LOOP");
+      expect(body).toContain("END LOOP;");
+      expect(body).toContain("RETURN NEW;");
+      // The outer END; is NOT included — only the body between BEGIN and the matching END.
+      expect(body).not.toMatch(/^END;$/m);
+    });
   });
 });
