@@ -15,6 +15,8 @@ export interface ParsedConnectionString {
   port?: number;
   username?: string;
   password?: string;
+  /** TLS mode selected through sslmode / ssl-mode in an imported URI. */
+  ssl_mode?: string;
   database: string;
   /** Original connection string, preserved verbatim for URI-passthrough drivers.
    * When set it is authoritative: the decomposed fields above are only there so
@@ -76,6 +78,43 @@ function normalizeProtocol(protocol: string): string {
 function getProtocolFromConnectionString(value: string): string | null {
   const match = /^([a-z][a-z\d+.-]*):/i.exec(value);
   return match ? normalizeProtocol(match[1]) : null;
+}
+
+/** JDBC wrappers for built-in PostgreSQL/MySQL URLs use an ordinary URI
+ * after the prefix. Leave other JDBC and raw plugin URIs untouched. */
+function normalizeJdbcConnectionString(value: string): string {
+  const match = /^jdbc:(postgres(?:ql)?|mysql|mariadb):\/\//i.exec(value);
+  return match ? value.slice(5) : value;
+}
+
+/** Normalize known URI SSL settings to the values offered by the connection form. */
+function getSslModeFromUrl(url: URL, protocol: string): string | undefined {
+  const mode = (
+    url.searchParams.get("sslmode") ??
+    url.searchParams.get("ssl-mode") ??
+    url.searchParams.get("ssl_mode")
+  )?.trim().toLowerCase();
+  if (!mode) return undefined;
+
+  if (protocol === "mysql" || protocol === "mariadb") {
+    const mysqlModes: Record<string, string> = {
+      disable: "disabled", disabled: "disabled",
+      prefer: "preferred", preferred: "preferred",
+      require: "required", required: "required",
+      "verify-ca": "verify_ca", verify_ca: "verify_ca",
+      "verify-full": "verify_identity", verify_identity: "verify_identity",
+    };
+    return mysqlModes[mode];
+  }
+  if (protocol === "postgres" || protocol === "postgresql") {
+    const pgModes: Record<string, string> = {
+      disable: "disable", allow: "allow", prefer: "prefer",
+      require: "require", "verify-ca": "verify-ca",
+      "verify-full": "verify-full",
+    };
+    return pgModes[mode];
+  }
+  return undefined;
 }
 
 /**
@@ -244,7 +283,7 @@ export function parseConnectionString(
     return { success: false, error: "Connection string is empty" };
   }
 
-  const trimmed = connectionString.trim();
+  const trimmed = normalizeJdbcConnectionString(connectionString.trim());
 
   const registry = buildProtocolRegistry(drivers);
   const declaredProtocol = getProtocolFromConnectionString(trimmed);
@@ -323,8 +362,16 @@ export function parseConnectionString(
 
   const host = url.hostname || undefined;
   const port = url.port ? Number.parseInt(url.port, 10) : undefined;
-  const username = url.username ? decodeURIComponent(url.username) : undefined;
-  const password = url.password ? decodeURIComponent(url.password) : undefined;
+  // Never combine credentials from the authority and query string: the
+  // authority pair wins, even if its password happens to be empty.
+  const hasAuthorityCredentials = !!(url.username || url.password);
+  const username = hasAuthorityCredentials
+    ? (url.username ? decodeURIComponent(url.username) : undefined)
+    : (url.searchParams.get("user") || url.searchParams.get("username") || undefined);
+  const password = hasAuthorityCredentials
+    ? (url.password ? decodeURIComponent(url.password) : undefined)
+    : (url.searchParams.get("password") || undefined);
+  const ssl_mode = getSslModeFromUrl(url, protocol);
 
   let database = url.pathname;
   if (database.startsWith("/")) {
@@ -348,6 +395,7 @@ export function parseConnectionString(
       username,
       password,
       database,
+      ssl_mode,
     },
   };
 }
@@ -364,6 +412,7 @@ export function toConnectionParams(
     port: parsed.port,
     username: parsed.username,
     password: parsed.password,
+    ssl_mode: parsed.ssl_mode,
     database: parsed.database,
     connection_uri: parsed.connection_uri,
   };
@@ -379,7 +428,7 @@ export function looksLikeConnectionString(
 ): boolean {
   if (!value || !value.trim()) return false;
 
-  const trimmed = value.trim();
+  const trimmed = normalizeJdbcConnectionString(value.trim());
 
   const registry = buildProtocolRegistry(drivers);
   const declaredProtocol = getProtocolFromConnectionString(trimmed);
