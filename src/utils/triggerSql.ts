@@ -189,11 +189,34 @@ export function splitSqlStatements(sql: string): string[] {
       i++;
       continue;
     }
+    // Skip line comments without splitting on semicolons.
     if (ch === "-" && sql[i + 1] === "-") {
       const nl = sql.indexOf("\n", i);
       const end = nl === -1 ? sql.length : nl;
       cur += sql.slice(i, end);
       i = end;
+      continue;
+    }
+    // Preserve block comments, including nested PostgreSQL comments.
+    if (ch === "/" && sql[i + 1] === "*") {
+      let depth = 1;
+      cur += "/*";
+      i += 2;
+
+      while (i < sql.length && depth > 0) {
+        if (sql.startsWith("/*", i)) {
+          depth++;
+          cur += "/*";
+          i += 2;
+        } else if (sql.startsWith("*/", i)) {
+          depth--;
+          cur += "*/";
+          i += 2;
+        } else {
+          cur += sql[i];
+          i++;
+        }
+      }
       continue;
     }
     if (ch === "$") {
