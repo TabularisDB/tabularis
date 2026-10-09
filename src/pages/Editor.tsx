@@ -3155,11 +3155,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     }
 
     try {
-      // Fetch table columns
+      // Fetch table columns. Use the tab's own schema (not the connection-level
+      // activeSchema) so a nested multi-db tab on a non-default schema fetches
+      // columns from the right one (debba review, PR #822, recommended 4).
+      const tabSchema = activeTab?.schema ?? activeSchema;
       const columns = await invoke<TableColumn[]>("get_columns", {
         connectionId: activeConnectionId,
         tableName: activeTab.activeTable,
-        ...(activeSchema ? { schema: activeSchema } : {}),
+        ...(tabSchema ? { schema: tabSchema } : {}),
         ...(activeTab.database ? { database: activeTab.database } : {}),
       });
 
@@ -3326,11 +3329,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     // Process insertions
     if (pendingInsertions && Object.keys(pendingInsertions).length > 0) {
       try {
-        // Fetch columns for validation
+        // Fetch columns for validation. Use the tab's own schema (not the
+        // connection-level activeSchema) so a nested multi-db tab on a
+        // non-default schema validates against the right columns (debba
+        // review, PR #822, recommended 4).
+        const tabSchema = activeTab?.schema ?? activeSchema;
         const columns = await invoke<TableColumn[]>("get_columns", {
           connectionId: activeConnectionId,
           tableName: activeTable,
-          ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(tabSchema ? { schema: tabSchema } : {}),
           ...(activeTab?.database ? { database: activeTab.database } : {}),
         });
 
