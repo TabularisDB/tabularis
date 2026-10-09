@@ -5,6 +5,7 @@
     "ref_table": "all_types",
     "ref_column": "id",
     "on_delete": "CASCADE",
-    "on_update": "NO ACTION"
+    "on_update": "NO ACTION",
+    "seq_in_fk": 1
   }
 ]

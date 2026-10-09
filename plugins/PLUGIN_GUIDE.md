@@ -789,12 +789,17 @@ Get column information for a table.
     "default_value": null,
     "is_pk": true,
     "is_auto_increment": true,
+    "character_maximum_length": null,
+    "numeric_precision": null,
+    "numeric_scale": null,
     "comment": null
   }
 ]
 ```
 
 > **Metadata comments:** `comment` is optional in both `get_tables` and `get_columns`. Older plugins may omit it or return `null`; Tabularis treats both forms as “description unavailable”. This is an additive response field and does not require a manifest capability or `min_runtime_version`. When present, the host displays it in the schema inspector, explorer tooltips, and table-browse grid headers.
+>
+> **Type precision/length fields:** `character_maximum_length`, `numeric_precision`, and `numeric_scale` are optional additive fields (same backward-compatibility rules as `comment`). When present, Tabularis preserves them in generated `CREATE TABLE` DDL — e.g. `numeric(10,2)` or `varchar(50)` instead of the bare type name — and the host may surface them in the column inspector. Omit them or return `null` for types that have no such modifier.
 >
 > **JSON / JSONB columns:** Set `data_type` to `"JSON"` or `"JSONB"` (matched case-insensitively) to make Tabularis render the cell with syntax highlighting and expose the JSON editor window. In `execute_query` row data, send the cell as either a native JSON value (object/array/scalar) or a JSON-formatted string — both are accepted. For text-typed columns that hold JSON, end users can opt in per connection via the **Detect JSON in text columns** setting; no plugin change required.
 
@@ -810,15 +815,18 @@ Get foreign key relationships for a table.
 ```json
 [
   {
-    "constraint_name": "fk_user_id",
+    "name": "fk_user_id",
     "column_name": "user_id",
-    "referenced_table": "users",
-    "referenced_column": "id",
+    "ref_table": "users",
+    "ref_column": "id",
     "on_update": "CASCADE",
-    "on_delete": "SET NULL"
+    "on_delete": "SET NULL",
+    "seq_in_fk": 1
   }
 ]
 ```
+
+> **Composite foreign keys:** For a multi-column foreign key, return one entry per column, all sharing the same `name`; set `seq_in_fk` to the 1-based position of each column within its constraint. Tabularis groups entries by `name` (ordered by `seq_in_fk`, falling back to row order) and emits a single multi-column `FOREIGN KEY (a, b) REFERENCES t (x, y)` clause. `seq_in_fk` is optional and additive; older plugins may omit it for single-column FKs.
 
 ---
 

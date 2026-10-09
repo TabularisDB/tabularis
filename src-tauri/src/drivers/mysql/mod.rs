@@ -370,6 +370,8 @@ pub async fn get_columns(
                 is_generated: false,
                 default_value,
                 character_maximum_length,
+                numeric_precision: None,
+                numeric_scale: None,
                 comment: mysql_row_str_opt(r, 8),
             }
         })
@@ -397,7 +399,8 @@ pub async fn get_foreign_keys(
             kcu.REFERENCED_TABLE_NAME,
             kcu.REFERENCED_COLUMN_NAME,
             rc.UPDATE_RULE,
-            rc.DELETE_RULE
+            rc.DELETE_RULE,
+            kcu.ORDINAL_POSITION
         FROM information_schema.KEY_COLUMN_USAGE kcu
         JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
         ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
@@ -426,6 +429,8 @@ pub async fn get_foreign_keys(
             ref_column: mysql_row_str(r, 3),
             on_update: mysql_row_str_opt(r, 4),
             on_delete: mysql_row_str_opt(r, 5),
+            // ORDINAL_POSITION is 1-based position within the key (#840).
+            seq_in_fk: mysql_row_str_opt(r, 6).and_then(|s| s.parse::<i32>().ok()),
         })
         .collect())
 }
@@ -493,6 +498,8 @@ pub async fn get_all_columns_batch(
             is_generated: false,
             default_value,
             character_maximum_length,
+            numeric_precision: None,
+            numeric_scale: None,
             comment: mysql_row_str_opt(row, 9),
         };
 
@@ -523,7 +530,8 @@ pub async fn get_all_foreign_keys_batch(
             kcu.REFERENCED_TABLE_NAME,
             kcu.REFERENCED_COLUMN_NAME,
             rc.UPDATE_RULE,
-            rc.DELETE_RULE
+            rc.DELETE_RULE,
+            kcu.ORDINAL_POSITION
         FROM information_schema.KEY_COLUMN_USAGE kcu
         JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
         ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
@@ -547,6 +555,7 @@ pub async fn get_all_foreign_keys_batch(
             ref_column: mysql_row_str(row, 4),
             on_update: mysql_row_str_opt(row, 5),
             on_delete: mysql_row_str_opt(row, 6),
+            seq_in_fk: mysql_row_str_opt(row, 7).and_then(|s| s.parse::<i32>().ok()),
         };
 
         result.entry(table_name).or_insert_with(Vec::new).push(fk);
@@ -1179,6 +1188,8 @@ pub async fn get_view_columns(
                 is_generated: false,
                 default_value,
                 character_maximum_length,
+                numeric_precision: None,
+                numeric_scale: None,
                 comment: None,
             }
         })

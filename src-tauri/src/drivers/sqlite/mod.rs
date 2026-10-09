@@ -41,6 +41,8 @@ fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<TableColumn> 
         is_generated: hidden == 2 || hidden == 3,
         default_value: dflt_value,
         character_maximum_length: None,
+        numeric_precision: None,
+        numeric_scale: None,
         comment: None,
     })
 }
@@ -142,6 +144,9 @@ pub async fn get_foreign_keys(
         .iter()
         .map(|r| {
             let id: i32 = r.try_get("id").unwrap_or(0);
+            // PRAGMA foreign_key_list "seq" is 0-based position within the FK;
+            // store it 1-based to match the postgres/mysql ordinal convention (#840).
+            let seq: i32 = r.try_get("seq").unwrap_or(0);
             ForeignKey {
                 name: format!(
                     "fk_{}_{}",
@@ -153,6 +158,7 @@ pub async fn get_foreign_keys(
                 ref_column: r.try_get("to").unwrap_or_default(),
                 on_update: r.try_get("on_update").ok(),
                 on_delete: r.try_get("on_delete").ok(),
+                seq_in_fk: Some(seq + 1),
             }
         })
         .collect())
@@ -202,6 +208,7 @@ pub async fn get_all_foreign_keys_batch(
             .iter()
             .map(|r| {
                 let id: i32 = r.try_get("id").unwrap_or(0);
+                let seq: i32 = r.try_get("seq").unwrap_or(0);
                 ForeignKey {
                     name: format!(
                         "fk_{}_{}",
@@ -213,6 +220,7 @@ pub async fn get_all_foreign_keys_batch(
                     ref_column: r.try_get("to").unwrap_or_default(),
                     on_update: r.try_get("on_update").ok(),
                     on_delete: r.try_get("on_delete").ok(),
+                    seq_in_fk: Some(seq + 1),
                 }
             })
             .collect();
