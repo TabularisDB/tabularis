@@ -1702,7 +1702,7 @@ describe("NewConnectionModal extra_fields slot credential toggle", () => {
   });
 });
 
-describe("NewConnectionModal PostgreSQL multi-database opt-in (PR #822, debba review)", () => {
+describe("NewConnectionModal PostgreSQL multi-database opt-in", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(invoke).mockResolvedValue("ok");
@@ -1714,7 +1714,7 @@ describe("NewConnectionModal PostgreSQL multi-database opt-in (PR #822, debba re
   it("shows the single Database field (not the Databases tab) for a single-database PostgreSQL connection", () => {
     // A saved PG connection with a plain string database must NOT be treated
     // as opted into multi-database mode — the Database field stays editable
-    // and the Databases tab is hidden (debba review, blocking 2).
+    // and the Databases tab is hidden .
     renderModal(createInitialConnection({ driver: "postgresql", database: "mydb" }));
 
     // Database field label is present (editable single-database field).

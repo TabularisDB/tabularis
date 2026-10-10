@@ -2859,7 +2859,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     // runQuery(sql, queryName, preventAutoRun, schema,
                                     // database). Passing it as schema caused replay to
                                     // run against the default database instead of the
-                                    // saved one (debba review, PR #822).
+                                    // saved one.
                                     runQuery(sq.sql, sq.name, false, undefined, sq.database ?? undefined);
                                   }
                                 },

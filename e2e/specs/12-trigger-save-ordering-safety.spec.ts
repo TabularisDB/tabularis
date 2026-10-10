@@ -1,4 +1,4 @@
-// PR #822 blocking fix 3: Trigger save creates the function BEFORE dropping
+// Blocking fix: Trigger save creates the function BEFORE dropping
 // the trigger, so a function-creation failure leaves the existing trigger
 // intact. Before the fix, the edit flow dropped the trigger first, then tried
 // to create the function — a syntax error in the body left the trigger gone
@@ -16,7 +16,7 @@
 import { closeDbClients, secondaryTriggerNames } from "../helpers/db";
 import { waitForApp, openMultiDbConnection } from "../helpers/navigation";
 
-describe("PR #822 fix 3: trigger save ordering safety", () => {
+describe("trigger save ordering: function created before drop", () => {
   it("does not drop the trigger when the function-creation step fails", async () => {
     await waitForApp();
     await openMultiDbConnection();

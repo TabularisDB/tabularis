@@ -1,4 +1,4 @@
-// PR #822 blocking fix 2: New PostgreSQL connections must default to
+// Blocking fix: New PostgreSQL connections must default to
 // single-database mode (Database field visible, no Databases tab, "Browse
 // multiple databases" checkbox unchecked). Before the fix, a new PG form
 // started with database: "" which hasOptedIntoDatabaseSelection read as the
@@ -20,7 +20,7 @@
 // clears saved connections, so a prior run's connection doesn't interfere.
 import { waitForApp, clickAddConnection } from "../helpers/navigation";
 
-describe("PR #822 fix 2: new PG connection defaults to single-database", () => {
+describe("new PG connection defaults to single-database (not multi-db)", () => {
   it("shows the Database field (not multi-db) by default, and opts in via the checkbox", async () => {
     await waitForApp();
 

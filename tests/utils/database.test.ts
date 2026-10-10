@@ -364,7 +364,7 @@ describe('resolveHistoryDatabase', () => {
   // `database` field of a query-history entry. The schema must NEVER leak into
   // the database field — replaying a history entry passes its `database` as a
   // real connection override, so a schema name like "public" would make replay
-  // try to connect to a database literally named "public" (debba review, PR #822).
+  // try to connect to a database literally named "public".
 
   it('returns undefined for a plain single-database tab with no per-tab database (schema must not leak in)', () => {
     // Plain PostgreSQL: not multi-db, tab.database is unset, schema is "public".

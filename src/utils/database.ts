@@ -93,7 +93,7 @@ export function isSchemaBasedMultiDb(
  * The schema is a different qualifier and must NEVER leak in here: replay passes
  * this value as a real connection database override, so a schema name like
  * `"public"` would make replay try to connect to a database literally named
- * `"public"` (debba review, PR #822). For a plain single-database connection the
+ * `"public"`. For a plain single-database connection the
  * tab has no per-tab database, so this returns `undefined` and replay uses the
  * connection's own database — the behavior it always had before multi-database
  * support.

@@ -89,7 +89,7 @@ DROP TRIGGER IF EXISTS trg_audit ON review.records;
 CREATE TRIGGER trg_audit BEFORE INSERT ON review.records
   FOR EACH ROW EXECUTE FUNCTION review.records_trg_audit_fn();
 
--- PR #822 fix 4 (trigger identity): two tables with the same trigger name
+-- Trigger identity fix: two tables with the same trigger name
 -- `normalize`, both pointing at the shared `normalize_fn`. The test opens
 -- trigger_a's `normalize` in guided mode, saves with a new body, and asserts
 -- the update landed on `normalize_fn` (the function the trigger actually

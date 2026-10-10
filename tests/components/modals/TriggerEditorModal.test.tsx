@@ -51,9 +51,9 @@ vi.mock("react-i18next", () => ({
 }));
 
 /**
- * TriggerEditorModal save-ordering regression tests (debba review, PR #822,
- * blocking 3). The PostgreSQL edit flow must create/replace the trigger
- * function BEFORE dropping the existing trigger, so a failure in the function
+ * TriggerEditorModal save-ordering regression tests. The PostgreSQL edit
+ * flow must create/replace the trigger function BEFORE dropping the existing
+ * trigger, so a failure in the function
  * step leaves the existing trigger intact. The create flow must not silently
  * clobber a pre-existing user function that shares the generated name.
  */
@@ -228,7 +228,7 @@ describe("TriggerEditorModal save ordering", () => {
 
   it(
     "updates the trigger's real (non-convention) function on edit instead of creating " +
-      "a second, convention-named one (debba review, PR #822, blocking 4)",
+      "a second, convention-named one",
     async () => {
       // The seeded trigger's EXECUTE clause references `audit_fn` — not the
       // convention name `products_audit_fn` that triggerName="audit" +

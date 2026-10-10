@@ -238,7 +238,7 @@ export async function openMultiDbConnection(
   await browser.pause(500);
 
   // 4. Opt into multi-database mode via the "Browse multiple databases"
-  // checkbox (PR #822 fix 2: a new PG connection defaults to single-database,
+  // checkbox (a new PG connection defaults to single-database,
   // so the Databases tab is hidden until the user checks this checkbox).
   const optInCheckbox = await $('//label[contains(., "Browse multiple databases")]//input[@type="checkbox"]');
   await optInCheckbox.waitForExist({ timeout: 10000 });

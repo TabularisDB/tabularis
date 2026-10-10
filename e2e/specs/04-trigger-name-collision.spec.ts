@@ -1,4 +1,4 @@
-// PR #822 blocking fix 4: editing a trigger whose EXECUTE FUNCTION clause
+// Blocking fix: editing a trigger whose EXECUTE FUNCTION clause
 // references a non-convention function name must update THAT function (via
 // CREATE OR REPLACE), not silently create a second, convention-named function
 // alongside it or clobber an unrelated one.
@@ -19,7 +19,7 @@
 import { closeDbClients, querySecondary } from "../helpers/db";
 import { waitForApp, openMultiDbConnection } from "../helpers/navigation";
 
-describe("PR #822 fix 4: trigger edit updates real function, not a convention-named orphan", () => {
+describe("trigger edit updates real function, not a convention-named orphan", () => {
   it("updates normalize_fn in place when editing trigger_a's normalize trigger", async () => {
     await waitForApp();
     await openMultiDbConnection();

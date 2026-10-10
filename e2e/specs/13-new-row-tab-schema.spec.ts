@@ -1,4 +1,4 @@
-// PR #822 recommended fix 4: "New row" and save-edits validation call get_columns
+// Recommended fix: "New row" and save-edits validation call get_columns
 // with the tab's own schema (activeTab?.schema), not the connection-level
 // activeSchema. In nested multi-db mode, a tab scoped to the `review` schema
 // must fetch columns from `review.records`, not from `public.records` (which
@@ -18,7 +18,7 @@
 import { closeDbClients, querySecondary } from "../helpers/db";
 import { waitForApp, openMultiDbConnection, expandNode, expandSchemaUnderDb } from "../helpers/navigation";
 
-describe("PR #822 fix 4: new-row get_columns uses the tab's schema", () => {
+describe("new-row get_columns uses the active tab's schema", () => {
   it("fetches columns from the tab's review schema, not the connection's active schema", async () => {
     await waitForApp();
     await openMultiDbConnection();

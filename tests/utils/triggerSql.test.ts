@@ -76,7 +76,7 @@ describe("triggerSql", () => {
       expect(sql).toContain('CREATE OR REPLACE FUNCTION "products_trg_products_audit_fn"()');
     });
 
-    it("references the existing function by its real name when editing a non-convention trigger (debba review, PR #822, blocking 4)", () => {
+    it("references the existing function by its real name when editing a non-convention trigger", () => {
       // A trigger whose function doesn't follow the <table>_<name>_fn
       // convention must have THAT function updated on save — not a second,
       // convention-named function created alongside (or clobbering an
@@ -173,7 +173,7 @@ describe("triggerSql", () => {
 
     it(
       "the same consistency holds for an existing (non-convention) function name " +
-        "(debba review, PR #822, blocking 4)",
+        "",
       () => {
         const input = { ...base, existingFunctionName: { name: "my_audit", schema: "store" } };
         const functionSql = buildTriggerFunctionSql(input);
@@ -210,7 +210,7 @@ $function$`;
       expect(extractFunctionBody("CREATE FUNCTION fn() RETURNS void AS $$ $$ LANGUAGE sql")).toBeNull();
     });
 
-    it("preserves a DECLARE block, keeping the BEGIN that follows it (debba review, PR #822)", () => {
+    it("preserves a DECLARE block, keeping the BEGIN that follows it", () => {
       // pg_get_functiondef includes DECLARE for functions with local variables.
       // The naive first-BEGIN slice dropped it, losing the declarations on save.
       // The BEGIN that separates DECLARE from the statements is kept verbatim —
@@ -241,7 +241,7 @@ $function$`;
       expect((rebuilt.match(/\bBEGIN\b/g) ?? []).length).toBe(1);
     });
 
-    it("stops at the matching outer END;, not a nested IF/CASE END (debba review, PR #822)", () => {
+    it("stops at the matching outer END;, not a nested IF/CASE END", () => {
       // A body with IF ... END IF; has an inner END; that the naive first-END
       // regex matched, truncating everything after the nested block.
       const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
@@ -259,7 +259,7 @@ $function$`;
       expect(body).toBe(`IF NEW.amount < 0 THEN\n    NEW.note := 'negative';\n  END IF;\n  RETURN NEW;`);
     });
 
-    it("does not truncate on a CASE *expression*'s bare END (debba review, PR #822)", () => {
+    it("does not truncate on a CASE *expression*'s bare END", () => {
       // NEW.status := CASE WHEN ... END; closes with a bare END, which is
       // indistinguishable from the function's own closing END by keyword
       // alone — a prior version's depth counter treated it as the function's

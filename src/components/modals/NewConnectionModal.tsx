@@ -680,7 +680,7 @@ export const NewConnectionModal = ({
   // opt-in checkbox state — NOT the database param — because the empty-string
   // default of a new/edited form is indistinguishable from the persisted "all
   // databases" signal, so the form must not infer opt-in from formData.database
-  // alone (debba review, PR #822, blocking 2).
+  // alone.
   const isOptedInMultiDb =
     isFlatMultiDbDriver ||
     (schemaBasedMultiDbCapable
@@ -1889,7 +1889,7 @@ export const NewConnectionModal = ({
         // hasOptedIntoDatabaseSelection returns true when db is an array or ""
         // (all-databases mode), false for a plain single-database string — so a
         // non-opted-in PG connection shows the Database field, and an opted-in
-        // one shows the Databases tab (debba review, PR #822, blocking 2).
+        // one shows the Databases tab.
         setOptedIntoSchemaMultiDb(editIsMultiDb);
         if (Array.isArray(db)) {
           setSelectedDatabasesState(db);
@@ -2608,7 +2608,7 @@ export const NewConnectionModal = ({
       // "browse everything" → opt in; one with a database (postgresql://host/db)
       // means single-database → opt out. Use the PARSED driver's capability,
       // not the closure's activeDriver, since the import may have switched
-      // drivers (debba review, PR #822, blocking 2).
+      // drivers.
       if (isSchemaBasedMultiDbCapable(parsedDriver?.capabilities)) {
         setOptedIntoSchemaMultiDb(parsedIsMultiDb);
       }
@@ -2955,7 +2955,7 @@ export const NewConnectionModal = ({
               databases on one connection. Off by default so new and existing
               single-database connections keep the traditional single Database
               field and no Databases tab. Checking it switches to multi-database
-              mode (debba review, PR #822, blocking 2). */}
+              mode. */}
           {schemaBasedMultiDbCapable && !isUriPassthrough && (
             <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
               <input

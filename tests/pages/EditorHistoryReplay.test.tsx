@@ -8,7 +8,7 @@ import { createAutoRefreshSchedule, type AutoRefreshSchedule } from "../../src/u
 import type { Tab, QueryResult } from "../../src/types/editor";
 import type { DataGridCommandTarget } from "../../src/components/ui/DataGrid";
 
-// debba review (PR #822, 2026-10-10): "history still stores the schema as
+// "history still stores the schema as
 // `database`, and replay uses it as a pool override, so it tries to connect
 // to a database named `public`. This hits every existing PG connection that
 // hasn't opted into multi-database browsing."

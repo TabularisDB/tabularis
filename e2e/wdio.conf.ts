@@ -9,7 +9,7 @@
 // running before the app launches.
 //
 // This exercises the REAL WKWebView + REAL Tauri IPC — the only mode that can
-// catch the PR #822 frontend->backend database-routing bug class.
+// catch the frontend->backend database-routing bug class this test mode exercises.
 
 import { fileURLToPath } from "node:url";
 import { resolve, dirname } from "node:path";

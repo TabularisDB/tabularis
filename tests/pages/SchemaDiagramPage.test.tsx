@@ -70,8 +70,8 @@ vi.mock("../../src/components/ui/SchemaDiagram", () => ({
 import { SchemaDiagramPage } from "../../src/pages/SchemaDiagramPage";
 
 /**
- * ER diagram schema-picker regression tests (debba review, PR #822 — requested
- * test coverage for the schema picker dropdown in SchemaDiagramPage).
+ * ER diagram schema-picker regression tests: verify the schema picker
+ * dropdown in SchemaDiagramPage.
  */
 describe("SchemaDiagramPage schema picker", () => {
   beforeEach(() => {
@@ -103,7 +103,7 @@ describe("SchemaDiagramPage schema picker", () => {
       "analytics",
     ]);
     expect(select).toHaveValue("public");
-    // The picker exposes an accessible name (debba review, gap 8).
+    // The picker exposes an accessible name (accessibility rule 5: every control has a name).
     expect(select).toHaveAttribute("aria-label", "sidebar.schemas");
   });
 
