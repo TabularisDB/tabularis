@@ -1824,6 +1824,64 @@ mod tests {
         assert!(results.is_empty());
     }
 
+    // Simulate the redis-rust selection behavior: DB 0 has no keys, DB 3
+    // contains a key. Querying through a multi-DB connection must select the
+    // requested database, not the first database in the connection list.
+    #[tokio::test]
+    async fn rpc_selected_database_query_uses_db3_instead_of_db0() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "execute_query");
+            let selected = request.params["params"]["database"]
+                .as_str()
+                .expect("plugin must receive a scalar database");
+            let rows = if selected == "3" {
+                json!([["db3-only-key"]])
+            } else {
+                json!([])
+            };
+            json!({
+                "columns": ["key"],
+                "rows": rows,
+                "affected_rows": 0,
+                "pagination": null
+            })
+        });
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec!["0".into(), "3".into()]);
+
+        let (db0, _) = driver
+            .execute_query_in_session(&params, "KEYS *", None, 1, Some("0"), None)
+            .await
+            .expect("DB 0 query");
+        let (db3, _) = driver
+            .execute_query_in_session(&params, "KEYS *", None, 1, Some("3"), None)
+            .await
+            .expect("DB 3 query");
+        assert!(db0.rows.is_empty(), "DB 0 must be empty");
+        assert_eq!(db3.rows, vec![vec![json!("db3-only-key")]]);
+    }
+
+    #[tokio::test]
+    async fn rpc_non_session_batch_uses_selected_database() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "execute_query_batch");
+            assert_eq!(request.params["params"]["database"], "3");
+            assert_eq!(request.params["schema"], "3");
+            json!([])
+        });
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec!["0".into(), "3".into()]);
+
+        let results = driver
+            .execute_batch(
+                &params, &["GET db3-only-key".to_string()],
+                None, 1, Some("3"), None,
+            )
+            .await
+            .expect("batch request");
+        assert!(results.is_empty());
+    }
+
     #[tokio::test]
     async fn rpc_single_database_plugin_request_is_not_rewritten() {
         let driver = test_driver(|req| {
