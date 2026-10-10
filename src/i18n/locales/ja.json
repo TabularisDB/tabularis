@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "値から選択",
+      "title": "値を選択",
+      "search": "値を検索",
+      "loading": "値を読み込み中…",
+      "error": "値を読み込めませんでした",
+      "retry": "再試行",
+      "empty": "この列に値がありません",
+      "noMatch": "一致する値がありません",
+      "limited": "件数上位 {{count}} 件",
+      "use": "選択した {{count}} 件を使用",
+      "useNone": "選択を使用"
+    },
     "autoRefresh": {
       "label": "自動更新",
       "off": "オフ",

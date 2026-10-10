@@ -1,6 +1,6 @@
 import type { TableColumn } from "../types/editor";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { formatSqlIdentifier } from "./identifiers";
+import { formatSqlIdentifier, quoteIdentifier, quoteTableRef } from "./identifiers";
 
 
 export type FilterOperator =
@@ -216,10 +216,8 @@ export function buildSingleFilterClause(
   }
 
   if (op === "IN" || op === "NOT IN") {
-    const values = filter.value
-      .split(",")
-      .map((v) => quoteIfNeeded(v.trim()))
-      .filter((v) => v !== "''")
+    const values = splitInList(filter.value)
+      .map((v) => quoteIfNeeded(v))
       .join(", ");
     return `${col} ${op} (${values})`;
   }
@@ -318,4 +316,222 @@ export function createEmptyFilter(columns: TableColumn[]): StructuredFilter {
     value: "",
     enabled: true,
   };
+}
+
+/**
+ * Splits an IN / NOT IN value list on commas that sit outside single or
+ * double quotes, so a quoted item such as `'Paris, TX'` stays whole. A quote
+ * only opens a literal at the start of an item. Items
+ * are trimmed and empty items (`a,,b`, a trailing comma) are dropped; an
+ * explicitly quoted empty string (`''`) is kept.
+ */
+export function splitInList(value: string): string[] {
+  const items: string[] = [];
+  let current = "";
+  let quote: string | null = null;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (quote) {
+      current += ch;
+      if (ch === quote) {
+        // A doubled quote is an escaped quote inside the literal.
+        if (value[i + 1] === quote) {
+          current += value[++i];
+        } else {
+          quote = null;
+        }
+      }
+    } else if ((ch === "'" || ch === '"') && current.trim() === "") {
+      // Only a quote that opens an item starts a literal, so an apostrophe
+      // inside an unquoted value (O'Hare) is kept as typed.
+      quote = ch;
+      current += ch;
+    } else if (ch === ",") {
+      items.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  items.push(current);
+  return items.map((v) => v.trim()).filter((v) => v !== "");
+}
+
+// ─── Value picker (issue #869) ────────────────────────────────────────────────
+
+/** Most frequent distinct values the value picker loads for a column. */
+export const VALUE_PICKER_LIMIT = 100;
+
+/** One distinct column value and how many rows hold it. */
+export interface DistinctValue {
+  value: string;
+  count: number;
+}
+
+/** Binary and document types whose values can't be picked from a list. */
+const NON_PICKABLE_TYPES = ["blob", "bytea", "binary", "json", "image"];
+
+/**
+ * True when the value picker makes sense for a column of this type.
+ * BLOB / binary and JSON columns are excluded: their values are neither
+ * readable in a list nor comparable with `=` on every dialect.
+ */
+export function isValuePickerSupported(dataType: string): boolean {
+  const lower = dataType.toLowerCase();
+  return !NON_PICKABLE_TYPES.some((t) => lower.includes(t));
+}
+
+export interface DistinctValuesQueryOptions {
+  table: string;
+  schema?: string | null;
+  column: string;
+  driver?: string | PluginManifest | DriverCapabilities | null;
+  /** WHERE clause (without the keyword) that narrows the counted rows. */
+  where?: string;
+  limit?: number;
+}
+
+/**
+ * Builds the query that lists a column's most frequent non-NULL values with
+ * their counts, e.g. for MySQL:
+ *
+ *   SELECT `status`, COUNT(*) FROM `orders` WHERE `status` IS NOT NULL
+ *   GROUP BY `status` ORDER BY 2 DESC, 1 LIMIT 100
+ *
+ * Identifiers are always quoted for the active driver so reserved words and
+ * mixed-case names work. NULLs are left out: they can't be matched with `=`
+ * or `IN`, and the IS NULL operator already covers them.
+ */
+export function buildDistinctValuesQuery({
+  table,
+  schema,
+  column,
+  driver,
+  where,
+  limit = VALUE_PICKER_LIMIT,
+}: DistinctValuesQueryOptions): string {
+  const col = quoteIdentifier(column, driver);
+  const conditions = [`${col} IS NOT NULL`];
+  if (where && where.trim()) conditions.push(`(${where.trim()})`);
+  return (
+    `SELECT ${col}, COUNT(*) FROM ${quoteTableRef(table, driver, schema)} ` +
+    `WHERE ${conditions.join(" AND ")} GROUP BY ${col} ORDER BY 2 DESC, 1 LIMIT ${limit}`
+  );
+}
+
+/** True when a row has everything its operator needs to become a clause. */
+function isCompleteFilter(filter: StructuredFilter): boolean {
+  if (!filter.column || filter.enabled === false) return false;
+  if (NO_VALUE_OPERATORS.includes(filter.operator)) return true;
+  if (filter.operator === "BETWEEN") {
+    return filter.value.trim() !== "" && (filter.value2 ?? "").trim() !== "";
+  }
+  return filter.value.trim() !== "";
+}
+
+const NO_VALUE_OPERATORS: FilterOperator[] = ["IS NULL", "IS NOT NULL", "is empty", "is not empty"];
+
+/**
+ * WHERE clause the value picker uses to narrow its counts: the other
+ * enabled, complete rows of the panel. With "Match any" (OR) the other rows
+ * widen the result instead of narrowing it, so nothing is applied.
+ */
+export function buildValuePickerWhere(
+  filters: StructuredFilter[],
+  excludeId: string,
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+  combinator: FilterCombinator,
+): string {
+  if (combinator === "OR") return "";
+  const others = filters.filter((f) => f.id !== excludeId && isCompleteFilter(f));
+  return buildStructuredFilterClause(others, driver, "AND");
+}
+
+function stringifyCell(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+/** Converts `[value, count]` result rows into picker entries, skipping NULLs. */
+export function parseDistinctValues(rows: unknown[][]): DistinctValue[] {
+  const values: DistinctValue[] = [];
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 2) continue;
+    const [value, count] = row;
+    if (value === null || value === undefined) continue;
+    values.push({ value: stringifyCell(value), count: Number(count) || 0 });
+  }
+  return values;
+}
+
+/** Case-insensitive substring search over picker entries. */
+export function filterDistinctValues(values: DistinctValue[], search: string): DistinctValue[] {
+  const needle = search.trim().toLowerCase();
+  if (!needle) return values;
+  return values.filter((v) => v.value.toLowerCase().includes(needle));
+}
+
+/**
+ * Formats a picked value for the filter's value field. Plain values stay as
+ * they are (the clause builder quotes them); a value is quoted up front when
+ * the builder would otherwise misread it: number-like text in a string
+ * column, commas (IN lists), edge whitespace (trimmed by IN) or quote
+ * characters (a wrapped value would be taken as already quoted).
+ */
+export function formatPickedValue(value: string, dataType: string): string {
+  const isString = STRING_TYPES.some((t) => dataType.toLowerCase().includes(t));
+  const needsQuotes =
+    value === "" ||
+    value !== value.trim() ||
+    value.includes(",") ||
+    /['"]/.test(value) ||
+    (isString && /^-?\d+(\.\d+)?$/.test(value));
+  return needsQuotes ? quoteLiteral(value) : value;
+}
+
+/**
+ * Returns the filter with the picked values applied: one value uses `=`,
+ * several use `IN`. A negated filter (`!=` / `NOT IN`) stays negated.
+ * Picking nothing leaves the filter untouched.
+ */
+export function applyPickedValues(
+  filter: StructuredFilter,
+  values: string[],
+  dataType: string,
+): StructuredFilter {
+  if (values.length === 0) return filter;
+  const negated = filter.operator === "!=" || filter.operator === "NOT IN";
+  const single = values.length === 1;
+  const operator: FilterOperator = single
+    ? negated ? "!=" : "="
+    : negated ? "NOT IN" : "IN";
+  return {
+    ...filter,
+    operator,
+    value: values.map((v) => formatPickedValue(v, dataType)).join(", "),
+  };
+}
+
+function unquote(item: string): string {
+  const q = item[0];
+  if (item.length >= 2 && (q === "'" || q === '"') && item.endsWith(q)) {
+    return item.slice(1, -1).split(q + q).join(q);
+  }
+  return item;
+}
+
+/**
+ * The values currently in an `=`, `!=`, `IN` or `NOT IN` filter, unquoted,
+ * so the picker can open with them already ticked.
+ */
+export function getPickedValues(filter: StructuredFilter): string[] {
+  if (filter.value === "") return [];
+  if (filter.operator === "=" || filter.operator === "!=") {
+    return [unquote(filter.value)];
+  }
+  if (filter.operator === "IN" || filter.operator === "NOT IN") {
+    return splitInList(filter.value).map(unquote);
+  }
+  return [];
 }

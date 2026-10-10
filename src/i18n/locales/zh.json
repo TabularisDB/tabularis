@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "从值中选择",
+      "title": "选择值",
+      "search": "搜索值",
+      "loading": "正在加载值…",
+      "error": "无法加载值",
+      "retry": "重试",
+      "empty": "此列没有值",
+      "noMatch": "没有匹配的值",
+      "limited": "按数量排名前 {{count}}",
+      "use": "使用已选的 {{count}} 个",
+      "useNone": "使用所选"
+    },
     "autoRefresh": {
       "label": "自动刷新",
       "off": "关闭",

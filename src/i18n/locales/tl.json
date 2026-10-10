@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Pumili mula sa mga value",
+      "title": "Pumili ng mga value",
+      "search": "Maghanap ng value",
+      "loading": "Nilo-load ang mga value…",
+      "error": "Hindi ma-load ang mga value",
+      "retry": "Subukang muli",
+      "empty": "Walang value sa column na ito",
+      "noMatch": "Walang tugmang value",
+      "limited": "Nangungunang {{count}} ayon sa bilang",
+      "use": "Gamitin ang {{count}} napili",
+      "useNone": "Gamitin ang napili"
+    },
     "autoRefresh": {
       "label": "Awtomatikong pag-refresh",
       "off": "Naka-off",

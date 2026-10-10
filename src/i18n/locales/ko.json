@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "값에서 선택",
+      "title": "값 선택",
+      "search": "값 검색",
+      "loading": "값을 불러오는 중…",
+      "error": "값을 불러올 수 없습니다",
+      "retry": "다시 시도",
+      "empty": "이 열에 값이 없습니다",
+      "noMatch": "일치하는 값이 없습니다",
+      "limited": "개수 기준 상위 {{count}}개",
+      "use": "선택한 {{count}}개 사용",
+      "useNone": "선택 항목 사용"
+    },
     "autoRefresh": {
       "label": "자동 새로고침",
       "off": "끄기",

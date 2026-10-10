@@ -2821,6 +2821,26 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     [updateTab, runQuery],
   );
 
+  // Read-only helper for the filter value picker (issue #869): runs on the
+  // tab's own session so it sees the same rows as the grid.
+  const runToolbarQuery = useCallback(
+    async (sql: string): Promise<QueryResult> => {
+      const tabId = activeTabIdRef.current;
+      const currentTab = tabsRef.current.find((tb) => tb.id === tabId);
+      if (!activeConnectionId || !currentTab) {
+        throw new Error("No active connection");
+      }
+      const schema = currentTab.schema ?? activeSchema;
+      return invoke<QueryResult>("execute_query", {
+        connectionId: activeConnectionId,
+        query: sql,
+        sessionId: currentTab.id,
+        ...(schema ? { schema } : {}),
+      });
+    },
+    [activeConnectionId, activeSchema],
+  );
+
   const handleForeignKeyShowPanel = useCallback(
     (fk: ForeignKey, value: unknown) => {
       const currentTab = tabsRef.current.find(
@@ -4998,6 +5018,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               }}
               autoRefreshPaused={!!activeTab.autoRefreshIntervalMs && (refreshBlockedByEdits || refreshSnapshot.editing || refreshBlockedBySelection)}
               autoRefreshPausedReason={refreshBlockedByEdits || refreshSnapshot.editing ? "editing" : "selection"}
+              tableName={activeTab.activeTable}
+              tableSchema={activeTab.schema}
+              onRunQuery={runToolbarQuery}
             />
           ) : (
             <div

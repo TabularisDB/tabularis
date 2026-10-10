@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Aus Werten wählen",
+      "title": "Werte auswählen",
+      "search": "Werte suchen",
+      "loading": "Werte werden geladen…",
+      "error": "Werte konnten nicht geladen werden",
+      "retry": "Erneut versuchen",
+      "empty": "Keine Werte in dieser Spalte",
+      "noMatch": "Keine passenden Werte",
+      "limited": "Top {{count}} nach Anzahl",
+      "use": "{{count}} ausgewählte verwenden",
+      "useNone": "Auswahl verwenden"
+    },
     "autoRefresh": {
       "label": "Automatisch aktualisieren",
       "off": "Aus",

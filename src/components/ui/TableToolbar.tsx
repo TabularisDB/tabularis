@@ -18,8 +18,11 @@ import {
   buildStructuredFilterClause,
   buildSingleFilterClause,
   createEmptyFilter,
+  buildDistinctValuesQuery,
+  buildValuePickerWhere,
+  parseDistinctValues,
 } from "../../utils/filterBar";
-import type { StructuredFilter, FilterCombinator } from "../../utils/filterBar";
+import type { StructuredFilter, FilterCombinator, DistinctValue } from "../../utils/filterBar";
 import { formatSqlIdentifier } from "../../utils/identifiers";
 import { formatSortClause } from "../../utils/tableToolbar";
 import { FilterRow } from "./FilterRow";
@@ -42,6 +45,14 @@ interface TableToolbarProps {
   autoRefreshPaused?: boolean;
   /** Why auto-refresh is paused; only read while `autoRefreshPaused` is true. */
   autoRefreshPausedReason?: "editing" | "selection";
+  /** Table (and schema) shown in the grid; the value picker counts its rows. */
+  tableName?: string | null;
+  tableSchema?: string | null;
+  /**
+   * Runs a read-only query against the tab's connection. Enables the filter
+   * value picker (issue #869) together with `tableName`.
+   */
+  onRunQuery?: (sql: string) => Promise<{ rows: unknown[][] }>;
 }
 
 interface TableToolbarInternalProps extends TableToolbarProps {
@@ -84,6 +95,9 @@ const TableToolbarInternal = ({
   onAutoRefreshChange,
   autoRefreshPaused,
   autoRefreshPausedReason = "editing",
+  tableName,
+  tableSchema,
+  onRunQuery,
 }: TableToolbarInternalProps) => {
   const { t } = useTranslation();
   const { activeDriver, activeCapabilities } = useDatabase();
@@ -183,6 +197,25 @@ const TableToolbarInternal = ({
       }
     });
   }, [structuredFilters, combinator, sortInput, limitInput, getLimitVal, onUpdate, onTriggerApplied, onResetApplied, quotingDriver]);
+
+  // Loads the value picker list for one row: its column's most frequent
+  // values, narrowed by the other rows of the panel (issue #869).
+  const loadValuesFor = useCallback(
+    async (filter: StructuredFilter): Promise<DistinctValue[]> => {
+      if (!onRunQuery || !tableName) return [];
+      const sql = buildDistinctValuesQuery({
+        table: tableName,
+        schema: tableSchema,
+        column: filter.column,
+        driver: quotingDriver,
+        where: buildValuePickerWhere(structuredFilters, filter.id, quotingDriver, combinator),
+      });
+      const result = await onRunQuery(sql);
+      return parseDistinctValues(result.rows);
+    },
+    [onRunQuery, tableName, tableSchema, quotingDriver, structuredFilters, combinator]
+  );
+  const canPickValues = !!onRunQuery && !!tableName;
 
   // Applies only that single row's filter — resets Applied on all others
   const handleApplySingle = useCallback(
@@ -698,6 +731,7 @@ const TableToolbarInternal = ({
                   onEscape={closePanel}
                   isApplied={appliedFilters[filter.id] === true}
                   onTriggerApplied={() => onTriggerApplied(filter.id)}
+                  onLoadValues={canPickValues ? loadValuesFor : undefined}
                 />
               ))
             )}

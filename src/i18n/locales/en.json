@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Pick from values",
+      "title": "Pick values",
+      "search": "Search values",
+      "loading": "Loading values…",
+      "error": "Couldn't load values",
+      "retry": "Retry",
+      "empty": "No values in this column",
+      "noMatch": "No matching values",
+      "limited": "Top {{count}} by count",
+      "use": "Use {{count}} selected",
+      "useNone": "Use selected"
+    },
     "autoRefresh": {
       "label": "Auto-refresh",
       "off": "Off",

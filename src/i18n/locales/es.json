@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Elegir entre valores",
+      "title": "Elegir valores",
+      "search": "Buscar valores",
+      "loading": "Cargando valores…",
+      "error": "No se pudieron cargar los valores",
+      "retry": "Reintentar",
+      "empty": "No hay valores en esta columna",
+      "noMatch": "No hay valores coincidentes",
+      "limited": "Los {{count}} más frecuentes",
+      "use": "Usar {{count}} seleccionados",
+      "useNone": "Usar seleccionados"
+    },
     "autoRefresh": {
       "label": "Actualización automática",
       "off": "Desactivada",
