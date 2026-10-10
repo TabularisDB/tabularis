@@ -941,6 +941,13 @@
     "notifyLongQueriesThreshold": "通知阈值",
     "notifyLongQueriesThresholdDesc": "仅通知运行时间不短于此值的查询。"
   },
+  "triggers":{
+    "originalRestored": "已恢复原始触发器。",
+    "restoreFailed": "恢复原始触发器也失败了：",
+    "singleEventHint": "此数据库每个触发器仅允许一个事件。",
+    "existingFunctionHint": "此触发器保留其现有函数。请在 SQL 编辑器或原始 SQL 模式中编辑函数本身。",
+    "unsupportedDriver": "此驱动程序不支持触发器编辑。"
+  },
   "update": {
     "badges": {
       "morePlugins": "还有 {{count}} 个 — 打开插件查看所有更新",

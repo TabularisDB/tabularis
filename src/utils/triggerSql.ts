@@ -24,10 +24,29 @@ export const TRIGGER_CAPS: Record<
 };
 
 /** Same default the modal used before: anything that is not mysql/sqlite is treated as postgres-like. */
-export function resolveTriggerDialect(driver?: string): TriggerDialect {
-  if (driver === "mysql") return "mysql";
-  if (driver === "sqlite") return "sqlite";
-  return "postgres";
+export interface TriggerDialectSource {
+  driver?: string;
+  capabilities?: { sql_dialect?: string | null } | null;
+}
+
+export function resolveTriggerDialect(
+  { driver, capabilities }: TriggerDialectSource,
+): TriggerDialect | null {
+  const raw = capabilities
+    ? (capabilities.sql_dialect ?? "postgres")
+    : (driver ?? "");
+  switch (raw.trim().toLowerCase()) {
+    case "postgres":
+    case "postgresql":
+      return "postgres";
+    case "mysql":
+    case "mariadb":
+      return "mysql";
+    case "sqlite":
+      return "sqlite";
+    default:
+      return null;
+  }
 }
 
 /** Default body shown in the editor, per dialect. */

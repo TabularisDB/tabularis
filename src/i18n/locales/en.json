@@ -1892,7 +1892,12 @@
     "createSuccess": "Trigger created successfully",
     "updateSuccess": "Trigger updated successfully",
     "recreateTrigger": "Recreate Trigger",
-    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?"
+    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?",
+    "originalRestored": "The original trigger was restored.",
+    "restoreFailed": "Restoring the original trigger also failed: ",
+    "singleEventHint": "This database allows one event per trigger.",
+    "existingFunctionHint": "This trigger keeps its existing function. Edit the function itself in the SQL editor or raw SQL mode.",
+    "unsupportedDriver": "Trigger editing is not supported for this driver."
   },
   "community": {
     "title": "Join the Community",

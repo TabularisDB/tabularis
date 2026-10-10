@@ -68,7 +68,6 @@ export const TriggerEditorModal = ({
   isOpen,
   onClose,
   connectionId,
-  triggerName,
   tableName: initialTableName,
   schema: schemaProp,
   driver,
@@ -81,8 +80,11 @@ export const TriggerEditorModal = ({
   const resolvedSchema = schemaProp ?? activeSchema ?? undefined;
   const { showAlert } = useAlert();
 
-  const dialect = resolveTriggerDialect(driver);
-  const caps = TRIGGER_CAPS[dialect];
+const resolvedDialect = resolveTriggerDialect({ driver, capabilities });
+const unsupported = resolvedDialect === null;
+// Placeholder so hooks and helpers keep a valid dialect; never used to run SQL when unsupported.
+const dialect: TriggerDialect = resolvedDialect ?? "postgres";
+const caps = TRIGGER_CAPS[dialect];
 
   const [name, setName] = useState("");
   const [tableName, setTableName] = useState(initialTableName ?? "");
@@ -117,8 +119,13 @@ export const TriggerEditorModal = ({
 
       // Populate guided mode fields so switching tabs shows real values
       const parsed = parseTriggerSql(def, dialect);
-      if (parsed.timing) setTiming(parsed.timing);
-      if (parsed.events.length) setEvents(parsed.events);
+      const norm = normalizeSelection(
+        dialect,
+        parsed.timing ?? "BEFORE",
+        parsed.events.length ? parsed.events : ["INSERT"],
+      );
+      setTiming(norm.timing);
+      setEvents(norm.events);
       if (parsed.body) setBody(parsed.body);
       setPgExisting(
         parsed.tail ? { tail: parsed.tail, forEach: parsed.forEach } : null,
@@ -129,34 +136,6 @@ export const TriggerEditorModal = ({
       setLoading(false);
     }
   }, [connectionId, t, resolvedSchema, dialect]);
-
-  useEffect(() => {
-    if (isOpen) {
-      if (isNewTrigger) {
-        setName("");
-        setTableName(initialTableName ?? "");
-        setTiming("BEFORE");
-        setEvents(["INSERT"]);
-        setBody(defaultTriggerBody(dialect));
-        setRawSql("");
-        setOriginalSql("");
-        setPgExisting(null);
-        setUseRawSql(false);
-        setError(null);
-      } else if (triggerName && initialTableName) {
-        setName(triggerName);
-        setTableName(initialTableName);
-        loadTriggerDefinition(triggerName, initialTableName);
-      }
-    }
-  }, [isOpen, triggerName, initialTableName, isNewTrigger, loadTriggerDefinition, dialect]);
-
-  // Keep timing/events within what the driver supports (e.g. one event on MySQL/SQLite).
-  useEffect(() => {
-    const n = normalizeSelection(dialect, timing, events);
-    if (n.timing !== timing) setTiming(n.timing);
-    if (n.events.join() !== events.join()) setEvents(n.events);
-  }, [dialect, timing, events]);
 
   const buildGuidedStatements = (): string[] => {
     const q = (id: string) => quoteIdentifier(id, capabilities ?? driver ?? "postgres");
@@ -184,14 +163,21 @@ export const TriggerEditorModal = ({
   const buildTriggerSql = (): string =>
     useRawSql ? rawSql : buildGuidedStatements().join("\n\n");
 
-  const toggleEvent = (ev: TriggerEvent) => {
-    if (!caps.multiEvent) {
-      setEvents([ev]);
-      return;
-    }
-    setEvents(prev =>
-      prev.includes(ev) ? prev.filter(e => e !== ev) : [...prev, ev]
-    );
+ const toggleEvent = (ev: TriggerEvent) => {
+  const next = !caps.multiEvent
+    ? [ev]
+    : events.includes(ev)
+      ? events.filter((e) => e !== ev)
+      : [...events, ev];
+  const norm = normalizeSelection(dialect, timing, next);
+  setTiming(norm.timing);
+  setEvents(norm.events);
+};
+
+  const selectTiming = (next: TriggerTiming) => {
+    const norm = normalizeSelection(dialect, next, events);
+    setTiming(norm.timing);
+    setEvents(norm.events);
   };
 
   const switchToRaw = () => {
@@ -205,12 +191,13 @@ export const TriggerEditorModal = ({
       await invoke("create_trigger", {
         connectionId,
         triggerSql,
-        ...(resolvedSchema && dialect !== "mysql" ? { schema: resolvedSchema } : {}),
+        ...(resolvedSchema ? { schema: resolvedSchema } : {})
       });
     }
   };
 
   const handleSave = async () => {
+    if (unsupported) return;
     const statements = buildStatements().filter(s => s.trim());
     if (statements.length === 0) {
       showAlert(t("triggers.sqlRequired"), { kind: "error" });
@@ -259,12 +246,12 @@ export const TriggerEditorModal = ({
           await createAll(
             dialect === "postgres" ? splitSqlStatements(originalSql) : [originalSql]
           );
-          message += "\n" + t("triggers.originalRestored", "The original trigger was restored.");
+          message += "\n" + t("triggers.originalRestored");
         } catch (restoreError) {
           message +=
-            "\n" +
-            t("triggers.restoreFailed", "Restoring the original trigger also failed: ") +
-            String(restoreError);
+          "\n" +
+          t("triggers.restoreFailed") +
+          String(restoreError);
         }
       }
       setError(message);
@@ -273,6 +260,26 @@ export const TriggerEditorModal = ({
     }
   };
 
+  if (unsupported) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[480px] p-6 space-y-4">
+          <div className="flex items-start gap-2 text-accent-error">
+            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <p className="text-sm">{t("triggers.unsupportedDriver")}</p>
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
+            >
+              {t("common.cancel")}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
   const keepsExistingFunction = !isNewTrigger && dialect === "postgres" && !!pgExisting;
 
   return (
@@ -395,7 +402,7 @@ export const TriggerEditorModal = ({
                     {caps.timings.map((opt) => (
                       <button
                         key={opt}
-                        onClick={() => setTiming(opt)}
+                        onClick={() => selectTiming(opt)}
                         className={`px-3 py-1.5 text-sm rounded-lg transition-colors border ${timing === opt ? "bg-accent-primary border-accent-primary text-inverse" : "border-strong text-secondary hover:text-primary"}`}
                       >
                         {opt}
@@ -420,7 +427,7 @@ export const TriggerEditorModal = ({
                   </div>
                   {!caps.multiEvent && (
                     <p className="text-xs text-muted mt-1">
-                      {t("triggers.singleEventHint", "This database allows one event per trigger.")}
+                     {t("triggers.singleEventHint")}
                     </p>
                   )}
                 </div>
@@ -429,10 +436,7 @@ export const TriggerEditorModal = ({
               {/* Trigger body */}
               {keepsExistingFunction ? (
                 <p className="text-xs text-muted">
-                  {t(
-                    "triggers.existingFunctionHint",
-                    "This trigger keeps its existing function. Edit the function itself in the SQL editor or raw SQL mode."
-                  )}
+              {t("triggers.existingFunctionHint")}
                 </p>
               ) : (
                 <div>
@@ -473,7 +477,7 @@ export const TriggerEditorModal = ({
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || loading}
+            disabled={saving || loading || unsupported}
             className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
             {saving && <Loader2 size={16} className="animate-spin" />}

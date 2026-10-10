@@ -2374,6 +2374,13 @@
       }
     }
   },
+  "triggers":{
+    "originalRestored": "Der ursprüngliche Trigger wurde wiederhergestellt.",
+    "restoreFailed": "Die Wiederherstellung des ursprünglichen Triggers ist ebenfalls fehlgeschlagen: ",
+    "singleEventHint": "Diese Datenbank erlaubt nur ein Ereignis pro Trigger.",
+    "existingFunctionHint": "Dieser Trigger behält seine bestehende Funktion. Bearbeiten Sie die Funktion selbst im SQL-Editor oder im Raw-SQL-Modus.",
+    "unsupportedDriver": "Das Bearbeiten von Auslösern wird für diesen Treiber nicht unterstützt."
+  },
   "connectionCatalogue": {
     "searchPlaceholder": "Datenbanken suchen…",
     "clearSearch": "Suche löschen",

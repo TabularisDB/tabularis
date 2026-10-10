@@ -1817,7 +1817,12 @@
     "createSuccess": "트리거가 생성되었습니다",
     "updateSuccess": "트리거가 업데이트되었습니다",
     "recreateTrigger": "트리거 재생성",
-    "confirmRecreate": "트리거를 편집하려면 삭제 후 다시 생성해야 합니다. \"{{trigger}}\" 수정을 계속하시겠습니까?"
+    "confirmRecreate": "트리거를 편집하려면 삭제 후 다시 생성해야 합니다. \"{{trigger}}\" 수정을 계속하시겠습니까?",
+    "originalRestored": "원래 트리거를 복원했습니다.",
+    "restoreFailed": "원래 트리거 복원에도 실패했습니다: ",
+    "singleEventHint": "이 데이터베이스는 트리거당 하나의 이벤트만 허용합니다.",
+    "existingFunctionHint": "이 트리거는 기존 함수를 유지합니다. 함수 자체는 SQL 편집기 또는 Raw SQL 모드에서 수정하세요.",
+    "unsupportedDriver": "이 드라이버에서는 트리거 편집이 지원되지 않습니다."
   },
   "community": {
     "title": "커뮤니티에 참여하세요",

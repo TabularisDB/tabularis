@@ -1883,7 +1883,12 @@
     "createSuccess": "Trigger créé avec succès",
     "updateSuccess": "Trigger mis à jour avec succès",
     "recreateTrigger": "Recréer le trigger",
-    "confirmRecreate": "Modifier un trigger nécessite de le supprimer puis de le recréer. Continuer la modification de « {{trigger}} » ?"
+    "confirmRecreate": "Modifier un trigger nécessite de le supprimer puis de le recréer. Continuer la modification de « {{trigger}} » ?",
+    "originalRestored": "Le déclencheur d'origine a été restauré.",
+    "restoreFailed": "La restauration du déclencheur d'origine a également échoué : ",
+    "singleEventHint": "Cette base de données n'autorise qu'un seul événement par déclencheur.",
+    "existingFunctionHint": "Ce déclencheur conserve sa fonction existante. Modifiez la fonction elle-même dans l'éditeur SQL ou en mode SQL brut.",
+    "unsupportedDriver": "La modification des déclencheurs n'est pas prise en charge pour ce pilote."
   },
   "community": {
     "title": "Rejoindre la communauté",
