@@ -466,6 +466,14 @@ describe("connectionStringParser", () => {
         );
         expect(parsed.success && parsed.params.ssl_mode).toBe(expected);
       }
+      // Canonical sslMode outranks a conflicting ssl-mode even when it
+      // appears later in the URL. Do not accidentally weaken TLS.
+      const conflict = parseConnectionString(
+        "jdbc:mysql://host/app?ssl-mode=DISABLED&sslMode=VERIFY_IDENTITY",
+        CAPABILITY_DRIVERS,
+      );
+      expect(conflict.success && conflict.params.ssl_mode).toBe("verify_identity");
+
       const pg = parseConnectionString(
         "jdbc:postgresql://host/app?SSLMode=VERIFY-FULL",
         CAPABILITY_DRIVERS,
