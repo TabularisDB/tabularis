@@ -37,6 +37,7 @@ const matchesShortcutMock = vi.hoisted(() =>
 );
 const togglePaletteMock = vi.hoisted(() => vi.fn());
 const closePaletteMock = vi.hoisted(() => vi.fn());
+const initVimModeMock = vi.hoisted(() => vi.fn());
 
 // Mock MonacoEditor
 vi.mock('../../../src/components/ui/LazyMonaco', async () => {
@@ -92,6 +93,11 @@ vi.mock('monaco-editor', () => ({
   KeyCode: { Enter: 3 },
 }));
 
+// Mock monaco-vim (dynamically imported by useMonacoVimMode)
+vi.mock('monaco-vim', () => ({
+  initVimMode: initVimModeMock,
+}));
+
 const settingsValue = {
   settings: DEFAULT_SETTINGS,
   updateSetting: vi.fn(),
@@ -128,6 +134,7 @@ describe('SqlEditorWrapper', () => {
     monacoRenderState.beforeMount = undefined;
     monacoRenderState.onMount = undefined;
     matchesShortcutMock.mockReturnValue(false);
+    initVimModeMock.mockImplementation(() => ({ dispose: vi.fn() }));
   });
 
   const mountCapturedEditor = () => {
@@ -151,7 +158,11 @@ describe('SqlEditorWrapper', () => {
       KeyCode: { KeyX: 8, KeyC: 16, KeyV: 32, Enter: 64, KeyF: 128, KeyA: 256 },
     };
 
-    monacoRenderState.onMount?.(editor, monaco);
+    // onMount now records the editor in component state (for vim mode), so
+    // the resulting re-render must be wrapped in act.
+    act(() => {
+      monacoRenderState.onMount?.(editor, monaco);
+    });
 
     return { addAction, addCommand, keyDownHandlers, trigger };
   };
@@ -553,6 +564,124 @@ describe('SqlEditorWrapper', () => {
     );
   });
 
+  describe('vim mode', () => {
+    const flushAsyncWork = async () => {
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    };
+
+    const renderWithVim = (editorVimMode: boolean | undefined, key: string) => {
+      const ctx = {
+        settings: { ...DEFAULT_SETTINGS, editorVimMode },
+        updateSetting: vi.fn(),
+        isLoading: false,
+      };
+      const localWrapper = ({ children }: { children: ReactNode }) => (
+        <SettingsContext.Provider value={ctx}>
+          <CommandPaletteDispatchContext.Provider
+            value={{
+              openPalette: vi.fn(),
+              closePalette: closePaletteMock,
+              togglePalette: togglePaletteMock,
+            }}
+          >
+            {children}
+          </CommandPaletteDispatchContext.Provider>
+        </SettingsContext.Provider>
+      );
+      return render(
+        <SqlEditorWrapper
+          initialValue=""
+          onChange={mockOnChange}
+          onRun={mockOnRun}
+          editorKey={key}
+        />,
+        { wrapper: localWrapper },
+      );
+    };
+
+    it('renders the status line and initializes monaco-vim only when the setting is on', async () => {
+      const { rerender } = renderWithVim(true, 'vim-on');
+      expect(screen.getByTestId('vim-status-line')).toBeInTheDocument();
+
+      const { keyDownHandlers } = mountCapturedEditor();
+      await flushAsyncWork();
+      expect(initVimModeMock).toHaveBeenCalledOnce();
+      expect(initVimModeMock).toHaveBeenCalledWith(
+        expect.anything(),
+        screen.getByTestId('vim-status-line'),
+      );
+      // Bypass listener (palette/suggestions handler registered first).
+      expect(keyDownHandlers).toHaveLength(2);
+
+      rerender(
+        <SettingsContext.Provider
+          value={{
+            settings: { ...DEFAULT_SETTINGS, editorVimMode: false },
+            updateSetting: vi.fn(),
+            isLoading: false,
+          }}
+        >
+          <SqlEditorWrapper
+            initialValue=""
+            onChange={mockOnChange}
+            onRun={mockOnRun}
+            editorKey="vim-on"
+          />
+        </SettingsContext.Provider>,
+      );
+      expect(screen.queryByTestId('vim-status-line')).not.toBeInTheDocument();
+    });
+
+    it('stays off and does not initialize monaco-vim by default', async () => {
+      renderWithVim(undefined, 'vim-default-off');
+      expect(screen.queryByTestId('vim-status-line')).not.toBeInTheDocument();
+
+      const { keyDownHandlers } = mountCapturedEditor();
+      await flushAsyncWork();
+      expect(initVimModeMock).not.toHaveBeenCalled();
+      // Only the pre-existing palette/suggestions keydown handler.
+      expect(keyDownHandlers).toHaveLength(1);
+    });
+
+    it('lets run shortcuts through: default-prevents them for vim without stopping propagation', async () => {
+      matchesShortcutMock.mockImplementation(
+        (event, id) =>
+          (id === 'run_query_editor' || id === 'run_all_editor') &&
+          event.ctrlKey &&
+          event.key === 'Enter',
+      );
+      renderWithVim(true, 'vim-run-shortcut');
+      const { keyDownHandlers } = mountCapturedEditor();
+      await flushAsyncWork();
+      const bypassHandler = keyDownHandlers[1];
+
+      const runEvent = {
+        browserEvent: new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }),
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      };
+      bypassHandler(runEvent);
+
+      // preventDefault makes monaco-vim skip the event; propagation must
+      // continue so Monaco's container-level dispatch still runs the
+      // addCommand handler that executes the query.
+      expect(runEvent.preventDefault).toHaveBeenCalledOnce();
+      expect(runEvent.stopPropagation).not.toHaveBeenCalled();
+
+      // Regular vim keys are not reserved for Tabularis.
+      const jEvent = {
+        browserEvent: new KeyboardEvent('keydown', { key: 'j' }),
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      };
+      bypassHandler(jEvent);
+      expect(jEvent.preventDefault).not.toHaveBeenCalled();
+    });
+  });
+
   describe('acceptSuggestionOnEnter mapping', () => {
     const renderWith = (editorAcceptSuggestionOnEnter: boolean | undefined, key: string) => {
       const ctx = {
@@ -633,9 +762,11 @@ describe('SqlEditorWrapper debounced value sync', () => {
       getSelections: vi.fn(() => []),
       setSelections: vi.fn(),
     };
-    monacoRenderState.onMount?.(editor, {
-      KeyMod: { CtrlCmd: 1, Shift: 2, Alt: 4 },
-      KeyCode: { KeyX: 8, KeyC: 16, KeyV: 32, Enter: 64, KeyF: 128, KeyA: 256 },
+    act(() => {
+      monacoRenderState.onMount?.(editor, {
+        KeyMod: { CtrlCmd: 1, Shift: 2, Alt: 4 },
+        KeyCode: { KeyX: 8, KeyC: 16, KeyV: 32, Enter: 64, KeyF: 128, KeyA: 256 },
+      });
     });
     // Simulates the user typing: Monaco already holds the new text when it
     // notifies onChange.

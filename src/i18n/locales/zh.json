@@ -520,6 +520,8 @@
     "detectJsonInTextColumns": "在文本列中检测 JSON",
     "detectJsonInTextColumnsDesc": "当未带类型的文本单元格包含 JSON 对象或数组时显示 JSON 查看器入口。每单元格会增加少量解析开销。",
     "appearance": "外观",
+    "appearance_editorVimMode": "Vim 模式",
+    "appearance_editorVimModeDesc": "在 SQL 编辑器中启用 Vim 键位（普通、可视与插入模式）。运行快捷键（如 Ctrl/Cmd+Enter）仍然有效。",
     "localization": "本地化",
     "themeSelection": "主题选择",
     "themeMode": "主题模式",

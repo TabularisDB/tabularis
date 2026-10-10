@@ -590,6 +590,8 @@
     "appearance_editorShowLineNumbersDesc": "Ipakita ang mga line number sa editor gutter.",
     "appearance_editorAcceptSuggestionOnEnter": "Tanggapin ang Suggestion gamit ang Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Payagan ang Enter (bukod sa Tab) para tanggapin ang aktibong autocomplete suggestion. Kapag off, laging nag-i-insert ng newline ang Enter.",
+    "appearance_editorVimMode": "Vim Mode",
+    "appearance_editorVimModeDesc": "I-enable ang mga Vim keybinding (normal, visual at insert mode) sa mga SQL editor. Gumagana pa rin ang mga run shortcut tulad ng Ctrl/Cmd+Enter.",
     "queryExecution": "Pagpapatakbo ng Query",
     "runStatementUnderCursor": "Patakbuhin ang statement sa ilalim ng cursor",
     "runStatementUnderCursorDesc": "Kapag maraming statement ang isang script, patakbuhin ang nasa ilalim ng cursor sa halip na ipakita ang query picker. Pumili ng teksto para patakbuhin ang isang partikular na saklaw.",

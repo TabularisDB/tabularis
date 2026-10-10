@@ -555,6 +555,8 @@
     "appearance_editorShowLineNumbersDesc": "Отображать номера строк на полях редактора.",
     "appearance_editorAcceptSuggestionOnEnter": "Принимать подсказку по Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Разрешить Enter (в дополнение к Tab) для принятия активной подсказки автодополнения. При отключении Enter всегда вставляет новую строку.",
+    "appearance_editorVimMode": "Режим Vim",
+    "appearance_editorVimModeDesc": "Включает клавиши Vim (обычный, визуальный режим и режим вставки) в SQL-редакторах. Горячие клавиши запуска, такие как Ctrl/Cmd+Enter, продолжают работать.",
     "queryExecution": "Выполнение запросов",
     "runStatementUnderCursor": "Выполнять запрос под курсором",
     "runStatementUnderCursorDesc": "Если скрипт содержит несколько запросов, выполняется тот, что под курсором, вместо показа списка запросов. Выделите текст, чтобы выполнить определённый фрагмент.",

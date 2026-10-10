@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useContext, useEffect } from "react";
+import React, { useRef, useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { OnMount, BeforeMount } from "@monaco-editor/react";
 import { MonacoEditor } from "./LazyMonaco";
@@ -9,6 +9,7 @@ import { getMonacoThemeId } from "../../themes/themeRuntime";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { useSettings } from "../../hooks/useSettings";
 import { useKeybindings } from "../../hooks/useKeybindings";
+import { useMonacoVimMode } from "../../hooks/useMonacoVimMode";
 import { CommandPaletteDispatchContext } from "../../contexts/CommandPaletteContext";
 import { getFontCSS } from "../../utils/settings";
 import {
@@ -61,6 +62,16 @@ function isLinux(): boolean {
 /** Debounced onChange emissions remembered until the consumer echoes them back. */
 const MAX_PENDING_ECHOES = 50;
 
+// Query-run shortcuts stay reserved for Tabularis while Vim mode is active.
+// These ids live in src/config/shortcuts.json and are matched through the
+// keybindings system so user overrides keep applying.
+const RUN_SHORTCUT_IDS = [
+  "run_query",
+  "run_query_editor",
+  "run_all",
+  "run_all_editor",
+] as const;
+
 // Internal component that resets when key changes
 const SqlEditorInternal = ({
   initialValue,
@@ -79,6 +90,10 @@ const SqlEditorInternal = ({
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
   const foldPreviewRef = useRef<Monaco.IDisposable | null>(null);
+  // Reactive mirrors for the Vim-mode hook, which needs the live editor
+  // instance and the status-line DOM node as render values.
+  const [mountedEditor, setMountedEditor] = useState<Parameters<OnMount>[0] | null>(null);
+  const [vimStatusNode, setVimStatusNode] = useState<HTMLDivElement | null>(null);
   const onRunRef = useRef(onRun);
   onRunRef.current = onRun;
   const onRunAllRef = useRef(onRunAll);
@@ -105,6 +120,16 @@ const SqlEditorInternal = ({
   matchesShortcutRef.current = matchesShortcut;
   const togglePaletteRef = useRef(commandPaletteDispatch?.togglePalette);
   togglePaletteRef.current = commandPaletteDispatch?.togglePalette;
+  const vimEnabled = settings.editorVimMode ?? false;
+
+  // Keep the run shortcuts working under Vim mode: matching events are
+  // default-prevented before monaco-vim sees them (so it ignores them) but
+  // still reach Monaco's keybinding service, which dispatches the addCommand
+  // handlers registered on mount.
+  const isRunShortcut = useCallback((event: KeyboardEvent) => {
+    return RUN_SHORTCUT_IDS.some((id) => matchesShortcutRef.current(event, id));
+  }, []);
+  useMonacoVimMode(mountedEditor, vimStatusNode, vimEnabled, isRunShortcut);
 
   // Dispose editor on unmount to prevent "domNode" errors from ResizeObserver
   // firing after the DOM container is removed (e.g., cell deletion/movement)
@@ -294,6 +319,7 @@ const SqlEditorInternal = ({
     const handleEditorMount: OnMount = (editor, monaco) => {
       editorRef.current = editor;
       monacoRef.current = monaco;
+      setMountedEditor(editor);
       setSqlFoldingDialect(editor.getModel(), dialectRef.current);
       if (foldPreview) {
         foldPreviewRef.current = installSqlFoldPreview(
@@ -578,42 +604,57 @@ const SqlEditorInternal = ({
     };
 
     return (
-      <MonacoEditor
-        height={height}
-        defaultLanguage="sql"
-        theme={getMonacoThemeId(editorTheme.id)}
-        defaultValue={initialValue}
-        onChange={handleChange}
-        beforeMount={handleBeforeMount}
-        onMount={handleEditorMount}
-        options={{
-          accessibilitySupport: 'auto',
-          minimap: { enabled: false },
-          fontSize: settings.editorFontSize ?? 14,
-          fontFamily: getFontCSS(settings.editorFontFamily ?? "JetBrains Mono"),
-          lineHeight: settings.editorLineHeight ?? 1.5,
-          tabSize: settings.editorTabSize ?? 2,
-          wordWrap: (settings.editorWordWrap ?? true) ? 'on' : 'off',
-          lineNumbers: (settings.editorShowLineNumbers ?? true) ? 'on' : 'off',
-          folding: true,
-          showFoldingControls: 'always',
-          padding: { top: 16, bottom: 32 },
-          scrollBeyondLastLine: false,
-          overviewRulerLanes: 0,
-          hideCursorInOverviewRuler: true,
-          overviewRulerBorder: false,
-          scrollbar: {
-            vertical: 'auto',
-            horizontal: 'auto',
-            verticalScrollbarSize: 8,
-            horizontalScrollbarSize: 8,
-          },
-          acceptSuggestionOnEnter: (settings.editorAcceptSuggestionOnEnter ?? true) ? 'smart' : 'off',
-          multiCursorModifier: 'ctrlCmd',
-          automaticLayout: true,
-          ...options
-        }}
-      />
+      <div
+        className="flex min-h-0 w-full flex-col"
+        style={{ height: height ?? "100%" }}
+      >
+        <div className="relative min-h-0 w-full flex-1">
+          <MonacoEditor
+            height="100%"
+            defaultLanguage="sql"
+            theme={getMonacoThemeId(editorTheme.id)}
+            defaultValue={initialValue}
+            onChange={handleChange}
+            beforeMount={handleBeforeMount}
+            onMount={handleEditorMount}
+            options={{
+              accessibilitySupport: 'auto',
+              minimap: { enabled: false },
+              fontSize: settings.editorFontSize ?? 14,
+              fontFamily: getFontCSS(settings.editorFontFamily ?? "JetBrains Mono"),
+              lineHeight: settings.editorLineHeight ?? 1.5,
+              tabSize: settings.editorTabSize ?? 2,
+              wordWrap: (settings.editorWordWrap ?? true) ? 'on' : 'off',
+              lineNumbers: (settings.editorShowLineNumbers ?? true) ? 'on' : 'off',
+              folding: true,
+              showFoldingControls: 'always',
+              padding: { top: 16, bottom: 32 },
+              scrollBeyondLastLine: false,
+              overviewRulerLanes: 0,
+              hideCursorInOverviewRuler: true,
+              overviewRulerBorder: false,
+              scrollbar: {
+                vertical: 'auto',
+                horizontal: 'auto',
+                verticalScrollbarSize: 8,
+                horizontalScrollbarSize: 8,
+              },
+              acceptSuggestionOnEnter: (settings.editorAcceptSuggestionOnEnter ?? true) ? 'smart' : 'off',
+              multiCursorModifier: 'ctrlCmd',
+              automaticLayout: true,
+              ...options
+            }}
+          />
+        </div>
+        {vimEnabled && (
+          <div
+            ref={setVimStatusNode}
+            role="status"
+            data-testid="vim-status-line"
+            className="select-none overflow-hidden border-t border-default px-2 py-0.5 font-mono text-xs whitespace-nowrap text-muted"
+          />
+        )}
+      </div>
     );
 };
 

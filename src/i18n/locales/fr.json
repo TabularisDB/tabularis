@@ -590,6 +590,8 @@
     "appearance_editorShowLineNumbersDesc": "Affiche les numéros de ligne dans la marge de l’éditeur.",
     "appearance_editorAcceptSuggestionOnEnter": "Accepter la suggestion avec Entrée",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Autorise la touche Entrée (en plus de Tab) à accepter la suggestion d’autocomplétion active. Lorsqu’elle est désactivée, Entrée insère toujours un saut de ligne.",
+    "appearance_editorVimMode": "Mode Vim",
+    "appearance_editorVimModeDesc": "Active les raccourcis Vim (modes normal, visuel et insertion) dans les éditeurs SQL. Les raccourcis d'exécution comme Ctrl/Cmd+Entrée continuent de fonctionner.",
     "queryExecution": "Exécution des requêtes",
     "runStatementUnderCursor": "Exécuter l'instruction sous le curseur",
     "runStatementUnderCursorDesc": "Lorsqu'un script contient plusieurs instructions, exécute celle sous le curseur au lieu d'afficher le sélecteur de requêtes. Sélectionnez du texte pour exécuter une plage spécifique.",

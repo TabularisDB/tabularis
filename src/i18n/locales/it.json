@@ -591,6 +591,8 @@
     "appearance_editorShowLineNumbersDesc": "Visualizza i numeri di riga nel margine dell'editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Accetta Suggerimento con Invio",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permetti al tasto Invio (oltre a Tab) di accettare il suggerimento di autocompletamento attivo. Quando disattivato, Invio inserisce sempre una nuova riga.",
+    "appearance_editorVimMode": "Modalità Vim",
+    "appearance_editorVimModeDesc": "Abilita i tasti Vim (modalità normale, visuale e inserimento) negli editor SQL. Le scorciatoie di esecuzione come Ctrl/Cmd+Invio continuano a funzionare.",
     "queryExecution": "Esecuzione query",
     "runStatementUnderCursor": "Esegui l'istruzione sotto il cursore",
     "runStatementUnderCursorDesc": "Quando uno script contiene più istruzioni, esegue quella sotto il cursore invece di mostrare il selettore di query. Seleziona il testo per eseguire un intervallo specifico.",

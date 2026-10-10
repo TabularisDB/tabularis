@@ -560,6 +560,8 @@
     "appearance_editorShowLineNumbersDesc": "Zeigt Zeilennummern im Rand des Editors an.",
     "appearance_editorAcceptSuggestionOnEnter": "Vorschlag mit Eingabetaste übernehmen",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Erlaubt der Eingabetaste (zusätzlich zu Tab), den aktiven Autovervollständigungsvorschlag zu übernehmen. Bei deaktivierter Option fügt Enter immer einen Zeilenumbruch ein.",
+    "appearance_editorVimMode": "Vim-Modus",
+    "appearance_editorVimModeDesc": "Aktiviert Vim-Tastenbelegungen (Normal-, Visual- und Einfügemodus) in SQL-Editoren. Ausführen-Shortcuts wie Strg/Cmd+Enter funktionieren weiterhin.",
     "queryExecution": "Abfrageausführung",
     "runStatementUnderCursor": "Anweisung unter dem Cursor ausführen",
     "runStatementUnderCursorDesc": "Wenn ein Skript mehrere Anweisungen enthält, wird die Anweisung unter dem Cursor ausgeführt, statt die Abfrageauswahl anzuzeigen. Markiere Text, um einen bestimmten Bereich auszuführen.",

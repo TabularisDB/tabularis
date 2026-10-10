@@ -100,6 +100,8 @@ export interface Settings {
   editorWordWrap?: boolean;
   editorShowLineNumbers?: boolean;
   editorAcceptSuggestionOnEnter?: boolean;
+  /** Enable Vim keybindings (normal/visual/insert) in SQL editors. Default: false. */
+  editorVimMode?: boolean;
   runStatementUnderCursor?: boolean;
   /** Delay destructive-query and production-write confirmations for five seconds. Default: false. */
   safetyConfirmationDelayEnabled?: boolean;
@@ -248,6 +250,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editorWordWrap: true,
   editorShowLineNumbers: true,
   editorAcceptSuggestionOnEnter: true,
+  editorVimMode: false,
   runStatementUnderCursor: true,
   safetyConfirmationDelayEnabled: false,
   notifyLongQueries: true,

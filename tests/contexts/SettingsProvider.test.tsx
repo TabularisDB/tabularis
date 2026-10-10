@@ -132,6 +132,7 @@ describe("SettingsProvider", () => {
     expect(result.current.settings.aiProvider).toBeNull();
     expect(result.current.settings.aiModel).toBeNull();
     expect(result.current.settings.safetyConfirmationDelayEnabled).toBe(false);
+    expect(result.current.settings.editorVimMode).toBe(false);
   });
 
   it("should load settings from backend config", async () => {

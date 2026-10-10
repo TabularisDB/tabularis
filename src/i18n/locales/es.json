@@ -585,6 +585,8 @@
     "appearance_editorShowLineNumbersDesc": "Muestra los números de línea en el margen del editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Aceptar Sugerencia con Intro",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permite que Intro (además de Tab) acepte la sugerencia de autocompletado activa. Cuando está desactivado, Intro siempre inserta una nueva línea.",
+    "appearance_editorVimMode": "Modo Vim",
+    "appearance_editorVimModeDesc": "Activa las teclas de Vim (modos normal, visual e inserción) en los editores SQL. Los atajos de ejecución como Ctrl/Cmd+Enter siguen funcionando.",
     "queryExecution": "Ejecución de consultas",
     "runStatementUnderCursor": "Ejecutar la instrucción bajo el cursor",
     "runStatementUnderCursorDesc": "Cuando un script tiene varias instrucciones, ejecuta la que está bajo el cursor en lugar de mostrar el selector de consultas. Selecciona texto para ejecutar un rango específico.",
