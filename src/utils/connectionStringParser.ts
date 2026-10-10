@@ -91,9 +91,14 @@ function normalizeJdbcConnectionString(value: string): string {
 function getSslModeFromUrl(url: URL, protocol: string): string | undefined {
   // URLSearchParams.get is case-sensitive, but Connector/J uses "sslMode".
   // Recognize that spelling along with the existing hyphen/underscore aliases.
-  const mode = Array.from(url.searchParams.entries())
-    .find(([key]) => ["sslmode", "ssl-mode", "ssl_mode"].includes(key.toLowerCase()))
-    ?.[1].trim().toLowerCase();
+  // Keep the original alias priority (sslmode > ssl-mode > ssl_mode)
+  // even if a differently named query parameter appears first.
+  const params = Array.from(url.searchParams.entries());
+  const getParam = (name: string) =>
+    params.find(([key]) => key.toLowerCase() === name)?.[1];
+  const mode = (
+    getParam("sslmode") ?? getParam("ssl-mode") ?? getParam("ssl_mode")
+  )?.trim().toLowerCase();
   if (!mode) return undefined;
 
   if (protocol === "mysql" || protocol === "mariadb") {
