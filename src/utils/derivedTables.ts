@@ -247,7 +247,10 @@ export function parseDerivedTables(sql: string, cursor = sql.length): DerivedTab
     }
 
     if (!is(token, "from") && !is(token, "join")) continue;
-    const open = i + 1;
+    // PostgreSQL accepts LATERAL (SELECT ...) AS alias after FROM or JOIN.
+    // The modifier belongs to the source, not to the subquery body.
+    let open = i + 1;
+    if (is(tokens[open], "lateral")) open++;
     const close = matched.get(open);
     if (tokens[open]?.text !== "(" || close === undefined) continue;
     const bodyStart = tokens[open].end;
