@@ -567,6 +567,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
             existing_config.notify_long_queries_threshold_sec =
                 config.notify_long_queries_threshold_sec;
         }
+        if config.autocomplete_keyword_case.is_some() {
+            existing_config.autocomplete_keyword_case = config.autocomplete_keyword_case;
+        }
         if config.ping_interval.is_some() {
             let old_interval = existing_config.ping_interval;
             existing_config.ping_interval = config.ping_interval;
