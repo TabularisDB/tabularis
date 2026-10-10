@@ -2854,7 +2854,13 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 action: () => {
                                   if (contextMenu.data && "sql" in contextMenu.data) {
                                     const sq = contextMenu.data as SavedQuery;
-                                    runQuery(sq.sql, sq.name, false, sq.database ?? undefined);
+                                    // Pass sq.database as the 5th arg (database), not
+                                    // the 4th (schema) — these are different fields in
+                                    // runQuery(sql, queryName, preventAutoRun, schema,
+                                    // database). Passing it as schema caused replay to
+                                    // run against the default database instead of the
+                                    // saved one (debba review, PR #822).
+                                    runQuery(sq.sql, sq.name, false, undefined, sq.database ?? undefined);
                                   }
                                 },
                               },
