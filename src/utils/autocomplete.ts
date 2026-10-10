@@ -279,7 +279,7 @@ export const registerSqlAutocomplete = (
         } else {
           const quotedAlias = quotedDotMatch
             ? (quotedDotMatch[1] ?? quotedDotMatch[2] ?? quotedDotMatch[3] ?? "")
-                .replace(/""/g, '"').replace(/\`\`/g, "\`")
+                .replace(/""/g, '"').replace(/``/g, "`")
             : "";
           const typedName = (simpleDotMatch?.[1] ?? quotedAlias).toLowerCase();
           partialColumn = simpleDotMatch?.[2] ?? quotedDotMatch?.[4] ?? "";
