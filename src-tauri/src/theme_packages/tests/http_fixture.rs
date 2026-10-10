@@ -4,7 +4,7 @@ use std::{
     io::{BufRead, BufReader, Write},
     net::{TcpListener, TcpStream},
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc, Mutex,
     },
     thread,
@@ -29,6 +29,7 @@ pub struct RegistryServer {
     pub requests: Arc<Mutex<Vec<String>>>,
     pub state: Arc<Mutex<ResponseState>>,
     stopped: Arc<AtomicBool>,
+    accepted_connections: Arc<AtomicUsize>,
     thread: Option<thread::JoinHandle<()>>,
 }
 
@@ -39,6 +40,7 @@ impl RegistryServer {
         let base = format!("http://{}", listener.local_addr().unwrap());
         let requests = Arc::new(Mutex::new(Vec::new()));
         let stopped = Arc::new(AtomicBool::new(false));
+        let accepted_connections = Arc::new(AtomicUsize::new(0));
         let state = Arc::new(Mutex::new(ResponseState {
             bytes,
             version: "1.0.0".into(),
@@ -50,11 +52,12 @@ impl RegistryServer {
             oversize: false,
             delay_download: false,
         }));
-        let (log, stop, source, url) = (
+        let (log, stop, source, url, accepted) = (
             requests.clone(),
             stopped.clone(),
             state.clone(),
             base.clone(),
+            accepted_connections.clone(),
         );
         // Binding to port 0 already delegates uniqueness to the OS. The
         // failure under parallel tests is not a fixed-port collision: this
@@ -74,6 +77,7 @@ impl RegistryServer {
                     Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
                     Err(error) => panic!("Loopback fixture: {error}"),
                 };
+                accepted.fetch_add(1, Ordering::Release);
                 let log = log.clone();
                 let source = source.clone();
                 let url = url.clone();
@@ -95,6 +99,7 @@ impl RegistryServer {
             requests,
             state,
             stopped,
+            accepted_connections,
             thread: Some(thread),
         }
     }
@@ -152,13 +157,20 @@ fn serve_connection(
         if reader.read_line(&mut first).is_err() || first.is_empty() {
             return;
         }
+        let mut complete_headers = false;
         for _ in 0..64 {
             let mut line = String::new();
             match reader.read_line(&mut line) {
                 Ok(0) | Err(_) => return,
-                Ok(_) if line == "\r\n" || line == "\n" => break,
+                Ok(_) if line == "\r\n" || line == "\n" => {
+                    complete_headers = true;
+                    break;
+                },
                 Ok(_) => {}
             }
+        }
+        if !complete_headers {
+            return;
         }
     }
     let path = first.split_whitespace().nth(1).unwrap_or("").to_string();
@@ -256,7 +268,14 @@ mod concurrency_tests {
             .unwrap();
         // Wait until the first connection has been accepted by the server,
         // so the test cannot falsely pass due to accept ordering.
-        std::thread::sleep(Duration::from_millis(40));
+        let start = std::time::Instant::now();
+        while server.accepted_connections.load(Ordering::Acquire) == 0 {
+            assert!(
+                start.elapsed() < Duration::from_secs(2),
+                "fixture did not accept the stalled connection"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
         get_kinds(&server.base);
         drop(stalled);
     }
@@ -274,7 +293,10 @@ mod concurrency_tests {
             }
         });
         for server in servers {
-            assert_eq!(server.requests.lock().unwrap().as_slice(), ["/api/kinds"]);
+            assert_eq!(
+                *server.requests.lock().unwrap(),
+                vec!["/api/kinds".to_string()]
+            );
         }
     }
 }
