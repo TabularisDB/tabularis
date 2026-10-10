@@ -599,11 +599,10 @@ pub struct RoutineInfo {
     /// output of `pg_get_function_identity_arguments`, which is what `DROP`,
     /// `ALTER` and a catalog lookup all accept. `None` where a name is enough.
     ///
-    /// Skipped when it is `None` so the field is ABSENT rather than JSON `null`
-    /// on the dialects that cannot overload. Serialized, a `None` reached the UI
-    /// as `null`, which is not `undefined`, and the label read every MySQL
-    /// routine as `name(null)`. Fixing it at the wire makes the TypeScript
-    /// declaration true instead of asking every reader to remember it is not.
+    /// Skipped when it is `None`, so on the dialects that cannot overload the
+    /// field is absent from the payload rather than JSON `null`. That makes the
+    /// optional declaration on the TypeScript side true on the wire, instead of
+    /// asking every reader to remember that it is not.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identity_args: Option<String>,
 }
