@@ -24,7 +24,8 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "character_maximum_length": 255
   },
   {
     "name": "col_int",

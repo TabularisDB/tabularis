@@ -319,7 +319,7 @@ pub async fn get_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, NULLIF(column_comment, ''), numeric_precision, numeric_scale
+        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
         FROM information_schema.columns
         WHERE table_schema = ? AND table_name = ?
         ORDER BY ordinal_position
@@ -410,7 +410,7 @@ pub async fn get_foreign_keys(
             kcu.REFERENCED_COLUMN_NAME,
             rc.UPDATE_RULE,
             rc.DELETE_RULE,
-            kcu.ORDINAL_POSITION
+            CAST(kcu.ORDINAL_POSITION AS SIGNED)
         FROM information_schema.KEY_COLUMN_USAGE kcu
         JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
         ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
@@ -440,7 +440,13 @@ pub async fn get_foreign_keys(
             on_update: mysql_row_str_opt(r, 4),
             on_delete: mysql_row_str_opt(r, 5),
             // ORDINAL_POSITION is 1-based position within the key (#840).
-            seq_in_fk: mysql_row_str_opt(r, 6).and_then(|s| s.parse::<i32>().ok()),
+            // CAST AS SIGNED so sqlx decodes it as i64 (the column is bigint
+            // unsigned in information_schema).
+            seq_in_fk: r
+                .try_get::<Option<i64>, _>(6)
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok()),
         })
         .collect())
 }
@@ -456,7 +462,7 @@ pub async fn get_all_columns_batch(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, NULLIF(column_comment, ''), numeric_precision, numeric_scale
+        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
         FROM information_schema.columns
         WHERE table_schema = ?
         ORDER BY table_name, ordinal_position
@@ -551,7 +557,7 @@ pub async fn get_all_foreign_keys_batch(
             kcu.REFERENCED_COLUMN_NAME,
             rc.UPDATE_RULE,
             rc.DELETE_RULE,
-            kcu.ORDINAL_POSITION
+            CAST(kcu.ORDINAL_POSITION AS SIGNED)
         FROM information_schema.KEY_COLUMN_USAGE kcu
         JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
         ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
@@ -575,7 +581,11 @@ pub async fn get_all_foreign_keys_batch(
             ref_column: mysql_row_str(row, 4),
             on_update: mysql_row_str_opt(row, 5),
             on_delete: mysql_row_str_opt(row, 6),
-            seq_in_fk: mysql_row_str_opt(row, 7).and_then(|s| s.parse::<i32>().ok()),
+            seq_in_fk: row
+                .try_get::<Option<i64>, _>(7)
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok()),
         };
 
         result.entry(table_name).or_insert_with(Vec::new).push(fk);
@@ -1157,7 +1167,7 @@ pub async fn get_view_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-            SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, numeric_precision, numeric_scale
+            SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
             FROM information_schema.columns
             WHERE table_schema = ? AND table_name = ?
             ORDER BY ordinal_position

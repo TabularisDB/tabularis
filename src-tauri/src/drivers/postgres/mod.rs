@@ -175,7 +175,7 @@ pub async fn get_columns(
             let default_val: String = r.try_get("column_default").unwrap_or_default();
             let is_identity: String = r.try_get("is_identity").unwrap_or_default(); // YES/NO
             let character_maximum_length: Option<u64> = r
-                .try_get::<_, Option<i64>>("character_maximum_length")
+                .try_get::<_, Option<i32>>("character_maximum_length")
                 .ok()
                 .flatten()
                 .and_then(|v| u64::try_from(v).ok());
@@ -358,7 +358,7 @@ pub async fn get_all_columns_batch(
         let default_val: String = row.try_get("column_default").unwrap_or_default();
         let is_identity: String = row.try_get("is_identity").unwrap_or_default();
         let character_maximum_length: Option<u64> = row
-            .try_get::<_, Option<i64>>("character_maximum_length")
+            .try_get::<_, Option<i32>>("character_maximum_length")
             .ok()
             .flatten()
             .and_then(|v| u64::try_from(v).ok());
@@ -1472,7 +1472,7 @@ pub async fn get_view_columns(
             let default_val: String = r.try_get("column_default").unwrap_or_default();
             let is_identity: String = r.try_get("is_identity").unwrap_or_default();
             let character_maximum_length: Option<u64> = r
-                .try_get::<_, Option<i64>>("character_maximum_length")
+                .try_get::<_, Option<i32>>("character_maximum_length")
                 .ok()
                 .flatten()
                 .and_then(|v| u64::try_from(v).ok());
