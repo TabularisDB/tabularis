@@ -139,6 +139,8 @@ pub struct AppConfig {
     pub formatter_function_case: Option<String>,
     pub formatter_lines_between_queries: Option<u32>,
     pub formatter_dense_operators: Option<bool>,
+    /// Case of SQL keywords inserted by autocomplete: "match" | "upper" | "lower"
+    pub autocomplete_keyword_case: Option<String>,
     /// Connection health check interval in seconds. 0 = disabled. Default: 30.
     pub ping_interval: Option<u32>,
     /// Maximum number of query history entries per connection. Default: 500.
@@ -564,6 +566,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         if config.notify_long_queries_threshold_sec.is_some() {
             existing_config.notify_long_queries_threshold_sec =
                 config.notify_long_queries_threshold_sec;
+        }
+        if config.autocomplete_keyword_case.is_some() {
+            existing_config.autocomplete_keyword_case = config.autocomplete_keyword_case;
         }
         if config.ping_interval.is_some() {
             let old_interval = existing_config.ping_interval;

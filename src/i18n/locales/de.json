@@ -583,6 +583,10 @@
     "formatter_linesBetweenQueriesDesc": "Anzahl der Leerzeilen zwischen separaten SQL-Anweisungen.",
     "formatter_denseOperators": "Kompakte Operatoren",
     "formatter_denseOperatorsDesc": "Leerzeichen um Operatoren entfernen (z.B. a=1 statt a = 1).",
+    "autocomplete_title": "Autovervollständigung",
+    "autocomplete_keywordCase": "Schlüsselwort-Schreibweise",
+    "autocomplete_keywordCaseDesc": "Groß-/Kleinschreibung von SQL-Schlüsselwörtern, die durch die Autovervollständigung eingefügt werden.",
+    "autocomplete_keywordCaseMatch": "An Eingabe anpassen",
     "editConfigJson": "config.json bearbeiten",
     "editConfigJsonDesc": "Bearbeite die rohe Konfigurationsdatei direkt. Ein Neustart ist erforderlich, um Änderungen anzuwenden.",
     "configJsonModal": {

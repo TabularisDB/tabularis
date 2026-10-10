@@ -619,6 +619,10 @@
     "formatter_linesBetweenQueriesDesc": "Number of blank lines inserted between separate SQL statements.",
     "formatter_denseOperators": "Dense Operators",
     "formatter_denseOperatorsDesc": "Remove spaces around operators (e.g. a=1 instead of a = 1).",
+    "autocomplete_title": "Autocomplete",
+    "autocomplete_keywordCase": "Keyword case",
+    "autocomplete_keywordCaseDesc": "Case of SQL keywords inserted by autocomplete",
+    "autocomplete_keywordCaseMatch": "Match typing",
     "editConfigJson": "Edit config.json",
     "editConfigJsonDesc": "Directly edit the raw configuration file. A restart is required to apply changes.",
     "configJsonModal": {

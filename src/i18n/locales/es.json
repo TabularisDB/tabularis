@@ -608,6 +608,10 @@
     "formatter_linesBetweenQueriesDesc": "Número de líneas en blanco entre sentencias SQL separadas.",
     "formatter_denseOperators": "Operadores compactos",
     "formatter_denseOperatorsDesc": "Eliminar espacios alrededor de operadores (ej. a=1 en lugar de a = 1).",
+    "autocomplete_title": "Autocompletado",
+    "autocomplete_keywordCase": "Mayúsculas en palabras clave",
+    "autocomplete_keywordCaseDesc": "Mayúsculas y minúsculas de las palabras clave SQL insertadas por el autocompletado.",
+    "autocomplete_keywordCaseMatch": "Igualar lo escrito",
     "editConfigJson": "Editar config.json",
     "editConfigJsonDesc": "Edita directamente el archivo de configuración en bruto. Se requiere reinicio para aplicar los cambios.",
     "configJsonModal": {

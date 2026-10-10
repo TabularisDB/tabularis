@@ -558,6 +558,10 @@
     "formatter_linesBetweenQueriesDesc": "SQL 문 사이에 삽입할 빈 줄 수.",
     "formatter_denseOperators": "밀집 연산자",
     "formatter_denseOperatorsDesc": "연산자 주위 공백 제거 (예: a = 1 → a=1).",
+    "autocomplete_title": "자동완성",
+    "autocomplete_keywordCase": "키워드 대소문자",
+    "autocomplete_keywordCaseDesc": "자동완성으로 삽입되는 SQL 키워드의 대소문자.",
+    "autocomplete_keywordCaseMatch": "입력에 맞춤",
     "editConfigJson": "config.json 편집",
     "editConfigJsonDesc": "원본 설정 파일을 직접 편집합니다. 변경 사항을 적용하려면 재시작이 필요합니다.",
     "configJsonModal": {

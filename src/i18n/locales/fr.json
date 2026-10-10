@@ -613,6 +613,10 @@
     "formatter_linesBetweenQueriesDesc": "Nombre de lignes vides entre les instructions SQL séparées.",
     "formatter_denseOperators": "Opérateurs compacts",
     "formatter_denseOperatorsDesc": "Supprimer les espaces autour des opérateurs (ex. a=1 au lieu de a = 1).",
+    "autocomplete_title": "Autocomplétion",
+    "autocomplete_keywordCase": "Casse des mots-clés",
+    "autocomplete_keywordCaseDesc": "Casse des mots-clés SQL insérés par l’autocomplétion.",
+    "autocomplete_keywordCaseMatch": "Suivre la saisie",
     "editConfigJson": "Modifier config.json",
     "editConfigJsonDesc": "Modifiez directement le fichier de configuration brut. Un redémarrage est nécessaire pour appliquer les changements.",
     "configJsonModal": {

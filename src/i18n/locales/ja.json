@@ -594,6 +594,10 @@
     "formatter_linesBetweenQueriesDesc": "SQL文間に挿入する空行の数。",
     "formatter_denseOperators": "演算子を詰める",
     "formatter_denseOperatorsDesc": "演算子の周りのスペースを削除（例：a = 1 → a=1）。",
+    "autocomplete_title": "オートコンプリート",
+    "autocomplete_keywordCase": "キーワードの大文字/小文字",
+    "autocomplete_keywordCaseDesc": "オートコンプリートで挿入されるSQLキーワードの大文字/小文字。",
+    "autocomplete_keywordCaseMatch": "入力に合わせる",
     "editConfigJson": "config.json を編集",
     "editConfigJsonDesc": "生の設定ファイルを直接編集します。変更を反映するには再起動が必要です。",
     "configJsonModal": {

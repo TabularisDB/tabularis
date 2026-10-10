@@ -613,6 +613,10 @@
     "formatter_linesBetweenQueriesDesc": "Bilang ng blank lines sa pagitan ng SQL statements.",
     "formatter_denseOperators": "Siksik na Operators",
     "formatter_denseOperatorsDesc": "Alisin ang spaces sa paligid ng operators (hal. a=1 sa halip na a = 1).",
+    "autocomplete_title": "Autocomplete",
+    "autocomplete_keywordCase": "Case ng keyword",
+    "autocomplete_keywordCaseDesc": "Case ng mga SQL keyword na ini-insert ng autocomplete.",
+    "autocomplete_keywordCaseMatch": "Sundin ang tina-type",
     "editConfigJson": "I-edit ang config.json",
     "editConfigJsonDesc": "Direktang i-edit ang raw configuration file. Kailangan ng restart para mailapat ang mga pagbabago.",
     "configJsonModal": {
