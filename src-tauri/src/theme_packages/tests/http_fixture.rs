@@ -261,7 +261,7 @@ mod concurrency_tests {
         let address = server.base.strip_prefix("http://").unwrap();
         // Keep an incomplete request on an open TCP connection. The old
         // single-threaded server would wait for its 2s read timeout before
-        // accepting the actual SDK request, exceeding the 1s deadline.
+        // accepting the actual SDK request, exceeding the 1.5s deadline.
         let mut stalled = TcpStream::connect(address).unwrap();
         stalled
             .write_all(b"GET /partial HTTP/1.1\r\nHost: localhost\r\n")
