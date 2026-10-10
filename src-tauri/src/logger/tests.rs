@@ -1,30 +1,12 @@
 //! Tests for [`super::resolve_log_level_from_env`] and its pure parsing helper.
 //!
-//! `RUST_LOG` is process-wide, so the env-reading cases run under `ENV_LOCK` to
-//! stop Rust's threaded test runner racing on it, and they restore the previous
-//! value afterwards.
+//! The env-reading cases share `super::test_env::with_rust_log`, which takes the
+//! same lock `cli::tests` uses, so a test in either module cannot observe the
+//! other's writes to `RUST_LOG`.
 
+use super::test_env::with_rust_log;
 use super::{level_from_str, parse_rust_log_level, resolve_log_level_from_env};
 use log::LevelFilter;
-use std::sync::Mutex;
-
-static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-/// Run `body` with `RUST_LOG` set to `value` (or removed when `None`).
-fn with_rust_log<T>(value: Option<&str>, body: impl FnOnce() -> T) -> T {
-    let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    let previous = std::env::var("RUST_LOG").ok();
-    match value {
-        Some(v) => std::env::set_var("RUST_LOG", v),
-        None => std::env::remove_var("RUST_LOG"),
-    }
-    let result = body();
-    match previous {
-        Some(v) => std::env::set_var("RUST_LOG", v),
-        None => std::env::remove_var("RUST_LOG"),
-    }
-    result
-}
 
 #[test]
 fn without_debug_and_without_rust_log_the_level_stays_info() {
