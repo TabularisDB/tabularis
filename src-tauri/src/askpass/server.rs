@@ -13,12 +13,141 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use super::client::SOCKET_ENV;
-#[cfg(windows)]
-use super::client::TOKEN_ENV;
+use super::client::{SOCKET_ENV, TOKEN_ENV};
 use super::protocol::{decode_request, encode_response, PromptKind};
 
 const ACCEPT_POLL_MS: u64 = 100;
+
+/// `sockaddr_un.sun_path` on macOS is 104 bytes, including the trailing NUL.
+#[cfg(unix)]
+const UNIX_SUN_PATH_MAX: usize = 103;
+
+/// Credentials already collected in the connection form. Matching prompts are
+/// answered from these values, so a saved passphrase or password does not
+/// require a second interactive prompt.
+#[derive(Clone, Default)]
+pub struct AskpassOptions {
+    pub password: Option<String>,
+    pub key_passphrase: Option<String>,
+    /// Private key path passed to `ssh -i`. The stored passphrase is returned
+    /// only for OpenSSH's local prompt for this path.
+    pub key_path: Option<String>,
+    /// Show the in-app modal for prompts that stored credentials do not answer.
+    pub allow_ui: bool,
+}
+
+impl AskpassOptions {
+    /// Interactive prompts and no stored credentials.
+    pub fn interactive() -> Self {
+        Self {
+            allow_ui: true,
+            ..Self::default()
+        }
+    }
+}
+
+#[derive(Default)]
+pub(super) struct StoredSecrets {
+    pub(super) password: Option<String>,
+    pub(super) key_passphrase: Option<String>,
+    pub(super) key_path: Option<String>,
+}
+
+/// Bytes of the key path OpenSSH includes in its local passphrase prompt
+/// (`%.100s` in `authfile.c`).
+pub(super) const OPENSSH_KEY_PATH_PROMPT_BYTES: usize = 100;
+
+impl StoredSecrets {
+    fn from_options(options: &AskpassOptions) -> Self {
+        Self {
+            password: non_blank(options.password.clone()),
+            key_passphrase: non_blank(options.key_passphrase.clone()),
+            key_path: non_blank(options.key_path.clone()),
+        }
+    }
+
+    /// Return a stored secret for this prompt, consuming it so a rejected
+    /// value is not submitted again in a loop.
+    ///
+    /// The key passphrase is released only for OpenSSH's own local prompt for
+    /// the selected key. A remote keyboard-interactive prompt can say
+    /// "passphrase" but cannot know that full local path. The account password
+    /// is released for password prompts, because that secret is for this server.
+    pub(super) fn take_for_prompt(&mut self, prompt: &str) -> Option<String> {
+        if let Some(path) = self.key_path.as_deref() {
+            // OpenSSH expands a leading `~` in `-i` before building the prompt.
+            let expanded = expand_leading_tilde(path);
+            if prompt == openssh_key_passphrase_prompt(&expanded) {
+                return self.key_passphrase.take();
+            }
+        }
+        if prompt.to_ascii_lowercase().contains("password") {
+            return self.password.take();
+        }
+        None
+    }
+}
+
+/// Expand a leading `~` or `~/` to the current user's home directory.
+/// `~otheruser` is left unchanged. If the home directory is unavailable, the
+/// path is returned as typed.
+fn expand_leading_tilde(path: &str) -> String {
+    let relative = if path == "~" {
+        Some("")
+    } else {
+        path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\"))
+    };
+    match (relative, directories::BaseDirs::new()) {
+        (Some(rest), Some(base_dirs)) => base_dirs
+            .home_dir()
+            .join(rest)
+            .to_string_lossy()
+            .into_owned(),
+        _ => path.to_string(),
+    }
+}
+
+/// `Enter passphrase for key '<path>': `, matching OpenSSH `authfile.c`.
+pub(super) fn openssh_key_passphrase_prompt(key_path: &str) -> String {
+    let shown = openssh_displayed_key_path(key_path);
+    format!("Enter passphrase for key '{shown}': ")
+}
+
+fn openssh_displayed_key_path(key_path: &str) -> &str {
+    if key_path.len() <= OPENSSH_KEY_PATH_PROMPT_BYTES {
+        return key_path;
+    }
+    let mut end = OPENSSH_KEY_PATH_PROMPT_BYTES;
+    while end > 0 && !key_path.is_char_boundary(end) {
+        end -= 1;
+    }
+    &key_path[..end]
+}
+
+fn non_blank(value: Option<String>) -> Option<String> {
+    value.filter(|v| !v.trim().is_empty())
+}
+
+/// Pick a socket path that fits in `sun_path`. macOS per-user temp directories
+/// (`/var/folders/.../T`) plus a long file name exceed 104 bytes, `bind` fails,
+/// and OpenSSH then executes its compiled-in `/usr/X11R6/bin/ssh-askpass`.
+#[cfg(unix)]
+pub(crate) fn askpass_socket_path() -> Result<std::path::PathBuf, String> {
+    let name = format!(
+        "tb-ask-{}.sock",
+        &uuid::Uuid::new_v4().simple().to_string()[..12]
+    );
+    let candidates = [
+        std::env::temp_dir().join(&name),
+        std::path::PathBuf::from("/tmp").join(&name),
+    ];
+    candidates
+        .into_iter()
+        .find(|path| path.to_string_lossy().len() <= UNIX_SUN_PATH_MAX)
+        .ok_or_else(|| {
+            "Could not find a directory short enough for the SSH askpass socket".to_string()
+        })
+}
 
 /// User-interface side of an askpass exchange. Implementations block inside
 /// [`AskpassUi::request`] until the user answers (or a timeout fires).
@@ -35,7 +164,6 @@ pub trait AskpassUi: Send + Sync {
 
 pub struct AskpassServer {
     endpoint: String,
-    #[cfg(windows)]
     token: String,
     pending: Arc<AtomicUsize>,
     stop: Arc<AtomicBool>,
@@ -46,21 +174,28 @@ pub struct AskpassServer {
 impl AskpassServer {
     /// Bind the local socket and spawn the accept loop.
     pub fn start(ui: Arc<dyn AskpassUi>) -> Result<Self, String> {
+        Self::start_with(ui, AskpassOptions::interactive())
+    }
+
+    /// Like [`Self::start`], but stored credentials can answer prompts before
+    /// the UI is shown.
+    pub fn start_with(ui: Arc<dyn AskpassUi>, options: AskpassOptions) -> Result<Self, String> {
         let pending = Arc::new(AtomicUsize::new(0));
         let stop = Arc::new(AtomicBool::new(false));
+        let allow_ui = options.allow_ui;
+        let secrets = Arc::new(std::sync::Mutex::new(StoredSecrets::from_options(&options)));
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             use std::os::unix::net::UnixListener;
 
-            let socket_path = std::env::temp_dir().join(format!(
-                "tabularis-askpass-{}.sock",
-                uuid::Uuid::new_v4().simple()
-            ));
+            let socket_path = askpass_socket_path()?;
             let listener = UnixListener::bind(&socket_path)
                 .map_err(|e| format!("Failed to bind askpass socket: {}", e))?;
             // The socket carries secrets: restrict it to the current user.
+            // Mode 0600 is not enough on its own — the path is listable — so
+            // clients must also present `token`.
             std::fs::set_permissions(&socket_path, std::fs::Permissions::from_mode(0o600))
                 .map_err(|e| format!("Failed to restrict askpass socket permissions: {}", e))?;
             listener
@@ -68,9 +203,19 @@ impl AskpassServer {
                 .map_err(|e| format!("Failed to configure askpass socket: {}", e))?;
 
             let endpoint = socket_path.to_string_lossy().to_string();
-            spawn_accept_loop(listener, ui, pending.clone(), stop.clone());
+            let token = uuid::Uuid::new_v4().simple().to_string();
+            spawn_accept_loop(
+                listener,
+                ui,
+                pending.clone(),
+                stop.clone(),
+                secrets,
+                allow_ui,
+                token.clone(),
+            );
             Ok(Self {
                 endpoint,
+                token,
                 pending,
                 stop,
                 socket_path,
@@ -92,7 +237,15 @@ impl AskpassServer {
                 .map_err(|e| format!("Failed to configure askpass socket: {}", e))?;
 
             let token = uuid::Uuid::new_v4().simple().to_string();
-            spawn_accept_loop(listener, ui, pending.clone(), stop.clone(), token.clone());
+            spawn_accept_loop(
+                listener,
+                ui,
+                pending.clone(),
+                stop.clone(),
+                secrets,
+                allow_ui,
+                token.clone(),
+            );
             Ok(Self {
                 endpoint,
                 token,
@@ -115,10 +268,15 @@ impl AskpassServer {
         command
             .env("SSH_ASKPASS", exe)
             .env("SSH_ASKPASS_REQUIRE", "force")
-            .env(SOCKET_ENV, &self.endpoint);
-        #[cfg(windows)]
-        command.env(TOKEN_ENV, &self.token);
+            .env(SOCKET_ENV, &self.endpoint)
+            .env(TOKEN_ENV, &self.token);
         Ok(())
+    }
+
+    /// Shared secret the askpass client must send before any prompt is served.
+    #[cfg(test)]
+    pub(crate) fn token(&self) -> &str {
+        &self.token
     }
 
     /// Whether a prompt is currently waiting on the user. Callers use this to
@@ -142,6 +300,9 @@ fn spawn_accept_loop(
     ui: Arc<dyn AskpassUi>,
     pending: Arc<AtomicUsize>,
     stop: Arc<AtomicBool>,
+    secrets: Arc<std::sync::Mutex<StoredSecrets>>,
+    allow_ui: bool,
+    token: String,
 ) {
     thread::spawn(move || {
         while !stop.load(Ordering::Relaxed) {
@@ -149,7 +310,11 @@ fn spawn_accept_loop(
                 Ok((stream, _)) => {
                     let ui = ui.clone();
                     let pending = pending.clone();
-                    thread::spawn(move || handle_connection(stream, ui, pending));
+                    let secrets = secrets.clone();
+                    let token = token.clone();
+                    thread::spawn(move || {
+                        handle_connection(stream, ui, pending, secrets, allow_ui, &token)
+                    });
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     thread::sleep(Duration::from_millis(ACCEPT_POLL_MS));
@@ -169,6 +334,8 @@ fn spawn_accept_loop(
     ui: Arc<dyn AskpassUi>,
     pending: Arc<AtomicUsize>,
     stop: Arc<AtomicBool>,
+    secrets: Arc<std::sync::Mutex<StoredSecrets>>,
+    allow_ui: bool,
     token: String,
 ) {
     thread::spawn(move || {
@@ -177,6 +344,7 @@ fn spawn_accept_loop(
                 Ok((stream, _)) => {
                     let ui = ui.clone();
                     let pending = pending.clone();
+                    let secrets = secrets.clone();
                     let token = token.clone();
                     thread::spawn(move || {
                         let mut reader =
@@ -188,7 +356,7 @@ fn spawn_accept_loop(
                             eprintln!("[Askpass] Rejected connection with bad token");
                             return;
                         }
-                        handle_authenticated(reader, stream, ui, pending);
+                        handle_authenticated(reader, stream, ui, pending, secrets, allow_ui);
                     });
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -208,15 +376,32 @@ fn handle_connection(
     stream: std::os::unix::net::UnixStream,
     ui: Arc<dyn AskpassUi>,
     pending: Arc<AtomicUsize>,
+    secrets: Arc<std::sync::Mutex<StoredSecrets>>,
+    allow_ui: bool,
+    token: &str,
 ) {
-    let reader = BufReader::new(match stream.try_clone() {
+    // macOS accepted sockets inherit O_NONBLOCK from the listener. The client
+    // writes AUTH and the request separately, so a nonblocking read between
+    // those writes returns WouldBlock and the connection is rejected.
+    if let Err(e) = stream.set_nonblocking(false) {
+        eprintln!("[Askpass] Failed to make connection blocking: {}", e);
+        return;
+    }
+    let mut reader = BufReader::new(match stream.try_clone() {
         Ok(s) => s,
         Err(e) => {
             eprintln!("[Askpass] Failed to clone stream: {}", e);
             return;
         }
     });
-    handle_authenticated(reader, stream, ui, pending);
+    let mut auth = String::new();
+    if reader.read_line(&mut auth).is_err()
+        || auth.trim_end_matches(['\n', '\r']) != format!("AUTH {}", token)
+    {
+        eprintln!("[Askpass] Rejected connection with bad token");
+        return;
+    }
+    handle_authenticated(reader, stream, ui, pending, secrets, allow_ui);
 }
 
 /// Serve a single askpass exchange on an already-authenticated connection.
@@ -225,6 +410,8 @@ fn handle_authenticated<R, W>(
     mut writer: W,
     ui: Arc<dyn AskpassUi>,
     pending: Arc<AtomicUsize>,
+    secrets: Arc<std::sync::Mutex<StoredSecrets>>,
+    allow_ui: bool,
 ) where
     R: std::io::Read,
     W: Write,
@@ -237,6 +424,33 @@ fn handle_authenticated<R, W>(
         eprintln!("[Askpass] Ignoring malformed request");
         return;
     };
+
+    if kind == PromptKind::Secret {
+        let stored = secrets
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take_for_prompt(&prompt);
+        if let Some(secret) = stored {
+            let reply = format!("{}\n", encode_response(Some(&secret)));
+            if let Err(e) = writer
+                .write_all(reply.as_bytes())
+                .and_then(|_| writer.flush())
+            {
+                eprintln!("[Askpass] Failed to send stored secret: {}", e);
+            }
+            return;
+        }
+    }
+
+    if !allow_ui {
+        if kind != PromptKind::Notify {
+            let reply = format!("{}\n", encode_response(None));
+            let _ = writer
+                .write_all(reply.as_bytes())
+                .and_then(|_| writer.flush());
+        }
+        return;
+    }
 
     pending.fetch_add(1, Ordering::Relaxed);
     // Make sure the counter is decremented on every exit path.

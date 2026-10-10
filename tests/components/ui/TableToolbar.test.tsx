@@ -361,5 +361,60 @@ describe('TableToolbar', () => {
 
       expect(screen.getByText('WHERE')).toBeInTheDocument();
     });
+
+    it('does not apply an incomplete filter from its own Apply button', () => {
+      render(<TableToolbar {...panelProps} />);
+      openPanel();
+      mockOnUpdate.mockClear();
+
+      fireEvent.click(screen.getByText('toolbar.apply'));
+
+      expect(mockOnUpdate).toHaveBeenCalledTimes(1);
+      expect(mockOnUpdate.mock.calls[0][0]).toBe('');
+    });
+
+    it('does not show the applied feedback for an incomplete row', () => {
+      render(<TableToolbar {...panelProps} />);
+      openPanel();
+
+      fireEvent.click(screen.getByText('toolbar.apply'));
+
+      expect(screen.queryByText('toolbar.applied')).not.toBeInTheDocument();
+      expect(screen.getByText('toolbar.apply')).toBeInTheDocument();
+    });
+
+    it('shows the applied feedback for a complete row', () => {
+      render(<TableToolbar {...panelProps} />);
+      openPanel();
+      fireEvent.change(screen.getByPlaceholderText('toolbar.valuePlaceholder'), {
+        target: { value: '5' },
+      });
+
+      fireEvent.click(screen.getByText('toolbar.apply'));
+
+      expect(screen.getByText('toolbar.applied')).toBeInTheDocument();
+    });
+
+    it('does not show the applied feedback after Apply All on an incomplete row', () => {
+      render(<TableToolbar {...panelProps} />);
+      openPanel();
+
+      fireEvent.click(screen.getByText('toolbar.applyAll'));
+
+      expect(screen.queryByText('toolbar.applied')).not.toBeInTheDocument();
+    });
+
+    it('applies a complete filter from its own Apply button', () => {
+      render(<TableToolbar {...panelProps} />);
+      openPanel();
+      fireEvent.change(screen.getByPlaceholderText('toolbar.valuePlaceholder'), {
+        target: { value: '5' },
+      });
+      mockOnUpdate.mockClear();
+
+      fireEvent.click(screen.getByText('toolbar.apply'));
+
+      expect(mockOnUpdate.mock.calls[0][0]).toBe('id = 5');
+    });
   });
 });
