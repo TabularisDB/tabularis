@@ -5,6 +5,7 @@ import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { formatSqlIdentifier, getQuoteChar, quoteIdentifier } from "./identifiers";
 import { getCurrentStatement, parseTablesFromQuery, type ParsedTableRef } from "./sqlAnalysis";
 import { analyzeSqlContext, findStatementScopeEnd, getKeywordRelevance, getSuggestionKinds } from "./sqlContext";
+import { maskNestedSqlBodies, parseDerivedTables } from "./derivedTables";
 
 // Lightweight column cache with TTL and size limits
 interface CachedColumns {
@@ -208,12 +209,16 @@ export const registerSqlAutocomplete = (
       // resolvable through the merged map so correlated references
       // (`WHERE o.user_id = u.id`) keep completing via the dot trigger.
       const currentStatement = getCurrentStatement(model, position);
-      const outerAliases = parseTablesFromQuery(currentStatement);
+      const sourceText = model.getValue();
+      const cursorOffset = Math.min(sourceText.length, model.getOffsetAt(position));
+      const derivedTables = parseDerivedTables(sourceText, cursorOffset);
+      const derivedByName = new Map(derivedTables.map(t => [t.name.toLowerCase(), t]));
+      const outerAliases = parseTablesFromQuery(maskNestedSqlBodies(currentStatement));
       let scopedAliases = outerAliases;
       if (sqlContext.statementStart > 0) {
         const fullText = model.getValue();
         const scopeEnd = findStatementScopeEnd(fullText, fullTextUntilPosition.length);
-        scopedAliases = parseTablesFromQuery(fullText.slice(sqlContext.statementStart, scopeEnd));
+        scopedAliases = parseTablesFromQuery(maskNestedSqlBodies(fullText.slice(sqlContext.statementStart, scopeEnd)));
       }
       const tableAliases =
         scopedAliases === outerAliases
@@ -270,8 +275,28 @@ export const registerSqlAutocomplete = (
         } else {
           const typedName = simpleDotMatch![1].toLowerCase();
           partialColumn = simpleDotMatch![2];
-          // Resolve via alias map (carries schema when FROM used qualified ref)
+          // Virtual relations belong to this SQL statement, not the server.
+          // Resolve them before asking get_columns for a physical table.
           const aliasRef: ParsedTableRef | undefined = tableAliases?.get(typedName);
+          const virtualTable = derivedByName.get(typedName) ??
+            (aliasRef ? derivedByName.get(aliasRef.name.toLowerCase()) : undefined);
+          if (virtualTable) {
+            const columnRange = {
+              startLineNumber: position.lineNumber,
+              endLineNumber: position.lineNumber,
+              startColumn: position.column - partialColumn.length,
+              endColumn: position.column,
+            };
+            return {
+              suggestions: virtualTable.columns.map(c => ({
+                label: c.name,
+                kind: monaco.languages.CompletionItemKind.Field,
+                detail: `${virtualTable.kind} ${virtualTable.name}`,
+                ...buildIdentifierInsert(c.name, columnRange),
+                sortText: `0_${c.name}`,
+              })),
+            };
+          }
           if (aliasRef) {
             const found = tables.find(t =>
               t.name.toLowerCase() === aliasRef.name.toLowerCase() &&
@@ -324,11 +349,37 @@ export const registerSqlAutocomplete = (
         sortText: string;
         filterText?: string;
       }> = [];
-      
+
+      // CTEs in the FROM list and derived FROM subqueries are local
+      // column sources. Derived FROM subqueries have no physical-table ref
+      // after their bodies are masked, so collect them directly.
+      if (suggestionKinds.columns) {
+        const seenVirtual = new Set<string>();
+        for (const virtual of derivedTables) {
+          const referenced = virtual.kind === "Derived table" ||
+            Array.from(scopedAliases?.values() ?? []).some(
+              ref => ref.name.toLowerCase() === virtual.name.toLowerCase(),
+            );
+          if (!referenced) continue;
+          for (const col of virtual.columns) {
+            if (seenVirtual.has(col.name.toLowerCase())) continue;
+            seenVirtual.add(col.name.toLowerCase());
+            contextColumnSuggestions.push({
+              label: col.name,
+              kind: monaco.languages.CompletionItemKind.Field,
+              detail: `${virtual.kind} ${virtual.name}`,
+              ...buildIdentifierInsert(col.name, range),
+              sortText: `0_${col.name}`,
+            });
+          }
+        }
+      }
+
       if (suggestionKinds.columns && scopedAliases && scopedAliases.size > 0) {
         // Deduplicate parsed refs by (schema, name) — multiple aliases can point to the same table
         const seenRefs = new Set<string>();
         const uniqueRefs = Array.from(scopedAliases.values()).filter(ref => {
+          if (derivedByName.has(ref.name.toLowerCase())) return false;
           const key = `${ref.schema ?? ''}:${ref.name}`;
           return seenRefs.has(key) ? false : (seenRefs.add(key), true);
         });
@@ -375,7 +426,7 @@ export const registerSqlAutocomplete = (
           matchingTables.map(t => getTableColumns(connectionId, t.name, t.schema ?? schema))
         );
 
-        const seenColumns = new Set<string>();
+        const seenColumns = new Set(contextColumnSuggestions.map(col => col.label));
 
         matchingTables.forEach((table, idx) => {
           const columns = results[idx];
