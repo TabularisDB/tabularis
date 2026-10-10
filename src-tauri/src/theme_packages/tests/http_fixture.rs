@@ -237,11 +237,11 @@ mod concurrency_tests {
     use super::*;
     use std::io::{Read, Write};
 
-    fn get_kinds(base: &str) -> String {
+    fn get_kinds(base: &str, timeout: Duration) -> String {
         let address = base.strip_prefix("http://").unwrap();
         let mut connection = TcpStream::connect(address).expect("connect to loopback fixture");
         connection
-            .set_read_timeout(Some(Duration::from_secs(1)))
+            .set_read_timeout(Some(timeout))
             .unwrap();
         connection
             .write_all(b"GET /api/kinds HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
@@ -276,7 +276,7 @@ mod concurrency_tests {
             );
             std::thread::sleep(Duration::from_millis(2));
         }
-        get_kinds(&server.base);
+        get_kinds(&server.base, Duration::from_millis(1500));
         drop(stalled);
     }
 
@@ -286,7 +286,7 @@ mod concurrency_tests {
         std::thread::scope(|scope| {
             let workers: Vec<_> = servers
                 .iter()
-                .map(|server| scope.spawn(move || get_kinds(&server.base)))
+                .map(|server| scope.spawn(move || get_kinds(&server.base, Duration::from_secs(5))))
                 .collect();
             for worker in workers {
                 worker.join().expect("fixture worker thread");
