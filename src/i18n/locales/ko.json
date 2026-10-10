@@ -1305,6 +1305,7 @@
       "detached": "결과가 별도 창으로 분리되었습니다",
       "reattach": "다시 붙이기"
     },
+    "duplicateTab": "탭 복제",
     "closeTab": "탭 닫기",
     "reopenClosedTab": "닫은 탭 다시 열기",
     "closeOthers": "다른 탭 닫기",

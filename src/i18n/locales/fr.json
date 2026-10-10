@@ -1370,6 +1370,7 @@
       "detached": "Résultats détachés dans une fenêtre séparée",
       "reattach": "Rattacher"
     },
+    "duplicateTab": "Dupliquer l’onglet",
     "closeTab": "Fermer l’onglet",
     "reopenClosedTab": "Réouvrir l’onglet fermé",
     "closeOthers": "Fermer les autres onglets",

@@ -1369,6 +1369,7 @@
       "detached": "Resultados separados en una ventana aparte",
       "reattach": "Volver a acoplar"
     },
+    "duplicateTab": "Duplicar Pestaña",
     "closeTab": "Cerrar Pestaña",
     "reopenClosedTab": "Reabrir Pestaña Cerrada",
     "closeOthers": "Cerrar Otras Pestañas",

@@ -4,6 +4,8 @@ import { hasPendingTableEdits, tableRefreshIdentity } from "../utils/autoRefresh
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
+  buildDuplicatedTab,
+  canDuplicateTab,
   getTabDisplayTitle,
   reconstructTableQuery,
   resolveTabPageSize,
@@ -992,6 +994,17 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const clearEntryScrollTops = useCallback((tabId: string) => {
     clearScrollTopsForTab(scrollTopByEntryKeyRef.current, tabId);
   }, []);
+
+  const handleDuplicateTab = useCallback(
+    (tabId: string) => {
+      const source = tabsRef.current.find((tab) => tab.id === tabId);
+      if (!source) return;
+      const duplicate = buildDuplicatedTab(source);
+      if (!duplicate) return;
+      addTab(duplicate, { insertAfterId: source.id, forceNew: true });
+    },
+    [addTab],
+  );
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
@@ -5807,6 +5820,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                     label: t("editor.convertToConsole"),
                     icon: FileCode,
                     action: () => handleConvertToConsole(tabContextMenu.tabId),
+                  },
+                ]
+              : []),
+            ...(contextTab && canDuplicateTab(contextTab.type)
+              ? [
+                  {
+                    label: t("editor.duplicateTab"),
+                    icon: Copy,
+                    action: () => handleDuplicateTab(tabContextMenu.tabId),
                   },
                 ]
               : []),

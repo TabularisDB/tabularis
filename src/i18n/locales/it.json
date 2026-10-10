@@ -1362,6 +1362,7 @@
       "detached": "Risultati sganciati in una finestra separata",
       "reattach": "Riaggancia"
     },
+    "duplicateTab": "Duplica scheda",
     "closeTab": "Chiudi scheda",
     "reopenClosedTab": "Riapri scheda chiusa",
     "closeOthers": "Chiudi altre schede",

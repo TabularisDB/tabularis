@@ -2,12 +2,22 @@ import { createContext } from 'react';
 import type { Tab, TableSchema, QueryResultEntry } from '../types/editor';
 import type { AutoRefreshSchedule } from '../utils/autoRefresh';
 
+export interface AddTabOptions {
+  /** Insert the new tab immediately after this id instead of appending it. */
+  insertAfterId?: string;
+  /**
+   * Create a new tab even when a table tab for the same table is already open.
+   * Ordinary opens still focus that existing tab.
+   */
+  forceNew?: boolean;
+}
+
 export interface EditorContextType {
   getAutoRefreshSchedule: (tabId: string) => AutoRefreshSchedule;
   tabs: Tab[];
   activeTabId: string | null;
   activeTab: Tab | null;
-  addTab: (tab?: Partial<Tab>) => string;
+  addTab: (tab?: Partial<Tab>, options?: AddTabOptions) => string;
   /**
    * Open (or focus) a saved notebook tab, possibly on another connection.
    * Switch the active connection first (the resolution is deferred until that

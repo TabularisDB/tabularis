@@ -1360,6 +1360,7 @@
       "reattach": "元に戻す"
     },
     "tableRunPrompt": "Run (Ctrl/Command+F5) を押してテーブルデータを読み込んでください",
+    "duplicateTab": "タブを複製",
     "closeTab": "タブを閉じる",
     "reopenClosedTab": "閉じたタブを再度開く",
     "closeOthers": "他のタブを閉じる",
