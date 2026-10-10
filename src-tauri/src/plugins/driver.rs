@@ -117,7 +117,7 @@ fn is_method_not_found(err: &str) -> bool {
 /// Only substitute an explicitly selected member of that array. Unselected,
 /// single-DB and schema-only (e.g. PostgreSQL) requests stay unchanged.
 fn route_selected_plugin_database(request: &mut Value) {
-    let Some(selected) = request.get("schema").and_then(Value::as_str) else {
+    let Some(selected) = request.get("schema").and_then(Value::as_str).map(str::to_owned) else {
         return;
     };
     let Some(connection) = request.get_mut("params").and_then(Value::as_object_mut) else {
@@ -126,7 +126,7 @@ fn route_selected_plugin_database(request: &mut Value) {
     let Some(databases) = connection.get("database").and_then(Value::as_array) else {
         return;
     };
-    if databases.len() < 2 || !databases.iter().any(|db| db.as_str() == Some(selected)) {
+    if databases.len() < 2 || !databases.iter().any(|db| db.as_str() == Some(selected.as_str())) {
         return;
     }
     connection.insert("database".to_string(), Value::String(selected.to_string()));
