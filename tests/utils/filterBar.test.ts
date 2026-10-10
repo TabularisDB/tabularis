@@ -6,6 +6,8 @@ import {
   getOperatorsForType,
   buildSingleFilterClause,
   buildStructuredFilterClause,
+  isFilterComplete,
+  NO_VALUE_OPS,
   createEmptyFilter,
 } from "../../src/utils/filterBar";
 import type { TableColumn } from "../../src/types/editor";
@@ -635,6 +637,31 @@ describe("filterBar utils", () => {
         { id: "2", column: "b", operator: "NOT IN", value: " , " },
       ];
       expect(buildStructuredFilterClause(filters)).toBe("");
+    });
+
+    it("should keep is empty and is not empty without a value", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "is empty", value: "" },
+        { id: "2", column: "b", operator: "is not empty", value: "" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe(
+        "(a IS NULL OR a = '') AND NOT (b IS NULL OR b = '')"
+      );
+    });
+
+    it("should ignore values made only of whitespace", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "id", operator: "=", value: " " },
+        { id: "2", column: "a", operator: "BETWEEN", value: "1", value2: "  " },
+        { id: "3", column: "n", operator: "contains", value: "\t" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe("");
+    });
+
+    it("should expose every no-value operator as complete without a value", () => {
+      for (const operator of NO_VALUE_OPS) {
+        expect(isFilterComplete({ id: "1", column: "a", operator, value: "" })).toBe(true);
+      }
     });
 
     it("should ignore empty filters with OR and not parenthesize the rest", () => {

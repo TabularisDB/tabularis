@@ -180,7 +180,7 @@ const TableToolbarInternal = ({
     const clause = buildStructuredFilterClause(structuredFilters, quotingDriver, combinator);
     onUpdate(clause, formatSortClause(sortInput, quotingDriver), getLimitVal(limitInput));
     structuredFilters.forEach((f) => {
-      if (f.enabled !== false) {
+      if (f.enabled !== false && isFilterComplete(f)) {
         onTriggerApplied(f.id);
       } else {
         onResetApplied(f.id);
@@ -197,7 +197,7 @@ const TableToolbarInternal = ({
         getLimitVal(limitInput),
       );
       onResetAllApplied();
-      onTriggerApplied(filter.id);
+      if (isFilterComplete(filter)) onTriggerApplied(filter.id);
     },
     [sortInput, limitInput, getLimitVal, onUpdate, onResetAllApplied, onTriggerApplied, quotingDriver]
   );

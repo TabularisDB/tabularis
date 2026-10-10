@@ -286,23 +286,30 @@ function quoteIfNeeded(value: string): string {
   return quoteLiteral(value);
 }
 
+/** Operators that take no value: the value input is hidden and never read. */
+export const NO_VALUE_OPS: FilterOperator[] = [
+  "IS NULL",
+  "IS NOT NULL",
+  "is empty",
+  "is not empty",
+];
+
 /**
  * Whether a filter has everything its operator needs to produce a valid clause.
- * IS NULL / IS NOT NULL need no value; BETWEEN needs both bounds; IN / NOT IN
- * need at least one non-empty item; every other operator needs a value.
+ * Operators in NO_VALUE_OPS need no value; BETWEEN needs both bounds; IN / NOT IN
+ * need at least one non-empty item; every other operator needs a value. Values
+ * made only of whitespace count as empty.
  */
 export function isFilterComplete(filter: StructuredFilter): boolean {
+  if (NO_VALUE_OPS.includes(filter.operator)) return true;
   switch (filter.operator) {
-    case "IS NULL":
-    case "IS NOT NULL":
-      return true;
     case "BETWEEN":
-      return filter.value !== "" && (filter.value2 ?? "") !== "";
+      return filter.value.trim() !== "" && (filter.value2 ?? "").trim() !== "";
     case "IN":
     case "NOT IN":
       return filter.value.split(",").some((v) => v.trim() !== "");
     default:
-      return filter.value !== "";
+      return filter.value.trim() !== "";
   }
 }
 
