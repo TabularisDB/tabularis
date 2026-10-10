@@ -89,11 +89,11 @@ function normalizeJdbcConnectionString(value: string): string {
 
 /** Normalize known URI SSL settings to the values offered by the connection form. */
 function getSslModeFromUrl(url: URL, protocol: string): string | undefined {
-  const mode = (
-    url.searchParams.get("sslmode") ??
-    url.searchParams.get("ssl-mode") ??
-    url.searchParams.get("ssl_mode")
-  )?.trim().toLowerCase();
+  // URLSearchParams.get is case-sensitive, but Connector/J uses "sslMode".
+  // Recognize that spelling along with the existing hyphen/underscore aliases.
+  const mode = Array.from(url.searchParams.entries())
+    .find(([key]) => ["sslmode", "ssl-mode", "ssl_mode"].includes(key.toLowerCase()))
+    ?.[1].trim().toLowerCase();
   if (!mode) return undefined;
 
   if (protocol === "mysql" || protocol === "mariadb") {
