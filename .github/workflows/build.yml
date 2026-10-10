@@ -193,6 +193,21 @@ jobs:
           EOF
           chmod +x ~/.cache/tauri/linuxdeploy-plugin-gtk.sh
 
+      # The stable linuxdeploy bundler starts with Tauri's cached AppRun
+      # binary and the GTK integration subsequently moves it to AppRun.wrapped.
+      # Tauri's downloaded executable may have restrictive mode 0770; fix the
+      # original before copying it into the AppDir so the final squashfs has
+      # the correct world-executable bit, without repacking/signature drift.
+      - name: Normalize AppRun source permissions (Linux stable AppImage)
+        if: matrix.platform == 'ubuntu-24.04' && !inputs.experimental_appimage
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.cache/tauri
+          curl -fsSL https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64 \
+            -o ~/.cache/tauri/AppRun-x86_64
+          chmod 0755 ~/.cache/tauri/AppRun-x86_64
+          test "$(stat -c '%a' ~/.cache/tauri/AppRun-x86_64)" = "755"
+
       # Signing/notarization needs the whole set; a partial set would make
       # tauri fail half-way, and a set-but-empty APPLE_SIGNING_IDENTITY is
       # taken by tauri as an identity to sign with. Hence the two build steps
@@ -280,6 +295,43 @@ jobs:
           # No tagName: tauri-action only builds, it never touches releases.
           tauriScript: ${{ inputs.experimental_appimage && matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
           args: ${{ matrix.args }}
+
+      # Extract the real finished AppImage: inspecting the staging AppDir is
+      # insufficient, as linuxdeploy wraps AppRun after the GTK hook executes.
+      - name: Verify final stable AppImage executable permissions (Linux)
+        if: matrix.platform == 'ubuntu-24.04' && !inputs.experimental_appimage
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          if [ "${#images[@]}" -eq 0 ]; then
+            echo "::error::Stable Linux build produced no AppImage"
+            exit 1
+          fi
+          for image in "${images[@]}"; do
+            image="$(realpath "$image")"
+            chmod u+x "$image"
+            extract_dir="$(mktemp -d)"
+            (
+              cd "$extract_dir"
+              "$image" --appimage-extract >/dev/null
+              if [ ! -f squashfs-root/AppRun.wrapped ]; then
+                echo "::error::Stable AppImage is missing AppRun.wrapped"
+                exit 1
+              fi
+              # Any file executable by its owner must also be executable by
+              # other users; test the packaged modes, not the outer AppImage.
+              broken="$(find squashfs-root -type f -perm /100 ! -perm /001 -print)"
+              if [ -n "$broken" ]; then
+                printf "::error::AppImage contains non-world-executable files:\\n%s\\n" "$broken"
+                exit 1
+              fi
+              mode="$(stat -c '%a' squashfs-root/AppRun.wrapped)"
+              echo "Verified AppRun.wrapped mode $mode in $(basename "$image")"
+            )
+            rm -rf "$extract_dir"
+          done
 
       - name: Upload portable executable (Windows only)
         if: matrix.platform == 'windows-latest' && !inputs.preview
