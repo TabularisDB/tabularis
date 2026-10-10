@@ -2633,3 +2633,248 @@ async fn authenticates_websockets_and_delivers_scoped_events_with_heartbeat() {
     shutdown_tx.send(()).unwrap();
     server.await.unwrap().unwrap();
 }
+
+#[tokio::test]
+async fn expires_healthy_websockets_without_further_http_requests() {
+    assert_expired_session_cleanup(true).await;
+}
+
+#[tokio::test]
+async fn reclaims_expired_session_uploads_without_a_websocket() {
+    assert_expired_session_cleanup(false).await;
+}
+
+async fn assert_expired_session_cleanup(connect_websocket: bool) {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let (security, bootstrap) = LocalSessionSecurity::new(
+        base_url.clone(),
+        LocalSessionSecurityConfig {
+            session_ttl: Duration::from_millis(500),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let issued = security.consume_bootstrap(bootstrap.expose()).unwrap();
+    let authenticated = security.authenticate(&issued.cookie_value).unwrap();
+    let owner = authenticated.event_scope();
+    let cookie = format!("tabularis_session={}", issued.cookie_value);
+    let application_state = Arc::new(ApplicationState::default());
+    application_state
+        .web_active_connections
+        .lock()
+        .unwrap()
+        .insert(owner, Default::default());
+    let query = tokio::spawn(std::future::pending::<()>());
+    crate::commands::register_abort_handle(
+        &application_state.query_cancellation.handles,
+        format!("web-query:{owner}:12:connection-1:request-1"),
+        Arc::new(query.abort_handle()),
+    );
+    let events = WebEventBus::default();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve_with_events(
+        listener,
+        temp.path().to_path_buf(),
+        temp.path().to_path_buf(),
+        security.clone(),
+        test_application_with_state(temp.path(), application_state.clone()),
+        events.clone(),
+        Arc::default(),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let upload = reqwest::Client::new()
+        .post(format!("{base_url}/api/v1/uploads/blobs"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &authenticated.csrf_token)
+        .header(reqwest::header::CONTENT_TYPE, "text/plain")
+        .body("session-owned upload")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload.status(), reqwest::StatusCode::CREATED);
+    let transfer_dir = temp
+        .path()
+        .join("web-file-transfers")
+        .join(owner.to_string());
+    assert!(transfer_dir.is_dir());
+
+    let mut websocket = if connect_websocket {
+        let mut request = format!("ws://{address}/api/v1/events")
+            .into_client_request()
+            .unwrap();
+        request
+            .headers_mut()
+            .insert("cookie", cookie.parse().unwrap());
+        request
+            .headers_mut()
+            .insert("origin", base_url.parse().unwrap());
+        let (mut websocket, _) = tokio_tungstenite::connect_async(request).await.unwrap();
+        websocket
+            .send(WebSocketMessage::Text(
+                serde_json::json!({
+                    "type": "subscribe", "events": ["connection-health-failed"]
+                })
+                .to_string(),
+            ))
+            .await
+            .unwrap();
+        let acknowledgement = websocket.next().await.unwrap().unwrap();
+        assert!(matches!(acknowledgement, WebSocketMessage::Text(text)
+            if serde_json::from_str::<Value>(&text).unwrap()["type"] == "subscribed"));
+        Some(websocket)
+    } else {
+        None
+    };
+
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    // An expired lookup must not discard the ID needed for resource reclamation.
+    assert!(security.authenticate(&issued.cookie_value).is_none());
+    let _ = events.emit_to(
+        owner,
+        "connection-health-failed",
+        serde_json::json!({"error": "offline"}),
+    );
+    if let Some(websocket) = websocket.as_mut() {
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                match websocket.next().await {
+                    Some(Ok(WebSocketMessage::Close(_))) | None => break,
+                    Some(Ok(WebSocketMessage::Ping(payload))) => {
+                        websocket
+                            .send(WebSocketMessage::Pong(payload))
+                            .await
+                            .unwrap();
+                    }
+                    message => {
+                        panic!("expired WebSocket must close without receiving events: {message:?}")
+                    }
+                }
+            }
+        })
+        .await
+        .expect("expired WebSocket remained connected");
+    }
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while transfer_dir.exists() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("expired session upload was not reclaimed");
+    assert_eq!(events.connection_count(owner), 0);
+    assert!(!application_state
+        .web_active_connections
+        .lock()
+        .unwrap()
+        .contains_key(&owner));
+    assert!(tokio::time::timeout(Duration::from_secs(2), query)
+        .await
+        .unwrap()
+        .unwrap_err()
+        .is_cancelled());
+    shutdown_tx.send(()).unwrap();
+    tokio::time::timeout(Duration::from_secs(2), server)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+}
+
+#[tokio::test]
+async fn rejects_rpc_body_delayed_until_after_session_cleanup() {
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let (security, bootstrap) = LocalSessionSecurity::new(
+        base_url.clone(),
+        LocalSessionSecurityConfig {
+            session_ttl: Duration::from_millis(500),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let issued = security.consume_bootstrap(bootstrap.expose()).unwrap();
+    let authenticated = security.authenticate(&issued.cookie_value).unwrap();
+    let owner = authenticated.event_scope();
+    let application_state = Arc::new(ApplicationState::default());
+    application_state
+        .web_active_connections
+        .lock()
+        .unwrap()
+        .insert(owner, Default::default());
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application_with_state(temp.path(), application_state.clone()),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let body = r#"{"connectionId":"expired-session-connection"}"#;
+    let mut stream = BufReader::new(tokio::net::TcpStream::connect(address).await.unwrap());
+    stream.get_mut().write_all(format!(
+        "POST /api/v1/rpc/register_active_connection HTTP/1.1\r\nHost: {address}\r\nOrigin: {base_url}\r\nCookie: tabularis_session={}\r\nx-tabularis-csrf: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nExpect: 100-continue\r\nConnection: close\r\n\r\n",
+        issued.cookie_value, authenticated.csrf_token, body.len(),
+    ).as_bytes()).await.unwrap();
+    // The interim response proves the authorized handler is waiting for the body.
+    let mut interim = String::new();
+    tokio::time::timeout(Duration::from_secs(2), stream.read_line(&mut interim))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(interim.starts_with("HTTP/1.1 100 Continue"), "{interim}");
+    interim.clear();
+    stream.read_line(&mut interim).await.unwrap();
+    assert_eq!(interim, "\r\n");
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while application_state
+            .web_active_connections
+            .lock()
+            .unwrap()
+            .contains_key(&owner)
+        {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("session cleanup did not run");
+
+    // Expiry may already have closed the socket; otherwise submit the late body.
+    let _ = stream.get_mut().write_all(body.as_bytes()).await;
+    let mut response = String::new();
+    tokio::time::timeout(Duration::from_secs(2), stream.read_to_string(&mut response))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        !application_state
+            .web_active_connections
+            .lock()
+            .unwrap()
+            .contains_key(&owner),
+        "the delayed RPC recreated state after session cleanup"
+    );
+    assert!(
+        response.starts_with("HTTP/1.1 401 Unauthorized"),
+        "{response}"
+    );
+    shutdown_tx.send(()).unwrap();
+    tokio::time::timeout(Duration::from_secs(2), server)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+}

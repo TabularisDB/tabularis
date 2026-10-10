@@ -224,19 +224,32 @@ pub(crate) async fn serve_with_events<F>(
 where
     F: Future<Output = ()> + Send + 'static,
 {
-    axum::serve(
-        listener,
-        router(
-            web_root,
-            data_dir,
-            security,
-            application,
-            events,
-            server_file_browser_roots,
-        ),
-    )
-    .with_graceful_shutdown(shutdown)
-    .await
+    let (router, state) = router(
+        web_root,
+        data_dir,
+        security,
+        application,
+        events,
+        server_file_browser_roots,
+    );
+    // Keep reclamation owned by the server future, including cancellation and shutdown.
+    tokio::select! {
+        result = async { axum::serve(listener, router).with_graceful_shutdown(shutdown).await } => result,
+        _ = reclaim_expired_sessions(state) => unreachable!("session reclamation runs until the server stops"),
+    }
+}
+
+async fn reclaim_expired_sessions(state: WebServerState) {
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+    interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    loop {
+        interval.tick().await;
+        for session_id in state.security.take_expired_sessions() {
+            state.events.remove_session(session_id);
+            state.rpc.clear_session(session_id);
+            state.transfers.cleanup_session(session_id);
+        }
+    }
 }
 
 fn router(
@@ -246,7 +259,7 @@ fn router(
     application: Arc<dyn ApplicationApi>,
     events: WebEventBus,
     server_file_browser_roots: Arc<[PathBuf]>,
-) -> Router {
+) -> (Router, WebServerState) {
     let index = web_root.join("index.html");
     let static_files = ServeDir::new(web_root).fallback(ServeFile::new(index));
     let max_body_bytes = security.max_body_bytes();
@@ -301,7 +314,7 @@ fn router(
             crate::application::records::MAX_WEB_BLOB_BYTES as usize,
         ));
 
-    Router::new()
+    let router = Router::new()
         .route("/healthz", get(health))
         .route(BOOTSTRAP_PATH, get(bootstrap))
         .merge(standard_routes)
@@ -309,8 +322,9 @@ fn router(
         .merge(blob_routes)
         .fallback_service(static_files)
         .with_state(state.clone())
-        .layer(middleware::from_fn_with_state(state, security_gate))
-        .layer(middleware::from_fn(add_request_id))
+        .layer(middleware::from_fn_with_state(state.clone(), security_gate))
+        .layer(middleware::from_fn(add_request_id));
+    (router, state)
 }
 
 async fn health() -> impl IntoResponse {
@@ -749,90 +763,115 @@ async fn event_stream(
         }
     };
     let events = state.events.clone();
-    websocket.on_upgrade(move |socket| event_socket(socket, connection, events))
+    websocket.on_upgrade(move |socket| {
+        event_socket(
+            socket,
+            connection,
+            events,
+            Instant::from_std(session.expires_at),
+        )
+    })
 }
 
-async fn event_socket(socket: WebSocket, mut connection: EventConnection, events: WebEventBus) {
+async fn event_socket(
+    socket: WebSocket,
+    mut connection: EventConnection,
+    events: WebEventBus,
+    expires_at: Instant,
+) {
     let (mut sender, mut receiver) = socket.split();
     let mut heartbeat = tokio::time::interval(events.heartbeat_interval());
     heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
     heartbeat.tick().await;
     let mut last_pong = Instant::now();
 
-    loop {
-        tokio::select! {
-            event = connection.recv() => {
-                let Some(event) = event else {
-                    let _ = sender.send(Message::Close(None)).await;
-                    break;
-                };
-                let message = ServerEventMessage::Event { envelope: &event };
-                if send_event_message(&mut sender, &message).await.is_err() {
-                    break;
+    let process_messages = async {
+        loop {
+            tokio::select! {
+                event = connection.recv() => {
+                    let Some(event) = event else {
+                        let _ = sender.send(Message::Close(None)).await;
+                        break;
+                    };
+                    let message = ServerEventMessage::Event { envelope: &event };
+                    if send_event_message(&mut sender, &message).await.is_err() {
+                        break;
+                    }
                 }
-            }
-            _ = heartbeat.tick() => {
-                if last_pong.elapsed() >= events.heartbeat_timeout() {
-                    let _ = sender.send(Message::Close(None)).await;
-                    break;
+                _ = heartbeat.tick() => {
+                    if last_pong.elapsed() >= events.heartbeat_timeout() {
+                        let _ = sender.send(Message::Close(None)).await;
+                        break;
+                    }
+                    if sender.send(Message::Ping(Vec::new())).await.is_err() {
+                        break;
+                    }
                 }
-                if sender.send(Message::Ping(Vec::new())).await.is_err() {
-                    break;
-                }
-            }
-            message = receiver.next() => {
-                let Some(Ok(message)) = message else {
-                    break;
-                };
-                match message {
-                    Message::Text(text) => {
-                        if text.len() > MAX_EVENT_CONTROL_BYTES {
-                            let message = ServerEventMessage::Error {
-                                code: "CONTROL_MESSAGE_TOO_LARGE",
-                                message: "The WebSocket control message is too large",
-                            };
-                            if send_event_message(&mut sender, &message).await.is_err() {
-                                break;
-                            }
-                            continue;
-                        }
-                        let control = match serde_json::from_str::<ClientEventMessage>(&text) {
-                            Ok(control) => control,
-                            Err(_) => {
+                message = receiver.next() => {
+                    let Some(Ok(message)) = message else {
+                        break;
+                    };
+                    match message {
+                        Message::Text(text) => {
+                            if text.len() > MAX_EVENT_CONTROL_BYTES {
                                 let message = ServerEventMessage::Error {
-                                    code: "INVALID_CONTROL_MESSAGE",
-                                    message: "The WebSocket control message is invalid",
+                                    code: "CONTROL_MESSAGE_TOO_LARGE",
+                                    message: "The WebSocket control message is too large",
                                 };
                                 if send_event_message(&mut sender, &message).await.is_err() {
                                     break;
                                 }
                                 continue;
                             }
-                        };
-                        if handle_event_control(&mut sender, &mut connection, control).await.is_err() {
-                            break;
+                            let control = match serde_json::from_str::<ClientEventMessage>(&text) {
+                                Ok(control) => control,
+                                Err(_) => {
+                                    let message = ServerEventMessage::Error {
+                                        code: "INVALID_CONTROL_MESSAGE",
+                                        message: "The WebSocket control message is invalid",
+                                    };
+                                    if send_event_message(&mut sender, &message).await.is_err() {
+                                        break;
+                                    }
+                                    continue;
+                                }
+                            };
+                            if handle_event_control(&mut sender, &mut connection, control).await.is_err() {
+                                break;
+                            }
                         }
-                    }
-                    Message::Ping(payload) => {
-                        if sender.send(Message::Pong(payload)).await.is_err() {
-                            break;
+                        Message::Ping(payload) => {
+                            if sender.send(Message::Pong(payload)).await.is_err() {
+                                break;
+                            }
                         }
-                    }
-                    Message::Pong(_) => last_pong = Instant::now(),
-                    Message::Close(_) => break,
-                    Message::Binary(_) => {
-                        let message = ServerEventMessage::Error {
-                            code: "INVALID_CONTROL_MESSAGE",
-                            message: "WebSocket control messages must be JSON text",
-                        };
-                        if send_event_message(&mut sender, &message).await.is_err() {
-                            break;
+                        Message::Pong(_) => last_pong = Instant::now(),
+                        Message::Close(_) => break,
+                        Message::Binary(_) => {
+                            let message = ServerEventMessage::Error {
+                                code: "INVALID_CONTROL_MESSAGE",
+                                message: "WebSocket control messages must be JSON text",
+                            };
+                            if send_event_message(&mut sender, &message).await.is_err() {
+                                break;
+                            }
                         }
                     }
                 }
             }
         }
+    };
+    tokio::select! {
+        biased;
+        _ = tokio::time::sleep_until(expires_at) => {},
+        _ = process_messages => return,
     }
+    // Expiry cancels in-flight sends and replay too; a stalled peer cannot retain the socket.
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        sender.send(Message::Close(None)),
+    )
+    .await;
 }
 
 async fn handle_event_control<S>(
@@ -1052,8 +1091,14 @@ async fn security_gate(
 
     request.headers_mut().remove(PROXY_SECRET_HEADER_NAME);
     request.headers_mut().remove(PROXY_USER_HEADER_NAME);
+    let expires_at = Instant::from_std(session.expires_at);
     request.extensions_mut().insert(session);
-    let mut response = next.run(request).await;
+    // Include body extraction: a slow request must not recreate state after expiry cleanup.
+    let mut response = tokio::select! {
+        biased;
+        _ = tokio::time::sleep_until(expires_at) => return status_response(StatusCode::UNAUTHORIZED),
+        response = next.run(request) => response,
+    };
     if let Some(issued) = issued_session {
         response.headers_mut().insert(
             SET_COOKIE,

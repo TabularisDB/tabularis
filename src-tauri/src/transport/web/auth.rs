@@ -151,6 +151,7 @@ pub struct IssuedSession {
 #[derive(Clone)]
 pub struct AuthenticatedSession {
     token_hash: TokenHash,
+    pub(crate) expires_at: Instant,
     pub csrf_token: String,
     authorization: AuthorizationLevel,
     remote: bool,
@@ -340,16 +341,32 @@ impl LocalSessionSecurity {
     pub fn authenticate(&self, cookie_value: &str) -> Option<AuthenticatedSession> {
         let now = Instant::now();
         let token_hash = hash_token(cookie_value);
-        let mut state = self.lock_state();
-        state.sessions.retain(|_, session| session.expires_at > now);
+        let state = self.lock_state();
         let session = state.sessions.get(&token_hash)?;
+        if session.expires_at <= now {
+            return None;
+        }
 
         Some(AuthenticatedSession {
             token_hash,
+            expires_at: session.expires_at,
             csrf_token: session.csrf_token.clone(),
             authorization: session.authorization,
             remote: session.remote,
         })
+    }
+
+    pub(crate) fn take_expired_sessions(&self) -> Vec<Uuid> {
+        let now = Instant::now();
+        let mut expired = Vec::new();
+        self.lock_state().sessions.retain(|token_hash, session| {
+            if session.expires_at > now {
+                return true;
+            }
+            expired.push(session_id(*token_hash));
+            false
+        });
+        expired
     }
 
     pub fn logout(&self, session: &AuthenticatedSession) {
