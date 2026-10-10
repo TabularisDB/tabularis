@@ -2154,7 +2154,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     }
   }, [closeResultsWindow, tabs, detachedTabIds]);
 
-  // Re-runs a query without pagination and formats the full result set for the
+  // Reads every query page and formats the full result set for the
   // clipboard. Returns null when there is nothing to copy.
   const fetchAllRows = useCallback(
     async (
@@ -2168,26 +2168,35 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       if (!activeConnectionId || columns.length === 0 || !query.trim()) {
         return null;
       }
-      const totalRows = result?.pagination?.total_rows;
-
-      const res = await client.call("execute_query", {
-        connectionId: activeConnectionId,
-        query,
-        // When the total is unknown (no row count requested yet), fall back to
-        // a large practical cap; the toast reports the actual rows fetched.
-        limit: totalRows ?? 1_000_000,
-        page: 1,
-        // Copying every row must see what the tab's own transaction sees.
-        sessionId,
-        ...(schema ? { schema } : {}),
-      });
-      const text = formatRowsForCopy(res.rows, res.columns ?? columns, copyFormat, {
+      const rows: unknown[][] = [];
+      let fetchedColumns = columns;
+      let page = 1;
+      let limit = 10_000;
+      while (true) {
+        const res = await client.call("execute_query", {
+          connectionId: activeConnectionId,
+          query,
+          limit,
+          page,
+          // Copying every row must see what the tab's own transaction sees.
+          sessionId,
+          ...(schema ? { schema } : {}),
+        });
+        if (page === 1) fetchedColumns = res.columns ?? columns;
+        rows.push(...res.rows);
+        if (!res.pagination?.has_more || res.rows.length === 0) break;
+        // The server may clamp our limit. Use its actual size for subsequent
+        // offsets so copying never skips rows, including with unknown totals.
+        limit = res.pagination.page_size;
+        page += 1;
+      }
+      const text = formatRowsForCopy(rows, fetchedColumns, copyFormat, {
         withHeaders: true,
         csvIncludeHeaders,
         csvDelimiter,
         tableName,
       });
-      return { text, count: res.rows.length };
+      return { text, count: rows.length };
     },
     [client, activeConnectionId, copyFormat, csvDelimiter, csvIncludeHeaders],
   );

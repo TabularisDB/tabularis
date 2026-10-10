@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   capabilities: { schemas: true, sql_dialect: "postgresql", identifier_quote: '"' },
   t: (key: string, options?: Record<string, unknown>) => key === "toolbar.autoRefresh.failed" ? String(options?.error) : key,
   notify: vi.fn().mockResolvedValue(undefined),
+  writeClipboard: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("../../src/hooks/useTabularisClient", () => ({
   useTabularisClient: () => client,
@@ -33,6 +34,7 @@ const platform = {
   subscribeRouteEvent: vi.fn().mockResolvedValue(() => {}),
   publishRouteEvent: vi.fn().mockResolvedValue(undefined),
 };
+vi.mock("../../src/platform/activeCapabilities", () => ({ writeActiveClipboard: mocks.writeClipboard }));
 vi.mock("../../src/utils/queryNotification", () => ({ notifyQueryFinished: mocks.notify }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: mocks.t }) }));
 vi.mock("lucide-react", async (importOriginal) => await importOriginal());
@@ -76,8 +78,8 @@ vi.mock("../../src/components/notebook/NotebookView", () => ({ NotebookView: () 
 vi.mock("../../src/components/users/UserManagementView", () => ({ UserManagementView: () => null }));
 vi.mock("../../src/components/layout/CommandPaletteScopeBridge", () => ({ CommandPaletteScopeBridge: () => null }));
 vi.mock("../../src/components/ui/DataGrid", () => ({
-  DataGrid: function Grid({ ref, data, onEditingChange }: {
-    ref: Ref<DataGridCommandTarget>; data: unknown[][]; onEditingChange?: (editing: boolean) => void;
+  DataGrid: function Grid({ ref, data, onEditingChange, onCopyAllRows }: {
+    ref: Ref<DataGridCommandTarget>; data: unknown[][]; onEditingChange?: (editing: boolean) => void; onCopyAllRows?: () => void;
   }) {
     const [editing, setEditing] = useState(false);
     useImperativeHandle(ref, () => ({ isEditing: () => editing, getResultCommands: () => ({}) }), [editing]);
@@ -85,6 +87,7 @@ vi.mock("../../src/components/ui/DataGrid", () => ({
     useLayoutEffect(() => () => onEditingChange?.(false), [onEditingChange]);
     return <div data-testid="grid" style={{ overflow: "auto" }}>
       <span>{JSON.stringify(data)}</span>
+      <button onClick={onCopyAllRows}>Copy all rows</button>
       <button onClick={() => setEditing(!editing)}>Toggle editing</button>
     </div>;
   },
@@ -133,7 +136,7 @@ const queries = () => vi.mocked(invoke).mock.calls.filter(([command]) => command
 
 describe("table auto-refresh integration", () => {
   beforeEach(() => {
-    vi.useFakeTimers(); vi.setSystemTime(0); mocks.connectionId = "connection-1"; mocks.notify.mockClear();
+    vi.useFakeTimers(); vi.setSystemTime(0); mocks.connectionId = "connection-1"; mocks.notify.mockClear(); mocks.writeClipboard.mockClear(); mocks.noop.mockClear();
     vi.mocked(invoke).mockReset();
     vi.mocked(invoke).mockImplementation((command) => command === "execute_query"
       ? Promise.resolve({ ...initialResult, rows: [[2], [3]] }) : Promise.resolve([]));
@@ -333,5 +336,63 @@ describe("table auto-refresh integration", () => {
     await advance(5000);
     expect(screen.getByTestId("grid")).toBe(grid);
     expect(context.activeTab?.result?.rows).toEqual(rows);
+  });
+
+  it.each([15000, null])("copies all 15,000 rows over two bounded pages with total %s", async (totalRows) => {
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command !== "execute_query") return [];
+      const page = args?.page as number;
+      const limit = Math.min(args?.limit as number, 10000);
+      const start = (page - 1) * limit;
+      return { columns: ["id"], affected_rows: 0,
+        rows: Array.from({ length: Math.min(limit, 15000 - start) }, (_, index) => [start + index + 1]),
+        pagination: { page, page_size: limit, total_rows: totalRows, has_more: start + limit < 15000 } };
+    });
+    const tab = initialTab();
+    tab.result = { ...initialResult, pagination: { ...initialResult.pagination!, total_rows: totalRows } };
+    render(<Harness initialTabs={[tab]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy all rows" }));
+    await advance(0);
+    expect(queries()).toHaveLength(2);
+    for (const [, args] of queries()) {
+      expect(args).toMatchObject({ connectionId: "connection-1", sessionId: "table-1", schema: "private", limit: 10000 });
+      expect(String(args?.query)).toContain("id > 0");
+      expect(String(args?.query)).toContain("DESC");
+      expect(String(args?.query)).not.toContain("LIMIT 200");
+    }
+    const text = mocks.writeClipboard.mock.calls[0]?.[0] as string;
+    expect(text.split("\n")).toHaveLength(15001);
+    expect(text.startsWith("id\n1\n2\n")).toBe(true);
+    expect(text.endsWith("\n14999\n15000")).toBe(true);
+  });
+
+  it("uses the returned page size when a server clamps limits further, stopping on an empty last page", async () => {
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command !== "execute_query") return [];
+      const page = args?.page as number;
+      return { columns: ["id"], affected_rows: 0, rows: page <= 2 ? [[(page - 1) * 2 + 1], [(page - 1) * 2 + 2]] : [],
+        pagination: { page, page_size: 2, total_rows: null, has_more: true } };
+    });
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy all rows" }));
+    await advance(0);
+    expect(queries().map(([, args]) => ({ page: args?.page, limit: args?.limit }))).toEqual([
+      { page: 1, limit: 10000 }, { page: 2, limit: 2 }, { page: 3, limit: 2 },
+    ]);
+    expect(mocks.writeClipboard).toHaveBeenCalledExactlyOnceWith("id\n1\n2\n3\n4");
+  });
+
+  it("does not copy a partial result when a subsequent page fails", async () => {
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command !== "execute_query") return [];
+      if (args?.page === 2) throw new Error("page unavailable");
+      return { ...initialResult, pagination: { page: 1, page_size: 1, total_rows: null, has_more: true } };
+    });
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy all rows" }));
+    await advance(0);
+    expect(queries()).toHaveLength(2);
+    expect(mocks.writeClipboard).not.toHaveBeenCalled();
+    expect(mocks.noop).toHaveBeenCalledWith(expect.stringContaining("page unavailable"), { title: "common.error", kind: "error" });
   });
 });
