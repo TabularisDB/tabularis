@@ -185,6 +185,7 @@ export function parseDerivedTables(sql: string, cursor = sql.length): DerivedTab
   // The closest parenthesis around a token bounds its SQL scope.
   const parentStack: number[] = [];
   const scopeEnd: number[] = [];
+  const scopeStart: number[] = [];
   tokens.forEach((t, i) => {
     while (parentStack.length &&
       (matched.get(parentStack[parentStack.length - 1]) ?? Infinity) < i) {
@@ -193,6 +194,9 @@ export function parseDerivedTables(sql: string, cursor = sql.length): DerivedTab
     scopeEnd[i] = parentStack.length
       ? tokens[matched.get(parentStack[parentStack.length - 1])!].start
       : sql.length;
+    scopeStart[i] = parentStack.length
+      ? tokens[parentStack[parentStack.length - 1]].end
+      : 0;
     if (t.text === "(" && matched.has(i)) parentStack.push(i);
   });
 
@@ -260,7 +264,12 @@ export function parseDerivedTables(sql: string, cursor = sql.length): DerivedTab
       const end = matched.get(aliasAt + 1)!;
       cols = explicitColumns(tokens, aliasAt + 2, end);
     }
-    if (cursor >= tokens[aliasAt].end && cursor <= Math.min(scopeEnd[i], statementEnd)) {
+    // A SELECT list may appear *before* its FROM alias, as in
+    // SELECT x.| FROM (SELECT ...) x. Use the containing query scope,
+    // not the alias's textual position, to decide visibility.
+    if (cursor >= Math.max(scopeStart[i], statementStart + 1) &&
+        cursor <= Math.min(scopeEnd[i], statementEnd) &&
+        !(cursor >= bodyStart && cursor < bodyEnd)) {
       visible.set(alias.toLowerCase(), {
         name: alias, columns: cols ?? selectColumns(sql.slice(bodyStart, bodyEnd)),
         bodyStart, bodyEnd, kind: "Derived table",
