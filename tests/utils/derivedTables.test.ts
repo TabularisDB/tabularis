@@ -32,6 +32,18 @@ describe("derived table and CTE autocomplete scope", () => {
     expect(names(sql, sql.indexOf("x.") + 2)).toEqual([["x", ["a", "b"]]]);
   });
 
+  it("resolves LATERAL derived aliases in FROM and JOIN", () => {
+    const from = "SELECT d. FROM LATERAL (SELECT id, name AS label FROM users) AS d";
+    expect(names(from, from.indexOf("d.") + 2)).toEqual([
+      ["d", ["id", "label"]],
+    ]);
+    const join = "SELECT x. FROM base b JOIN LATERAL (SELECT b.id AS match_id) x ON true";
+    expect(names(join, join.indexOf("x.") + 2)).toEqual([
+      ["x", ["match_id"]],
+    ]);
+    expect(maskNestedSqlBodies(join)).not.toContain("b.id");
+  });
+
   it("handles bare aliases and quoted identifiers (double, backtick, bracket)", () => {
     expect(names('WITH "My CTE" AS (SELECT "Column", `field` AS [Other]) SELECT 1'))
       .toEqual([["My CTE", ["Column", "Other"]]]);
