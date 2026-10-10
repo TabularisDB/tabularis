@@ -233,7 +233,14 @@ export const registerSqlAutocomplete = (
       const qualifiedDotMatch = textUntilPosition.match(/`?([a-zA-Z0-9_]+)`?\.`?([a-zA-Z0-9_]+)`?\.([a-zA-Z0-9_]*)$/);
       const simpleDotMatch = qualifiedDotMatch ? null : textUntilPosition.match(/(?:["'`])?([a-zA-Z0-9_]+)(?:["'`])?\.([a-zA-Z0-9_]*)$/);
 
-      if (qualifiedDotMatch || simpleDotMatch) {
+      // Quoted CTE/derived aliases can include spaces or escaped delimiters.
+      // Resolve these too, without treating quoted identifiers as physical
+      // table names in the default path.
+      const quotedDotMatch = qualifiedDotMatch || simpleDotMatch
+        ? null
+        : textUntilPosition.match(/(?:"((?:[^"]|"")*)"|\`((?:[^\`]|\`\`)*)\`|\\[([^\\]]+)\\])\\.([a-zA-Z0-9_]*)$/);
+
+      if (qualifiedDotMatch || simpleDotMatch || quotedDotMatch) {
         // In a table operand, `namespace.partial` refers to a table rather than
         // a column. Resolve this before the regular table/alias dot path so
         // `FROM Ops.Add` does not request columns for a table named `Ops`.
@@ -273,8 +280,12 @@ export const registerSqlAutocomplete = (
           const found = tables.find(t => t.name.toLowerCase() === tblName && t.schema?.toLowerCase() === dbName);
           dotTables = found ? [found] : [{ name: tblName, schema: dbName }];
         } else {
-          const typedName = simpleDotMatch![1].toLowerCase();
-          partialColumn = simpleDotMatch![2];
+          const quotedAlias = quotedDotMatch
+            ? (quotedDotMatch[1] ?? quotedDotMatch[2] ?? quotedDotMatch[3] ?? "")
+                .replace(/""/g, '"').replace(/\`\`/g, "\`")
+            : "";
+          const typedName = (simpleDotMatch?.[1] ?? quotedAlias).toLowerCase();
+          partialColumn = simpleDotMatch?.[2] ?? quotedDotMatch?.[4] ?? "";
           // Virtual relations belong to this SQL statement, not the server.
           // Resolve them before asking get_columns for a physical table.
           const aliasRef: ParsedTableRef | undefined = tableAliases?.get(typedName);
