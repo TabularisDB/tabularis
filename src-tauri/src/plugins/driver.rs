@@ -111,6 +111,27 @@ fn is_method_not_found(err: &str) -> bool {
     err.to_lowercase().contains("method not found") || err.contains("-32601")
 }
 
+/// Preserve the sidebar selection at the plugin RPC boundary. A multi-DB
+/// connection serializes `database` as an array; plugins such as redis-rust
+/// select the actual connection from `params.database` instead of `schema`.
+/// Only substitute an explicitly selected member of that array. Unselected,
+/// single-DB and schema-only (e.g. PostgreSQL) requests stay unchanged.
+fn route_selected_plugin_database(request: &mut Value) {
+    let Some(selected) = request.get("schema").and_then(Value::as_str) else {
+        return;
+    };
+    let Some(connection) = request.get_mut("params").and_then(Value::as_object_mut) else {
+        return;
+    };
+    let Some(databases) = connection.get("database").and_then(Value::as_array) else {
+        return;
+    };
+    if databases.len() < 2 || !databases.iter().any(|db| db.as_str() == Some(selected)) {
+        return;
+    }
+    connection.insert("database".to_string(), Value::String(selected.to_string()));
+}
+
 /// Message sent to the management task that owns the plugin child process.
 enum PluginCommand {
     /// Dispatch a JSON-RPC request and route the response back via the sender.
@@ -342,6 +363,8 @@ impl PluginProcess {
         timeout: Option<Duration>,
     ) -> Result<Value, PluginCallError> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        let mut params = params;
+        route_selected_plugin_database(&mut params);
         let req = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
             method: method.to_string(),
@@ -1745,6 +1768,74 @@ pub(crate) fn with_test_driver_id(mut driver: RpcDriver, id: &str) -> RpcDriver 
 mod tests {
     use super::*;
     use crate::models::DatabaseSelection;
+
+
+    #[test]
+    fn selected_plugin_database_routing_only_changes_multi_database_requests() {
+        let mut multi = json!({
+            "params": { "driver": "redis-rust", "database": ["0", "3"] },
+            "schema": "3",
+            "query": "GET example"
+        });
+        route_selected_plugin_database(&mut multi);
+        assert_eq!(multi["params"]["database"], "3");
+        assert_eq!(multi["schema"], "3");
+
+        for input in [
+            json!({ "params": { "database": ["0", "3"] }, "schema": null }),
+            json!({ "params": { "database": ["0", "3"] }, "schema": "other" }),
+            json!({ "params": { "database": "0" }, "schema": "3" }),
+            json!({ "params": { "database": ["3"] }, "schema": "3" }),
+            json!({ "params": { "database": ["0", "3"] }, "schema": "public" }),
+        ] {
+            let mut routed = input.clone();
+            route_selected_plugin_database(&mut routed);
+            assert_eq!(routed, input);
+        }
+    }
+
+    #[tokio::test]
+    async fn rpc_selected_database_reaches_metadata_query_and_batch_sessions() {
+        let driver = test_driver(|req| {
+            assert_eq!(req.params["schema"], "3", "selection must still be available");
+            assert_eq!(req.params["params"]["database"], "3", "selected DB must be scalar");
+            match req.method.as_str() {
+                "get_tables" => json!([]),
+                "execute_query" => json!({
+                    "columns": ["key"], "rows": [["db3-key"]],
+                    "affected_rows": 0, "pagination": null
+                }),
+                "execute_query_batch" => json!([]),
+                unexpected => panic!("unexpected RPC: {unexpected}"),
+            }
+        });
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec!["0".to_string(), "3".to_string()]);
+
+        assert!(driver.get_tables(&params, Some("3")).await.unwrap().is_empty());
+        let (query_result, _in_tx) = driver.execute_query_in_session(
+            &params, "GET db3-key", None, 1, Some("3"), Some("db3-session")
+        ).await.unwrap();
+        assert_eq!(query_result.rows.len(), 1);
+        let (results, _in_tx) = driver.execute_batch_in_session(
+            &params, &["GET db3-key".to_string()], None, 1, Some("3"),
+            Some("db3-session"), None
+        ).await.unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn rpc_single_database_plugin_request_is_not_rewritten() {
+        let driver = test_driver(|req| {
+            assert_eq!(req.method, "get_tables");
+            assert_eq!(req.params["params"]["database"], "0");
+            assert_eq!(req.params["schema"], "3");
+            json!([])
+        });
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Single("0".to_string());
+        assert!(driver.get_tables(&params, Some("3")).await.unwrap().is_empty());
+    }
 
     fn test_connection_params() -> ConnectionParams {
         ConnectionParams {
