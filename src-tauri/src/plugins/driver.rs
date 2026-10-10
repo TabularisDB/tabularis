@@ -341,11 +341,16 @@ impl PluginProcess {
         }
         // Disable/uninstall/restart must not wait without bound. The management
         // task itself also enforces the grace period and reaps its child.
-        if let Some(task) = self.manager_task.lock().await.take() {
-            let _ = tokio::time::timeout(
+        if let Some(mut task) = self.manager_task.lock().await.take() {
+            if tokio::time::timeout(
                 PLUGIN_SHUTDOWN_GRACE + Duration::from_secs(1),
-                task,
-            ).await;
+                &mut task,
+            ).await.is_err() {
+                // kill_on_drop on the child guarantees no orphan if stdin
+                // becomes stuck and the normal grace timer cannot run.
+                task.abort();
+                let _ = task.await;
+            }
         }
     }
 
@@ -2722,7 +2727,9 @@ mod tests {
                 plugin_id: "test-plugin".to_string(),
                 sender: tx,
                 next_id: AtomicU64::new(1),
+                accepting_calls: std::sync::atomic::AtomicBool::new(true),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
+                manager_task: tokio::sync::Mutex::new(None),
                 pid: None,
                 initialization_settings: None,
                 initialized: OnceCell::new(),
@@ -2754,7 +2761,9 @@ mod tests {
                 plugin_id: "test-plugin".to_string(),
                 sender: tx,
                 next_id: AtomicU64::new(1),
+                accepting_calls: std::sync::atomic::AtomicBool::new(true),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
+                manager_task: tokio::sync::Mutex::new(None),
                 pid: None,
                 initialization_settings: None,
                 initialized: OnceCell::new(),
