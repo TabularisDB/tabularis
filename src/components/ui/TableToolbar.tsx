@@ -17,6 +17,7 @@ import {
   replaceCurrentWord,
   buildStructuredFilterClause,
   buildSingleFilterClause,
+  isFilterComplete,
   createEmptyFilter,
 } from "../../utils/filterBar";
 import type { StructuredFilter, FilterCombinator } from "../../utils/filterBar";
@@ -179,7 +180,7 @@ const TableToolbarInternal = ({
     const clause = buildStructuredFilterClause(structuredFilters, quotingDriver, combinator);
     onUpdate(clause, formatSortClause(sortInput, quotingDriver), getLimitVal(limitInput));
     structuredFilters.forEach((f) => {
-      if (f.enabled !== false) {
+      if (f.enabled !== false && isFilterComplete(f)) {
         onTriggerApplied(f.id);
       } else {
         onResetApplied(f.id);
@@ -191,12 +192,12 @@ const TableToolbarInternal = ({
   const handleApplySingle = useCallback(
     (filter: StructuredFilter) => {
       onUpdate(
-        buildSingleFilterClause(filter, quotingDriver),
+        isFilterComplete(filter) ? buildSingleFilterClause(filter, quotingDriver) : "",
         formatSortClause(sortInput, quotingDriver),
         getLimitVal(limitInput),
       );
       onResetAllApplied();
-      onTriggerApplied(filter.id);
+      if (isFilterComplete(filter)) onTriggerApplied(filter.id);
     },
     [sortInput, limitInput, getLimitVal, onUpdate, onResetAllApplied, onTriggerApplied, quotingDriver]
   );
