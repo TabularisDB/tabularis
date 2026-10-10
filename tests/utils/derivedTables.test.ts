@@ -51,6 +51,19 @@ describe("derived table and CTE autocomplete scope", () => {
       .toEqual([["d", ["a", "b"]]]);
   });
 
+  it("supports doubled single quotes inside SQL string literals", () => {
+    // A comma and SQL keywords inside an escaped string are not delimiters.
+    expect(names("WITH x AS (SELECT 'it''s FROM a,b' AS label, id FROM t) SELECT x. FROM x"))
+      .toEqual([["x", ["label", "id"]]]);
+  });
+
+  it("does not treat parts of an invalid qualified CTE column name as columns", () => {
+    // When an explicit alias list is malformed, recover the SELECT output
+    // rather than incorrectly exposing both a and b from (a.b).
+    expect(names("WITH x(a.b) AS (SELECT id FROM t) SELECT x. FROM x"))
+      .toEqual([["x", ["id"]]]);
+  });
+
   it("does not split on commas in strings, functions or nested expressions", () => {
     const sql = "WITH x AS (SELECT concat('a,b', coalesce(v, 1)) AS combined, id, (a+b) sum FROM t) SELECT x. FROM x";
     expect(names(sql)).toEqual([["x", ["combined", "id", "sum"]]]);
