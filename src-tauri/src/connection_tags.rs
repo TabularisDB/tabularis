@@ -226,7 +226,11 @@ pub async fn set_connection_tags<R: Runtime>(
     let path = get_config_path(&app)?;
     let mut file = persistence::load_connections_file(&path)?;
     set_connection_tags_impl(&mut file, &connection_id, &tag_ids)?;
-    save_connections_and_invalidate(&app, &path, &file)
+    save_connections_and_invalidate(&app, &path, &file)?;
+    // Tags travel with a shared connection, so the share hears about this now
+    // rather than at the next sync.
+    crate::team_share::push_metadata_change(&app, &connection_id);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -245,6 +249,7 @@ mod tests {
             appearance: None,
             tag_ids: tag_ids.map(|v| v.iter().map(|s| s.to_string()).collect()),
             environment: None,
+            shared: None,
         }
     }
 

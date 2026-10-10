@@ -14,6 +14,7 @@ mod tests {
             appearance: None,
             tag_ids: None,
             environment: None,
+            shared: None,
         }
     }
 
