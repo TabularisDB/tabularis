@@ -97,14 +97,13 @@ async fn shutdown_allows_an_inflight_plugin_response() {
     std::fs::write(
         &script,
         format!(
-            concat!(
-                "read -r request\\n",
-                "printf '%s\\\\n' \\"$request\\" > '{}'\\n",
-                "sleep 0.2\\n",
-                "printf '%s\\\\n' '{{\\\"jsonrpc\\\":\\\"2.0\\\",\\\"id\\\":1,\\\"result\\\":{{\\\"ok\\\":true}}}}'\\n",
-                "exec cat >/dev/null\\n",
-            ),
-            log.display()
+            r#"read -r request
+printf '%s\n' "$request" > '{}'
+sleep 0.2
+printf '%s\n' '{{"jsonrpc":"2.0","id":1,"result":{{"ok":true}}}}'
+exec cat >/dev/null
+"#,
+            log.display(),
         ),
     ).unwrap();
 
