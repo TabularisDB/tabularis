@@ -27,6 +27,11 @@ describe("derived table and CTE autocomplete scope", () => {
       .toEqual([["d", ["x", "y"]]]);
   });
 
+  it("resolves a derived alias even when its FROM clause follows the cursor", () => {
+    const sql = "SELECT x. FROM (SELECT a, b FROM t) x";
+    expect(names(sql, sql.indexOf("x.") + 2)).toEqual([["x", ["a", "b"]]]);
+  });
+
   it("handles bare aliases and quoted identifiers (double, backtick, bracket)", () => {
     expect(names('WITH "My CTE" AS (SELECT "Column", `field` AS [Other]) SELECT 1'))
       .toEqual([["My CTE", ["Column", "Other"]]]);
