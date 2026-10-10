@@ -75,6 +75,35 @@ describe("triggerSql", () => {
       const sql = buildTriggerFunctionSql({ ...base, schema: undefined });
       expect(sql).toContain('CREATE OR REPLACE FUNCTION "products_trg_products_audit_fn"()');
     });
+
+    it("references the existing function by its real name when editing a non-convention trigger (debba review, PR #822, blocking 4)", () => {
+      // A trigger whose function doesn't follow the <table>_<name>_fn
+      // convention must have THAT function updated on save — not a second,
+      // convention-named function created alongside (or clobbering an
+      // unrelated function that happens to already own the convention name).
+      const sql = buildTriggerFunctionSql({
+        ...base,
+        existingFunctionName: { name: "my_audit", schema: "store" },
+      });
+      expect(sql).toContain('CREATE OR REPLACE FUNCTION "store"."my_audit"()');
+      expect(sql).not.toContain("products_trg_products_audit_fn");
+    });
+
+    it("supports an existing function in a different schema than the trigger's own", () => {
+      const sql = buildTriggerFunctionSql({
+        ...base,
+        existingFunctionName: { name: "shared_audit_fn", schema: "common" },
+      });
+      expect(sql).toContain('CREATE OR REPLACE FUNCTION "common"."shared_audit_fn"()');
+    });
+
+    it("supports an unqualified existing function name (no schema)", () => {
+      const sql = buildTriggerFunctionSql({
+        ...base,
+        existingFunctionName: { name: "my_audit" },
+      });
+      expect(sql).toContain('CREATE OR REPLACE FUNCTION "my_audit"()');
+    });
   });
 
   describe("buildTriggerSql", () => {
@@ -138,6 +167,20 @@ describe("triggerSql", () => {
         const created = functionSql.match(/CREATE OR REPLACE FUNCTION (\S+)\(\)/)?.[1];
         const referenced = triggerSql.match(/EXECUTE FUNCTION (\S+)\(\);/)?.[1];
         expect(created).toBeDefined();
+        expect(referenced).toBe(created);
+      },
+    );
+
+    it(
+      "the same consistency holds for an existing (non-convention) function name " +
+        "(debba review, PR #822, blocking 4)",
+      () => {
+        const input = { ...base, existingFunctionName: { name: "my_audit", schema: "store" } };
+        const functionSql = buildTriggerFunctionSql(input);
+        const triggerSql = buildTriggerSql(input);
+        const created = functionSql.match(/CREATE OR REPLACE FUNCTION (\S+)\(\)/)?.[1];
+        const referenced = triggerSql.match(/EXECUTE FUNCTION (\S+)\(\);/)?.[1];
+        expect(created).toBe('"store"."my_audit"');
         expect(referenced).toBe(created);
       },
     );

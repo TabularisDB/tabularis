@@ -225,4 +225,76 @@ describe("TriggerEditorModal save ordering", () => {
       expect(invokeMock).not.toHaveBeenCalledWith("create_trigger", expect.anything());
     });
   });
+
+  it(
+    "updates the trigger's real (non-convention) function on edit instead of creating " +
+      "a second, convention-named one (debba review, PR #822, blocking 4)",
+    async () => {
+      // The seeded trigger's EXECUTE clause references `audit_fn` — not the
+      // convention name `products_audit_fn` that triggerName="audit" +
+      // tableName="products" would generate. With the fix, save correctly
+      // updates `audit_fn` via CREATE OR REPLACE, and does NOT run a
+      // collision probe (the real function identity is already known from load).
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_trigger_definition") {
+          return [
+            'CREATE TRIGGER "audit"',
+            "AFTER INSERT",
+            'ON "store"."products"',
+            "FOR EACH ROW",
+            'EXECUTE FUNCTION "store"."audit_fn"();',
+          ].join("\n");
+        }
+        if (cmd === "get_routine_definition") {
+          return [
+            "CREATE OR REPLACE FUNCTION store.audit_fn() RETURNS trigger LANGUAGE plpgsql AS $function$",
+            "BEGIN",
+            "  RETURN NEW;",
+            "END;",
+            "$function$",
+          ].join("\n");
+        }
+        return "";
+      });
+
+      render(
+        <TriggerEditorModal
+          isOpen
+          onClose={vi.fn()}
+          connectionId="conn-1"
+          triggerName="audit"
+          tableName="products"
+          schema="store"
+          database="analytics"
+          driver="postgres"
+          isNewTrigger={false}
+          onSuccess={vi.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(invokeMock).toHaveBeenCalledWith(
+          "get_trigger_definition",
+          expect.objectContaining({ triggerName: "audit" }),
+        );
+      });
+
+      fireEvent.click(screen.getByText("triggers.save"));
+
+      await waitFor(() => {
+        // The execute_query step creates/replaces the REAL function (audit_fn),
+        // not the generated convention name (products_audit_fn).
+        const executeQueryCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "execute_query");
+        expect(executeQueryCalls.length).toBeGreaterThan(0);
+        const query: string = (executeQueryCalls[0][1] as { query: string }).query;
+        expect(query).toContain('CREATE OR REPLACE FUNCTION "store"."audit_fn"()');
+        expect(query).not.toContain("products_audit_fn");
+      });
+
+      // get_routine_definition was called exactly once (on load), not a
+      // second time as a collision probe during save.
+      const routineLookups = invokeMock.mock.calls.filter(([cmd]) => cmd === "get_routine_definition");
+      expect(routineLookups).toHaveLength(1);
+    },
+  );
 });

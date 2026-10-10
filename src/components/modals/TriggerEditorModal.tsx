@@ -81,6 +81,17 @@ export const TriggerEditorModal = ({
   const [tableName, setTableName] = useState(initialTableName ?? "");
   const [timing, setTiming] = useState("BEFORE");
   const [events, setEvents] = useState<string[]>(["INSERT"]);
+  // The real function an EXISTING trigger's EXECUTE FUNCTION|PROCEDURE clause
+  // references, as parsed on load — distinct from the generated
+  // <table>_<name>_fn convention. When set, save updates THIS function
+  // instead of creating (or clobbering) a convention-named one; null means
+  // either a brand-new trigger (no existing function to preserve) or an
+  // existing one whose function name couldn't be parsed, in which case save
+  // falls back to the collision-checked convention-name path (debba review,
+  // PR #822, blocking 4).
+  const [existingFunctionName, setExistingFunctionName] = useState<
+    { name: string; schema?: string } | null
+  >(null);
   // PostgreSQL has no inline trigger body — CREATE TRIGGER only references a
   // separate trigger function, so the guided-mode body field holds that
   // function's PL/pgSQL statements instead of a literal BEGIN/END block
@@ -96,6 +107,7 @@ export const TriggerEditorModal = ({
   const loadTriggerDefinition = useCallback(async (tName: string, tTable: string) => {
     setLoading(true);
     setError(null);
+    setExistingFunctionName(null);
     try {
       const def = await invoke<string>("get_trigger_definition", {
         connectionId,
@@ -156,9 +168,20 @@ export const TriggerEditorModal = ({
             } else {
               setBody(parsed.body);
             }
+            // Record the function's real identity ONLY when it was actually
+            // parsed from the EXECUTE clause — not the convention-name
+            // fallback above, which exists to still attempt a body fetch,
+            // not to assert that's the function this trigger truly calls.
+            // Save uses this to update that function in place; when it's
+            // null (parsing failed), save falls back to the collision-
+            // checked convention-name path instead of guessing wrong.
+            if (parsedFnName) {
+              setExistingFunctionName({ name: fnName, schema: fnSchema });
+            }
           } catch {
             // Can't fetch the function definition — fall back to the parsed
-            // body (the user can edit it before saving).
+            // body (the user can edit it before saving). existingFunctionName
+            // stays null; save falls back to the convention-name path.
             setBody(parsed.body);
           }
         } else {
@@ -183,6 +206,7 @@ export const TriggerEditorModal = ({
         setRawSql("");
         setUseRawSql(false);
         setError(null);
+        setExistingFunctionName(null);
       } else if (triggerName && initialTableName) {
         setName(triggerName);
         setTableName(initialTableName);
@@ -200,6 +224,7 @@ export const TriggerEditorModal = ({
     body,
     driver,
     capabilities,
+    ...(existingFunctionName ? { existingFunctionName } : {}),
   };
 
   const buildTriggerFunctionSql = () => buildTriggerFunctionSqlUtil(sqlInput);
@@ -250,12 +275,19 @@ export const TriggerEditorModal = ({
       // function BEFORE dropping the existing trigger, so a failure in the
       // function step leaves the existing trigger intact. Previously the drop
       // ran first, so a failed function creation left the trigger gone with no
-      // rollback. CREATE OR REPLACE is idempotent for an existing function
-      // (the edit path); for a brand-new trigger we first probe that no
-      // unrelated function already owns the generated name, so we never
-      // silently clobber a user function.
+      // rollback.
+      //
+      // IDENTITY (debba review, PR #822, blocking 4): when editing a trigger
+      // whose real function was parsed on load (existingFunctionName), save
+      // updates THAT function via CREATE OR REPLACE — safe, since it's a
+      // function this same trigger already calls. Otherwise (a brand-new
+      // trigger, or an existing one whose function name couldn't be parsed —
+      // e.g. a raw-SQL-authored trigger with an unusual EXECUTE clause), the
+      // generated <table>_<name>_fn convention name is used, and we first
+      // probe that no unrelated function already owns it — refusing instead
+      // of silently creating a second function or clobbering someone else's.
       if (isPostgres && !useRawSql) {
-        if (isNewTrigger) {
+        if (isNewTrigger || !existingFunctionName) {
           // Refuse to silently overwrite an existing function that happens to
           // share the generated name — the user can rename the trigger instead.
           try {
@@ -273,7 +305,8 @@ export const TriggerEditorModal = ({
             );
             return;
           } catch {
-            // The function doesn't exist — expected for a new trigger; proceed.
+            // The function doesn't exist — expected for a new trigger (or an
+            // existing one whose function couldn't be identified); proceed.
           }
         }
         await invoke("execute_query", {
@@ -330,10 +363,15 @@ export const TriggerEditorModal = ({
     const input = {
       name, tableName, schema: resolvedSchema, timing, events,
       body, driver, capabilities,
+      ...(existingFunctionName ? { existingFunctionName } : {}),
     };
     // Mirror handleSave's edit-path flow: create/replace function → drop_trigger
     // → create_trigger. The function is created BEFORE the drop so a failure in
     // the function step leaves the existing trigger intact (debba review, #822).
+    // Also mirrors handleSave's IDENTITY behavior (blocking 4): when the
+    // trigger's real function was parsed on load, this updates THAT function
+    // (which may be shared with another trigger) rather than a generated
+    // convention name.
     const fnSql = buildTriggerFunctionSqlUtil(input);
     await invoke("execute_query", {
       connectionId,

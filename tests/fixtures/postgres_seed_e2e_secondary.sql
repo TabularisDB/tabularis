@@ -89,12 +89,13 @@ DROP TRIGGER IF EXISTS trg_audit ON review.records;
 CREATE TRIGGER trg_audit BEFORE INSERT ON review.records
   FOR EACH ROW EXECUTE FUNCTION review.records_trg_audit_fn();
 
--- Finding #4: same-named trigger `normalize` on two different tables. Before
--- the fix, both shared a single `normalize_fn` (CREATE OR REPLACE clobbers).
--- After the fix, each table gets its own table-scoped function
--- (trigger_a_normalize_fn, trigger_b_normalize_fn). The test creates these
--- via __e2e_save_trigger_with_body, so the seed only needs the initial
--- shared function for the pre-fix state.
+-- PR #822 fix 4 (trigger identity): two tables with the same trigger name
+-- `normalize`, both pointing at the shared `normalize_fn`. The test opens
+-- trigger_a's `normalize` in guided mode, saves with a new body, and asserts
+-- the update landed on `normalize_fn` (the function the trigger actually
+-- calls) — not on a new convention-named orphan `trigger_a_normalize_fn`.
+-- The seed provides the initial shared state; beforeSession re-seeds it
+-- between runs so the body is always reset to 'from A'.
 CREATE OR REPLACE FUNCTION review.normalize_fn() RETURNS TRIGGER AS $$
 BEGIN
   NEW.note := 'from A';

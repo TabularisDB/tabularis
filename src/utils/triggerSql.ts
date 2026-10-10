@@ -1,4 +1,4 @@
-import { quoteIdentifier } from "./identifiers";
+import { quoteIdentifier, quoteTableRef } from "./identifiers";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 
 export interface TriggerSqlInput {
@@ -10,6 +10,18 @@ export interface TriggerSqlInput {
   body: string;
   driver?: string;
   capabilities?: DriverCapabilities | PluginManifest | null;
+  /**
+   * The trigger's actual existing backing function, as parsed from its
+   * `EXECUTE FUNCTION|PROCEDURE` clause (see `parseTriggerFunctionName`).
+   * When set, `buildTriggerFunctionSql`/`buildTriggerSql` reference this
+   * function instead of the generated `<table>_<name>_fn` convention name —
+   * so editing a trigger whose function doesn't follow that convention
+   * updates the function it actually calls, instead of creating (or
+   * silently clobbering) a second, convention-named one (debba review, PR
+   * #822, blocking 4). Omit for a brand-new trigger, which has no existing
+   * function to preserve the identity of.
+   */
+  existingFunctionName?: { name: string; schema?: string };
 }
 
 /** True for both the builtin "postgres" driver and the "postgresql" plugin. */
@@ -77,6 +89,10 @@ export function parseTriggerFunctionName(triggerSql: string): string | null {
  */
 function qualifiedFunctionName(input: TriggerSqlInput): string {
   const q = (id: string) => quoteIdentifier(id, input.capabilities ?? input.driver ?? "postgres");
+  if (input.existingFunctionName) {
+    const { name, schema } = input.existingFunctionName;
+    return quoteTableRef(name, input.capabilities ?? input.driver ?? "postgres", schema ?? null);
+  }
   const prefix = input.schema ? `${q(input.schema)}.` : "";
   return `${prefix}${q(triggerFunctionName(input.name, input.tableName))}`;
 }
