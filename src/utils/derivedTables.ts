@@ -106,7 +106,7 @@ function pairs(tokens: Token[]): Map<number, number> {
   return result;
 }
 
-function explicitColumns(tokens: Token[], start: number, end: number): DerivedColumn[] {
+function explicitColumns(tokens: Token[], start: number, end: number): DerivedColumn[] | undefined {
   const out: DerivedColumn[] = [];
   let expectingName = true;
   for (let i = start; i < end; i++) {
@@ -115,14 +115,14 @@ function explicitColumns(tokens: Token[], start: number, end: number): DerivedCo
       const name = identifier(token);
       // Names must be comma-delimited. Do not invent columns for malformed
       // or incomplete lists such as (a.b) or (a,).
-      if (!name) return [];
+      if (!name) return undefined;
       out.push({ name });
     } else if (token.kind !== "symbol" || token.text !== ",") {
-      return [];
+      return undefined;
     }
     expectingName = !expectingName;
   }
-  return expectingName ? [] : out;
+  return expectingName ? undefined : out;
 }
 
 const clauseWords = new Set([
