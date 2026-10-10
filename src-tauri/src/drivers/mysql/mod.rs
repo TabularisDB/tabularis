@@ -1207,6 +1207,8 @@ pub async fn get_routines(
             name: mysql_row_str(r, 0),
             routine_type: mysql_row_str(r, 1),
             definition: mysql_row_str_opt(r, 2),
+            /* MySQL cannot overload: a schema and a name identify one routine */
+            identity_args: None,
         })
         .collect())
 }
@@ -2124,6 +2126,8 @@ impl DatabaseDriver for MysqlDriver {
         params: &crate::models::ConnectionParams,
         routine_name: &str,
         schema: Option<&str>,
+        /* MySQL cannot overload: a schema and a name identify one routine */
+        _identity_args: Option<&str>,
     ) -> Result<Vec<crate::models::RoutineParameter>, String> {
         get_routine_parameters(params, routine_name, schema).await
     }
@@ -2134,6 +2138,8 @@ impl DatabaseDriver for MysqlDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        /* MySQL cannot overload: a schema and a name identify one routine */
+        _identity_args: Option<&str>,
     ) -> Result<String, String> {
         get_routine_definition(params, routine_name, routine_type, schema).await
     }
@@ -2254,6 +2260,8 @@ impl DatabaseDriver for MysqlDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        /* MySQL cannot overload: a schema and a name identify one routine */
+        _identity_args: Option<&str>,
     ) -> Result<String, String> {
         let definition = get_routine_definition(params, routine_name, routine_type, schema).await?;
         Ok(routines::routine_edit_script(
@@ -2269,6 +2277,8 @@ impl DatabaseDriver for MysqlDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        /* MySQL cannot overload: a schema and a name identify one routine */
+        _identity_args: Option<&str>,
     ) -> Result<(), String> {
         let sql = routines::drop_routine_sql(routine_name, routine_type);
         execute_query(params, &sql, None, 1, schema)

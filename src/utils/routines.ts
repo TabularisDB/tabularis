@@ -18,3 +18,24 @@ export const groupRoutinesByType = (routines: RoutineInfo[]): GroupedRoutines =>
     { procedures: [], functions: [] } as GroupedRoutines
   );
 };
+
+/**
+ * The label a routine is listed under: `name(signature)` where the listing
+ * reports a signature, and the bare name where it does not.
+ *
+ * A name is not an identity in every dialect. PostgreSQL overloads, so four
+ * functions called `f` used to arrive in the sidebar as four identical rows
+ * with nothing on screen to tell them apart, and clicking one of them was a
+ * coin toss (#893).
+ *
+ * An EMPTY signature is a value, not an absence: it is what a no-argument
+ * routine has, and `f()` beside `f(a integer)` is exactly the distinction the
+ * reader needs. Only a MISSING signature means "this dialect does not
+ * overload", and there the bare name is the whole truth.
+ *
+ * Missing is `== null` rather than `=== undefined`, which is belt and braces.
+ * The host omits the field on those dialects, so `undefined` is what arrives;
+ * the loose check keeps a stray `null` from reaching the label as `name(null)`.
+ */
+export const routineLabel = (name: string, identityArgs?: string | null): string =>
+  identityArgs == null ? name : `${name}(${identityArgs})`;

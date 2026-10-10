@@ -88,3 +88,154 @@ pub(super) fn drop_routine_sql(
         identity_args
     )
 }
+
+/// The catalog lookup for one routine's definition.
+///
+/// Two forms, because a schema and a name do not identify a routine in
+/// PostgreSQL: they identify a set of overloads. With a signature the lookup
+/// names one row and needs no `LIMIT`; without one it is the pre-#893 read,
+/// which takes whichever row the scan returns and is kept for the callers that
+/// have no signature to pass.
+pub(super) fn routine_definition_sql(by_identity: bool) -> &'static str {
+    if by_identity {
+        r#"
+            SELECT pg_get_functiondef(p.oid) AS definition
+            FROM pg_proc p
+            JOIN pg_namespace n ON p.pronamespace = n.oid
+            WHERE n.nspname = $1
+            AND   p.proname = $2
+            AND   pg_get_function_identity_arguments(p.oid) = $3
+        "#
+    } else {
+        r#"
+            SELECT pg_get_functiondef(p.oid) AS definition
+            FROM pg_proc p
+            JOIN pg_namespace n ON p.pronamespace = n.oid
+            WHERE n.nspname = $1 AND p.proname = $2
+            LIMIT 1
+        "#
+    }
+}
+
+/// Whether one exact overload is there, for the `DROP` path to check before it
+/// builds a statement naming a signature the server may not have.
+pub(super) fn routine_exists_sql() -> &'static str {
+    r#"
+            SELECT 1
+            FROM pg_proc p
+            JOIN pg_namespace n ON p.pronamespace = n.oid
+            WHERE n.nspname = $1
+            AND   p.proname = $2
+            AND   pg_get_function_identity_arguments(p.oid) = $3
+        "#
+}
+
+/// `information_schema.specific_name` for one overload, from its signature.
+///
+/// That column is the only key `information_schema.parameters` can be filtered
+/// by, and the two views offer no way to reach it from a signature, so it has
+/// to be derived. The derivation uses the SAME function the view does rather
+/// than reimplementing it, because the obvious reimplementation is wrong.
+///
+/// `proname || '_' || oid` is what it looks like, and it does not fit in a
+/// `name`. Since PostgreSQL 12 the view builds the column with
+/// `nameconcatoid`, which truncates the NAME part so the OID survives inside 63
+/// bytes; the plain concatenation does not truncate at all. Measured on
+/// PostgreSQL 18 with a 60-character routine name:
+///
+/// ```text
+/// proname || '_' || oid  fn_with_a_really_long_name_to_hit_namedatalen_limit_abcdefgh_16385
+/// nameconcatoid          fn_with_a_really_long_name_to_hit_namedatalen_limit_abcde_16385
+/// specific_name          fn_with_a_really_long_name_to_hit_namedatalen_limit_abcde_16385
+/// ```
+///
+/// So the plain form matched nothing for a long-named routine, and the caller
+/// answered with no parameters and no return type - for every long-named
+/// routine on the server, overloaded or not, because the UI always sends a
+/// signature on this driver (#926 review).
+///
+/// Before 12 nothing is truncated at all, so the plain concatenation is right
+/// there. `sql_identifier` was a domain over `character varying` until 12 turned
+/// it into `name` and added `nameconcatoid` in the same release. Measured on
+/// PostgreSQL 11.16, same routine:
+///
+/// ```text
+/// sql_identifier base type  character varying
+/// specific_name             fn_..._abcdefgh_16385   (66 characters, untruncated)
+/// (proname || '_' || oid)::text   matches
+/// (proname || '_' || oid)::name   does NOT match - truncated to 63
+/// ```
+///
+/// So casting to `name` on an old server is the mirror of the first bug: it
+/// truncates where the view does not, and a long-named routine would answer
+/// with no parameters there too. Each version gets the expression its own
+/// `information_schema` uses, and neither gets the other's.
+pub(super) fn routine_specific_name_sql(has_nameconcatoid: bool) -> &'static str {
+    if has_nameconcatoid {
+        r#"
+            SELECT nameconcatoid(p.proname, p.oid)::text AS specific_name
+            FROM pg_proc p
+            JOIN pg_namespace n ON p.pronamespace = n.oid
+            WHERE n.nspname = $1
+            AND   p.proname = $2
+            AND   pg_get_function_identity_arguments(p.oid) = $3
+        "#
+    } else {
+        r#"
+            SELECT (p.proname || '_' || p.oid)::text AS specific_name
+            FROM pg_proc p
+            JOIN pg_namespace n ON p.pronamespace = n.oid
+            WHERE n.nspname = $1
+            AND   p.proname = $2
+            AND   pg_get_function_identity_arguments(p.oid) = $3
+        "#
+    }
+}
+
+/// The return type of one routine, by `specific_name` where the caller has one.
+///
+/// Without it this took `LIMIT 1` over every overload of the name, so the Run
+/// dialog could show one overload's return type beside another's parameters.
+pub(super) fn routine_return_type_sql(by_specific_name: bool) -> &'static str {
+    if by_specific_name {
+        r#"
+            SELECT r.data_type, r.routine_type
+            FROM information_schema.routines r
+            WHERE r.routine_schema = $1
+            AND   r.specific_name = $2
+        "#
+    } else {
+        r#"
+            SELECT data_type, routine_type
+            FROM information_schema.routines
+            WHERE routine_schema = $1 AND routine_name = $2
+            LIMIT 1
+        "#
+    }
+}
+
+/// One routine's parameters, by `specific_name` where the caller has one.
+///
+/// Without it the join filtered on schema and name only, so every overload's
+/// parameters came back in one list ordered by position: measured on
+/// PostgreSQL 18, three overloads of `f` answered four rows, two of them
+/// `ordinal_position` 1 with different types.
+pub(super) fn routine_parameters_sql(by_specific_name: bool) -> &'static str {
+    if by_specific_name {
+        r#"
+            SELECT p.parameter_name, p.data_type, p.parameter_mode, p.ordinal_position
+            FROM information_schema.parameters p
+            WHERE p.specific_schema = $1
+            AND   p.specific_name = $2
+            ORDER BY p.ordinal_position
+        "#
+    } else {
+        r#"
+            SELECT p.parameter_name, p.data_type, p.parameter_mode, p.ordinal_position
+            FROM information_schema.parameters p
+            JOIN information_schema.routines r ON p.specific_name = r.specific_name
+            WHERE r.routine_schema = $1 AND r.routine_name = $2
+            ORDER BY p.ordinal_position
+        "#
+    }
+}

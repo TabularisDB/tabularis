@@ -957,13 +957,45 @@ List stored procedures and functions.
 ]
 ```
 
+##### Overloaded routines: `identity_args`
+
+A name does not identify a routine in every dialect. Where yours overloads, add
+`identity_args` to each entry with that routine's argument signature:
+
+```json
+[
+  { "name": "f", "routine_type": "FUNCTION", "identity_args": "" },
+  { "name": "f", "routine_type": "FUNCTION", "identity_args": "a integer" },
+  { "name": "f", "routine_type": "FUNCTION", "identity_args": "a text" }
+]
+```
+
+Tabularis labels the sidebar and palette entries with it, so overloads are
+distinguishable, and sends it back as `identity_args` on the two reads below and
+on the optional `get_routine_edit_script` and `drop_routine` management RPCs, so
+each one acts on the routine the user clicked. Without it, every read takes the
+first match and the reader cannot tell which one they got.
+
+Three rules, because the field is a key and not a label:
+
+- **Omit it where a name is enough.** MySQL and SQLite do; there is no overload
+  to disambiguate and an empty label is noise.
+- **An EMPTY string is a value, not an absence.** It is the signature of a
+  routine that takes no arguments, and it is what tells `f()` apart from
+  `f(a integer)`. Only a missing field means "this dialect does not overload".
+- **Round-trip it unchanged.** Tabularis treats it as opaque: it stores what you
+  send and sends it back verbatim. Use whatever your dialect accepts for
+  identifying one routine - the PostgreSQL driver uses
+  `pg_get_function_identity_arguments`, which `DROP`, `ALTER` and a catalog
+  lookup all take.
+
 ---
 
 #### `get_routine_parameters`
 
 Get parameters of a stored routine.
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "routine": string }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "routine": string, "identity_args": string | null }`
 
 **Result:**
 ```json
@@ -972,13 +1004,18 @@ Get parameters of a stored routine.
 ]
 ```
 
+`identity_args` is the signature your `get_routines` reported for the row the
+user clicked, or `null` where you reported none. Filter on it: a parameter list
+that mixes two overloads is worse than an empty one, because the Run dialog
+offers those arguments under one overload's name.
+
 ---
 
 #### `get_routine_definition`
 
 Get the SQL body of a stored routine.
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "routine": string }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "routine": string, "identity_args": string | null }`
 
 **Result:** `"BEGIN ... END"`
 
