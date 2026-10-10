@@ -108,11 +108,21 @@ function pairs(tokens: Token[]): Map<number, number> {
 
 function explicitColumns(tokens: Token[], start: number, end: number): DerivedColumn[] {
   const out: DerivedColumn[] = [];
+  let expectingName = true;
   for (let i = start; i < end; i++) {
-    const name = identifier(tokens[i]);
-    if (name) out.push({ name });
+    const token = tokens[i];
+    if (expectingName) {
+      const name = identifier(token);
+      // Names must be comma-delimited. Do not invent columns for malformed
+      // or incomplete lists such as (a.b) or (a,).
+      if (!name) return [];
+      out.push({ name });
+    } else if (token.kind !== "symbol" || token.text !== ",") {
+      return [];
+    }
+    expectingName = !expectingName;
   }
-  return out;
+  return expectingName ? [] : out;
 }
 
 const clauseWords = new Set([
