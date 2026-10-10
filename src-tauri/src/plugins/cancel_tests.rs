@@ -134,7 +134,30 @@ async fn shutdown_bounds_a_hung_plugin_and_reports_a_specific_error() {
     assert_eq!(received.len(), 1, "plugin must receive the call before shutdown");
 
     let started = std::time::Instant::now();
-    process.shutdown().await;
+    let shutdown = tokio::spawn({
+        let process = process.clone();
+        async move { process.shutdown().await }
+    });
+    // Check that the request gate closes at the beginning of shutdown,
+    // while the original in-flight call is still inside its grace period.
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while process.accepting_calls.load(Ordering::Acquire) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("shutdown must stop new work promptly");
+    let new_error = process
+        .send_request("execute_query", json!({}), None)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(
+        new_error.contains("shutting down"),
+        "new RPC must be rejected during drain: {new_error}"
+    );
+
+    shutdown.await.unwrap();
     assert!(started.elapsed() < PLUGIN_SHUTDOWN_GRACE + Duration::from_secs(2));
     let error = call.await.unwrap().unwrap_err().to_string();
     assert!(error.contains("shutdown grace period"), "got {error}");
