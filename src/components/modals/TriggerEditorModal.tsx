@@ -69,6 +69,7 @@ export const TriggerEditorModal = ({
   onClose,
   connectionId,
   tableName: initialTableName,
+  triggerName,
   schema: schemaProp,
   driver,
   capabilities,
@@ -136,6 +137,26 @@ const caps = TRIGGER_CAPS[dialect];
       setLoading(false);
     }
   }, [connectionId, t, resolvedSchema, dialect]);
+
+  useEffect(() => {
+    if (!isOpen || unsupported) return;
+    if (isNewTrigger) {
+      setName("");
+      setTableName(initialTableName ?? "");
+      setTiming("BEFORE");
+      setEvents(["INSERT"]);
+      setBody(defaultTriggerBody(dialect));
+      setRawSql("");
+      setOriginalSql("");
+      setPgExisting(null);
+      setUseRawSql(false);
+      setError(null);
+    } else if (triggerName && initialTableName) {
+      setName(triggerName);
+      setTableName(initialTableName);
+      loadTriggerDefinition(triggerName, initialTableName);
+    }
+  }, [isOpen, unsupported, triggerName, initialTableName, isNewTrigger, loadTriggerDefinition, dialect]);
 
   const buildGuidedStatements = (): string[] => {
     const q = (id: string) => quoteIdentifier(id, capabilities ?? driver ?? "postgres");
