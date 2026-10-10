@@ -25,12 +25,13 @@ pub struct Args {
 
 impl Args {
     /// Log level for this run: `Debug` with `--debug` (which also lets sqlx's
-    /// query logging through), `Info` otherwise.
+    /// query logging through), otherwise whatever `RUST_LOG` names, and `Info`
+    /// as the default.
     pub fn log_level(&self) -> log::LevelFilter {
         if self.debug {
             log::LevelFilter::Debug
         } else {
-            log::LevelFilter::Info
+            crate::logger::resolve_log_level_from_env()
         }
     }
 
