@@ -2515,10 +2515,25 @@ export const NewConnectionModal = ({
         driver: newDriver,
         host: parsed.host || "localhost",
         port: parsed.port,
+        // Keep the user's TLS mode if the URL does not specify one.
+        // A driver switch must not retain the prior driver's TLS mode.
+        ...(parsed.ssl_mode !== undefined || driverChanged
+          ? { ssl_mode: parsed.ssl_mode ?? "" }
+          : {}),
         database: parsed.database || "",
         connection_uri: parsed.connection_uri,
         connection_uri_in_keychain: false,
       };
+
+      const importingMysql = newDriver === "mysql" || newDriver === "mariadb" ||
+        parsedDriver?.capabilities?.sql_dialect === "mysql";
+      const tlsDisabled = parsed.ssl_mode !== undefined &&
+        !["required", "verify_ca", "verify_identity"].includes(parsed.ssl_mode);
+      // The MySQL cleartext login and IAM login require enforced TLS.
+      if ((importingMysql && tlsDisabled) || (driverChanged && !importingMysql)) {
+        parsedFields.enable_cleartext_plugin = false;
+        parsedFields.use_iam_auth = false;
+      }
 
       // Plugin-owned extra fields belong to the driver that produced them, so
       // an import that switches driver drops them like the catalogue does.
