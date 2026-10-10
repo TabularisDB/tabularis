@@ -99,3 +99,56 @@ export interface UIExtensionDeclaration {
   /** If set, the contribution is only active when context.driver matches this value */
   driver?: string;
 }
+
+/**
+ * Required context keys the host must pass for each slot, mirroring
+ * `SlotContextMap` in `packages/plugin-api/src/slots.ts`. Values may be null
+ * when no connection/table is active; keys must still be present so the
+ * manifest `driver` filter (`ctx.driver === entry.driver`) can evaluate.
+ *
+ * Keep this map aligned with the SDK `SlotContextMap`. A type-level check in
+ * `SlotAnchor` uses these requirements for the slots listed here.
+ */
+export type HostSlotContextRequirements = {
+  "data-grid.toolbar.actions": {
+    connectionId: string | null;
+    tableName: string | null;
+    schema: string | null;
+    driver: string | null;
+  };
+  "sidebar.footer.actions": {
+    connectionId: string | null;
+    driver: string | null;
+  };
+  "row-editor-sidebar.header.actions": {
+    connectionId: string | null;
+    tableName: string | null;
+    schema: string | null;
+    driver: string | null;
+    rowData: Record<string, unknown>;
+    rowIndex: number;
+  };
+  "row-editor-sidebar.field.after": {
+    connectionId: string | null;
+    tableName: string | null;
+    schema: string | null;
+    driver: string | null;
+    columnName: string;
+    rowData: Record<string, unknown>;
+    rowIndex: number;
+  };
+  "data-grid.context-menu.items": {
+    connectionId: string | null;
+    tableName: string | null;
+    schema: string | null;
+    driver: string | null;
+    columnName: string;
+    rowIndex: number;
+    rowData?: Record<string, unknown>;
+  };
+};
+
+/** Context prop type for a given slot: required keys when known, else loose SlotContext. */
+export type SlotAnchorContext<S extends SlotName> = S extends keyof HostSlotContextRequirements
+  ? HostSlotContextRequirements[S] & SlotContext
+  : SlotContext;

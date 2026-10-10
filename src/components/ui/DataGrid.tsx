@@ -6,6 +6,7 @@ import React, {
   useCallback,
   useMemo,
   useImperativeHandle,
+  useContext,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -117,6 +118,8 @@ import type {
 } from "../../types/editor";
 import type { ResultCommands } from "../../types/commands";
 import { MemoRow, type RowCtx } from "./DataGridRow";
+import { JumpToColumnModal } from "../modals/JumpToColumnModal";
+import { KeybindingsContext } from "../../contexts/KeybindingsContext";
 
 export interface DataGridCommandTarget {
   getResultCommands: () => ResultCommands;
@@ -274,7 +277,8 @@ export const DataGrid = React.memo(
     scrollToNewInsertion,
   }: DataGridProps) {
     const { t } = useTranslation();
-    const { activeSchema, connections } = useDatabase();
+    const keybindings = useContext(KeybindingsContext);
+    const { activeSchema, connections, activeDriver } = useDatabase();
     const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
     const { showToast } = useToast();
@@ -396,6 +400,7 @@ export const DataGrid = React.memo(
       rowIndex: number;
       colIndex: number;
     } | null>(null);
+    const [jumpToColumnOpen, setJumpToColumnOpen] = useState(false);
     const editInputRef = useRef<HTMLInputElement>(null);
     const focusTriggerRef = useRef(0);
     // Mirror of editingCell so the commit/keydown callbacks can read the latest
@@ -445,6 +450,14 @@ export const DataGrid = React.memo(
       if (!columnMetadata) return null;
       return new Map(columnMetadata.map((col) => [col.name, col.data_type]));
     }, [columnMetadata]);
+    const columnChoices = useMemo(
+      () => columns.map((name, index) => ({
+        name,
+        index,
+        type: columnTypeMap?.get(name),
+      })),
+      [columns, columnTypeMap],
+    );
 
     // Create column comment map for O(1) lookup in header tooltips.
     const columnCommentMap = useMemo(() => {
@@ -2232,6 +2245,13 @@ export const DataGrid = React.memo(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
         if (editingCellRef.current) return;
 
+        if (keybindings?.matchesShortcut(e.nativeEvent, "jump_to_column") && columns.length > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          setJumpToColumnOpen(true);
+          return;
+        }
+
         // Let anything that handles keys itself keep them: text inputs, and the
         // focusable controls living inside cells and headers (FK/BLOB buttons,
         // sortable column headers) — Enter must still activate those.
@@ -2442,8 +2462,33 @@ export const DataGrid = React.memo(
         revealedCells,
         updateSelection,
         rowVirtualizer,
+        keybindings,
       ],
     );
+
+    const closeJumpToColumn = useCallback(() => {
+      setJumpToColumnOpen(false);
+      parentRef.current?.focus({ preventScroll: true });
+    }, []);
+
+    const jumpToColumn = useCallback((colIndex: number) => {
+      const rowIndex = Math.min(focusedCell?.rowIndex ?? 0, Math.max(0, mergedRows.length - 1));
+      setCellRange(null);
+      setSelectedColIndices(new Set());
+      if (mergedRows.length > 0) {
+        setFocusedCell({ rowIndex, colIndex });
+      }
+      closeJumpToColumn();
+      // The focus effect keeps cells visible. Center the jumped-to column so
+      // it is easy to locate in a wide grid, even if it was just off screen.
+      requestAnimationFrame(() => {
+        const parent = parentRef.current;
+        const cell = parent?.querySelector<HTMLElement>(
+          `tr[data-row-index="${rowIndex}"] td[data-col-index="${colIndex}"]`,
+        ) ?? parent?.querySelector<HTMLElement>(`th[data-col-index="${colIndex}"]`);
+        cell?.scrollIntoView({ block: "nearest", inline: "center" });
+      });
+    }, [closeJumpToColumn, focusedCell, mergedRows.length]);
 
     // Keep the focused cell visible: the virtualizer covers the vertical axis,
     // scrolling the cell itself covers the horizontal one on wide tables.
@@ -2480,8 +2525,8 @@ export const DataGrid = React.memo(
 
         // CMD/CTRL + C
         if ((e.metaKey || e.ctrlKey) && e.key === "c") {
-          // Only handle if not editing a cell
-          if (!editingCell) {
+          // Keep native copy for text fields, including the column picker.
+          if (!editingCell && !isEditableTarget) {
             if (cellRange) {
               e.preventDefault();
               copyCellRange();
@@ -2523,7 +2568,7 @@ export const DataGrid = React.memo(
         }
 
         // Delete / Backspace — delete selected rows
-        if ((e.key === "Delete" || e.key === "Backspace") && !editingCell && !readonlyProp && selectedRowIndices.size > 0) {
+        if ((e.key === "Delete" || e.key === "Backspace") && !editingCell && !isEditableTarget && !readonlyProp && selectedRowIndices.size > 0) {
           e.preventDefault();
           deleteRowsByIndices(Array.from(selectedRowIndices));
         }
@@ -2661,6 +2706,14 @@ export const DataGrid = React.memo(
 
     return (
       <>
+        {jumpToColumnOpen && (
+          <JumpToColumnModal
+            isOpen
+            columns={columnChoices}
+            onSelect={jumpToColumn}
+            onClose={closeJumpToColumn}
+          />
+        )}
         {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- focus host for the spreadsheet keyboard model (arrows, ranges, copy); a full ARIA grid needs per-cell roles and activedescendant */}
         <div
           ref={parentRef}
@@ -2700,6 +2753,7 @@ export const DataGrid = React.memo(
                   {headerGroup.headers.map((header, headerColIndex) => (
                     <th
                       key={header.id}
+                      data-col-index={headerColIndex}
                       className={`px-4 py-2 text-xs font-semibold tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap ${
                         selectedColIndices.has(headerColIndex)
                           ? "text-primary bg-accent-primary/20"
@@ -3111,6 +3165,14 @@ export const DataGrid = React.memo(
                 );
               }
 
+              const contextMergedRow = mergedRows[contextMenu.rowIndex];
+              const contextMenuRowData = contextMergedRow
+                ? buildRowDataWithPending(
+                    contextMergedRow.rowData,
+                    contextMergedRow.type === "insertion",
+                  )
+                : undefined;
+
               return (
                 <ContextMenu
                   x={contextMenu.x}
@@ -3121,15 +3183,13 @@ export const DataGrid = React.memo(
                   <SlotAnchor
                     name="data-grid.context-menu.items"
                     context={{
-                      connectionId,
-                      tableName,
+                      connectionId: connectionId ?? null,
+                      tableName: tableName ?? null,
                       schema: activeSchema,
+                      driver: activeDriver,
                       columnName: contextMenu.colName,
                       rowIndex: contextMenu.rowIndex,
-                      rowData: mergedRows[contextMenu.rowIndex]
-                        ?.rowData as unknown as
-                        | Record<string, unknown>
-                        | undefined,
+                      rowData: contextMenuRowData,
                     }}
                     className="border-t border-default mt-1 pt-1"
                   />

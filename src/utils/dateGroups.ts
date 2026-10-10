@@ -3,12 +3,12 @@ const DAY_MS = 86_400_000;
 type Ymd = { y: number; m: number; d: number };
 
 /** Resolve an IANA name (treating undefined/"auto" as OS local). */
-function resolveZone(timeZone?: string): string | undefined {
+export function resolveZone(timeZone?: string): string | undefined {
   return timeZone && timeZone !== "auto" ? timeZone : undefined;
 }
 
 /** Calendar year/month/day of an instant *as seen in the given timezone*. */
-function zonedYmd(date: Date, zone: string | undefined): Ymd {
+export function zonedYmd(date: Date, zone: string | undefined): Ymd {
   const opts: Intl.DateTimeFormatOptions = {
     year: "numeric",
     month: "2-digit",
