@@ -88,7 +88,6 @@ async fn call_without_timeout_never_sends_a_cancel() {
     );
 }
 
-
 #[cfg(unix)]
 #[tokio::test]
 async fn shutdown_allows_an_inflight_plugin_response() {
@@ -98,7 +97,13 @@ async fn shutdown_allows_an_inflight_plugin_response() {
     std::fs::write(
         &script,
         format!(
-            "read -r request\nprintf '%s\\n' \"$request\" > '{}'\nsleep 0.2\nprintf '%s\\n' '{{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{{\"ok\":true}}}}'\nexec cat >/dev/null\n",
+            concat!(
+                "read -r request\\n",
+                "printf '%s\\\\n' \\"$request\\" > '{}'\\n",
+                "sleep 0.2\\n",
+                "printf '%s\\\\n' '{{\\\"jsonrpc\\\":\\\"2.0\\\",\\\"id\\\":1,\\\"result\\\":{{\\\"ok\\\":true}}}}'\\n",
+                "exec cat >/dev/null\\n",
+            ),
             log.display()
         ),
     ).unwrap();
