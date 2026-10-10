@@ -235,7 +235,7 @@ export const registerSqlAutocomplete = (
       // incorrectly extract only the final word of "My CTE".
       const quotedDotMatch = qualifiedDotMatch
         ? null
-        : textUntilPosition.match(/(?:"((?:[^"]|"")*)"|\`((?:[^\`]|\`\`)*)\`|\\[([^\\]]+)\\])\\.([a-zA-Z0-9_]*)$/);
+        : textUntilPosition.match(/(?:"((?:[^"]|"")*)"|`((?:[^`]|``)*)`|\[([^\]]+)\])\.([a-zA-Z0-9_]*)$/);
       const simpleDotMatch = qualifiedDotMatch || quotedDotMatch ? null : textUntilPosition.match(/(?:["'`])?([a-zA-Z0-9_]+)(?:["'`])?\.([a-zA-Z0-9_]*)$/);
       if (qualifiedDotMatch || simpleDotMatch || quotedDotMatch) {
         // In a table operand, `namespace.partial` refers to a table rather than
