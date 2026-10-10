@@ -40,6 +40,13 @@
     "opIsEmpty": "è vuoto",
     "opIsNotEmpty": "non è vuoto"
   },
+  "triggers":{
+    "originalRestored": "Il trigger originale è stato ripristinato.",
+    "restoreFailed": "Anche il ripristino del trigger originale è fallito: ",
+    "singleEventHint": "Questo database consente un solo evento per trigger.",
+    "existingFunctionHint": "Questo trigger mantiene la sua funzione esistente. Modifica la funzione direttamente nell'editor SQL o in modalità SQL grezzo.",
+    "unsupportedDriver": "La modifica dei trigger non è supportata per questo driver."
+  },
   "tags": {
     "label": "Tag",
     "new": "Nuovo tag",

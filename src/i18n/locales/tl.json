@@ -1887,7 +1887,12 @@
     "createSuccess": "Matagumpay na nagawa ang trigger",
     "updateSuccess": "Matagumpay na na-update ang trigger",
     "recreateTrigger": "I-recreate ang Trigger",
-    "confirmRecreate": "Ang pag-edit ng trigger ay nangangailangan ng pag-drop at pag-recreate nito. Magpatuloy sa pagbabago ng \"{{trigger}}\"?"
+    "confirmRecreate": "Ang pag-edit ng trigger ay nangangailangan ng pag-drop at pag-recreate nito. Magpatuloy sa pagbabago ng \"{{trigger}}\"?",
+    "originalRestored": "Naibalik ang orihinal na trigger.",
+    "restoreFailed": "Nabigo rin ang pagbalik sa orihinal na trigger: ",
+    "singleEventHint": "Isang event lang bawat trigger ang pinapayagan ng database na ito.",
+    "existingFunctionHint": "Pinananatili ng trigger na ito ang kasalukuyang function nito. I-edit ang mismong function sa SQL editor o sa raw SQL mode.",
+    "unsupportedDriver": "Hindi sinusuportahan ang pag-edit ng trigger para sa driver na ito."
   },
   "community": {
     "title": "Sumali sa Komunidad",

@@ -1868,7 +1868,12 @@
     "createSuccess": "トリガーを正常に作成しました",
     "updateSuccess": "トリガーを正常に更新しました",
     "recreateTrigger": "トリガーを再作成",
-    "confirmRecreate": "トリガーを編集するには、いったん削除して再作成する必要があります。「{{trigger}}」の変更を続行しますか？"
+    "confirmRecreate": "トリガーを編集するには、いったん削除して再作成する必要があります。「{{trigger}}」の変更を続行しますか？",
+    "originalRestored": "元のトリガーを復元しました。",
+    "restoreFailed": "元のトリガーの復元にも失敗しました：",
+    "singleEventHint": "このデータベースでは、1つのトリガーにつき1つのイベントのみ指定できます。",
+    "existingFunctionHint": "このトリガーは既存の関数をそのまま使用します。関数自体はSQLエディタまたはRaw SQLモードで編集してください。",
+    "unsupportedDriver": "このドライバーではトリガーの編集はサポートされていません。"
   },
   "community": {
     "title": "コミュニティに参加",

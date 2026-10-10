@@ -1871,7 +1871,12 @@
     "createSuccess": "Trigger criado com sucesso",
     "updateSuccess": "Trigger atualizado com sucesso",
     "recreateTrigger": "Recriar Trigger",
-    "confirmRecreate": "Editar um trigger requer removê-lo e recriá-lo. Continuar modificando \"{{trigger}}\"?"
+    "confirmRecreate": "Editar um trigger requer removê-lo e recriá-lo. Continuar modificando \"{{trigger}}\"?",
+    "originalRestored": "O trigger original foi restaurado.",
+    "restoreFailed": "A restauração do trigger original também falhou: ",
+    "singleEventHint": "Este banco de dados permite apenas um evento por trigger.",
+    "existingFunctionHint": "Este trigger mantém sua função existente. Edite a própria função no editor SQL ou no modo SQL bruto.",
+    "unsupportedDriver": "A edição de gatilhos não é suportada para este driver."
   },
   "community": {
     "title": "Junte-se à Comunidade",

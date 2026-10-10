@@ -1322,6 +1322,13 @@
     "primaryKey": "Clave Primaria",
     "auto": "Auto"
   },
+  "triggers":{
+    "originalRestored": "Se restauró el trigger original.",
+    "restoreFailed": "La restauración del trigger original también falló: ",
+    "singleEventHint": "Esta base de datos permite un solo evento por trigger.",
+    "existingFunctionHint": "Este trigger conserva su función existente. Edita la función directamente en el editor SQL o en el modo SQL sin procesar.",
+    "unsupportedDriver": "La edición de activadores no es compatible con este controlador."
+  },
   "editor": {
     "quickNavigator": {
       "placeholder": "Buscar tablas, vistas, rutinas, triggers...",
