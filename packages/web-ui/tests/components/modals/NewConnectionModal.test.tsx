@@ -23,6 +23,7 @@ import type {
 } from "../../../src/types/pluginSlots";
 
 interface MockSelectProps {
+  ariaLabel?: string;
   value: string | null;
   options: string[];
   onChange: (value: string) => void;
@@ -87,9 +88,9 @@ vi.mock("../../../src/components/ui/Modal", () => ({
 }));
 
 vi.mock("../../../src/components/ui/Select", () => ({
-  Select: ({ value, options, onChange, placeholder, labels }: MockSelectProps) => (
+  Select: ({ ariaLabel, value, options, onChange, placeholder, labels }: MockSelectProps) => (
     <select
-      aria-label={placeholder ?? "select"}
+      aria-label={ariaLabel ?? placeholder ?? "select"}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
     >
@@ -116,6 +117,13 @@ vi.mock("../../../src/hooks/useDrivers", () => ({
           file_based: false,
           folder_based: false,
           connection_string: true,
+          connection_string_examples: [
+            {
+              label: "Local MySQL",
+              value: "mysql://root:pass@127.0.0.1:3306/shop",
+              description: "Connect to a local database.",
+            },
+          ],
           supports_ssl: true,
         },
       },
@@ -396,6 +404,29 @@ describe("NewConnectionModal layout", () => {
     k8sMocks.getK8sResources.mockResolvedValue(["mysql-svc"]);
     k8sMocks.getK8sResourcePorts.mockResolvedValue([6543]);
     k8sMocks.validateK8sPath.mockResolvedValue(undefined);
+  });
+
+  it("fills and parses a selected connection string example", async () => {
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === "list_databases" ? [] : "ok",
+    );
+    renderModal();
+    pickEngineFromCatalogue();
+
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: "newConnection.connectionStringExample",
+      }),
+      { target: { value: "mysql://root:pass@127.0.0.1:3306/shop" } },
+    );
+
+    expect(
+      screen.getByPlaceholderText("newConnection.connectionStringPlaceholder"),
+    ).toHaveValue("mysql://root:pass@127.0.0.1:3306/shop");
+    expect(screen.getByText("Connect to a local database.")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText("localhost")).toHaveValue("127.0.0.1"),
+    );
   });
 
   it("keeps the dialog shell at a stable viewport-bounded height", () => {
@@ -1622,6 +1653,40 @@ describe("NewConnectionModal extra_fields slot credential toggle", () => {
     });
     expect(updateConnectionPayload()).toMatchObject({ username: "sa" });
     expect(updateConnectionPayload()).not.toHaveProperty("password");
+  });
+
+  it("keeps TLS verification when an edit imports a URL with no SSL option", async () => {
+    renderModal(createInitialConnection({
+      driver: "mysql",
+      ssl_mode: "verify_identity",
+    }));
+    const input = await screen.findByPlaceholderText("newConnection.connectionStringPlaceholder");
+    fireEvent.change(input, {
+      target: { value: "mysql://root:secret@db.example.com:3306/shop" },
+    });
+    fireEvent.click(screen.getByText("newConnection.save"));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("update_connection", expect.anything()));
+    expect(updateConnectionPayload()).toMatchObject({ ssl_mode: "verify_identity" });
+  });
+
+  it("clears MySQL TLS-only options when an imported URL disables TLS", async () => {
+    renderModal(createInitialConnection({
+      driver: "mysql",
+      ssl_mode: "required",
+      enable_cleartext_plugin: true,
+      use_iam_auth: true,
+    }));
+    const input = await screen.findByPlaceholderText("newConnection.connectionStringPlaceholder");
+    fireEvent.change(input, {
+      target: { value: "jdbc:mysql://db.example.com:3306/shop?sslMode=DISABLED" },
+    });
+    fireEvent.click(screen.getByText("newConnection.save"));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("update_connection", expect.anything()));
+    expect(updateConnectionPayload()).toMatchObject({
+      ssl_mode: "disabled",
+      enable_cleartext_plugin: false,
+      use_iam_auth: false,
+    });
   });
 
   it("ignores the login of an imported connection string while the inputs are hidden", async () => {

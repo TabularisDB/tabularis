@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { listen, type UnlistenFn, emit } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useTabularisClient } from "./useTabularisClient";
+import { usePlatformCapabilities } from "./usePlatformCapabilities";
 import {
   PLUGIN_INSTALL_DEADLINE_MS,
   type PluginInstallRequest,
@@ -36,11 +37,14 @@ interface UseDeepLinkInstallResult {
  */
 export function useDeepLinkInstall(): UseDeepLinkInstallResult {
   const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
+  const nativeHandoffs = platform.negotiation.environment === "tauri";
   const [pending, setPending] = useState<DeepLinkInstallRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (!nativeHandoffs) return;
     let cleanup: UnlistenFn | null = null;
     let mounted = true;
 
@@ -79,7 +83,7 @@ export function useDeepLinkInstall(): UseDeepLinkInstallResult {
       mounted = false;
       cleanup?.();
     };
-  }, []);
+  }, [nativeHandoffs]);
 
   const cancel = useCallback(() => {
     setPending(null);

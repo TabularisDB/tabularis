@@ -30,6 +30,7 @@ export interface ConnectionCardProps {
   onMouseDown?: (e: MouseEvent<HTMLDivElement>) => void;
   /** Whether this connection is checked in multi-select mode. */
   selected?: boolean;
+  isDropTarget?: boolean;
   /** Whether any connection is currently selected (keeps checkboxes visible). */
   selectionActive?: boolean;
   /** Toggles this connection's selection. Enables the checkbox when provided. */
@@ -52,6 +53,7 @@ export const ConnectionCard = ({
   onContextMenu,
   onMouseDown,
   selected = false,
+  isDropTarget = false,
   selectionActive = false,
   onToggleSelect,
   onMigrate,
@@ -78,11 +80,13 @@ export const ConnectionCard = ({
       onDoubleClick={() => isDriverEnabled && !isConnecting && onConnect()}
       onContextMenu={onContextMenu}
       onMouseDown={onMouseDown}
+      data-connection-id={conn.id}
       className={clsx(
         'cursor-pointer select-none',
         !isDriverEnabled && 'opacity-60 cursor-not-allowed',
         isConnecting && 'pointer-events-none',
         selected && 'ring-2 ring-accent-primary/70',
+        isDropTarget && 'outline outline-2 outline-dashed outline-offset-2 outline-accent-primary',
         getCardClass(conn.id, activeConnectionId, isConnectionOpenAnywhere),
       )}
     >

@@ -3,7 +3,7 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { DatabaseProvider } from '../../src/contexts/DatabaseProvider';
 import { ToastContext } from '../../src/contexts/ToastContext';
 import { useDatabase } from '../../src/hooks/useDatabase';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import React from 'react';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -596,6 +596,7 @@ describe('DatabaseProvider', () => {
   });
 
   it('should update window title on connection', async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       React.createElement(DatabaseProvider, null, children);
 
@@ -610,6 +611,19 @@ describe('DatabaseProvider', () => {
         title: 'tabularis - Local MySQL (testdb)',
       });
     });
+  });
+
+  it('updates the browser document title without invoking the native window command', async () => {
+    vi.mocked(isTauri).mockReturnValue(false);
+    document.title = 'Previous page';
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(DatabaseProvider, null, children);
+    const { result } = renderHook(() => useDatabase(), { wrapper });
+
+    expect(document.title).toBe('tabularis');
+    await act(async () => { await result.current.connect('conn-123'); });
+    expect(document.title).toBe('tabularis - Local MySQL (testdb)');
+    expect(invoke).not.toHaveBeenCalledWith('set_window_title', expect.anything());
   });
 
   describe('Views Management', () => {

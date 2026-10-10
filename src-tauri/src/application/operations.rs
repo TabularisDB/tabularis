@@ -20,6 +20,7 @@ static SYSTEM: Lazy<Mutex<System>> = Lazy::new(|| {
 
 #[derive(Debug)]
 pub enum OperationalCommand {
+    LogFrontendEvent { level: String, message: String },
     GetLogs(GetLogsRequest),
     ClearLogs,
     GetLogSettings,
@@ -97,6 +98,10 @@ pub struct SystemStats {
 
 pub async fn execute(command: OperationalCommand) -> Result<Value, String> {
     match command {
+        OperationalCommand::LogFrontendEvent { level, message } => {
+            crate::log_commands::log_frontend_event(level, message);
+            Ok(Value::Null)
+        }
         OperationalCommand::GetLogs(request) => json(get_logs(&log_buffer(), request)),
         OperationalCommand::ClearLogs => {
             clear_logs(&log_buffer())?;
@@ -122,8 +127,12 @@ fn log_buffer() -> SharedLogBuffer {
 }
 
 pub fn get_logs(log_buffer: &SharedLogBuffer, request: GetLogsRequest) -> Vec<LogEntry> {
-    let buffer = log_buffer.lock().unwrap_or_else(|error| error.into_inner());
-    buffer.get_entries(request.limit, request.level_filter)
+    let entries = {
+        let buffer = log_buffer.lock().unwrap_or_else(|error| error.into_inner());
+        buffer.get_entries(request.limit, request.level_filter)
+    };
+    log::trace!("Returning {} log entries", entries.len());
+    entries
 }
 
 pub fn clear_logs(log_buffer: &SharedLogBuffer) -> Result<(), String> {

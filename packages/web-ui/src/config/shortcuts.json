@@ -60,6 +60,16 @@
     "overridable": true
   },
   {
+    "id": "reopen_closed_tab",
+    "category": "editor",
+    "defaultMac": "⌘+⇧+T",
+    "defaultWin": "Ctrl+Shift+T",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "t" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "t" },
+    "i18nKey": "settings.shortcuts.reopenClosedTab",
+    "overridable": true
+  },
+  {
     "id": "next_page",
     "category": "data_grid",
     "defaultMac": "⌘+→",
@@ -118,6 +128,16 @@
     "winMatch": { "ctrlKey": true, "key": "ArrowDown" },
     "i18nKey": "settings.shortcuts.jumpToEdge",
     "overridable": false
+  },
+  {
+    "id": "jump_to_column",
+    "category": "data_grid",
+    "defaultMac": "⌘+Shift+J",
+    "defaultWin": "Ctrl+Shift+J",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "j", "code": "KeyJ" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "j", "code": "KeyJ" },
+    "i18nKey": "settings.shortcuts.jumpToColumn",
+    "overridable": true
   },
   {
     "id": "extend_cell_range_to_edge",
@@ -234,8 +254,8 @@
     "category": "navigation",
     "defaultMac": "⌘+Shift+1–9",
     "defaultWin": "Ctrl+Shift+1–9",
-    "macMatch": { "metaKey": true, "shiftKey": true, "key": "1" },
-    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "1" },
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "1", "code": "Digit1" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "1", "code": "Digit1" },
     "i18nKey": "settings.shortcuts.switchConnection",
     "overridable": false
   },
@@ -257,6 +277,16 @@
     "macMatch": { "metaKey": true, "shiftKey": true, "key": "Enter" },
     "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "Enter" },
     "i18nKey": "settings.shortcuts.notebookRunAll",
+    "overridable": true
+  },
+  {
+    "id": "command_palette",
+    "category": "navigation",
+    "defaultMac": "⌘+K",
+    "defaultWin": "Ctrl+K",
+    "macMatch": { "metaKey": true, "key": "k", "code": "KeyK" },
+    "winMatch": { "ctrlKey": true, "key": "k", "code": "KeyK" },
+    "i18nKey": "settings.shortcuts.commandPalette",
     "overridable": true
   },
   {

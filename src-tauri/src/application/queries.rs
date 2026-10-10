@@ -24,6 +24,7 @@ pub enum QueryCommand {
         limit: Option<u32>,
         page: Option<u32>,
         schema: Option<String>,
+        query_session_id: Option<String>,
     },
     ExecuteBatch {
         connection_id: String,
@@ -31,18 +32,24 @@ pub enum QueryCommand {
         limit: Option<u32>,
         page: Option<u32>,
         schema: Option<String>,
+        query_session_id: Option<String>,
         batch_id: Option<String>,
     },
     Count {
         connection_id: String,
         query: String,
         schema: Option<String>,
+        query_session_id: Option<String>,
     },
     Explain {
         connection_id: String,
         query: String,
         analyze: bool,
         schema: Option<String>,
+    },
+    ReleaseSession {
+        connection_id: String,
+        query_session_id: String,
     },
     GetServerNow {
         connection_id: String,
@@ -111,6 +118,7 @@ pub async fn execute(
             limit,
             page,
             schema,
+            query_session_id,
         } => execute_query(
             runtime,
             &state.query_cancellation,
@@ -121,6 +129,7 @@ pub async fn execute(
             limit,
             page,
             schema,
+            query_session_id,
         )
         .await
         .and_then(json),
@@ -130,6 +139,7 @@ pub async fn execute(
             limit,
             page,
             schema,
+            query_session_id,
             batch_id,
         } => execute_query_batch(
             runtime,
@@ -141,6 +151,7 @@ pub async fn execute(
             limit,
             page,
             schema,
+            query_session_id,
             batch_id,
         )
         .await
@@ -149,9 +160,17 @@ pub async fn execute(
             connection_id,
             query,
             schema,
-        } => count_query(runtime, scope.session_id, connection_id, query, schema)
-            .await
-            .and_then(json),
+            query_session_id,
+        } => count_query(
+            runtime,
+            scope.session_id,
+            connection_id,
+            query,
+            schema,
+            query_session_id,
+        )
+        .await
+        .and_then(json),
         QueryCommand::Explain {
             connection_id,
             query,
@@ -168,6 +187,19 @@ pub async fn execute(
         )
         .await
         .and_then(json),
+        QueryCommand::ReleaseSession {
+            connection_id,
+            query_session_id,
+        } => {
+            super::query_sessions::release(
+                runtime,
+                scope.session_id,
+                &connection_id,
+                &query_session_id,
+            )
+            .await?;
+            Ok(Value::Null)
+        }
         QueryCommand::GetServerNow { connection_id } => {
             get_server_now(runtime, scope.session_id, connection_id)
                 .await
@@ -195,7 +227,8 @@ impl QueryCommand {
             | Self::ExecuteBatch { connection_id, .. }
             | Self::Count { connection_id, .. }
             | Self::Explain { connection_id, .. }
-            | Self::GetServerNow { connection_id } => connection_id,
+            | Self::GetServerNow { connection_id }
+            | Self::ReleaseSession { connection_id, .. } => connection_id,
         }
     }
 }
@@ -211,6 +244,7 @@ pub async fn execute_query(
     limit: Option<u32>,
     page: Option<u32>,
     schema: Option<String>,
+    query_session_id: Option<String>,
 ) -> Result<QueryResult, String> {
     log::info!(
         "Executing query on connection: {} | Query: {}",
@@ -221,14 +255,20 @@ pub async fn execute_query(
     let dropped = crate::sql_database_statements::dropped_database(&sanitized_query);
     let (driver, params) = driver_and_params(runtime, scope.session_id, &connection_id).await?;
     let effective_limit = response_limit(policy, limit);
+    let driver_session = query_session_id.as_deref().map(|id| {
+        super::query_sessions::register(scope.session_id, &connection_id, id, driver.clone())
+    });
+    let session_driver = driver.clone();
+    let task_session = driver_session.clone();
     let task = tokio::spawn(async move {
         driver
-            .execute_query(
+            .execute_query_in_session(
                 &params,
                 &sanitized_query,
                 effective_limit,
                 page.unwrap_or(1),
                 schema.as_deref(),
+                task_session.as_deref(),
             )
             .await
     });
@@ -238,9 +278,31 @@ pub async fn execute_query(
         Arc::new(task.abort_handle()),
     );
     let result = task.await;
+    if !matches!(&result, Ok(Ok(_))) {
+        if let Some(id) = driver_session.as_deref() {
+            let in_transaction = session_driver
+                .session_in_transaction(id)
+                .await
+                .unwrap_or(false);
+            super::query_sessions::report(
+                runtime,
+                scope.session_id,
+                &connection_id,
+                query_session_id.as_deref(),
+                in_transaction,
+            );
+        }
+    }
 
     match result {
-        Ok(Ok(query_result)) => {
+        Ok(Ok((query_result, in_transaction))) => {
+            super::query_sessions::report(
+                runtime,
+                scope.session_id,
+                &connection_id,
+                query_session_id.as_deref(),
+                in_transaction,
+            );
             enforce_response_size(policy, &query_result)?;
             log::info!(
                 "Query executed successfully, returned {} rows",
@@ -275,6 +337,7 @@ pub async fn execute_query_batch(
     limit: Option<u32>,
     page: Option<u32>,
     schema: Option<String>,
+    query_session_id: Option<String>,
     batch_id: Option<String>,
 ) -> Result<Vec<BatchStatementResult>, String> {
     log::info!(
@@ -307,14 +370,20 @@ pub async fn execute_query_batch(
         }) as Arc<BatchProgressFn>
     });
     let effective_limit = response_limit(policy, limit);
+    let driver_session = query_session_id.as_deref().map(|id| {
+        super::query_sessions::register(scope.session_id, &connection_id, id, driver.clone())
+    });
+    let session_driver = driver.clone();
+    let task_session = driver_session.clone();
     let task = tokio::spawn(async move {
         driver
-            .execute_batch(
+            .execute_batch_in_session(
                 &params,
                 &sanitized_queries,
                 effective_limit,
                 page.unwrap_or(1),
                 schema.as_deref(),
+                task_session.as_deref(),
                 progress.as_deref(),
             )
             .await
@@ -325,9 +394,31 @@ pub async fn execute_query_batch(
         Arc::new(task.abort_handle()),
     );
     let result = task.await;
+    if !matches!(&result, Ok(Ok(_))) {
+        if let Some(id) = driver_session.as_deref() {
+            let in_transaction = session_driver
+                .session_in_transaction(id)
+                .await
+                .unwrap_or(false);
+            super::query_sessions::report(
+                runtime,
+                scope.session_id,
+                &connection_id,
+                query_session_id.as_deref(),
+                in_transaction,
+            );
+        }
+    }
 
     match result {
-        Ok(Ok(batch_results)) => {
+        Ok(Ok((batch_results, in_transaction))) => {
+            super::query_sessions::report(
+                runtime,
+                scope.session_id,
+                &connection_id,
+                query_session_id.as_deref(),
+                in_transaction,
+            );
             enforce_response_size(policy, &batch_results)?;
             for (dropped, statement) in dropped_per_statement.iter().zip(&batch_results) {
                 if let Some(database) = dropped {
@@ -392,13 +483,31 @@ pub async fn count_query(
     connection_id: String,
     query: String,
     schema: Option<String>,
+    query_session_id: Option<String>,
 ) -> Result<u64, String> {
     let (driver, params) = driver_and_params(runtime, session_id, &connection_id).await?;
     let sanitized = query.trim().trim_end_matches(';');
     let count_query = format!("SELECT COUNT(*) FROM ({sanitized}) as count_wrapper");
-    let result = driver
-        .execute_query(&params, &count_query, None, 1, schema.as_deref())
-        .await?;
+    let result = match query_session_id.as_deref() {
+        Some(id) => {
+            let id = super::query_sessions::key(session_id, &connection_id, id);
+            crate::commands::read_in_open_transaction(
+                driver.as_ref(),
+                &params,
+                &count_query,
+                None,
+                1,
+                schema.as_deref(),
+                &id,
+            )
+            .await?
+        }
+        None => {
+            driver
+                .execute_query(&params, &count_query, None, 1, schema.as_deref())
+                .await?
+        }
+    };
     Ok(result
         .rows
         .first()

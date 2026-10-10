@@ -8,9 +8,21 @@
     "select": "Sélectionner"
   },
   "toolbar": {
+    "autoRefresh": {
+      "label": "Actualisation automatique",
+      "off": "Désactivée",
+      "seconds": "{{seconds}} s",
+      "paused": "En pause pendant la modification",
+      "pausedSelection": "En pause tant que des lignes sont sélectionnées",
+      "refresh": "Actualiser la table",
+      "failed": "Échec de l’actualisation : {{error}}"
+    },
     "filters": "Filtres",
     "toggleFilterPanel": "Afficher/masquer le panneau de filtres structurés",
     "filterConditions": "Conditions de filtre",
+    "matchMode": "Mode de correspondance",
+    "matchAll": "Tous",
+    "matchAny": "Au moins un",
     "activeOf": "{{active}} sur {{total}} actifs",
     "noFilters": "Aucun filtre —",
     "addFirstFilter": "ajouter le premier filtre",
@@ -29,7 +41,12 @@
     "selectForApplyAll": "Sélectionner pour Tout appliquer",
     "valuePlaceholder": "valeur",
     "fromPlaceholder": "de",
-    "toPlaceholder": "à"
+    "toPlaceholder": "à",
+    "opContains": "contient",
+    "opStartsWith": "commence par",
+    "opEndsWith": "se termine par",
+    "opIsEmpty": "est vide",
+    "opIsNotEmpty": "n'est pas vide"
   },
   "tags": {
     "label": "Tags",
@@ -211,6 +228,16 @@
     "noQueryHistory": "Aucun historique de requêtes",
     "noHistorySearchResults": "Aucune requête ne correspond à votre recherche",
     "searchHistory": "Rechercher dans l’historique...",
+    "historyOutcomeFilter": "Filtrer par résultat",
+    "historyOutcomeAny": "Tous les résultats",
+    "historyOutcomeSucceeded": "Réussies",
+    "historyOutcomeFailed": "Échouées",
+    "historyTimeRangeFilter": "Filtrer par période",
+    "historyTimeAll": "Tout le temps",
+    "historyTimeLastHour": "Dernière heure",
+    "historyTimeToday": "Aujourd'hui",
+    "historyTimeLast7Days": "7 derniers jours",
+    "historyTimeLast30Days": "30 derniers jours",
     "clearAllHistory": "Effacer tout l’historique",
     "historyRecoveredTitle": "Historique des requêtes réinitialisé",
     "historyRecoveredBody": "Le fichier d’historique était corrompu et a été mis de côté. Les nouvelles requêtes seront enregistrées normalement. Fichier de sauvegarde :",
@@ -554,6 +581,10 @@
       "confirm": "Confirmer",
       "cancel": "Annuler"
     },
+    "dataGrid": {
+      "zebraStripes": "Arrière-plan alterné des lignes",
+      "zebraStripesDesc": "Ombrage une ligne sur deux pour suivre plus facilement une ligne dans les tableaux larges."
+    },
     "appearance_general": "Général",
     "appearance_sqlEditor": "Éditeur SQL",
     "appearance_editorTheme": "Thème de l’éditeur",
@@ -574,6 +605,10 @@
     "runStatementUnderCursorDesc": "Lorsqu'un script contient plusieurs instructions, exécute celle sous le curseur au lieu d'afficher le sélecteur de requêtes. Sélectionnez du texte pour exécuter une plage spécifique.",
     "safetyConfirmationDelay": "Retarder les confirmations de sécurité",
     "safetyConfirmationDelayDesc": "Désactive les boutons de confirmation pendant cinq secondes pour les requêtes destructives et les écritures en production.",
+    "notifyLongQueries": "Notifier quand les longues requêtes se terminent",
+    "notifyLongQueriesDesc": "Envoie une notification de bureau quand une requête se termine pendant que Tabularis est en arrière-plan.",
+    "notifyLongQueriesThreshold": "Seuil de notification",
+    "notifyLongQueriesThresholdDesc": "Notifie uniquement les requêtes ayant duré au moins ce temps.",
     "formatter_title": "Formateur SQL",
     "formatter_keywordCase": "Casse des mots-clés",
     "formatter_keywordCaseDesc": "Comment les mots-clés SQL (SELECT, FROM, WHERE) sont capitalisés après le formatage.",
@@ -713,7 +748,7 @@
     "clearLogs": "Effacer les logs",
     "clearLogsConfirm": "Voulez-vous vraiment effacer tous les logs ?",
     "exportLogs": "Exporter les logs",
-    "exportLogsSuccess": "Logs exportés dans le presse-papiers",
+    "exportLogsSuccess": "Logs exportés",
     "noLogs": "Aucun log disponible",
     "refreshLogs": "Actualiser",
     "logLevel": "Niveau",
@@ -748,6 +783,9 @@
     "erDiagramDefaultLayout": "Disposition par défaut",
     "erDiagramDefaultLayoutDesc": "Choisissez la direction de disposition par défaut pour les diagrammes ER",
     "plugins": {
+      "runtimeTitle": "Exécution des plugins",
+      "callTimeout": "Délai d'appel",
+      "callTimeoutDesc": "Durée maximale pendant laquelle Tabularis attend la réponse d'un plugin à une requête (requêtes SQL comprises). Indiquez 0 pour désactiver la limite. Chaque plugin peut remplacer cette valeur dans ses propres paramètres.",
       "title": "Plugins",
       "overviewTitle": "Centre de plugins",
       "overviewDesc": "Installez des extensions, gérez les pilotes de plugins et gardez les paramètres d'exécution sous contrôle.",
@@ -821,6 +859,10 @@
         "configure": "Configurer l’interpréteur"
       },
       "pluginSettings": {
+        "callTimeout": "Délai d'appel",
+        "callTimeoutDesc": "Remplace le délai d'appel global pour ce plugin uniquement. Indiquez 0 pour désactiver la limite, laissez vide pour hériter de la valeur globale.",
+        "callTimeoutPlaceholder": "Hériter du global ({{seconds}} s)",
+        "callTimeoutInherit": "Hériter de la valeur globale",
         "title": "Paramètres du plugin",
         "interpreter": "Interpréteur",
         "interpreterDesc": "Optionnel. Spécifiez l’exécutable utilisé pour lancer ce plugin (ex. python3 sous macOS/Linux, python ou un chemin complet sous Windows). Laissez vide pour utiliser la valeur par défaut.",
@@ -884,6 +926,7 @@
       "newConnection": "Nouvelle connexion",
       "newTab": "Nouvel onglet",
       "closeTab": "Fermer l’onglet",
+      "reopenClosedTab": "Réouvrir l’onglet fermé",
       "nextPage": "Page suivante",
       "prevPage": "Page précédente",
       "saveGridChanges": "Enregistrer les modifications en attente",
@@ -895,12 +938,14 @@
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Importer depuis le Presse-papiers",
       "quickNavigator": "Navigateur rapide",
+      "commandPalette": "Palette de commandes",
       "commandPaletteActions": "Rechercher des actions",
       "triggerSuggestions": "Afficher les suggestions",
       "formatSql": "Formater SQL",
       "refreshTable": "Actualiser la table",
       "extendCellRange": "Étendre la plage de cellules",
       "jumpToEdge": "Aller au bord de la grille",
+      "jumpToColumn": "Aller à la colonne",
       "extendCellRangeToEdge": "Étendre la plage jusqu'au bord",
       "selectRow": "Sélectionner la ligne",
       "selectColumn": "Sélectionner la colonne"
@@ -1066,6 +1111,10 @@
     "dbNameRequired": "Le nom de la base de données est requis",
     "connectionUriRequiresKeychain": "Les URI de connexion doivent être enregistrées dans le trousseau du système. Activez « Enregistrer les mots de passe dans le trousseau » pour continuer.",
     "connectionUriRequired": "L'URI de connexion est requise",
+    "connectionString": "Cha?ne de connexion",
+    "connectionStringPlaceholder": "p. ex. mysql://user:pass@localhost:3306/db",
+    "connectionStringExample": "Exemple de cha?ne de connexion",
+    "chooseConnectionStringExample": "Choisir un exemple",
     "dbType": "Type de base de données",
     "host": "Hôte",
     "port": "Port",
@@ -1208,7 +1257,13 @@
     "placeholder": "PIN ou phrase secrète",
     "waiting": "En attente de votre clé de sécurité — touchez-la pour confirmer."
   },
+  "dateInput": {
+    "useShownValue": "Utiliser cette valeur"
+  },
   "dataGrid": {
+    "jumpToColumn": "Aller à la colonne",
+    "searchColumns": "Rechercher des colonnes",
+    "noMatchingColumns": "Aucune colonne correspondante",
     "noRowIdentity": "Impossible de modifier les lignes : \"{{table}}\" n'a pas de clé primaire, la modification nécessite donc que le résultat inclue toutes les colonnes de la table. Sélectionnez toutes les colonnes (p. ex. SELECT *) ou ajoutez une clé primaire.",
     "resizeRelatedPanel": "Faites glisser pour redimensionner le panneau",
     "keylessRowNotFound": "Aucune ligne ne correspond aux valeurs d'origine lors de la mise à jour de \"{{column}}\". La table n'a pas de clé primaire et les données ont peut-être changé : actualisez puis réessayez.",
@@ -1253,6 +1308,10 @@
     "copyColumnNameTable": "Copier comme table.column",
     "copyColumnValues": "Copier les valeurs de la colonne",
     "copyColumnValuesIn": "Copier les valeurs comme liste SQL IN",
+    "filterEquals": "Filtrer : {{column}} = cette valeur",
+    "filterNotEquals": "Filtrer : {{column}} <> cette valeur",
+    "filterIsNull": "Filtrer : {{column}} IS NULL",
+    "filterIsNotNull": "Filtrer : {{column}} IS NOT NULL",
     "copyCells": "Copier {{count}} cellule(s)",
     "copyRows": "Copier {{count}} ligne(s)",
     "copied": "Copié dans le presse-papiers",
@@ -1333,6 +1392,7 @@
       "reattach": "Rattacher"
     },
     "closeTab": "Fermer l’onglet",
+    "reopenClosedTab": "Réouvrir l’onglet fermé",
     "closeOthers": "Fermer les autres onglets",
     "closeRight": "Fermer les onglets à droite",
     "closeLeft": "Fermer les onglets à gauche",
@@ -1392,11 +1452,14 @@
     "rollback": "Annuler",
     "pendingCount": "{{count}} en attente",
     "executingQuery": "Exécution de la requête...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Transaction ouverte — cet onglet conserve sa connexion jusqu'au COMMIT ou ROLLBACK",
     "exporting": "Exportation...",
     "rowsProcessed": "Lignes traitées",
     "exportLoadedRowsWarning": "Seules {{loaded}} lignes chargées sur {{total}} lignes au total ont été exportées. Parcourez les pages du résultat ou exécutez une requête plus restrictive avant d'exporter si vous avez besoin de plus de lignes.",
     "queryParameters": "Paramètres de requête",
     "formatSql": "Formater SQL",
+    "convertSelectionToSqlList": "Convertir la sélection en liste SQL",
     "convertToConsole": "Convertir en console",
     "parameters": "Paramètres",
     "paramValuePlaceholder": "Valeur (ex. 'texte' ou 123)",
@@ -1669,6 +1732,14 @@
       "collapseAll": "Tout réduire",
       "expandAll": "Tout développer",
       "collapsed": "Réduit"
+    },
+    "queryNotification": {
+      "successTitle": "Requête terminée",
+      "errorTitle": "Échec de la requête",
+      "body": "{{tab}} · {{duration}}",
+      "batchSuccessTitle": "Tout exécuter terminé",
+      "batchErrorTitle": "Tout exécuter terminé avec des erreurs",
+      "batchBody": "{{tab}} · {{succeeded}} réussies, {{failed}} échouées · {{duration}}"
     }
   },
   "createTable": {
@@ -2285,7 +2356,6 @@
     "outputParameter": "Paramètre de sortie — renvoyé comme résultat",
     "rawLabel": "Brut",
     "rawHint": "Insère la valeur telle quelle, sans guillemets de chaîne (nombres, expressions)",
-    "runButton": "Exécuter",
     "runTabPrefix": "Exécuter",
     "returnValue": "retourne"
   },

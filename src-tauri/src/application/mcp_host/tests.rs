@@ -61,3 +61,19 @@ fn rejects_unknown_host_client_without_writing_configuration() {
 
     assert_eq!(error, "Unknown client: unknown-client");
 }
+
+#[test]
+fn claude_desktop_config_is_directly_under_the_os_claude_directory() {
+    let clients = get_all_clients();
+    let claude = clients.iter().find(|client| client.id == "claude").unwrap();
+    assert_eq!(
+        claude.config_path,
+        Some(
+            BaseDirs::new()
+                .unwrap()
+                .config_dir()
+                .join("Claude")
+                .join("claude_desktop_config.json")
+        )
+    );
+}

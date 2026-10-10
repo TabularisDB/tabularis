@@ -8,6 +8,7 @@ mod client;
 mod explain;
 mod helpers;
 mod routines;
+pub mod session;
 
 #[cfg(test)]
 mod tests;
@@ -1125,8 +1126,40 @@ pub async fn execute_query(
     page: u32,
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
-    let client = acquire_pg_client(params, schema).await?;
-    exec_on_pg_client(&client, query, limit, page).await
+    let (result, _) =
+        execute_query_in_session(params, query, limit, page, schema, None).await?;
+    Ok(result)
+}
+
+/// `execute_query` with the tab's connection carried across calls.
+///
+/// One statement at a time is how a transaction is actually driven — run
+/// `BEGIN`, look, change, verify, `COMMIT` — so the single-statement path
+/// needs the same pinning as a batch, or each run lands on a different
+/// pooled connection and the transaction is stranded.
+///
+/// Implemented as a one-statement batch so there is a single session
+/// code path.
+pub async fn execute_query_in_session(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    session_id: Option<&str>,
+) -> Result<(QueryResult, bool), String> {
+    let queries = [query.to_string()];
+    let (mut results, in_transaction) =
+        execute_batch_in_session(params, &queries, limit, page, schema, session_id, None).await?;
+
+    let statement = results
+        .pop()
+        .ok_or_else(|| "The statement produced no result".to_string())?;
+    match (statement.result, statement.error) {
+        (Some(result), _) => Ok((result, in_transaction)),
+        (None, Some(error)) => Err(error),
+        (None, None) => Err("The statement produced no result".to_string()),
+    }
 }
 
 /// Runs a sequence of statements on a single pooled client so
@@ -1143,18 +1176,85 @@ pub async fn execute_batch(
     schema: Option<&str>,
     on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
 ) -> Result<Vec<crate::models::BatchStatementResult>, String> {
-    let client = acquire_pg_client(params, schema).await?;
+    let (results, _) =
+        execute_batch_in_session(params, queries, limit, page, schema, None, on_progress).await?;
+    Ok(results)
+}
+
+/// `execute_batch` with the tab's connection carried across calls.
+///
+/// When `session_id` is given and the batch leaves an explicit transaction
+/// open, the connection is pinned to that session instead of returning to
+/// the pool, so the next batch from the same tab continues the same
+/// transaction — `BEGIN`, changes, verify, `COMMIT`, each as its own run.
+/// The returned flag says whether the session is still inside one.
+///
+/// A batch that leaves a transaction open with no session to pin it to is
+/// rolled back rather than handed back to the pool: the pool recycles
+/// connections without resetting them, so the next borrower would otherwise
+/// inherit the transaction and its locks.
+pub async fn execute_batch_in_session(
+    params: &ConnectionParams,
+    queries: &[String],
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    session_id: Option<&str>,
+    on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
+) -> Result<(Vec<crate::models::BatchStatementResult>, bool), String> {
+    // Held for the whole run, so an overlapping run from the same tab waits its turn.
+    let mut slot = match session_id {
+        Some(id) => Some(session::lock(id).await),
+        None => None,
+    };
+    let pinned = slot.as_mut().and_then(|s| s.take());
+    // A pinned connection only exists because its transaction is still open.
+    let mut in_transaction = pinned.is_some();
+    let mut in_flight = InFlight(Some(match pinned {
+        Some(client) => client,
+        None => acquire_pg_client(params, schema).await?,
+    }));
+    let client = in_flight.0.as_ref().expect("set above");
+
     let mut results = Vec::with_capacity(queries.len());
     for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
-        let outcome = exec_on_pg_client(&client, q, limit, page).await;
+        let outcome = exec_on_pg_client(client, q, limit, page).await;
+        in_transaction = crate::drivers::common::transaction_effect(q)
+            .in_transaction_after(outcome.is_ok(), in_transaction);
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
         if let Some(cb) = on_progress {
             cb(idx, &res);
         }
         results.push(res);
     }
-    Ok(results)
+
+    let client = in_flight.0.take().expect("set above");
+    match slot.as_mut() {
+        Some(slot) if in_transaction => {
+            slot.pin(client);
+            Ok((results, true))
+        }
+        _ => {
+            if in_transaction {
+                session::rollback_and_release(client).await;
+            }
+            Ok((results, false))
+        }
+    }
+}
+
+/// A connection a run is using. If the run is dropped mid-flight (a cancelled
+/// query), the connection is closed rather than returned to the pool, so the
+/// server ends any open transaction instead of the next borrower inheriting it.
+struct InFlight(Option<deadpool_postgres::Client>);
+
+impl Drop for InFlight {
+    fn drop(&mut self) {
+        if let Some(client) = self.0.take() {
+            drop(deadpool_postgres::Client::take(client));
+        }
+    }
 }
 
 pub async fn get_views(params: &ConnectionParams, schema: &str) -> Result<Vec<ViewInfo>, String> {
@@ -1802,6 +1902,7 @@ impl PostgresDriver {
                     folder_based: false,
                     connection_string: true,
                     connection_string_example: "postgres://user:pass@localhost:5432/db".into(),
+                    connection_string_examples: Vec::new(),
                     connection_uri: false,
                     connection_uri_schemes: Vec::new(),
                     identifier_quote: "\"".into(),
@@ -1809,6 +1910,7 @@ impl PostgresDriver {
                     auto_increment_keyword: String::new(),
                     serial_type: "SERIAL".into(),
                     inline_pk: false,
+                    table_query_templates: false,
                     alter_column: true,
                     create_foreign_keys: true,
                     no_connection_required: false,
@@ -2199,6 +2301,18 @@ impl DatabaseDriver for PostgresDriver {
         execute_query(params, query, limit, page, schema).await
     }
 
+    async fn execute_query_in_session(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        session_id: Option<&str>,
+    ) -> Result<(crate::models::QueryResult, bool), String> {
+        execute_query_in_session(params, query, limit, page, schema, session_id).await
+    }
+
     async fn execute_batch(
         &self,
         params: &crate::models::ConnectionParams,
@@ -2209,6 +2323,28 @@ impl DatabaseDriver for PostgresDriver {
         on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
     ) -> Result<Vec<crate::models::BatchStatementResult>, String> {
         execute_batch(params, queries, limit, page, schema, on_progress).await
+    }
+
+    async fn execute_batch_in_session(
+        &self,
+        params: &crate::models::ConnectionParams,
+        queries: &[String],
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        session_id: Option<&str>,
+        on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
+    ) -> Result<(Vec<crate::models::BatchStatementResult>, bool), String> {
+        execute_batch_in_session(params, queries, limit, page, schema, session_id, on_progress)
+            .await
+    }
+
+    async fn release_session(&self, session_id: &str) {
+        session::release(session_id).await;
+    }
+
+    async fn session_in_transaction(&self, session_id: &str) -> Option<bool> {
+        Some(session::is_pinned(session_id).await)
     }
 
     async fn explain_query(

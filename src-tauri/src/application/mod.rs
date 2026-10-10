@@ -18,6 +18,7 @@ pub mod productivity;
 #[cfg(test)]
 mod productivity_tests;
 pub mod queries;
+pub mod query_sessions;
 pub mod records;
 pub mod themes;
 pub mod tunnels;

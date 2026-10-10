@@ -297,3 +297,20 @@ fn rejects_path_traversal_in_browser_controlled_storage_keys() {
     .is_err());
     assert!(delete_custom_theme(&runtime, "../outside").is_err());
 }
+
+#[test]
+fn config_merge_keeps_plugin_timeouts_and_query_notifications() {
+    let mut config = AppConfig::default();
+    merge_config(
+        &mut config,
+        AppConfig {
+            plugin_call_timeout_seconds: Some(90),
+            notify_long_queries: Some(true),
+            notify_long_queries_threshold_sec: Some(30),
+            ..Default::default()
+        },
+    );
+    assert_eq!(config.plugin_call_timeout_seconds, Some(90));
+    assert_eq!(config.notify_long_queries, Some(true));
+    assert_eq!(config.notify_long_queries_threshold_sec, Some(30));
+}

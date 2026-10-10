@@ -62,6 +62,8 @@ interface SidebarDatabaseItemProps {
   onCreateTable: () => void;
   onCreateView: () => void;
   onCreateTrigger: (schema: string) => void;
+  /** Omitted when the driver cannot manage routines. */
+  onCreateRoutine?: (e: React.MouseEvent, database: string) => void;
   onDump?: (database: string) => void;
   onImport?: (database: string) => void;
   onViewDiagram?: (database: string) => void;
@@ -94,6 +96,7 @@ export const SidebarDatabaseItem = ({
   onCreateTable,
   onCreateView,
   onCreateTrigger,
+  onCreateRoutine,
   onDump,
   onImport,
   onViewDiagram,
@@ -117,6 +120,9 @@ export const SidebarDatabaseItem = ({
   const views = databaseData?.views ?? [];
   const routines = databaseData?.routines ?? [];
   const routineError = databaseData?.routineError;
+  const routineErrorIndicator = routineError ? (
+    <MetadataErrorIndicator error={routineError} title={t("sidebar.routineMetadataErrorTitle")} />
+  ) : undefined;
   const triggers = databaseData?.triggers ?? [];
   const filteredTriggers = fuzzyFilter(triggers, triggerFilter, (tr) => tr.name);
   const isLoading = databaseData?.isLoading ?? false;
@@ -431,12 +437,25 @@ export const SidebarDatabaseItem = ({
                 title={`${t("sidebar.routines")} (${routines.length})`}
                 isOpen={routinesOpen}
                 onToggle={() => setRoutinesOpen(!routinesOpen)}
-                actions={routineError ? (
-                  <MetadataErrorIndicator
-                    error={routineError}
-                    title={t("sidebar.routineMetadataErrorTitle")}
-                  />
-                ) : undefined}
+                actions={
+                  onCreateRoutine ? (
+                    <div className="flex items-center gap-1 mr-2.5">
+                      {routineErrorIndicator}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCreateRoutine(e, databaseName);
+                        }}
+                        className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                        title={t("routines.newRoutine")}
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    routineErrorIndicator
+                  )
+                }
               >
                 {routines.length === 0 ? (
                   <div className="text-center p-2 text-xs text-muted italic">

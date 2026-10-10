@@ -139,10 +139,11 @@ describe('SqlEditorWrapper', () => {
 
   const mountCapturedEditor = () => {
     const keyDownHandlers: Array<(event: MonacoKeyDownEventMock) => void> = [];
+    const addAction = vi.fn();
     const addCommand = vi.fn();
     const trigger = vi.fn();
     const editor = {
-      addAction: vi.fn(),
+      addAction,
       addCommand,
       dispose: vi.fn(),
       getContribution: vi.fn(() => null),
@@ -159,8 +160,47 @@ describe('SqlEditorWrapper', () => {
 
     monacoRenderState.onMount?.(editor, monaco);
 
-    return { addCommand, keyDownHandlers, trigger };
+    return { addAction, addCommand, keyDownHandlers, trigger };
   };
+
+  it('converts the selection to an SQL list in one undoable edit, only when text is selected', () => {
+    render(
+      <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />,
+      { wrapper },
+    );
+    const { addAction } = mountCapturedEditor();
+    const action = addAction.mock.calls
+      .map(([descriptor]) => descriptor as { id: string; run: (ed: unknown) => void })
+      .find((descriptor) => descriptor.id === 'tabularis.convertSelectionToSqlList');
+    if (!action) throw new Error('convert-to-SQL-list action was not registered');
+    expect(action).toMatchObject({
+      label: 'editor.convertSelectionToSqlList',
+      contextMenuGroupId: '1_modification',
+      precondition: 'editorHasSelection',
+    });
+
+    const steps: string[] = [];
+    const selected = { isEmpty: () => false, text: "O'Brien\n42" };
+    const blank = { isEmpty: () => false, text: ' \n ' };
+    const collapsed = { isEmpty: () => true, text: '' };
+    const ed = {
+      getModel: () => ({ getValueInRange: (range: { text: string }) => range.text }),
+      getSelections: () => [selected, blank, collapsed],
+      pushUndoStop: vi.fn(() => steps.push('undo-stop')),
+      executeEdits: vi.fn(() => steps.push('edit')),
+    };
+    action.run(ed);
+
+    expect(ed.executeEdits).toHaveBeenCalledWith('convertSelectionToSqlList', [
+      { range: selected, text: "'O''Brien', '42'", forceMoveMarkers: true },
+    ]);
+    expect(steps).toEqual(['undo-stop', 'edit', 'undo-stop']);
+
+    ed.getSelections = () => [blank, collapsed];
+    ed.executeEdits.mockClear();
+    action.run(ed);
+    expect(ed.executeEdits).not.toHaveBeenCalled();
+  });
 
   it('renders with initial value', () => {
     render(
@@ -394,6 +434,37 @@ describe('SqlEditorWrapper', () => {
     expect(event.preventDefault).toHaveBeenCalledOnce();
     expect(event.stopPropagation).toHaveBeenCalledOnce();
     expect(togglePaletteMock).toHaveBeenCalledWith('actions');
+    expect(trigger).not.toHaveBeenCalled();
+  });
+
+  it('leaves the unified palette shortcut available to Monaco chords', () => {
+    matchesShortcutMock.mockImplementation(
+      (_event, id) => id === 'command_palette',
+    );
+    render(
+      <SqlEditorWrapper
+        initialValue=""
+        onChange={mockOnChange}
+        onRun={mockOnRun}
+        editorKey="unified-palette-shortcut"
+      />,
+      { wrapper }
+    );
+    const { keyDownHandlers, trigger } = mountCapturedEditor();
+    const event = {
+      browserEvent: new KeyboardEvent('keydown', {
+        key: 'k',
+        ctrlKey: true,
+      }),
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    };
+
+    keyDownHandlers[0](event);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(event.stopPropagation).not.toHaveBeenCalled();
+    expect(togglePaletteMock).not.toHaveBeenCalled();
     expect(trigger).not.toHaveBeenCalled();
   });
 

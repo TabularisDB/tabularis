@@ -103,6 +103,7 @@ async fn large_query_exports_stream_through_disk_backed_single_use_downloads() {
         "csv".to_string(),
         None,
         None,
+        None,
     )
     .await
     .unwrap()

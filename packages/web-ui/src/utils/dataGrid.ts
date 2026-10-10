@@ -6,12 +6,22 @@
 import { formatGeometricValue, isGeometricType } from "./geometry";
 import { formatBlobValue, isBlobColumn, isBlobWireFormat } from "./blob";
 import { isJsonColumn } from "./json";
+import type { ResultCommands } from "../types/commands";
 
 /** Sentinel value indicating that the database DEFAULT value should be used */
 export const USE_DEFAULT_SENTINEL = "__USE_DEFAULT__";
 
 /** Fixed height of a grid row, shared by the row markup and the virtualizer. */
 export const DATA_GRID_ROW_HEIGHT = 35;
+
+/**
+ * Whether the row at `rowIndex` gets the zebra-stripe background — only when
+ * the setting is enabled, and then on every other row (odd indices) so the
+ * first row stays unstriped.
+ */
+export function isZebraStripedRow(rowIndex: number, enabled: boolean): boolean {
+  return enabled && rowIndex % 2 === 1;
+}
 
 /** Build an object mapping PK column names to their values from a data row. */
 export function buildPkMap(
@@ -205,6 +215,94 @@ export interface CellRangeRect {
 export interface CellPosition {
   rowIndex: number;
   colIndex: number;
+}
+
+interface DataGridResultCommandsInput {
+  cellRange: CellRangeRect | null;
+  focusedCell: CellPosition | null;
+  selectedRowIndices: ReadonlySet<number>;
+  selectedColIndices: ReadonlySet<number>;
+  columns: string[];
+  dataLength: number;
+  totalRows: number | null | undefined;
+  hasRowsBeyondLoadedPage: boolean;
+  onCopyAllRows?: () => void | Promise<void>;
+  copyCellRange: () => void | Promise<void>;
+  copyCellValue: (rowIndex: number, colIndex: number) => void | Promise<void>;
+  copySelectedRows: () => void | Promise<void>;
+  copySelectedColumns: () => void | Promise<void>;
+  copyColumnValuesAsSqlIn: (columnIndex: number) => void | Promise<void>;
+  copyAllLoadedRows: () => void | Promise<void>;
+}
+
+export function createDataGridResultCommands({
+  cellRange,
+  focusedCell,
+  selectedRowIndices,
+  selectedColIndices,
+  columns,
+  dataLength,
+  totalRows,
+  hasRowsBeyondLoadedPage,
+  onCopyAllRows,
+  copyCellRange,
+  copyCellValue,
+  copySelectedRows,
+  copySelectedColumns,
+  copyColumnValuesAsSqlIn,
+  copyAllLoadedRows,
+}: DataGridResultCommandsInput): ResultCommands {
+  const commands: ResultCommands = {};
+
+  if (cellRange) {
+    commands.copySelectedCells = {
+      count:
+        (cellRange.maxRow - cellRange.minRow + 1) *
+        (cellRange.maxCol - cellRange.minCol + 1),
+      execute: copyCellRange,
+    };
+  } else if (focusedCell) {
+    commands.copySelectedCells = {
+      count: 1,
+      execute: () => copyCellValue(focusedCell.rowIndex, focusedCell.colIndex),
+    };
+  }
+
+  if (selectedRowIndices.size > 0) {
+    commands.copySelectedRows = {
+      count: selectedRowIndices.size,
+      execute: copySelectedRows,
+    };
+  }
+
+  if (selectedColIndices.size > 0) {
+    commands.copySelectedColumns = {
+      count: selectedColIndices.size,
+      execute: copySelectedColumns,
+    };
+  }
+
+  if (selectedColIndices.size === 1) {
+    const columnIndex = selectedColIndices.values().next().value;
+    if (columnIndex !== undefined) {
+      commands.copyColumnValuesAsSqlIn = {
+        columnName: columns[columnIndex] ?? "",
+        execute: () => copyColumnValuesAsSqlIn(columnIndex),
+      };
+    }
+  }
+
+  if (dataLength > 0 && (!hasRowsBeyondLoadedPage || onCopyAllRows)) {
+    commands.copyAllRows = {
+      count: hasRowsBeyondLoadedPage ? totalRows ?? undefined : dataLength,
+      execute:
+        hasRowsBeyondLoadedPage && onCopyAllRows
+          ? onCopyAllRows
+          : copyAllLoadedRows,
+    };
+  }
+
+  return commands;
 }
 
 /** Arrow keys that extend a cell range when pressed with Shift. */
@@ -447,6 +545,9 @@ export function getCellStateClass(params: CellClassParams): string {
 
   const isPlaceholder = isAutoIncrementPlaceholder || isDefaultValuePlaceholder;
 
+  // Edited values keep the primary text color: the tint already marks the
+  // state, and a semantic color on its own tint is unreadable (#826).
+
   if (isPendingDelete) {
     return "text-semantic-deleted/60 line-through decoration-semantic-deleted/30";
   }
@@ -456,7 +557,7 @@ export function getCellStateClass(params: CellClassParams): string {
     if (isModified)
       return isJsonCell
         ? "bg-semantic-modified/25 border-l-2 border-l-semantic-modified"
-        : "bg-semantic-modified/20 text-semantic-modified italic font-medium";
+        : "bg-semantic-modified/20 text-primary italic font-medium";
     return isJsonCell ? "bg-accent-primary/10" : "bg-accent-primary/10 text-secondary italic";
   }
 
@@ -465,14 +566,14 @@ export function getCellStateClass(params: CellClassParams): string {
     if (isModified)
       return isJsonCell
         ? "bg-semantic-new/25 border-l-2 border-l-semantic-new"
-        : "bg-semantic-new/15 text-semantic-new italic";
+        : "bg-semantic-new/15 text-primary italic";
     return isJsonCell ? "bg-semantic-new/5" : "bg-semantic-new/5 text-secondary italic";
   }
 
   if (isModified) {
     return isJsonCell
       ? "bg-semantic-modified/25 border-l-2 border-l-semantic-modified"
-      : "bg-semantic-modified/30 text-semantic-modified italic font-medium";
+      : "bg-semantic-modified/30 text-primary italic font-medium";
   }
 
   return isJsonCell ? "" : "text-secondary";
@@ -635,4 +736,41 @@ export function computePasteTargets(
     });
   });
   return targets;
+}
+
+/**
+ * Column widths measured once for a result set and then held fixed, so that
+ * scrolling a virtualized grid (which only renders the visible rows) does not
+ * resize the columns as wider or narrower values come into view (#844).
+ */
+export interface LockedColumnWidths {
+  key: string;
+  widths: number[];
+}
+
+/**
+ * Identifies the column layout the widths were measured for. A new set of
+ * columns, or the first rows arriving in a previously empty result, calls for
+ * a fresh measurement; paging or refreshing the same columns does not.
+ */
+export function getColumnLayoutKey(
+  columnIds: string[],
+  hasRows: boolean,
+): string {
+  return `${hasRows ? 1 : 0}:${columnIds.join("\u0000")}`;
+}
+
+/**
+ * The locked widths to apply for the current layout, or null when they were
+ * measured for a different one (the grid then falls back to auto layout and
+ * measures again).
+ */
+export function resolveLockedColumnWidths(
+  locked: LockedColumnWidths | null,
+  key: string,
+  columnCount: number,
+): number[] | null {
+  if (!locked || locked.key !== key) return null;
+  if (locked.widths.length !== columnCount) return null;
+  return locked.widths;
 }

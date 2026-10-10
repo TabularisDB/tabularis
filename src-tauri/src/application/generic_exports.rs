@@ -28,6 +28,7 @@ pub enum GenericExportCommand {
         format: String,
         csv_delimiter: Option<String>,
         database: Option<String>,
+        query_session_id: Option<String>,
     },
     CancelExport {
         connection_id: String,
@@ -58,6 +59,7 @@ pub async fn execute(
             format,
             csv_delimiter,
             database,
+            query_session_id,
         } => {
             let owner = session_id.ok_or_else(|| "A browser session is required".to_string())?;
             json(
@@ -71,6 +73,7 @@ pub async fn execute(
                     format,
                     csv_delimiter,
                     database,
+                    query_session_id,
                 )
                 .await?
                 .ok_or_else(|| "The browser export did not create a download".to_string())?,
@@ -111,6 +114,7 @@ pub async fn export_query(
     format: String,
     csv_delimiter: Option<String>,
     database: Option<String>,
+    query_session_id: Option<String>,
 ) -> Result<Option<GeneratedFile>, String> {
     let query = sanitize_query(&query);
     if query.is_empty() {
@@ -137,6 +141,9 @@ pub async fn export_query(
         }
     };
 
+    let driver_session = query_session_id
+        .as_deref()
+        .map(|id| super::query_sessions::key(session_id, &connection_id, id));
     let runtime_for_task = runtime.clone();
     let connection_for_task = connection_id.clone();
     let task_path = file_path.clone();
@@ -157,6 +164,7 @@ pub async fn export_query(
             writer,
             export_format,
             delimiter,
+            driver_session.as_deref(),
             move |rows_processed| {
                 let payload = serde_json::json!({
                     "connection_id": progress_connection,

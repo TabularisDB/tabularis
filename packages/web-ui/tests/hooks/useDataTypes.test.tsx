@@ -8,6 +8,11 @@ import type { DataTypeInfo, DataTypeRegistry } from "../../src/types/dataTypes";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
+const client = { call: invoke };
+vi.mock("../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => client,
+}));
+
 const type = (name: string): DataTypeInfo => ({
   name, category: "json", requires_length: false,
   requires_precision: false, supports_auto_increment: false,

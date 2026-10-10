@@ -98,6 +98,17 @@ pub struct WebArgs {
 }
 
 impl Args {
+    /// Log level for this run: `Debug` with `--debug` (which also lets sqlx's
+    /// query logging through), otherwise whatever `RUST_LOG` names, and `Info`
+    /// as the default.
+    pub fn log_level(&self) -> log::LevelFilter {
+        if self.debug {
+            log::LevelFilter::Debug
+        } else {
+            crate::logger::resolve_log_level_from_env()
+        }
+    }
+
     fn defaults() -> Self {
         Self {
             mcp: false,
@@ -143,3 +154,7 @@ fn has_only_platform_launch_arguments(arguments: &[std::ffi::OsString]) -> bool 
                 .is_some_and(|value| value.starts_with("-psn_") || value.starts_with("tabularis:"))
         })
 }
+
+#[cfg(test)]
+#[path = "cli_tests.rs"]
+mod log_level_tests;

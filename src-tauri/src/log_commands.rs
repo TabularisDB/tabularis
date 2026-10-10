@@ -67,3 +67,7 @@ pub fn test_log() -> Result<(), String> {
     log::warn!("Warning test message");
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "log_commands_tests.rs"]
+mod tests;

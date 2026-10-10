@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   formatCellValue,
   getColumnSortState,
   calculateSelectionRange,
   toggleSetValue,
+  isZebraStripedRow,
   USE_DEFAULT_SENTINEL,
   resolveInsertionCellDisplay,
   resolveExistingCellDisplay,
@@ -19,7 +20,89 @@ import {
   moveCellPosition,
   type ColumnDisplayInfo,
   type CellClassParams,
+  createDataGridResultCommands,
+  getColumnLayoutKey,
+  resolveLockedColumnWidths,
 } from '../../src/utils/dataGrid';
+
+describe('createDataGridResultCommands', () => {
+  const callbacks = () => ({
+    copyCellRange: vi.fn(),
+    copyCellValue: vi.fn(),
+    copySelectedRows: vi.fn(),
+    copySelectedColumns: vi.fn(),
+    copyColumnValuesAsSqlIn: vi.fn(),
+    copyAllLoadedRows: vi.fn(),
+  });
+
+  it('builds commands from the current range, row, and column selections', async () => {
+    const actions = callbacks();
+    const commands = createDataGridResultCommands({
+      cellRange: { minRow: 1, maxRow: 2, minCol: 0, maxCol: 1 },
+      focusedCell: { rowIndex: 1, colIndex: 0 },
+      selectedRowIndices: new Set([1, 2]),
+      selectedColIndices: new Set([1]),
+      columns: ['id', 'name'],
+      dataLength: 4,
+      totalRows: 4,
+      hasRowsBeyondLoadedPage: false,
+      ...actions,
+    });
+
+    expect(commands.copySelectedCells?.count).toBe(4);
+    expect(commands.copySelectedRows?.count).toBe(2);
+    expect(commands.copySelectedColumns?.count).toBe(1);
+    expect(commands.copyColumnValuesAsSqlIn).toEqual({
+      columnName: 'name',
+      execute: expect.any(Function),
+    });
+    expect(commands.copyAllRows?.count).toBe(4);
+
+    await commands.copyColumnValuesAsSqlIn?.execute();
+    expect(actions.copyColumnValuesAsSqlIn).toHaveBeenCalledWith(1);
+  });
+
+  it('uses the full-fetch action only when rows exist beyond the loaded page', async () => {
+    const actions = callbacks();
+    const copyAllRows = vi.fn();
+    const commands = createDataGridResultCommands({
+      cellRange: null,
+      focusedCell: null,
+      selectedRowIndices: new Set(),
+      selectedColIndices: new Set(),
+      columns: ['id'],
+      dataLength: 2,
+      totalRows: null,
+      hasRowsBeyondLoadedPage: true,
+      onCopyAllRows: copyAllRows,
+      ...actions,
+    });
+
+    expect(commands.copyAllRows?.count).toBeUndefined();
+    await commands.copyAllRows?.execute();
+    expect(copyAllRows).toHaveBeenCalledOnce();
+    expect(actions.copyAllLoadedRows).not.toHaveBeenCalled();
+  });
+
+  it('counts pending rows when copying only loaded rows', async () => {
+    const actions = callbacks();
+    const commands = createDataGridResultCommands({
+      cellRange: null,
+      focusedCell: null,
+      selectedRowIndices: new Set(),
+      selectedColIndices: new Set(),
+      columns: ['id'],
+      dataLength: 2,
+      totalRows: 1,
+      hasRowsBeyondLoadedPage: false,
+      ...actions,
+    });
+
+    expect(commands.copyAllRows?.count).toBe(2);
+    await commands.copyAllRows?.execute();
+    expect(actions.copyAllLoadedRows).toHaveBeenCalledOnce();
+  });
+});
 
 describe('dataGrid utils', () => {
   describe('formatCellValue', () => {
@@ -666,6 +749,22 @@ describe('dataGrid utils', () => {
       expect(result).toContain('italic');
       expect(result).toContain('font-medium');
     });
+
+    // #826: a semantic color on its own tint fails WCAG AA in most themes
+    // (#17843f on the light theme's new-row green is ~3.5:1).
+    it.each([
+      { name: 'new row', isInsertion: true, isSelected: false },
+      { name: 'selected new row', isInsertion: true, isSelected: true },
+      { name: 'existing row', isInsertion: false, isSelected: false },
+    ])('renders edited values in the primary text color ($name)', (params) => {
+      const result = getCellStateClass({
+        ...baseParams,
+        ...params,
+        isModified: true,
+      });
+      expect(result).toContain('text-primary');
+      expect(result).not.toMatch(/text-semantic-/);
+    });
   });
 
   describe('buildPkMap', () => {
@@ -1034,5 +1133,82 @@ describe('dataGrid utils', () => {
       expect(moveCellPosition(pos, 'ArrowLeft', 10, 10, true)).toEqual({ rowIndex: 3, colIndex: 0 });
       expect(moveCellPosition(pos, 'ArrowRight', 10, 10, true)).toEqual({ rowIndex: 3, colIndex: 9 });
     });
+  });
+
+  describe('isZebraStripedRow', () => {
+    it('should stripe odd row indices only', () => {
+      expect(isZebraStripedRow(0, true)).toBe(false);
+      expect(isZebraStripedRow(1, true)).toBe(true);
+      expect(isZebraStripedRow(2, true)).toBe(false);
+      expect(isZebraStripedRow(3, true)).toBe(true);
+    });
+
+    it('should never stripe when disabled', () => {
+      expect(isZebraStripedRow(1, false)).toBe(false);
+      expect(isZebraStripedRow(3, false)).toBe(false);
+    });
+  });
+});
+
+describe('getColumnLayoutKey', () => {
+  it('should be stable for the same columns', () => {
+    expect(getColumnLayoutKey(['id', 'name'], true)).toBe(
+      getColumnLayoutKey(['id', 'name'], true),
+    );
+  });
+
+  it('should change when the columns change', () => {
+    expect(getColumnLayoutKey(['id', 'name'], true)).not.toBe(
+      getColumnLayoutKey(['id', 'email'], true),
+    );
+  });
+
+  it('should change when the column order changes', () => {
+    expect(getColumnLayoutKey(['id', 'name'], true)).not.toBe(
+      getColumnLayoutKey(['name', 'id'], true),
+    );
+  });
+
+  it('should change when rows arrive in an empty result', () => {
+    expect(getColumnLayoutKey(['id'], false)).not.toBe(
+      getColumnLayoutKey(['id'], true),
+    );
+  });
+
+  it('should not confuse column names that join to the same string', () => {
+    expect(getColumnLayoutKey(['a,b'], true)).not.toBe(
+      getColumnLayoutKey(['a', 'b'], true),
+    );
+  });
+
+  it('should handle no columns', () => {
+    expect(getColumnLayoutKey([], false)).toBe('0:');
+  });
+});
+
+describe('resolveLockedColumnWidths', () => {
+  const key = getColumnLayoutKey(['id', 'name'], true);
+
+  it('should return null when nothing was measured yet', () => {
+    expect(resolveLockedColumnWidths(null, key, 3)).toBeNull();
+  });
+
+  it('should return the widths measured for the same layout', () => {
+    expect(
+      resolveLockedColumnWidths({ key, widths: [50, 80, 200] }, key, 3),
+    ).toEqual([50, 80, 200]);
+  });
+
+  it('should return null for a different layout', () => {
+    const other = getColumnLayoutKey(['id', 'email'], true);
+    expect(
+      resolveLockedColumnWidths({ key, widths: [50, 80, 200] }, other, 3),
+    ).toBeNull();
+  });
+
+  it('should return null when the column count does not match', () => {
+    expect(
+      resolveLockedColumnWidths({ key, widths: [50, 80] }, key, 3),
+    ).toBeNull();
   });
 });

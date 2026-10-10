@@ -29,6 +29,7 @@ const EMPTY_SELECTED_DATABASES: string[] = [];
 export function useCommandPaletteObjectItems(
   onGenerateSql: (target: TableTarget) => void,
   onInspect: (target: TableTarget) => void,
+  { enabled = true }: { enabled?: boolean } = {},
 ) {
   const { t } = useTranslation();
   const scope = useActiveCommandPaletteScope();
@@ -98,7 +99,7 @@ export function useCommandPaletteObjectItems(
   );
 
   useEffect(() => {
-    if (!connectionId) return;
+    if (!enabled || !connectionId) return;
 
     if (hasSchemas) {
       // Only the schemas selected in the explorer: a Postgres database with
@@ -151,6 +152,7 @@ export function useCommandPaletteObjectItems(
     connectionData?.schemaDataMap,
     connectionData?.selectedSchemas,
     connectionId,
+    enabled,
     hasSchemas,
     isMultiDatabase,
     selectedDatabases,

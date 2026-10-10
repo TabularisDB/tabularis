@@ -15,6 +15,59 @@ export function resolvePluginConfig(
   };
 }
 
+/** Host default for `pluginCallTimeoutSeconds`; mirrors the Rust constant. */
+export const DEFAULT_PLUGIN_CALL_TIMEOUT_SECONDS = 120;
+
+/** Upper bound accepted by the timeout inputs (24 hours). */
+export const MAX_PLUGIN_CALL_TIMEOUT_SECONDS = 86_400;
+
+/**
+ * Parses a timeout typed by the user. Returns undefined for blank or invalid
+ * input; otherwise a whole number of seconds clamped to
+ * [0, MAX_PLUGIN_CALL_TIMEOUT_SECONDS] (0 disables the timeout).
+ */
+export function parseCallTimeoutSeconds(raw: string): number | undefined {
+  const trimmed = raw.trim();
+  if (trimmed === "") return undefined;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value)) return undefined;
+  return Math.min(Math.max(Math.floor(value), 0), MAX_PLUGIN_CALL_TIMEOUT_SECONDS);
+}
+
+/**
+ * Returns a copy of `config` with its call timeout override set from raw user
+ * input. Blank or invalid input removes the override so the plugin inherits
+ * the global value.
+ */
+export function withCallTimeoutOverride(
+  config: PluginConfig,
+  rawTimeout: string,
+): PluginConfig {
+  const next = { ...config };
+  const seconds = parseCallTimeoutSeconds(rawTimeout);
+  if (seconds === undefined) {
+    delete next.callTimeoutSeconds;
+  } else {
+    next.callTimeoutSeconds = seconds;
+  }
+  return next;
+}
+
+/**
+ * Timeout that applies to a plugin: its own override, else the global
+ * setting, else the host default. 0 means no timeout.
+ */
+export function resolveEffectiveCallTimeout(
+  globalTimeout: number | undefined,
+  config: PluginConfig | undefined,
+): number {
+  return (
+    config?.callTimeoutSeconds ??
+    globalTimeout ??
+    DEFAULT_PLUGIN_CALL_TIMEOUT_SECONDS
+  );
+}
+
 /**
  * Returns the interpreter to display in the modal input for a given plugin.
  * Falls back to an empty string when none is configured.

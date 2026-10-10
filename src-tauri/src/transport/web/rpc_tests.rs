@@ -2115,8 +2115,8 @@ async fn dispatch_json(
 }
 
 fn dispatcher_with_roots(root: &std::path::Path) -> RpcDispatcher {
-    let roots = crate::transport::web::server_files::canonicalize_roots(&[root.to_path_buf()])
-        .unwrap();
+    let roots =
+        crate::transport::web::server_files::canonicalize_roots(&[root.to_path_buf()]).unwrap();
     RpcDispatcher::with_access_policy(
         Arc::new(FixtureApplication::new(Duration::ZERO)),
         RpcAccessPolicy {
@@ -2138,8 +2138,14 @@ fn registers_merged_host_commands_with_explicit_authorization() {
         ("duplicate_personal_theme", AuthorizationLevel::LocalAdmin),
         ("import_theme", AuthorizationLevel::LocalAdmin),
         ("export_theme", AuthorizationLevel::LocalAdmin),
-        ("preview_local_theme_package", AuthorizationLevel::LocalAdmin),
-        ("install_local_theme_package", AuthorizationLevel::LocalAdmin),
+        (
+            "preview_local_theme_package",
+            AuthorizationLevel::LocalAdmin,
+        ),
+        (
+            "install_local_theme_package",
+            AuthorizationLevel::LocalAdmin,
+        ),
         ("fetch_theme_registry", AuthorizationLevel::LocalAdmin),
         ("fetch_theme_package_detail", AuthorizationLevel::LocalAdmin),
         ("install_registry_theme", AuthorizationLevel::LocalAdmin),
@@ -2158,7 +2164,10 @@ fn registers_merged_host_commands_with_explicit_authorization() {
         ("read_sql_file", AuthorizationLevel::LocalAdmin),
         ("write_sql_file", AuthorizationLevel::LocalAdmin),
         ("get_connection_metadata", AuthorizationLevel::Database),
-        ("get_plugin_runtime_warnings", AuthorizationLevel::LocalAdmin),
+        (
+            "get_plugin_runtime_warnings",
+            AuthorizationLevel::LocalAdmin,
+        ),
         ("test_ssm_connection_cmd", AuthorizationLevel::LocalAdmin),
         ("get_ui_state", AuthorizationLevel::Session),
         ("set_ui_state", AuthorizationLevel::Session),
@@ -2201,7 +2210,11 @@ async fn routes_theme_host_and_ui_state_commands_through_the_shared_application_
             serde_json::json!({"themeJson": "{}"}),
             "ImportTheme",
         ),
-        ("fetch_theme_registry", serde_json::Value::Null, "FetchRegistry"),
+        (
+            "fetch_theme_registry",
+            serde_json::Value::Null,
+            "FetchRegistry",
+        ),
         (
             "install_local_theme_package",
             serde_json::json!({
@@ -2221,7 +2234,11 @@ async fn routes_theme_host_and_ui_state_commands_through_the_shared_application_
             serde_json::json!({"slot": "proxy:global"}),
             "ProxyPasswordIsSet",
         ),
-        ("get_storage_location", serde_json::Value::Null, "GetStorageLocation"),
+        (
+            "get_storage_location",
+            serde_json::Value::Null,
+            "GetStorageLocation",
+        ),
         ("get_ui_state", serde_json::json!({"keys": ["a"]}), "Get"),
         (
             "set_ui_state",
@@ -2319,9 +2336,14 @@ async fn confines_server_paths_for_sql_files_theme_archives_and_storage() {
             }),
         ),
     ] {
-        let response =
-            dispatch_json(&dispatcher, command, payload, session, AuthorizationLevel::LocalAdmin)
-                .await;
+        let response = dispatch_json(
+            &dispatcher,
+            command,
+            payload,
+            session,
+            AuthorizationLevel::LocalAdmin,
+        )
+        .await;
         assert_ne!(response.status(), StatusCode::OK, "{command}");
     }
     assert!(!outside.path().join("x.sql").exists());
@@ -2344,9 +2366,14 @@ async fn confines_server_paths_for_sql_files_theme_archives_and_storage() {
             serde_json::json!({"path": "relative/folder"}),
         ),
     ] {
-        let response =
-            dispatch_json(&dispatcher, command, payload, session, AuthorizationLevel::LocalAdmin)
-                .await;
+        let response = dispatch_json(
+            &dispatcher,
+            command,
+            payload,
+            session,
+            AuthorizationLevel::LocalAdmin,
+        )
+        .await;
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{command}");
     }
 
@@ -2376,4 +2403,68 @@ async fn rejects_server_paths_when_the_file_browser_is_disabled() {
     )
     .await;
     assert_ne!(response.status(), StatusCode::OK);
+}
+
+#[test]
+fn decodes_merged_database_commands_and_tab_sessions() {
+    for (name, payload) in [
+        (
+            "execute_query",
+            serde_json::json!({"connectionId":"db", "query":"BEGIN", "sessionId":"tab"}),
+        ),
+        (
+            "execute_query_batch",
+            serde_json::json!({"connectionId":"db", "queries":["BEGIN"], "sessionId":"tab"}),
+        ),
+        (
+            "count_query",
+            serde_json::json!({"connectionId":"db", "query":"SELECT 1", "sessionId":"tab"}),
+        ),
+        (
+            "release_query_session",
+            serde_json::json!({"connectionId":"db", "sessionId":"tab"}),
+        ),
+    ] {
+        let command = decode_query_command(
+            QueryRpcCommand::parse(name).unwrap(),
+            &serde_json::to_vec(&payload).unwrap(),
+        )
+        .unwrap();
+        match command {
+            QueryCommand::Execute {
+                query_session_id, ..
+            }
+            | QueryCommand::ExecuteBatch {
+                query_session_id, ..
+            }
+            | QueryCommand::Count {
+                query_session_id, ..
+            } => assert_eq!(query_session_id.as_deref(), Some("tab")),
+            QueryCommand::ReleaseSession {
+                query_session_id, ..
+            } => assert_eq!(query_session_id, "tab"),
+            _ => panic!("unexpected query command"),
+        }
+    }
+    for (name, payload) in [
+        ("get_data_types", serde_json::json!({"driver":"sqlite"})),
+        (
+            "map_inferred_column_types",
+            serde_json::json!({"driver":"sqlite", "connectionId":"db", "kinds":["text"]}),
+        ),
+        (
+            "execute_clipboard_import",
+            serde_json::json!({"req":{"connection_id":"db", "table_name":"test", "columns":[], "rows":[], "create_table":true, "if_exists":"fail"}}),
+        ),
+    ] {
+        decode_database_object_command(
+            DatabaseObjectRpcCommand::parse(name).unwrap(),
+            &serde_json::to_vec(&payload).unwrap(),
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        crate::transport::web::events::WebEventBus::authorization_for("session-transaction-state"),
+        Some(AuthorizationLevel::Database)
+    );
 }

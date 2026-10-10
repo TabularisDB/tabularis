@@ -1,3 +1,5 @@
+import type { TableQueryTemplateRequest } from "../utils/tableQueryTemplates";
+import type { DataTypeRegistry } from "../types/dataTypes";
 import type {
   ConnectionAppearance,
   ConnectionGroup,
@@ -281,12 +283,14 @@ interface ViewMetadataRequest extends MetadataRequest {
 }
 
 export interface ExecuteQueryRequest extends MetadataRequest {
+  sessionId?: string;
   query: string;
   limit?: number;
   page?: number;
 }
 
 export interface ExecuteQueryBatchRequest extends MetadataRequest {
+  sessionId?: string;
   queries: string[];
   limit?: number;
   page?: number;
@@ -446,6 +450,7 @@ export interface DatabaseImportRequest extends ConnectionIdRequest {
 }
 
 export interface QueryExportRequest extends ConnectionIdRequest {
+  sessionId?: string;
   query: string;
   format: "csv" | "json" | "markdown";
   csvDelimiter?: string;
@@ -466,6 +471,38 @@ export interface PersistedConfig extends Partial<Settings> {
 }
 
 export interface CommandMap {
+  get_table_query_template: CommandDefinition<
+    ConnectionIdRequest & { request: TableQueryTemplateRequest },
+    string | null,
+    "database"
+  >;
+  release_query_session: CommandDefinition<
+    ConnectionIdRequest & { sessionId: string }, void, "database"
+  >;
+  set_selected_databases: CommandDefinition<
+    ConnectionIdRequest & { databases: string[] }, void, "database"
+  >;
+  log_frontend_event: CommandDefinition<
+    { level: string; message: string }, void, "session"
+  >;
+  get_data_types: CommandDefinition<{ driver: string }, DataTypeRegistry, "database">;
+  map_inferred_column_types: CommandDefinition<
+    { driver: string; connectionId?: string; kinds: string[] }, string[], "database"
+  >;
+  execute_clipboard_import: CommandDefinition<
+    { req: {
+      connection_id: string;
+      table_name: string;
+      schema: string | null;
+      columns: ColumnDefinition[];
+      rows: Array<Array<string | null>>;
+      create_table: boolean;
+      if_exists: "fail" | "append" | "replace";
+      add_columns: ColumnDefinition[];
+    } },
+    { rows_inserted: number; table_created: boolean },
+    "database"
+  >;
   is_debug_mode: CommandDefinition<undefined, boolean, "local-admin">;
   list_server_directory: CommandDefinition<
     ListServerDirectoryRequest,
@@ -1018,7 +1055,7 @@ export interface CommandMap {
     "database"
   >;
   count_query: CommandDefinition<
-    MetadataRequest & { query: string },
+    MetadataRequest & { query: string; sessionId?: string },
     number,
     "database"
   >;

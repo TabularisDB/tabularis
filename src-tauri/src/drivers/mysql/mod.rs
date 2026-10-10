@@ -1250,9 +1250,11 @@ pub async fn get_routine_parameters(
     // 2. Get parameters. Position 0 is the function's return value, which
     // MySQL also exposes here (NULL name / NULL mode) — step 1 already
     // reported it from information_schema.routines, so skip it to avoid a
-    // duplicated return-value row.
+    // duplicated return-value row. ORDINAL_POSITION is BIGINT UNSIGNED on
+    // MySQL 8 (a signed INT on 5.7) and sqlx won't decode an unsigned column
+    // into a signed integer, so cast it to read the same way on both.
     let query = r#"
-            SELECT parameter_name, data_type, parameter_mode, ordinal_position
+            SELECT parameter_name, data_type, parameter_mode, CAST(ordinal_position AS SIGNED)
             FROM information_schema.parameters
             WHERE specific_schema = ? AND specific_name = ?
               AND ordinal_position >= 1
@@ -1265,7 +1267,7 @@ pub async fn get_routine_parameters(
         name: mysql_row_str(r, 0),
         data_type: mysql_row_str(r, 1),
         mode: mysql_row_str(r, 2),
-        ordinal_position: r.try_get(3).unwrap_or(0),
+        ordinal_position: r.try_get::<i64, _>(3).unwrap_or(0) as i32,
     }));
 
     Ok(parameters)
@@ -1814,6 +1816,7 @@ impl MysqlDriver {
                     folder_based: false,
                     connection_string: true,
                     connection_string_example: "mysql://user:pass@localhost:3306/db".into(),
+                    connection_string_examples: Vec::new(),
                     connection_uri: false,
                     connection_uri_schemes: Vec::new(),
                     identifier_quote: "`".into(),
@@ -1821,6 +1824,7 @@ impl MysqlDriver {
                     auto_increment_keyword: "AUTO_INCREMENT".into(),
                     serial_type: String::new(),
                     inline_pk: false,
+                    table_query_templates: false,
                     alter_column: true,
                     create_foreign_keys: true,
                     no_connection_required: false,

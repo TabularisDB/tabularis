@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Play,
@@ -25,6 +25,7 @@ import {
 import clsx from "clsx";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { ResultEntryContent } from "./ResultEntryContent";
+import type { DataGridCommandTarget } from "./DataGrid";
 import { StackedResultItem } from "./StackedResultItem";
 import { ContextMenu } from "./ContextMenu";
 import { formatDuration } from "../../utils/formatTime";
@@ -51,12 +52,17 @@ interface MultiResultPanelProps {
   onSelectResult: (entryId: string) => void;
   onRerunEntry: (entryId: string) => void;
   onPageChange: (entryId: string, page: number) => void;
+  onCopyAllRows: (entryId: string) => void;
   onCloseEntry: (entryId: string) => void;
   onCloseOtherEntries: (entryId: string) => void;
   onCloseEntriesToRight: (entryId: string) => void;
   onCloseEntriesToLeft: (entryId: string) => void;
   onCloseAllEntries: () => void;
   onRenameEntry: (entryId: string, label: string) => void;
+  commandTargetRef?: Ref<DataGridCommandTarget>;
+  /** Scroll offset to restore for an entry's grid when it remounts (#823). */
+  getInitialScrollTop?: (entryId: string) => number | undefined;
+  onScrollTopChange?: (entryId: string, scrollTop: number) => void;
 }
 
 function ResultTab({
@@ -247,12 +253,16 @@ export function MultiResultPanel({
   onSelectResult,
   onRerunEntry,
   onPageChange,
+  onCopyAllRows,
   onCloseEntry,
   onCloseOtherEntries,
   onCloseEntriesToRight,
   onCloseEntriesToLeft,
   onCloseAllEntries,
   onRenameEntry,
+  commandTargetRef,
+  getInitialScrollTop,
+  onScrollTopChange,
 }: MultiResultPanelProps) {
   const { t } = useTranslation();
   const { settings } = useSettings();
@@ -465,12 +475,16 @@ export function MultiResultPanel({
           {/* Active entry content */}
           <div className="flex-1 min-h-0 flex flex-col">
             <ResultEntryContent
+              commandTargetRef={commandTargetRef}
               entry={activeEntry}
               connectionId={connectionId}
               copyFormat={copyFormat}
               csvDelimiter={csvDelimiter}
               csvIncludeHeaders={csvIncludeHeaders}
               onPageChange={(page) => onPageChange(activeEntry.id, page)}
+              initialScrollTop={getInitialScrollTop?.(activeEntry.id)}
+              onScrollTopChange={(top) => onScrollTopChange?.(activeEntry.id, top)}
+              onCopyAllRows={() => onCopyAllRows(activeEntry.id)}
             />
           </div>
         </>
@@ -517,6 +531,9 @@ export function MultiResultPanel({
             {results.map((entry) => (
               <StackedResultItem
                 key={entry.id}
+                commandTargetRef={
+                  entry.id === activeEntry.id ? commandTargetRef : undefined
+                }
                 entry={entry}
                 connectionId={connectionId}
                 copyFormat={copyFormat}
@@ -534,10 +551,13 @@ export function MultiResultPanel({
                   })
                 }
                 onPageChange={(page) => onPageChange(entry.id, page)}
+                onCopyAllRows={() => onCopyAllRows(entry.id)}
                 onRename={(label) => onRenameEntry(entry.id, label)}
                 onRerun={() => onRerunEntry(entry.id)}
                 onAiRename={() => handleAiRename(entry.id)}
                 onClose={() => onCloseEntry(entry.id)}
+                initialScrollTop={getInitialScrollTop?.(entry.id)}
+                onScrollTopChange={(top) => onScrollTopChange?.(entry.id, top)}
               />
             ))}
           </div>

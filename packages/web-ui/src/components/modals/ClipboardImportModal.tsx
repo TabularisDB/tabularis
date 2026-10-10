@@ -13,7 +13,6 @@ import {
   Rows,
   Table2,
 } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
 import { usePlatformCapabilities } from '../../hooks/usePlatformCapabilities';
 import { Modal } from '../ui/Modal';
 import { Select } from '../ui/Select';
@@ -26,6 +25,7 @@ import { ParseSummary } from './ClipboardImport/ParseSummary';
 import { ModeToggle } from './ClipboardImport/ModeToggle';
 import { useDataTypes } from '../../hooks/useDataTypes';
 import { useTabularisClient } from '../../hooks/useTabularisClient';
+import { resolveCreateTableSchema } from '../../utils/createTable';
 import {
   parseClipboardText,
   reParseWithHeaderOption,
@@ -40,6 +40,8 @@ interface ClipboardImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  /** Schema to import into; the active schema when omitted. */
+  schema?: string | null;
 }
 
 interface ImportResult {
@@ -47,7 +49,7 @@ interface ImportResult {
   table_created: boolean;
 }
 
-export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardImportModalProps) {
+export function ClipboardImportModal({ isOpen, onClose, onSuccess, schema }: ClipboardImportModalProps) {
   const client = useTabularisClient();
   const platform = usePlatformCapabilities();
   const { t } = useTranslation();
@@ -56,6 +58,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
   const errorId = useId();
   const warningsId = useId();
   const { activeConnectionId, activeDriver, activeSchema } = useDatabase();
+  const targetSchema = resolveCreateTableSchema(schema, activeSchema);
   const { settings } = useSettings();
   const { dataTypes } = useDataTypes(activeDriver ?? undefined);
 
@@ -89,9 +92,9 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
       }));
       if (!activeDriver || inferred.length === 0) return base;
       try {
-        const mapped = await invoke<string[]>('map_inferred_column_types', {
+        const mapped = await client.call('map_inferred_column_types', {
           driver: activeDriver,
-          connectionId: activeConnectionId,
+          connectionId: activeConnectionId ?? undefined,
           kinds: inferred.map((c) => c.sqlType),
         });
         return base.map((c, i) => ({ ...c, sqlType: mapped[i] ?? c.sqlType }));
@@ -99,7 +102,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
         return base;
       }
     },
-    [activeDriver, activeConnectionId],
+    [client, activeDriver, activeConnectionId],
   );
 
   const tableExists = existingTables.some(
@@ -135,13 +138,13 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
     try {
       const tables = await client.call('get_tables', {
         connectionId: activeConnectionId,
-        ...(activeSchema ? { schema: activeSchema } : {}),
+        ...(targetSchema ? { schema: targetSchema } : {}),
       });
       setExistingTables(tables.map((t) => t.name));
     } catch {
       // Non-critical
     }
-  }, [client, activeConnectionId, activeSchema]);
+  }, [client, activeConnectionId, targetSchema]);
 
   useEffect(() => {
     if (isOpen) {
@@ -170,7 +173,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
         const cols = await client.call('get_columns', {
           connectionId: activeConnectionId,
           tableName: tableName.trim(),
-          ...(activeSchema ? { schema: activeSchema } : {}),
+          schema: targetSchema ?? undefined,
         });
         if (!cancelled) setTargetColumns(cols);
       } catch {
@@ -180,7 +183,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
     return () => {
       cancelled = true;
     };
-  }, [client, importMode, tableExists, tableName, activeConnectionId, activeSchema]);
+  }, [client, importMode, tableExists, tableName, activeConnectionId, targetSchema]);
 
   // Auto-map parsed columns to target columns by name (case-insensitive) when
   // entering append mode or when the target column list changes.
@@ -305,11 +308,11 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
         })
       );
 
-      const result = await invoke<ImportResult>('execute_clipboard_import', {
+      const result = await client.call('execute_clipboard_import', {
         req: {
           connection_id: activeConnectionId,
           table_name: tableName.trim(),
-          schema: activeSchema ?? null,
+          schema: targetSchema ?? null,
           columns: colDefs,
           rows,
           create_table: importMode === 'create',
@@ -325,7 +328,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
     } finally {
       setIsImporting(false);
     }
-  }, [activeConnectionId, parsed, tableName, columns, importMode, ifExists, tableExists, activeSchema, onSuccess]);
+  }, [client, activeConnectionId, parsed, tableName, columns, importMode, ifExists, tableExists, targetSchema, onSuccess]);
 
   const mappedColumnsCount =
     importMode === 'append'

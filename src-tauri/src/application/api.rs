@@ -200,6 +200,7 @@ impl ApplicationApi for RuntimeApplicationApi {
     fn clear_session(&self, session_id: Uuid) {
         self.state.import_envelope_cache.clear_session(session_id);
         queries::cancel_session_queries(&self.state.query_cancellation, session_id);
+        super::query_sessions::clear_owner(session_id);
         database_transfers::cancel_session_jobs(&self.state.dump_cancellation, session_id);
         generic_exports::cancel_session_exports(&self.state.export_cancellation, session_id);
         self.state

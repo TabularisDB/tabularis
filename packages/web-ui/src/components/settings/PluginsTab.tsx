@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
+import { PluginCallTimeoutSection } from "./PluginCallTimeoutSection";
 import { useDrivers } from "../../hooks/useDrivers";
 import { useTheme } from "../../hooks/useTheme";
 import { usePluginRegistry } from "../../hooks/usePluginRegistry";
@@ -1664,6 +1665,10 @@ export function PluginsTab({
           )}
           </div>
         </div>
+
+        <PluginCallTimeoutSection
+          key={String(settings.pluginCallTimeoutSeconds)}
+        />
       </div>
 
       {/* Sticky attribution — pinned to the bottom of the Settings scroll

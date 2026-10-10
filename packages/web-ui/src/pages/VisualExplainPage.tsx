@@ -32,7 +32,8 @@ export const VisualExplainPage = ({
   const platform = usePlatformCapabilities();
   const { settings } = useSettings();
   const { search } = useLocation();
-  const initialParamPath = parseExplainFileParam(search);
+  const nativeHandoffs = platform.negotiation.environment === "tauri";
+  const initialParamPath = nativeHandoffs ? parseExplainFileParam(search) : null;
   const deepLink = parseVisualExplainDeepLink(search);
   const isDeepLink = !!deepLink.query && !!deepLink.connectionId;
 
@@ -89,6 +90,7 @@ export const VisualExplainPage = ({
         await loadFile(initialParamPath);
         return;
       }
+      if (!nativeHandoffs) return;
       try {
         const pending = await invoke<string | null>("get_pending_explain_file");
         if (!cancelled && version === source.current && pending) {
@@ -112,6 +114,7 @@ export const VisualExplainPage = ({
       invalidate();
     };
   }, [
+    nativeHandoffs,
     initialPlan,
     initialParamPath,
     isDeepLink,

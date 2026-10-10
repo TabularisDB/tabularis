@@ -6663,7 +6663,7 @@ dependencies = [
 
 [[package]]
 name = "tabularis"
-version = "0.25.0"
+version = "0.27.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -7448,7 +7448,6 @@ dependencies = [
  "signal-hook-registry",
  "socket2",
  "tokio-macros",
- "tracing",
  "windows-sys 0.61.2",
 ]
 
@@ -9458,7 +9457,6 @@ dependencies = [
  "rustix",
  "serde",
  "serde_repr",
- "tokio",
  "tracing",
  "uds_windows",
  "uuid",

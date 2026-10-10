@@ -24,6 +24,8 @@ export type WindowDecorationsMode =
 export interface PluginConfig {
   interpreter?: string;
   settings?: Record<string, unknown>;
+  /** Per-plugin override of `pluginCallTimeoutSeconds`. Unset inherits the global value; 0 disables the timeout. */
+  callTimeoutSeconds?: number;
 }
 
 /** One entry in the append-only driver-migration history. Kept even after an
@@ -58,6 +60,8 @@ export interface Settings {
   resultTypeColors?: Record<string, string>;
   /** Keep the result grid's column headers pinned to the top while scrolling. Default: true. */
   stickyColumnHeaders?: boolean;
+  /** Shade every other result grid row for easier scanning. Default: false. */
+  resultZebraStripes?: boolean;
   /** Font used for query result cells. A font name from AVAILABLE_FONTS, a custom family, or RESULT_FONT_INHERIT to follow the interface font. Default: "JetBrains Mono". */
   resultFontFamily?: string;
   aiEnabled: boolean;
@@ -86,6 +90,8 @@ export interface Settings {
   /** Base URL of the Tabularium plugin registry. Defaults to the built-in instance when unset. */
   tabulariumRegistryUrl?: string;
   plugins?: Record<string, PluginConfig>;
+  /** Seconds the host waits for a plugin to answer a single call. 0 disables the timeout. Default: 120. */
+  pluginCallTimeoutSeconds?: number;
   editorTheme?: string;
   editorFontFamily?: string;
   editorFontSize?: number;
@@ -97,6 +103,10 @@ export interface Settings {
   runStatementUnderCursor?: boolean;
   /** Delay destructive-query and production-write confirmations for five seconds. Default: false. */
   safetyConfirmationDelayEnabled?: boolean;
+  /** Send a desktop notification when a long-running query finishes while the window is unfocused. Default: true. */
+  notifyLongQueries?: boolean;
+  /** Minimum execution time in seconds before a finished query triggers a notification. Default: 20. */
+  notifyLongQueriesThresholdSec?: number;
   // SQL Formatter
   formatterKeywordCase?: "upper" | "lower" | "preserve";
   formatterIndentStyle?: "standard" | "tabularLeft" | "tabularRight";
@@ -216,6 +226,7 @@ export const DEFAULT_SETTINGS: Settings = {
   resultColorByType: false,
   resultTypeColors: {},
   stickyColumnHeaders: true,
+  resultZebraStripes: false,
   resultFontFamily: "JetBrains Mono",
   aiEnabled: false,
   aiProvider: null,
@@ -239,6 +250,8 @@ export const DEFAULT_SETTINGS: Settings = {
   editorAcceptSuggestionOnEnter: true,
   runStatementUnderCursor: true,
   safetyConfirmationDelayEnabled: false,
+  notifyLongQueries: true,
+  notifyLongQueriesThresholdSec: 20,
   formatterKeywordCase: "upper",
   formatterIndentStyle: "standard",
   formatterTabWidth: 2,

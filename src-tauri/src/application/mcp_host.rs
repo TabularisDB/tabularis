@@ -1,6 +1,3 @@
-#[cfg(target_os = "windows")]
-use directories::ProjectDirs;
-
 use directories::BaseDirs;
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -155,25 +152,11 @@ fn install_config_blocking(client_id: &str) -> Result<String, String> {
 
 fn get_all_clients() -> Vec<McpClient> {
     let base = BaseDirs::new();
-    let claude_path = {
-        #[cfg(target_os = "macos")]
-        {
-            base.as_ref().map(|base| {
-                base.home_dir()
-                    .join("Library/Application Support/Claude/claude_desktop_config.json")
-            })
-        }
-        #[cfg(target_os = "windows")]
-        {
-            ProjectDirs::from("", "", "Claude")
-                .map(|project| project.config_dir().join("claude_desktop_config.json"))
-        }
-        #[cfg(target_os = "linux")]
-        {
-            base.as_ref()
-                .map(|base| base.config_dir().join("Claude/claude_desktop_config.json"))
-        }
-    };
+    let claude_path = base.as_ref().map(|base| {
+        base.config_dir()
+            .join("Claude")
+            .join("claude_desktop_config.json")
+    });
 
     vec![
         McpClient {

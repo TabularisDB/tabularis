@@ -42,7 +42,12 @@ pub fn initialize_logging(debug: bool) -> SharedLogBuffer {
     DEBUG_MODE.store(debug, Ordering::Relaxed);
     let buffer = create_log_buffer(LOG_BUFFER_CAPACITY);
     let shared = LOG_BUFFER.get_or_init(|| buffer.clone()).clone();
-    init_logger(shared.clone(), log::LevelFilter::Info);
+    let level = if debug {
+        log::LevelFilter::Debug
+    } else {
+        crate::logger::resolve_log_level_from_env()
+    };
+    init_logger(shared.clone(), level);
     shared
 }
 
@@ -112,6 +117,7 @@ fn load_config(config_dir: &std::path::Path) -> AppConfig {
         .and_then(|content| serde_json::from_str::<AppConfig>(&content).ok())
         .unwrap_or_default();
     crate::plugins::compat::migrate_legacy_config(&mut config);
+    crate::config::cache_config(&config);
     config
 }
 

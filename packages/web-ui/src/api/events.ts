@@ -14,6 +14,10 @@ export interface EventDefinition<
 }
 
 export interface EventMap {
+  "session-transaction-state": EventDefinition<
+    { session_id: string; in_transaction: boolean },
+    "database"
+  >;
   "connection-test-progress": EventDefinition<
     ConnectionTestProgressPayload,
     "database"

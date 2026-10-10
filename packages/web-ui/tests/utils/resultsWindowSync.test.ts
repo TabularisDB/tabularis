@@ -4,6 +4,7 @@ import {
   hasMultiResults,
   singleResultToEntry,
   applyAction,
+  applyCopyResult,
   SINGLE_RESULT_ENTRY_ID,
   type ResultsDisplaySettings,
   type ResultsWindowActionHandlers,
@@ -157,6 +158,8 @@ describe("applyAction", () => {
       onCloseAllEntries: vi.fn(),
       onRenameEntry: vi.fn(),
       onLoadCount: vi.fn(),
+      onCopyAllRows: vi.fn(),
+      onCopyEntryAllRows: vi.fn(),
     };
   }
 
@@ -195,10 +198,46 @@ describe("applyAction", () => {
     expect(h.onLoadCount).toHaveBeenCalledTimes(1);
   });
 
+  it("dispatches copy-all actions", () => {
+    const h = makeHandlers();
+    applyAction({ type: "copy-all-rows" }, h);
+    applyAction({ type: "copy-entry-all-rows", entryId: "e3" }, h);
+    expect(h.onCopyAllRows).toHaveBeenCalledTimes(1);
+    expect(h.onCopyEntryAllRows).toHaveBeenCalledWith("e3");
+  });
+
   it("only calls the handler matching the action type", () => {
     const h = makeHandlers();
     applyAction({ type: "load-count" }, h);
     expect(h.onRunQueryPage).not.toHaveBeenCalled();
     expect(h.onPageChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("applyCopyResult", () => {
+  function makeHandlers() {
+    return { onCopied: vi.fn(), onError: vi.fn() };
+  }
+
+  it("ignores results for another tab's window", () => {
+    const h = makeHandlers();
+    applyCopyResult({ tabId: "other", text: "a", count: 1 }, "tab1", h);
+    applyCopyResult({ tabId: "other", error: "boom" }, "tab1", h);
+    expect(h.onCopied).not.toHaveBeenCalled();
+    expect(h.onError).not.toHaveBeenCalled();
+  });
+
+  it("passes copied rows for this tab", () => {
+    const h = makeHandlers();
+    applyCopyResult({ tabId: "tab1", text: "id\n1", count: 1 }, "tab1", h);
+    expect(h.onCopied).toHaveBeenCalledWith({ text: "id\n1", count: 1 });
+    expect(h.onError).not.toHaveBeenCalled();
+  });
+
+  it("passes the error for this tab", () => {
+    const h = makeHandlers();
+    applyCopyResult({ tabId: "tab1", error: "boom" }, "tab1", h);
+    expect(h.onError).toHaveBeenCalledWith("boom");
+    expect(h.onCopied).not.toHaveBeenCalled();
   });
 });

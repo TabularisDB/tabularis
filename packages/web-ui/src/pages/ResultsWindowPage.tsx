@@ -3,6 +3,9 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { MultiResultPanel } from "../components/ui/MultiResultPanel";
 import { ResultEntryContent } from "../components/ui/ResultEntryContent";
+import { useAlert } from "../hooks/useAlert";
+import { useToast } from "../hooks/useToast";
+import { copyTextToClipboard } from "../utils/clipboard";
 import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
 import {
   RESULTS_CLOSE_REQUEST_EVENT,
@@ -17,6 +20,9 @@ import {
   RESULTS_ACTION_EVENT,
   RESULTS_READY_EVENT,
   RESULTS_CLOSED_EVENT,
+  RESULTS_COPY_EVENT,
+  applyCopyResult,
+  type ResultsCopyPayload,
   hasMultiResults,
   singleResultToEntry,
   type ResultsSyncPayload,
@@ -33,6 +39,8 @@ const SESSION_RESPONSE_TIMEOUT_MS = 2_000;
 export const ResultsWindowPage = () => {
   const { t } = useTranslation();
   const platform = usePlatformCapabilities();
+  const { showAlert } = useAlert();
+  const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get("session") ?? "";
   const [payload, setPayload] = useState<ResultsSyncPayload | null>(null);
@@ -111,6 +119,25 @@ export const ResultsWindowPage = () => {
     return () => window.removeEventListener("pagehide", handlePageHide);
   }, [platform, sessionId]);
 
+  // The source fetches the rows; this window owns the clipboard and feedback.
+  useEffect(() => {
+    if (!payload?.tabId) return;
+    const showError = (error: unknown) =>
+      showAlert(t("common.error") + ": " + error, {
+        title: t("common.error"), kind: "error",
+      });
+    const unlisten = platform.subscribeRouteEvent<ResultsCopyPayload>(
+      RESULTS_COPY_EVENT,
+      (result) => applyCopyResult(result, payload.tabId, {
+        onCopied: ({ text, count }) => copyTextToClipboard(text)
+          .then(() => showToast(t("dataGrid.copiedRows", { count }), { kind: "success" }))
+          .catch(showError),
+        onError: showError,
+      }),
+    );
+    return () => { void unlisten.then((unsubscribe) => unsubscribe()); };
+  }, [platform, payload?.tabId, showAlert, showToast, t]);
+
   const send = useCallback(
     (action: ResultsWindowAction) => {
       void platform.publishRouteEvent<ResultsSessionAction>(
@@ -151,6 +178,7 @@ export const ResultsWindowPage = () => {
           copyFormat={payload.copyFormat}
           csvDelimiter={payload.csvDelimiter}
           csvIncludeHeaders={payload.csvIncludeHeaders}
+          onCopyAllRows={(entryId) => send({ type: "copy-entry-all-rows", entryId })}
           onSelectResult={(entryId) => send({ type: "select-result", entryId })}
           onRerunEntry={(entryId) => send({ type: "rerun-entry", entryId })}
           onPageChange={(entryId, page) =>
@@ -174,6 +202,7 @@ export const ResultsWindowPage = () => {
       ) : payload.result || payload.error || payload.isLoading ? (
         <ResultEntryContent
           entry={singleResultToEntry(payload)}
+          onCopyAllRows={() => send({ type: "copy-all-rows" })}
           connectionId={payload.connectionId}
           copyFormat={payload.copyFormat}
           csvDelimiter={payload.csvDelimiter}

@@ -89,6 +89,7 @@ describe("JsonViewerSessionHost", () => {
     const fixture = new RouteEventPlatformFixture();
     const platform = fixture.asPlatform();
     const onSaved = vi.fn();
+    const onClosed = vi.fn();
     const host = new JsonViewerSessionHost(platform, {
       createSessionId: () => "json-session-1",
     });
@@ -109,6 +110,7 @@ describe("JsonViewerSessionHost", () => {
           cellKey: "pk:1:metadata",
         },
         onSaved,
+        onClosed,
       ),
     ).resolves.toBe("json-session-1");
     expect(fixture.openRoute).toHaveBeenCalledWith({
@@ -142,6 +144,7 @@ describe("JsonViewerSessionHost", () => {
       { sessionId: "json-session-1", value: { edited: true } },
     );
     expect(onSaved).toHaveBeenCalledWith({ edited: true });
+    expect(onClosed).toHaveBeenCalledOnce();
 
     const expired: JsonViewerSessionExpired[] = [];
     await platform.subscribeRouteEvent<JsonViewerSessionExpired>(
@@ -171,17 +174,24 @@ describe("JsonViewerSessionHost", () => {
       cellKey: "pk:1:metadata",
     };
 
-    await expect(host.open(base)).resolves.toBe("json-session-1");
+    const firstClosed = vi.fn();
+    const reopenedClosed = vi.fn();
+    await expect(host.open(base, undefined, firstClosed)).resolves.toBe("json-session-1");
     await expect(
-      host.open({ ...base, value: { version: 2 } }),
+      host.open({ ...base, value: { version: 2 } }, undefined, reopenedClosed),
     ).resolves.toBe("json-session-1");
     expect(fixture.openRoute).toHaveBeenCalledTimes(2);
+    expect(firstClosed).toHaveBeenCalledOnce();
+    expect(reopenedClosed).not.toHaveBeenCalled();
 
     await platform.publishRouteEvent(
       JSON_VIEWER_SESSION_CLOSED_EVENT,
       { sessionId: "json-session-1" },
     );
-    await expect(host.open(base)).resolves.toBe("json-session-2");
+    expect(reopenedClosed).toHaveBeenCalledOnce();
+    const lastClosed = vi.fn();
+    await expect(host.open(base, undefined, lastClosed)).resolves.toBe("json-session-2");
     await host.dispose();
+    expect(lastClosed).toHaveBeenCalledOnce();
   });
 });

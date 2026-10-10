@@ -20,6 +20,10 @@ const CONNECTION_URI_SUFFIX: &str = "connection_uri";
 
 #[derive(Debug)]
 pub enum ConnectionCommand {
+    SetSelectedDatabases {
+        connection_id: String,
+        databases: Vec<String>,
+    },
     GetConnections,
     GetConnectionById {
         id: String,
@@ -137,6 +141,14 @@ pub async fn execute_for_session(
     command: ConnectionCommand,
 ) -> Result<Value, String> {
     match command {
+        ConnectionCommand::SetSelectedDatabases {
+            connection_id,
+            databases,
+        } => {
+            set_selected_databases(runtime, &connection_id, databases)?;
+            state.connection_cache.invalidate();
+            Ok(Value::Null)
+        }
         ConnectionCommand::GetConnections => {
             json(redacted_connections(load_file(runtime)?.connections))
         }
@@ -179,8 +191,12 @@ pub async fn execute_for_session(
                 detect_json_in_text_columns,
                 environment,
             )?;
-            invalidate_connection_metadata(runtime, &id, [&previous_driver, &updated.params.driver])
-                .await;
+            invalidate_connection_metadata(
+                runtime,
+                &id,
+                [&previous_driver, &updated.params.driver],
+            )
+            .await;
             json(updated)
         }
         ConnectionCommand::DeleteConnection { id } => {
@@ -665,7 +681,9 @@ async fn invalidate_connection_metadata(
     for driver_id in driver_ids {
         if let Some(driver) = crate::drivers::registry::get_driver(driver_id).await {
             if driver.has_connection_metadata() {
-                driver.invalidate_connection_metadata(Some(connection_id)).await;
+                driver
+                    .invalidate_connection_metadata(Some(connection_id))
+                    .await;
                 metadata_changed = true;
             }
         }
@@ -1047,6 +1065,7 @@ pub async fn disconnect_connection(
     session_id: Option<Uuid>,
     connection_id: &str,
 ) -> Result<(), String> {
+    super::query_sessions::release_connection(runtime, session_id, connection_id).await;
     let still_owned = if let (Some(state), Some(session_id)) = (state, session_id) {
         let mut sessions = state
             .web_active_connections
@@ -1309,3 +1328,28 @@ fn json(value: impl Serialize) -> Result<Value, String> {
 #[cfg(test)]
 #[path = "connections_tests.rs"]
 mod tests;
+
+pub fn set_selected_databases(
+    runtime: &RuntimeContext,
+    connection_id: &str,
+    mut databases: Vec<String>,
+) -> Result<(), String> {
+    if databases.is_empty() {
+        return Err("Database selection cannot be empty".to_string());
+    }
+    if databases.iter().any(|db| db.trim().is_empty()) {
+        return Err("Database names cannot be empty".to_string());
+    }
+    let mut file = load_file(runtime)?;
+    let connection = file
+        .connections
+        .iter_mut()
+        .find(|connection| connection.id == connection_id)
+        .ok_or("Connection not found")?;
+    connection.params.database = if databases.len() == 1 {
+        crate::models::DatabaseSelection::Single(databases.remove(0))
+    } else {
+        crate::models::DatabaseSelection::Multiple(databases)
+    };
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file)
+}

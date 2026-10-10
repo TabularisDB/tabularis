@@ -1,4 +1,5 @@
 import React, { useRef, useCallback, useContext, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import type { OnMount, BeforeMount } from "@monaco-editor/react";
 import { MonacoEditor } from "./LazyMonaco";
 import type * as Monaco from "monaco-editor";
@@ -11,12 +12,13 @@ import { useKeybindings } from "../../hooks/useKeybindings";
 import { CommandPaletteDispatchContext } from "../../contexts/CommandPaletteContext";
 import { getFontCSS } from "../../utils/settings";
 import {
-  splitStatements,
+  splitBatches,
   findStatementAtOffset,
   type Dialect,
   type Statement,
 } from "../../utils/sqlSplitter";
 import { formatSql } from "../../utils/sqlFormat";
+import { toSqlList } from "../../utils/editor";
 import { isTextCompositionKeyEvent } from "../../utils/keyboardEvents";
 import type { SqlDialect } from "../../utils/sql";
 import type { RunContext } from "../../utils/runTarget";
@@ -74,6 +76,7 @@ const SqlEditorInternal = ({
 }: SqlEditorWrapperProps & { editorKey: string }) => {
   const platform = usePlatformCapabilities();
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { t } = useTranslation();
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
   const foldPreviewRef = useRef<Monaco.IDisposable | null>(null);
@@ -434,8 +437,35 @@ const SqlEditorInternal = ({
         },
       });
 
-      // Monaco binds Ctrl+Shift+A to block comments on Linux. Handle the
-      // user-configurable palette shortcut before Monaco consumes it.
+      // Convert selected values (e.g. a column pasted from a spreadsheet) into
+      // a quoted list for IN (...). Shown only when text is selected; every
+      // selection is replaced in one edit, so a single undo restores it.
+      editor.addAction({
+        id: 'tabularis.convertSelectionToSqlList',
+        label: t('editor.convertSelectionToSqlList'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.6,
+        precondition: 'editorHasSelection',
+        run: (ed) => {
+          const model = ed.getModel();
+          if (!model) return;
+          const edits = (ed.getSelections() ?? [])
+            .filter((selection) => !selection.isEmpty())
+            .map((selection) => ({
+              range: selection,
+              text: toSqlList(model.getValueInRange(selection)),
+              forceMoveMarkers: true,
+            }))
+            .filter((edit) => edit.text !== '');
+          if (edits.length === 0) return;
+          ed.pushUndoStop();
+          ed.executeEdits('convertSelectionToSqlList', edits);
+          ed.pushUndoStop();
+        },
+      });
+
+      // Ctrl+K starts Monaco chords, so leave the unified palette shortcut
+      // untouched. Ctrl+Shift+A conflicts with Monaco and must be handled here.
       editor.onKeyDown((e) => {
         if (isTextCompositionKeyEvent(e.browserEvent)) return;
 
@@ -481,7 +511,7 @@ const SqlEditorInternal = ({
             lastSplitRef.current = {
               model,
               versionId,
-              statements: splitStatements(model.getValue(), dialectRef.current),
+              statements: splitBatches(model.getValue(), dialectRef.current),
             };
           }
           return lastSplitRef.current.statements;

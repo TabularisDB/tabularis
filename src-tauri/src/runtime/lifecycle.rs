@@ -29,6 +29,7 @@ impl ShutdownHooks {
 
 pub async fn shutdown_headless_runtime(state: &super::state::ApplicationState) {
     state.abort_background_jobs();
+    release_pinned_sessions().await;
     crate::pool_manager::close_all_pools().await;
     crate::ssh_tunnel::stop_all_tunnels();
     crate::k8s_tunnel::stop_all_tunnels();
@@ -45,4 +46,16 @@ pub fn start_desktop_schedulers(app: tauri::AppHandle, ping_interval_secs: u64) 
     crate::ai_approval_watcher::spawn(app.clone());
     crate::backup::spawn_scheduler(app);
     crate::heartbeat::spawn();
+}
+
+pub async fn release_pinned_sessions() {
+    if tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        crate::drivers::postgres::session::release_all(),
+    )
+    .await
+    .is_err()
+    {
+        log::warn!("Releasing pinned PostgreSQL sessions timed out on exit");
+    }
 }

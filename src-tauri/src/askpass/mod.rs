@@ -22,7 +22,7 @@ mod tests;
 
 pub use client::maybe_run_askpass_client;
 pub use protocol::PromptKind;
-pub use server::{AskpassServer, AskpassUi};
+pub use server::{AskpassOptions, AskpassServer, AskpassUi};
 
 use crate::runtime::events::{RuntimeEvents, TauriRuntimeEvents};
 use std::collections::HashMap;
@@ -66,29 +66,41 @@ pub fn set_app_handle(app: AppHandle) {
 }
 
 /// Start an askpass server bridged to the frontend. Fails when the app is not
-/// fully initialised (e.g. in unit tests), letting callers fall back to the
-/// system askpass behaviour.
+/// fully initialised (e.g. in unit tests). Callers must not then force OpenSSH
+/// to run its compiled-in askpass path: on macOS that is
+/// `/usr/X11R6/bin/ssh-askpass`, which is not installed.
 pub fn start_frontend_server() -> Result<AskpassServer, String> {
+    start_frontend_server_with(AskpassOptions::interactive())
+}
+
+/// Like [`start_frontend_server`], with stored credentials that answer matching
+/// prompts without opening the modal.
+pub fn start_frontend_server_with(options: AskpassOptions) -> Result<AskpassServer, String> {
     let app = APP_HANDLE
         .get()
         .ok_or_else(|| "Askpass UI unavailable: application not initialised".to_string())?;
-    start_scoped_server(
+    start_scoped_server_with(
         Arc::new(TauriRuntimeEvents::new(app.clone())),
         None,
         Duration::from_secs(RESPONSE_TIMEOUT_SECS),
+        options,
     )
 }
 
-pub fn start_scoped_server(
+pub fn start_scoped_server_with(
     events: Arc<dyn RuntimeEvents>,
     session_id: Option<Uuid>,
     response_timeout: Duration,
+    options: AskpassOptions,
 ) -> Result<AskpassServer, String> {
-    AskpassServer::start(Arc::new(FrontendUi {
-        events,
-        session_id,
-        response_timeout,
-    }))
+    AskpassServer::start_with(
+        Arc::new(FrontendUi {
+            events,
+            session_id,
+            response_timeout,
+        }),
+        options,
+    )
 }
 
 #[derive(Serialize, Clone)]
@@ -191,4 +203,17 @@ pub fn respond_for_session(
         .sender
         .send(response)
         .map_err(|_| "SSH askpass prompt is no longer accepting responses".to_string())
+}
+
+pub fn start_scoped_server(
+    events: Arc<dyn RuntimeEvents>,
+    session_id: Option<Uuid>,
+    response_timeout: Duration,
+) -> Result<AskpassServer, String> {
+    start_scoped_server_with(
+        events,
+        session_id,
+        response_timeout,
+        AskpassOptions::interactive(),
+    )
 }

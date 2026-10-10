@@ -7,27 +7,27 @@ pub mod ai_approval;
 pub mod ai_approval_tests;
 pub mod ai_approval_watcher;
 pub mod ai_commands;
-pub mod application;
 pub mod ai_notebook_export;
 #[cfg(test)]
 pub mod ai_notebook_export_tests;
 pub mod ai_schema_context;
 #[cfg(test)]
 pub mod ai_schema_context_tests;
+pub mod application;
 pub mod askpass;
 pub mod backup;
 pub mod cli;
 pub mod clipboard_import;
 pub mod commands;
+pub mod config;
 pub mod connection_appearance;
-pub mod connection_import;
-pub mod connection_import_commands;
 #[cfg(test)]
 pub mod connection_appearance_tests;
-pub mod config;
 pub mod connection_cache;
 #[cfg(test)]
 pub mod connection_cache_tests;
+pub mod connection_import;
+pub mod connection_import_commands;
 pub mod connection_migrations;
 #[cfg(test)]
 pub mod connection_migrations_tests;
@@ -50,22 +50,17 @@ pub mod export_import_tests;
 pub mod fs_path;
 #[cfg(test)]
 pub mod fs_path_tests;
-pub mod health_check;
 #[cfg(test)]
 pub mod group_tree_tests;
+pub mod health_check;
 pub mod heartbeat;
 #[cfg(test)]
 pub mod heartbeat_tests;
 pub mod json_viewer;
+pub mod k8s_tunnel;
 pub mod keychain_utils;
 #[cfg(test)]
 pub mod keychain_utils_tests;
-pub mod results_window;
-pub mod runtime;
-pub mod sandbox;
-#[cfg(test)]
-pub mod sandbox_tests;
-pub mod k8s_tunnel;
 pub mod log_commands;
 pub mod logger;
 pub mod mcp;
@@ -76,9 +71,6 @@ pub mod notebooks;
 pub mod paths; // Added
 #[cfg(test)]
 pub mod paths_tests;
-pub mod storage_location;
-#[cfg(test)]
-pub mod storage_location_tests;
 pub mod persistence;
 #[cfg(test)]
 pub mod persistence_tests;
@@ -91,18 +83,26 @@ pub mod proxy;
 pub mod query_history;
 #[cfg(test)]
 pub mod query_history_tests;
+pub mod results_window;
+pub mod runtime;
+pub mod sandbox;
+#[cfg(test)]
+pub mod sandbox_tests;
+pub mod saved_queries;
+#[cfg(test)]
+pub mod saved_queries_tests;
 pub mod sql_database_statements;
 pub mod sql_file;
 #[cfg(test)]
 pub mod sql_file_tests;
-pub mod saved_queries;
-#[cfg(test)]
-pub mod saved_queries_tests;
-pub mod ssh_tunnel;
-pub mod ssm_tunnel;
 pub mod sqlite_database;
 #[cfg(test)]
 pub mod sqlite_database_tests;
+pub mod ssh_tunnel;
+pub mod ssm_tunnel;
+pub mod storage_location;
+#[cfg(test)]
+pub mod storage_location_tests;
 mod system_theme;
 pub mod task_manager;
 pub mod theme_commands;
@@ -199,15 +199,13 @@ pub fn run() {
                 application.context.clone(),
                 application_state.clone(),
             );
-            let application_api = std::sync::Arc::new(
-                application::RuntimeApplicationApi::new(
-                    application.context,
-                    application_state.clone(),
-                ),
-            );
+            let application_api = std::sync::Arc::new(application::RuntimeApplicationApi::new(
+                application.context,
+                application_state.clone(),
+            ));
 
-            let server_result = transport::web::server::run(
-                transport::web::server::WebServerOptions {
+            let server_result =
+                transport::web::server::run(transport::web::server::WebServerOptions {
                     host: web_args.host.clone(),
                     port: web_args.port,
                     web_root,
@@ -220,9 +218,8 @@ pub fn run() {
                     server_file_browser_roots: web_args.server_file_browser_roots.clone(),
                     application: application_api,
                     events: web_events,
-                },
-            )
-            .await;
+                })
+                .await;
 
             approval_watcher.abort();
             runtime::lifecycle::shutdown_headless_runtime(&application_state).await;
@@ -566,6 +563,7 @@ pub fn run() {
             commands::read_file_as_data_url,
             commands::execute_query,
             commands::execute_query_batch,
+            commands::release_query_session,
             commands::get_server_now,
             commands::explain_query_plan,
             commands::count_query,
@@ -655,6 +653,7 @@ pub fn run() {
             commands::get_ai_schema_context,
             commands::get_schema_snapshot,
             // DDL generation
+            commands::get_table_query_template,
             commands::get_create_table_sql,
             commands::get_add_column_sql,
             commands::get_alter_column_sql,
@@ -794,6 +793,7 @@ pub fn run() {
                 // Back up the freshest state before the process ends (no-op
                 // unless backups are enabled and due).
                 backup::run_exit_backup(app_handle);
+                tauri::async_runtime::block_on(runtime::lifecycle::release_pinned_sessions());
                 run_shutdown_hooks.run();
             }
         });

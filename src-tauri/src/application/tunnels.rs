@@ -306,14 +306,20 @@ pub async fn test_ssh_connection(
     );
 
     let allow_prompt = ssh.allow_passphrase_prompt.unwrap_or(false);
-    let askpass = if allow_prompt {
-        Some(crate::askpass::start_scoped_server(
+    let askpass = if allow_prompt || ssh.password.is_some() || ssh.key_passphrase.is_some() {
+        Some(crate::askpass::start_scoped_server_with(
             runtime.events.clone(),
             session_id,
             if session_id.is_some() {
                 WEB_ASKPASS_TIMEOUT
             } else {
                 DESKTOP_ASKPASS_TIMEOUT
+            },
+            crate::askpass::AskpassOptions {
+                password: ssh.password.clone(),
+                key_passphrase: ssh.key_passphrase.clone(),
+                key_path: ssh.key_file.clone(),
+                allow_ui: allow_prompt,
             },
         )?)
     } else {
@@ -553,11 +559,7 @@ fn resolve_connection_transport(
         params.connection_id.as_deref(),
         params.proxy.as_ref(),
     ) {
-        let host = resolved
-            .host
-            .as_deref()
-            .unwrap_or("localhost")
-            .to_string();
+        let host = resolved.host.as_deref().unwrap_or("localhost").to_string();
         let port = resolved.port.unwrap_or(DEFAULT_REMOTE_PORT);
         if !is_loopback_host(&host) {
             let fwd_port = crate::proxy::ensure_forward(&proxy, &host, port)?;
@@ -736,16 +738,25 @@ fn scoped_askpass(
     params: &ConnectionParams,
     session_id: Option<Uuid>,
 ) -> Result<Option<crate::askpass::AskpassServer>, String> {
-    if !params.ssh_allow_passphrase_prompt.unwrap_or(false) {
+    if !params.ssh_allow_passphrase_prompt.unwrap_or(false)
+        && params.ssh_password.is_none()
+        && params.ssh_key_passphrase.is_none()
+    {
         return Ok(None);
     }
-    crate::askpass::start_scoped_server(
+    crate::askpass::start_scoped_server_with(
         runtime.events.clone(),
         session_id,
         if session_id.is_some() {
             WEB_ASKPASS_TIMEOUT
         } else {
             DESKTOP_ASKPASS_TIMEOUT
+        },
+        crate::askpass::AskpassOptions {
+            password: params.ssh_password.clone(),
+            key_passphrase: params.ssh_key_passphrase.clone(),
+            key_path: params.ssh_key_file.clone(),
+            allow_ui: params.ssh_allow_passphrase_prompt.unwrap_or(false),
         },
     )
     .map(Some)

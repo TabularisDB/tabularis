@@ -126,13 +126,30 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `no_connection_required` | bool | `true` for API-based plugins that need no host, port, or credentials (e.g. a public REST API). Hides the entire connection form — the user only fills in the connection name. |
 | `connection_string` | bool | Set `false` to hide the connection string import UI for this driver. Defaults to `true` for network drivers. `file_based` and `folder_based` drivers skip the import UI automatically regardless of this flag. |
 | `connection_string_example` | string | Optional placeholder example shown in the connection string import field (e.g. `"clickhouse://user:pass@localhost:9000/db"`). Also accepted as camelCase `connectionStringExample`. |
+| `connection_string_examples` | array | Optional connection string presets shown beside the import field. Each item has a required `label` and `value`, plus an optional `description`. Selecting one fills the field; `connection_string_example` remains the placeholder. Also accepted as camelCase `connectionStringExamples`. |
 | `identifier_quote` | string | Character used to quote SQL identifiers. Use `"\""` for ANSI standard or `` "`" `` for MySQL style. |
+| `table_query_templates` | bool | Opts the Generate SQL dialog into the optional `get_table_query_template` RPC for SELECT/UPDATE/DELETE previews. Defaults to `false`; older plugins and built-in drivers keep the existing host templates. See [Table Query Templates](#table-query-templates). |
 | `sql_dialect` | string | Optional statement-splitting dialect: `postgres`, `mysql`, `mssql`, `sqlite`, `oracle`, or `generic`. Oracle-like plugins, including DM/Dameng, should use `"oracle"`. |
 | `alter_primary_key` | bool | `true` if the database supports altering primary keys after table creation. |
 | `manage_tables` | bool | `true` to enable table and column management UI (Create Table, Add/Modify/Drop Column, Drop Table). Does not control index or FK operations. Defaults to `true`. |
 | `readonly` | bool | When `true`, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. The add/delete row buttons, inline cell editing, and context menu edit actions are hidden. Table and column management is also hidden regardless of `manage_tables`. Defaults to `false`. |
 | `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
+
+For drivers with several URL forms, declare the single example as the placeholder and add selectable presets:
+
+For URI passthrough drivers, an opaque placeholder (such as `jdbc:h2:mem:test`) permits opaque inputs. An authority-based placeholder (such as `mongodb://localhost/db`) requires `://` and a host in imported strings.
+
+```json
+{
+  "connection_string_example": "jdbc:h2:tcp://localhost/~/test",
+  "connection_string_examples": [
+    { "label": "In-memory", "value": "jdbc:h2:mem:test", "description": "A named in-memory database." },
+    { "label": "Local file", "value": "jdbc:h2:./data/test" },
+    { "label": "TCP server", "value": "jdbc:h2:tcp://localhost/~/test" }
+  ]
+}
+```
 
 ### Data Types
 
@@ -678,11 +695,26 @@ The `params.params` object is a `ConnectionParams` — the same values the user 
 | `-32602` | Invalid params |
 | `-32603` | Internal error |
 
+### Cancel Notification (Optional)
+
+When a call exceeds the configured plugin call timeout, Tabularis stops waiting and reports the error to the user. Right after that it writes a JSON-RPC **notification** (no top-level `id`) naming the abandoned request:
+
+```json
+{ "jsonrpc": "2.0", "method": "cancel", "params": { "id": 1 } }
+```
+
+`params.id` is the `id` of the original request. Handling it is optional, but recommended for drivers that run statements on a server: without it a timed-out `execute_query` keeps running there (and a `DELETE` or `UPDATE` still takes effect) even though the user already saw an error.
+
+- **Do not reply.** A notification has no response; writing one would put an unexpected line on `stdout`.
+- **Ignore unknown ids** (already finished, already cancelled, or not cancellable). A late or duplicate cancel must never be treated as an error.
+- **Keep reading `stdin` while a request runs.** A plugin that processes requests strictly one at a time only sees the cancel after the long call has finished.
+- No cancel is sent when the timeout is disabled (`0`): the call simply waits.
+
 ---
 
 ## 5. Required Methods
 
-Your plugin must respond to the following JSON-RPC methods. For unsupported features, return an empty array `[]` or a `-32601` (Method not found) error.
+Your plugin must respond to the following JSON-RPC methods. For unsupported features, return an empty array `[]` or a `-32601` (Method not found) error: return code `-32601` and a message containing `Method not found` (e.g. `Method not found: execute_query_batch`). Most fallbacks for optional methods match on the message; a few, such as `get_connection_metadata` and `get_table_query_template`, match on the code.
 
 ### Connection
 
@@ -1308,6 +1340,66 @@ Return foreign keys for all tables at once.
 
 ---
 
+### Table Query Templates
+
+`get_table_query_template` is an **optional, additive** RPC, called only when
+`capabilities.table_query_templates` is `true`. It returns a SQL preview and
+**must not execute** the generated statement.
+
+**Params:**
+
+```json
+{
+  "params": { "driver": "sqlserver", "connection_id": "..." },
+  "request": {
+    "table": "orders",
+    "schema": "sales",
+    "kind": "select",
+    "columns": ["id", "status"],
+    "limit": 100
+  }
+}
+```
+
+`params` is the usual resolved `ConnectionParams`. `request.kind` is `select`,
+`update` or `delete`. Table, schema and column names are **unquoted identifiers**,
+not SQL fragments; the driver must quote and escape them. `columns` defaults to
+`[]`: SELECT uses `*`, UPDATE produces an editable column placeholder. `schema`
+and `limit` may be omitted or null. `limit` is an unsigned 32-bit explicit SELECT
+row limit (including zero); UPDATE/DELETE reject a non-null limit. SELECT All
+passes no limit; SELECT Fields passes 100. UPDATE/DELETE templates must include
+`WHERE 1 = 0` to prevent accidental broad writes. UPDATE values use the host
+editor's named placeholders (`:value_1`, etc.), not driver-native bind markers.
+
+**Result:** a string, for example
+`"SELECT TOP (100) [id], [status] FROM [sales].[orders];"`.
+
+Compatibility:
+
+- Missing/false capability: no new RPC is sent; legacy generation is unchanged.
+- Remote JSON-RPC error **code** `-32601`: the host falls back to its legacy
+  template. Transport errors, other remote errors and malformed results are
+  surfaced, not silently replaced with another SQL dialect.
+- The Tauri command returns `string | null`; null is the host's fallback signal,
+  **not** a valid plugin success result.
+- Existing RPC signatures, built-in driver behavior and CREATE TABLE generation
+  are unchanged. This is not a replacement for the existing DDL methods.
+- Older hosts ignore the new manifest capability and never call the method.
+  Plugins need not raise `min_runtime_version` solely for this optional feature.
+- The capability is a static manifest opt-in, not a connection-metadata override.
+
+Registry rollout: add an optional boolean `table_query_templates` (default
+false) to the driver kind's `capabilities.properties` in Tabularium for schema
+validation and generated documentation. Do not make it required. The registry
+only distributes the manifest and release; it does not route the RPC. No change
+to registry endpoints, release formats or the Tabularium SDK is needed. Register
+the property before publishing: Tabularium ingestion uses lenient validation with
+AJV `removeAdditional: 'all'`, which strips undeclared capability keys even when
+the capabilities schema otherwise allows additional properties. Refresh an
+already-ingested manifest after updating the schema.
+
+---
+
 ### DDL Generation
 
 These methods generate SQL statements. Tabularis may display the SQL to the user before executing it. When `get_tables` / `get_columns` return comments, the host preserves them in generated inspection SQL for MySQL-family dialects and dialects that use `COMMENT ON` (currently PostgreSQL and Oracle). Other dialects continue to receive the existing DDL without comments; no manifest change is required.
@@ -1466,7 +1558,7 @@ fn dispatch(method: &str, params: &Value, id: Value) -> Value {
             "jsonrpc": "2.0",
             "error": {
                 "code": -32601,
-                "message": format!("Method '{}' not implemented", method)
+                "message": format!("Method not found: {}", method)
             },
             "id": id
         }),

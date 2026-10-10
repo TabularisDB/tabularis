@@ -8,9 +8,21 @@
     "select": "Piliin"
   },
   "toolbar": {
+    "autoRefresh": {
+      "label": "Awtomatikong pag-refresh",
+      "off": "Naka-off",
+      "seconds": "{{seconds}}s",
+      "paused": "Naka-pause habang nag-e-edit",
+      "pausedSelection": "Naka-pause habang may napiling row",
+      "refresh": "I-refresh ang talahanayan",
+      "failed": "Hindi na-refresh: {{error}}"
+    },
     "filters": "Mga Filter",
     "toggleFilterPanel": "I-toggle ang structured filter panel",
     "filterConditions": "Mga kondisyon ng filter",
+    "matchMode": "Mode ng pagtutugma",
+    "matchAll": "Lahat",
+    "matchAny": "Alinman",
     "activeOf": "{{active}} sa {{total}} ang aktibo",
     "noFilters": "Walang filter —",
     "addFirstFilter": "magdagdag ng unang filter",
@@ -29,7 +41,12 @@
     "selectForApplyAll": "Piliin para sa Ilapat Lahat",
     "valuePlaceholder": "halaga",
     "fromPlaceholder": "mula",
-    "toPlaceholder": "hanggang"
+    "toPlaceholder": "hanggang",
+    "opContains": "naglalaman",
+    "opStartsWith": "nagsisimula sa",
+    "opEndsWith": "nagtatapos sa",
+    "opIsEmpty": "walang laman",
+    "opIsNotEmpty": "may laman"
   },
   "tags": {
     "label": "Mga tag",
@@ -211,6 +228,16 @@
     "noQueryHistory": "Walang kasaysayan ng query",
     "noHistorySearchResults": "Walang query na tumugma sa iyong paghahanap",
     "searchHistory": "Maghanap sa kasaysayan...",
+    "historyOutcomeFilter": "I-filter ayon sa resulta",
+    "historyOutcomeAny": "Anumang resulta",
+    "historyOutcomeSucceeded": "Matagumpay",
+    "historyOutcomeFailed": "Nabigo",
+    "historyTimeRangeFilter": "I-filter ayon sa oras",
+    "historyTimeAll": "Lahat ng oras",
+    "historyTimeLastHour": "Nakaraang oras",
+    "historyTimeToday": "Ngayon",
+    "historyTimeLast7Days": "Nakaraang 7 araw",
+    "historyTimeLast30Days": "Nakaraang 30 araw",
     "clearAllHistory": "Burahin ang Lahat ng Kasaysayan",
     "historyRecoveredTitle": "Na-reset ang kasaysayan ng query",
     "historyRecoveredBody": "Sira ang file ng kasaysayan at inilipat ito. Normal na maitatala ang mga bagong query. Backup file:",
@@ -554,6 +581,10 @@
       "confirm": "Kumpirmahin",
       "cancel": "Kanselahin"
     },
+    "dataGrid": {
+      "zebraStripes": "Magkakahaliling background ng row",
+      "zebraStripesDesc": "I-shade bawat ikalawang row para mas madaling sundan ang isang row sa mga malapad na table."
+    },
     "appearance_general": "Pangkalahatan",
     "appearance_sqlEditor": "SQL Editor",
     "appearance_editorTheme": "Theme ng Editor",
@@ -574,6 +605,10 @@
     "runStatementUnderCursorDesc": "Kapag maraming statement ang isang script, patakbuhin ang nasa ilalim ng cursor sa halip na ipakita ang query picker. Pumili ng teksto para patakbuhin ang isang partikular na saklaw.",
     "safetyConfirmationDelay": "Iantala ang mga kumpirmasyon sa kaligtasan",
     "safetyConfirmationDelayDesc": "I-disable ang mga confirmation button nang limang segundo para sa mapanirang query at production writes.",
+    "notifyLongQueries": "I-abiso kapag natapos ang mahahabang query",
+    "notifyLongQueriesDesc": "Nagpapadala ng desktop notification kapag natapos ang isang query habang nasa background ang Tabularis.",
+    "notifyLongQueriesThreshold": "Threshold ng notification",
+    "notifyLongQueriesThresholdDesc": "Nag-aabiso lang para sa mga query na tumakbo nang hindi bababa sa ganitong katagal.",
     "formatter_title": "SQL Formatter",
     "formatter_keywordCase": "Case ng Keyword",
     "formatter_keywordCaseDesc": "Paano icapitalize ang SQL keywords (SELECT, FROM, WHERE) pagkatapos i-format.",
@@ -713,7 +748,7 @@
     "clearLogs": "I-clear ang mga Log",
     "clearLogsConfirm": "Sigurado ka bang gusto mong i-clear ang lahat ng log?",
     "exportLogs": "I-export ang mga Log",
-    "exportLogsSuccess": "Na-export ang mga log sa clipboard",
+    "exportLogsSuccess": "Na-export ang mga log",
     "noLogs": "Walang available na log",
     "refreshLogs": "I-refresh",
     "logLevel": "Level",
@@ -748,6 +783,9 @@
     "erDiagramDefaultLayout": "Default Layout",
     "erDiagramDefaultLayoutDesc": "Piliin ang default layout direction para sa ER diagrams",
     "plugins": {
+      "runtimeTitle": "Runtime ng plugin",
+      "callTimeout": "Timeout ng tawag",
+      "callTimeoutDesc": "Pinakamahabang oras na hinihintay ng Tabularis ang sagot ng plugin sa isang request (kasama ang mga query). Ilagay ang 0 para alisin ang limitasyon. Maaaring i-override ng bawat plugin ang value na ito sa sarili nitong settings.",
       "title": "Plugins",
       "overviewTitle": "Plugin Center",
       "overviewDesc": "Mag-install ng extension, pamahalaan ang plugin driver, at kontrolin ang runtime settings.",
@@ -821,6 +859,10 @@
         "configure": "I-configure ang Interpreter"
       },
       "pluginSettings": {
+        "callTimeout": "Timeout ng tawag",
+        "callTimeoutDesc": "Ino-override ang global na timeout ng tawag para sa plugin na ito lamang. Ilagay ang 0 para alisin ang limitasyon, iwanang blangko para gamitin ang global na value.",
+        "callTimeoutPlaceholder": "Gamitin ang global ({{seconds}} s)",
+        "callTimeoutInherit": "Gamitin ang global na value",
         "title": "Mga Setting ng Plugin",
         "interpreter": "Interpreter",
         "interpreterDesc": "Opsyonal. Tukuyin ang executable na ginagamit para patakbuhin ang plugin na ito (hal. python3 sa macOS/Linux, python o full path sa Windows). Iwanang blank para gamitin ang default.",
@@ -882,6 +924,7 @@
       "newConnection": "Bagong koneksyon",
       "newTab": "Bagong tab",
       "closeTab": "Isara ang tab",
+      "reopenClosedTab": "Muling buksan ang saradong tab",
       "nextPage": "Susunod na pahina",
       "prevPage": "Nakaraang pahina",
       "saveGridChanges": "I-save ang nakabinbing pagbabago",
@@ -896,9 +939,11 @@
       "formatSql": "I-format ang SQL",
       "extendCellRange": "Palawakin ang cell range",
       "jumpToEdge": "Tumalon sa gilid ng grid",
+      "jumpToColumn": "Pumunta sa kolum",
       "extendCellRangeToEdge": "Palawakin ang range hanggang sa gilid",
       "selectRow": "Piliin ang row",
       "selectColumn": "Piliin ang column",
+      "commandPalette": "Command Palette",
       "commandPaletteActions": "Maghanap ng mga aksyon"
     },
     "aiActivity": "AI Activity",
@@ -1059,6 +1104,10 @@
     "dbNameRequired": "Kailangan ang pangalan ng database",
     "connectionUriRequiresKeychain": "Dapat i-save ang mga connection URI sa OS keychain. I-enable ang “I-save ang mga password sa Keychain” para magpatuloy.",
     "connectionUriRequired": "Kailangan ang connection URI",
+    "connectionString": "Connection string",
+    "connectionStringPlaceholder": "hal. mysql://user:pass@localhost:3306/db",
+    "connectionStringExample": "Halimbawa ng connection string",
+    "chooseConnectionStringExample": "Pumili ng halimbawa",
     "dbType": "Uri ng Database",
     "host": "Host",
     "port": "Port",
@@ -1200,7 +1249,13 @@
     "placeholder": "PIN o passphrase",
     "waiting": "Naghihintay sa iyong security key — hawakan ito para kumpirmahin."
   },
+  "dateInput": {
+    "useShownValue": "Gamitin ang value na ito"
+  },
   "dataGrid": {
+    "jumpToColumn": "Pumunta sa kolum",
+    "searchColumns": "Maghanap ng mga kolum",
+    "noMatchingColumns": "Walang katugmang kolum",
     "noRowIdentity": "Hindi ma-edit ang mga row: walang primary key ang \"{{table}}\", kaya kailangang kasama sa resulta ang lahat ng column ng table. Piliin ang lahat ng column (hal. SELECT *) o magdagdag ng primary key.",
     "resizeRelatedPanel": "I-drag para baguhin ang laki ng panel",
     "keylessRowNotFound": "Walang row na tumugma sa mga orihinal na value habang ina-update ang \"{{column}}\". Walang primary key ang table at maaaring nagbago ang data — i-refresh at subukang muli.",
@@ -1243,6 +1298,11 @@
     "copyColumnName": "Kopyahin ang pangalan ng column",
     "copyColumnNameQuoted": "Kopyahin bilang `column`",
     "copyColumnNameTable": "Kopyahin bilang table.column",
+    "copyColumnValuesIn": "Kopyahin ang mga value ng column bilang SQL IN",
+    "filterEquals": "Filter: {{column}} = value na ito",
+    "filterNotEquals": "Filter: {{column}} <> value na ito",
+    "filterIsNull": "Filter: {{column}} IS NULL",
+    "filterIsNotNull": "Filter: {{column}} IS NOT NULL",
     "copyCells": "Kopyahin ang {{count}} Cell",
     "copyRows": "Kopyahin ang {{count}} Row",
     "copied": "Nakopya sa clipboard",
@@ -1323,6 +1383,7 @@
       "reattach": "I-attach muli"
     },
     "closeTab": "Isara ang Tab",
+    "reopenClosedTab": "Muling Buksan ang Saradong Tab",
     "closeOthers": "Isara ang Ibang Tab",
     "closeRight": "Isara ang mga Tab sa Kanan",
     "closeLeft": "Isara ang mga Tab sa Kaliwa",
@@ -1382,11 +1443,14 @@
     "rollback": "I-rollback",
     "pendingCount": "{{count}} nakabinbin",
     "executingQuery": "Isinasakatuparan ang query...",
+    "transactionOpen": "TX",
+    "transactionOpenHint": "Bukas ang transaction — hawak ng tab na ito ang koneksyon nito hanggang sa COMMIT o ROLLBACK",
     "exporting": "Nag-e-export...",
     "rowsProcessed": "Mga Row na Naproseso",
     "exportLoadedRowsWarning": "{{loaded}} lang na na-load na row ang na-export mula sa kabuuang {{total}} row. Mag-page sa resulta o magpatakbo ng mas makitid na query bago mag-export kung kailangan mo ng mas maraming row.",
     "queryParameters": "Mga Parameter ng Query",
     "formatSql": "I-format ang SQL",
+    "convertSelectionToSqlList": "I-convert ang napili sa listahan ng SQL",
     "convertToConsole": "I-convert sa Console",
     "parameters": "Mga Parameter",
     "paramValuePlaceholder": "Value (hal. 'text' o 123)",
@@ -1658,6 +1722,14 @@
       "collapseAll": "I-collapse lahat",
       "expandAll": "I-expand lahat",
       "collapsed": "Na-collapse"
+    },
+    "queryNotification": {
+      "successTitle": "Natapos ang query",
+      "errorTitle": "Nabigo ang query",
+      "body": "{{tab}} · {{duration}}",
+      "batchSuccessTitle": "Natapos ang Patakbuhin lahat",
+      "batchErrorTitle": "Natapos ang Patakbuhin lahat na may mga error",
+      "batchBody": "{{tab}} · {{succeeded}} matagumpay, {{failed}} nabigo · {{duration}}"
     }
   },
   "createTable": {
@@ -2274,7 +2346,6 @@
     "outputParameter": "Output parameter — ibabalik bilang resulta",
     "rawLabel": "Raw",
     "rawHint": "Ipasok ang halaga nang verbatim, walang string quoting (mga numero, expression)",
-    "runButton": "Patakbuhin",
     "runTabPrefix": "Patakbuhin",
     "returnValue": "nagbabalik ng"
   },

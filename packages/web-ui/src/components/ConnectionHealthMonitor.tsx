@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { useTabularisClient } from "../hooks/useTabularisClient";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useAlert } from "../hooks/useAlert";
@@ -9,6 +9,7 @@ import { useAlert } from "../hooks/useAlert";
  * and shows an alert toast. Must be rendered inside AlertProvider and BrowserRouter.
  */
 export function ConnectionHealthMonitor() {
+  const client = useTabularisClient();
   const { showAlert } = useAlert();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -18,10 +19,10 @@ export function ConnectionHealthMonitor() {
   }, [navigate]);
 
   useEffect(() => {
-    const unlisten = listen<{ connectionId: string; error: string }>(
+    const unlisten = client.subscribe(
       "connection-health-failed",
       (event) => {
-        const { error } = event.payload;
+        const { error } = event;
         showAlert(
           `${t("healthCheck.connectionLost")}: ${error}`,
           {
@@ -35,7 +36,7 @@ export function ConnectionHealthMonitor() {
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [showAlert, t, goToConnections]);
+  }, [client, showAlert, t, goToConnections]);
 
   return null;
 }

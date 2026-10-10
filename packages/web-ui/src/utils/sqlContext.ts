@@ -61,6 +61,14 @@ export interface SqlContextInfo {
    * Most relevant table name or alias referenced before the cursor in the
    * current statement scope: the table being joined in an ON clause, or the
    * primary FROM table in a WHERE / other clause.
+   *
+   * In a comma-separated FROM list (e.g. `SELECT * FROM orders o, customers c WHERE`),
+   * this resolves to the table alias/reference nearest the cursor — in the example above,
+   * `c`.
+   *
+   * When the cursor is inside a SELECT list and the FROM clause appears after the cursor
+   * (e.g. `SELECT <cursor>`), `lastTableRef` is `null` because no table context has been
+   * encountered yet.
    */
   lastTableRef?: string | null;
 }
@@ -389,9 +397,9 @@ const applyWord = (frame: Frame, upper: string, prev: WordToken | null): void =>
 const openFrameClause = (outer: Frame, prev: WordToken | null): SqlClause => {
   if (prev) {
     // `IN (` opens a value/subquery list.
-    if (prev.upper === 'IN') return 'in-list';
+    if (prev.isKeyword && prev.upper === 'IN') return 'in-list';
     // `AS (` opens a CTE (or derived) body: a fresh statement scope.
-    if (prev.upper === 'AS') return 'start';
+    if (prev.isKeyword && prev.upper === 'AS') return 'start';
     if (!prev.isKeyword) {
       // `INSERT INTO users (` opens the target column list.
       if (outer.clause === 'insert-into') return 'insert-columns';

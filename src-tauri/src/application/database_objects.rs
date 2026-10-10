@@ -11,6 +11,21 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub enum DatabaseObjectCommand {
+    GetTableQueryTemplate {
+        connection_id: String,
+        request: crate::models::TableQueryTemplateRequest,
+    },
+    GetDataTypes {
+        driver: String,
+    },
+    MapInferredColumnTypes {
+        driver: String,
+        kinds: Vec<String>,
+        connection_id: Option<String>,
+    },
+    ExecuteClipboardImport {
+        req: crate::clipboard_import::ClipboardImportRequest,
+    },
     GetViewDefinition {
         connection_id: String,
         view_name: String,
@@ -190,6 +205,23 @@ pub async fn execute(
     command: DatabaseObjectCommand,
 ) -> Result<Value, String> {
     match command {
+        DatabaseObjectCommand::GetTableQueryTemplate {
+            connection_id,
+            request,
+        } => json(get_table_query_template(runtime, session_id, &connection_id, request).await?),
+        DatabaseObjectCommand::GetDataTypes { driver } => {
+            json(crate::commands::get_data_types(driver).await?)
+        }
+        DatabaseObjectCommand::MapInferredColumnTypes {
+            driver,
+            kinds,
+            connection_id,
+        } => json(
+            map_inferred_column_types(runtime, session_id, driver, kinds, connection_id).await?,
+        ),
+        DatabaseObjectCommand::ExecuteClipboardImport { req } => {
+            json(crate::clipboard_import::import_with_runtime(runtime, session_id, req).await?)
+        }
         DatabaseObjectCommand::GetViewDefinition {
             connection_id,
             view_name,
@@ -1006,4 +1038,45 @@ pub async fn apply_db_user_privileges(
 
 fn json(value: impl Serialize) -> Result<Value, String> {
     serde_json::to_value(value).map_err(|error| error.to_string())
+}
+
+pub async fn get_table_query_template(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: &str,
+    request: crate::models::TableQueryTemplateRequest,
+) -> Result<Option<String>, String> {
+    let (driver, params) = connected_driver_and_params(runtime, session_id, connection_id).await?;
+    driver.get_table_query_template(&params, &request).await
+}
+
+pub async fn map_inferred_column_types(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    driver: String,
+    kinds: Vec<String>,
+    connection_id: Option<String>,
+) -> Result<Vec<String>, String> {
+    let drv = if let Some(id) = connection_id {
+        let saved_driver = super::connections::saved_connection_driver(runtime, &id)?;
+        if saved_driver != driver {
+            return Err("Connection driver does not match the requested driver".into());
+        }
+        let drv = driver_for(&driver).await?;
+        if drv.has_connection_metadata() {
+            connected_driver_and_params(runtime, session_id, &id)
+                .await?
+                .0
+        } else {
+            drv
+        }
+    } else {
+        crate::drivers::registry::get_driver(&driver)
+            .await
+            .ok_or_else(|| format!("Unsupported driver: {driver}"))?
+    };
+    Ok(kinds
+        .iter()
+        .map(|kind| drv.map_inferred_type(kind))
+        .collect())
 }

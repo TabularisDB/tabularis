@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Home, RotateCcw, XCircle } from "lucide-react";
 import type { TFunction } from "i18next";
 import { useEditor } from "../../hooks/useEditor";
+import { ROOT_COMMAND_SCOPE_ID } from "../../utils/commandScopeStore";
+import { CommandPaletteScopeBridge } from "../layout/CommandPaletteScopeBridge";
 
 interface InnerProps {
   t: TFunction;
@@ -55,72 +57,75 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
     const details = [error.stack, componentStack].filter(Boolean).join("\n\n");
 
     return (
-      <div
-        role="alert"
-        className="flex h-full w-full items-center justify-center bg-base p-8 overflow-auto"
-      >
-        <div className="w-full max-w-xl bg-elevated border border-strong rounded-xl shadow-lg p-6">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-accent-error/15 rounded-lg shrink-0">
-              <AlertTriangle size={24} className="text-accent-error" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-semibold text-primary">
-                {t("editor.errorBoundary.title")}
-              </h2>
-              <p className="mt-1 text-sm text-secondary">
-                {t("editor.errorBoundary.description")}
-              </p>
-
-              <div className="mt-3 rounded-md border border-accent-error/20 bg-accent-error/5 px-3 py-2">
-                <p className="text-sm font-mono text-accent-error break-words whitespace-pre-wrap">
-                  {error.message || error.name}
-                </p>
+      <>
+        <CommandPaletteScopeBridge scopeId={ROOT_COMMAND_SCOPE_ID} />
+        <div
+          role="alert"
+          className="flex h-full w-full items-center justify-center bg-base p-8 overflow-auto"
+        >
+          <div className="w-full max-w-xl bg-elevated border border-strong rounded-xl shadow-lg p-6">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-accent-error/15 rounded-lg shrink-0">
+                <AlertTriangle size={24} className="text-accent-error" />
               </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-semibold text-primary">
+                  {t("editor.errorBoundary.title")}
+                </h2>
+                <p className="mt-1 text-sm text-secondary">
+                  {t("editor.errorBoundary.description")}
+                </p>
 
-              {details && (
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-xs text-secondary hover:text-primary select-none">
-                    {t("editor.errorBoundary.showDetails")}
-                  </summary>
-                  <pre className="mt-2 max-h-64 overflow-auto rounded bg-base/60 p-2 text-[11px] text-secondary whitespace-pre-wrap">
-                    {details}
-                  </pre>
-                </details>
-              )}
+                <div className="mt-3 rounded-md border border-accent-error/20 bg-accent-error/5 px-3 py-2">
+                  <p className="text-sm font-mono text-accent-error break-words whitespace-pre-wrap">
+                    {error.message || error.name}
+                  </p>
+                </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={this.reset}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-md text-sm font-medium transition-colors"
-                >
-                  <RotateCcw size={14} />
-                  {t("editor.errorBoundary.retry")}
-                </button>
-                {onCloseActiveTab && (
+                {details && (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-xs text-secondary hover:text-primary select-none">
+                      {t("editor.errorBoundary.showDetails")}
+                    </summary>
+                    <pre className="mt-2 max-h-64 overflow-auto rounded bg-base/60 p-2 text-[11px] text-secondary whitespace-pre-wrap">
+                      {details}
+                    </pre>
+                  </details>
+                )}
+
+                <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={this.closeActiveTabAndReset}
+                    onClick={this.reset}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-md text-sm font-medium transition-colors"
+                  >
+                    <RotateCcw size={14} />
+                    {t("editor.errorBoundary.retry")}
+                  </button>
+                  {onCloseActiveTab && (
+                    <button
+                      type="button"
+                      onClick={this.closeActiveTabAndReset}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-base hover:bg-elevated border border-default text-primary rounded-md text-sm font-medium transition-colors"
+                    >
+                      <XCircle size={14} />
+                      {t("editor.errorBoundary.closeCurrentTab")}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={onBackToConnections}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-base hover:bg-elevated border border-default text-primary rounded-md text-sm font-medium transition-colors"
                   >
-                    <XCircle size={14} />
-                    {t("editor.errorBoundary.closeCurrentTab")}
+                    <Home size={14} />
+                    {t("editor.errorBoundary.backToConnections")}
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={onBackToConnections}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-base hover:bg-elevated border border-default text-primary rounded-md text-sm font-medium transition-colors"
-                >
-                  <Home size={14} />
-                  {t("editor.errorBoundary.backToConnections")}
-                </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 }

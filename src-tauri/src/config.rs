@@ -14,6 +14,20 @@ pub struct PluginConfig {
     pub interpreter: Option<String>,
     #[serde(default)]
     pub settings: HashMap<String, serde_json::Value>,
+    /// Per-plugin override of `AppConfig::plugin_call_timeout_seconds`.
+    /// `None` inherits the global value; `0` disables the timeout.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub call_timeout_seconds: Option<u32>,
+}
+
+/// Per-connection column masking overrides (`table.column` entries).
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ColumnMaskingOverride {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub include: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exclude: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -47,6 +61,15 @@ pub struct AppConfig {
     /// "string", "date", "boolean". Missing keys fall back to the active theme's
     /// semantic colors.
     pub result_type_colors: Option<HashMap<String, String>>,
+    /// Keep data grid column headers pinned while scrolling. Default: true.
+    pub sticky_column_headers: Option<bool>,
+    /// Alternate the background of data grid rows. Default: false.
+    pub result_zebra_stripes: Option<bool>,
+    /// Keep the row editor sidebar in sync with the selected grid row. Default: true.
+    pub row_editor_follow_selection: Option<bool>,
+    /// What double-clicking a grid cell does: `"inline"` (default), `"sidebar"`
+    /// or `"both"`.
+    pub cell_double_click_action: Option<String>,
     pub ai_enabled: Option<bool>,
     pub ai_provider: Option<String>,
     pub ai_model: Option<String>,
@@ -83,6 +106,9 @@ pub struct AppConfig {
     /// Update channel: "stable" (default) or "nightly". None ⇒ stable.
     pub release_channel: Option<String>,
     pub plugins: Option<HashMap<String, PluginConfig>>,
+    /// Maximum seconds the host waits for a plugin to answer a single call.
+    /// `0` disables the timeout. Default: 120. Overridable per plugin.
+    pub plugin_call_timeout_seconds: Option<u32>,
     pub editor_theme: Option<String>,
     /// Font for query result cells ("inherit" follows the interface font). Default: JetBrains Mono.
     pub result_font_family: Option<String>,
@@ -100,6 +126,10 @@ pub struct AppConfig {
     pub run_statement_under_cursor: Option<bool>,
     /// Delay destructive-query and production-write confirmations for five seconds. Default: false.
     pub safety_confirmation_delay_enabled: Option<bool>,
+    /// Send a desktop notification when a long-running query finishes while the window is unfocused. Default: true.
+    pub notify_long_queries: Option<bool>,
+    /// Minimum execution time in seconds before a finished query triggers a notification. Default: 20.
+    pub notify_long_queries_threshold_sec: Option<u32>,
     // ----- SQL Formatter -----
     pub formatter_keyword_case: Option<String>,
     pub formatter_indent_style: Option<String>,
@@ -178,6 +208,14 @@ pub struct AppConfig {
     /// WebDAV username; the password lives in the OS keychain.
     pub backup_webdav_username: Option<String>,
 
+    // ----- Privacy -----
+    /// Mask values of sensitive columns in the results grid (display only). Default: true.
+    pub column_masking_enabled: Option<bool>,
+    /// Column-name patterns (case-insensitive substring) that trigger masking.
+    pub column_masking_patterns: Option<Vec<String>>,
+    /// Per-connection `table.column` include/exclude overrides, keyed by connection id.
+    pub column_masking_overrides: Option<HashMap<String, ColumnMaskingOverride>>,
+
     // ----- Session restore -----
     /// Reconnect to the last active connection on startup. Default: true.
     pub auto_connect_last_connection: Option<bool>,
@@ -221,8 +259,7 @@ pub struct AppConfig {
     pub proxy: Option<crate::proxy::GlobalProxySettings>,
     /// Per AI-provider proxy overrides (`openai`, `anthropic`, …).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ai_provider_proxies:
-        Option<HashMap<String, crate::proxy::ProxyOverride>>,
+    pub ai_provider_proxies: Option<HashMap<String, crate::proxy::ProxyOverride>>,
 }
 
 /// One entry in the append-only driver-migration history.
@@ -260,6 +297,7 @@ pub fn get_config_dir<R: tauri::Runtime>(_app: &AppHandle<R>) -> Option<PathBuf>
 }
 
 pub(crate) fn cache_config(config: &AppConfig) {
+    crate::plugins::call_timeout::apply_config(config);
     if let Ok(mut cached) = CONFIG_CACHE.write() {
         *cached = config.clone();
     }
@@ -291,13 +329,29 @@ pub const DEFAULT_MCP_APPROVAL_NOTIFY_SOUND: bool = true;
 /// unreadable.
 pub fn load_config_from_disk() -> AppConfig {
     let path = crate::paths::get_app_config_dir().join("config.json");
-    if !path.exists() {
-        return AppConfig::default();
+    let (config, trusted) = parse_config_file(fs::read_to_string(&path));
+    // The MCP subprocess never goes through `cache_config`; keep its plugin
+    // call timeouts in sync with what is on disk. A transient read or parse
+    // failure must not reset them to the defaults, so the last-known-good
+    // snapshot is kept in that case.
+    if trusted {
+        crate::plugins::call_timeout::apply_config(&config);
     }
-    fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str::<AppConfig>(&s).ok())
-        .unwrap_or_default()
+    config
+}
+
+/// Turns the result of reading `config.json` into a config plus whether it
+/// reflects what the user actually configured. A missing file is trusted
+/// (the defaults are the real config), a read or parse error is not.
+fn parse_config_file(read: std::io::Result<String>) -> (AppConfig, bool) {
+    match read {
+        Ok(content) => match serde_json::from_str::<AppConfig>(&content) {
+            Ok(config) => (config, true),
+            Err(_) => (AppConfig::default(), false),
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => (AppConfig::default(), true),
+        Err(_) => (AppConfig::default(), false),
+    }
 }
 
 /// True when `connection_id` should be treated as read-only by MCP, taking
@@ -814,6 +868,8 @@ mod tests {
     fn editor_fields_default_to_none() {
         let config = AppConfig::default();
         assert!(config.safety_confirmation_delay_enabled.is_none());
+        assert!(config.notify_long_queries.is_none());
+        assert!(config.notify_long_queries_threshold_sec.is_none());
         assert!(config.editor_theme.is_none());
         assert!(config.result_font_family.is_none());
         assert!(config.editor_font_family.is_none());
@@ -838,6 +894,8 @@ mod tests {
         config.editor_theme = Some("tabularis-light".to_string());
         config.editor_accept_suggestion_on_enter = Some(true);
         config.safety_confirmation_delay_enabled = Some(true);
+        config.notify_long_queries = Some(true);
+        config.notify_long_queries_threshold_sec = Some(20);
 
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("editorFontFamily"));
@@ -850,11 +908,15 @@ mod tests {
         assert!(json.contains("editorTheme"));
         assert!(json.contains("editorAcceptSuggestionOnEnter"));
         assert!(json.contains("safetyConfirmationDelayEnabled"));
+        assert!(json.contains("notifyLongQueries"));
+        assert!(json.contains("notifyLongQueriesThresholdSec"));
         // snake_case must not appear
         assert!(!json.contains("editor_font_family"));
         assert!(!json.contains("result_font_family"));
         assert!(!json.contains("editor_accept_suggestion_on_enter"));
         assert!(!json.contains("safety_confirmation_delay_enabled"));
+        assert!(!json.contains("notify_long_queries"));
+        assert!(!json.contains("notify_long_queries_threshold_sec"));
     }
 
     #[test]
@@ -869,7 +931,9 @@ mod tests {
             "editorShowLineNumbers": true,
             "editorTheme": "tabularis-dark",
             "editorAcceptSuggestionOnEnter": true,
-            "safetyConfirmationDelayEnabled": true
+            "safetyConfirmationDelayEnabled": true,
+            "notifyLongQueries": true,
+            "notifyLongQueriesThresholdSec": 30
         }"#;
 
         let config: AppConfig = serde_json::from_str(json).unwrap();
@@ -882,6 +946,8 @@ mod tests {
         assert_eq!(config.editor_theme.as_deref(), Some("tabularis-dark"));
         assert_eq!(config.editor_accept_suggestion_on_enter, Some(true));
         assert_eq!(config.safety_confirmation_delay_enabled, Some(true));
+        assert_eq!(config.notify_long_queries, Some(true));
+        assert_eq!(config.notify_long_queries_threshold_sec, Some(30));
     }
 
     #[test]
@@ -1010,5 +1076,102 @@ mod tests {
         // we just confirm the call returns a valid AppConfig (Default fallback
         // path is exercised indirectly via parse failures + missing file).
         let _ = load_config_from_disk();
+    }
+
+    #[test]
+    fn parse_config_file_trusts_valid_content() {
+        let (config, trusted) =
+            parse_config_file(Ok(r#"{"pluginCallTimeoutSeconds":0}"#.to_string()));
+        assert!(trusted);
+        assert_eq!(config.plugin_call_timeout_seconds, Some(0));
+    }
+
+    #[test]
+    fn parse_config_file_trusts_missing_file() {
+        let missing = std::io::Error::from(std::io::ErrorKind::NotFound);
+        let (config, trusted) = parse_config_file(Err(missing));
+        assert!(trusted);
+        assert_eq!(config.plugin_call_timeout_seconds, None);
+    }
+
+    #[test]
+    fn parse_config_file_distrusts_read_errors() {
+        let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        let (_, trusted) = parse_config_file(Err(denied));
+        assert!(!trusted);
+    }
+
+    #[test]
+    fn parse_config_file_distrusts_malformed_content() {
+        let (_, trusted) = parse_config_file(Ok("{ truncated".to_string()));
+        assert!(!trusted);
+    }
+
+    #[test]
+    fn grid_and_privacy_settings_round_trip_through_config_file() {
+        // Payload shape sent by the frontend's `save_config` call.
+        let json = r#"{
+            "rowEditorFollowSelection": false,
+            "cellDoubleClickAction": "sidebar",
+            "columnMaskingEnabled": false,
+            "columnMaskingPatterns": ["password", "ssn"],
+            "columnMaskingOverrides": {
+                "conn-1": { "include": ["users.email"], "exclude": ["users.token"] },
+                "conn-2": { "exclude": ["orders.card"] }
+            }
+        }"#;
+        let config: AppConfig = serde_json::from_str(json).unwrap();
+
+        // Same path as save_config (write) followed by load_config (read).
+        let saved = serde_json::to_string_pretty(&config).unwrap();
+        let reloaded = parse_config_file(Ok(saved.clone())).0;
+
+        assert_eq!(reloaded.row_editor_follow_selection, Some(false));
+        assert_eq!(
+            reloaded.cell_double_click_action.as_deref(),
+            Some("sidebar")
+        );
+        assert_eq!(reloaded.column_masking_enabled, Some(false));
+        assert_eq!(
+            reloaded.column_masking_patterns,
+            Some(vec!["password".to_string(), "ssn".to_string()])
+        );
+        let overrides = reloaded.column_masking_overrides.unwrap();
+        assert_eq!(
+            overrides.get("conn-1"),
+            Some(&ColumnMaskingOverride {
+                include: Some(vec!["users.email".to_string()]),
+                exclude: Some(vec!["users.token".to_string()]),
+            })
+        );
+        assert_eq!(
+            overrides.get("conn-2"),
+            Some(&ColumnMaskingOverride {
+                include: None,
+                exclude: Some(vec!["orders.card".to_string()]),
+            })
+        );
+
+        // Keys are written in camelCase, matching `SettingsContext.ts`.
+        for key in [
+            "rowEditorFollowSelection",
+            "cellDoubleClickAction",
+            "columnMaskingEnabled",
+            "columnMaskingPatterns",
+            "columnMaskingOverrides",
+        ] {
+            assert!(saved.contains(key), "missing {key} in saved config");
+        }
+    }
+
+    #[test]
+    fn grid_and_privacy_settings_default_to_none_for_existing_configs() {
+        let (config, trusted) = parse_config_file(Ok(r#"{"theme":"dracula"}"#.to_string()));
+        assert!(trusted);
+        assert!(config.row_editor_follow_selection.is_none());
+        assert!(config.cell_double_click_action.is_none());
+        assert!(config.column_masking_enabled.is_none());
+        assert!(config.column_masking_patterns.is_none());
+        assert!(config.column_masking_overrides.is_none());
     }
 }

@@ -11,9 +11,9 @@ use crate::credential_cache;
 use crate::keychain_utils;
 use crate::models::{
     BatchStatementResult, ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile,
-    ExplainQueryOutput, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput, QueryResult,
-    RoutineInfo, RoutineParameter, SavedConnection, SshConnection, SshConnectionInput, SshTestParams,
-    TableColumn, TableInfo, TestConnectionRequest, TriggerInfo,
+    ExplainQueryOutput, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput,
+    QueryResult, RoutineInfo, RoutineParameter, SavedConnection, SshConnection, SshConnectionInput,
+    SshTestParams, TableColumn, TableInfo, TestConnectionRequest, TriggerInfo,
 };
 use crate::persistence;
 
@@ -31,22 +31,6 @@ async fn driver_for_params(
     params: &ConnectionParams,
 ) -> Result<Arc<dyn crate::drivers::driver_trait::DatabaseDriver>, String> {
     crate::drivers::registry::get_connection_driver(params).await
-}
-
-/// Pure SQL builders still need no credentials for static drivers. Only
-/// discovery-enabled plugins resolve credentials and tunnels here.
-async fn driver_for_saved<R: Runtime>(
-    app: &AppHandle<R>,
-    saved: &SavedConnection,
-) -> Result<Arc<dyn crate::drivers::driver_trait::DatabaseDriver>, String> {
-    let driver = driver_for(&saved.params.driver).await?;
-    if !driver.has_connection_metadata() {
-        return Ok(driver);
-    }
-    let expanded = expand_ssh_connection_params(app, &saved.params).await?;
-    let expanded = expand_k8s_connection_params(app, &expanded).await?;
-    let params = resolve_connection_params_with_id(&expanded, &saved.id)?;
-    driver_for_params(&params).await
 }
 
 #[tauri::command]
@@ -375,8 +359,7 @@ pub fn find_connection_by_id<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
 ) -> Result<SavedConnection, String> {
-    let conn_cache =
-        app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>();
+    let conn_cache = app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>();
 
     let mut conn = match conn_cache.lookup(id) {
         crate::connection_cache::CacheLookup::Hit(c) => c,
@@ -402,9 +385,7 @@ pub fn find_connection_by_id<R: Runtime>(
     // cold miss = keychain call + cache). Skip IAM-auth connections: their
     // 15-min tokens must come from the `password` field, never the keychain,
     // so a stale token from an older release can't be surfaced in the modal.
-    if conn.params.save_in_keychain.unwrap_or(false)
-        && !conn.params.use_iam_auth.unwrap_or(false)
-    {
+    if conn.params.save_in_keychain.unwrap_or(false) && !conn.params.use_iam_auth.unwrap_or(false) {
         match credential_cache::get_db_password_cached(&cache, &conn.id) {
             Ok(pwd) => conn.params.password = Some(pwd),
             Err(e) => eprintln!(
@@ -528,37 +509,16 @@ pub async fn get_available_databases<R: Runtime>(
 pub async fn set_selected_databases<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
-    mut databases: Vec<String>,
+    databases: Vec<String>,
 ) -> Result<(), String> {
-    if databases.is_empty() {
-        return Err("Database selection cannot be empty".to_string());
-    }
-    if databases.iter().any(|db| db.trim().is_empty()) {
-        return Err("Database names cannot be empty".to_string());
-    }
-
-    log::info!(
-        "Persisting database selection for connection {}: {} database(s)",
-        connection_id,
-        databases.len()
-    );
-
-    let path = get_config_path(&app)?;
-    let mut conn_file = persistence::load_connections_file(&path)?;
-
-    let conn = conn_file
-        .connections
-        .iter_mut()
-        .find(|c| c.id == connection_id)
-        .ok_or("Connection not found")?;
-
-    conn.params.database = if databases.len() == 1 {
-        crate::models::DatabaseSelection::Single(databases.remove(0))
-    } else {
-        crate::models::DatabaseSelection::Multiple(databases)
-    };
-
-    save_connections_and_invalidate(&app, &path, &conn_file)
+    crate::application::connections::set_selected_databases(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        databases,
+    )?;
+    app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>()
+        .invalidate();
+    Ok(())
 }
 
 #[tauri::command]
@@ -608,6 +568,22 @@ pub async fn get_routine_definition<R: Runtime>(
         routine_name,
         routine_type,
         schema,
+    )
+    .await
+}
+
+/// Preview generation only; the returned SQL is never executed here.
+#[tauri::command]
+pub async fn get_table_query_template<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    request: crate::models::TableQueryTemplateRequest,
+) -> Result<Option<String>, String> {
+    crate::application::database_objects::get_table_query_template(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        request,
     )
     .await
 }
@@ -854,7 +830,11 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
 
     // Clean up query history for this connection
     if let Err(e) = crate::query_history::remove_history_for_connection(&app, &id).await {
-        log::warn!("Failed to remove query history for connection {}: {}", id, e);
+        log::warn!(
+            "Failed to remove query history for connection {}: {}",
+            id,
+            e
+        );
     }
 
     if deleted {
@@ -1002,27 +982,17 @@ pub async fn update_connection<R: Runtime>(
 
     // On single→multi transition, associate existing favorites/history (with no
     // database set) to the original single database name.
-    if let Some(previous_db) = crate::models::single_db_before_multi_transition(
-        &original_db_selection,
-        &params.database,
-    ) {
-        if let Err(e) = crate::saved_queries::backfill_missing_database_for_connection(
-            &app,
-            &id,
-            &previous_db,
-        ) {
-            log::warn!(
-                "Failed to backfill saved query database for {}: {}",
-                id,
-                e
-            );
+    if let Some(previous_db) =
+        crate::models::single_db_before_multi_transition(&original_db_selection, &params.database)
+    {
+        if let Err(e) =
+            crate::saved_queries::backfill_missing_database_for_connection(&app, &id, &previous_db)
+        {
+            log::warn!("Failed to backfill saved query database for {}: {}", id, e);
         }
-        if let Err(e) = crate::query_history::backfill_missing_database_for_connection(
-            &app,
-            &id,
-            &previous_db,
-        )
-        .await
+        if let Err(e) =
+            crate::query_history::backfill_missing_database_for_connection(&app, &id, &previous_db)
+                .await
         {
             log::warn!(
                 "Failed to backfill query history database for {}: {}",
@@ -1147,7 +1117,9 @@ pub async fn duplicate_connection<R: Runtime>(
         if let Some(ref mut a) = app_earance {
             if let Some(crate::models::IconOverride::Image { ref path }) = a.icon.clone() {
                 let app_data = crate::paths::get_app_data_dir();
-                match crate::connection_appearance::copy_icon_for_duplicate(&app_data, path, &new_id) {
+                match crate::connection_appearance::copy_icon_for_duplicate(
+                    &app_data, path, &new_id,
+                ) {
                     Ok(new_path) => {
                         a.icon = Some(crate::models::IconOverride::Image { path: new_path });
                     }
@@ -1434,9 +1406,7 @@ pub async fn test_ssh_connection<R: Runtime>(
 pub async fn get_k8s_connections<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<Vec<K8sConnection>, String> {
-    crate::application::tunnels::get_k8s_connections(
-        &app.state::<crate::runtime::RuntimeContext>(),
-    )
+    crate::application::tunnels::get_k8s_connections(&app.state::<crate::runtime::RuntimeContext>())
 }
 
 #[tauri::command]
@@ -1828,7 +1798,10 @@ mod tests {
 
         let resolved = resolve_connection_params(&params);
         crate::drivers::registry::set_local_path_driver(driver, false);
-        assert_eq!(resolved.expect("resolve").database.primary(), "/tmp/my data.db");
+        assert_eq!(
+            resolved.expect("resolve").database.primary(),
+            "/tmp/my data.db"
+        );
     }
 
     #[test]
@@ -1976,7 +1949,9 @@ mod tests {
             detect_json_in_text_columns: None,
             appearance: Some(ConnectionAppearance {
                 accent_color: Some("#ff0000".to_string()),
-                icon: Some(IconOverride::Emoji { value: "🐘".to_string() }),
+                icon: Some(IconOverride::Emoji {
+                    value: "🐘".to_string(),
+                }),
             }),
             tag_ids: None,
             environment: None,
@@ -1997,13 +1972,19 @@ mod tests {
             environment: None,
         };
 
-        let app = updated.appearance.as_ref().expect("appearance must be preserved");
+        let app = updated
+            .appearance
+            .as_ref()
+            .expect("appearance must be preserved");
         assert_eq!(app.accent_color.as_deref(), Some("#ff0000"));
         assert!(matches!(&app.icon, Some(IconOverride::Emoji { value }) if value == "🐘"));
     }
 
     /// Helper: build a minimal ConnectionsFile with one connection.
-    fn one_conn_file(id: &str, appearance: Option<crate::models::ConnectionAppearance>) -> ConnectionsFile {
+    fn one_conn_file(
+        id: &str,
+        appearance: Option<crate::models::ConnectionAppearance>,
+    ) -> ConnectionsFile {
         let conn = SavedConnection {
             id: id.to_string(),
             name: "Test".to_string(),
@@ -2029,12 +2010,17 @@ mod tests {
         let mut file = one_conn_file("conn-1", None);
         let new_appearance = ConnectionAppearance {
             accent_color: Some("#00ff00".to_string()),
-            icon: Some(IconOverride::Emoji { value: "🦀".to_string() }),
+            icon: Some(IconOverride::Emoji {
+                value: "🦀".to_string(),
+            }),
         };
 
         set_appearance_impl(&mut file, "conn-1", Some(new_appearance)).unwrap();
 
-        let app = file.connections[0].appearance.as_ref().expect("appearance must be set");
+        let app = file.connections[0]
+            .appearance
+            .as_ref()
+            .expect("appearance must be set");
         assert_eq!(app.accent_color.as_deref(), Some("#00ff00"));
         assert!(matches!(&app.icon, Some(IconOverride::Emoji { value }) if value == "🦀"));
     }
@@ -2045,7 +2031,9 @@ mod tests {
 
         let existing_appearance = ConnectionAppearance {
             accent_color: Some("#ff0000".to_string()),
-            icon: Some(IconOverride::Pack { id: "server".to_string() }),
+            icon: Some(IconOverride::Pack {
+                id: "server".to_string(),
+            }),
         };
         let mut file = one_conn_file("conn-2", Some(existing_appearance));
 
@@ -2338,10 +2326,7 @@ mod tests {
     mod apply_inline_ssh_secret_fallback_tests {
         use super::*;
 
-        fn params_with_ssh(
-            password: Option<&str>,
-            passphrase: Option<&str>,
-        ) -> ConnectionParams {
+        fn params_with_ssh(password: Option<&str>, passphrase: Option<&str>) -> ConnectionParams {
             ConnectionParams {
                 ssh_password: password.map(|p| p.to_string()),
                 ssh_key_passphrase: passphrase.map(|p| p.to_string()),
@@ -2352,8 +2337,7 @@ mod tests {
         #[test]
         fn fills_both_secrets_from_saved_params() {
             let params = params_with_ssh(Some("pwd"), Some("phrase"));
-            let (password, passphrase) =
-                apply_inline_ssh_secret_fallback(None, None, &params);
+            let (password, passphrase) = apply_inline_ssh_secret_fallback(None, None, &params);
             assert_eq!(password, Some("pwd".to_string()));
             assert_eq!(passphrase, Some("phrase".to_string()));
         }
@@ -2373,8 +2357,7 @@ mod tests {
         #[test]
         fn blank_saved_secrets_are_ignored() {
             let params = params_with_ssh(Some("   "), Some(""));
-            let (password, passphrase) =
-                apply_inline_ssh_secret_fallback(None, None, &params);
+            let (password, passphrase) = apply_inline_ssh_secret_fallback(None, None, &params);
             assert_eq!(password, None);
             assert_eq!(passphrase, None);
         }
@@ -2382,11 +2365,8 @@ mod tests {
         #[test]
         fn fills_only_missing_secret() {
             let params = params_with_ssh(Some("saved_pwd"), Some("saved_phrase"));
-            let (password, passphrase) = apply_inline_ssh_secret_fallback(
-                Some("request_pwd".to_string()),
-                None,
-                &params,
-            );
+            let (password, passphrase) =
+                apply_inline_ssh_secret_fallback(Some("request_pwd".to_string()), None, &params);
             assert_eq!(password, Some("request_pwd".to_string()));
             assert_eq!(passphrase, Some("saved_phrase".to_string()));
         }
@@ -2752,7 +2732,9 @@ mod tests {
 
             {
                 let remaining = state.handles.lock().unwrap();
-                let slot = remaining.get("conn-1").expect("slot kept while B in flight");
+                let slot = remaining
+                    .get("conn-1")
+                    .expect("slot kept while B in flight");
                 assert_eq!(slot.len(), 1);
                 assert!(Arc::ptr_eq(&slot[0], &handle_b));
             }
@@ -2928,7 +2910,10 @@ mod tests {
             group("drop", Some("root")),
         ];
         let subtree = crate::models::collect_group_subtree(&groups, "drop");
-        assert_eq!(subtree, std::collections::HashSet::from(["drop".to_string()]));
+        assert_eq!(
+            subtree,
+            std::collections::HashSet::from(["drop".to_string()])
+        );
         assert!(!subtree.contains("root"));
         assert!(!subtree.contains("keep"));
     }
@@ -2937,7 +2922,10 @@ mod tests {
     fn collect_group_subtree_for_unknown_id_is_singleton() {
         let groups = vec![group("a", None)];
         let subtree = crate::models::collect_group_subtree(&groups, "missing");
-        assert_eq!(subtree, std::collections::HashSet::from(["missing".to_string()]));
+        assert_eq!(
+            subtree,
+            std::collections::HashSet::from(["missing".to_string()])
+        );
     }
 
     #[test]
@@ -3423,12 +3411,7 @@ pub(crate) fn cancel_query_impl(
     state: &QueryCancellationState,
     connection_id: &str,
 ) -> Result<(), String> {
-    crate::application::queries::cancel_registered_queries(
-        state,
-        None,
-        connection_id,
-        None,
-    )
+    crate::application::queries::cancel_registered_queries(state, None, connection_id, None)
 }
 
 #[tauri::command]
@@ -3448,6 +3431,7 @@ pub async fn execute_query<R: Runtime>(
     limit: Option<u32>,
     page: Option<u32>,
     schema: Option<String>,
+    session_id: Option<String>,
 ) -> Result<QueryResult, String> {
     crate::application::queries::execute_query(
         &app.state::<crate::runtime::RuntimeContext>(),
@@ -3459,6 +3443,35 @@ pub async fn execute_query<R: Runtime>(
         limit,
         page,
         schema,
+        session_id,
+    )
+    .await
+}
+
+pub(crate) async fn release_connection_sessions<R: Runtime>(
+    app: &AppHandle<R>,
+    connection_id: &str,
+    _params: Option<&ConnectionParams>,
+) {
+    crate::application::query_sessions::release_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        connection_id,
+    )
+    .await;
+}
+
+#[tauri::command]
+pub async fn release_query_session<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    session_id: String,
+) -> Result<(), String> {
+    crate::application::query_sessions::release(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        &session_id,
     )
     .await
 }
@@ -3485,6 +3498,7 @@ pub async fn execute_query_batch<R: Runtime>(
     page: Option<u32>,
     schema: Option<String>,
     batch_id: Option<String>,
+    session_id: Option<String>,
 ) -> Result<Vec<BatchStatementResult>, String> {
     crate::application::queries::execute_query_batch(
         &app.state::<crate::runtime::RuntimeContext>(),
@@ -3496,6 +3510,7 @@ pub async fn execute_query_batch<R: Runtime>(
         limit,
         page,
         schema,
+        session_id,
         batch_id,
     )
     .await
@@ -3524,6 +3539,38 @@ pub async fn explain_query_plan<R: Runtime>(
     .await
 }
 
+/// Run a read on the connection pinned to `session_id`, inside its open
+/// transaction, so it sees the tab's uncommitted changes. A savepoint keeps a
+/// failing read from aborting the user's transaction.
+pub(crate) async fn read_in_open_transaction(
+    drv: &dyn crate::drivers::driver_trait::DatabaseDriver,
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+    session_id: &str,
+) -> Result<QueryResult, String> {
+    let batch = [
+        "SAVEPOINT tabularis_read".to_string(),
+        query.to_string(),
+        "ROLLBACK TO SAVEPOINT tabularis_read".to_string(),
+        "RELEASE SAVEPOINT tabularis_read".to_string(),
+    ];
+    let (results, _) = drv
+        .execute_batch_in_session(params, &batch, limit, page, schema, Some(session_id), None)
+        .await?;
+    // With no transaction open (a stale badge) only the savepoint lines fail; the read still runs.
+    match results.into_iter().nth(1) {
+        Some(BatchStatementResult {
+            result: Some(result),
+            ..
+        }) => Ok(result),
+        Some(BatchStatementResult { error: Some(e), .. }) => Err(e),
+        _ => Err("The statement produced no result".to_string()),
+    }
+}
+
 // --- Count Query ---
 
 #[tauri::command]
@@ -3532,6 +3579,7 @@ pub async fn count_query<R: Runtime>(
     connection_id: String,
     query: String,
     schema: Option<String>,
+    session_id: Option<String>,
 ) -> Result<u64, String> {
     crate::application::queries::count_query(
         &app.state::<crate::runtime::RuntimeContext>(),
@@ -3539,6 +3587,7 @@ pub async fn count_query<R: Runtime>(
         connection_id,
         query,
         schema,
+        session_id,
     )
     .await
 }
@@ -4241,16 +4290,14 @@ pub async fn map_inferred_column_types<R: Runtime>(
     kinds: Vec<String>,
     connection_id: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let drv = if let Some(id) = connection_id {
-        let saved = find_connection_by_id(&app, &id)?;
-        if saved.params.driver != driver {
-            return Err("Connection driver does not match the requested driver".into());
-        }
-        driver_for_saved(&app, &saved).await?
-    } else {
-        driver_for(&driver).await?
-    };
-    Ok(kinds.iter().map(|k| drv.map_inferred_type(k)).collect())
+    crate::application::database_objects::map_inferred_column_types(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        driver,
+        kinds,
+        connection_id,
+    )
+    .await
 }
 
 // --- DDL generation commands ---
@@ -4405,12 +4452,8 @@ pub async fn get_registered_drivers() -> Vec<crate::drivers::driver_trait::Plugi
 }
 
 #[tauri::command]
-pub async fn get_keybindings<R: Runtime>(
-    app: AppHandle<R>,
-) -> Result<serde_json::Value, String> {
-    crate::application::persistence::get_keybindings(
-        &app.state::<crate::runtime::RuntimeContext>(),
-    )
+pub async fn get_keybindings<R: Runtime>(app: AppHandle<R>) -> Result<serde_json::Value, String> {
+    crate::application::persistence::get_keybindings(&app.state::<crate::runtime::RuntimeContext>())
 }
 
 #[tauri::command]
@@ -4687,7 +4730,10 @@ pub(crate) fn reject_if_would_create_cycle(
             None => return Ok(()),
         }
     }
-    Err("Connection-group tree is deeper than the number of groups; refusing to modify it".to_string())
+    Err(
+        "Connection-group tree is deeper than the number of groups; refusing to modify it"
+            .to_string(),
+    )
 }
 
 #[tauri::command]
@@ -4711,8 +4757,11 @@ pub async fn delete_connection_group<R: Runtime>(
     let to_delete = crate::models::collect_group_subtree(&file.groups, &id);
 
     file.groups.retain(|g| !to_delete.contains(&g.id));
-    file.connections
-        .retain(|c| !c.group_id.as_ref().is_some_and(|gid| to_delete.contains(gid)));
+    file.connections.retain(|c| {
+        !c.group_id
+            .as_ref()
+            .is_some_and(|gid| to_delete.contains(gid))
+    });
 
     save_connections_and_invalidate(&app, &path, &file)?;
 

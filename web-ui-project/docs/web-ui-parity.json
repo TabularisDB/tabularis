@@ -53,14 +53,14 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 22,
-    "literalCallSiteCount": 27,
+    "literalCommandCount": 16,
+    "literalCallSiteCount": 18,
     "dynamicCallSiteCount": 0,
-    "handlerRegistrationCount": 292,
-    "registeredCommandCount": 292,
+    "handlerRegistrationCount": 294,
+    "registeredCommandCount": 294,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 270
+    "registeredCommandsWithoutFrontendCall": 278
   },
   "commands": [
     {
@@ -87,7 +87,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useDeepLinkInstall.ts",
-          "line": 68
+          "line": 72
         }
       ]
     },
@@ -102,20 +102,6 @@
         {
           "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
           "line": 101
-        }
-      ]
-    },
-    {
-      "name": "execute_clipboard_import",
-      "featureGroup": "data",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
-          "line": 308
         }
       ]
     },
@@ -148,20 +134,6 @@
       ]
     },
     {
-      "name": "get_data_types",
-      "featureGroup": "drivers",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useDataTypes.ts",
-          "line": 25
-        }
-      ]
-    },
-    {
       "name": "get_linux_system_theme",
       "featureGroup": "themes",
       "eventUse": "none",
@@ -185,21 +157,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
-          "line": 93
-        }
-      ]
-    },
-    {
-      "name": "list_databases",
-      "featureGroup": "metadata",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 1751
+          "line": 95
         }
       ]
     },
@@ -227,39 +185,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
-          "line": 60
-        }
-      ]
-    },
-    {
-      "name": "log_frontend_event",
-      "featureGroup": "logs",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 267
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 808
-        }
-      ]
-    },
-    {
-      "name": "map_inferred_column_types",
-      "featureGroup": "drivers",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
-          "line": 92
+          "line": 61
         }
       ]
     },
@@ -287,7 +213,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
-          "line": 786
+          "line": 787
         }
       ]
     },
@@ -352,28 +278,6 @@
       ]
     },
     {
-      "name": "set_selected_databases",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 259
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 643
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 800
-        }
-      ]
-    },
-    {
       "name": "set_window_title",
       "featureGroup": "windows",
       "eventUse": "none",
@@ -383,11 +287,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 156
+          "line": 157
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 610
+          "line": 687
         }
       ]
     }
@@ -460,6 +364,7 @@
     "duplicate_personal_theme",
     "enable_plugin",
     "encrypt_export_payload",
+    "execute_clipboard_import",
     "execute_query",
     "execute_query_batch",
     "explain_ai_query",
@@ -504,6 +409,7 @@
     "get_create_foreign_key_sql",
     "get_create_index_sql",
     "get_create_table_sql",
+    "get_data_types",
     "get_db_privilege_catalog",
     "get_db_user_grants",
     "get_db_user_privileges",
@@ -553,6 +459,7 @@
     "get_storage_location",
     "get_system_prompt",
     "get_system_stats",
+    "get_table_query_template",
     "get_tables",
     "get_tabrename_prompt",
     "get_tabularis_children",
@@ -578,10 +485,13 @@
     "list_all_preferences",
     "list_connection_import_sources",
     "list_connection_tags",
+    "list_databases",
     "list_notebooks",
     "list_pending_approvals",
     "load_editor_preferences",
     "load_notebook",
+    "log_frontend_event",
+    "map_inferred_column_types",
     "move_connection_to_group",
     "move_group_to_parent",
     "open_devtools",
@@ -601,6 +511,7 @@
     "recover_theme_packages",
     "refresh_materialized_view",
     "register_active_connection",
+    "release_query_session",
     "rename_notebook",
     "reorder_connections_in_group",
     "reorder_groups",
@@ -641,6 +552,7 @@
     "set_log_max_size",
     "set_proxy_password",
     "set_schema_preference",
+    "set_selected_databases",
     "set_selected_schemas",
     "set_storage_location",
     "set_theme_package_enabled",

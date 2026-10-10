@@ -2,11 +2,22 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Plus, Minus } from "lucide-react";
 import type { TableColumn } from "../../types/editor";
-import { getOperatorsForType } from "../../utils/filterBar";
+import {
+  getOperatorsForType,
+  isFilterComplete,
+  NO_VALUE_OPS,
+} from "../../utils/filterBar";
 import type { StructuredFilter, FilterOperator } from "../../utils/filterBar";
 import { StyledSelect } from "./StyledSelect";
 
-const NO_VALUE_OPS: FilterOperator[] = ["IS NULL", "IS NOT NULL"];
+/** i18n keys for text-friendly operators (SQL tokens keep their raw labels). */
+const OPERATOR_LABEL_KEYS: Partial<Record<FilterOperator, string>> = {
+  contains: "toolbar.opContains",
+  "starts with": "toolbar.opStartsWith",
+  "ends with": "toolbar.opEndsWith",
+  "is empty": "toolbar.opIsEmpty",
+  "is not empty": "toolbar.opIsNotEmpty",
+};
 
 export interface FilterRowProps {
   filter: StructuredFilter;
@@ -46,15 +57,25 @@ export const FilterRow = ({
     onChange({ ...filter, column: col, operator: op });
   };
 
+  // Applied feedback only for rows that were actually sent
+  const applySingle = () => {
+    onApplySingle(filter);
+    if (isFilterComplete(filter)) onTriggerApplied();
+  };
+
   const handleValueKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      onApplySingle(filter);
-      onTriggerApplied();
+      applySingle();
     } else if (e.key === "Escape") {
       e.preventDefault();
       onEscape();
     }
+  };
+
+  const operatorLabel = (op: string) => {
+    const key = OPERATOR_LABEL_KEYS[op as FilterOperator];
+    return key ? t(key) : op;
   };
 
   return (
@@ -85,7 +106,8 @@ export const FilterRow = ({
         value={filter.operator}
         onChange={(op) => onChange({ ...filter, operator: op as FilterOperator })}
         options={operators}
-        className="w-28"
+        getOptionLabel={operatorLabel}
+        className="w-36"
       />
 
       {/* Value */}
@@ -134,7 +156,7 @@ export const FilterRow = ({
 
       {/* Apply -- applies only this row, does NOT close panel */}
       <button
-        onClick={() => { onApplySingle(filter); onTriggerApplied(); }}
+        onClick={applySingle}
         className={`shrink-0 px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
           isApplied
             ? "bg-accent-success/20 border-accent-success/50 text-accent-success"

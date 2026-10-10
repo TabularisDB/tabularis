@@ -9,8 +9,12 @@ import { VisualExplainPage, type VisualExplainPageProps } from "../../src/pages/
 import type { VisualExplainViewProps } from "../../src/components/explain/VisualExplainView";
 
 vi.mock("../../src/hooks/useTabularisClient", () => import("../support/tauriBackedHooks"));
-vi.mock("../../src/hooks/usePlatformCapabilities", () => import("../support/tauriBackedHooks"));
-const mocks = vi.hoisted(() => ({ search: "" }));
+const mocks = vi.hoisted(() => ({ search: "", browser: false }));
+vi.mock("../../src/hooks/usePlatformCapabilities", async () => {
+  const desktop = await import("../support/tauriBackedHooks");
+  const browser = { negotiation: { environment: "browser" } };
+  return { usePlatformCapabilities: () => mocks.browser ? browser : desktop.usePlatformCapabilities() };
+});
 
 vi.mock("react-router-dom", () => ({ useLocation: () => ({ search: mocks.search }) }));
 vi.mock("react-i18next", () => {
@@ -63,6 +67,7 @@ function pickFile() {
 describe("VisualExplainPage", () => {
   beforeEach(() => {
     mocks.search = "";
+    mocks.browser = false;
     vi.mocked(invoke).mockReset();
     vi.mocked(openDialog).mockReset();
     vi.mocked(invoke).mockResolvedValue(null);
@@ -316,5 +321,17 @@ describe("VisualExplainPage", () => {
     unmount();
     await act(async () => { pending.resolve("/tmp/too-late.json"); });
     expect(invoke).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("VisualExplainPage browser handoffs", () => {
+  it.each(["", "?file=%2Ftmp%2Fplan.json"])("does not invoke desktop file commands for %s", async (search) => {
+    mocks.browser = true;
+    mocks.search = search;
+    vi.mocked(invoke).mockClear();
+    renderPage();
+    await act(async () => {});
+    expect(invoke).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

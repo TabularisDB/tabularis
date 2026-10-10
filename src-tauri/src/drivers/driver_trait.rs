@@ -39,6 +39,15 @@ pub enum SqlDialect {
     Generic,
 }
 
+/// A labeled connection URI preset displayed in the connection modal.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ConnectionStringExample {
+    pub label: String,
+    pub value: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
 /// Capabilities advertised by a driver.
 /// The frontend uses these flags to decide which UI sections to show.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -72,6 +81,9 @@ pub struct DriverCapabilities {
     /// Optional placeholder example shown for connection string input.
     #[serde(default, alias = "connectionStringExample")]
     pub connection_string_example: String,
+    /// Optional connection URI presets shown in the connection modal.
+    #[serde(default, alias = "connectionStringExamples")]
+    pub connection_string_examples: Vec<ConnectionStringExample>,
     /// The driver consumes the raw connection URI verbatim instead of the
     /// decomposed host/port/database fields. Set by drivers whose scheme
     /// carries semantics the decomposition would destroy (e.g. the DNS
@@ -100,6 +112,10 @@ pub struct DriverCapabilities {
     /// Whether primary key is defined inline in the column definition (e.g. SQLite AUTOINCREMENT).
     #[serde(default)]
     pub inline_pk: bool,
+    /// Opts Generate SQL into the optional get_table_query_template RPC.
+    /// Omitted/false preserves the host's existing template generation.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub table_query_templates: bool,
     // DDL capabilities
     /// Supports ALTER TABLE MODIFY/ALTER COLUMN on existing tables.
     #[serde(default)]
@@ -680,6 +696,77 @@ pub trait DatabaseDriver: Send + Sync {
         Ok(results)
     }
 
+    /// `execute_query` with the caller's connection carried across calls.
+    ///
+    /// One statement at a time is how a transaction is actually driven, so
+    /// the single-statement path needs the same pinning as a batch: without
+    /// it `BEGIN`, the changes and `COMMIT` each land on a different pooled
+    /// connection. See [`Self::execute_batch_in_session`].
+    ///
+    /// The default implementation delegates to [`Self::execute_query`] and
+    /// always reports `false`, so a driver that does not pin is unchanged.
+    async fn execute_query_in_session(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        _session_id: Option<&str>,
+    ) -> Result<(QueryResult, bool), String> {
+        let result = self
+            .execute_query(params, query, limit, page, schema)
+            .await?;
+        Ok((result, false))
+    }
+
+    /// `execute_batch` with the caller's connection carried across calls.
+    ///
+    /// `session_id` identifies a long-lived caller — an editor tab. When a
+    /// batch leaves an explicit transaction open, a driver that implements
+    /// this keeps the physical connection reserved for that session instead
+    /// of returning it to the pool, so the next batch from the same tab
+    /// continues the same transaction: `BEGIN`, changes, verify, `COMMIT`,
+    /// each as its own run.
+    ///
+    /// The returned flag reports whether the session is still inside a
+    /// transaction after the batch, so the UI can show it and release the
+    /// connection on close.
+    ///
+    /// The default implementation delegates to [`Self::execute_batch`] and
+    /// always reports `false`: statements within one batch still share a
+    /// connection, but nothing is held afterwards.
+    async fn execute_batch_in_session(
+        &self,
+        params: &ConnectionParams,
+        queries: &[String],
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        _session_id: Option<&str>,
+        on_progress: Option<&BatchProgressFn>,
+    ) -> Result<(Vec<BatchStatementResult>, bool), String> {
+        let results = self
+            .execute_batch(params, queries, limit, page, schema, on_progress)
+            .await?;
+        Ok((results, false))
+    }
+
+    /// Roll back and release any connection pinned to `session_id`.
+    ///
+    /// Called when the owning tab closes. Drivers that do not pin
+    /// connections have nothing to do.
+    async fn release_session(&self, _session_id: &str) {}
+
+    /// Whether `session_id` is still inside a transaction, asked after a
+    /// failed or cancelled run, which returns no flag. A driver that pins only
+    /// while a transaction is open can answer with whether it holds a pinned
+    /// connection. `None` means it cannot tell, and the caller leaves the
+    /// reported state as it was.
+    async fn session_in_transaction(&self, _session_id: &str) -> Option<bool> {
+        None
+    }
+
     /// Runs EXPLAIN (or EXPLAIN ANALYZE) on the given query and returns a
     /// parsed execution plan tree. Drivers that do not support EXPLAIN can
     /// rely on the default implementation which returns an error.
@@ -746,6 +833,16 @@ pub trait DatabaseDriver: Send + Sync {
         _schema: Option<&str>,
     ) -> Result<String, String> {
         Err("BLOB preview not supported by this driver".into())
+    }
+
+    /// Optional SQL preview generation. None asks the host to use its legacy
+    /// templates. Built-in and older drivers need no implementation changes.
+    async fn get_table_query_template(
+        &self,
+        _params: &ConnectionParams,
+        _request: &crate::models::TableQueryTemplateRequest,
+    ) -> Result<Option<String>, String> {
+        Ok(None)
     }
 
     // --- DDL generation (SQL preview) ----------------------------------------

@@ -67,6 +67,8 @@ export interface ConnectionParams {
   port?: number;
   username?: string;
   password?: string;
+  /** TLS mode selected for the server connection. */
+  ssl_mode?: string;
   /** Raw driver-specific connection URI, forwarded verbatim to the driver.
    * Never persisted in connections.json: it embeds credentials and is stored
    * in the OS keychain instead. */
@@ -373,4 +375,18 @@ export function generateConnectionName(
 
   const host = params.host || "localhost";
   return `${params.database}@${host}`;
+}
+
+export function connectionOrderAfterMove(
+  ids: string[],
+  fromId: string,
+  toId: string,
+): Array<[string, number]> | null {
+  const fromIdx = ids.indexOf(fromId);
+  const toIdx = ids.indexOf(toId);
+  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return null;
+  const next = [...ids];
+  next.splice(fromIdx, 1);
+  next.splice(toIdx, 0, fromId);
+  return next.map((id, i) => [id, i]);
 }

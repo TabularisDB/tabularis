@@ -221,6 +221,7 @@ impl WebEventBus {
             | "connections:active-changed"
             | "database-dropped"
             | "batch-statement-complete"
+            | "session-transaction-state"
             | "query-status"
             | "query-cancelled"
             | "dump_progress"

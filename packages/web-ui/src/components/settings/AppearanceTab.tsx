@@ -115,6 +115,15 @@ export function AppearanceTab() {
                 onChange={(v) => updateSetting("stickyColumnHeaders", v)}
               />
             </SettingRow>
+            <SettingRow
+              label={t("settings.dataGrid.zebraStripes")}
+              description={t("settings.dataGrid.zebraStripesDesc")}
+            >
+              <SettingToggle
+                checked={settings.resultZebraStripes ?? false}
+                onChange={(v) => updateSetting("resultZebraStripes", v)}
+              />
+            </SettingRow>
             <div className="py-3">
               <p className="text-sm text-primary">
                 {t("settings.dataGrid.fontFamily")}

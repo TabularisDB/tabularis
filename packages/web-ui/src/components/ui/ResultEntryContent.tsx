@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
+import type { Ref } from "react";
 import { CheckCircle2 } from "lucide-react";
-import { DataGrid } from "./DataGrid";
+import { DataGrid, type DataGridCommandTarget } from "./DataGrid";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { PaginationControls } from "./PaginationControls";
 import { formatDuration } from "../../utils/formatTime";
@@ -14,7 +15,11 @@ interface ResultEntryContentProps {
   csvDelimiter: string;
   csvIncludeHeaders: boolean;
   onPageChange: (page: number) => void;
+  onCopyAllRows?: () => void;
   compact?: boolean;
+  commandTargetRef?: Ref<DataGridCommandTarget>;
+  initialScrollTop?: number;
+  onScrollTopChange?: (scrollTop: number) => void;
 }
 
 export function ResultEntryContent({
@@ -24,7 +29,11 @@ export function ResultEntryContent({
   csvDelimiter,
   csvIncludeHeaders,
   onPageChange,
+  onCopyAllRows,
   compact,
+  commandTargetRef,
+  initialScrollTop,
+  onScrollTopChange,
 }: ResultEntryContentProps) {
   const { t } = useTranslation();
 
@@ -110,6 +119,7 @@ export function ResultEntryContent({
     return (
       <div style={{ height: gridHeight }} className="overflow-hidden">
         <DataGrid
+          ref={commandTargetRef}
           key={`${entry.id}-${entry.result.rows.length}`}
           columns={entry.result.columns}
           data={entry.result.rows}
@@ -122,6 +132,11 @@ export function ResultEntryContent({
           csvDelimiter={csvDelimiter}
           csvIncludeHeaders={csvIncludeHeaders}
           readonly={true}
+          totalRows={entry.result.pagination?.total_rows}
+          hasMore={entry.result.pagination?.has_more}
+          initialScrollTop={initialScrollTop}
+          onScrollTopChange={onScrollTopChange}
+          onCopyAllRows={onCopyAllRows}
         />
       </div>
     );
@@ -158,6 +173,7 @@ export function ResultEntryContent({
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         <DataGrid
+          ref={commandTargetRef}
           key={`${entry.id}-${entry.result.rows.length}`}
           columns={entry.result.columns}
           data={entry.result.rows}
@@ -170,6 +186,11 @@ export function ResultEntryContent({
           csvDelimiter={csvDelimiter}
           csvIncludeHeaders={csvIncludeHeaders}
           readonly={true}
+          totalRows={entry.result.pagination?.total_rows}
+          hasMore={entry.result.pagination?.has_more}
+          initialScrollTop={initialScrollTop}
+          onScrollTopChange={onScrollTopChange}
+          onCopyAllRows={onCopyAllRows}
         />
       </div>
     </div>

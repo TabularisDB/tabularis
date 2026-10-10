@@ -1,7 +1,7 @@
 {
   "name": "@tabularis/web-ui",
   "private": true,
-  "version": "0.25.0",
+  "version": "0.27.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

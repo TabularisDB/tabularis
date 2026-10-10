@@ -41,6 +41,7 @@ export const Sidebar = () => {
   const isDarkTheme = !currentTheme?.id?.includes("-light");
   const {
     activeConnectionId,
+    activeDriver,
     connections,
   } = useDatabase();
   const navigate = useNavigate();
@@ -346,7 +347,10 @@ export const Sidebar = () => {
 
           <SlotAnchor
             name="sidebar.footer.actions"
-            context={{}}
+            context={{
+              connectionId: activeConnectionId,
+              driver: activeDriver,
+            }}
             className="flex flex-col items-center gap-1 mt-1"
           />
         </div>

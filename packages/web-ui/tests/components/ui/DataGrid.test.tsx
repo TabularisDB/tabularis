@@ -1,12 +1,22 @@
-import { render, fireEvent, screen, waitFor } from "@testing-library/react";
-import { useState } from "react";
+import { act, render, fireEvent, screen, waitFor } from "@testing-library/react";
+import { createRef, useState, type ComponentProps } from "react";
 import { vi } from "vitest";
-import { DataGrid } from "../../../src/components/ui/DataGrid";
+import {
+  DataGrid,
+  type DataGridCommandTarget,
+} from "../../../src/components/ui/DataGrid";
 import {
   buildPkMap,
   serializePkKey,
   USE_DEFAULT_SENTINEL,
 } from "../../../src/utils/dataGrid";
+import { KeybindingsContext } from "../../../src/contexts/KeybindingsContext";
+
+vi.mock("lucide-react", async (importOriginal) => await importOriginal());
+vi.mock("../../../src/components/ui/CellCodeEditor", () => ({
+  CellCodeEditor: ({ value, onChange }: { value: string; onChange: (value: string) => void }) =>
+    <textarea aria-label="Expanded value" value={value} onChange={(event) => onChange(event.target.value)} />,
+}));
 
 vi.mock("../../../src/hooks/useDatabase", () => ({
   useDatabase: () => ({ activeSchema: null, connections: [] }),
@@ -24,10 +34,26 @@ vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
   usePlatformCapabilities: () => ({}),
 }));
 
-const { showToastMock, openRowEditorMock, openJsonViewerMock } = vi.hoisted(() => ({
+const {
+  openJsonViewerMock,
+  showToastMock,
+  openRowEditorMock,
+  translationMock,
+  scrollToIndexMock,
+  scrollToOffsetMock,
+  virtualizerRenderControl,
+  sidebarState,
+} = vi.hoisted(() => ({
+  openJsonViewerMock: vi.fn(),
   showToastMock: vi.fn(),
   openRowEditorMock: vi.fn(),
-  openJsonViewerMock: vi.fn(),
+  translationMock: vi.fn((key: string) => key),
+  scrollToIndexMock: vi.fn(),
+  scrollToOffsetMock: vi.fn(),
+  // Lets a single test simulate the virtualizer's first, unmeasured commit,
+  // where it has no virtual items yet.
+  virtualizerRenderControl: { forceEmpty: false },
+  sidebarState: { isOpen: false, activePanel: null as string | null },
 }));
 
 vi.mock("../../../src/platform/secondaryWindowSessions", () => ({
@@ -38,14 +64,27 @@ vi.mock("../../../src/hooks/useToast", () => ({
   useToast: () => ({ showToast: showToastMock }),
 }));
 
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: translationMock,
+    i18n: {
+      language: "en",
+      changeLanguage: vi.fn(),
+    },
+  }),
+  initReactI18next: {
+    type: "3rdParty",
+    init: vi.fn(),
+  },
+}));
+
 vi.mock("../../../src/hooks/useSettings", () => ({
   useSettings: () => ({ settings: {} }),
 }));
 
 vi.mock("../../../src/hooks/useRightSidebar", () => ({
   useRightSidebar: () => ({
-    isOpen: false,
-    activePanel: null,
+    ...sidebarState,
     rowEditorData: null,
     isPinned: false,
     openRowEditor: openRowEditorMock,
@@ -63,20 +102,40 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 
 // JSDOM has no layout, so the real virtualizer renders zero rows. Mock it to
-// render every row — tests here assert behavior, not virtualization.
+// render every row — tests here assert behavior, not virtualization. Unless
+// virtualizerRenderControl.forceEmpty is set, which simulates the real
+// virtualizer's first, unmeasured commit (no virtual items yet).
 vi.mock("@tanstack/react-virtual", () => ({
-  useVirtualizer: ({ count }: { count: number }) => ({
-    getVirtualItems: () =>
-      Array.from({ length: count }, (_, index) => ({
-        index,
-        key: index,
-        start: index * 35,
-        end: (index + 1) * 35,
-        size: 35,
-      })),
-    getTotalSize: () => count * 35,
-    scrollToIndex: () => {},
-  }),
+  useVirtualizer: ({
+    count,
+    getScrollElement,
+  }: {
+    count: number;
+    getScrollElement: () => HTMLElement | null;
+  }) => {
+    const items = virtualizerRenderControl.forceEmpty
+      ? []
+      : Array.from({ length: count }, (_, index) => ({
+          index,
+          key: index,
+          start: index * 35,
+          end: (index + 1) * 35,
+          size: 35,
+        }));
+    return {
+      getVirtualItems: () => items,
+      getTotalSize: () => count * 35,
+      scrollToIndex: scrollToIndexMock,
+      // The real virtualizer applies the offset to the scroll element
+      // itself, and — like a real, unmeasured browser viewport — clamps it
+      // to 0 when nothing has rendered yet.
+      scrollToOffset: (offset: number) => {
+        scrollToOffsetMock(offset);
+        const el = getScrollElement();
+        if (el) el.scrollTop = items.length > 0 ? offset : 0;
+      },
+    };
+  },
 }));
 
 class ResizeObserverMock {
@@ -165,6 +224,7 @@ describe("DataGrid read-only cell viewers (#654)", () => {
           cellKey: null,
         },
         undefined,
+        undefined,
       ),
     );
   };
@@ -230,6 +290,7 @@ describe("DataGrid read-only cell viewers (#654)", () => {
           readOnly: true,
           cellKey: 'pk:{"id":1}:payload',
         },
+        undefined,
         undefined,
       ),
     );
@@ -298,6 +359,87 @@ describe("DataGrid keyboard navigation", () => {
 
   const gridOf = (container: HTMLElement) =>
     container.querySelector('div[tabindex="0"]')!;
+
+  const renderJumpGrid = (onMarkForDeletion?: (pkVal: unknown) => void) => render(
+    <KeybindingsContext.Provider value={{
+      shortcuts: [],
+      matchesShortcut: (event, id) => id === "jump_to_column" &&
+        event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "j",
+      saveOverride: async () => {},
+      resetOverride: async () => {},
+      overrides: {},
+      isMac: false,
+    }}>
+      <DataGrid
+        columns={["id", "customer_name", "email"]}
+        data={[[1, "Alice", "alice@example.com"]]}
+        columnMetadata={[{
+          name: "customer_name",
+          data_type: "varchar",
+          is_pk: false,
+          is_nullable: false,
+          is_auto_increment: false,
+        }]}
+        pkColumns={onMarkForDeletion ? ["id"] : undefined}
+        selectedRows={onMarkForDeletion ? new Set([0]) : undefined}
+        onMarkForDeletion={onMarkForDeletion}
+        readonly={!onMarkForDeletion}
+      />
+    </KeybindingsContext.Provider>,
+  );
+
+  it("finds a column by keyboard and focuses its cell", async () => {
+    const { container } = renderJumpGrid();
+    const grid = gridOf(container);
+    fireEvent.keyDown(grid, { key: "J", ctrlKey: true, shiftKey: true });
+
+    const search = screen.getByRole("combobox", { name: "dataGrid.searchColumns" });
+    expect(search).toHaveFocus();
+    fireEvent.change(search, { target: { value: "cust name" } });
+    expect(screen.getByRole("option", { name: /customer_name.*varchar/ })).toBeInTheDocument();
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    await waitFor(() => expect(cellAt(container, 0, 1)).toHaveClass("ring-2"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(grid).toHaveFocus();
+  });
+
+  it("returns focus to the grid when Escape closes the picker", () => {
+    const { container } = renderJumpGrid();
+    const grid = gridOf(container);
+    fireEvent.keyDown(grid, { key: "j", ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(grid).toHaveFocus();
+  });
+
+  it("leaves native copy available in the picker search field", () => {
+    const { container } = renderJumpGrid();
+    fireEvent.click(cellAt(container, 0, 0));
+    fireEvent.keyDown(gridOf(container), { key: "j", ctrlKey: true, shiftKey: true });
+    const search = screen.getByRole("combobox");
+    fireEvent.change(search, { target: { value: "customer" } });
+    expect(fireEvent.keyDown(search, { key: "c", ctrlKey: true })).toBe(true);
+  });
+
+  it("does not stage selected rows for deletion from the picker search", () => {
+    const onMarkForDeletion = vi.fn();
+    const { container } = renderJumpGrid(onMarkForDeletion);
+    const grid = gridOf(container);
+    fireEvent.keyDown(grid, { key: "j", ctrlKey: true, shiftKey: true });
+    const search = screen.getByRole("combobox", { name: "dataGrid.searchColumns" });
+    fireEvent.change(search, { target: { value: "customer" } });
+
+    // Native editing keys must not reach the document-level row deletion handler.
+    expect(fireEvent.keyDown(search, { key: "Backspace" })).toBe(true);
+    expect(fireEvent.keyDown(search, { key: "Delete" })).toBe(true);
+    expect(onMarkForDeletion).not.toHaveBeenCalled();
+
+    // The keyboard row deletion shortcut still works from the grid itself.
+    fireEvent.keyDown(search, { key: "Escape" });
+    fireEvent.keyDown(grid, { key: "Backspace" });
+    expect(onMarkForDeletion).toHaveBeenCalledTimes(1);
+  });
 
   it("focuses the first cell on the first arrow key press", () => {
     const { container } = renderGrid();
@@ -527,6 +669,61 @@ describe("DataGrid keyboard editing", () => {
     expect(gridOf(container)).toHaveFocus();
   });
 
+  it("reports editing immediately and releases the block on cancel and unmount", async () => {
+    const ref = createRef<DataGridCommandTarget>();
+    const onEditingChange = vi.fn();
+    const onPendingChange = vi.fn();
+    const { container, unmount } = render(<DataGrid ref={ref} columns={["id", "name"]}
+      data={[[1, "Alice"]]} tableName="users" pkColumns={["id"]}
+      onPendingChange={onPendingChange} onEditingChange={onEditingChange} />);
+    fireEvent.doubleClick(cellAt(container, 0, 1));
+    expect(ref.current?.isEditing()).toBe(true);
+    expect(onEditingChange).toHaveBeenLastCalledWith(true);
+    fireEvent.keyDown(container.querySelector("textarea")!, { key: "Escape" });
+    expect(ref.current?.isEditing()).toBe(false);
+    expect(onEditingChange).toHaveBeenLastCalledWith(false);
+    await act(async () => {});
+    expect(onPendingChange).not.toHaveBeenCalled();
+    fireEvent.doubleClick(cellAt(container, 0, 1));
+    unmount();
+    expect(onEditingChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("blocks refresh while the expanded text editor is open", () => {
+    const ref = createRef<DataGridCommandTarget>();
+    const onEditingChange = vi.fn();
+    render(<DataGrid ref={ref} columns={["id", "description"]}
+      data={[[1, "long description ".repeat(20)]]} tableName="jobs" pkColumns={["id"]}
+      columnMetadata={[{ name: "description", data_type: "text", is_pk: false, is_nullable: true, is_auto_increment: false }]}
+      onPendingChange={vi.fn()} onEditingChange={onEditingChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "textCell.expand" }));
+    expect(ref.current?.isEditing()).toBe(true);
+    expect(onEditingChange).toHaveBeenLastCalledWith(true);
+    fireEvent.click(screen.getByRole("button", { name: "common.cancel" }));
+    expect(ref.current?.isEditing()).toBe(false);
+    expect(onEditingChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("releases the row-editor block when the sidebar closes", () => {
+    const ref = createRef<DataGridCommandTarget>();
+    const onEditingChange = vi.fn();
+    const grid = () => <DataGrid ref={ref} columns={["id"]} data={[[1]]}
+      onEditingChange={onEditingChange} />;
+    try {
+      sidebarState.isOpen = true;
+      sidebarState.activePanel = "row-editor";
+      const { rerender } = render(grid());
+      expect(ref.current?.isEditing()).toBe(true);
+      sidebarState.isOpen = false;
+      rerender(grid());
+      expect(ref.current?.isEditing()).toBe(false);
+      expect(onEditingChange).toHaveBeenLastCalledWith(false);
+    } finally {
+      sidebarState.isOpen = false;
+      sidebarState.activePanel = null;
+    }
+  });
+
   it("opens an empty editor for a cell pending the database DEFAULT", () => {
     const pkVal = serializePkKey(buildPkMap(["id"], [1, "Alice"], [0]));
     const { container } = renderEditableGrid({
@@ -540,6 +737,51 @@ describe("DataGrid keyboard editing", () => {
     fireEvent.keyDown(gridOf(container), { key: "Enter" });
 
     expect(container.querySelector("textarea")).toHaveValue("");
+  });
+
+  it("commits the prefilled date of an empty date cell once on Enter (#826)", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 27, 15, 30, 0));
+    try {
+      const onPendingChange = vi.fn();
+      const { container } = render(
+        <DataGrid
+          columns={["id", "due"]}
+          data={[[1, null]]}
+          tableName="tasks"
+          pkColumns={["id"]}
+          columnMetadata={[
+            {
+              name: "id",
+              data_type: "integer",
+              is_pk: true,
+              is_nullable: false,
+              is_auto_increment: false,
+            },
+            {
+              name: "due",
+              data_type: "date",
+              is_pk: false,
+              is_nullable: true,
+              is_auto_increment: false,
+            },
+          ]}
+          onPendingChange={onPendingChange}
+          selectedRows={new Set()}
+          onSelectionChange={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(cellAt(container, 0, 1));
+      fireEvent.keyDown(gridOf(container), { key: "Enter" });
+      fireEvent.keyDown(container.querySelector("td select")!, { key: "Enter" });
+
+      expect(onPendingChange).toHaveBeenCalledTimes(1);
+      expect(onPendingChange).toHaveBeenCalledWith({ id: 1 }, "due", "2026-09-27");
+      expect(gridOf(container)).toHaveFocus();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -555,10 +797,158 @@ describe("DataGrid select all", () => {
   beforeEach(() => {
     writeText.mockClear();
     showToastMock.mockClear();
+    translationMock.mockClear();
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText },
       configurable: true,
     });
+  });
+
+  it("copies pending insertions with all loaded rows", async () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <DataGrid
+        ref={commandTargetRef}
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    const command = commandTargetRef.current?.getResultCommands().copyAllRows;
+    expect(command?.count).toBe(2);
+    await act(async () => {
+      await command?.execute();
+    });
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
+  });
+
+  it("copies pending insertions with selected columns", async () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <DataGrid
+        ref={commandTargetRef}
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("name"), { metaKey: true });
+    const command =
+      commandTargetRef.current?.getResultCommands().copySelectedColumns;
+    await act(async () => {
+      await command?.execute();
+    });
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
+    expect(translationMock).toHaveBeenCalledWith("dataGrid.copiedRows", {
+      count: 2,
+    });
+  });
+
+  it("copies pending insertion values as a SQL IN clause", async () => {
+    const commandTargetRef = createRef<DataGridCommandTarget>();
+    render(
+      <DataGrid
+        ref={commandTargetRef}
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("name"), { metaKey: true });
+    const command =
+      commandTargetRef.current?.getResultCommands().copyColumnValuesAsSqlIn;
+    await act(async () => {
+      await command?.execute();
+    });
+
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0][0]).toContain("'Alice'");
+    expect(writeText.mock.calls[0][0]).toContain("'Pending'");
+  });
+
+  it("copies selected pending insertions from the row context menu", async () => {
+    const { container } = render(
+      <DataGrid
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set([0, 1])}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(
+      container.querySelector('td[data-col-index="0"]')!,
+    );
+    fireEvent.click(await screen.findByText("dataGrid.copySelectedN"));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
+  });
+
+  it("copies pending insertion values from the column context menu", async () => {
+    const { container } = render(
+      <DataGrid
+        columns={columns}
+        data={[[1, "Alice"]]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, name: "Pending" },
+            displayIndex: 1,
+          },
+        }}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelectorAll("th")[2]);
+    fireEvent.click(await screen.findByText("dataGrid.copyColumnValues"));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
   });
 
   it("selects all loaded rows with Cmd/Ctrl+A without copying", () => {
@@ -607,6 +997,37 @@ describe("DataGrid select all", () => {
         kind: "success",
       }),
     );
+  });
+
+  it("copies pending insertions when selected with Cmd/Ctrl+A", async () => {
+    const Harness = () => {
+      const [selected, setSelected] = useState<Set<number>>(new Set());
+      return (
+        <DataGrid
+          columns={columns}
+          data={[[1, "Alice"]]}
+          pendingInsertions={{
+            pending: {
+              tempId: "pending",
+              data: { id: 2, name: "Pending" },
+              displayIndex: 1,
+            },
+          }}
+          selectedRows={selected}
+          onSelectionChange={setSelected}
+          readonly
+        />
+      );
+    };
+    const { container } = render(<Harness />);
+
+    fireEvent.mouseDown(container.querySelector("table")!);
+    fireEvent.keyDown(document, { key: "a", metaKey: true });
+    fireEvent.keyDown(document, { key: "c", metaKey: true });
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0][0]).toContain("Alice");
+    expect(writeText.mock.calls[0][0]).toContain("Pending");
   });
 
   it("ignores Cmd/Ctrl+A when the grid was not interacted with", () => {
@@ -1089,6 +1510,7 @@ describe("DataGrid JSON context menu", () => {
           cellKey: null,
         },
         undefined,
+        undefined,
       ),
     );
   });
@@ -1125,6 +1547,7 @@ describe("DataGrid JSON context menu", () => {
           readOnly: true,
           cellKey: null,
         },
+        undefined,
         undefined,
       ),
     );
@@ -1264,5 +1687,335 @@ describe("DataGrid sensitive-column masking (#485)", () => {
     );
     fireEvent.doubleClick(cellAt(container, 0, 1));
     expect(container.querySelector("textarea")).toBeInTheDocument();
+  });
+});
+
+describe("DataGrid filter-by-value context menu", () => {
+  const cellAt = (container: HTMLElement, rowIndex: number, colIndex: number) =>
+    container.querySelector(
+      `tr[data-row-index="${rowIndex}"] td[data-col-index="${colIndex}"]`,
+    )!;
+
+  const usersMetadata = [
+    {
+      name: "id",
+      data_type: "integer",
+      is_pk: true,
+      is_nullable: false,
+      is_auto_increment: false,
+    },
+    {
+      name: "name",
+      data_type: "character varying(255)",
+      is_pk: false,
+      is_nullable: true,
+      is_auto_increment: false,
+    },
+    {
+      name: "email",
+      data_type: "character varying(255)",
+      is_pk: false,
+      is_nullable: true,
+      is_auto_increment: false,
+    },
+    {
+      name: "avatar",
+      data_type: "bytea",
+      is_pk: false,
+      is_nullable: true,
+      is_auto_increment: false,
+    },
+    {
+      name: "settings",
+      data_type: "jsonb",
+      is_pk: false,
+      is_nullable: true,
+      is_auto_increment: false,
+    },
+  ];
+
+  const renderUsersGrid = (
+    overrides: Partial<ComponentProps<typeof DataGrid>> = {},
+  ) => {
+    const onFilterByValue = vi.fn();
+    const utils = render(
+      <DataGrid
+        columns={["id", "name", "email", "avatar", "settings"]}
+        data={[[1, "Alice", "alice@example.com", "BLOB:3:image/png:AAEC", { theme: "dark" }]]}
+        tableName="users"
+        pkColumns={["id"]}
+        columnMetadata={usersMetadata}
+        onFilterByValue={onFilterByValue}
+        // Read-only keeps the editing items (and their icons) out of the
+        // menu; the filter items only depend on tableName.
+        readonly
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        {...overrides}
+      />,
+    );
+    return { ...utils, onFilterByValue };
+  };
+
+  it("offers = / <> on a regular cell and passes the cell value", async () => {
+    const { container, onFilterByValue } = renderUsersGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 1));
+    fireEvent.click(await screen.findByText("dataGrid.filterEquals"));
+
+    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+    expect(onFilterByValue).toHaveBeenCalledWith(
+      "name",
+      "=",
+      "Alice",
+      "character varying(255)",
+    );
+  });
+
+  it("offers only IS NULL / IS NOT NULL on a masked cell and never passes its value", async () => {
+    const { container, onFilterByValue } = renderUsersGrid();
+
+    // "email" is masked by DEFAULT_MASKING_PATTERNS (settings mock is `{}`).
+    expect(cellAt(container, 0, 2)).toHaveTextContent("••••••");
+    fireEvent.contextMenu(cellAt(container, 0, 2));
+
+    expect(await screen.findByText("dataGrid.filterIsNull")).toBeInTheDocument();
+    expect(screen.getByText("dataGrid.filterIsNotNull")).toBeInTheDocument();
+    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterNotEquals")).toBeNull();
+
+    fireEvent.click(screen.getByText("dataGrid.filterIsNotNull"));
+    expect(onFilterByValue).toHaveBeenCalledWith(
+      "email",
+      "IS NOT NULL",
+      null,
+      "character varying(255)",
+    );
+    expect(JSON.stringify(onFilterByValue.mock.calls)).not.toContain(
+      "alice@example.com",
+    );
+  });
+
+  it("offers = / <> again once the masked cell is revealed", async () => {
+    const { container } = renderUsersGrid();
+
+    fireEvent.click(
+      cellAt(container, 0, 2).querySelector(
+        'button[title="dataGrid.revealCell"]',
+      )!,
+    );
+    fireEvent.contextMenu(cellAt(container, 0, 2));
+
+    expect(await screen.findByText("dataGrid.filterEquals")).toBeInTheDocument();
+    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+  });
+
+  it("hides the items on BLOB and JSON cells", async () => {
+    const { container } = renderUsersGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 3));
+    // Wait for the menu itself, then check the filter items are absent.
+    await screen.findByText("dataGrid.copyCell");
+    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    fireEvent.contextMenu(cellAt(container, 0, 4));
+    await screen.findByText("contextMenu.openJsonEditor");
+    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+  });
+
+  it("hides the items on pending insertion rows", async () => {
+    const { container } = renderUsersGrid({
+      pendingInsertions: {
+        pending: {
+          tempId: "pending",
+          data: { id: 2, name: "Bob" },
+          displayIndex: 1,
+        },
+      },
+    });
+
+    fireEvent.contextMenu(cellAt(container, 1, 1));
+    await screen.findByText("dataGrid.copyCell");
+    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+  });
+
+  it("hides the items when there is no table (query results)", async () => {
+    const { container } = renderUsersGrid({ tableName: null });
+
+    fireEvent.contextMenu(cellAt(container, 0, 1));
+    await screen.findByText("dataGrid.copyCell");
+    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+  });
+});
+
+describe("DataGrid vertical scroll position across tab switches (#823)", () => {
+  // Editor.tsx keys the <DataGrid> it renders by the active tab's id (plus
+  // sort/filter/result state), so switching tabs fully unmounts the previous
+  // grid and mounts a fresh one for the newly active tab — it does not just
+  // hide it. Editor.tsx is expected to remember the last scrollTop it saw
+  // (via onScrollTopChange) and hand it back as initialScrollTop when the
+  // tab's grid is remounted.
+  it("restores the scrollTop the caller passes back in as initialScrollTop", () => {
+    scrollToOffsetMock.mockClear();
+    const columns = ["id"];
+    const data = Array.from({ length: 200 }, (_, i) => [i]);
+
+    const { container, unmount } = render(
+      <DataGrid
+        columns={columns}
+        data={data}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+    const scrollEl = container.querySelector(".overflow-auto") as HTMLElement;
+    expect(scrollEl).not.toBeNull();
+
+    fireEvent.scroll(scrollEl, { target: { scrollTop: 400 } });
+    expect(scrollEl.scrollTop).toBe(400);
+
+    // Simulate switching away and back to this tab: the old grid is gone,
+    // a brand new one is mounted in its place.
+    unmount();
+
+    const { container: container2 } = render(
+      <DataGrid
+        columns={columns}
+        data={data}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        initialScrollTop={400}
+      />,
+    );
+    const scrollEl2 = container2.querySelector(
+      ".overflow-auto",
+    ) as HTMLElement;
+
+    expect(scrollToOffsetMock).toHaveBeenCalledWith(400);
+    expect(scrollEl2.scrollTop).toBe(400);
+  });
+
+  it("reports scroll position changes via onScrollTopChange", () => {
+    const onScrollTopChange = vi.fn();
+    const { container } = render(
+      <DataGrid
+        columns={["id"]}
+        data={Array.from({ length: 200 }, (_, i) => [i])}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        onScrollTopChange={onScrollTopChange}
+      />,
+    );
+    const scrollEl = container.querySelector(".overflow-auto") as HTMLElement;
+
+    fireEvent.scroll(scrollEl, { target: { scrollTop: 250 } });
+
+    expect(onScrollTopChange).toHaveBeenCalledWith(250);
+  });
+
+  // Editor.tsx also remounts this grid when a pending insertion is added,
+  // and separately decides — outside this component's own lifecycle,
+  // because a fresh mount can never observe its own "count changed" —
+  // whether this mount is that kind of insert. It passes that decision in
+  // as scrollToNewInsertion, which must win over any restored offset from
+  // the grid's previous mount: an inserted row should always be scrolled
+  // into view, never left below a stale scroll position.
+  it("scrolls to the newly inserted row instead of restoring initialScrollTop when both are set", () => {
+    scrollToIndexMock.mockClear();
+    scrollToOffsetMock.mockClear();
+    const data = Array.from({ length: 200 }, (_, i) => [i]);
+
+    const { container } = render(
+      <DataGrid
+        columns={["id"]}
+        data={data}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        initialScrollTop={5000}
+        scrollToNewInsertion
+      />,
+    );
+
+    expect(scrollToIndexMock).toHaveBeenCalledWith(data.length - 1, {
+      align: "end",
+    });
+
+    // The restore path must not also have run: it goes through
+    // scrollToOffset, which would clobber whatever the (mocked)
+    // scroll-to-bottom did.
+    expect(scrollToOffsetMock).not.toHaveBeenCalled();
+    const scrollEl = container.querySelector(".overflow-auto") as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(0);
+  });
+
+  it("restores initialScrollTop when there is no new insertion to scroll to", () => {
+    scrollToIndexMock.mockClear();
+    scrollToOffsetMock.mockClear();
+    const data = Array.from({ length: 200 }, (_, i) => [i]);
+
+    const { container } = render(
+      <DataGrid
+        columns={["id"]}
+        data={data}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        initialScrollTop={400}
+        scrollToNewInsertion={false}
+      />,
+    );
+
+    expect(scrollToIndexMock).not.toHaveBeenCalled();
+    expect(scrollToOffsetMock).toHaveBeenCalledWith(400);
+    const scrollEl = container.querySelector(".overflow-auto") as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(400);
+  });
+
+  // The real virtualizer renders no rows on its very first commit, before
+  // it has measured the scroll container. Restoring then would call
+  // scrollToOffset while the container's scrollHeight still equals its
+  // clientHeight, which clamps the offset to 0 — and the has-run ref would
+  // then mark the restore done for good, so it never gets another chance.
+  it("restores initialScrollTop once the virtualizer has rendered rows, not on the first, empty render", () => {
+    scrollToOffsetMock.mockClear();
+    virtualizerRenderControl.forceEmpty = true;
+    let forceRerender = () => {};
+    const data = Array.from({ length: 200 }, (_, i) => [i]);
+    const Harness = () => {
+      const [, setTick] = useState(0);
+      forceRerender = () => setTick((n) => n + 1);
+      return (
+        <DataGrid
+          columns={["id"]}
+          data={data}
+          selectedRows={new Set()}
+          onSelectionChange={vi.fn()}
+          initialScrollTop={400}
+        />
+      );
+    };
+
+    try {
+      const { container } = render(<Harness />);
+      const scrollEl = container.querySelector(
+        ".overflow-auto",
+      ) as HTMLElement;
+
+      // No rows rendered yet: the restore must not fire.
+      expect(scrollToOffsetMock).not.toHaveBeenCalled();
+      expect(scrollEl.scrollTop).toBe(0);
+
+      // The virtualizer measures the viewport and re-renders with rows.
+      virtualizerRenderControl.forceEmpty = false;
+      act(() => forceRerender());
+
+      expect(scrollToOffsetMock).toHaveBeenCalledWith(400);
+      expect(scrollEl.scrollTop).toBe(400);
+    } finally {
+      virtualizerRenderControl.forceEmpty = false;
+    }
   });
 });

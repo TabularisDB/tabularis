@@ -1,11 +1,12 @@
 import { useContext, useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useTabularisClient } from "./useTabularisClient";
 import { DatabaseContext } from "../contexts/DatabaseContext";
 import type { DataTypeRegistry } from "../types/dataTypes";
 
 const dataTypesCache = new Map<string, DataTypeRegistry>();
 
 export function useDataTypes(driver: string | undefined, connectionId?: string | null) {
+  const client = useTabularisClient();
   const context = useContext(DatabaseContext);
   const targetId = connectionId === undefined ? context?.activeConnectionId : connectionId;
   const connection = targetId ? context?.connectionDataMap[targetId] : undefined;
@@ -22,7 +23,7 @@ export function useDataTypes(driver: string | undefined, connectionId?: string |
     let cancelled = false;
     const fetchDataTypes = async () => {
       try {
-        const registry = await invoke<DataTypeRegistry>("get_data_types", { driver });
+        const registry = await client.call("get_data_types", { driver });
         dataTypesCache.set(driver, registry);
         if (!cancelled) setResult({ driver, dataTypes: registry, error: null });
       } catch (err) {
@@ -32,7 +33,7 @@ export function useDataTypes(driver: string | undefined, connectionId?: string |
 
     void fetchDataTypes();
     return () => { cancelled = true; };
-  }, [driver, metadata, cached]);
+  }, [client, driver, metadata, cached]);
 
   if (driver && metadata) {
     return {

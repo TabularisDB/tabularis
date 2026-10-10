@@ -153,7 +153,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               : activeDatabaseName;
           title = `tabularis - ${activeConnectionName} (${dbDisplay}${schemaSuffix})`;
         }
-        await invoke('set_window_title', { title });
+        if (detectPlatformEnvironment() === 'tauri') {
+          await invoke('set_window_title', { title });
+        } else {
+          document.title = title;
+        }
       } catch (e) {
         console.error('Failed to update window title', e);
       }
@@ -256,7 +260,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         // have if triggered outside of connect() - flagging rather than
         // guessing at a fix here.
         updateConnectionData(connectionId, { selectedDatabases: selection });
-        invoke('set_selected_databases', {
+        client.call('set_selected_databases', {
           connectionId,
           databases: selection,
         }).catch(e => console.error('Failed to persist reconciled database selection:', e));
@@ -264,7 +268,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           title: t('sidebar.databaseSelectionUpdated'),
           kind: 'warning',
         });
-        invoke('log_frontend_event', {
+        client.call('log_frontend_event', {
           level: 'warn',
           message: `Connection "${conn.name}": removed ${removed.join(', ')} from the database selection (no longer on the server)`,
         }).catch(() => {});
@@ -640,7 +644,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     });
 
     if (newDatabases.length > 0) {
-      invoke('set_selected_databases', {
+      client.call('set_selected_databases', {
         connectionId: connId,
         databases: newDatabases,
       }).catch(e => console.error('Failed to persist selected databases:', e));
@@ -652,7 +656,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         loadDatabaseData(db, connId);
       }
     }
-  }, [activeConnectionId, connectionDataMap, updateConnectionData, loadDatabaseData]);
+  }, [client, activeConnectionId, connectionDataMap, updateConnectionData, loadDatabaseData]);
 
   const connect = async (connectionId: string, options?: { activate?: boolean }) => {
     const activate = options?.activate !== false;
@@ -797,7 +801,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             if (removed.length > 0) {
               dbList = selection;
               isMultiDb = selection.length >= 1;
-              invoke('set_selected_databases', {
+              client.call('set_selected_databases', {
                 connectionId,
                 databases: selection,
               }).catch(e => console.error('Failed to persist reconciled database selection:', e));
@@ -805,7 +809,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
                 title: t('sidebar.databaseSelectionUpdated'),
                 kind: 'warning',
               });
-              invoke('log_frontend_event', {
+              client.call('log_frontend_event', {
                 level: 'warn',
                 message: `Connection "${conn.name}": removed ${removed.join(', ')} from the database selection (no longer on the server)`,
               }).catch(() => {});
@@ -1326,11 +1330,16 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
   const moveConnectionToGroup = useCallback(async (
     connectionId: string,
-    groupId: string | null
+    groupId: string | null,
+    sortOrder?: number
   ): Promise<void> => {
-    await client.call('move_connection_to_group', { connectionId, groupId });
+    await client.call('move_connection_to_group', { connectionId, groupId, sortOrder });
     setConnections(prev =>
-      prev.map(c => (c.id === connectionId ? { ...c, group_id: groupId ?? undefined } : c))
+      prev.map(c =>
+        c.id === connectionId
+          ? { ...c, group_id: groupId ?? undefined, sort_order: sortOrder ?? c.sort_order }
+          : c
+      )
     );
   }, [client]);
 

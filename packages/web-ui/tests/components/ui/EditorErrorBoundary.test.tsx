@@ -5,6 +5,12 @@ import { EditorErrorBoundary } from "../../../src/components/ui/EditorErrorBound
 import { EditorContext } from "../../../src/contexts/EditorContext";
 import type { EditorContextType } from "../../../src/contexts/EditorContext";
 
+vi.mock("../../../src/components/layout/CommandPaletteScopeBridge", () => ({
+  CommandPaletteScopeBridge: ({ scopeId }: { scopeId: string }) => (
+    <div data-testid={`command-scope-${scopeId}`} />
+  ),
+}));
+
 const HappyChild = () => <div data-testid="happy">happy editor</div>;
 
 let shouldThrow = true;
@@ -28,6 +34,8 @@ const buildEditorContext = (
   closeOtherTabs: vi.fn(),
   closeTabsToLeft: vi.fn(),
   closeTabsToRight: vi.fn(),
+  reopenClosedTab: vi.fn(),
+  canReopenClosedTab: false,
   updateTab: vi.fn(),
   setActiveTabId: vi.fn(),
   getSchema: vi.fn(async () => []),
@@ -80,6 +88,7 @@ describe("EditorErrorBoundary", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("editor.errorBoundary.title")).toBeInTheDocument();
     expect(screen.getByText("boom")).toBeInTheDocument();
+    expect(screen.getByTestId("command-scope-root")).toBeInTheDocument();
   });
 
   it("logs the caught error to console.error", () => {

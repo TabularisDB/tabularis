@@ -72,6 +72,7 @@ export interface JsonViewerSessionHostOptions {
 interface HostedJsonViewerSession {
   session: JsonViewerSession;
   onSaved?: JsonViewerSavedHandler;
+  onClosed?: () => void;
 }
 
 export class JsonViewerSessionHost {
@@ -94,6 +95,7 @@ export class JsonViewerSessionHost {
   async open(
     session: JsonViewerSession,
     onSaved?: JsonViewerSavedHandler,
+    onClosed?: () => void,
   ): Promise<string> {
     await this.ready;
 
@@ -110,6 +112,7 @@ export class JsonViewerSessionHost {
         ? { ...existingSession.session, value: session.value }
         : session,
       onSaved: onSaved ?? existingSession?.onSaved,
+      onClosed: onClosed ?? existingSession?.onClosed,
     };
     this.sessions.set(sessionId, hostedSession);
     if (session.cellKey) this.cellSessions.set(session.cellKey, sessionId);
@@ -127,9 +130,15 @@ export class JsonViewerSessionHost {
           minHeight: 400,
         },
       });
+      if (onClosed && existingSession?.onClosed !== onClosed) {
+        existingSession?.onClosed?.();
+      }
       return sessionId;
     } catch (cause) {
-      if (existingSession) this.sessions.set(sessionId, existingSession);
+      if (existingSession) {
+        this.sessions.set(sessionId, existingSession);
+        onClosed?.();
+      }
       else this.remove(sessionId, session.cellKey);
       throw cause;
     }
@@ -139,6 +148,7 @@ export class JsonViewerSessionHost {
     await this.ready;
     for (const unsubscribe of this.unsubscribers) unsubscribe();
     this.unsubscribers = [];
+    for (const hosted of this.sessions.values()) hosted.onClosed?.();
     this.sessions.clear();
     this.cellSessions.clear();
   }
@@ -182,7 +192,9 @@ export class JsonViewerSessionHost {
   }
 
   private remove(sessionId: string, cellKey?: string | null): void {
+    const hosted = this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
+    hosted?.onClosed?.();
     if (cellKey && this.cellSessions.get(cellKey) === sessionId) {
       this.cellSessions.delete(cellKey);
     }

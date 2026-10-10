@@ -197,6 +197,8 @@ enum McpHostRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum OperationalRpcCommand {
+    LogFrontendEvent,
+
     GetLogs,
     ClearLogs,
     GetLogSettings,
@@ -326,6 +328,7 @@ enum PersistenceRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum QueryRpcCommand {
+    ReleaseSession,
     Execute,
     ExecuteBatch,
     Count,
@@ -345,6 +348,11 @@ enum RecordRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DatabaseObjectRpcCommand {
+    GetTableQueryTemplate,
+    GetDataTypes,
+    MapInferredColumnTypes,
+    ExecuteClipboardImport,
+
     GetViewDefinition,
     CreateView,
     AlterView,
@@ -422,6 +430,8 @@ enum TunnelRpcCommand {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ConnectionRpcCommand {
+    SetSelectedDatabases,
+
     GetConnectionById,
     GetConnectionsWithGroups,
     SaveConnection,
@@ -1019,12 +1029,20 @@ struct SetSchemaPreferenceRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReleaseQuerySessionRequest {
+    connection_id: String,
+    session_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ExecuteQueryRequest {
     connection_id: String,
     query: String,
     limit: Option<u32>,
     page: Option<u32>,
     schema: Option<String>,
+    session_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1036,6 +1054,7 @@ struct ExecuteQueryBatchRequest {
     page: Option<u32>,
     schema: Option<String>,
     batch_id: Option<String>,
+    session_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1044,6 +1063,7 @@ struct CountQueryRequest {
     connection_id: String,
     query: String,
     schema: Option<String>,
+    session_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1063,6 +1083,7 @@ struct QueryExportRequest {
     format: String,
     csv_delimiter: Option<String>,
     database: Option<String>,
+    session_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2114,6 +2135,7 @@ impl McpHostRpcCommand {
 impl OperationalRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "log_frontend_event" => Self::LogFrontendEvent,
             "get_logs" => Self::GetLogs,
             "clear_logs" => Self::ClearLogs,
             "get_log_settings" => Self::GetLogSettings,
@@ -2128,6 +2150,7 @@ impl OperationalRpcCommand {
 
     fn authorization(self) -> AuthorizationLevel {
         match self {
+            Self::LogFrontendEvent => AuthorizationLevel::Session,
             Self::GetLogs
             | Self::GetLogSettings
             | Self::GetProcessList
@@ -2343,6 +2366,7 @@ impl PersistenceRpcCommand {
 impl QueryRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "release_query_session" => Self::ReleaseSession,
             "execute_query" => Self::Execute,
             "execute_query_batch" => Self::ExecuteBatch,
             "count_query" => Self::Count,
@@ -2370,6 +2394,10 @@ impl RecordRpcCommand {
 impl DatabaseObjectRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "get_table_query_template" => Self::GetTableQueryTemplate,
+            "get_data_types" => Self::GetDataTypes,
+            "map_inferred_column_types" => Self::MapInferredColumnTypes,
+            "execute_clipboard_import" => Self::ExecuteClipboardImport,
             "get_view_definition" => Self::GetViewDefinition,
             "create_view" => Self::CreateView,
             "alter_view" => Self::AlterView,
@@ -2473,6 +2501,7 @@ impl TunnelRpcCommand {
 impl ConnectionRpcCommand {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
+            "set_selected_databases" => Self::SetSelectedDatabases,
             "get_connection_by_id" => Self::GetConnectionById,
             "get_connections_with_groups" => Self::GetConnectionsWithGroups,
             "save_connection" => Self::SaveConnection,
@@ -2655,6 +2684,7 @@ fn decode_generic_export_command(
                 format: request.format,
                 csv_delimiter: request.csv_delimiter,
                 database: request.database,
+                query_session_id: request.session_id,
             }
         }
         GenericExportRpcCommand::CancelExport => {
@@ -2810,6 +2840,13 @@ fn decode_operational_command(
     body: &[u8],
 ) -> Result<OperationalCommand, String> {
     Ok(match command {
+        OperationalRpcCommand::LogFrontendEvent => {
+            let request: LogFrontendEventRequest = decode_payload(body)?;
+            OperationalCommand::LogFrontendEvent {
+                level: request.level,
+                message: request.message,
+            }
+        }
         OperationalRpcCommand::GetLogs => {
             let request: GetLogsRpcRequest = decode_payload(body)?;
             OperationalCommand::GetLogs(request.request)
@@ -3112,6 +3149,13 @@ fn decode_persistence_command(
 
 fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCommand, String> {
     Ok(match command {
+        QueryRpcCommand::ReleaseSession => {
+            let request: ReleaseQuerySessionRequest = decode_payload(body)?;
+            QueryCommand::ReleaseSession {
+                connection_id: request.connection_id,
+                query_session_id: request.session_id,
+            }
+        }
         QueryRpcCommand::Execute => {
             let request: ExecuteQueryRequest = decode_payload(body)?;
             QueryCommand::Execute {
@@ -3120,6 +3164,7 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
                 limit: request.limit,
                 page: request.page,
                 schema: request.schema,
+                query_session_id: request.session_id,
             }
         }
         QueryRpcCommand::ExecuteBatch => {
@@ -3130,6 +3175,7 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
                 limit: request.limit,
                 page: request.page,
                 schema: request.schema,
+                query_session_id: request.session_id,
                 batch_id: request.batch_id,
             }
         }
@@ -3139,6 +3185,7 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
                 connection_id: request.connection_id,
                 query: request.query,
                 schema: request.schema,
+                query_session_id: request.session_id,
             }
         }
         QueryRpcCommand::Explain => {
@@ -3224,6 +3271,31 @@ fn decode_database_object_command(
     body: &[u8],
 ) -> Result<DatabaseObjectCommand, String> {
     Ok(match command {
+        DatabaseObjectRpcCommand::GetTableQueryTemplate => {
+            let request: TableQueryTemplateRequest = decode_payload(body)?;
+            DatabaseObjectCommand::GetTableQueryTemplate {
+                connection_id: request.connection_id,
+                request: request.request,
+            }
+        }
+        DatabaseObjectRpcCommand::GetDataTypes => {
+            let request: DriverTypesRequest = decode_payload(body)?;
+            DatabaseObjectCommand::GetDataTypes {
+                driver: request.driver,
+            }
+        }
+        DatabaseObjectRpcCommand::MapInferredColumnTypes => {
+            let request: MapInferredTypesRequest = decode_payload(body)?;
+            DatabaseObjectCommand::MapInferredColumnTypes {
+                driver: request.driver,
+                kinds: request.kinds,
+                connection_id: request.connection_id,
+            }
+        }
+        DatabaseObjectRpcCommand::ExecuteClipboardImport => {
+            let request: ClipboardImportRpcRequest = decode_payload(body)?;
+            DatabaseObjectCommand::ExecuteClipboardImport { req: request.req }
+        }
         DatabaseObjectRpcCommand::GetViewDefinition
         | DatabaseObjectRpcCommand::DropView
         | DatabaseObjectRpcCommand::RefreshMaterializedView => {
@@ -3778,6 +3850,13 @@ fn decode_connection_command(
     body: &[u8],
 ) -> Result<ConnectionCommand, String> {
     Ok(match command {
+        ConnectionRpcCommand::SetSelectedDatabases => {
+            let request: SetSelectedDatabasesRequest = decode_payload(body)?;
+            ConnectionCommand::SetSelectedDatabases {
+                connection_id: request.connection_id,
+                databases: request.databases,
+            }
+        }
         ConnectionRpcCommand::GetConnectionById => {
             let request: IdRequest = decode_payload(body)?;
             ConnectionCommand::GetConnectionById { id: request.id }
@@ -4080,3 +4159,44 @@ fn failure(
 #[cfg(test)]
 #[path = "rpc_tests.rs"]
 mod tests;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TableQueryTemplateRequest {
+    connection_id: String,
+    request: crate::models::TableQueryTemplateRequest,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DriverTypesRequest {
+    driver: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MapInferredTypesRequest {
+    driver: String,
+    kinds: Vec<String>,
+    connection_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ClipboardImportRpcRequest {
+    req: crate::clipboard_import::ClipboardImportRequest,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetSelectedDatabasesRequest {
+    connection_id: String,
+    databases: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LogFrontendEventRequest {
+    level: String,
+    message: String,
+}
