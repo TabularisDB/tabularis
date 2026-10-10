@@ -50,10 +50,10 @@ describe('groupRoutinesByType', () => {
 });
 
 describe('routineLabel', () => {
-  it('shows a bare name when the signature arrives as null', () => {
-    // identity_args is an Option<String> and serde writes None as JSON null,
-    // so this is what MySQL actually sends. A strict undefined check rendered
-    // every one of its routines as do_thing(null).
+  it('shows a bare name when the signature is null', () => {
+    // The host omits identity_args rather than sending null, so this guards
+    // that staying true: a strict undefined check would render every routine
+    // of a dialect without overloads as do_thing(null).
     expect(routineLabel('do_thing', null)).toBe('do_thing');
   });
 

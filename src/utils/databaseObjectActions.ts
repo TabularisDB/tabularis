@@ -47,8 +47,9 @@ export interface RoutineDefinitionTarget {
   schema?: string;
   /**
    * The clicked overload's signature, where the dialect has overloads (#893).
-   * `null` as well as absent, because it reaches here from an `Option<String>`
-   * that serde writes as JSON `null`.
+   * The host omits the field where there are none, so absent is what arrives;
+   * `null` stays in the type so a change on that side is a type error here
+   * rather than a `(null)` suffix.
    */
   identityArgs?: string | null;
 }

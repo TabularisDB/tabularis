@@ -23,12 +23,11 @@ export interface RoutineInfo {
    * set rather than a routine and every read that followed a click had to pick
    * one of them arbitrarily (#893). Absent on the dialects where a name is
    * enough; an EMPTY string is the real signature of a no-argument routine.
-   */
-  /*
-   * `null` as well as absent. The Rust field is an `Option<String>` and the
-   * host skips it when it is `None`, so the wire sends absent today; the type
-   * admits null so that a change on that side is a type error here rather than
-   * a `(null)` suffix in the sidebar.
+   *
+   * The Rust field is an `Option<String>` that the host skips when it is
+   * `None`, so the wire sends absent; the type admits `null` so that a change
+   * on that side is a type error here rather than a `(null)` suffix in the
+   * sidebar.
    */
   identity_args?: string | null;
 }
