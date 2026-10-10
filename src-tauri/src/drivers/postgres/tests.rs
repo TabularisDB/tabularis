@@ -908,8 +908,7 @@ mod build_pk_predicate_tests {
     #[test]
     fn numeric_column_string_value_casts_to_numeric() {
         let (sql, param) =
-            build_pk_predicate("amount", serde_json::json!("1500.00"), 2, Some("numeric"))
-                .unwrap();
+            build_pk_predicate("amount", serde_json::json!("1500.00"), 2, Some("numeric")).unwrap();
         let (_, pg_type) = param.unwrap();
         assert_eq!(sql, "\"amount\" = CAST($2 AS numeric)");
         assert_eq!(pg_type, tokio_postgres::types::Type::NUMERIC);
@@ -917,9 +916,13 @@ mod build_pk_predicate_tests {
 
     #[test]
     fn double_precision_column_string_value_casts_to_double() {
-        let (sql, param) =
-            build_pk_predicate("score", serde_json::json!("1.5"), 1, Some("double precision"))
-                .unwrap();
+        let (sql, param) = build_pk_predicate(
+            "score",
+            serde_json::json!("1.5"),
+            1,
+            Some("double precision"),
+        )
+        .unwrap();
         let (_, pg_type) = param.unwrap();
         assert_eq!(sql, "\"score\" = CAST($1 AS double precision)");
         assert_eq!(pg_type, tokio_postgres::types::Type::FLOAT8);
@@ -974,8 +977,7 @@ mod build_pk_predicate_tests {
     // pk_map entry may legitimately be NULL and must render as IS NULL.
     #[test]
     fn null_pk_renders_is_null_without_binding() {
-        let (sql, param) =
-            build_pk_predicate("id", serde_json::Value::Null, 1, None).unwrap();
+        let (sql, param) = build_pk_predicate("id", serde_json::Value::Null, 1, None).unwrap();
         assert_eq!(sql, "\"id\" IS NULL");
         assert!(param.is_none());
     }
@@ -1077,7 +1079,10 @@ mod build_pk_map_predicate_tests {
         pk_map.insert("c_col".to_string(), serde_json::json!("bob"));
         let pk_types = HashMap::new();
         let (sql, params) = build_pk_map_predicate(&pk_map, &pk_types, 1).unwrap();
-        assert_eq!(sql, "\"a_col\" IS NULL AND \"b_col\" = $1 AND \"c_col\" = $2");
+        assert_eq!(
+            sql,
+            "\"a_col\" IS NULL AND \"b_col\" = $1 AND \"c_col\" = $2"
+        );
         assert_eq!(params.len(), 2);
     }
 }

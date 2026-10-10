@@ -108,6 +108,10 @@ pub mod theme_models;
 pub mod theme_packages;
 pub mod updater;
 pub mod window_decorations;
+// E2E-only mock of the `dialog` plugin (auto-accepts ask/confirm, stubs
+// open/save via env vars). Only compiled with --features e2e-testing.
+#[cfg(feature = "e2e-testing")]
+pub mod e2e_dialog_mock;
 pub mod drivers {
     pub mod common;
     pub mod driver_trait;
@@ -227,7 +231,8 @@ pub fn run() {
     // Install default drivers for sqlx::Any
     sqlx::any::install_default_drivers();
 
-    tauri::Builder::default()
+    #[cfg_attr(not(feature = "e2e-testing"), allow(unused_mut))]
+    let mut builder = tauri::Builder::default()
         // Singleton: a second launch (typically a `tabularis://...` URL
         // clicked while the app is already running) hands its argv to the
         // first instance and exits. With `features = ["deep-link"]` the plugin
@@ -250,11 +255,29 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_deep_link::init());
+
+    // Dialog plugin: real in production, mocked under e2e-testing (the mock
+    // auto-accepts ask()/confirm() so native Tauri confirm dialogs — which
+    // WebDriverIO can't click — don't block the trigger-save flow). Registered
+    // as a same-named "dialog" plugin so it replaces the real one at Tauri's
+    // IPC dispatch layer (PluginStore::register retains only the last).
+    #[cfg(not(feature = "e2e-testing"))]
+    {
+        builder = builder.plugin(tauri_plugin_dialog::init());
+    }
+    #[cfg(feature = "e2e-testing")]
+    {
+        builder = builder.plugin(crate::e2e_dialog_mock::init());
+        // In-app WebDriver server. tauri-wd connects to drive the real WKWebView
+        // via the W3C WebDriver protocol on macOS, exercising real Tauri IPC.
+        builder = builder.plugin(tauri_plugin_webdriver_automation::init());
+    }
+
+    builder
         .manage(crate::plugins::deep_link::PendingInstall::default())
         .manage(commands::QueryCancellationState::default())
         .manage(export::ExportCancellationState::default())

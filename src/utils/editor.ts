@@ -156,6 +156,7 @@ export function findExistingTableTab(
   connectionId: string,
   tableName: string | undefined,
   schema?: string,
+  database?: string,
 ): Tab | undefined {
   if (!tableName) return undefined;
   return tabs.find(
@@ -163,7 +164,8 @@ export function findExistingTableTab(
       t.connectionId === connectionId &&
       t.type === "table" &&
       t.activeTable === tableName &&
-      (t.schema || undefined) === (schema || undefined),
+      (t.schema || undefined) === (schema || undefined) &&
+      (t.database || undefined) === (database || undefined),
   );
 }
 

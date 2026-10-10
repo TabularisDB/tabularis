@@ -2537,6 +2537,15 @@ impl DatabaseDriver for MysqlDriver {
         Ok(vec![sql])
     }
 
+    async fn get_table_ddl(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_table_ddl(params, table).await
+    }
+
     async fn drop_index(
         &self,
         params: &crate::models::ConnectionParams,

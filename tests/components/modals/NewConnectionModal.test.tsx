@@ -133,6 +133,7 @@ vi.mock("../../../src/hooks/useDrivers", () => ({
           folder_based: false,
           connection_string: true,
           supports_ssl: true,
+          schemas: true,
           sql_dialect: "postgres",
         },
       },
@@ -1698,5 +1699,67 @@ describe("NewConnectionModal extra_fields slot credential toggle", () => {
         .checked,
     ).toBe(false);
     expect(screen.getByTestId("plugin-extra")).toHaveTextContent("{}");
+  });
+});
+
+describe("NewConnectionModal PostgreSQL multi-database opt-in", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(invoke).mockResolvedValue("ok");
+    sshMocks.loadSshConnections.mockResolvedValue([]);
+    k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+  });
+
+  it("shows the single Database field (not the Databases tab) for a single-database PostgreSQL connection", () => {
+    // A saved PG connection with a plain string database must NOT be treated
+    // as opted into multi-database mode — the Database field stays editable
+    // and the Databases tab is hidden .
+    renderModal(createInitialConnection({ driver: "postgresql", database: "mydb" }));
+
+    // Database field label is present (editable single-database field).
+    expect(screen.getByText("newConnection.dbName")).toBeInTheDocument();
+    // The Databases tab is NOT in the tab bar.
+    expect(screen.queryByText("newConnection.selectDatabases")).not.toBeInTheDocument();
+    // The opt-in checkbox is present and unchecked.
+    const checkbox = screen.getByLabelText("newConnection.browseMultipleDatabases", { exact: false });
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+  });
+
+  it("shows the Databases tab (not the single Database field) for an all-databases PostgreSQL connection", async () => {
+    // A saved PG connection with database: "" (all-databases mode) IS opted in.
+    // The edit-load effect sets optedIntoSchemaMultiDb asynchronously, so wait.
+    renderModal(createInitialConnection({ driver: "postgresql", database: "" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("newConnection.selectDatabases")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("newConnection.dbName")).not.toBeInTheDocument();
+    const checkbox = screen.getByLabelText("newConnection.browseMultipleDatabases", { exact: false });
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("opts a single-database PostgreSQL connection into multi-database mode via the checkbox", () => {
+    renderModal(createInitialConnection({ driver: "postgresql", database: "mydb" }));
+
+    const checkbox = screen.getByLabelText("newConnection.browseMultipleDatabases", { exact: false });
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+
+    fireEvent.click(checkbox);
+
+    // After opting in: the single Database field hides and the Databases tab appears.
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByText("newConnection.dbName")).not.toBeInTheDocument();
+    expect(screen.getByText("newConnection.selectDatabases")).toBeInTheDocument();
+  });
+
+  it("does not show the opt-in checkbox for a non-schema-based driver (MySQL mock has no schemas capability)", () => {
+    // The MySQL test driver omits `schemas`, so it is neither flat-multi-db-
+    // capable nor schema-based-multi-db-capable — a single-database driver in
+    // this harness. The opt-in checkbox must not appear for it (only
+    // schema-based drivers get the checkbox).
+    renderModal(createInitialConnection({ driver: "mysql", database: "shop" }));
+
+    expect(screen.queryByText("newConnection.browseMultipleDatabases")).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 use super::super::{lifecycle::*, *};
-use super::archive::valid_package;
+use super::archive::{temp_dir, valid_package};
 use std::fs;
 
 #[test]
@@ -18,7 +18,7 @@ fn local_preview_is_validated_and_never_installs_or_changes_preferences() {
 
 #[test]
 fn disable_uninstall_and_reinstall_keep_source_identity_and_configuration() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     let key = local_registry_key();
     let package = validate_local_archive(&valid_package(), "0.99.0", &|| Ok(())).unwrap();
     let storage = temp.path().join("plugins");
@@ -61,7 +61,7 @@ fn disable_uninstall_and_reinstall_keep_source_identity_and_configuration() {
 
 #[test]
 fn mutation_arguments_cannot_escape_package_storage() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     for (key, package) in [
         ("../outside".into(), "fixture-theme"),
         (local_registry_key(), "../outside"),

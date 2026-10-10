@@ -1,4 +1,6 @@
-use super::format::{parse_csv_delimiter, value_to_csv_string, ExportFormat, DEFAULT_CSV_DELIMITER};
+use super::format::{
+    parse_csv_delimiter, value_to_csv_string, ExportFormat, DEFAULT_CSV_DELIMITER,
+};
 use super::progress::ProgressEmitter;
 use super::sink::{CsvSink, JsonSink, MarkdownSink, RowSink};
 use serde_json::{json, Value};
@@ -185,10 +187,7 @@ fn csv_writes_headers_once_then_rows() {
 
 #[test]
 fn csv_respects_custom_delimiter() {
-    let csv = collect_csv(
-        b';',
-        &[(vec!["a", "b"], vec![json!("x"), json!("y")])],
-    );
+    let csv = collect_csv(b';', &[(vec!["a", "b"], vec![json!("x"), json!("y")])]);
     assert_eq!(csv, "a;b\nx;y\n");
 }
 
@@ -200,10 +199,7 @@ fn csv_emits_null_sentinel_for_null_values() {
 
 #[test]
 fn csv_quotes_values_containing_delimiter() {
-    let csv = collect_csv(
-        b',',
-        &[(vec!["v"], vec![json!("a,b")])],
-    );
+    let csv = collect_csv(b',', &[(vec!["v"], vec![json!("a,b")])]);
     assert!(csv.contains("\"a,b\""));
 }
 

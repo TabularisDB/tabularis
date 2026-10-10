@@ -1,12 +1,13 @@
 /// Returns a properly quoted, schema-qualified table identifier for SQL output.
 ///
 /// - MySQL: `table` (backtick-quoted, no schema prefix)
-/// - PostgreSQL: "schema"."table" (double-quote-quoted, schema-qualified)
+/// - PostgreSQL (builtin `postgres` or the `postgresql` plugin): "schema"."table"
+///   (double-quote-quoted, schema-qualified)
 /// - SQLite / other: "table" (double-quote-quoted)
 pub fn format_table_ref(driver: &str, schema: &str, table: &str) -> String {
     match driver {
         "mysql" => format!("`{}`", table),
-        "postgres" => format!(r#""{}"."{}""#, schema, table),
+        "postgres" | "postgresql" => format!(r#""{}"."{}""#, schema, table),
         _ => format!(r#""{}""#, table),
     }
 }
@@ -53,6 +54,19 @@ mod tests {
             assert_eq!(
                 format_table_ref("postgres", "myschema", "orders"),
                 r#""myschema"."orders""#
+            );
+        }
+
+        /// Regression: the "postgresql" plugin driver id must be treated
+        /// identically to the builtin "postgres" driver, or a plugin-backed
+        /// dump silently drops the schema qualifier (issue found testing PR
+        /// #822 -- the unqualified DROP TABLE/INSERT this produced could hit
+        /// the wrong same-named table in a different schema, not just fail).
+        #[test]
+        fn postgresql_plugin_id_is_treated_like_builtin_postgres() {
+            assert_eq!(
+                format_table_ref("postgresql", "store", "products"),
+                r#""store"."products""#
             );
         }
 

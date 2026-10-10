@@ -1453,6 +1453,15 @@ impl DatabaseDriver for SqliteDriver {
         Err("SQLite does not support adding foreign keys to existing tables. Foreign keys must be defined at table creation time.".into())
     }
 
+    async fn get_table_ddl(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_table_ddl(params, table).await
+    }
+
     async fn drop_index(
         &self,
         params: &crate::models::ConnectionParams,

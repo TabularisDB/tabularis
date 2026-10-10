@@ -8,6 +8,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  FileCode,
   X,
 } from "lucide-react";
 import { Accordion } from "./Accordion";
@@ -33,8 +34,22 @@ interface SidebarSchemaItemProps {
   connectionId: string;
   driver: string;
   schemaVersion: number;
+  /** Database name for a schema-based multi-db driver (PostgreSQL browsing
+   * several databases on one connection) — distinct from `schemaName`,
+   * forwarded to every child action alongside it so table/view/routine/
+   * trigger operations route to the right connection pool. Undefined for
+   * a plain single-database connection. */
+  database?: string;
   onLoadSchema: (schema: string) => void;
   onRefreshSchema: (schema: string) => void;
+  /** Opens a new, empty console scoped to this schema (and its database,
+   * for the nested multi-db tree). The nested tree has no other way to
+   * open an ad-hoc console against a database with no existing table/
+   * routine to anchor a context-menu action on (#822 follow-up) — the
+   * flat schema-less multi-db path already has this via the console's own
+   * database-selector dropdown, which is deliberately hidden for a
+   * schema-based driver like PostgreSQL. */
+  onNewConsole: (schema: string, database?: string) => void;
   onTableClick: (name: string, schema: string) => void;
   onTableDoubleClick: (name: string, schema: string) => void;
   onViewClick: (name: string) => void;
@@ -75,8 +90,10 @@ export const SidebarSchemaItem = ({
   connectionId,
   driver,
   schemaVersion,
+  database,
   onLoadSchema,
   onRefreshSchema,
+  onNewConsole,
   onTableClick,
   onTableDoubleClick,
   onViewClick,
@@ -184,17 +201,30 @@ export const SidebarSchemaItem = ({
           )}
         </div>
         {isExpanded && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRefreshSchema(schemaName);
-            }}
-            className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors opacity-0
-                group-hover/schema:opacity-100 ml-1 mr-3"
-            title={t("sidebar.refreshTables") || "Refresh"}
-          >
-            <RefreshCw size={12} />
-          </button>
+          <div className="flex items-center opacity-0 group-hover/schema:opacity-100 ml-1 mr-3">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onNewConsole(schemaName, database);
+              }}
+              className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors mr-0.5"
+              title={t("sidebar.newConsole")}
+              aria-label={t("sidebar.newConsole")}
+            >
+              <FileCode size={12} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRefreshSchema(schemaName);
+              }}
+              className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+              title={t("sidebar.refreshTables") || "Refresh"}
+              aria-label={t("sidebar.refreshTables") || "Refresh"}
+            >
+              <RefreshCw size={12} />
+            </button>
+          </div>
         )}
       </div>
 
@@ -276,6 +306,7 @@ export const SidebarSchemaItem = ({
                         onDropForeignKey={onDropForeignKey}
                         schemaVersion={schemaVersion}
                         schema={schemaName}
+                        database={database}
                       />
                     ))}
                   </div>
@@ -319,6 +350,7 @@ export const SidebarSchemaItem = ({
                         connectionId={connectionId}
                         driver={driver}
                         schema={schemaName}
+                        database={database}
                       />
                     ))}
                   </div>
@@ -345,6 +377,7 @@ export const SidebarSchemaItem = ({
                         connectionId={connectionId}
                         driver={driver}
                         schema={schemaName}
+                        database={database}
                         materialized
                         isRefreshing={refreshingMatView === view.name}
                       />
@@ -411,6 +444,7 @@ export const SidebarSchemaItem = ({
                           onContextMenu={onContextMenu}
                           onDoubleClick={(tr) => onTriggerDoubleClick(tr, schemaName)}
                           schema={schemaName}
+                          database={database}
                         />
                       ))}
                     </div>
@@ -466,6 +500,7 @@ export const SidebarSchemaItem = ({
                             onContextMenu={onContextMenu}
                             onDoubleClick={(r) => onRoutineDoubleClick(r, schemaName)}
                             schema={schemaName}
+                            database={database}
                           />
                         ))}
                       </div>
@@ -488,6 +523,7 @@ export const SidebarSchemaItem = ({
                             onContextMenu={onContextMenu}
                             onDoubleClick={(r) => onRoutineDoubleClick(r, schemaName)}
                             schema={schemaName}
+                            database={database}
                           />
                         ))}
                       </div>

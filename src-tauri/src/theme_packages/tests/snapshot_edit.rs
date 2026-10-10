@@ -1,9 +1,10 @@
 use super::super::*;
+use super::archive::temp_dir;
 use serde_json::json;
 
 #[test]
 fn independent_snapshot_edits_keep_exact_editor_raw_metadata_and_revision_checks() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     let source = super::super::legacy::builtin_themes()[0]
         .to_string()
         .replacen('{', "{\"opaque\":123456789012345678901234567890,", 1);
@@ -45,7 +46,7 @@ fn independent_snapshot_edits_keep_exact_editor_raw_metadata_and_revision_checks
 
 #[test]
 fn snapshot_editor_api_cannot_overwrite_a_v1_definition() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     let definition = create_personal_definition(
         root.path(),
         "Definition",

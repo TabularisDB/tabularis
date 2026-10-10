@@ -25,6 +25,7 @@ import {
   getTableDataChangeScope,
   isMultiDatabaseCapable,
   usesMultiDatabaseLayout,
+  resolveHistoryDatabase,
 } from "../utils/database";
 import { isReadonly, supportsExplain } from "../utils/driverCapabilities";
 import { useClickOutside } from "../hooks/useClickOutside";
@@ -1067,9 +1068,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       generation: number,
       tabId?: string,
       tabSchema?: string,
+      tabDatabase?: string,
     ) => {
       if (!activeConnectionId) return;
       const effectiveSchema = tabSchema ?? activeSchema;
+      const effectiveDatabase = tabDatabase;
       const targetId = tabId || activeTabId;
       // A newer runQuery on this tab may have started (and kicked off its own
       // fetchPkColumn) while this call was still in flight — e.g. running two
@@ -1083,11 +1086,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             connectionId: activeConnectionId,
             tableName: table,
             ...(effectiveSchema ? { schema: effectiveSchema } : {}),
+            ...(effectiveDatabase ? { database: effectiveDatabase } : {}),
           }),
           invoke<ForeignKey[]>("get_foreign_keys", {
             connectionId: activeConnectionId,
             tableName: table,
             ...(effectiveSchema ? { schema: effectiveSchema } : {}),
+            ...(effectiveDatabase ? { database: effectiveDatabase } : {}),
           }).catch((e) => {
             console.warn("Failed to fetch foreign keys:", e);
             return [] as ForeignKey[];
@@ -1304,11 +1309,18 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           targetTab?.type === "console" || targetTab?.type === "query_builder";
 
         const schema = targetTab?.schema ?? activeSchema;
-        // For history: fall back to activeDatabaseName for multi-db connections
-        // where schema may not be set on the tab
-        const historyDb = schema
-          || (isMultiDb ? activeDatabaseName : undefined)
-          || undefined;
+        // For history: store the tab's database (not the schema) so replay
+        // reopens the tab scoped to the right database. The schema is NOT the
+        // database — storing it as `database` made replay open the primary
+        // instead of the source database, and for a plain single-database
+        // connection it made replay try to connect to a database literally named
+        // after the schema (e.g. "public"). See resolveHistoryDatabase in
+        // utils/database.ts.
+        const historyDb = resolveHistoryDatabase(
+          { database: targetTab?.database, schema: targetTab?.schema },
+          isMultiDb,
+          activeDatabaseName,
+        );
 
         const start = performance.now();
 
@@ -1330,6 +1342,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             // run would land on a different pooled connection each time.
             sessionId: targetTabId,
             ...(schema ? { schema } : {}),
+            ...(targetTab?.database ? { database: targetTab.database } : {}),
           });
           const end = performance.now();
           const latestTab = tabsRef.current.find((tab) => tab.id === targetTabId);
@@ -1448,7 +1461,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
             if (tableName && !backgroundRefresh) {
               // Fetch column metadata in the background; tab updates when ready
-              fetchPkColumn(tableName, generation, targetTabId, targetTab?.schema ?? undefined);
+              fetchPkColumn(tableName, generation, targetTabId, targetTab?.schema ?? undefined, targetTab?.database);
             } else if (!tableName) {
               updateTab(targetTabId, { pkColumns: null });
             }
@@ -1602,9 +1615,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         settings.resultPageSize,
       );
       const schema = targetTab?.schema ?? activeSchema;
-      const historyDb = schema
-        || (isMultiDb ? activeDatabaseName : undefined)
-        || undefined;
+      const historyDb = resolveHistoryDatabase(
+        { database: targetTab?.database, schema: targetTab?.schema },
+        isMultiDb,
+        activeDatabaseName,
+      );
 
       // Entry ids are reused per tab, so drop offsets from the previous run.
       clearEntryScrollTops(targetTabId);
@@ -1704,6 +1719,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             // this tab's connection so the next run continues it.
             sessionId: targetTabId,
             ...(schema ? { schema } : {}),
+            ...(targetTab?.database ? { database: targetTab.database } : {}),
           },
         );
       } catch (err) {
@@ -1898,6 +1914,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           // transaction, or it shows pre-transaction rows.
           sessionId: targetTabId,
           ...(schema ? { schema } : {}),
+          ...(currentTab?.database ? { database: currentTab.database } : {}),
         });
         const end = performance.now();
 
@@ -2005,6 +2022,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             connectionId: tab.connectionId,
             query: countTarget,
             schema: tab.schema ?? activeSchema,
+            database: tab.database,
             // Inside a transaction, count what the tab sees, uncommitted rows included.
             sessionId: transactionTabIdsRef.current.has(tab.id) ? tab.id : undefined,
           });
@@ -2109,6 +2127,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       schema: string | null | undefined,
       tableName: string | null,
       sessionId: string,
+      database?: string | null,
     ): Promise<CopiedRows | null> => {
       const columns = result?.columns ?? [];
       if (!activeConnectionId || columns.length === 0 || !query.trim()) {
@@ -2126,6 +2145,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         // Copying every row must see what the tab's own transaction sees.
         sessionId,
         ...(schema ? { schema } : {}),
+        // Nested multi-db (Postgres): without this, "Copy All Rows" on a
+        // secondary database silently re-queries the primary — the same
+        // database-routing bug class as findings #1/#5/#6.
+        ...(database ? { database } : {}),
       });
       const text = formatRowsForCopy(res.rows, res.columns ?? columns, copyFormat, {
         withHeaders: true,
@@ -2168,6 +2191,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           tab.schema ?? activeSchema,
           tab.activeTable,
           tab.id,
+          tab.database,
         );
       if (tab.type !== "table") return fetch();
 
@@ -2199,6 +2223,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         tab.schema ?? activeSchema,
         entry.activeTable,
         tab.id,
+        tab.database,
       );
     },
     [activeSchema, fetchAllRows],
@@ -2866,6 +2891,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         type: "table",
         activeTable: fk.ref_table,
         schema: targetSchema,
+        database: currentTab.database,
+        title: currentTab.database
+          ? `${fk.ref_table} (${currentTab.database}${targetSchema ? `.${targetSchema}` : ""})`
+          : fk.ref_table,
         filterClause,
         // Reset clauses that may linger on an existing dedup'd tab
         sortClause: "",
@@ -3252,11 +3281,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     }
 
     try {
-      // Fetch table columns
+      // Fetch table columns. Use the tab's own schema (not the connection-level
+      // activeSchema) so a nested multi-db tab on a non-default schema fetches
+      // columns from the right one.
+      const tabSchema = activeTab?.schema ?? activeSchema;
       const columns = await invoke<TableColumn[]>("get_columns", {
         connectionId: activeConnectionId,
         tableName: activeTab.activeTable,
-        ...(activeSchema ? { schema: activeSchema } : {}),
+        ...(tabSchema ? { schema: tabSchema } : {}),
+        ...(activeTab.database ? { database: activeTab.database } : {}),
       });
 
       if (!columns || columns.length === 0) {
@@ -3422,11 +3455,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     // Process insertions
     if (pendingInsertions && Object.keys(pendingInsertions).length > 0) {
       try {
-        // Fetch columns for validation
+        // Fetch columns for validation. Use the tab's own schema (not the
+        // connection-level activeSchema) so a nested multi-db tab on a
+        // non-default schema validates against the right columns.
+        const tabSchema = activeTab?.schema ?? activeSchema;
         const columns = await invoke<TableColumn[]>("get_columns", {
           connectionId: activeConnectionId,
           tableName: activeTable,
-          ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(tabSchema ? { schema: tabSchema } : {}),
+          ...(activeTab?.database ? { database: activeTab.database } : {}),
         });
 
         const selectedDisplayIndices = new Set<number>();
@@ -3498,6 +3535,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         activeCapabilities,
         activeTab?.schema,
         activeSchema,
+        activeTab?.database,
       );
 
       // Deletions
@@ -3935,9 +3973,17 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   useSqlAutocompleteRegistration(activeConnectionId, {
     monaco: monacoInstance,
-    schema: activeSchema,
+    schema: activeTab?.schema ?? activeSchema,
+    database: activeTab?.database,
     enabled: !isNotebookTab && !isUsersTab,
   });
+
+  // E2E: expose a submit-changes hook for tauri-wd tests. The WDIO
+  // element.click() on the Submit button doesn't reliably trigger React's
+  // onClick in WKWebView, so the test calls this directly. This mirrors
+  // handleSubmitChanges: builds the update from the DataGrid's
+  // pendingChanges and rowIdentity, calling update_record for each.
+  (window as unknown as Record<string, unknown>).__e2e_submitChanges = handleSubmitChanges;
 
   useEffect(() => {
     const intent = parseEditorNavigationIntent(
@@ -4158,10 +4204,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       // selected database so the query runs against the database the user is
       // viewing rather than the connection's primary database. The tab may not
       // carry its own schema (e.g. a console query), so fall back to the active
-      // database — mirroring how execute_query resolves the schema.
+      // database — mirroring how execute_query resolves the schema. A
+      // schema-based multi-db tab (Postgres) carries its own `database`
+      // field instead, since `schema` there is a real Postgres schema, not
+      // the database name.
       const targetDatabase = activeTab?.schema ?? activeSchema ?? undefined;
-      const databaseParam =
-        isMultiDatabaseCapable(activeCapabilities) && targetDatabase
+      const databaseParam = activeTab?.database
+        ? { database: activeTab.database }
+        : isMultiDatabaseCapable(activeCapabilities) && targetDatabase
           ? { database: targetDatabase }
           : {};
 
@@ -5589,6 +5639,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                           : undefined
                       }
                       connectionId={activeConnectionId}
+                      schema={activeTab.schema ?? activeSchema}
+                      database={activeTab.database}
                       onRefresh={handleRefresh}
                       onEditingChange={handleEditingChange}
                       pendingChanges={activeTab.pendingChanges}
@@ -5756,6 +5808,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         query={visualExplainQuery ?? activeTab?.query ?? ""}
         connectionId={activeConnectionId ?? ""}
         schema={activeTab?.schema ?? activeSchema ?? undefined}
+        database={activeTab?.database}
       />
       <ExplainSelectionModal
         isOpen={isExplainSelectionOpen}

@@ -1,9 +1,10 @@
 use super::super::{files, read_theme_catalog};
+use super::archive::temp_dir;
 use std::fs;
 
 #[test]
 fn catalog_read_budget_counts_invalid_sources_without_writing_them() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     let path = root.path().join("theme.json");
     fs::write(&path, b"not JSON").unwrap();
     let mut remaining = 12;
@@ -19,7 +20,7 @@ fn catalog_read_budget_counts_invalid_sources_without_writing_them() {
 
 #[test]
 fn duplicated_legacy_snapshots_remain_editable_and_exportable() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     let editor = serde_json::json!({"base":"vs-dark","inherit":true,"colors":{"editor.background":"#123456"},"rules":[]});
     let duplicate = super::super::duplicate_personal_theme(root.path(), root.path(), "0.99.0",
         "monokai",
@@ -83,7 +84,7 @@ fn standalone_preview_keeps_v1_validation_strict() {
 #[cfg(unix)]
 #[test]
 fn fifo_namespace_locks_are_rejected_without_opening_them() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     let namespace = root.path().join("plugins/themes");
     fs::create_dir_all(&namespace).unwrap();
     assert!(std::process::Command::new("mkfifo")

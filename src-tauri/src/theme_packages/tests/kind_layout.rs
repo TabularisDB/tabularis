@@ -1,5 +1,5 @@
 use super::super::{lifecycle::*, *};
-use super::archive::valid_package;
+use super::archive::{temp_dir, valid_package};
 use std::{fs, path::Path};
 
 fn manual(root: &Path, relative: &str) {
@@ -23,7 +23,7 @@ fn installed(root: &Path) -> Vec<ThemeContribution> {
 #[test]
 fn manual_themes_in_either_location_need_no_lock_or_registry_metadata() {
     for relative in ["plugins/fixture-theme", "plugins/themes/fixture-theme"] {
-        let root = tempfile::tempdir().unwrap();
+        let root = temp_dir();
         manual(root.path(), relative);
         let themes = installed(root.path());
         assert_eq!(themes.len(), 1);
@@ -45,7 +45,7 @@ fn manual_themes_in_either_location_need_no_lock_or_registry_metadata() {
 
 #[test]
 fn canonical_themes_shadow_flat_copies_and_uninstall_does_not_resurrect_them() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     manual(root.path(), "plugins/fixture-theme");
     manual(root.path(), "plugins/themes/fixture-theme");
     fs::write(
@@ -62,7 +62,7 @@ fn canonical_themes_shadow_flat_copies_and_uninstall_does_not_resurrect_them() {
 
 #[test]
 fn updates_always_install_in_kind_directory_and_preserve_disabled_flat_state() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     manual(root.path(), "plugins/fixture-theme");
     let key = local_registry_key();
     set_package_enabled(root.path(), &key, "fixture-theme", false).unwrap();
@@ -81,7 +81,7 @@ fn updates_always_install_in_kind_directory_and_preserve_disabled_flat_state() {
 
 #[test]
 fn failed_update_leaves_flat_installation_untouched() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     manual(root.path(), "plugins/fixture-theme");
     let before = fs::read(root.path().join("plugins/fixture-theme/.tabularium")).unwrap();
     let package = validate_local_archive(&valid_package(), "0.99.0", &|| Ok(())).unwrap();
@@ -101,7 +101,7 @@ fn failed_update_leaves_flat_installation_untouched() {
 
 #[test]
 fn root_driver_with_same_name_is_never_removed_by_theme_installation() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     let driver = root.path().join("plugins/fixture-theme");
     fs::create_dir_all(&driver).unwrap();
     fs::write(
@@ -124,7 +124,7 @@ fn root_driver_with_same_name_is_never_removed_by_theme_installation() {
 
 #[test]
 fn reinstall_after_removing_a_disabled_flat_theme_keeps_it_disabled() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     manual(root.path(), "plugins/fixture-theme");
     let key = local_registry_key();
     set_package_enabled(root.path(), &key, "fixture-theme", false).unwrap();
@@ -137,7 +137,7 @@ fn reinstall_after_removing_a_disabled_flat_theme_keeps_it_disabled() {
 #[test]
 fn reserved_kind_names_never_retire_the_container_directory() {
     for name in ["themes", "drivers"] {
-        let root = tempfile::tempdir().unwrap();
+        let root = temp_dir();
         let mut manifest = super::archive::manifest();
         manifest["name"] = name.into();
         let source = serde_json::to_vec(&manifest).unwrap();
@@ -172,7 +172,7 @@ fn reserved_kind_names_never_retire_the_container_directory() {
 #[test]
 fn canonical_lock_covers_flat_mutations_and_catalog_fallback() {
     use fs2::FileExt;
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     manual(root.path(), "plugins/fixture-theme");
     let storage = root.path().join("plugins/themes");
     fs::create_dir_all(&storage).unwrap();
@@ -202,8 +202,8 @@ fn canonical_lock_covers_flat_mutations_and_catalog_fallback() {
 #[cfg(unix)]
 #[test]
 fn symlinked_canonical_theme_does_not_expose_a_flat_copy_or_modify_its_target() {
-    let root = tempfile::tempdir().unwrap();
-    let outside = tempfile::tempdir().unwrap();
+    let root = temp_dir();
+    let outside = temp_dir();
     manual(root.path(), "plugins/fixture-theme");
     fs::create_dir_all(root.path().join("plugins/themes")).unwrap();
     std::os::unix::fs::symlink(

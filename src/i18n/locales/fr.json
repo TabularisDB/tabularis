@@ -1113,6 +1113,7 @@
     "loadDatabases": "Charger les bases de données",
     "loadingDatabases": "Chargement...",
     "selectDatabases": "Bases de données",
+    "browseMultipleDatabases": "Browse multiple databases on this connection",
     "appearance": "Apparence",
     "noDatabasesSelected": "Sélectionnez au moins une base de données",
     "selectedDatabases": "{{count}} base(s) de données sélectionnée(s)",
@@ -1828,6 +1829,7 @@
     "exitFullscreen": "Quitter le plein écran",
     "noConnection": "Aucun ID de connexion",
     "noConnectionDesc": "Impossible d’afficher le diagramme sans ID de connexion.",
+    "loadError": "Échec du chargement du diagramme : {{message}}",
     "switchToVertical": "Passer en disposition verticale",
     "switchToHorizontal": "Passer en disposition horizontale",
     "lockNodes": "Verrouiller la position des nœuds",
@@ -1897,7 +1899,8 @@
     "createSuccess": "Trigger créé avec succès",
     "updateSuccess": "Trigger mis à jour avec succès",
     "recreateTrigger": "Recréer le trigger",
-    "confirmRecreate": "Modifier un trigger nécessite de le supprimer puis de le recréer. Continuer la modification de « {{trigger}} » ?"
+    "confirmRecreate": "Modifier un trigger nécessite de le supprimer puis de le recréer. Continuer la modification de « {{trigger}} » ?",
+    "functionNameCollision": "A function named \"{{name}}\" already exists. Rename the trigger or drop the function first."
   },
   "community": {
     "title": "Rejoindre la communauté",

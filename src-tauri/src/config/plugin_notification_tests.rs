@@ -15,8 +15,17 @@ fn notified_plugin_versions_round_trip_independently_of_core_dismissal() {
     });
     let config: AppConfig = serde_json::from_value(json.clone()).unwrap();
     let serialized = serde_json::to_value(&config).unwrap();
-    assert_eq!(serialized["notifiedPluginVersions"], json["notifiedPluginVersions"]);
-    assert_eq!(serialized["lastDismissedVersion"], json["lastDismissedVersion"]);
+    assert_eq!(
+        serialized["notifiedPluginVersions"],
+        json["notifiedPluginVersions"]
+    );
+    assert_eq!(
+        serialized["lastDismissedVersion"],
+        json["lastDismissedVersion"]
+    );
     let restored: AppConfig = serde_json::from_value(serialized).unwrap();
-    assert_eq!(restored.notified_plugin_versions, config.notified_plugin_versions);
+    assert_eq!(
+        restored.notified_plugin_versions,
+        config.notified_plugin_versions
+    );
 }

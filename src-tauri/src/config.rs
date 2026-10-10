@@ -260,8 +260,7 @@ pub struct AppConfig {
     pub proxy: Option<crate::proxy::GlobalProxySettings>,
     /// Per AI-provider proxy overrides (`openai`, `anthropic`, …).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ai_provider_proxies:
-        Option<HashMap<String, crate::proxy::ProxyOverride>>,
+    pub ai_provider_proxies: Option<HashMap<String, crate::proxy::ProxyOverride>>,
 }
 
 /// One entry in the append-only driver-migration history.
@@ -714,12 +713,51 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     }
 }
 
+/// Composes the config-storage key for per-connection schema selection/
+/// preference. A non-empty `database` scopes the key to that database, so a
+/// nested multi-database driver (e.g. PostgreSQL browsing several databases
+/// on one connection) keeps each database's schema selection independent
+/// instead of every database sharing one flat per-connection entry.
+fn schema_storage_key(connection_id: &str, database: Option<&str>) -> String {
+    match database {
+        Some(db) if !db.is_empty() => format!("{connection_id}::{db}"),
+        _ => connection_id.to_string(),
+    }
+}
+
+/// Looks up a schema preference, falling back to the pre-multi-db flat
+/// per-connection entry when the database-scoped key has never been set.
+///
+/// A connection's schema preference saved before it opted into
+/// multi-database browsing lives under the flat `connection_id` key. Once
+/// opted in, every lookup passes a database and scopes to
+/// `connection_id::database` instead — without this fallback, that old
+/// preference is orphaned and silently lost the first time each database is
+/// looked up under its new per-database key.
+fn resolve_schema_preference(
+    prefs: &HashMap<String, String>,
+    connection_id: &str,
+    database: Option<&str>,
+) -> Option<String> {
+    let key = schema_storage_key(connection_id, database);
+    if let Some(value) = prefs.get(&key) {
+        return Some(value.clone());
+    }
+    if key != connection_id {
+        return prefs.get(connection_id).cloned();
+    }
+    None
+}
+
 #[tauri::command]
-pub fn get_schema_preference(app: AppHandle, connection_id: String) -> Option<String> {
+pub fn get_schema_preference(
+    app: AppHandle,
+    connection_id: String,
+    database: Option<String>,
+) -> Option<String> {
     let config = load_config_internal(&app);
-    config
-        .schema_preferences
-        .and_then(|prefs| prefs.get(&connection_id).cloned())
+    let prefs = config.schema_preferences.unwrap_or_default();
+    resolve_schema_preference(&prefs, &connection_id, database.as_deref())
 }
 
 #[tauri::command]
@@ -727,6 +765,7 @@ pub fn set_schema_preference(
     app: AppHandle,
     connection_id: String,
     schema: String,
+    database: Option<String>,
 ) -> Result<(), String> {
     if let Some(config_dir) = get_config_dir(&app) {
         if !config_dir.exists() {
@@ -734,8 +773,9 @@ pub fn set_schema_preference(
         }
         let config_path = config_dir.join("config.json");
         let mut config = load_config_internal(&app);
+        let key = schema_storage_key(&connection_id, database.as_deref());
         let prefs = config.schema_preferences.get_or_insert_with(HashMap::new);
-        prefs.insert(connection_id, schema);
+        prefs.insert(key, schema);
         let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
         fs::write(config_path, content).map_err(|e| e.to_string())?;
         Ok(())
@@ -799,11 +839,16 @@ pub fn set_last_open_connections(
 }
 
 #[tauri::command]
-pub fn get_selected_schemas(app: AppHandle, connection_id: String) -> Vec<String> {
+pub fn get_selected_schemas(
+    app: AppHandle,
+    connection_id: String,
+    database: Option<String>,
+) -> Vec<String> {
     let config = load_config_internal(&app);
+    let key = schema_storage_key(&connection_id, database.as_deref());
     config
         .selected_schemas
-        .and_then(|map| map.get(&connection_id).cloned())
+        .and_then(|map| map.get(&key).cloned())
         .unwrap_or_default()
 }
 
@@ -812,6 +857,7 @@ pub fn set_selected_schemas(
     app: AppHandle,
     connection_id: String,
     schemas: Vec<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     if let Some(config_dir) = get_config_dir(&app) {
         if !config_dir.exists() {
@@ -819,11 +865,12 @@ pub fn set_selected_schemas(
         }
         let config_path = config_dir.join("config.json");
         let mut config = load_config_internal(&app);
+        let key = schema_storage_key(&connection_id, database.as_deref());
         let map = config.selected_schemas.get_or_insert_with(HashMap::new);
         if schemas.is_empty() {
-            map.remove(&connection_id);
+            map.remove(&key);
         } else {
-            map.insert(connection_id, schemas);
+            map.insert(key, schemas);
         }
         let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
         fs::write(config_path, content).map_err(|e| e.to_string())?;
@@ -1175,6 +1222,81 @@ mod tests {
         assert_eq!(
             schemas.get("conn-2").unwrap(),
             &vec!["staging".to_string(), "prod".to_string()]
+        );
+    }
+
+    #[test]
+    fn schema_storage_key_plain_connection_without_database() {
+        assert_eq!(schema_storage_key("conn-1", None), "conn-1");
+        assert_eq!(schema_storage_key("conn-1", Some("")), "conn-1");
+    }
+
+    #[test]
+    fn schema_storage_key_scopes_to_database_when_given() {
+        assert_eq!(
+            schema_storage_key("conn-1", Some("analytics")),
+            "conn-1::analytics"
+        );
+    }
+
+    #[test]
+    fn schema_storage_key_keeps_two_databases_on_the_same_connection_independent() {
+        let a = schema_storage_key("conn-1", Some("db_a"));
+        let b = schema_storage_key("conn-1", Some("db_b"));
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn resolve_schema_preference_prefers_the_scoped_key_when_it_exists() {
+        let mut prefs = HashMap::new();
+        prefs.insert("conn-1".to_string(), "legacy_public".to_string());
+        prefs.insert(
+            "conn-1::analytics".to_string(),
+            "analytics_schema".to_string(),
+        );
+
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("analytics")),
+            Some("analytics_schema".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_schema_preference_falls_back_to_the_flat_key_after_a_multi_db_opt_in() {
+        // Regression: a connection's schema preference saved before it opted
+        // into multi-database browsing lives under the flat "conn-1" key.
+        // Once opted in, every lookup passes a database and would otherwise
+        // silently miss under the new "conn-1::analytics" key forever.
+        let mut prefs = HashMap::new();
+        prefs.insert("conn-1".to_string(), "legacy_public".to_string());
+
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("analytics")),
+            Some("legacy_public".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_schema_preference_returns_none_when_neither_key_exists() {
+        let prefs = HashMap::new();
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("analytics")),
+            None
+        );
+    }
+
+    #[test]
+    fn resolve_schema_preference_plain_connection_reads_only_the_flat_key() {
+        let mut prefs = HashMap::new();
+        prefs.insert("conn-1".to_string(), "public".to_string());
+
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", None),
+            Some("public".to_string())
+        );
+        assert_eq!(
+            resolve_schema_preference(&prefs, "conn-1", Some("")),
+            Some("public".to_string())
         );
     }
 

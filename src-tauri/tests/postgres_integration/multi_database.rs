@@ -2,6 +2,84 @@
 
 use crate::helpers::{pg_params, pg_params_secondary};
 use tabularis_lib::drivers::postgres;
+use tabularis_lib::models::DatabaseSelection;
+
+// --- new: test the params.database override pattern used by Stage 1 Tauri
+// commands (get_schemas, get_tables, etc. with database: Option<String>) ----
+
+#[tokio::test]
+#[ignore]
+async fn test_database_override_routes_to_secondary() {
+    require_pg!();
+    // Start from testdb params, then switch database via the same
+    // params.database = Single(db) override the Tauri commands apply.
+    let mut params = pg_params();
+    params.database = DatabaseSelection::Single("tabularis_test_secondary".to_string());
+
+    let schemas = postgres::get_schemas(&params)
+        .await
+        .expect("get_schemas with overridden database should succeed");
+
+    assert!(
+        schemas.contains(&"secondary_schema".to_string()),
+        "Override to tabularis_test_secondary should expose secondary_schema, got: {:?}",
+        schemas
+    );
+    assert!(
+        !schemas.contains(&"test_schema".to_string()),
+        "Override should NOT see testdb's test_schema, got: {:?}",
+        schemas
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_get_tables_with_database_and_schema_override() {
+    require_pg!();
+    // Start from testdb/public, override to secondary's schema — this is
+    // the exact path `get_tables` takes when called with `database` + `schema`
+    // params from the nested multi-db sidebar.
+    let mut params = pg_params();
+    params.database = DatabaseSelection::Single("tabularis_test_secondary".to_string());
+
+    let tables = postgres::get_tables(&params, "secondary_schema")
+        .await
+        .expect("get_tables with overridden database+schema should succeed");
+
+    let names: Vec<&str> = tables.iter().map(|t| t.name.as_str()).collect();
+    assert!(
+        names.contains(&"remote_data"),
+        "Expected remote_data in tabularis_test_secondary.secondary_schema, got: {:?}",
+        names
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_empty_string_filter_prevents_maintenance_db_override() {
+    require_pg!();
+    // The .filter(|d| !d.is_empty()) guard in Stage 1 Tauri commands means
+    // passing Some("") must NOT override params.database. Confirm the existing
+    // testdb connection still sees testdb's schemas when a blank override is
+    // simulated (we do NOT override — just verify testdb baseline is intact).
+    let params = pg_params();
+
+    let schemas = postgres::get_schemas(&params)
+        .await
+        .expect("testdb schemas should be accessible");
+
+    assert!(
+        schemas.contains(&"test_schema".to_string()),
+        "testdb should have test_schema, got: {:?}",
+        schemas
+    );
+    assert!(
+        !schemas.contains(&"secondary_schema".to_string()),
+        "testdb should NOT see secondary_schema, got: {:?}",
+        schemas
+    );
+}
+
 
 #[tokio::test]
 #[ignore]

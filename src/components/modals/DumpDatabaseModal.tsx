@@ -20,6 +20,12 @@ interface DumpDatabaseModalProps {
   connectionId: string;
   databaseName: string;
   tables: string[];
+  /** Schema name for a schema-based multi-db driver (PostgreSQL browsing
+   * several databases). When set alongside `database`, the dump is scoped
+   * to this specific schema within that database and the table list is
+   * read from `nestedDatabaseDataMap` instead of the flat `databaseDataMap`. */
+  schema?: string;
+  database?: string;
 }
 
 export const DumpDatabaseModal = ({
@@ -28,9 +34,11 @@ export const DumpDatabaseModal = ({
   connectionId,
   databaseName,
   tables,
+  schema: schemaProp,
+  database: databaseProp,
 }: DumpDatabaseModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema, activeCapabilities, databaseDataMap, refreshDatabaseData } =
+  const { activeSchema: connectionActiveSchema, activeCapabilities, databaseDataMap, nestedDatabaseDataMap, refreshDatabaseData, refreshNestedSchemaData } =
     useDatabase();
   const { showAlert } = useAlert();
   const [includeStructure, setIncludeStructure] = useState(true);
@@ -43,29 +51,49 @@ export const DumpDatabaseModal = ({
   const [startTime, setStartTime] = useState<number | null>(null);
 
   const isMultiDb = isMultiDatabaseCapable(activeCapabilities);
+  // Schema-based multi-db mode (PostgreSQL nested tree): both a schema and a
+  // database are explicitly provided, so the dump doesn't rely on the
+  // connection's global active schema.
+  const isSchemaBasedDump = !!(schemaProp && databaseProp);
+  const activeSchema = schemaProp ?? connectionActiveSchema;
 
   // On a multi-database connection (e.g. MySQL) the dump targets a specific
   // database whose cached table list may be missing or belong to a different
   // database. Reload it whenever the dialog opens so the dump reflects the
   // target database's current schema. A ref keeps refreshDatabaseData out of the
   // dependency list (its identity changes on every store update, which would
-  // otherwise loop).
+  // otherwise loop). The nested (schema-based) case needs the same refresh —
+  // relying on the sidebar having already expanded that schema left the
+  // table list permanently empty if it never was.
   const refreshRef = useRef(refreshDatabaseData);
   refreshRef.current = refreshDatabaseData;
+  const refreshNestedRef = useRef(refreshNestedSchemaData);
+  refreshNestedRef.current = refreshNestedSchemaData;
   useEffect(() => {
-    if (isOpen && isMultiDb && databaseName) {
+    if (!isOpen) return;
+    if (isSchemaBasedDump) {
+      void refreshNestedRef.current(databaseProp!, schemaProp!, connectionId);
+    } else if (isMultiDb && databaseName) {
       refreshRef.current(databaseName);
     }
-  }, [isOpen, isMultiDb, databaseName]);
+  }, [isOpen, isMultiDb, databaseName, isSchemaBasedDump, databaseProp, schemaProp, connectionId]);
 
   // For multi-database connections read the table list straight from the target
   // database's freshly-loaded data (never the active-database fallback); other
   // drivers keep using the list resolved by the parent.
   const targetDbData = isMultiDb ? databaseDataMap[databaseName] : undefined;
-  const tablesLoading = isMultiDb ? (targetDbData?.isLoading ?? false) : false;
+  // For the nested (schema-based multi-db) case read from the nested map.
+  const nestedSchemaData = isSchemaBasedDump
+    ? nestedDatabaseDataMap[databaseProp!]?.schemaDataMap[schemaProp!]
+    : undefined;
+  const tablesLoading = isSchemaBasedDump
+    ? (nestedSchemaData?.isLoading ?? false)
+    : isMultiDb ? (targetDbData?.isLoading ?? false) : false;
   const effectiveTables = useMemo(
-    () => (isMultiDb ? (targetDbData?.tables ?? []).map((tbl) => tbl.name) : tables),
-    [isMultiDb, targetDbData, tables],
+    () => isSchemaBasedDump
+      ? (nestedSchemaData?.tables ?? []).map((tbl) => tbl.name)
+      : isMultiDb ? (targetDbData?.tables ?? []).map((tbl) => tbl.name) : tables,
+    [isSchemaBasedDump, nestedSchemaData, isMultiDb, targetDbData, tables],
   );
 
   // Detect content changes without reacting to array-reference churn; the actual
@@ -131,10 +159,11 @@ export const DumpDatabaseModal = ({
       setStartTime(Date.now());
       setElapsedTime(0);
 
-      // On multi-database connections (e.g. MySQL) scope the dump to the selected
-      // database so it does not fall back to the connection's primary database.
-      const databaseParam =
-        isMultiDb && databaseName ? { database: databaseName } : {};
+      const databaseParam = isSchemaBasedDump
+        ? { database: databaseProp }
+        : isMultiDb && databaseName
+          ? { database: databaseName }
+          : {};
 
       // Rust command expects `options` struct
       await invoke("dump_database", {

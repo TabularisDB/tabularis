@@ -574,6 +574,12 @@ const SqlEditorInternal = ({
         updateCursorStatementHighlight();
       }
 
+      // E2E: expose the Monaco editor instance for tauri-wd tests (setValue,
+      // getValue). Harmless in production — sets a global nobody reads.
+      const w = window as unknown as Record<string, unknown>;
+      w.__e2e_editor = editor;
+      w.__e2e_monaco = monaco;
+
       if (onMount) onMount(editor, monaco);
     };
 

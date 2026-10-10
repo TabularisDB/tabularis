@@ -1,4 +1,5 @@
 use super::super::*;
+use super::archive::temp_dir;
 use serde_json::{json, Value};
 
 #[test]
@@ -37,7 +38,7 @@ fn opaque_legacy_version_markers_do_not_dispatch_to_new_formats() {
 
 #[test]
 fn explicit_legacy_import_name_preserves_opaque_numeric_source_and_old_default() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     let original = serde_json::to_string(&legacy::builtin_themes().remove(0)).unwrap();
     let source = format!(
         "{{\"opaqueNumber\":123456789012345678901234567890,{}",
@@ -53,7 +54,7 @@ fn explicit_legacy_import_name_preserves_opaque_numeric_source_and_old_default()
 
 #[test]
 fn added_host_metadata_cannot_commit_an_unreadable_oversize_legacy_import() {
-    let root = tempfile::tempdir().unwrap();
+    let root = temp_dir();
     let profile = root.path().join("profile");
     let mut document = legacy::builtin_themes().remove(0);
     document["id"] = json!("x");

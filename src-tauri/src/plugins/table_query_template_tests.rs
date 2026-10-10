@@ -121,6 +121,29 @@ async fn table_query_template_fallback_requires_the_remote_method_not_found_code
 }
 
 #[tokio::test]
+async fn table_query_template_coerces_a_multi_database_selection_before_the_rpc() {
+    let mut driver = test_driver(|rpc| {
+        assert_eq!(rpc.params["params"]["database"], "tabularis_pr822_demo");
+        json!("SELECT * FROM orders;")
+    });
+    driver.manifest.capabilities.table_query_templates = true;
+    let params = ConnectionParams {
+        database: DatabaseSelection::Multiple(vec![
+            "tabularis_pr822_demo".to_string(),
+            "tabularis_test_secondary".to_string(),
+        ]),
+        ..Default::default()
+    };
+    assert_eq!(
+        driver
+            .get_table_query_template(&params, &request())
+            .await
+            .unwrap(),
+        Some("SELECT * FROM orders;".into())
+    );
+}
+
+#[tokio::test]
 async fn built_in_drivers_keep_the_default_table_query_template_behavior() {
     let drivers: Vec<Box<dyn DatabaseDriver>> = vec![
         Box::new(crate::drivers::mysql::MysqlDriver::new()),

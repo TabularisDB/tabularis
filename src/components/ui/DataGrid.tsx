@@ -147,6 +147,11 @@ interface DataGridProps {
   onForeignKeyShowPanel?: (fk: ForeignKey, value: unknown) => void;
   onForeignKeyHidePanel?: () => void;
   connectionId?: string | null;
+  /** The active tab's own schema/database — wins over the connection's
+   * globally active schema, which can point at a different tab's selection
+   * (see #822 follow-up). */
+  schema?: string | null;
+  database?: string | null;
   onRefresh?: () => void;
   onEditingChange?: (editing: boolean) => void;
   pendingChanges?: Record<
@@ -249,6 +254,8 @@ export const DataGrid = React.memo(
     onForeignKeyShowPanel,
     onForeignKeyHidePanel,
     connectionId,
+    schema: schemaProp,
+    database,
     onRefresh,
     onEditingChange,
     pendingChanges,
@@ -278,7 +285,8 @@ export const DataGrid = React.memo(
   }: DataGridProps) {
     const { t } = useTranslation();
     const keybindings = useContext(KeybindingsContext);
-    const { activeSchema, connections, activeDriver } = useDatabase();
+    const { activeSchema: globalActiveSchema, connections, activeDriver } = useDatabase();
+    const activeSchema = schemaProp ?? globalActiveSchema;
     const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
     const { showToast } = useToast();
@@ -890,6 +898,7 @@ export const DataGrid = React.memo(
           tableName,
           pkColumns,
           schema: activeSchema,
+          database,
         });
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -906,6 +915,7 @@ export const DataGrid = React.memo(
         tableName,
         pkColumns,
         activeSchema,
+        database,
         rightSidebar.openRowEditor,
       ],
     );
@@ -1225,6 +1235,7 @@ export const DataGrid = React.memo(
             colName,
             newVal: value,
             ...(activeSchema ? { schema: activeSchema } : {}),
+            ...(database ? { database } : {}),
           });
           if (onRefresh) onRefresh();
         } catch (e) {
@@ -1248,6 +1259,7 @@ export const DataGrid = React.memo(
       pkColumns,
       connectionId,
       activeSchema,
+      database,
       onRefresh,
       showAlert,
       t,
@@ -1706,6 +1718,56 @@ export const DataGrid = React.memo(
       openInSidebar(contextMenu.rowIndex);
       setContextMenu(null);
     }, [contextMenu, openInSidebar]);
+
+    // E2E test hooks: expose handlers for tauri-wd tests. tauri-webdriver can't
+    // trigger React's onDoubleClick/onContextMenu (the actions API dispatches
+    // mousedown/mouseup/click but never dblclick/contextmenu). These hooks let
+    // tests call the real handler functions directly via browser.execute().
+    // Harmless in production — sets globals nobody reads.
+    const w = window as unknown as Record<string, unknown>;
+    w.__e2e_dblclickCell = (rowIndex: number, colIndex: number) => {
+      const mergedRow = mergedRows[rowIndex];
+      if (!mergedRow) return false;
+      handleCellDoubleClick(rowIndex, colIndex, mergedRow.rowData[colIndex]);
+      return true;
+    };
+    w.__e2e_contextMenu = (rowIndex: number, colIndex: number) => {
+      const mergedRow = mergedRows[rowIndex];
+      const row = mergedRow?.rowData ?? [];
+      const colName = columns[colIndex] ?? "";
+      handleContextMenu(
+        { preventDefault: () => {}, clientX: 200, clientY: 200 } as unknown as React.MouseEvent,
+        row, rowIndex, colIndex, colName,
+      );
+      return true;
+    };
+    // Direct FK navigation hook — bypasses the context menu (which uses setState
+    // that doesn't re-render from browser.execute). Calls onForeignKeyNavigate
+    // directly with a FK object the test provides (fetched with the database
+    // override, since the DataGrid's fksByColumn may be empty due to the bug).
+    w.__e2e_fkNavigate = (fk: unknown, value: unknown) => {
+      if (onForeignKeyNavigate) {
+        onForeignKeyNavigate(fk as ForeignKey, value);
+        return true;
+      }
+      return false;
+    };
+    // Direct pending-change hook — bypasses the textarea edit + Enter commit
+    // (the native input event that sets the textarea value doesn't reliably
+    // trigger React's onChange in WKWebView, so handleEditCommit sees the
+    // value as unchanged and drops the pending change). Mirrors handleEditCommit
+    // (buildPkMap + onPendingChange) but with a forced value, so the Submit
+    // Changes button appears and the edit is staged against the (buggy) PK.
+    w.__e2e_pendingChange = (rowIndex: number, colIndex: number, newValue: unknown) => {
+      const mergedRow = mergedRows[rowIndex];
+      if (!mergedRow || !onPendingChange || pkIndexMaps.length === 0 || !pkColumns) {
+        return false;
+      }
+      const pkMapVal = buildPkMap(pkColumns, mergedRow.rowData, pkIndexMaps);
+      const colName = columns[colIndex];
+      onPendingChange(pkMapVal, colName, newValue);
+      return true;
+    };
 
     const openJsonEditor = useCallback(() => {
       if (!contextMenu) return;
@@ -3186,6 +3248,7 @@ export const DataGrid = React.memo(
                       connectionId: connectionId ?? null,
                       tableName: tableName ?? null,
                       schema: activeSchema,
+                      database,
                       driver: activeDriver,
                       columnName: contextMenu.colName,
                       rowIndex: contextMenu.rowIndex,

@@ -1121,6 +1121,7 @@
     "loadDatabases": "Load Databases",
     "loadingDatabases": "Loading...",
     "selectDatabases": "Databases",
+    "browseMultipleDatabases": "Browse multiple databases on this connection",
     "appearance": "Appearance",
     "noDatabasesSelected": "Select at least one database",
     "selectedDatabases": "{{count}} database(s) selected",
@@ -1837,6 +1838,7 @@
     "exitFullscreen": "Exit Fullscreen",
     "noConnection": "No Connection ID",
     "noConnectionDesc": "Cannot display diagram without a connection ID.",
+    "loadError": "Failed to load diagram: {{message}}",
     "switchToVertical": "Switch to Vertical Layout",
     "switchToHorizontal": "Switch to Horizontal Layout",
     "lockNodes": "Lock node positions",
@@ -1906,7 +1908,8 @@
     "createSuccess": "Trigger created successfully",
     "updateSuccess": "Trigger updated successfully",
     "recreateTrigger": "Recreate Trigger",
-    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?"
+    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?",
+    "functionNameCollision": "A function named \"{{name}}\" already exists. Rename the trigger or drop the function first."
   },
   "community": {
     "title": "Join the Community",

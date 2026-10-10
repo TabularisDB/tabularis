@@ -1090,6 +1090,7 @@
     "loadDatabases": "データベースを読み込み",
     "loadingDatabases": "読み込み中...",
     "selectDatabases": "データベース",
+    "browseMultipleDatabases": "Browse multiple databases on this connection",
     "appearance": "外観",
     "noDatabasesSelected": "少なくとも 1 つのデータベースを選択してください",
     "selectedDatabases": "{{count}} 個のデータベースを選択中",
@@ -1799,6 +1800,7 @@
     "exitFullscreen": "フルスクリーンを終了",
     "noConnection": "接続 ID がありません",
     "noConnectionDesc": "接続 ID がないため、図を表示できません。",
+    "loadError": "図の読み込みに失敗しました: {{message}}",
     "switchToVertical": "垂直レイアウトに切り替え",
     "switchToHorizontal": "水平レイアウトに切り替え",
     "lockNodes": "ノードの位置を固定",
@@ -1868,7 +1870,8 @@
     "createSuccess": "トリガーを正常に作成しました",
     "updateSuccess": "トリガーを正常に更新しました",
     "recreateTrigger": "トリガーを再作成",
-    "confirmRecreate": "トリガーを編集するには、いったん削除して再作成する必要があります。「{{trigger}}」の変更を続行しますか？"
+    "confirmRecreate": "トリガーを編集するには、いったん削除して再作成する必要があります。「{{trigger}}」の変更を続行しますか？",
+    "functionNameCollision": "A function named \"{{name}}\" already exists. Rename the trigger or drop the function first."
   },
   "community": {
     "title": "コミュニティに参加",

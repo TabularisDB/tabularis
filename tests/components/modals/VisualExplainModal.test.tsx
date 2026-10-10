@@ -73,7 +73,7 @@ describe("VisualExplainModal legacy execution", () => {
     expect(mockInvoke).not.toHaveBeenCalled();
     await settle();
     expect(mockInvoke).toHaveBeenCalledExactlyOnceWith("explain_query_plan", {
-      connectionId: "connection-1", query: defaults.query, analyze: true, schema: null,
+      connectionId: "connection-1", query: defaults.query, analyze: true, schema: null, database: null,
     });
     expect(screen.getByRole("checkbox")).toBeChecked();
     expect(screen.getByTestId("plan")).toHaveTextContent("resolved");
@@ -89,7 +89,7 @@ describe("VisualExplainModal legacy execution", () => {
     render(<VisualExplainModal {...defaults} query={query} schema="reporting" />);
     await settle();
     expect(mockInvoke).toHaveBeenCalledExactlyOnceWith("explain_query_plan", {
-      connectionId: "connection-1", query, analyze: false, schema: "reporting",
+      connectionId: "connection-1", query, analyze: false, schema: "reporting", database: null,
     });
     expect(screen.getByRole("checkbox")).not.toBeChecked();
     expect(screen.getByText("editor.visualExplain.analyzeWarning")).toBeInTheDocument();
@@ -104,7 +104,7 @@ describe("VisualExplainModal legacy execution", () => {
     expect(screen.getByText("PostgreSQL")).toBeInTheDocument();
     expect(screen.getByText("warehouse / reporting")).toBeInTheDocument();
     expect(mockInvoke).toHaveBeenLastCalledWith("explain_query_plan", {
-      connectionId: "connection-1", query: defaults.query, analyze: true, schema: "reporting",
+      connectionId: "connection-1", query: defaults.query, analyze: true, schema: "reporting", database: null,
     });
   });
 
@@ -132,7 +132,7 @@ describe("VisualExplainModal legacy execution", () => {
     await settle();
     expect(mockInvoke).toHaveBeenCalledTimes(2);
     expect(mockInvoke).toHaveBeenLastCalledWith("explain_query_plan", {
-      connectionId: "connection-1", query: defaults.query, analyze: true, schema: null, ...change,
+      connectionId: "connection-1", query: defaults.query, analyze: true, schema: null, database: null, ...change,
     });
     expect(screen.getByTestId("mode")).toHaveTextContent("graph");
   });
@@ -153,13 +153,13 @@ describe("VisualExplainModal legacy execution", () => {
     expect(screen.getByRole("checkbox")).not.toBeChecked();
     expect(screen.getByText("editor.visualExplain.analyzeWarning")).toBeInTheDocument();
     expect(mockInvoke).toHaveBeenLastCalledWith("explain_query_plan", {
-      connectionId: "connection-1", query, analyze: false, schema: null,
+      connectionId: "connection-1", query, analyze: false, schema: null, database: null,
     });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "editor.visualExplain.rerun" }));
     });
     expect(mockInvoke).toHaveBeenLastCalledWith("explain_query_plan", {
-      connectionId: "connection-1", query, analyze: false, schema: null,
+      connectionId: "connection-1", query, analyze: false, schema: null, database: null,
     });
   });
 
@@ -175,7 +175,7 @@ describe("VisualExplainModal legacy execution", () => {
     });
     expect(mockInvoke).toHaveBeenCalledTimes(2);
     expect(mockInvoke).toHaveBeenLastCalledWith("explain_query_plan", {
-      connectionId: "connection-1", query: defaults.query, analyze: false, schema: "reporting",
+      connectionId: "connection-1", query: defaults.query, analyze: false, schema: "reporting", database: null,
     });
   });
 
@@ -190,7 +190,7 @@ describe("VisualExplainModal legacy execution", () => {
     await settle();
     expect(mockInvoke).toHaveBeenCalledTimes(2);
     expect(mockInvoke).toHaveBeenLastCalledWith("explain_query_plan", {
-      connectionId: "connection-1", query: defaults.query, analyze: false, schema: null,
+      connectionId: "connection-1", query: defaults.query, analyze: false, schema: null, database: null,
     });
   });
 

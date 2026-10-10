@@ -306,6 +306,72 @@ describe("editor", () => {
     });
   });
 
+  describe("findExistingTableTab: nested multi-db database matching", () => {
+    // Regression: a nested multi-db connection (e.g. PostgreSQL with
+    // opt-in database selection) can have the same table name + schema in
+    // more than one database. Before this fix, dedup only matched on
+    // (connectionId, activeTable, schema), so double-clicking a table in
+    // database B would reactivate an existing tab already open for the
+    // same table/schema in database A -- reusing its stale `database`
+    // and, if that tab predates a database being set at all, re-running
+    // its query with no database override sends the connection's raw
+    // multi-db selection to the plugin ("Pool creation failed: ...dbname
+    // not found").
+    const createMockTableTab = (overrides: Partial<Tab> = {}): Tab => ({
+      id: "tab-1",
+      title: "Test",
+      type: "table",
+      query: "",
+      result: null,
+      error: "",
+      executionTime: null,
+      page: 1,
+      activeTable: "products",
+      pkColumns: null,
+      connectionId: "conn-1",
+      schema: "store",
+      ...overrides,
+    });
+
+    it("does not reuse a tab for the same table/schema in a different database", () => {
+      const tabs: Tab[] = [
+        createMockTableTab({ id: "tab-1", database: "db_a" }),
+      ];
+
+      const result = findExistingTableTab(tabs, "conn-1", "products", "store", "db_b");
+
+      expect(result).toBeUndefined();
+    });
+
+    it("does not reuse a stale tab with no database for a database-scoped open", () => {
+      const tabs: Tab[] = [
+        createMockTableTab({ id: "tab-1", database: undefined }),
+      ];
+
+      const result = findExistingTableTab(tabs, "conn-1", "products", "store", "db_b");
+
+      expect(result).toBeUndefined();
+    });
+
+    it("reuses the tab when database matches too", () => {
+      const tabs: Tab[] = [
+        createMockTableTab({ id: "tab-1", database: "db_a" }),
+      ];
+
+      const result = findExistingTableTab(tabs, "conn-1", "products", "store", "db_a");
+
+      expect(result?.id).toBe("tab-1");
+    });
+
+    it("still matches on the single-database path where neither side has a database", () => {
+      const tabs: Tab[] = [createMockTableTab({ id: "tab-1", database: undefined })];
+
+      const result = findExistingTableTab(tabs, "conn-1", "products", "store");
+
+      expect(result?.id).toBe("tab-1");
+    });
+  });
+
   describe("getConnectionTabs", () => {
     const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
       id: "tab-1",

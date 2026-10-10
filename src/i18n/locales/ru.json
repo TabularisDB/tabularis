@@ -1075,6 +1075,7 @@
     "loadDatabases": "Загрузить базы данных",
     "loadingDatabases": "Загрузка...",
     "selectDatabases": "Базы данных",
+    "browseMultipleDatabases": "Browse multiple databases on this connection",
     "noDatabasesSelected": "Выберите хотя бы одну базу данных",
     "selectedDatabases": "Выбрано баз данных: {{count}}",
     "selectDatabase": "Выберите базу данных",
@@ -1799,6 +1800,7 @@
     "exitFullscreen": "Выйти из полноэкранного режима",
     "noConnection": "Нет ID подключения",
     "noConnectionDesc": "Отображение диаграммы невозможно без ID подключения.",
+    "loadError": "Не удалось загрузить диаграмму: {{message}}",
     "switchToVertical": "Переключить на вертикальное расположение",
     "switchToHorizontal": "Переключить на горизонтальное расположение",
     "lockNodes": "Зафиксировать позиции узлов",
@@ -1868,7 +1870,8 @@
     "createSuccess": "Триггер создан",
     "updateSuccess": "Триггер обновлён",
     "recreateTrigger": "Пересоздать триггер",
-    "confirmRecreate": "Редактирование триггера требует его удаления и повторного создания. Продолжить изменение \"{{trigger}}\"?"
+    "confirmRecreate": "Редактирование триггера требует его удаления и повторного создания. Продолжить изменение \"{{trigger}}\"?",
+    "functionNameCollision": "A function named \"{{name}}\" already exists. Rename the trigger or drop the function first."
   },
   "community": {
     "title": "Присоединяйтесь к сообществу",
