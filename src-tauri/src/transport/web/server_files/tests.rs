@@ -43,6 +43,79 @@ fn resolves_new_files_inside_configured_roots() {
 }
 
 #[test]
+fn resolves_existing_save_files_inside_configured_roots() {
+    let root = tempdir().unwrap();
+    let file = root.path().join("query.sql");
+    fs::write(&file, "select 1").unwrap();
+    let roots = canonicalize_roots(&[root.path().to_path_buf()]).unwrap();
+
+    let target = validate_save_target(&roots, file.to_str().unwrap()).unwrap();
+
+    assert_eq!(
+        std::path::Path::new(&target),
+        fs::canonicalize(file).unwrap()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_save_links_outside_roots_without_overwriting_the_target() {
+    let root = tempdir().unwrap();
+    let outside = tempdir().unwrap();
+    let file = outside.path().join("private.sql");
+    fs::write(&file, "original").unwrap();
+    let link = root.path().join("query.sql");
+    std::os::unix::fs::symlink(&file, &link).unwrap();
+    let roots = canonicalize_roots(&[root.path().to_path_buf()]).unwrap();
+
+    let result = validate_save_target(&roots, link.to_str().unwrap()).and_then(|path| {
+        crate::sql_file::write_sql_file_to_disk(std::path::Path::new(&path), "replacement")
+    });
+
+    assert!(result.is_err());
+    assert_eq!(fs::read_to_string(file).unwrap(), "original");
+    assert!(resolve_save_target(&roots, root.path().to_str().unwrap(), "query.sql").is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_dangling_save_links_without_creating_files_outside_roots() {
+    let root = tempdir().unwrap();
+    let outside = tempdir().unwrap();
+    let file = outside.path().join("new.sql");
+    let link = root.path().join("query.sql");
+    std::os::unix::fs::symlink(&file, &link).unwrap();
+    let roots = canonicalize_roots(&[root.path().to_path_buf()]).unwrap();
+
+    let result = validate_save_target(&roots, link.to_str().unwrap()).and_then(|path| {
+        crate::sql_file::write_sql_file_to_disk(std::path::Path::new(&path), "replacement")
+    });
+
+    assert!(result.is_err());
+    assert!(!file.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn resolves_internal_save_links_to_their_checked_target() {
+    let root = tempdir().unwrap();
+    let file = root.path().join("actual.sql");
+    fs::write(&file, "original").unwrap();
+    let link = root.path().join("query.sql");
+    std::os::unix::fs::symlink(&file, &link).unwrap();
+    let roots = canonicalize_roots(&[root.path().to_path_buf()]).unwrap();
+
+    let target = validate_save_target(&roots, link.to_str().unwrap()).unwrap();
+
+    assert_eq!(
+        std::path::Path::new(&target),
+        fs::canonicalize(&file).unwrap()
+    );
+    crate::sql_file::write_sql_file_to_disk(std::path::Path::new(&target), "replacement").unwrap();
+    assert_eq!(fs::read_to_string(file).unwrap(), "replacement");
+}
+
+#[test]
 fn rejects_save_file_names_with_path_traversal() {
     let root = tempdir().unwrap();
     let roots = canonicalize_roots(&[root.path().to_path_buf()]).unwrap();
@@ -77,9 +150,10 @@ fn validates_existing_files_inside_configured_roots() {
         validate_existing_file(&roots, file.to_str().unwrap()).unwrap(),
         roots[0].join("query.sql")
     );
-    let escaped = root.path().join("folder/../../").join(
-        outside.path().file_name().unwrap(),
-    );
+    let escaped = root
+        .path()
+        .join("folder/../../")
+        .join(outside.path().file_name().unwrap());
     assert!(validate_existing_file(&roots, escaped.join("secret.sql").to_str().unwrap()).is_err());
     assert!(validate_existing_file(&roots, root.path().join("folder").to_str().unwrap()).is_err());
     assert!(validate_existing_file(&[], file.to_str().unwrap()).is_err());
@@ -96,7 +170,9 @@ fn validates_new_directories_inside_configured_roots() {
         validate_directory_target(&roots, nested.to_str().unwrap()).unwrap(),
         roots[0].join("sync/tabularis")
     );
-    assert!(validate_directory_target(&roots, outside.path().join("new").to_str().unwrap()).is_err());
+    assert!(
+        validate_directory_target(&roots, outside.path().join("new").to_str().unwrap()).is_err()
+    );
     assert!(validate_directory_target(&roots, "relative/dir").is_err());
     assert!(validate_directory_target(
         &roots,

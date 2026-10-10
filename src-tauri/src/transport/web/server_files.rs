@@ -70,8 +70,15 @@ pub fn resolve_save_target(
     if !directory.is_dir() || !roots.iter().any(|root| directory.starts_with(root)) {
         return Err("The requested path is outside the configured browser roots".to_string());
     }
-    path_text(&directory.join(file_name))
-        .ok_or_else(|| "The selected server path is not valid UTF-8".to_string())
+    let target = path_text(&directory.join(file_name))
+        .ok_or_else(|| "The selected server path is not valid UTF-8".to_string())?;
+    // Inspect the leaf without following it: a dangling symlink is not a new file.
+    match fs::symlink_metadata(&target) {
+        Ok(_) => path_text(&validate_existing_file(roots, &target)?)
+            .ok_or_else(|| "The selected server path is not valid UTF-8".to_string()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(target),
+        Err(error) => Err(format!("Failed to inspect server save target: {error}")),
+    }
 }
 
 pub fn validate_save_target(roots: &[PathBuf], target: &str) -> Result<String, String> {
