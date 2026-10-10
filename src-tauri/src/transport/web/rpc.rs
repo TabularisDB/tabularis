@@ -34,6 +34,9 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
+#[path = "rpc_connection_policy.rs"]
+mod connection_policy;
+
 #[path = "rpc_host_commands.rs"]
 mod host_commands;
 use host_commands::{
@@ -1385,6 +1388,7 @@ struct RpcError {
 }
 
 enum InvocationError {
+    Forbidden(&'static str),
     InvalidPayload(String),
     Application(ApplicationError),
 }
@@ -1580,9 +1584,16 @@ impl RpcDispatcher {
             authorization: metadata.authorization,
             session_id,
         };
-        let invocation = self.invoke(command, context, &body);
+        let invocation = self.invoke(command, context, &body, granted_authorization);
         match tokio::time::timeout(deadline, invocation).await {
             Ok(Ok(data)) => success(data),
+            Ok(Err(InvocationError::Forbidden(message))) => failure(
+                StatusCode::FORBIDDEN,
+                "FORBIDDEN",
+                message.to_string(),
+                None,
+                request_id.0,
+            ),
             Ok(Err(InvocationError::InvalidPayload(message))) => failure(
                 StatusCode::BAD_REQUEST,
                 "INVALID_REQUEST",
@@ -1612,6 +1623,7 @@ impl RpcDispatcher {
         command: RpcCommand,
         context: ApplicationRequestContext,
         body: &[u8],
+        granted_authorization: AuthorizationLevel,
     ) -> Result<Value, InvocationError> {
         match command {
             RpcCommand::IsDebugMode => {
@@ -1723,6 +1735,8 @@ impl RpcDispatcher {
             RpcCommand::Connection(command) => {
                 let command = decode_connection_command(command, context.session_id, body)
                     .map_err(InvocationError::InvalidPayload)?;
+                connection_policy::authorize(&command, granted_authorization)
+                    .map_err(InvocationError::Forbidden)?;
                 self.application
                     .execute_connection_command(context, command)
                     .await

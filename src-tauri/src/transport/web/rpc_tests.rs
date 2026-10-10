@@ -2468,3 +2468,201 @@ fn decodes_merged_database_commands_and_tab_sessions() {
         Some(AuthorizationLevel::Database)
     );
 }
+
+fn connection_policy_payload(command: &str, params: Value) -> Value {
+    match command {
+        "test_connection" => {
+            serde_json::json!({"request": {"params": params, "connection_id": "saved-db"}})
+        }
+        "save_connection" => serde_json::json!({"name": "Database", "params": params}),
+        "update_connection" => {
+            serde_json::json!({"id": "saved-db", "name": "Database", "params": params})
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn connection_policy_host_fields() -> Vec<(&'static str, Value)> {
+    vec![
+        ("ssh_enabled", serde_json::json!(true)),
+        ("ssh_host", serde_json::json!("bastion")),
+        ("ssh_user", serde_json::json!("user")),
+        ("ssh_password", serde_json::json!("password")),
+        ("ssh_key_file", serde_json::json!("/host/key")),
+        ("ssh_key_passphrase", serde_json::json!("passphrase")),
+        ("ssh_allow_passphrase_prompt", serde_json::json!(true)),
+        ("k8s_enabled", serde_json::json!(true)),
+        ("k8s_context", serde_json::json!("context")),
+        ("k8s_namespace", serde_json::json!("default")),
+        ("k8s_resource_type", serde_json::json!("service")),
+        ("k8s_resource_name", serde_json::json!("database")),
+        ("k8s_port", serde_json::json!(5432)),
+        ("k8s_kubectl_path", serde_json::json!("/untrusted/program")),
+        ("k8s_kubeconfig_path", serde_json::json!("/host/config")),
+        ("ssm_enabled", serde_json::json!(true)),
+        ("ssm_target", serde_json::json!("i-example")),
+        ("ssm_profile", serde_json::json!("profile")),
+        ("ssm_region", serde_json::json!("region")),
+        ("ssl_ca", serde_json::json!("/host/ca")),
+        ("ssl_cert", serde_json::json!("/host/cert")),
+        ("ssl_key", serde_json::json!("/host/key")),
+        (
+            "proxy",
+            serde_json::json!({"mode": "custom", "endpoint": {
+                "protocol": "http", "host": "untrusted", "port": 8080, "username": "user"
+            }}),
+        ),
+    ]
+}
+
+#[tokio::test]
+async fn connection_policy_rejects_inline_host_capabilities_before_application_dispatch() {
+    let application = Arc::new(FixtureApplication::new(Duration::ZERO));
+    let dispatcher = RpcDispatcher::new(application.clone());
+    for authorization in [AuthorizationLevel::Database, AuthorizationLevel::Sensitive] {
+        for command in ["test_connection", "save_connection", "update_connection"] {
+            for (field, value) in connection_policy_host_fields() {
+                let mut params = serde_json::json!({"driver": "postgres", "database": "db"});
+                params[field] = value;
+                let response = dispatch_json(
+                    &dispatcher,
+                    command,
+                    connection_policy_payload(command, params),
+                    Some(Uuid::new_v4()),
+                    authorization,
+                )
+                .await;
+                assert_eq!(
+                    response.status(),
+                    StatusCode::FORBIDDEN,
+                    "{command}: {field} ({authorization:?})"
+                );
+                assert_eq!(response_json(response).await["error"]["code"], "FORBIDDEN");
+                assert!(
+                    application.contexts.lock().unwrap().is_empty(),
+                    "rejected payload reached application"
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn connection_policy_preserves_local_admin_inline_host_capabilities() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    for command in ["test_connection", "save_connection", "update_connection"] {
+        for (field, value) in connection_policy_host_fields() {
+            let mut params = serde_json::json!({"driver": "postgres", "database": "db"});
+            params[field] = value;
+            let response = dispatch_json(
+                &dispatcher,
+                command,
+                connection_policy_payload(command, params),
+                Some(Uuid::new_v4()),
+                AuthorizationLevel::LocalAdmin,
+            )
+            .await;
+            assert_eq!(response.status(), StatusCode::OK, "{command}: {field}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn connection_policy_preserves_database_access_and_saved_tunnel_references() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    for command in ["test_connection", "save_connection", "update_connection"] {
+        for settings in [
+            serde_json::json!({}),
+            serde_json::json!({"ssh_enabled": true, "ssh_connection_id": "admin-ssh"}),
+            serde_json::json!({"k8s_enabled": true, "k8s_connection_id": "admin-k8s"}),
+            serde_json::json!({"ssh_enabled": false, "k8s_enabled": false, "ssm_enabled": false}),
+            serde_json::json!({"proxy": {"mode": "inherit"}}),
+            serde_json::json!({"proxy": {"mode": "disabled"}}),
+        ] {
+            let mut params = serde_json::json!({"driver": "postgres", "database": "db", "password": "db-password"});
+            params
+                .as_object_mut()
+                .unwrap()
+                .extend(settings.as_object().unwrap().clone());
+            let response = dispatch_json(
+                &dispatcher,
+                command,
+                connection_policy_payload(command, params),
+                Some(Uuid::new_v4()),
+                AuthorizationLevel::Database,
+            )
+            .await;
+            assert_eq!(response.status(), StatusCode::OK, "{command}");
+        }
+    }
+    let response = dispatch_json(
+        &dispatcher,
+        "execute_query",
+        serde_json::json!({
+            "connectionId": "admin-configured-db", "query": "SELECT 1"
+        }),
+        Some(Uuid::new_v4()),
+        AuthorizationLevel::Database,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    for command in [
+        "get_connection_metadata",
+        "get_available_databases",
+        "get_tables",
+    ] {
+        let response = dispatch_json(
+            &dispatcher,
+            command,
+            serde_json::json!({"connectionId": "admin-configured-db"}),
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::Database,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+        let response = dispatch_json(&dispatcher, command, serde_json::json!({"connectionId": "admin-configured-db",
+            "params": {"driver": "postgres", "database": "db", "k8s_kubectl_path": "/untrusted/program"}}),
+            Some(Uuid::new_v4()), AuthorizationLevel::Database).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{command}");
+    }
+}
+
+#[tokio::test]
+async fn connection_policy_accepts_new_connection_modal_wire_defaults() {
+    let application = Arc::new(FixtureApplication::new(Duration::ZERO));
+    let dispatcher = RpcDispatcher::new(application.clone());
+    let session = Some(Uuid::new_v4());
+    for authorization in [AuthorizationLevel::Database, AuthorizationLevel::Sensitive] {
+        for command in ["test_connection", "save_connection", "update_connection"] {
+            for tunnel in [
+                serde_json::json!({}),
+                serde_json::json!({"ssh_enabled": true, "ssh_connection_id": "admin-ssh"}),
+                serde_json::json!({"k8s_enabled": true, "k8s_connection_id": "admin-k8s"}),
+            ] {
+                // NewConnectionModal keeps ssh_port in its initial/reset form
+                // data, and spreads that data into test and save requests.
+                let mut params = serde_json::json!({
+                    "driver": "mysql", "host": "localhost", "port": 3306,
+                    "username": "", "password": "", "database": "",
+                    "ssl_mode": "", "ssh_enabled": false, "ssh_port": 22,
+                    "k8s_enabled": false, "ssm_enabled": false,
+                    "save_in_keychain": false
+                });
+                params
+                    .as_object_mut()
+                    .unwrap()
+                    .extend(tunnel.as_object().unwrap().clone());
+                let response = dispatch_json(
+                    &dispatcher,
+                    command,
+                    connection_policy_payload(command, params),
+                    session,
+                    authorization,
+                )
+                .await;
+                assert_eq!(response.status(), StatusCode::OK, "{command}: {tunnel}");
+            }
+        }
+    }
+    assert_eq!(application.contexts.lock().unwrap().len(), 18);
+}
