@@ -18,7 +18,7 @@ fn bytes() -> Vec<u8> {
 #[tokio::test]
 async fn malformed_extra_assets_and_ambiguous_kind_tags_cannot_evade_early_checks() {
     let server = RegistryServer::new(bytes());
-    let root = tempfile::tempdir().unwrap();
+    let root = archive::temp_dir();
     let key = registry_key(&server.base).unwrap();
     server.state.lock().unwrap().assets =
         Some(json!({"universal":{"url":"https://example.invalid/theme.zip"},"linux-x64":{}}));
@@ -59,7 +59,7 @@ async fn malformed_extra_assets_and_ambiguous_kind_tags_cannot_evade_early_check
 #[tokio::test]
 async fn latest_archive_version_drift_preserves_the_previous_package() {
     let server = RegistryServer::new(bytes());
-    let root = tempfile::tempdir().unwrap();
+    let root = archive::temp_dir();
     let key = registry_key(&server.base).unwrap();
     install_registry_package(
         root.path(),
