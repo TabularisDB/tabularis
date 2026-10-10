@@ -144,9 +144,11 @@ function selectColumns(sql: string): DerivedColumn[] {
   const columns: DerivedColumn[] = [];
   for (const group of segments) {
     if (!group.length) continue;
-    const at = group.findLastIndex((t, i) =>
-      i + 1 < group.length && t.depth === 0 && is(t, "as") &&
-      identifier(group[i + 1]) !== undefined);
+    let at = -1;
+    for (let i = 0; i < group.length - 1; i++) {
+      if (group[i].depth === 0 && is(group[i], "as") &&
+        identifier(group[i + 1]) !== undefined) at = i;
+    }
     let name: string | undefined;
     if (at >= 0) {
       name = identifier(group[at + 1]);
@@ -160,6 +162,7 @@ function selectColumns(sql: string): DerivedColumn[] {
       // expression followed by a plain alias
       else if (identifier(end) && end.depth === 0 &&
           !["end", "null", "true", "false"].includes(end.text) &&
+          !["+", "-", "*", "/", "%", "|", "&", "=", ":", ">", "<"].includes(prev.text) &&
           !(group.length === 2 && group[0].text === "*")) {
         name = identifier(end);
       }
