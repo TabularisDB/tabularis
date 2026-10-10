@@ -874,3 +874,63 @@ describe('autocomplete', () => {
     });
   });
 });
+
+
+describe('CTE and derived table completion integration', () => {
+  it('completes CTE output names without a server column RPC', async () => {
+    const monaco = createMockMonaco();
+    registerSqlAutocomplete(
+      monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+      'conn1', [],
+    );
+    const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+    const value = 'WITH recent AS (SELECT id, occurred_at AS ts FROM events) SELECT recent. FROM recent';
+    const column = value.indexOf('recent.') + 'recent.'.length + 1;
+    const suggestions = (await provider.provideCompletionItems(
+      createMockModel(value), { lineNumber: 1, column },
+    )).suggestions;
+    expect(suggestions.map((s: { label: string }) => s.label)).toEqual(['id', 'ts']);
+    expect(suggestions[0].detail).toContain('CTE recent');
+    expect(invoke).not.toHaveBeenCalledWith('get_columns', expect.anything());
+  });
+
+  it('completes a later FROM-derived alias in the SELECT list', async () => {
+    const monaco = createMockMonaco();
+    registerSqlAutocomplete(
+      monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+      'conn1', [],
+    );
+    const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+    const value = 'SELECT x. FROM (SELECT a, b FROM inner_t) x';
+    const column = value.indexOf('x.') + 3;
+    const suggestions = (await provider.provideCompletionItems(
+      createMockModel(value), { lineNumber: 1, column },
+    )).suggestions;
+    expect(suggestions.map((s: { label: string }) => s.label)).toEqual(['a', 'b']);
+    expect(invoke).not.toHaveBeenCalledWith('get_columns', expect.anything());
+  });
+
+  it('does not leak a subquery physical table into the outer WHERE scope', async () => {
+    const { parseTablesFromQuery } = await import('../../src/utils/sqlAnalysis');
+    (parseTablesFromQuery as ReturnType<typeof vi.fn>).mockImplementation((sql: string) =>
+      sql.includes('inner_t')
+        ? new Map([['inner_t', { name: 'inner_t' }]])
+        : new Map(),
+    );
+    const monaco = createMockMonaco();
+    registerSqlAutocomplete(
+      monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+      'conn1', [{ name: 'inner_t' }],
+    );
+    const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+    const value = 'SELECT * FROM (SELECT id FROM inner_t) x WHERE ';
+    await provider.provideCompletionItems(
+      createMockModel(value), { lineNumber: 1, column: value.length + 1 },
+    );
+    expect(parseTablesFromQuery).toHaveBeenCalledWith(
+      expect.not.stringContaining('inner_t'),
+    );
+    expect(invoke).not.toHaveBeenCalledWith('get_columns',
+      expect.objectContaining({ tableName: 'inner_t' }));
+  });
+});
