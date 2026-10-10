@@ -10,6 +10,22 @@ use crate::drivers::common::{encode_blob, i64_to_json};
 
 use super::advanced_types;
 
+#[cfg(test)]
+#[path = "simple_tests.rs"]
+mod simple_tests;
+
+// Preserve the shortest f32 decimal instead of widening its binary approximation.
+fn float4_to_json_f64(v: f32) -> Option<f64> {
+    v.to_string().parse::<f64>().ok().map(|decimal| {
+        // Avoid double rounding when the decimal lands on an f32 midpoint.
+        if decimal as f32 == v {
+            decimal
+        } else {
+            f64::from(v)
+        }
+    })
+}
+
 #[inline]
 pub fn extract_or_null(ty: &Type, buf: &[u8]) -> JsonValue {
     match *ty {
@@ -25,7 +41,9 @@ pub fn extract_or_null(ty: &Type, buf: &[u8]) -> JsonValue {
         Type::INT8 => from_sql_or_none::<i64>(ty, buf)
             .map(i64_to_json)
             .unwrap_or(JsonValue::Null),
-        Type::FLOAT4 => JsonValue::from(from_sql_or_none::<f32>(ty, buf)),
+        Type::FLOAT4 => {
+            JsonValue::from(from_sql_or_none::<f32>(ty, buf).and_then(float4_to_json_f64))
+        }
         Type::FLOAT8 => JsonValue::from(from_sql_or_none::<f64>(ty, buf)),
         Type::NUMERIC => {
             JsonValue::from(from_sql_or_none::<Decimal>(ty, buf).map(|d| d.to_string()))

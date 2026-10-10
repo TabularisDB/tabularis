@@ -865,6 +865,23 @@ mod build_pk_predicate_tests {
     }
 
     #[test]
+    fn real_row_identity_compares_at_column_precision() {
+        for value in [serde_json::json!(89.9), serde_json::json!("89.9")] {
+            for column_type in ["real", "float4", "REAL"] {
+                let (sql, param) =
+                    build_pk_predicate("price", value.clone(), 2, Some(column_type)).unwrap();
+                assert_eq!(
+                    sql,
+                    "\"price\" = CAST(CAST($2 AS double precision) AS real)"
+                );
+                assert_eq!(param.unwrap().1, tokio_postgres::types::Type::FLOAT8);
+            }
+            let (sql, _) = build_pk_predicate("price", value, 2, Some("double precision")).unwrap();
+            assert_eq!(sql, "\"price\" = CAST($2 AS double precision)");
+        }
+    }
+
+    #[test]
     fn uuid_string_pk_binds_without_cast() {
         let uuid = "550e8400-e29b-41d4-a716-446655440000";
         let (sql, _) = build_pk_predicate("uuid", serde_json::json!(uuid), 1, None).unwrap();
@@ -908,8 +925,7 @@ mod build_pk_predicate_tests {
     #[test]
     fn numeric_column_string_value_casts_to_numeric() {
         let (sql, param) =
-            build_pk_predicate("amount", serde_json::json!("1500.00"), 2, Some("numeric"))
-                .unwrap();
+            build_pk_predicate("amount", serde_json::json!("1500.00"), 2, Some("numeric")).unwrap();
         let (_, pg_type) = param.unwrap();
         assert_eq!(sql, "\"amount\" = CAST($2 AS numeric)");
         assert_eq!(pg_type, tokio_postgres::types::Type::NUMERIC);
@@ -917,9 +933,13 @@ mod build_pk_predicate_tests {
 
     #[test]
     fn double_precision_column_string_value_casts_to_double() {
-        let (sql, param) =
-            build_pk_predicate("score", serde_json::json!("1.5"), 1, Some("double precision"))
-                .unwrap();
+        let (sql, param) = build_pk_predicate(
+            "score",
+            serde_json::json!("1.5"),
+            1,
+            Some("double precision"),
+        )
+        .unwrap();
         let (_, pg_type) = param.unwrap();
         assert_eq!(sql, "\"score\" = CAST($1 AS double precision)");
         assert_eq!(pg_type, tokio_postgres::types::Type::FLOAT8);
@@ -974,8 +994,7 @@ mod build_pk_predicate_tests {
     // pk_map entry may legitimately be NULL and must render as IS NULL.
     #[test]
     fn null_pk_renders_is_null_without_binding() {
-        let (sql, param) =
-            build_pk_predicate("id", serde_json::Value::Null, 1, None).unwrap();
+        let (sql, param) = build_pk_predicate("id", serde_json::Value::Null, 1, None).unwrap();
         assert_eq!(sql, "\"id\" IS NULL");
         assert!(param.is_none());
     }
@@ -1077,7 +1096,10 @@ mod build_pk_map_predicate_tests {
         pk_map.insert("c_col".to_string(), serde_json::json!("bob"));
         let pk_types = HashMap::new();
         let (sql, params) = build_pk_map_predicate(&pk_map, &pk_types, 1).unwrap();
-        assert_eq!(sql, "\"a_col\" IS NULL AND \"b_col\" = $1 AND \"c_col\" = $2");
+        assert_eq!(
+            sql,
+            "\"a_col\" IS NULL AND \"b_col\" = $1 AND \"c_col\" = $2"
+        );
         assert_eq!(params.len(), 2);
     }
 }

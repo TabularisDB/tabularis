@@ -631,8 +631,16 @@ async fn get_pk_column_types(
 ) -> HashMap<String, String> {
     let mut types = HashMap::new();
     for col in pk_map.keys() {
-        if let Ok(Some(t)) = get_column_data_type(pool, schema, table, col).await {
-            types.insert(col.clone(), t);
+        match get_column_data_type(pool, schema, table, col).await {
+            Ok(Some(t)) => {
+                types.insert(col.clone(), t);
+            }
+            Ok(None) => log::warn!(
+                "No PostgreSQL column type found for {schema}.{table}.{col}; row matching may fail"
+            ),
+            Err(error) => log::warn!(
+                "Failed to load PostgreSQL column type for {schema}.{table}.{col}: {error}; row matching may fail"
+            ),
         }
     }
     types
