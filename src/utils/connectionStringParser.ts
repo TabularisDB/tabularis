@@ -102,7 +102,8 @@ function getSslModeFromUrl(url: URL, protocol: string): string | undefined {
       prefer: "preferred", preferred: "preferred",
       require: "required", required: "required",
       "verify-ca": "verify_ca", verify_ca: "verify_ca",
-      "verify-full": "verify_identity", verify_identity: "verify_identity",
+      "verify-full": "verify_identity", "verify-identity": "verify_identity",
+      verify_identity: "verify_identity",
     };
     return mysqlModes[mode];
   }
@@ -368,7 +369,7 @@ export function parseConnectionString(
   const host = url.hostname || undefined;
   const port = url.port ? Number.parseInt(url.port, 10) : undefined;
   // Never combine credentials from the authority and query string: the
-  // authority pair wins, even if its password happens to be empty.
+  // authority wins, even if its password is empty or missing.
   const hasAuthorityCredentials = !!(url.username || url.password);
   const username = hasAuthorityCredentials
     ? (url.username ? decodeURIComponent(url.username) : undefined)

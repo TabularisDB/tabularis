@@ -442,6 +442,11 @@ describe("connectionStringParser", () => {
         CAPABILITY_DRIVERS,
       );
       expect(ca.success && ca.params.ssl_mode).toBe("verify_ca");
+      const identity = parseConnectionString(
+        "mysql://host/app?ssl-mode=verify-identity",
+        CAPABILITY_DRIVERS,
+      );
+      expect(identity.success && identity.params.ssl_mode).toBe("verify_identity");
       const invalid = parseConnectionString(
         "postgres://host/app?sslmode=unknown",
         CAPABILITY_DRIVERS,
