@@ -1106,6 +1106,7 @@
     "loadDatabases": "I-load ang mga Database",
     "loadingDatabases": "Naglo-load...",
     "selectDatabases": "Mga Database",
+    "browseMultipleDatabases": "Browse multiple databases on this connection",
     "appearance": "Itsura",
     "noDatabasesSelected": "Pumili ng kahit isang database",
     "selectedDatabases": "{{count}} database ang napili",
@@ -1888,7 +1889,8 @@
     "createSuccess": "Matagumpay na nagawa ang trigger",
     "updateSuccess": "Matagumpay na na-update ang trigger",
     "recreateTrigger": "I-recreate ang Trigger",
-    "confirmRecreate": "Ang pag-edit ng trigger ay nangangailangan ng pag-drop at pag-recreate nito. Magpatuloy sa pagbabago ng \"{{trigger}}\"?"
+    "confirmRecreate": "Ang pag-edit ng trigger ay nangangailangan ng pag-drop at pag-recreate nito. Magpatuloy sa pagbabago ng \"{{trigger}}\"?",
+    "functionNameCollision": "A function named \"{{name}}\" already exists. Rename the trigger or drop the function first."
   },
   "community": {
     "title": "Sumali sa Komunidad",

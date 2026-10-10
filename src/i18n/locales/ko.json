@@ -1051,6 +1051,7 @@
     "loadDatabases": "데이터베이스 불러오기",
     "loadingDatabases": "불러오는 중...",
     "selectDatabases": "데이터베이스",
+    "browseMultipleDatabases": "Browse multiple databases on this connection",
     "appearance": "모양",
     "noDatabasesSelected": "데이터베이스를 하나 이상 선택하세요",
     "selectedDatabases": "데이터베이스 {{count}}개 선택됨",
@@ -1832,7 +1833,8 @@
     "createSuccess": "트리거가 생성되었습니다",
     "updateSuccess": "트리거가 업데이트되었습니다",
     "recreateTrigger": "트리거 재생성",
-    "confirmRecreate": "트리거를 편집하려면 삭제 후 다시 생성해야 합니다. \"{{trigger}}\" 수정을 계속하시겠습니까?"
+    "confirmRecreate": "트리거를 편집하려면 삭제 후 다시 생성해야 합니다. \"{{trigger}}\" 수정을 계속하시겠습니까?",
+    "functionNameCollision": "A function named \"{{name}}\" already exists. Rename the trigger or drop the function first."
   },
   "community": {
     "title": "커뮤니티에 참여하세요",

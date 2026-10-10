@@ -1045,6 +1045,7 @@
     "loadDatabases": "加载数据库",
     "loadingDatabases": "加载中...",
     "selectDatabases": "数据库",
+    "browseMultipleDatabases": "Browse multiple databases on this connection",
     "appearance": "外观",
     "noDatabasesSelected": "请至少选择一个数据库",
     "selectedDatabases": "已选择 {{count}} 个数据库",

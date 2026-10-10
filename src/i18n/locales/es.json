@@ -1104,6 +1104,7 @@
     "loadDatabases": "Cargar Bases de Datos",
     "loadingDatabases": "Cargando...",
     "selectDatabases": "Bases de Datos",
+    "browseMultipleDatabases": "Browse multiple databases on this connection",
     "appearance": "Apariencia",
     "noDatabasesSelected": "Selecciona al menos una base de datos",
     "selectedDatabases": "{{count}} base(s) de datos seleccionada(s)",

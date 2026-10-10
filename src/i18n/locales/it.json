@@ -1110,6 +1110,7 @@
     "loadDatabases": "Carica Database",
     "loadingDatabases": "Caricamento...",
     "selectDatabases": "Database",
+    "browseMultipleDatabases": "Browse multiple databases on this connection",
     "appearance": "Aspetto",
     "noDatabasesSelected": "Seleziona almeno un database",
     "selectedDatabases": "{{count}} database selezionato/i",

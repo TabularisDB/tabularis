@@ -1076,6 +1076,7 @@
     "loadDatabases": "Datenbanken laden",
     "loadingDatabases": "Wird geladen...",
     "selectDatabases": "Datenbanken",
+    "browseMultipleDatabases": "Browse multiple databases on this connection",
     "appearance": "Erscheinungsbild",
     "noDatabasesSelected": "Wähle mindestens eine Datenbank aus",
     "selectedDatabases": "{{count}} Datenbank(en) ausgewählt",

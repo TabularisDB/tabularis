@@ -1093,6 +1093,7 @@
     "loadDatabases": "Carregar Bancos de Dados",
     "loadingDatabases": "Carregando...",
     "selectDatabases": "Bancos de Dados",
+    "browseMultipleDatabases": "Browse multiple databases on this connection",
     "appearance": "Aparência",
     "noDatabasesSelected": "Selecione ao menos um banco de dados",
     "selectedDatabases": "{{count}} banco(s) de dados selecionado(s)",
@@ -1872,7 +1873,8 @@
     "createSuccess": "Trigger criado com sucesso",
     "updateSuccess": "Trigger atualizado com sucesso",
     "recreateTrigger": "Recriar Trigger",
-    "confirmRecreate": "Editar um trigger requer removê-lo e recriá-lo. Continuar modificando \"{{trigger}}\"?"
+    "confirmRecreate": "Editar um trigger requer removê-lo e recriá-lo. Continuar modificando \"{{trigger}}\"?",
+    "functionNameCollision": "A function named \"{{name}}\" already exists. Rename the trigger or drop the function first."
   },
   "community": {
     "title": "Junte-se à Comunidade",
