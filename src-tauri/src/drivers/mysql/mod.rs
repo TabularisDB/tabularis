@@ -1263,11 +1263,20 @@ pub async fn get_routine_parameters(
 
     let rows = fetch_all_rows(&pool, text, query, &[db_name, routine_name]).await?;
 
-    parameters.extend(rows.iter().map(|r| RoutineParameter {
-        name: mysql_row_str(r, 0),
-        data_type: mysql_row_str(r, 1),
-        mode: mysql_row_str(r, 2),
-        ordinal_position: r.try_get::<i64, _>(3).unwrap_or(0) as i32,
+    parameters.extend(rows.iter().map(|r| {
+        let name = mysql_row_str(r, 0);
+        let ordinal_position = r.try_get::<i64, _>(3).unwrap_or_else(|e| {
+            log::warn!(
+                "MySQL: Could not read the position of parameter `{name}` of `{routine_name}`: {e}"
+            );
+            0
+        }) as i32;
+        RoutineParameter {
+            name,
+            data_type: mysql_row_str(r, 1),
+            mode: mysql_row_str(r, 2),
+            ordinal_position,
+        }
     }));
 
     Ok(parameters)

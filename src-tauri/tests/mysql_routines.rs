@@ -5,6 +5,10 @@
 //! Set TABULARIS_TEST_MYSQL=1 and TABULARIS_TEST_MYSQL_HOST, _PORT, _USER,
 //! and _PASSWORD explicitly. The account must be able to create databases.
 //! Each run creates a UUID-named database and drops only the database it created.
+//!
+//! The official `mysql` images enable TLS with auto-generated certificates.
+//! Stock `mariadb` images do not: mount a CA, certificate and key and start the
+//! server with `--ssl-ca`, `--ssl-cert` and `--ssl-key` before running this.
 //! CI runs it against MySQL 8.4 and 5.7 in `.github/workflows/mysql-integration.yml`.
 
 use futures::FutureExt;
@@ -53,6 +57,14 @@ async fn parameters(
     .expect("parameter discovery failed")
 }
 
+/// One parameter as `position name mode data_type`.
+fn describe(parameter: &RoutineParameter) -> String {
+    format!(
+        "{} {} {} {}",
+        parameter.ordinal_position, parameter.name, parameter.mode, parameter.data_type
+    )
+}
+
 async fn exercise_routine_parameters(
     connection: &mut MySqlConnection,
     params: &ConnectionParams,
@@ -60,7 +72,8 @@ async fn exercise_routine_parameters(
 ) {
     let db = quoted(schema);
     // The procedure from issue #903, plus a function: MySQL lists a function's
-    // return value at position 0, ahead of its parameters.
+    // return value at position 0, ahead of its parameters. The other routines
+    // cover every parameter mode and routines without parameters.
     execute(
         connection,
         &format!(
@@ -89,23 +102,67 @@ async fn exercise_routine_parameters(
         ),
     )
     .await;
+    execute(
+        connection,
+        &format!(
+            "CREATE PROCEDURE {db}.mixed_modes(IN p_in INT, OUT p_out VARCHAR(20), INOUT p_inout DECIMAL(5,2))
+             BEGIN
+               SET p_out = CONCAT('got ', p_in);
+               SET p_inout = p_inout * 2;
+             END"
+        ),
+    )
+    .await;
+    execute(
+        connection,
+        &format!("CREATE PROCEDURE {db}.no_params() SELECT 1"),
+    )
+    .await;
+    execute(
+        connection,
+        &format!("CREATE FUNCTION {db}.no_args() RETURNS INT DETERMINISTIC RETURN 1"),
+    )
+    .await;
 
     for text_protocol in [false, true] {
         let selected = params_for_protocol(params, text_protocol);
         let procedure: Vec<_> = parameters(&selected, "add_department", schema)
             .await
             .iter()
-            .map(|p| {
-                format!(
-                    "{} {} {} {}",
-                    p.ordinal_position, p.name, p.mode, p.data_type
-                )
-            })
+            .map(describe)
             .collect();
         assert_eq!(
             procedure,
             ["1 p_name IN varchar", "2 p_budget IN decimal"],
             "procedure parameters (text protocol: {text_protocol})"
+        );
+        let modes: Vec<_> = parameters(&selected, "mixed_modes", schema)
+            .await
+            .iter()
+            .map(describe)
+            .collect();
+        assert_eq!(
+            modes,
+            [
+                "1 p_in IN int",
+                "2 p_out OUT varchar",
+                "3 p_inout INOUT decimal"
+            ],
+            "IN, OUT and INOUT parameters (text protocol: {text_protocol})"
+        );
+        assert!(
+            parameters(&selected, "no_params", schema).await.is_empty(),
+            "procedure without parameters (text protocol: {text_protocol})"
+        );
+        let no_args = parameters(&selected, "no_args", schema).await;
+        let no_args: Vec<_> = no_args
+            .iter()
+            .map(|p| (p.ordinal_position, p.name.as_str()))
+            .collect();
+        assert_eq!(
+            no_args,
+            [(0, "")],
+            "function without parameters keeps only its return value (text protocol: {text_protocol})"
         );
         let function = parameters(&selected, "with_tax", schema).await;
         let positions: Vec<_> = function
