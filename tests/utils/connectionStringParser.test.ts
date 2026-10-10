@@ -454,6 +454,25 @@ describe("connectionStringParser", () => {
       expect(invalid.success && invalid.params.ssl_mode).toBeUndefined();
     });
 
+    it("honors case-insensitive JDBC sslMode keys without weakening MySQL verification", () => {
+      for (const [parameter, expected] of [
+        ["sslMode=VERIFY_IDENTITY", "verify_identity"],
+        ["SSLMode=verify_ca", "verify_ca"],
+        ["sslMode=DISABLED", "disabled"],
+      ]) {
+        const parsed = parseConnectionString(
+          `jdbc:mysql://127.0.0.1:3306/app?${parameter}`,
+          CAPABILITY_DRIVERS,
+        );
+        expect(parsed.success && parsed.params.ssl_mode).toBe(expected);
+      }
+      const pg = parseConnectionString(
+        "jdbc:postgresql://host/app?SSLMode=VERIFY-FULL",
+        CAPABILITY_DRIVERS,
+      );
+      expect(pg.success && pg.params.ssl_mode).toBe("verify-full");
+    });
+
     it("recognizes only supported JDBC URLs, preserving opaque JDBC plugin URLs", () => {
       expect(looksLikeConnectionString(
         "jdbc:postgresql://host/app",
