@@ -407,8 +407,13 @@ impl PluginProcess {
         if !self.accepting_calls.load(Ordering::Acquire) {
             return Err("Plugin is shutting down; new RPC calls are rejected".to_string().into());
         }
-        let permit = self.sender.reserve().await
-            .map_err(|_| "Plugin process channel closed".to_string())?;
+        let permit = self.sender.reserve().await.map_err(|_| {
+            if self.accepting_calls.load(Ordering::Acquire) {
+                "Plugin process channel closed".to_string()
+            } else {
+                "Plugin is shutting down; new RPC calls are rejected".to_string()
+            }
+        })?;
         if !self.accepting_calls.load(Ordering::Acquire) {
             return Err("Plugin is shutting down; new RPC calls are rejected".to_string().into());
         }
