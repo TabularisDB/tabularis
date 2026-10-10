@@ -87,3 +87,82 @@ async fn call_without_timeout_never_sends_a_cancel() {
         "no cancel expected, got {lines_later:?}"
     );
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn shutdown_allows_an_inflight_plugin_response() {
+    let dir = tempfile::tempdir().unwrap();
+    let log = dir.path().join("requests.log");
+    let script = dir.path().join("respond.sh");
+    std::fs::write(
+        &script,
+        format!(
+            r#"read -r request
+printf '%s\n' "$request" > '{}'
+sleep 0.2
+printf '%s\n' '{{"jsonrpc":"2.0","id":1,"result":{{"ok":true}}}}'
+exec cat >/dev/null
+"#,
+            log.display(),
+        ),
+    ).unwrap();
+
+    let process = Arc::new(PluginProcess::new(
+        "test-plugin".to_string(), script, Some("/bin/sh".into()),
+    ).await.expect("spawn responsive plugin"));
+
+    let call = tokio::spawn({
+        let process = process.clone();
+        async move { process.send_request("execute_query", json!({}), None).await }
+    });
+    let received = wait_for_lines(&log, 1, Duration::from_secs(5)).await;
+    assert_eq!(received.len(), 1, "plugin must receive the call before shutdown");
+
+    process.shutdown().await;
+    assert_eq!(call.await.unwrap().unwrap(), json!({"ok": true}));
+    assert!(process.send_request("execute_query", json!({}), None).await
+        .unwrap_err().to_string().contains("shutting down"));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn shutdown_bounds_a_hung_plugin_and_reports_a_specific_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let (process, log) = silent_recording_plugin(dir.path()).await;
+    let process = Arc::new(process);
+    let call = tokio::spawn({
+        let process = process.clone();
+        async move { process.send_request("execute_query", json!({}), None).await }
+    });
+    let received = wait_for_lines(&log, 1, Duration::from_secs(5)).await;
+    assert_eq!(received.len(), 1, "plugin must receive the call before shutdown");
+
+    let started = std::time::Instant::now();
+    let shutdown = tokio::spawn({
+        let process = process.clone();
+        async move { process.shutdown().await }
+    });
+    // Check that the request gate closes at the beginning of shutdown,
+    // while the original in-flight call is still inside its grace period.
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while process.accepting_calls.load(Ordering::Acquire) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("shutdown must stop new work promptly");
+    let new_error = process
+        .send_request("execute_query", json!({}), None)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(
+        new_error.contains("shutting down"),
+        "new RPC must be rejected during drain: {new_error}"
+    );
+
+    shutdown.await.unwrap();
+    assert!(started.elapsed() < PLUGIN_SHUTDOWN_GRACE + Duration::from_secs(2));
+    let error = call.await.unwrap().unwrap_err().to_string();
+    assert!(error.contains("shutdown grace period"), "got {error}");
+}
