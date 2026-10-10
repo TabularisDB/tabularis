@@ -108,6 +108,7 @@ pub mod theme_models;
 pub mod theme_packages;
 pub mod updater;
 pub mod window_decorations;
+mod window_placement;
 pub mod drivers {
     pub mod common;
     pub mod driver_trait;
@@ -270,6 +271,7 @@ pub fn run() {
         .manage(explain_import::PendingExplainFile::default())
         .manage(json_viewer::JsonViewerStore::default())
         .manage(results_window::ResultsWindowStore::default())
+        .manage(window_placement::WindowPlacementCache::default())
         .manage(query_history::QueryHistoryState::default())
         .setup(move |app| {
             #[cfg(target_os = "linux")]
@@ -296,6 +298,11 @@ pub fn run() {
                 &app.handle(),
                 startup_config.window_decorations.as_ref(),
             );
+            // Restore the main window's last normal size and position.
+            // The explicit start_maximized preference below still takes precedence.
+            if let Some(window) = app.get_webview_window("main") {
+                window_placement::restore(&window);
+            }
 
             // Allow the SSH tunnel code (which runs without a Tauri context)
             // to bridge askpass prompts to the frontend.
@@ -452,6 +459,20 @@ pub fn run() {
                 }
             }
             Ok(())
+        })
+        // Only the main window is persisted; utility windows retain their
+        // existing per-feature sizing and placement behavior.
+        .on_window_event(|window, event| {
+            if window.label() != "main" { return; }
+            match event {
+                tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
+                    window_placement::remember(window);
+                }
+                tauri::WindowEvent::CloseRequested { .. } => {
+                    window_placement::persist(window);
+                }
+                _ => {}
+            }
         })
         .invoke_handler(tauri::generate_handler![
             system_theme::get_linux_system_theme,
