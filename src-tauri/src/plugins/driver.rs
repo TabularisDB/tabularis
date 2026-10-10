@@ -3045,9 +3045,9 @@ mod tests {
         assert_eq!(coerced.database.primary(), "postgres");
     }
 
-    /// Regression test for the bug found while manually testing PR #822: a
-    /// PostgreSQL-plugin connection saved with "Choose databases" (multi-db
-    /// opt-in) persists `database` as `DatabaseSelection::Multiple(...)`,
+    /// Regression: a PostgreSQL-plugin connection saved with "Choose
+    /// databases" (multi-db opt-in) persists `database` as
+    /// `DatabaseSelection::Multiple(...)`,
     /// which serializes to a bare JSON array. The plugin's
     /// `database: Option<String>` field can't represent an array, so an
     /// un-coerced `test_connection`/`ping` call silently resolved to `None`

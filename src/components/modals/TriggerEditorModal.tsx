@@ -87,8 +87,7 @@ export const TriggerEditorModal = ({
   // instead of creating (or clobbering) a convention-named one; null means
   // either a brand-new trigger (no existing function to preserve) or an
   // existing one whose function name couldn't be parsed, in which case save
-  // falls back to the collision-checked convention-name path (debba review,
-  // PR #822, blocking 4).
+  // falls back to the collision-checked convention-name path.
   const [existingFunctionName, setExistingFunctionName] = useState<
     { name: string; schema?: string } | null
   >(null);
@@ -137,8 +136,7 @@ export const TriggerEditorModal = ({
         // Parse the real function name from the EXECUTE clause rather than
         // assuming the `<table>_<trigger>_fn` convention — a trigger whose
         // function follows a different naming scheme would otherwise fail the
-        // lookup and fall back to the invalid EXECUTE string (debba review, PR
-        // #822, blocking 3).
+        // lookup and fall back to the invalid EXECUTE string.
         if (isPostgresDriver(driver) && /\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\b/i.test(parsed.body)) {
           try {
             const parsedFnName = parseTriggerFunctionName(def);
@@ -271,13 +269,13 @@ export const TriggerEditorModal = ({
       // the builtin driver nor the plugin's Postgres client executes multiple
       // semicolon-separated commands in a single call — see issue #837).
       //
-      // ORDERING (debba review, PR #822, blocking 3): create/replace the
+      // ORDERING: create/replace the
       // function BEFORE dropping the existing trigger, so a failure in the
       // function step leaves the existing trigger intact. Previously the drop
       // ran first, so a failed function creation left the trigger gone with no
       // rollback.
       //
-      // IDENTITY (debba review, PR #822, blocking 4): when editing a trigger
+      // IDENTITY: when editing a trigger
       // whose real function was parsed on load (existingFunctionName), save
       // updates THAT function via CREATE OR REPLACE — safe, since it's a
       // function this same trigger already calls. Otherwise (a brand-new
@@ -367,7 +365,7 @@ export const TriggerEditorModal = ({
     };
     // Mirror handleSave's edit-path flow: create/replace function → drop_trigger
     // → create_trigger. The function is created BEFORE the drop so a failure in
-    // the function step leaves the existing trigger intact (debba review, #822).
+    // the function step leaves the existing trigger intact.
     // Also mirrors handleSave's IDENTITY behavior (blocking 4): when the
     // trigger's real function was parsed on load, this updates THAT function
     // (which may be shared with another trigger) rather than a generated

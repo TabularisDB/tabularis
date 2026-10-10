@@ -17,9 +17,8 @@ export interface TriggerSqlInput {
    * function instead of the generated `<table>_<name>_fn` convention name —
    * so editing a trigger whose function doesn't follow that convention
    * updates the function it actually calls, instead of creating (or
-   * silently clobbering) a second, convention-named one (debba review, PR
-   * #822, blocking 4). Omit for a brand-new trigger, which has no existing
-   * function to preserve the identity of.
+   * silently clobbering) a second, convention-named one. Omit for a brand-new
+   * trigger, which has no existing function to preserve the identity of.
    */
   existingFunctionName?: { name: string; schema?: string };
 }
@@ -59,7 +58,7 @@ export function triggerFunctionName(name: string, tableName?: string): string {
  * so the editor can fetch that function's real definition on load — instead of
  * assuming the `<table>_<trigger>_fn` convention, which fails for triggers whose
  * function follows a different naming scheme and left the body falling back to
- * the invalid `EXECUTE FUNCTION ...` string (debba review, PR #822, blocking 3).
+ * the invalid `EXECUTE FUNCTION ...` string.
  *
  * Returns the name with quotes stripped and schema qualification preserved
  * (`schema.name`), or `null` when the clause is absent or malformed. Handles
@@ -103,7 +102,7 @@ function qualifiedFunctionName(input: TriggerSqlInput): string {
  * (preserved verbatim by `extractFunctionBody`, including the `BEGIN` that
  * separates declarations from statements), it is NOT re-wrapped in a second
  * `BEGIN` — PL/pgSQL allows exactly one `BEGIN` per function body, and a
- * `DECLARE` after `BEGIN` is a syntax error (debba review, PR #822).
+ * `DECLARE` after `BEGIN` is a syntax error.
  */
 export function buildTriggerFunctionSql(input: TriggerSqlInput): string {
   const hasOwnDeclareBegin = /^\s*DECLARE\b/i.test(input.body);
@@ -144,9 +143,9 @@ export function buildTriggerFunctionSql(input: TriggerSqlInput): string {
  * reconstructed later from the statement text alone (an assignment like
  * `n := n + 1;` looks identical whether it's inside DECLARE's scope or after
  * it). `buildTriggerFunctionSql` detects a leading `DECLARE` and skips adding
- * its own `BEGIN` wrapper, so the round-trip stays valid PL/pgSQL (debba
- * review, PR #822 — a prior version stripped `BEGIN` unconditionally, which
- * made `buildTriggerFunctionSql` reinsert a second one before `DECLARE`).
+ * its own `BEGIN` wrapper, so the round-trip stays valid PL/pgSQL — a prior
+ * version stripped `BEGIN` unconditionally, which made `buildTriggerFunctionSql`
+ * reinsert a second one before `DECLARE`.
  *
  * Nesting is tracked because a function body can contain nested `BEGIN/END`
  * (e.g. inside a loop), `END IF;`/`END LOOP;` clauses, and `CASE` — both the
@@ -156,7 +155,7 @@ export function buildTriggerFunctionSql(input: TriggerSqlInput): string {
  * both open a construct that increments one depth counter; a bare `END` or
  * `END CASE` closes the innermost of either. `END IF`/`END LOOP` close their
  * own IF/LOOP construct and are excluded entirely, since IF/LOOP are never
- * counted as openers (debba review, PR #822 — a prior version's lookahead
+ * counted as openers — a prior version's lookahead
  * excluded `END CASE` from decrementing at all, which left the depth counter
  * permanently inflated for the CASE *statement* form and truncated the body
  * to `null`).
