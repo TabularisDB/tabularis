@@ -945,6 +945,7 @@
       "refreshTable": "Refresh table",
       "extendCellRange": "Extend cell range",
       "jumpToEdge": "Jump to grid edge",
+      "jumpToColumn": "Jump to column",
       "extendCellRangeToEdge": "Extend cell range to edge",
       "selectRow": "Select row",
       "selectColumn": "Select column"
@@ -1251,6 +1252,9 @@
     "useShownValue": "Use this value"
   },
   "dataGrid": {
+    "jumpToColumn": "Jump to column",
+    "searchColumns": "Search columns",
+    "noMatchingColumns": "No matching columns",
     "noRowIdentity": "Rows can't be edited: \"{{table}}\" has no primary key, so editing requires the result to include all table columns. Select all columns (e.g. SELECT *) or add a primary key.",
     "resizeRelatedPanel": "Drag to resize panel",
     "keylessRowNotFound": "No row matched the original values while updating \"{{column}}\". The table has no primary key and its data may have changed — refresh and retry.",
