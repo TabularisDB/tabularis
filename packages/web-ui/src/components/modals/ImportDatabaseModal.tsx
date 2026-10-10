@@ -51,8 +51,25 @@ export const ImportDatabaseModal = ({
   // mounts, and startImport being recreated when its deps change, both re-run the
   // effect. Without this the whole dump is executed twice against the database.
   const hasStartedRef = useRef(false);
+  const operationRef = useRef<{
+    dispatched: boolean;
+    cancelled: boolean;
+    cancelling: boolean;
+  } | null>(null);
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const startImport = useCallback(async () => {
+    const operation = { dispatched: false, cancelled: false, cancelling: false };
+    operationRef.current = operation;
+    const isCurrent = () =>
+      mountedRef.current && operationRef.current === operation && !operation.cancelled;
     setIsImporting(true);
     setError(null);
     setSuccess(false);
@@ -65,6 +82,9 @@ export const ImportDatabaseModal = ({
         platform,
         inputFile,
       );
+      // Uploads can finish after cancellation, closing, or a newer opening.
+      if (!isCurrent()) return;
+      operation.dispatched = true;
       await client.call(
         "import_database",
         {
@@ -79,6 +99,8 @@ export const ImportDatabaseModal = ({
         },
       );
 
+      if (!isCurrent()) return;
+      operationRef.current = null;
       setSuccess(true);
       setIsImporting(false);
 
@@ -86,6 +108,8 @@ export const ImportDatabaseModal = ({
         onSuccess();
       }
     } catch (e) {
+      if (!isCurrent()) return;
+      operationRef.current = null;
       // The error is rendered inside this modal — no extra alert dialog.
       setError(String(e));
       setIsImporting(false);
@@ -111,6 +135,7 @@ export const ImportDatabaseModal = ({
       setElapsedTime(0);
       setStartTime(null);
       hasStartedRef.current = false;
+      operationRef.current = null;
       return;
     }
 
@@ -130,7 +155,13 @@ export const ImportDatabaseModal = ({
     if (!isOpen) return;
 
     const subscription = client.subscribe("import_progress", (update) => {
-      if (update.connection_id === connectionId) setProgress(update);
+      if (
+        operationRef.current?.dispatched &&
+        !operationRef.current.cancelled &&
+        update.connection_id === connectionId
+      ) {
+        setProgress(update);
+      }
     });
     return () => {
       void subscription.then((unsubscribe) => unsubscribe());
@@ -150,22 +181,36 @@ export const ImportDatabaseModal = ({
   }, [isImporting, startTime]);
 
   const handleCancel = async () => {
-    if (!isImporting) {
+    const operation = operationRef.current;
+    if (!operation) {
       onClose();
       return;
     }
 
+    if (operation.cancelling) return;
+    operation.cancelling = true;
     try {
-      await client.call("cancel_import", { connectionId });
+      if (operation.dispatched) {
+        // Keep receiving progress and completion until cancellation succeeds.
+        await client.call("cancel_import", { connectionId });
+      }
+      // Uploads have no backend job: invalidate them locally before they can
+      // dispatch SQL. For running imports, only an acknowledgement cancels them.
+      if (!mountedRef.current || operationRef.current !== operation) return;
+      operation.cancelled = true;
+      operationRef.current = null;
+      setIsImporting(false);
       showAlert(t("dump.importCancelled"), { kind: "info" });
       onClose();
     } catch (e) {
-      console.error("Failed to cancel import:", e);
+      if (!mountedRef.current || operationRef.current !== operation) return;
+      operation.cancelling = false;
+      showAlert(String(e), { kind: "error" });
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <Modal isOpen={isOpen} onClose={handleCancel} overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-base border border-default rounded-lg shadow-xl w-[600px] flex flex-col">
         <div className="p-4 border-b border-default flex justify-between items-center">
           <h2 className="text-lg font-semibold flex items-center gap-2">
