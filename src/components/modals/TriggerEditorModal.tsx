@@ -205,7 +205,7 @@ export const TriggerEditorModal = ({
       await invoke("create_trigger", {
         connectionId,
         triggerSql,
-        ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+        ...(resolvedSchema && dialect !== "mysql" ? { schema: resolvedSchema } : {}),
       });
     }
   };
