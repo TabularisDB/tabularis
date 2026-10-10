@@ -21,7 +21,7 @@
     "name": "get_user",
     "routine_type": "FUNCTION",
     "definition": null,
-    "identity_args": "uid integer"
+    "identity_args": "p_id integer"
   },
   {
     "name": "reset_orders",
