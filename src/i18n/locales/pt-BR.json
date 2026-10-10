@@ -2490,6 +2490,10 @@
       "summary": "Falha na sessão do AWS SSM",
       "recovery": "Abra os detalhes para ver o erro exato da AWS. Verifique se a CLI da AWS e o plugin Session Manager estão instalados, se suas credenciais estão válidas e se o nó gerenciado está on-line."
     },
+    "keychain": {
+      "summary": "Chaveiro do sistema indisponível",
+      "recovery": "O Tabularis não conseguiu acessar o armazenamento de credenciais do sistema para salvar as senhas. No Linux, verifique se um provedor do Secret Service (GNOME Keyring, KWallet, KeePassXC) está em execução e desbloqueado, ou desative \"Salvar senhas no Keychain\" para esta conexão."
+    },
     "db-auth": {
       "summary": "Falha na autenticação do banco de dados",
       "recovery": "Verifique o nome de usuário e a senha do banco de dados."

@@ -2410,6 +2410,10 @@
       "summary": "Nabigo ang AWS SSM session",
       "recovery": "Buksan ang mga detalye para sa eksaktong error ng AWS. Tiyaking naka-install ang AWS CLI at ang Session Manager plugin, kasalukuyan pa ang iyong mga kredensyal, at online ang managed node."
     },
+    "keychain": {
+      "summary": "Hindi magamit ang keychain ng system",
+      "recovery": "Hindi maabot ng Tabularis ang credential store ng OS para i-save ang mga password. Sa Linux, tiyaking tumatakbo at naka-unlock ang isang Secret Service provider (GNOME Keyring, KWallet, KeePassXC), o i-off ang \"I-save ang mga password sa Keychain\" para sa koneksyong ito."
+    },
     "db-auth": {
       "summary": "Nabigo ang authentication sa database",
       "recovery": "Suriin ang username at password ng database."

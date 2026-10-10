@@ -98,6 +98,30 @@ describe("classifyConnectionError", () => {
   });
 });
 
+describe("classifyConnectionError with keychain failures", () => {
+  // Secret Service timeout as reported in #932: it mentions a timeout and a
+  // broken connection, which must not be read as an unreachable SSH server.
+  const dbusTimeout =
+    "Platform secure storage failure: DBus error: Did not receive a reply. Possible causes include: the remote application did not send a reply, the message bus security policy blocked the reply, the reply timeout expired, or the network connection was broken.";
+
+  it("blames the keychain, not the tunnel, when SSH is enabled", () => {
+    const result = classifyConnectionError(dbusTimeout, { sshEnabled: true });
+    expect(result.kind).toBe("keychain");
+    expect(result.summaryKey).toBe("connectionErrors.keychain.summary");
+    expect(result.recoveryKey).toBe("connectionErrors.keychain.recovery");
+  });
+
+  it("classifies other keychain failures", () => {
+    for (const raw of [
+      dbusTimeout,
+      "Platform secure storage failure: zbus error: org.freedesktop.DBus.Error.ServiceUnknown. The snap sandbox is blocking access to the system keychain.",
+      "Failed to read the stored connection URI from the OS keychain",
+    ]) {
+      expect(classifyConnectionError(raw).kind).toBe("keychain");
+    }
+  });
+});
+
 describe("classifyConnectionError with AWS SSM", () => {
   it("keeps an IAM denial out of the database-auth bucket", () => {
     const raw =

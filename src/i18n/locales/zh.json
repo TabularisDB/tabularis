@@ -2378,6 +2378,10 @@
       "summary": "AWS SSM 会话失败",
       "recovery": "展开详情查看具体的 AWS 错误。请确认已安装 AWS CLI 和 Session Manager 插件、凭证仍然有效，并且托管节点处于在线状态。"
     },
+    "keychain": {
+      "summary": "系统钥匙串不可用",
+      "recovery": "Tabularis 无法访问系统凭据存储来保存密码。在 Linux 上，请确认 Secret Service 提供程序（GNOME Keyring、KWallet、KeePassXC）正在运行且已解锁，或为此连接关闭“在密钥链中保存密码”。"
+    },
     "db-auth": {
       "summary": "数据库认证失败",
       "recovery": "请检查数据库用户名和密码。"

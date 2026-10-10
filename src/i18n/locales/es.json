@@ -2370,6 +2370,10 @@
       "summary": "Error en la sesión de AWS SSM",
       "recovery": "Abra los detalles para ver el error exacto de AWS. Compruebe que la CLI de AWS y el complemento Session Manager estén instalados, que sus credenciales estén vigentes y que el nodo administrado esté en línea."
     },
+    "keychain": {
+      "summary": "Llavero del sistema no disponible",
+      "recovery": "Tabularis no pudo acceder al almacén de credenciales del sistema para guardar las contraseñas. En Linux, asegúrate de que un proveedor de Secret Service (GNOME Keyring, KWallet, KeePassXC) esté en ejecución y desbloqueado, o desactiva \"Guardar contraseñas en el Llavero\" para esta conexión."
+    },
     "db-auth": {
       "summary": "Error de autenticación en la base de datos",
       "recovery": "Comprueba el nombre de usuario y la contraseña de la base de datos."

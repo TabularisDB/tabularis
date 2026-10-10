@@ -2344,6 +2344,10 @@
       "summary": "AWS SSM 세션 실패",
       "recovery": "세부 정보를 열어 정확한 AWS 오류를 확인하세요. AWS CLI와 Session Manager 플러그인이 설치되어 있는지, 자격 증명이 유효한지, 관리형 노드가 온라인 상태인지 확인하세요."
     },
+    "keychain": {
+      "summary": "시스템 키체인을 사용할 수 없음",
+      "recovery": "비밀번호를 저장하기 위해 OS 자격 증명 저장소에 연결하지 못했습니다. Linux에서는 Secret Service 제공자(GNOME Keyring, KWallet, KeePassXC)가 실행 중이고 잠금 해제되어 있는지 확인하거나, 이 연결의 \"키체인에 비밀번호 저장\"을 끄세요."
+    },
     "db-auth": {
       "summary": "데이터베이스 인증 실패",
       "recovery": "데이터베이스 사용자 이름과 비밀번호를 확인하세요."
