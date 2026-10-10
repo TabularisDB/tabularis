@@ -231,15 +231,12 @@ export const registerSqlAutocomplete = (
       // ============================================
       // Try qualified (db.table.) first, then simple (table.)
       const qualifiedDotMatch = textUntilPosition.match(/`?([a-zA-Z0-9_]+)`?\.`?([a-zA-Z0-9_]+)`?\.([a-zA-Z0-9_]*)$/);
-      const simpleDotMatch = qualifiedDotMatch ? null : textUntilPosition.match(/(?:["'`])?([a-zA-Z0-9_]+)(?:["'`])?\.([a-zA-Z0-9_]*)$/);
-
-      // Quoted CTE/derived aliases can include spaces or escaped delimiters.
-      // Resolve these too, without treating quoted identifiers as physical
-      // table names in the default path.
-      const quotedDotMatch = qualifiedDotMatch || simpleDotMatch
+      // Parse quoted aliases first: the unquoted pattern would otherwise
+      // incorrectly extract only the final word of "My CTE".
+      const quotedDotMatch = qualifiedDotMatch
         ? null
         : textUntilPosition.match(/(?:"((?:[^"]|"")*)"|\`((?:[^\`]|\`\`)*)\`|\\[([^\\]]+)\\])\\.([a-zA-Z0-9_]*)$/);
-
+      const simpleDotMatch = qualifiedDotMatch || quotedDotMatch ? null : textUntilPosition.match(/(?:["'`])?([a-zA-Z0-9_]+)(?:["'`])?\.([a-zA-Z0-9_]*)$/);
       if (qualifiedDotMatch || simpleDotMatch || quotedDotMatch) {
         // In a table operand, `namespace.partial` refers to a table rather than
         // a column. Resolve this before the regular table/alias dot path so
