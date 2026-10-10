@@ -1,6 +1,6 @@
 import type { ForeignKey } from "../types/schema";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { quoteIdentifier, shouldQuoteIdentifiers } from "./identifiers";
+import { isPostgresDialect, quoteIdentifier } from "./identifiers";
 
 const NUMERIC_TYPE_KEYWORDS = [
   "int",
@@ -95,10 +95,7 @@ export function buildForeignKeyFilterClause(
   sourceColumnType?: string,
 ): string {
   const col = quoteIdentifier(fk.ref_column, driver);
-  const literal = formatSqlValueForFilter(value, sourceColumnType);
-  const isPostgresReal = shouldQuoteIdentifiers(driver) &&
-    /^(real|float4)$/i.test(sourceColumnType?.trim() ?? "");
-  return `${col} = ${isPostgresReal ? `CAST(${literal} AS real)` : literal}`;
+  return `${col} = ${formatSqlValueForColumnComparison(value, driver, sourceColumnType)}`;
 }
 
 export function isNumericColumnType(type: string | undefined): boolean {
@@ -119,4 +116,16 @@ export function formatSqlValueForFilter(value: unknown, columnType?: string): st
     return str;
   }
   return `'${str.replace(/'/g, "''")}'`;
+}
+
+/** Formats a filter literal at the column's comparison precision. */
+export function formatSqlValueForColumnComparison(
+  value: unknown,
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+  columnType?: string,
+): string {
+  const literal = formatSqlValueForFilter(value, columnType);
+  const isPostgresReal = isPostgresDialect(driver) &&
+    /^(real|float4)$/i.test(columnType?.trim() ?? "");
+  return isPostgresReal ? `CAST(${literal} AS real)` : literal;
 }

@@ -61,6 +61,13 @@ export function getQuoteChar(
 export function shouldQuoteIdentifiers(
   driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): boolean {
+  return isPostgresDialect(driver);
+}
+
+/** Recognizes PostgreSQL dialects from capabilities or legacy driver names. */
+export function isPostgresDialect(
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+): boolean {
   const caps = capabilitiesOf(driver);
   if (caps) {
     return (caps.sql_dialect ?? "postgres") === "postgres";
