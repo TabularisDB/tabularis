@@ -200,6 +200,7 @@ jobs:
       # the correct world-executable bit, without repacking/signature drift.
       - name: Normalize AppRun source permissions (Linux stable AppImage)
         if: matrix.platform == 'ubuntu-24.04' && !inputs.experimental_appimage
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p ~/.cache/tauri
