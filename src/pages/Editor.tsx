@@ -4924,7 +4924,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 dialect={activeDialect}
                 foldPreview
                 onChange={(val) => {
-                  if (!isActive) return;
+                  // Debounced Monaco edits can arrive after this tab becomes
+                  // inactive. The callback belongs to the tab's stable id;
+                  // dropping it would lose the user's latest SQL on switch.
                   updateTab(tab.id, {
                     query: val,
                     ...(tab.sourceFilePath
