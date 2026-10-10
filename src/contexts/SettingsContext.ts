@@ -102,9 +102,9 @@ export interface Settings {
   editorShowLineNumbers?: boolean;
   editorAcceptSuggestionOnEnter?: boolean;
   runStatementUnderCursor?: boolean;
-  // Case of SQL keywords inserted by autocomplete
+  /** Case of SQL keywords inserted by autocomplete. Default: "match". */
   autocompleteKeywordCase?: AutocompleteKeywordCase;
-  /**  Delay destructive-query and production-write confirmations for five seconds. Default: false. */
+  /** Delay destructive-query and production-write confirmations for five seconds. Default: false. */
   safetyConfirmationDelayEnabled?: boolean;
   /** Send a desktop notification when a long-running query finishes while the window is unfocused. Default: true. */
   notifyLongQueries?: boolean;

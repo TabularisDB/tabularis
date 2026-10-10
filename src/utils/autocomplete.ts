@@ -9,7 +9,6 @@ import { analyzeSqlContext, findStatementScopeEnd, getKeywordRelevance, getSugge
 export type AutocompleteKeywordCase = "match" | "upper" | "lower";
 
 // Decide whether a keyword completion should be upper or lower case.
-
 export function resolveKeywordCase(
   mode: AutocompleteKeywordCase | undefined,
   typedPrefix: string,

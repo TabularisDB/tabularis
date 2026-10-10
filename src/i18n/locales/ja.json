@@ -571,8 +571,6 @@
     "appearance_editorShowLineNumbersDesc": "エディタの左端に行番号を表示します。",
     "appearance_editorAcceptSuggestionOnEnter": "Enter で候補を確定",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Tab に加えて Enter でもオートコンプリートの候補を確定できるようにします。オフの場合、Enter は常に改行を挿入します。",
-    "appearance_editorAutocompleteKeywordCase": "オートコンプリートのキーワードの大文字/小文字",
-    "appearance_editorAutocompleteKeywordCaseMatch": "入力に合わせる",
     "queryExecution": "クエリの実行",
     "runStatementUnderCursor": "カーソル位置のステートメントを実行",
     "runStatementUnderCursorDesc": "スクリプトに複数のステートメントがある場合、クエリ選択画面を表示せずにカーソル位置のステートメントを実行します。特定の範囲を実行するにはテキストを選択してください。",
@@ -600,8 +598,6 @@
     "autocomplete_keywordCase": "キーワードの大文字/小文字",
     "autocomplete_keywordCaseDesc": "オートコンプリートで挿入されるSQLキーワードの大文字/小文字。",
     "autocomplete_keywordCaseMatch": "入力に合わせる",
-    "autocomplete_keywordCaseUpper": "常に大文字",
-    "autocomplete_keywordCaseLower": "常に小文字",
     "editConfigJson": "config.json を編集",
     "editConfigJsonDesc": "生の設定ファイルを直接編集します。変更を反映するには再起動が必要です。",
     "configJsonModal": {

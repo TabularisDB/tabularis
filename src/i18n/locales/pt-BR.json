@@ -567,8 +567,6 @@
     "appearance_editorShowLineNumbersDesc": "Exibe os números de linha na margem do editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Aceitar Sugestão com Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permite que o Enter (além do Tab) aceite a sugestão de autocompletar ativa. Quando desativado, o Enter sempre insere uma nova linha.",
-    "appearance_editorAutocompleteKeywordCase": "Caixa das palavras-chave no autocompletar",
-    "appearance_editorAutocompleteKeywordCaseMatch": "Igual ao digitado",
     "queryExecution": "Execução de Consultas",
     "runStatementUnderCursor": "Executar instrução sob o cursor",
     "runStatementUnderCursorDesc": "Quando um script tem várias instruções, executa a que está sob o cursor em vez de mostrar o seletor de consultas. Selecione um texto para executar um intervalo específico.",
@@ -596,8 +594,6 @@
     "autocomplete_keywordCase": "Caixa das palavras-chave",
     "autocomplete_keywordCaseDesc": "Caixa das palavras-chave SQL inseridas pelo autocompletar.",
     "autocomplete_keywordCaseMatch": "Igual ao digitado",
-    "autocomplete_keywordCaseUpper": "Sempre MAIÚSCULAS",
-    "autocomplete_keywordCaseLower": "Sempre minúsculas",
     "editConfigJson": "Editar config.json",
     "editConfigJsonDesc": "Editar diretamente o arquivo de configuração bruto. É necessário reiniciar para aplicar as alterações.",
     "configJsonModal": {
