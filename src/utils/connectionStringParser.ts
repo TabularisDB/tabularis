@@ -87,7 +87,9 @@ function normalizeJdbcConnectionString(value: string): string {
   return match ? value.slice(5) : value;
 }
 
-/** Normalize known URI SSL settings to the values offered by the connection form. */
+/** Normalize known URI SSL settings to the values offered by the connection form.
+ * @returns A mapped SSL mode, or undefined for an unknown mode or protocol.
+ */
 function getSslModeFromUrl(url: URL, protocol: string): string | undefined {
   // URLSearchParams.get is case-sensitive, but Connector/J uses "sslMode".
   // Recognize that spelling along with the existing hyphen/underscore aliases.
