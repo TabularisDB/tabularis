@@ -99,6 +99,7 @@ import {
   DEFAULT_CREATE_TABLE_TARGET,
   getClipboardImportTarget,
   getCreateTableRefreshPlan,
+  resolveCreateTableSchema,
   type CreateTableTarget,
 } from "../../utils/createTable";
 
@@ -222,6 +223,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
   const [createTableTarget, setCreateTableTarget] = useState<CreateTableTarget>(DEFAULT_CREATE_TABLE_TARGET);
   const [isClipboardImportOpen, setIsClipboardImportOpen] = useState(false);
+  // Schema of the table whose menu opened the import; undefined means the active schema.
+  const [clipboardImportSchema, setClipboardImportSchema] = useState<string>();
   const [modifyColumnModal, setModifyColumnModal] = useState<{
     isOpen: boolean;
     tableName: string;
@@ -382,6 +385,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   useEffect(() => {
     const handler = () => {
       if (activeConnectionId && activeCapabilities?.no_connection_required !== true) {
+        setClipboardImportSchema(undefined);
         setIsClipboardImportOpen(true);
       }
     };
@@ -1985,7 +1989,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     supportsManageTables(activeCapabilities) ? {
                       label: t("clipboardImport.contextMenuLabel"),
                       icon: Clipboard,
-                      action: () => setIsClipboardImportOpen(true),
+                      action: () => {
+                        setClipboardImportSchema(ctxSchema);
+                        setIsClipboardImportOpen(true);
+                      },
                     } : null,
                     {
                       label: t("sidebar.copyName"),
@@ -2572,10 +2579,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
       {isClipboardImportOpen && (
         <ClipboardImportModal
           isOpen={isClipboardImportOpen}
+          schema={clipboardImportSchema}
           onClose={() => setIsClipboardImportOpen(false)}
           onSuccess={() =>
             refreshAfterCreateTable(
-              getClipboardImportTarget(activeSchema, {
+              getClipboardImportTarget(resolveCreateTableSchema(clipboardImportSchema, activeSchema), {
                 schemaLayout: activeCapabilities?.schemas === true && schemas.length > 0,
                 multiDatabaseLayout: isMultiDb,
               }),

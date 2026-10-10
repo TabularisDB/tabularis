@@ -274,7 +274,7 @@ export const DataGrid = React.memo(
     scrollToNewInsertion,
   }: DataGridProps) {
     const { t } = useTranslation();
-    const { activeSchema, connections } = useDatabase();
+    const { activeSchema, connections, activeDriver } = useDatabase();
     const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
     const { showToast } = useToast();
@@ -3111,6 +3111,14 @@ export const DataGrid = React.memo(
                 );
               }
 
+              const contextMergedRow = mergedRows[contextMenu.rowIndex];
+              const contextMenuRowData = contextMergedRow
+                ? buildRowDataWithPending(
+                    contextMergedRow.rowData,
+                    contextMergedRow.type === "insertion",
+                  )
+                : undefined;
+
               return (
                 <ContextMenu
                   x={contextMenu.x}
@@ -3121,15 +3129,13 @@ export const DataGrid = React.memo(
                   <SlotAnchor
                     name="data-grid.context-menu.items"
                     context={{
-                      connectionId,
-                      tableName,
+                      connectionId: connectionId ?? null,
+                      tableName: tableName ?? null,
                       schema: activeSchema,
+                      driver: activeDriver,
                       columnName: contextMenu.colName,
                       rowIndex: contextMenu.rowIndex,
-                      rowData: mergedRows[contextMenu.rowIndex]
-                        ?.rowData as unknown as
-                        | Record<string, unknown>
-                        | undefined,
+                      rowData: contextMenuRowData,
                     }}
                     className="border-t border-default mt-1 pt-1"
                   />
