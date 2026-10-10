@@ -74,4 +74,4 @@ jobs:
           TABULARIS_TEST_MYSQL_PORT: "33060"
           TABULARIS_TEST_MYSQL_USER: root
           TABULARIS_TEST_MYSQL_PASSWORD: password
-        run: cargo test --test mysql_foreign_keys -- --include-ignored
+        run: cargo test --test mysql_foreign_keys --test mysql_routines -- --include-ignored

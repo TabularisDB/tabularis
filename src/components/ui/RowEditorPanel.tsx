@@ -2,6 +2,7 @@ import { Pin, PinOff, X } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useRowEditor } from "../../hooks/useRowEditor";
+import { useDatabase } from "../../hooks/useDatabase";
 import { FieldEditor } from "./FieldEditor";
 import { SlotAnchor } from "./SlotAnchor";
 
@@ -57,6 +58,7 @@ export const RowEditorPanel = ({
 	onTogglePin,
 }: RowEditorPanelProps) => {
 	const { t } = useTranslation();
+	const { activeDriver } = useDatabase();
 	const { editedData, updateField } = useRowEditor({
 		initialData: rowData,
 		onChange: (fieldName, value) => onChange(fieldName, value),
@@ -111,10 +113,11 @@ export const RowEditorPanel = ({
 					<SlotAnchor
 						name="row-editor-sidebar.header.actions"
 						context={{
-							connectionId,
-							tableName,
-							schema,
-							database,
+							connectionId: connectionId ?? null,
+							tableName: tableName ?? null,
+							schema: schema ?? null,
+							database: database ?? null,
+							driver: activeDriver,
 							rowData,
 							rowIndex,
 							isInsertion,
@@ -190,10 +193,11 @@ export const RowEditorPanel = ({
 							<SlotAnchor
 								name="row-editor-sidebar.field.after"
 								context={{
-									connectionId,
-									tableName,
-									schema,
-									database,
+									connectionId: connectionId ?? null,
+									tableName: tableName ?? null,
+									schema: schema ?? null,
+									database: database ?? null,
+									driver: activeDriver,
 									columnName: column.name,
 									rowData: editedData,
 									rowIndex,

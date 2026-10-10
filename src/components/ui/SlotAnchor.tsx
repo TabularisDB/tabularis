@@ -2,13 +2,13 @@ import { useContext, useMemo } from "react";
 
 import { PluginSlotContext } from "../../contexts/PluginSlotContext";
 import { SlotErrorBoundary } from "./SlotErrorBoundary";
-import type { SlotName, SlotContext } from "../../types/pluginSlots";
+import type { SlotName, SlotAnchorContext } from "../../types/pluginSlots";
 
-interface SlotAnchorProps {
+interface SlotAnchorProps<S extends SlotName> {
   /** The slot location name */
-  name: SlotName;
-  /** Context data provided to slot components */
-  context: SlotContext;
+  name: S;
+  /** Context data provided to slot components (keys required for known slots) */
+  context: SlotAnchorContext<S>;
   /** Optional CSS class for the wrapper div (only rendered when contributions exist) */
   className?: string;
 }
@@ -18,7 +18,11 @@ interface SlotAnchorProps {
  * Place this at each extension point in the UI.
  * Renders nothing when no contributions are registered.
  */
-export const SlotAnchor = ({ name, context, className }: SlotAnchorProps) => {
+export const SlotAnchor = <S extends SlotName>({
+  name,
+  context,
+  className,
+}: SlotAnchorProps<S>) => {
   const registry = useContext(PluginSlotContext);
 
   const contributions = useMemo(() => {

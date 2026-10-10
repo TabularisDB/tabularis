@@ -5039,6 +5039,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               placeholderSort={placeholders.sort}
               defaultLimit={settings.resultPageSize || 100}
               columnMetadata={activeTab?.columnMetadata}
+              tableName={activeTab?.activeTable}
               onUpdate={handleToolbarUpdate}
               onRefresh={handleRefresh}
               refreshDisabled={!!activeTab.isLoading || refreshBlockedByEdits || refreshSnapshot.editing}

@@ -11,6 +11,7 @@ import {
   serializePkKey,
   USE_DEFAULT_SENTINEL,
 } from "../../../src/utils/dataGrid";
+import { KeybindingsContext } from "../../../src/contexts/KeybindingsContext";
 
 vi.mock("lucide-react", async (importOriginal) => await importOriginal());
 vi.mock("../../../src/components/ui/CellCodeEditor", () => ({
@@ -361,6 +362,87 @@ describe("DataGrid keyboard navigation", () => {
 
   const gridOf = (container: HTMLElement) =>
     container.querySelector('div[tabindex="0"]')!;
+
+  const renderJumpGrid = (onMarkForDeletion?: (pkVal: unknown) => void) => render(
+    <KeybindingsContext.Provider value={{
+      shortcuts: [],
+      matchesShortcut: (event, id) => id === "jump_to_column" &&
+        event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "j",
+      saveOverride: async () => {},
+      resetOverride: async () => {},
+      overrides: {},
+      isMac: false,
+    }}>
+      <DataGrid
+        columns={["id", "customer_name", "email"]}
+        data={[[1, "Alice", "alice@example.com"]]}
+        columnMetadata={[{
+          name: "customer_name",
+          data_type: "varchar",
+          is_pk: false,
+          is_nullable: false,
+          is_auto_increment: false,
+        }]}
+        pkColumns={onMarkForDeletion ? ["id"] : undefined}
+        selectedRows={onMarkForDeletion ? new Set([0]) : undefined}
+        onMarkForDeletion={onMarkForDeletion}
+        readonly={!onMarkForDeletion}
+      />
+    </KeybindingsContext.Provider>,
+  );
+
+  it("finds a column by keyboard and focuses its cell", async () => {
+    const { container } = renderJumpGrid();
+    const grid = gridOf(container);
+    fireEvent.keyDown(grid, { key: "J", ctrlKey: true, shiftKey: true });
+
+    const search = screen.getByRole("combobox", { name: "dataGrid.searchColumns" });
+    expect(search).toHaveFocus();
+    fireEvent.change(search, { target: { value: "cust name" } });
+    expect(screen.getByRole("option", { name: /customer_name.*varchar/ })).toBeInTheDocument();
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    await waitFor(() => expect(cellAt(container, 0, 1)).toHaveClass("ring-2"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(grid).toHaveFocus();
+  });
+
+  it("returns focus to the grid when Escape closes the picker", () => {
+    const { container } = renderJumpGrid();
+    const grid = gridOf(container);
+    fireEvent.keyDown(grid, { key: "j", ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(grid).toHaveFocus();
+  });
+
+  it("leaves native copy available in the picker search field", () => {
+    const { container } = renderJumpGrid();
+    fireEvent.click(cellAt(container, 0, 0));
+    fireEvent.keyDown(gridOf(container), { key: "j", ctrlKey: true, shiftKey: true });
+    const search = screen.getByRole("combobox");
+    fireEvent.change(search, { target: { value: "customer" } });
+    expect(fireEvent.keyDown(search, { key: "c", ctrlKey: true })).toBe(true);
+  });
+
+  it("does not stage selected rows for deletion from the picker search", () => {
+    const onMarkForDeletion = vi.fn();
+    const { container } = renderJumpGrid(onMarkForDeletion);
+    const grid = gridOf(container);
+    fireEvent.keyDown(grid, { key: "j", ctrlKey: true, shiftKey: true });
+    const search = screen.getByRole("combobox", { name: "dataGrid.searchColumns" });
+    fireEvent.change(search, { target: { value: "customer" } });
+
+    // Native editing keys must not reach the document-level row deletion handler.
+    expect(fireEvent.keyDown(search, { key: "Backspace" })).toBe(true);
+    expect(fireEvent.keyDown(search, { key: "Delete" })).toBe(true);
+    expect(onMarkForDeletion).not.toHaveBeenCalled();
+
+    // The keyboard row deletion shortcut still works from the grid itself.
+    fireEvent.keyDown(search, { key: "Escape" });
+    fireEvent.keyDown(grid, { key: "Backspace" });
+    expect(onMarkForDeletion).toHaveBeenCalledTimes(1);
+  });
 
   it("focuses the first cell on the first arrow key press", () => {
     const { container } = renderGrid();

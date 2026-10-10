@@ -204,7 +204,8 @@ pub fn run() {
     }
 
     // Info by default so users can see application logs; --debug raises it
-    // to Debug, which includes sqlx queries.
+    // to Debug, which includes sqlx queries, and RUST_LOG is honoured when the
+    // flag is absent.
     let log_level = args.log_level();
 
     // Store debug flag in global state
