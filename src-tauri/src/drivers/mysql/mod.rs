@@ -25,7 +25,8 @@ pub use explain::explain_query;
 use extract::extract_value;
 use helpers::{
     escape_identifier, inline_str_placeholders, is_raw_sql_function, is_wkt_geometry,
-    mysql_bytes_literal, mysql_row_str, mysql_row_str_opt, mysql_string_literal,
+    mysql_bytes_literal, mysql_row_max_length, mysql_row_str, mysql_row_str_opt,
+    mysql_string_literal,
 };
 use sqlx::{Column, Row};
 use stmt_classify::is_text_protocol_stmt;
@@ -319,7 +320,7 @@ pub async fn get_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, NULLIF(column_comment, '')
+        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, '')
         FROM information_schema.columns
         WHERE table_schema = ? AND table_name = ?
         ORDER BY ordinal_position
@@ -337,7 +338,7 @@ pub async fn get_columns(
             let null_str = mysql_row_str(r, 4);
             let extra = mysql_row_str(r, 5);
             let default_val = mysql_row_str_opt(r, 6);
-            let character_maximum_length: Option<u64> = r.try_get(7).ok();
+            let character_maximum_length = mysql_row_max_length(r, 7, &column_name);
 
             // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
             // while `column_type` returns the full definition with allowed values
@@ -441,7 +442,7 @@ pub async fn get_all_columns_batch(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, NULLIF(column_comment, '')
+        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, '')
         FROM information_schema.columns
         WHERE table_schema = ?
         ORDER BY table_name, ordinal_position
@@ -460,7 +461,7 @@ pub async fn get_all_columns_batch(
         let null_str = mysql_row_str(row, 5);
         let extra = mysql_row_str(row, 6);
         let default_val = mysql_row_str_opt(row, 7);
-        let character_maximum_length: Option<u64> = row.try_get(8).ok();
+        let character_maximum_length = mysql_row_max_length(row, 8, &column_name);
 
         // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
         // while `column_type` returns the full definition with allowed values
@@ -1128,7 +1129,7 @@ pub async fn get_view_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-            SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length
+            SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED)
             FROM information_schema.columns
             WHERE table_schema = ? AND table_name = ?
             ORDER BY ordinal_position
@@ -1146,7 +1147,7 @@ pub async fn get_view_columns(
             let null_str = mysql_row_str(r, 4);
             let extra = mysql_row_str(r, 5);
             let default_val = mysql_row_str_opt(r, 6);
-            let character_maximum_length: Option<u64> = r.try_get(7).ok();
+            let character_maximum_length = mysql_row_max_length(r, 7, &column_name);
 
             // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
             // while `column_type` returns the full definition with allowed values
