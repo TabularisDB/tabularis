@@ -177,9 +177,28 @@ pub async fn download_and_install(
     expected_version: Option<&str>,
     cancellation: &InstallCancellation,
 ) -> Result<(), String> {
-    cancellation.check()?;
     let plugins_dir = get_plugins_dir()?;
-    let final_dir = super::layout::driver_destination(&plugins_dir, plugin_id)?;
+    download_and_install_into(
+        &plugins_dir,
+        plugin_id,
+        download_url,
+        expected_sha256,
+        expected_version,
+        cancellation,
+    )
+    .await
+}
+
+pub async fn download_and_install_into(
+    plugins_dir: &Path,
+    plugin_id: &str,
+    download_url: &str,
+    expected_sha256: Option<&str>,
+    expected_version: Option<&str>,
+    cancellation: &InstallCancellation,
+) -> Result<(), String> {
+    cancellation.check()?;
+    let final_dir = super::layout::driver_destination(plugins_dir, plugin_id)?;
     let kind_dir = final_dir.parent().ok_or("Missing driver directory")?;
     fs::create_dir_all(kind_dir).map_err(|e| e.to_string())?;
     let tmp_dir = kind_dir.join(format!(".tmp-{}", plugin_id));
@@ -414,7 +433,7 @@ pub async fn download_and_install(
     // replacing files, otherwise the OS may keep them locked. Once this short
     // commit phase starts, installation is completed atomically rather than
     // leaving the existing plugin disabled.
-    let previous = super::layout::driver_candidates(&plugins_dir)?
+    let previous = super::layout::driver_candidates(plugins_dir)?
         .into_iter()
         .filter(|path| super::layout::driver_identity(path).as_deref() == Some(plugin_id))
         .collect::<Vec<_>>();
@@ -444,9 +463,13 @@ pub async fn download_and_install(
 
 pub fn uninstall(plugin_id: &str) -> Result<(), String> {
     let plugins_dir = get_plugins_dir()?;
-    super::layout::resolve_driver(&plugins_dir, plugin_id)?;
+    uninstall_from(&plugins_dir, plugin_id)
+}
+
+pub fn uninstall_from(plugins_dir: &Path, plugin_id: &str) -> Result<(), String> {
+    super::layout::resolve_driver(plugins_dir, plugin_id)?;
     // Remove fallback copies first so uninstall cannot resurrect an older bundle.
-    for path in super::layout::driver_candidates(&plugins_dir)?.into_iter().rev() {
+    for path in super::layout::driver_candidates(plugins_dir)?.into_iter().rev() {
         if super::layout::driver_identity(&path).as_deref() == Some(plugin_id) {
             fs::remove_dir_all(&path)
                 .map_err(|e| format!("Failed to remove plugin '{}': {}", plugin_id, e))?;
@@ -464,13 +487,20 @@ pub fn resolve_plugin_dir(plugin_id: &str) -> Result<PathBuf, String> {
 
 pub fn list_installed() -> Result<Vec<InstalledPluginInfo>, String> {
     let plugins_dir = get_plugins_dir()?;
+    Ok(list_installed_from(&plugins_dir))
+}
+
+pub fn list_installed_from(plugins_dir: &Path) -> Vec<InstalledPluginInfo> {
     let mut plugins = Vec::new();
 
-    for path in super::layout::driver_directories(&plugins_dir)? {
+    let Ok(paths) = super::layout::driver_directories(plugins_dir) else {
+        return plugins;
+    };
+    for path in paths {
         if let Ok(plugin) = read_plugin_info_from_dir(&path) {
             plugins.push(plugin);
         }
     }
 
-    Ok(plugins)
+    plugins
 }

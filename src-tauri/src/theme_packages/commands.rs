@@ -57,22 +57,21 @@ pub fn preview_theme_document(source: String, name: String) -> Result<ThemeContr
     })
 }
 
-#[tauri::command]
-pub async fn preview_local_theme_package(
-    path: String,
+/// Previews archive bytes read from a desktop path or a browser upload.
+pub async fn preview_local_package_bytes(
+    bytes: Vec<u8>,
 ) -> Result<lifecycle::LocalThemePreview, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let bytes = lifecycle::read_local_archive(Path::new(&path))?;
         lifecycle::local_preview(&bytes, env!("CARGO_PKG_VERSION"))
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
-pub async fn install_local_theme_package(
-    app: AppHandle,
-    path: String,
+/// Installs archive bytes that were previewed earlier. `read_archive` runs
+/// after the cancellation guard is taken, so a slow read stays cancellable.
+pub async fn install_local_package(
+    read_archive: impl FnOnce() -> Result<Vec<u8>, String> + Send + 'static,
     package_name: String,
     expected_digest: String,
 ) -> Result<ThemeCommit, String> {
@@ -80,9 +79,9 @@ pub async fn install_local_theme_package(
     let key = lifecycle::local_registry_key();
     let guard = install_cancellation::begin(&operation_id(&key, &package_name))?;
     let cancellation = guard.cancellation().clone();
-    let result = tauri::async_runtime::spawn_blocking(move || {
+    tauri::async_runtime::spawn_blocking(move || {
         cancellation.check()?;
-        let bytes = lifecycle::read_local_archive(Path::new(&path))?;
+        let bytes = read_archive()?;
         if format!("{:x}", Sha256::digest(&bytes)) != expected_digest {
             return Err("Local package changed after preview; preview it again".into());
         }
@@ -101,7 +100,42 @@ pub async fn install_local_theme_package(
         )
     })
     .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Reads a local archive from a host path with the package size limits.
+pub fn read_local_archive(path: &Path) -> Result<Vec<u8>, String> {
+    lifecycle::read_local_archive(path)
+}
+
+/// Largest accepted local theme archive.
+pub const MAX_LOCAL_ARCHIVE_BYTES: usize = lifecycle::ARCHIVE_BYTES;
+
+#[tauri::command]
+pub async fn preview_local_theme_package(
+    path: String,
+) -> Result<lifecycle::LocalThemePreview, String> {
+    let bytes = tauri::async_runtime::spawn_blocking(move || {
+        lifecycle::read_local_archive(Path::new(&path))
+    })
+    .await
     .map_err(|e| e.to_string())??;
+    preview_local_package_bytes(bytes).await
+}
+
+#[tauri::command]
+pub async fn install_local_theme_package(
+    app: AppHandle,
+    path: String,
+    package_name: String,
+    expected_digest: String,
+) -> Result<ThemeCommit, String> {
+    let result = install_local_package(
+        move || lifecycle::read_local_archive(Path::new(&path)),
+        package_name,
+        expected_digest,
+    )
+    .await?;
     refresh(&app);
     Ok(result)
 }
@@ -120,7 +154,15 @@ pub async fn fetch_theme_registry(
     package_name: Option<String>,
     expected_registry_key: Option<String>,
 ) -> Result<ThemeRegistrySnapshot, String> {
-    let base = registry_base(&app)?;
+    fetch_registry(registry_base(&app)?, package_name, expected_registry_key).await
+}
+
+/// Lists theme packages from the configured registry `base`.
+pub async fn fetch_registry(
+    base: String,
+    package_name: Option<String>,
+    expected_registry_key: Option<String>,
+) -> Result<ThemeRegistrySnapshot, String> {
     let key = registry_key(&base)?;
     if expected_registry_key
         .as_ref()
@@ -156,8 +198,23 @@ pub async fn fetch_theme_package_detail(
     expected_registry_key: String,
     requested_registry_url: Option<String>,
 ) -> Result<tabularium::ThemeRegistryDetail, String> {
+    fetch_package_detail(
+        registry_base(&app)?,
+        package_name,
+        expected_registry_key,
+        requested_registry_url,
+    )
+    .await
+}
+
+/// Read-only package details from the configured registry `base`.
+pub async fn fetch_package_detail(
+    base: String,
+    package_name: String,
+    expected_registry_key: String,
+    requested_registry_url: Option<String>,
+) -> Result<tabularium::ThemeRegistryDetail, String> {
     lifecycle::validate_package_name(&package_name)?;
-    let base = registry_base(&app)?;
     if registry_key(&base)? != expected_registry_key {
         return Err("Configured theme registry changed; refresh discovery".into());
     }
@@ -181,17 +238,33 @@ pub async fn install_registry_theme(
     expected_registry_key: String,
     version: Option<String>,
 ) -> Result<ThemeCommit, String> {
-    let result = super::transport::install_registry_package(
+    let result = install_registry(
+        registry_base(&app)?,
+        expected_registry_key,
+        package_name,
+        version,
+    )
+    .await?;
+    refresh(&app);
+    Ok(result)
+}
+
+/// Downloads and installs one registry package from `base`.
+pub async fn install_registry(
+    base: String,
+    expected_registry_key: String,
+    package_name: String,
+    version: Option<String>,
+) -> Result<ThemeCommit, String> {
+    super::transport::install_registry_package(
         &crate::paths::get_default_app_data_dir(),
-        &registry_base(&app)?,
+        &base,
         &expected_registry_key,
         &package_name,
         version.as_deref(),
         env!("CARGO_PKG_VERSION"),
     )
-    .await?;
-    refresh(&app);
-    Ok(result)
+    .await
 }
 
 #[tauri::command]
@@ -206,26 +279,41 @@ pub fn set_theme_package_enabled(
     package_name: String,
     enabled: bool,
 ) -> Result<(), String> {
-    lifecycle::set_package_enabled(
-        &crate::paths::get_default_app_data_dir(),
-        &registry_key,
-        &package_name,
-        enabled,
-    )?;
+    set_package_enabled(&registry_key, &package_name, enabled)?;
     refresh(&app);
     Ok(())
+}
+
+pub fn set_package_enabled(
+    registry_key: &str,
+    package_name: &str,
+    enabled: bool,
+) -> Result<(), String> {
+    lifecycle::set_package_enabled(
+        &crate::paths::get_default_app_data_dir(),
+        registry_key,
+        package_name,
+        enabled,
+    )
 }
 
 /// Recovery is an explicit action, never a catalog-read or hydration side effect.
 #[tauri::command]
 pub fn recover_theme_packages(app: AppHandle) -> Result<Vec<String>, String> {
-    let root = crate::paths::get_default_app_data_dir().join(PACKAGES_DIR);
-    let mut failures = Vec::new();
-    match recover_theme_transactions(&root, &lifecycle::local_registry_key()) {
-        Ok(()) => refresh(&app),
-        Err(error) => failures.push(error),
+    let failures = recover_packages();
+    if failures.is_empty() {
+        refresh(&app);
     }
     Ok(failures)
+}
+
+/// Returns the recovery failures; an empty list means the catalog changed.
+pub fn recover_packages() -> Vec<String> {
+    let root = crate::paths::get_default_app_data_dir().join(PACKAGES_DIR);
+    match recover_theme_transactions(&root, &lifecycle::local_registry_key()) {
+        Ok(()) => Vec::new(),
+        Err(error) => vec![error],
+    }
 }
 
 #[tauri::command]
@@ -234,11 +322,15 @@ pub fn uninstall_theme_package(
     registry_key: String,
     package_name: String,
 ) -> Result<ThemeCommit, String> {
-    let result = lifecycle::remove_package(
-        &crate::paths::get_default_app_data_dir(),
-        &registry_key,
-        &package_name,
-    )?;
+    let result = uninstall_package(&registry_key, &package_name)?;
     refresh(&app);
     Ok(result)
+}
+
+pub fn uninstall_package(registry_key: &str, package_name: &str) -> Result<ThemeCommit, String> {
+    lifecycle::remove_package(
+        &crate::paths::get_default_app_data_dir(),
+        registry_key,
+        package_name,
+    )
 }

@@ -9,6 +9,25 @@ use std::time::Duration;
 /// the call never returned and every other logging thread blocked behind it.
 #[test]
 fn get_logs_does_not_deadlock_when_its_own_logs_are_captured() {
+    // The global logger cannot be replaced; isolate it from runtime audit tests.
+    const CHILD: &str = "TABULARIS_LOG_DEADLOCK_TEST_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "log_commands::tests::get_logs_does_not_deadlock_when_its_own_logs_are_captured",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
     let buffer = create_log_buffer(100);
     // Trace is the most verbose level, so this keeps covering `get_logs`
     // whatever level its own log lines use.
@@ -21,7 +40,7 @@ fn get_logs_does_not_deadlock_when_its_own_logs_are_captured() {
             limit: None,
             level_filter: None,
         };
-        tx.send(read_logs(&reader, request)).ok();
+        tx.send(operations::get_logs(&reader, request)).ok();
     });
 
     rx.recv_timeout(Duration::from_secs(5))

@@ -7,7 +7,7 @@ if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-(0|[1-9]\d*)$/.test(version ?? "
 
 const configPath = "src-tauri/tauri.conf.json";
 const cargoPath = "src-tauri/Cargo.toml";
-const frontendPath = "src/version.ts";
+const frontendPath = "packages/web-ui/src/version.ts";
 const config = JSON.parse(readFileSync(configPath, "utf8"));
 const cargo = readFileSync(cargoPath, "utf8");
 const lines = cargo.split(/\r?\n/);

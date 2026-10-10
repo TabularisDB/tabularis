@@ -62,7 +62,7 @@ function buildVars(opts: ScaffoldOptions): Record<string, string> {
     PLUGIN_API_VERSION: opts.pluginApiVersion,
     MIN_TABULARIS_VERSION: opts.minTabularisVersion,
     UI_EXTENSIONS_ENTRY: opts.withUi
-      ? `    {\n      "slot": "data-grid.toolbar.actions",\n      "module": "ui/dist/index.js"\n    }\n  `
+      ? `    {\n      "slot": "data-grid.toolbar.actions",\n      "module": "ui/dist/index.js",\n      "api_version": "${opts.pluginApiVersion}"\n    }\n  `
       : "",
   };
 }

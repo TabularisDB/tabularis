@@ -1,14 +1,6 @@
-use std::sync::Arc;
-use crate::{
-    commands::{
-        expand_k8s_connection_params, expand_ssh_connection_params, find_connection_by_id,
-        resolve_connection_params_with_id,
-    },
-    drivers::{driver_trait::DatabaseDriver, registry::get_driver},
-    models::ColumnDefinition,
-};
+use crate::{drivers::driver_trait::DatabaseDriver, models::ColumnDefinition};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 
 #[derive(Deserialize, Debug)]
 pub struct ClipboardImportRequest {
@@ -113,6 +105,14 @@ pub async fn execute_clipboard_import<R: Runtime>(
     app: AppHandle<R>,
     req: ClipboardImportRequest,
 ) -> Result<ClipboardImportResult, String> {
+    import_with_runtime(&app.state::<crate::runtime::RuntimeContext>(), None, req).await
+}
+
+pub async fn import_with_runtime(
+    runtime: &crate::runtime::RuntimeContext,
+    session_id: Option<uuid::Uuid>,
+    req: ClipboardImportRequest,
+) -> Result<ClipboardImportResult, String> {
     log::info!(
         "Clipboard import: table='{}', rows={}, create_table={}",
         req.table_name,
@@ -120,15 +120,18 @@ pub async fn execute_clipboard_import<R: Runtime>(
         req.create_table
     );
 
-    let saved_conn = find_connection_by_id(&app, &req.connection_id)?;
-    let expanded = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded = expand_k8s_connection_params(&app, &expanded).await?;
-    let params = resolve_connection_params_with_id(&expanded, &req.connection_id)?;
-    let drv: Arc<dyn DatabaseDriver> = get_driver(&saved_conn.params.driver)
-        .await
-        .ok_or_else(|| format!("Unsupported driver: {}", saved_conn.params.driver))?;
-
-    let drv = drv.for_connection(&params).await?.unwrap_or(drv);
+    let runtime = runtime.clone();
+    let connection_id = req.connection_id.clone();
+    let (_, params) = tokio::task::spawn_blocking(move || {
+        crate::application::connections::resolve_saved_connection_params(
+            &runtime,
+            session_id,
+            &connection_id,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    let drv = crate::drivers::registry::get_connection_driver(&params).await?;
     let quote = import_identifier_quote(drv.as_ref());
     let schema_ref = req.schema.as_deref();
     let tbl_ref = table_ref(&req.table_name, schema_ref, quote);
@@ -219,7 +222,10 @@ async fn insert_rows(
     table_created: bool,
 ) -> Result<ClipboardImportResult, String> {
     if req.rows.is_empty() {
-        return Ok(ClipboardImportResult { rows_inserted: 0, table_created });
+        return Ok(ClipboardImportResult {
+            rows_inserted: 0,
+            table_created,
+        });
     }
 
     let col_list = req
@@ -248,13 +254,25 @@ async fn insert_rows(
 
         drv.execute_query(params, &insert_sql, None, 1, schema_ref)
             .await
-            .map_err(|e| format!("Failed to insert rows (batch starting at {}): {e}", rows_inserted))?;
+            .map_err(|e| {
+                format!(
+                    "Failed to insert rows (batch starting at {}): {e}",
+                    rows_inserted
+                )
+            })?;
 
         rows_inserted += chunk.len();
     }
 
-    log::info!("Clipboard import complete: {} rows inserted into {}", rows_inserted, tbl_ref);
-    Ok(ClipboardImportResult { rows_inserted, table_created })
+    log::info!(
+        "Clipboard import complete: {} rows inserted into {}",
+        rows_inserted,
+        tbl_ref
+    );
+    Ok(ClipboardImportResult {
+        rows_inserted,
+        table_created,
+    })
 }
 
 #[cfg(test)]

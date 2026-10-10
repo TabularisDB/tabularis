@@ -11,12 +11,11 @@ use crate::credential_cache;
 use crate::keychain_utils;
 use crate::models::{
     BatchStatementResult, ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile,
-    ExplainQueryOutput, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput, QueryResult,
-    RoutineInfo, RoutineParameter, SavedConnection, SshConnection, SshConnectionInput, SshTestParams,
-    TableColumn, TableInfo, TestConnectionRequest, TriggerInfo,
+    ExplainQueryOutput, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput,
+    QueryResult, RoutineInfo, RoutineParameter, SavedConnection, SshConnection, SshConnectionInput,
+    SshTestParams, TableColumn, TableInfo, TestConnectionRequest, TriggerInfo,
 };
 use crate::persistence;
-use crate::ssh_tunnel::{get_tunnels, SshTunnel};
 
 // Constants
 /// Resolve the driver from the registry or return a descriptive error.
@@ -34,42 +33,17 @@ async fn driver_for_params(
     crate::drivers::registry::get_connection_driver(params).await
 }
 
-/// Pure SQL builders still need no credentials for static drivers. Only
-/// discovery-enabled plugins resolve credentials and tunnels here.
-async fn driver_for_saved<R: Runtime>(
-    app: &AppHandle<R>,
-    saved: &SavedConnection,
-) -> Result<Arc<dyn crate::drivers::driver_trait::DatabaseDriver>, String> {
-    let driver = driver_for(&saved.params.driver).await?;
-    if !driver.has_connection_metadata() {
-        return Ok(driver);
-    }
-    let expanded = expand_ssh_connection_params(app, &saved.params).await?;
-    let expanded = expand_k8s_connection_params(app, &expanded).await?;
-    let params = resolve_connection_params_with_id(&expanded, &saved.id)?;
-    driver_for_params(&params).await
-}
-
 #[tauri::command]
 pub async fn get_connection_metadata<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<Option<crate::plugins::connection_metadata::ConnectionMetadata>, String> {
-    let saved = find_connection_by_id(&app, &connection_id)?;
-    if !driver_for(&saved.params.driver)
-        .await?
-        .has_connection_metadata()
-    {
-        return Ok(None);
-    }
-    let driver = driver_for_saved(&app, &saved).await?;
-    Ok(Some(
-        crate::plugins::connection_metadata::ConnectionMetadata {
-            capabilities: driver.manifest().capabilities.clone(),
-            data_types: driver.get_data_types(),
-            type_mappings: driver.manifest().type_mappings.clone(),
-        },
-    ))
+    crate::application::metadata::get_connection_metadata(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+    )
+    .await
 }
 
 const DEFAULT_MYSQL_PORT: u16 = 3306;
@@ -127,122 +101,16 @@ pub(crate) fn unregister_abort_handle(
     }
 }
 
-/// Trims trailing semicolons and normalises Unicode smart quotes that some
-/// editors insert when the user pastes a query. Called on every query the
-/// UI hands off to a driver.
-fn sanitize_user_query(query: &str) -> String {
-    query
-        .trim()
-        .trim_end_matches(';')
-        .replace('\u{2018}', "'")
-        .replace('\u{2019}', "'")
-        .replace('\u{201C}', "\"")
-        .replace('\u{201D}', "\"")
-}
-
 // --- Persistence Helpers ---
-
-/// Load a single SSH connection by ID, fetching only its credentials from
-/// keychain (via the in-memory cache). This is O(1) keychain calls versus the
-/// O(N) behaviour of `get_ssh_connections`, which loads every saved SSH
-/// connection and retrieves credentials for each one.
-async fn get_ssh_connection_by_id<R: Runtime>(
-    app: &AppHandle<R>,
-    ssh_id: &str,
-) -> Result<SshConnection, String> {
-    let path = get_ssh_config_path(app)?;
-    if !path.exists() {
-        return Err(format!("SSH connection with ID {} not found", ssh_id));
-    }
-
-    // File I/O off the Tokio executor thread
-    let content = tokio::task::spawn_blocking({
-        let path = path.clone();
-        move || std::fs::read_to_string(path).map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())??;
-
-    let mut ssh = serde_json::from_str::<Vec<SshConnection>>(&content)
-        .unwrap_or_default()
-        .into_iter()
-        .find(|s| s.id == ssh_id)
-        .ok_or_else(|| format!("SSH connection with ID {} not found", ssh_id))?;
-
-    // Backward compat: determine auth_type if absent (mirrors get_ssh_connections logic)
-    if ssh.auth_type.is_none() {
-        ssh.auth_type = Some(
-            if ssh
-                .key_file
-                .as_ref()
-                .map_or(false, |k| !k.trim().is_empty())
-            {
-                "ssh_key".to_string()
-            } else {
-                "password".to_string()
-            },
-        );
-    }
-
-    // Fetch credentials only for this connection, via the in-memory cache.
-    // On a warm cache hit this is a HashMap lookup (nanoseconds); on a cold miss
-    // it calls keychain once per credential and then caches the result.
-    if ssh.save_in_keychain.unwrap_or(false) {
-        // Clone the Arc out of the Tauri State so the closure owns it ('static bound)
-        let cache = app
-            .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
-            .inner()
-            .clone();
-        let id = ssh.id.clone();
-        let (pwd_r, pass_r) = tokio::task::spawn_blocking(move || {
-            let pwd = credential_cache::get_ssh_password_cached(&cache, &id);
-            let pass = credential_cache::get_ssh_key_passphrase_cached(&cache, &id);
-            (pwd, pass)
-        })
-        .await
-        .map_err(|e| e.to_string())?;
-
-        if let Ok(v) = pwd_r {
-            if !v.trim().is_empty() {
-                ssh.password = Some(v);
-            }
-        }
-        if let Ok(v) = pass_r {
-            if !v.trim().is_empty() {
-                ssh.key_passphrase = Some(v);
-            }
-        }
-    }
-
-    Ok(ssh)
-}
 
 pub async fn expand_ssh_connection_params<R: Runtime>(
     app: &AppHandle<R>,
     params: &ConnectionParams,
 ) -> Result<ConnectionParams, String> {
-    let mut expanded_params = params.clone();
-
-    // If ssh_connection_id is set and SSH is enabled, load the SSH connection and merge it
-    if params.ssh_enabled.unwrap_or(false) {
-        if let Some(ssh_id) = &params.ssh_connection_id {
-            // Use targeted lookup instead of loading all SSH connections:
-            // this calls keychain only for this specific connection (O(1)),
-            // and results are backed by the in-memory credential cache.
-            let ssh_conn = get_ssh_connection_by_id(app, ssh_id).await?;
-
-            // Populate legacy SSH fields from the SSH connection
-            expanded_params.ssh_host = Some(ssh_conn.host.clone());
-            expanded_params.ssh_port = Some(ssh_conn.port);
-            expanded_params.ssh_user = Some(ssh_conn.user.clone());
-            expanded_params.ssh_password = ssh_conn.password.clone();
-            expanded_params.ssh_key_file = ssh_conn.key_file.clone();
-            expanded_params.ssh_key_passphrase = ssh_conn.key_passphrase.clone();
-            expanded_params.ssh_allow_passphrase_prompt = ssh_conn.allow_passphrase_prompt;
-        }
-    }
-
-    Ok(expanded_params)
+    crate::application::tunnels::expand_connection_params(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        params,
+    )
 }
 
 /// Check if a string option is empty or contains only whitespace.
@@ -321,339 +189,18 @@ mod require_iam_token_tests {
     }
 }
 
-/// Build the SSH tunnel map key for caching tunnels.
-#[inline]
-fn build_tunnel_map_key(
-    ssh_user: &str,
-    ssh_host: &str,
-    ssh_port: u16,
-    remote_host: &str,
-    remote_port: u16,
-) -> String {
-    crate::ssh_tunnel::build_tunnel_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port)
-}
-
-/// Resolve K8s tunnel params synchronously (no saved-connection lookup; uses inline fields only).
-fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
-    let context = params
-        .k8s_context
-        .as_deref()
-        .ok_or("Missing K8s context")?;
-    let namespace = params
-        .k8s_namespace
-        .as_deref()
-        .ok_or("Missing K8s namespace")?;
-    let resource_type = params
-        .k8s_resource_type
-        .as_deref()
-        .ok_or("Missing K8s resource type")?;
-    let resource_name = params
-        .k8s_resource_name
-        .as_deref()
-        .ok_or("Missing K8s resource name")?;
-    let port = params.k8s_port.ok_or("Missing K8s port")?;
-
-    let options = crate::k8s_tunnel::K8sCommandOptions::new(
-        params.k8s_kubectl_path.clone(),
-        params.k8s_kubeconfig_path.clone(),
-    );
-    let map_key = crate::k8s_tunnel::build_tunnel_key(
-        context,
-        namespace,
-        resource_type,
-        resource_name,
-        port,
-        &options,
-    );
-
-    // Check for existing tunnel
-    {
-        let tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        if let Some(tunnel) = tunnels.get(&map_key) {
-            log::debug!("Reusing existing K8s tunnel on port {}", tunnel.local_port);
-            let mut new_params = params.clone();
-            new_params.k8s_enabled = Some(false);
-            new_params.host = Some("127.0.0.1".to_string());
-            new_params.port = Some(tunnel.local_port);
-            return Ok(new_params);
-        }
-    }
-
-    log::info!(
-        "Creating new K8s tunnel for {}/{} in {}:{} (context: {})",
-        resource_type, resource_name, namespace, port, context
-    );
-
-    let tunnel = crate::k8s_tunnel::K8sTunnel::new(
-        context,
-        namespace,
-        resource_type,
-        resource_name,
-        port,
-        &options,
-    )
-    .map_err(|e| {
-        eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
-        e
-    })?;
-
-    let local_port = tunnel.local_port;
-    log::info!("K8s tunnel created successfully on port {}", local_port);
-
-    {
-        let mut tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        tunnels.insert(map_key, tunnel);
-    }
-
-    let mut new_params = params.clone();
-    new_params.k8s_enabled = Some(false);
-    new_params.host = Some("127.0.0.1".to_string());
-    new_params.port = Some(local_port);
-    Ok(new_params)
-}
-
-/// Resolve AWS SSM tunnel params synchronously. Like SSH, the session forwards
-/// to the connection's own host/port; unlike SSH there is no saved-connection
-/// indirection, so every field is inline.
-fn resolve_ssm_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
-    let target = params
-        .ssm_target
-        .as_deref()
-        .map(str::trim)
-        .filter(|t| !t.is_empty())
-        .ok_or("Missing AWS SSM target")?;
-    let profile = params.ssm_profile.as_deref();
-    let region = params.ssm_region.as_deref();
-    let remote_host = params.host.as_deref().unwrap_or("localhost");
-    let remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
-
-    let map_key =
-        crate::ssm_tunnel::build_tunnel_key(target, profile, region, remote_host, remote_port);
-
-    {
-        let mut tunnels = crate::ssm_tunnel::get_tunnels().lock().unwrap();
-        if let Some(tunnel) = tunnels.get(&map_key) {
-            if tunnel.is_alive() {
-                log::debug!("Reusing existing SSM tunnel on port {}", tunnel.local_port);
-                let mut new_params = params.clone();
-                new_params.ssm_enabled = Some(false);
-                new_params.host = Some("127.0.0.1".to_string());
-                new_params.port = Some(tunnel.local_port);
-                return Ok(new_params);
-            }
-            log::info!(
-                "Discarding dead SSM tunnel on port {}; the session ended",
-                tunnel.local_port
-            );
-            tunnels.remove(&map_key);
-        }
-    }
-
-    log::info!(
-        "Creating new SSM tunnel to {}:{} via {}",
-        remote_host,
-        remote_port,
-        target
-    );
-
-    let tunnel =
-        crate::ssm_tunnel::SsmTunnel::new(target, profile, region, remote_host, remote_port)
-            .map_err(|e| {
-                eprintln!("[Connection Error] SSM Tunnel setup failed: {}", e);
-                e
-            })?;
-
-    let local_port = tunnel.local_port;
-    log::info!("SSM tunnel created successfully on port {}", local_port);
-
-    {
-        let mut tunnels = crate::ssm_tunnel::get_tunnels().lock().unwrap();
-        tunnels.insert(map_key, tunnel);
-    }
-
-    let mut new_params = params.clone();
-    new_params.ssm_enabled = Some(false);
-    new_params.host = Some("127.0.0.1".to_string());
-    new_params.port = Some(local_port);
-    Ok(new_params)
-}
-
-/// SSH, Kubernetes and AWS SSM each rewrite host/port to a local tunnel, so at
-/// most one of them can be active for a connection.
-fn ensure_single_tunnel(params: &ConnectionParams) -> Result<(), String> {
-    let enabled: Vec<&str> = [
-        ("SSH", params.ssh_enabled),
-        ("Kubernetes", params.k8s_enabled),
-        ("AWS SSM", params.ssm_enabled),
-    ]
-    .into_iter()
-    .filter(|(_, on)| on.unwrap_or(false))
-    .map(|(name, _)| name)
-    .collect();
-
-    if enabled.len() > 1 {
-        return Err(format!(
-            "{} tunnels cannot both be enabled for the same connection",
-            enabled.join(" and ")
-        ));
-    }
-    Ok(())
-}
-
 pub fn resolve_connection_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
-    let mut resolved = resolve_connection_transport(params)?;
-    // Only file/folder drivers store a path in `database`; for network drivers
-    // it is a schema name and must be passed through untouched.
-    if crate::drivers::registry::is_local_path_driver(&resolved.driver) {
-        resolved.database = crate::fs_path::sanitize_database_selection(&resolved.database);
-    }
-    Ok(resolved)
+    crate::application::tunnels::resolve_expanded_connection_params(params, None)
 }
 
-/// Resolve the tunnel / proxy transport for a connection (K8s, SSM, SSH or a
-/// database-scope proxy) and return params pointing at the local endpoint.
-fn resolve_connection_transport(params: &ConnectionParams) -> Result<ConnectionParams, String> {
-    ensure_single_tunnel(params)?;
-
-    // Handle K8s tunnel - result is already on localhost; do not re-proxy.
-    if params.k8s_enabled.unwrap_or(false) {
-        return resolve_k8s_params(params);
-    }
-
-    // Handle AWS SSM tunnel
-    if params.ssm_enabled.unwrap_or(false) {
-        return resolve_ssm_params(params);
-    }
-
-    let connection_id = params.connection_id.as_deref();
-    let proxy_override = params.proxy.as_ref();
-
-    // Handle SSH tunnel (existing logic), optionally via an SSH-scope proxy.
-    if params.ssh_enabled.unwrap_or(false) {
-        let ssh_host = params.ssh_host.as_deref().ok_or("Missing SSH Host")?;
-        let ssh_port = params.ssh_port.unwrap_or(22);
-        let ssh_user = params.ssh_user.as_deref().ok_or("Missing SSH User")?;
-        let remote_host = params.host.as_deref().unwrap_or("localhost");
-        let remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
-
-        let proxy = crate::proxy::resolve_for_connection(
-            crate::proxy::SCOPE_SSH_TUNNEL,
-            connection_id,
-            proxy_override,
-        );
-        let base_key =
-            build_tunnel_map_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port);
-        let map_key = match &proxy {
-            Some(p) => {
-                let proto = match p.protocol {
-                    crate::proxy::ProxyProtocol::Http => "http",
-                    crate::proxy::ProxyProtocol::Socks5 => "socks5",
-                };
-                let user = p.username.as_deref().unwrap_or("");
-                format!(
-                    "{base_key}|px:{proto}:{}:{}:{user}",
-                    p.host.trim(),
-                    p.port
-                )
-            }
-            None => base_key,
-        };
-
-        // Check for existing tunnel
-        {
-            let tunnels = get_tunnels().lock().unwrap();
-            if let Some(tunnel) = tunnels.get(&map_key) {
-                log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
-                let mut new_params = params.clone();
-                new_params.host = Some("127.0.0.1".to_string());
-                new_params.port = Some(tunnel.local_port);
-                return Ok(new_params);
-            }
-        }
-
-        let (tcp_host, tcp_port) = if let Some(proxy) = proxy {
-            let fwd_port = crate::proxy::ensure_forward(&proxy, ssh_host, ssh_port)?;
-            log::info!(
-                "SSH bastion {}:{} reached via proxy forward on 127.0.0.1:{}",
-                ssh_host,
-                ssh_port,
-                fwd_port
-            );
-            (Some("127.0.0.1".to_string()), Some(fwd_port))
-        } else {
-            (None, None)
-        };
-
-        log::info!(
-            "Creating new SSH tunnel for {}@{}:{}",
-            ssh_user,
-            ssh_host,
-            ssh_port
-        );
-        let tunnel = SshTunnel::new_with_tcp_override(
-            ssh_host,
-            ssh_port,
-            ssh_user,
-            params.ssh_password.as_deref(),
-            params.ssh_key_file.as_deref(),
-            params.ssh_key_passphrase.as_deref(),
-            params.ssh_allow_passphrase_prompt.unwrap_or(false),
-            remote_host,
-            remote_port,
-            tcp_host.as_deref(),
-            tcp_port,
-        )
-        .map_err(|e| {
-            eprintln!("[Connection Error] SSH Tunnel setup failed: {}", e);
-            e
-        })?;
-
-        let local_port = tunnel.local_port;
-        log::info!("SSH tunnel created successfully on port {}", local_port);
-
-        {
-            let mut tunnels = get_tunnels().lock().unwrap();
-            tunnels.insert(map_key, tunnel);
-        }
-
-        let mut new_params = params.clone();
-        new_params.host = Some("127.0.0.1".to_string());
-        new_params.port = Some(local_port);
-        return Ok(new_params);
-    }
-
-    // Direct DB connection — apply database-scope proxy when configured.
-    let mut resolved = params.clone();
-    if let Some(proxy) = crate::proxy::resolve_for_connection(
-        crate::proxy::SCOPE_DATABASE,
-        connection_id,
-        proxy_override,
-    ) {
-        let host = resolved
-            .host
-            .as_deref()
-            .unwrap_or("localhost")
-            .to_string();
-        let port = resolved.port.unwrap_or(DEFAULT_MYSQL_PORT);
-        if !is_loopback_host(&host) {
-            let fwd_port = crate::proxy::ensure_forward(&proxy, &host, port)?;
-            log::info!(
-                "Database {}:{} reached via proxy forward on 127.0.0.1:{}",
-                host,
-                port,
-                fwd_port
-            );
-            resolved.host = Some("127.0.0.1".to_string());
-            resolved.port = Some(fwd_port);
-        }
-    }
-
-    Ok(resolved)
+#[cfg(test)]
+fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
+    crate::application::tunnels::resolve_k8s_params(params)
 }
 
-fn is_loopback_host(host: &str) -> bool {
-    let h = host.trim().to_ascii_lowercase();
-    h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "[::1]"
+#[cfg(test)]
+fn resolve_ssm_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
+    crate::application::tunnels::resolve_ssm_params(params)
 }
 
 /// Resolve connection params and set connection_id for stable pooling
@@ -812,8 +359,7 @@ pub fn find_connection_by_id<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
 ) -> Result<SavedConnection, String> {
-    let conn_cache =
-        app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>();
+    let conn_cache = app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>();
 
     let mut conn = match conn_cache.lookup(id) {
         crate::connection_cache::CacheLookup::Hit(c) => c,
@@ -839,9 +385,7 @@ pub fn find_connection_by_id<R: Runtime>(
     // cold miss = keychain call + cache). Skip IAM-auth connections: their
     // 15-min tokens must come from the `password` field, never the keychain,
     // so a stale token from an older release can't be surfaced in the modal.
-    if conn.params.save_in_keychain.unwrap_or(false)
-        && !conn.params.use_iam_auth.unwrap_or(false)
-    {
+    if conn.params.save_in_keychain.unwrap_or(false) && !conn.params.use_iam_auth.unwrap_or(false) {
         match credential_cache::get_db_password_cached(&cache, &conn.id) {
             Ok(pwd) => conn.params.password = Some(pwd),
             Err(e) => eprintln!(
@@ -940,15 +484,12 @@ pub async fn get_schemas<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<Vec<String>, String> {
-    log::info!("Fetching schemas for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    drv.get_schemas(&params).await
+    crate::application::metadata::get_schemas(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -956,55 +497,28 @@ pub async fn get_available_databases<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<Vec<String>, String> {
-    log::info!(
-        "Fetching available databases for connection: {}",
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    drv.get_databases(&params).await
+    crate::application::metadata::get_available_databases(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+    )
+    .await
 }
 
 #[tauri::command]
 pub async fn set_selected_databases<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
-    mut databases: Vec<String>,
+    databases: Vec<String>,
 ) -> Result<(), String> {
-    if databases.is_empty() {
-        return Err("Database selection cannot be empty".to_string());
-    }
-    if databases.iter().any(|db| db.trim().is_empty()) {
-        return Err("Database names cannot be empty".to_string());
-    }
-
-    log::info!(
-        "Persisting database selection for connection {}: {} database(s)",
-        connection_id,
-        databases.len()
-    );
-
-    let path = get_config_path(&app)?;
-    let mut conn_file = persistence::load_connections_file(&path)?;
-
-    let conn = conn_file
-        .connections
-        .iter_mut()
-        .find(|c| c.id == connection_id)
-        .ok_or("Connection not found")?;
-
-    conn.params.database = if databases.len() == 1 {
-        crate::models::DatabaseSelection::Single(databases.remove(0))
-    } else {
-        crate::models::DatabaseSelection::Multiple(databases)
-    };
-
-    save_connections_and_invalidate(&app, &path, &conn_file)
+    crate::application::connections::set_selected_databases(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        databases,
+    )?;
+    app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>()
+        .invalidate();
+    Ok(())
 }
 
 #[tauri::command]
@@ -1013,23 +527,13 @@ pub async fn get_routines<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<RoutineInfo>, String> {
-    log::info!("Fetching routines for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv.get_routines(&params, schema.as_deref()).await;
-    let database = schema.as_deref().unwrap_or_else(|| params.database.primary());
-
-    match &result {
-        Ok(routines) => log::info!("Retrieved {} routines from {}", routines.len(), database),
-        Err(error) => log::error!("Failed to get routines from {}: {}", database, error),
-    }
-
-    result
+    crate::application::metadata::get_routines(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1039,20 +543,14 @@ pub async fn get_routine_parameters<R: Runtime>(
     routine_name: String,
     schema: Option<String>,
 ) -> Result<Vec<RoutineParameter>, String> {
-    log::info!(
-        "Fetching routine parameters for: {} on connection: {}",
+    crate::application::database_objects::get_routine_parameters(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         routine_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    drv.get_routine_parameters(&params, &routine_name, schema.as_deref())
-        .await
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1063,21 +561,15 @@ pub async fn get_routine_definition<R: Runtime>(
     routine_type: String, // "PROCEDURE" or "FUNCTION" - mainly for MySQL SHOW CREATE
     schema: Option<String>,
 ) -> Result<String, String> {
-    log::info!(
-        "Fetching routine definition for: {} ({}) on connection: {}",
+    crate::application::database_objects::get_routine_definition(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         routine_name,
         routine_type,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    drv.get_routine_definition(&params, &routine_name, &routine_type, schema.as_deref())
-        .await
+        schema,
+    )
+    .await
 }
 
 /// Preview generation only; the returned SQL is never executed here.
@@ -1087,12 +579,13 @@ pub async fn get_table_query_template<R: Runtime>(
     connection_id: String,
     request: crate::models::TableQueryTemplateRequest,
 ) -> Result<Option<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for_params(&params).await?;
-    drv.get_table_query_template(&params, &request).await
+    crate::application::database_objects::get_table_query_template(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        request,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1104,18 +597,14 @@ pub async fn build_routine_call_sql<R: Runtime>(
     args: Vec<crate::models::RoutineCallArg>,
     schema: Option<String>,
 ) -> Result<String, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    drv.build_routine_call_sql(
-        &params,
-        &routine_name,
-        &routine_type,
-        &args,
-        schema.as_deref(),
+    crate::application::database_objects::build_routine_call_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        routine_name,
+        routine_type,
+        args,
+        schema,
     )
     .await
 }
@@ -1127,10 +616,13 @@ pub async fn get_routine_create_template<R: Runtime>(
     routine_type: String,
     schema: Option<String>,
 ) -> Result<String, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
-    drv.routine_create_template(&routine_type, schema.as_deref())
-        .await
+    crate::application::database_objects::get_routine_create_template(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        routine_type,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1141,14 +633,15 @@ pub async fn get_routine_edit_script<R: Runtime>(
     routine_type: String,
     schema: Option<String>,
 ) -> Result<String, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    drv.get_routine_edit_script(&params, &routine_name, &routine_type, schema.as_deref())
-        .await
+    crate::application::database_objects::get_routine_edit_script(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        routine_name,
+        routine_type,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1159,21 +652,15 @@ pub async fn drop_routine<R: Runtime>(
     routine_type: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Dropping routine: {} ({}) on connection: {}",
+    crate::application::database_objects::drop_routine(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         routine_name,
         routine_type,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    drv.drop_routine(&params, &routine_name, &routine_type, schema.as_deref())
-        .await
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1182,12 +669,13 @@ pub async fn get_schema_snapshot<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<crate::models::TableSchema>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for_params(&params).await?;
-    drv.get_schema_snapshot(&params, schema.as_deref()).await
+    crate::application::metadata::get_schema_snapshot(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1342,7 +830,11 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
 
     // Clean up query history for this connection
     if let Err(e) = crate::query_history::remove_history_for_connection(&app, &id).await {
-        log::warn!("Failed to remove query history for connection {}: {}", id, e);
+        log::warn!(
+            "Failed to remove query history for connection {}: {}",
+            id,
+            e
+        );
     }
 
     if deleted {
@@ -1490,27 +982,17 @@ pub async fn update_connection<R: Runtime>(
 
     // On single→multi transition, associate existing favorites/history (with no
     // database set) to the original single database name.
-    if let Some(previous_db) = crate::models::single_db_before_multi_transition(
-        &original_db_selection,
-        &params.database,
-    ) {
-        if let Err(e) = crate::saved_queries::backfill_missing_database_for_connection(
-            &app,
-            &id,
-            &previous_db,
-        ) {
-            log::warn!(
-                "Failed to backfill saved query database for {}: {}",
-                id,
-                e
-            );
+    if let Some(previous_db) =
+        crate::models::single_db_before_multi_transition(&original_db_selection, &params.database)
+    {
+        if let Err(e) =
+            crate::saved_queries::backfill_missing_database_for_connection(&app, &id, &previous_db)
+        {
+            log::warn!("Failed to backfill saved query database for {}: {}", id, e);
         }
-        if let Err(e) = crate::query_history::backfill_missing_database_for_connection(
-            &app,
-            &id,
-            &previous_db,
-        )
-        .await
+        if let Err(e) =
+            crate::query_history::backfill_missing_database_for_connection(&app, &id, &previous_db)
+                .await
         {
             log::warn!(
                 "Failed to backfill query history database for {}: {}",
@@ -1635,7 +1117,9 @@ pub async fn duplicate_connection<R: Runtime>(
         if let Some(ref mut a) = app_earance {
             if let Some(crate::models::IconOverride::Image { ref path }) = a.icon.clone() {
                 let app_data = crate::paths::get_app_data_dir();
-                match crate::connection_appearance::copy_icon_for_duplicate(&app_data, path, &new_id) {
+                match crate::connection_appearance::copy_icon_for_duplicate(
+                    &app_data, path, &new_id,
+                ) {
                     Ok(new_path) => {
                         a.icon = Some(crate::models::IconOverride::Image { path: new_path });
                     }
@@ -1692,8 +1176,7 @@ pub async fn get_connections<R: Runtime>(
     migrate_postgres_ssl_mode_spelling(&app).await.ok();
 
     let path = get_config_path(&app)?;
-    // Use persistence function that handles both old and new formats
-    persistence::load_connections(&path)
+    crate::application::connections::load_connections(&path)
 }
 
 // ==================== SSH Connection Management ====================
@@ -1855,84 +1338,10 @@ async fn migrate_postgres_ssl_mode_spelling<R: Runtime>(app: &AppHandle<R>) -> R
 pub async fn get_ssh_connections<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<Vec<SshConnection>, String> {
-    let path = get_ssh_config_path(&app)?;
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-
-    // File I/O off the Tokio executor thread
-    let content = tokio::task::spawn_blocking({
-        let path = path.clone();
-        move || std::fs::read_to_string(path).map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())??;
-
-    let mut ssh_connections: Vec<SshConnection> =
-        serde_json::from_str(&content).unwrap_or_default();
-
-    // Backward compatibility: determine auth_type if missing
-    for ssh in &mut ssh_connections {
-        if ssh.auth_type.is_none() {
-            ssh.auth_type = Some(
-                if ssh
-                    .key_file
-                    .as_ref()
-                    .map_or(false, |k| !k.trim().is_empty())
-                {
-                    "ssh_key".to_string()
-                } else {
-                    "password".to_string()
-                },
-            );
-        }
-    }
-
-    // Fetch credentials for all connections that use keychain, in a single
-    // spawn_blocking call. The cache is checked first (HashMap lookup), so
-    // subsequent calls (e.g. from the UI refreshing the list) are near-instant.
-    let ids_needing_creds: Vec<String> = ssh_connections
-        .iter()
-        .filter(|s| s.save_in_keychain.unwrap_or(false))
-        .map(|s| s.id.clone())
-        .collect();
-
-    if !ids_needing_creds.is_empty() {
-        // Clone the Arc out of the Tauri State so the closure owns it ('static bound)
-        let cache = app
-            .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
-            .inner()
-            .clone();
-        let credentials = tokio::task::spawn_blocking(move || {
-            ids_needing_creds
-                .into_iter()
-                .map(|id| {
-                    let pwd = credential_cache::get_ssh_password_cached(&cache, &id);
-                    let pass = credential_cache::get_ssh_key_passphrase_cached(&cache, &id);
-                    (id, pwd, pass)
-                })
-                .collect::<Vec<_>>()
-        })
-        .await
-        .map_err(|e| e.to_string())?;
-
-        for (id, pwd_r, pass_r) in credentials {
-            if let Some(ssh) = ssh_connections.iter_mut().find(|s| s.id == id) {
-                if let Ok(pwd) = pwd_r {
-                    if !pwd.trim().is_empty() {
-                        ssh.password = Some(pwd);
-                    }
-                }
-                if let Ok(pass) = pass_r {
-                    if !pass.trim().is_empty() {
-                        ssh.key_passphrase = Some(pass);
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(ssh_connections)
+    crate::application::tunnels::get_ssh_connections(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        true,
+    )
 }
 
 #[tauri::command]
@@ -1941,57 +1350,12 @@ pub async fn save_ssh_connection<R: Runtime>(
     name: String,
     ssh: SshConnectionInput,
 ) -> Result<SshConnection, String> {
-    let path = get_ssh_config_path(&app)?;
-    let mut ssh_connections: Vec<SshConnection> = if path.exists() {
-        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-
-    let id = Uuid::new_v4().to_string();
-    let ssh_to_save = SshConnection {
-        id: id.clone(),
-        name: name.clone(),
-        host: ssh.host,
-        port: ssh.port,
-        user: ssh.user,
-        auth_type: Some(ssh.auth_type.clone()),
-        password: if ssh.save_in_keychain.unwrap_or(false) {
-            let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-            if let Some(pwd) = &ssh.password {
-                keychain_utils::set_ssh_password(&id, pwd)?;
-                credential_cache::set_ssh_password_cached(&cache, &id, pwd);
-            }
-            None
-        } else {
-            ssh.password.clone()
-        },
-        key_file: ssh.key_file.clone(),
-        key_passphrase: if ssh.save_in_keychain.unwrap_or(false) {
-            let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-            if let Some(passphrase) = &ssh.key_passphrase {
-                if !passphrase.trim().is_empty() {
-                    keychain_utils::set_ssh_key_passphrase(&id, passphrase)?;
-                    credential_cache::set_ssh_key_passphrase_cached(&cache, &id, passphrase);
-                }
-            }
-            None
-        } else {
-            ssh.key_passphrase.clone()
-        },
-        allow_passphrase_prompt: ssh.allow_passphrase_prompt,
-        save_in_keychain: ssh.save_in_keychain,
-    };
-
-    ssh_connections.push(ssh_to_save.clone());
-    let json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
-
-    let mut returned_ssh = ssh_to_save;
-    returned_ssh.password = ssh.password;
-    returned_ssh.key_passphrase = ssh.key_passphrase;
-    Ok(returned_ssh)
+    crate::application::tunnels::save_ssh_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        name,
+        ssh,
+        true,
+    )
 }
 
 #[tauri::command]
@@ -2001,66 +1365,13 @@ pub async fn update_ssh_connection<R: Runtime>(
     name: String,
     ssh: SshConnectionInput,
 ) -> Result<SshConnection, String> {
-    let path = get_ssh_config_path(&app)?;
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut ssh_connections: Vec<SshConnection> =
-        serde_json::from_str(&content).unwrap_or_default();
-
-    let ssh_idx = ssh_connections
-        .iter()
-        .position(|s| s.id == id)
-        .ok_or("SSH connection not found")?;
-
-    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    if ssh.save_in_keychain.unwrap_or(false) {
-        if let Some(pwd) = &ssh.password {
-            keychain_utils::set_ssh_password(&id, pwd)?;
-            credential_cache::set_ssh_password_cached(&cache, &id, pwd);
-        }
-        if let Some(passphrase) = &ssh.key_passphrase {
-            if !passphrase.trim().is_empty() {
-                keychain_utils::set_ssh_key_passphrase(&id, passphrase)?;
-                credential_cache::set_ssh_key_passphrase_cached(&cache, &id, passphrase);
-            }
-        }
-    } else {
-        keychain_utils::delete_ssh_password(&id).ok();
-        keychain_utils::delete_ssh_key_passphrase(&id).ok();
-        credential_cache::invalidate_ssh_password(&cache, &id);
-        credential_cache::invalidate_ssh_key_passphrase(&cache, &id);
-    }
-
-    let ssh_to_save = SshConnection {
-        id: id.clone(),
-        name: name.clone(),
-        host: ssh.host,
-        port: ssh.port,
-        user: ssh.user,
-        auth_type: Some(ssh.auth_type.clone()),
-        password: if ssh.save_in_keychain.unwrap_or(false) {
-            None
-        } else {
-            ssh.password.clone()
-        },
-        key_file: ssh.key_file.clone(),
-        key_passphrase: if ssh.save_in_keychain.unwrap_or(false) {
-            None
-        } else {
-            ssh.key_passphrase.clone()
-        },
-        allow_passphrase_prompt: ssh.allow_passphrase_prompt,
-        save_in_keychain: ssh.save_in_keychain,
-    };
-
-    ssh_connections[ssh_idx] = ssh_to_save.clone();
-
-    let json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
-
-    let mut returned_ssh = ssh_to_save;
-    returned_ssh.password = ssh.password;
-    returned_ssh.key_passphrase = ssh.key_passphrase;
-    Ok(returned_ssh)
+    crate::application::tunnels::update_ssh_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        id,
+        name,
+        ssh,
+        true,
+    )
 }
 
 #[tauri::command]
@@ -2068,27 +1379,10 @@ pub async fn delete_ssh_connection<R: Runtime>(
     app: AppHandle<R>,
     id: String,
 ) -> Result<(), String> {
-    let path = get_ssh_config_path(&app)?;
-    if !path.exists() {
-        return Ok(());
-    }
-
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut ssh_connections: Vec<SshConnection> =
-        serde_json::from_str(&content).unwrap_or_default();
-
-    ssh_connections.retain(|s| s.id != id);
-
-    // Remove credentials from keychain and invalidate cache
-    keychain_utils::delete_ssh_password(&id).ok();
-    keychain_utils::delete_ssh_key_passphrase(&id).ok();
-    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    credential_cache::invalidate_ssh_password(&cache, &id);
-    credential_cache::invalidate_ssh_key_passphrase(&cache, &id);
-
-    let json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
-    Ok(())
+    crate::application::tunnels::delete_ssh_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &id,
+    )
 }
 
 #[tauri::command]
@@ -2096,141 +1390,23 @@ pub async fn test_ssh_connection<R: Runtime>(
     app: AppHandle<R>,
     ssh: SshTestParams,
 ) -> Result<String, String> {
-    use crate::ssh_tunnel;
-
-    // Resolve password using same logic as database connections
-    let resolved_password = resolve_ssh_test_password(
-        ssh.password.as_deref(),
-        ssh.connection_id.as_deref(),
-        |conn_id| {
-            let path = get_ssh_config_path(&app).ok()?;
-            if !path.exists() {
-                return None;
-            }
-            let content = fs::read_to_string(path).ok()?;
-            let connections: Vec<SshConnection> =
-                serde_json::from_str(&content).unwrap_or_default();
-            connections.into_iter().find(|c| c.id == conn_id)
-        },
-        |conn_id| keychain_utils::get_ssh_password(conn_id, ""),
-    );
-
-    // Resolve passphrase using same logic
-    let resolved_passphrase = resolve_ssh_test_credential(
-        ssh.key_passphrase.as_deref(),
-        ssh.connection_id.as_deref(),
-        |conn_id| {
-            let path = get_ssh_config_path(&app).ok()?;
-            if !path.exists() {
-                return None;
-            }
-            let content = fs::read_to_string(path).ok()?;
-            let connections: Vec<SshConnection> =
-                serde_json::from_str(&content).unwrap_or_default();
-            connections.into_iter().find(|c| c.id == conn_id)
-        },
-        |conn_id| keychain_utils::get_ssh_key_passphrase(conn_id, ""),
-        |conn| {
-            conn.key_passphrase
-                .as_ref()
-                .filter(|p| !p.trim().is_empty())
-                .cloned()
-        },
-    );
-
-    // Inline SSH secrets of a saved DB connection live in the keychain under
-    // the DB connection id (not in the SSH connections file), so fall back
-    // there when the form did not re-enter them.
-    let (resolved_password, resolved_passphrase) = match ssh.db_connection_id.as_deref() {
-        Some(db_id) if resolved_password.is_none() || resolved_passphrase.is_none() => {
-            match find_connection_by_id(&app, db_id) {
-                Ok(saved) => apply_inline_ssh_secret_fallback(
-                    resolved_password,
-                    resolved_passphrase,
-                    &saved.params,
-                ),
-                Err(_) => (resolved_password, resolved_passphrase),
-            }
-        }
-        _ => (resolved_password, resolved_passphrase),
-    };
-
-    let progress_id = ssh.progress_id.as_deref();
-    emit_test_progress(
-        &app,
-        progress_id,
-        "sshTunnel",
-        "start",
-        Some(format!("{}@{}:{}", ssh.user, ssh.host, ssh.port)),
-    );
-
-    let result = ssh_tunnel::test_ssh_connection(
-        &ssh.host,
-        ssh.port,
-        &ssh.user,
-        resolved_password.as_deref(),
-        ssh.key_file.as_deref(),
-        resolved_passphrase.as_deref(),
-        ssh.allow_passphrase_prompt.unwrap_or(false),
-    );
-    match &result {
-        Ok(_) => emit_test_progress(&app, progress_id, "sshTunnel", "ok", None),
-        Err(e) => emit_test_progress(&app, progress_id, "sshTunnel", "error", Some(e.clone())),
-    }
-    result
+    crate::application::tunnels::test_ssh_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        ssh,
+        None,
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------
 // Kubernetes Connections
 // ---------------------------------------------------------------------------
 
-fn validate_k8s_connection_paths(k8s: &K8sConnectionInput) -> Result<(), String> {
-    crate::k8s_tunnel::validate_k8s_path(
-        k8s.kubectl_path.as_deref().unwrap_or_default(),
-        "kubectl",
-    )?;
-    crate::k8s_tunnel::validate_k8s_path(
-        k8s.kubeconfig_path.as_deref().unwrap_or_default(),
-        "kubeconfig",
-    )
-}
-
-/// Load K8s connections synchronously from the config file.
-fn load_k8s_connections_sync<R: Runtime>(
-    app: &AppHandle<R>,
-) -> Result<Vec<K8sConnection>, String> {
-    let path = get_k8s_config_path(app)?;
-    if !path.exists() {
-        return Ok(vec![]);
-    }
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    Ok(serde_json::from_str(&content).unwrap_or_default())
-}
-
-/// Get the path to the k8s_connections.json file.
-fn get_k8s_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| format!("Failed to get config dir: {}", e))?;
-    if !config_dir.exists() {
-        fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-    }
-    Ok(config_dir.join("k8s_connections.json"))
-}
-
 #[tauri::command]
 pub async fn get_k8s_connections<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<Vec<K8sConnection>, String> {
-    let path = get_k8s_config_path(&app)?;
-    if !path.exists() {
-        return Ok(vec![]);
-    }
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let connections: Vec<K8sConnection> =
-        serde_json::from_str(&content).unwrap_or_default();
-    Ok(connections)
+    crate::application::tunnels::get_k8s_connections(&app.state::<crate::runtime::RuntimeContext>())
 }
 
 #[tauri::command]
@@ -2238,34 +1414,10 @@ pub async fn save_k8s_connection<R: Runtime>(
     app: AppHandle<R>,
     k8s: K8sConnectionInput,
 ) -> Result<K8sConnection, String> {
-    validate_k8s_connection_paths(&k8s)?;
-    let path = get_k8s_config_path(&app)?;
-    let mut connections: Vec<K8sConnection> = if path.exists() {
-        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        vec![]
-    };
-
-    let id = Uuid::new_v4().to_string();
-    let connection = K8sConnection {
-        id: id.clone(),
-        name: k8s.name,
-        context: k8s.context,
-        namespace: k8s.namespace,
-        resource_type: k8s.resource_type,
-        resource_name: k8s.resource_name,
-        port: k8s.port,
-        kubectl_path: k8s.kubectl_path,
-        kubeconfig_path: k8s.kubeconfig_path,
-    };
-
-    connections.push(connection.clone());
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    fs::write(&path, json).map_err(|e| e.to_string())?;
-
-    Ok(connection)
+    crate::application::tunnels::save_k8s_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        k8s,
+    )
 }
 
 #[tauri::command]
@@ -2274,38 +1426,11 @@ pub async fn update_k8s_connection<R: Runtime>(
     id: String,
     k8s: K8sConnectionInput,
 ) -> Result<K8sConnection, String> {
-    validate_k8s_connection_paths(&k8s)?;
-    let path = get_k8s_config_path(&app)?;
-    let mut connections: Vec<K8sConnection> = if path.exists() {
-        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        return Err("No K8s connections file found".to_string());
-    };
-
-    let idx = connections
-        .iter()
-        .position(|c| c.id == id)
-        .ok_or_else(|| format!("K8s connection with ID {} not found", id))?;
-
-    let connection = K8sConnection {
-        id: id.clone(),
-        name: k8s.name,
-        context: k8s.context,
-        namespace: k8s.namespace,
-        resource_type: k8s.resource_type,
-        resource_name: k8s.resource_name,
-        port: k8s.port,
-        kubectl_path: k8s.kubectl_path,
-        kubeconfig_path: k8s.kubeconfig_path,
-    };
-
-    connections[idx] = connection.clone();
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    fs::write(&path, json).map_err(|e| e.to_string())?;
-
-    Ok(connection)
+    crate::application::tunnels::update_k8s_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        id,
+        k8s,
+    )
 }
 
 #[tauri::command]
@@ -2313,20 +1438,10 @@ pub async fn delete_k8s_connection<R: Runtime>(
     app: AppHandle<R>,
     id: String,
 ) -> Result<(), String> {
-    let path = get_k8s_config_path(&app)?;
-    let mut connections: Vec<K8sConnection> = if path.exists() {
-        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        return Ok(());
-    };
-
-    connections.retain(|c| c.id != id);
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    fs::write(&path, json).map_err(|e| e.to_string())?;
-
-    Ok(())
+    crate::application::tunnels::delete_k8s_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &id,
+    )
 }
 
 #[tauri::command]
@@ -2410,24 +1525,26 @@ pub async fn validate_k8s_path_cmd<R: Runtime>(
 
 #[tauri::command]
 pub async fn test_ssm_connection_cmd<R: Runtime>(
-    _app: AppHandle<R>,
+    app: AppHandle<R>,
     target: String,
     profile: Option<String>,
     region: Option<String>,
     host: String,
     port: u16,
 ) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || {
-        crate::ssm_tunnel::test_ssm_connection(
-            &target,
-            profile.as_deref(),
-            region.as_deref(),
-            &host,
+    let result = crate::application::tunnels::execute(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        crate::application::tunnels::TunnelCommand::TestSsmConnection {
+            target,
+            profile,
+            region,
+            host,
             port,
-        )
-    })
-    .await
-    .map_err(|e| e.to_string())?
+        },
+    )
+    .await?;
+    serde_json::from_value(result).map_err(|e| e.to_string())
 }
 
 /// Expand K8s connection params by loading saved config and creating/reusing a tunnel.
@@ -2435,141 +1552,12 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
     app: &AppHandle<R>,
     params: &ConnectionParams,
 ) -> Result<ConnectionParams, String> {
-    if !params.k8s_enabled.unwrap_or(false) {
-        return Ok(params.clone());
+    let runtime = app.state::<crate::runtime::RuntimeContext>();
+    let expanded = crate::application::tunnels::expand_connection_params(&runtime, params)?;
+    if !expanded.k8s_enabled.unwrap_or(false) {
+        return Ok(expanded);
     }
-
-    ensure_single_tunnel(params)?;
-
-    // Resolve K8s params from saved connection if using connection_id
-    let (context, namespace, resource_type, resource_name, port, kubectl_path, kubeconfig_path) =
-        if let Some(k8s_id) = &params.k8s_connection_id {
-            let k8s_conn = get_k8s_connection_by_id(app, k8s_id).await?;
-            (
-                k8s_conn.context,
-                k8s_conn.namespace,
-                k8s_conn.resource_type,
-                k8s_conn.resource_name,
-                k8s_conn.port,
-                k8s_conn.kubectl_path,
-                k8s_conn.kubeconfig_path,
-            )
-        } else {
-            let ctx = params
-                .k8s_context
-                .as_deref()
-                .ok_or("Missing K8s context")?
-                .to_string();
-            let ns = params
-                .k8s_namespace
-                .as_deref()
-                .ok_or("Missing K8s namespace")?
-                .to_string();
-            let rt = params
-                .k8s_resource_type
-                .as_deref()
-                .ok_or("Missing K8s resource type")?
-                .to_string();
-            let rn = params
-                .k8s_resource_name
-                .as_deref()
-                .ok_or("Missing K8s resource name")?
-                .to_string();
-            let p = params.k8s_port.ok_or("Missing K8s port")?;
-            (
-                ctx,
-                ns,
-                rt,
-                rn,
-                p,
-                params.k8s_kubectl_path.clone(),
-                params.k8s_kubeconfig_path.clone(),
-            )
-        };
-
-    let _remote_host = params.host.as_deref().unwrap_or("localhost");
-    let _remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
-
-    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
-    let map_key = crate::k8s_tunnel::build_tunnel_key(
-        &context,
-        &namespace,
-        &resource_type,
-        &resource_name,
-        port,
-        &options,
-    );
-
-    // Check for existing tunnel
-    {
-        let tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        if let Some(tunnel) = tunnels.get(&map_key) {
-            log::debug!(
-                "Reusing existing K8s tunnel on port {}",
-                tunnel.local_port
-            );
-            let mut new_params = params.clone();
-            new_params.k8s_enabled = Some(false);
-            new_params.host = Some("127.0.0.1".to_string());
-            new_params.port = Some(tunnel.local_port);
-            return Ok(new_params);
-        }
-    }
-
-    // Create new tunnel
-    log::info!(
-        "Creating new K8s tunnel for {}/{} in {}:{} (context: {})",
-        resource_type,
-        resource_name,
-        namespace,
-        port,
-        context
-    );
-
-    let tunnel = crate::k8s_tunnel::K8sTunnel::new(
-        &context,
-        &namespace,
-        &resource_type,
-        &resource_name,
-        port,
-        &options,
-    )
-    .map_err(|e| {
-        eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
-        e
-    })?;
-
-    let local_port = tunnel.local_port;
-    log::info!("K8s tunnel created successfully on port {}", local_port);
-
-    {
-        let mut tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        tunnels.insert(map_key, tunnel);
-    }
-
-    let mut new_params = params.clone();
-    new_params.k8s_enabled = Some(false);
-    new_params.host = Some("127.0.0.1".to_string());
-    new_params.port = Some(local_port);
-    Ok(new_params)
-}
-
-/// Load a K8s connection by ID from the config file.
-async fn get_k8s_connection_by_id<R: Runtime>(
-    app: &AppHandle<R>,
-    k8s_id: &str,
-) -> Result<K8sConnection, String> {
-    let path = get_k8s_config_path(app)?;
-    if !path.exists() {
-        return Err(format!("K8s connection with ID {} not found", k8s_id));
-    }
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let connections: Vec<K8sConnection> =
-        serde_json::from_str(&content).unwrap_or_default();
-    connections
-        .into_iter()
-        .find(|c| c.id == k8s_id)
-        .ok_or_else(|| format!("K8s connection with ID {} not found", k8s_id))
+    crate::application::tunnels::resolve_expanded_connection_params(&expanded, None)
 }
 
 #[tauri::command]
@@ -2810,7 +1798,10 @@ mod tests {
 
         let resolved = resolve_connection_params(&params);
         crate::drivers::registry::set_local_path_driver(driver, false);
-        assert_eq!(resolved.expect("resolve").database.primary(), "/tmp/my data.db");
+        assert_eq!(
+            resolved.expect("resolve").database.primary(),
+            "/tmp/my data.db"
+        );
     }
 
     #[test]
@@ -2958,7 +1949,9 @@ mod tests {
             detect_json_in_text_columns: None,
             appearance: Some(ConnectionAppearance {
                 accent_color: Some("#ff0000".to_string()),
-                icon: Some(IconOverride::Emoji { value: "🐘".to_string() }),
+                icon: Some(IconOverride::Emoji {
+                    value: "🐘".to_string(),
+                }),
             }),
             tag_ids: None,
             environment: None,
@@ -2979,13 +1972,19 @@ mod tests {
             environment: None,
         };
 
-        let app = updated.appearance.as_ref().expect("appearance must be preserved");
+        let app = updated
+            .appearance
+            .as_ref()
+            .expect("appearance must be preserved");
         assert_eq!(app.accent_color.as_deref(), Some("#ff0000"));
         assert!(matches!(&app.icon, Some(IconOverride::Emoji { value }) if value == "🐘"));
     }
 
     /// Helper: build a minimal ConnectionsFile with one connection.
-    fn one_conn_file(id: &str, appearance: Option<crate::models::ConnectionAppearance>) -> ConnectionsFile {
+    fn one_conn_file(
+        id: &str,
+        appearance: Option<crate::models::ConnectionAppearance>,
+    ) -> ConnectionsFile {
         let conn = SavedConnection {
             id: id.to_string(),
             name: "Test".to_string(),
@@ -3011,12 +2010,17 @@ mod tests {
         let mut file = one_conn_file("conn-1", None);
         let new_appearance = ConnectionAppearance {
             accent_color: Some("#00ff00".to_string()),
-            icon: Some(IconOverride::Emoji { value: "🦀".to_string() }),
+            icon: Some(IconOverride::Emoji {
+                value: "🦀".to_string(),
+            }),
         };
 
         set_appearance_impl(&mut file, "conn-1", Some(new_appearance)).unwrap();
 
-        let app = file.connections[0].appearance.as_ref().expect("appearance must be set");
+        let app = file.connections[0]
+            .appearance
+            .as_ref()
+            .expect("appearance must be set");
         assert_eq!(app.accent_color.as_deref(), Some("#00ff00"));
         assert!(matches!(&app.icon, Some(IconOverride::Emoji { value }) if value == "🦀"));
     }
@@ -3027,7 +2031,9 @@ mod tests {
 
         let existing_appearance = ConnectionAppearance {
             accent_color: Some("#ff0000".to_string()),
-            icon: Some(IconOverride::Pack { id: "server".to_string() }),
+            icon: Some(IconOverride::Pack {
+                id: "server".to_string(),
+            }),
         };
         let mut file = one_conn_file("conn-2", Some(existing_appearance));
 
@@ -3320,10 +2326,7 @@ mod tests {
     mod apply_inline_ssh_secret_fallback_tests {
         use super::*;
 
-        fn params_with_ssh(
-            password: Option<&str>,
-            passphrase: Option<&str>,
-        ) -> ConnectionParams {
+        fn params_with_ssh(password: Option<&str>, passphrase: Option<&str>) -> ConnectionParams {
             ConnectionParams {
                 ssh_password: password.map(|p| p.to_string()),
                 ssh_key_passphrase: passphrase.map(|p| p.to_string()),
@@ -3334,8 +2337,7 @@ mod tests {
         #[test]
         fn fills_both_secrets_from_saved_params() {
             let params = params_with_ssh(Some("pwd"), Some("phrase"));
-            let (password, passphrase) =
-                apply_inline_ssh_secret_fallback(None, None, &params);
+            let (password, passphrase) = apply_inline_ssh_secret_fallback(None, None, &params);
             assert_eq!(password, Some("pwd".to_string()));
             assert_eq!(passphrase, Some("phrase".to_string()));
         }
@@ -3355,8 +2357,7 @@ mod tests {
         #[test]
         fn blank_saved_secrets_are_ignored() {
             let params = params_with_ssh(Some("   "), Some(""));
-            let (password, passphrase) =
-                apply_inline_ssh_secret_fallback(None, None, &params);
+            let (password, passphrase) = apply_inline_ssh_secret_fallback(None, None, &params);
             assert_eq!(password, None);
             assert_eq!(passphrase, None);
         }
@@ -3364,11 +2365,8 @@ mod tests {
         #[test]
         fn fills_only_missing_secret() {
             let params = params_with_ssh(Some("saved_pwd"), Some("saved_phrase"));
-            let (password, passphrase) = apply_inline_ssh_secret_fallback(
-                Some("request_pwd".to_string()),
-                None,
-                &params,
-            );
+            let (password, passphrase) =
+                apply_inline_ssh_secret_fallback(Some("request_pwd".to_string()), None, &params);
             assert_eq!(password, Some("request_pwd".to_string()));
             assert_eq!(passphrase, Some("saved_phrase".to_string()));
         }
@@ -3734,7 +2732,9 @@ mod tests {
 
             {
                 let remaining = state.handles.lock().unwrap();
-                let slot = remaining.get("conn-1").expect("slot kept while B in flight");
+                let slot = remaining
+                    .get("conn-1")
+                    .expect("slot kept while B in flight");
                 assert_eq!(slot.len(), 1);
                 assert!(Arc::ptr_eq(&slot[0], &handle_b));
             }
@@ -3910,7 +2910,10 @@ mod tests {
             group("drop", Some("root")),
         ];
         let subtree = crate::models::collect_group_subtree(&groups, "drop");
-        assert_eq!(subtree, std::collections::HashSet::from(["drop".to_string()]));
+        assert_eq!(
+            subtree,
+            std::collections::HashSet::from(["drop".to_string()])
+        );
         assert!(!subtree.contains("root"));
         assert!(!subtree.contains("keep"));
     }
@@ -3919,7 +2922,10 @@ mod tests {
     fn collect_group_subtree_for_unknown_id_is_singleton() {
         let groups = vec![group("a", None)];
         let subtree = crate::models::collect_group_subtree(&groups, "missing");
-        assert_eq!(subtree, std::collections::HashSet::from(["missing".to_string()]));
+        assert_eq!(
+            subtree,
+            std::collections::HashSet::from(["missing".to_string()])
+        );
     }
 
     #[test]
@@ -4061,28 +3067,13 @@ pub async fn get_tables<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<TableInfo>, String> {
-    log::info!("Fetching tables for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    log::debug!(
-        "Getting tables from {} database: {}",
-        saved_conn.params.driver,
-        params.database
-    );
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv.get_tables(&params, schema.as_deref()).await;
-
-    match &result {
-        Ok(tables) => log::info!("Retrieved {} tables from {}", tables.len(), params.database),
-        Err(e) => log::error!("Failed to get tables from {}: {}", params.database, e),
-    }
-
-    result
+    crate::application::metadata::get_tables(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4092,13 +3083,14 @@ pub async fn get_columns<R: Runtime>(
     table_name: String,
     schema: Option<String>,
 ) -> Result<Vec<TableColumn>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for_params(&params).await?;
-    drv.get_columns(&params, &table_name, schema.as_deref())
-        .await
+    crate::application::metadata::get_columns(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4108,13 +3100,14 @@ pub async fn get_foreign_keys<R: Runtime>(
     table_name: String,
     schema: Option<String>,
 ) -> Result<Vec<ForeignKey>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for_params(&params).await?;
-    drv.get_foreign_keys(&params, &table_name, schema.as_deref())
-        .await
+    crate::application::metadata::get_foreign_keys(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4124,13 +3117,14 @@ pub async fn get_indexes<R: Runtime>(
     table_name: String,
     schema: Option<String>,
 ) -> Result<Vec<Index>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for_params(&params).await?;
-    drv.get_indexes(&params, &table_name, schema.as_deref())
-        .await
+    crate::application::metadata::get_indexes(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4142,22 +3136,16 @@ pub async fn delete_record<R: Runtime>(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
-    log::info!(
-        "Executing query on connection: {} | Query: DELETE FROM {} WHERE pk_map={:?}",
-        connection_id,
+    crate::application::records::delete_record(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         table,
-        pk_map
-    );
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    if let Some(db) = database {
-        params.database = crate::models::DatabaseSelection::Single(db);
-    }
-    let drv = driver_for_params(&params).await?;
-    drv.delete_record(&params, &table, &pk_map, schema.as_deref())
-        .await
+        pk_map,
+        schema,
+        database,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4171,31 +3159,16 @@ pub async fn update_record<R: Runtime>(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
-    log::info!(
-        "Executing query on connection: {} | Query: UPDATE {} SET {} = {:?} WHERE pk_map={:?}",
-        connection_id,
+    crate::application::records::update_record(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         table,
+        pk_map,
         col_name,
         new_val,
-        pk_map
-    );
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    if let Some(db) = database {
-        params.database = crate::models::DatabaseSelection::Single(db);
-    }
-    let max_blob_size = crate::config::get_max_blob_size(&app);
-    let drv = driver_for_params(&params).await?;
-    drv.update_record(
-        &params,
-        &table,
-        &pk_map,
-        &col_name,
-        new_val,
-        schema.as_deref(),
-        max_blob_size,
+        schema,
+        database,
     )
     .await
 }
@@ -4226,6 +3199,30 @@ pub async fn save_blob_to_file<R: Runtime>(
     .await
 }
 
+#[tauri::command]
+pub async fn fetch_blob<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    table: String,
+    col_name: String,
+    pk_map: std::collections::HashMap<String, serde_json::Value>,
+    schema: Option<String>,
+    database: Option<String>,
+) -> Result<crate::application::records::BlobFetchResponse, String> {
+    crate::application::records::fetch_blob(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table,
+        col_name,
+        pk_map,
+        schema,
+        database,
+        crate::application::records::BlobFetchPolicy::Inline,
+    )
+    .await
+}
+
 /// Fetches a BLOB column from the database and returns it as a data: URL for image preview.
 /// Same query logic as save_blob_to_file but returns the data in-memory instead of writing to disk.
 #[tauri::command]
@@ -4236,36 +3233,19 @@ pub async fn fetch_blob_as_data_url<R: Runtime>(
     col_name: String,
     pk_map: std::collections::HashMap<String, serde_json::Value>,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<String, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for_params(&params).await?;
-    let wire = drv
-        .fetch_blob_as_data_url(
-            &params,
-            &table,
-            &col_name,
-            &pk_map,
-            schema.as_deref(),
-        )
-        .await?;
-    // Convert the BLOB wire format to a data: URL
-    // wire format: "BLOB:<size>:<mime>:<base64>"
-    if !wire.starts_with("BLOB:") {
-        return Err("Invalid BLOB wire format".into());
-    }
-    let after_prefix = &wire[5..]; // skip "BLOB:"
-    let size_end = after_prefix.find(':').ok_or("Invalid BLOB wire format")?;
-    let after_size = &after_prefix[size_end + 1..];
-    let mime_end = after_size.find(':').ok_or("Invalid BLOB wire format")?;
-    let mime = &after_size[..mime_end];
-    if !mime.starts_with("image/") {
-        return Err(format!("Not an image: {}", mime));
-    }
-    let base64_payload = &after_size[mime_end + 1..];
-    Ok(format!("data:{};base64,{}", mime, base64_payload))
+    crate::application::records::fetch_blob_as_data_url(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table,
+        col_name,
+        pk_map,
+        schema,
+        database,
+    )
+    .await
 }
 
 /// Detects the MIME type of base64-encoded binary data using magic-byte analysis
@@ -4273,11 +3253,7 @@ pub async fn fetch_blob_as_data_url<R: Runtime>(
 /// Called by the frontend after the user selects a file to upload.
 #[tauri::command]
 pub fn detect_blob_mime(base64_data: String) -> Result<String, String> {
-    use base64::Engine;
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(&base64_data)
-        .map_err(|e| format!("Invalid base64: {}", e))?;
-    Ok(crate::drivers::common::encode_blob_full(&bytes))
+    crate::application::records::detect_blob_mime(&base64_data)
 }
 
 /// Prepares a file for BLOB upload by returning only metadata and a file reference.
@@ -4338,14 +3314,7 @@ pub async fn load_blob_from_file<R: Runtime>(
 /// locally, avoiding a full round-trip of the entire file over IPC.
 #[tauri::command]
 pub fn detect_mime_type(header_base64: String) -> Result<String, String> {
-    use base64::Engine;
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(&header_base64)
-        .map_err(|e| format!("Invalid base64: {}", e))?;
-    let mime = infer::get(&bytes)
-        .map(|k| k.mime_type())
-        .unwrap_or("application/octet-stream");
-    Ok(mime.to_string())
+    crate::application::records::detect_mime_type(&header_base64)
 }
 
 /// Gets file statistics (size and MIME type) without reading the entire file.
@@ -4425,41 +3394,24 @@ pub async fn insert_record<R: Runtime>(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
-    let columns: Vec<&str> = data.keys().map(|k| k.as_str()).collect();
-    log::info!(
-        "Executing query on connection: {} | Query: INSERT INTO {} ({}) VALUES (...)",
-        connection_id,
+    crate::application::records::insert_record(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         table,
-        columns.join(", ")
-    );
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    if let Some(db) = database {
-        params.database = crate::models::DatabaseSelection::Single(db);
-    }
-    let max_blob_size = crate::config::get_max_blob_size(&app);
-    let drv = driver_for_params(&params).await?;
-    drv.insert_record(&params, &table, data, schema.as_deref(), max_blob_size)
-        .await
+        data,
+        schema,
+        database,
+    )
+    .await
 }
 
+#[cfg(test)]
 pub(crate) fn cancel_query_impl(
     state: &QueryCancellationState,
     connection_id: &str,
 ) -> Result<(), String> {
-    let entries = {
-        let mut handles = state.handles.lock().unwrap();
-        handles.remove(connection_id).unwrap_or_default()
-    };
-    if entries.is_empty() {
-        return Err("No running query found".into());
-    }
-    for handle in entries {
-        handle.abort();
-    }
-    Ok(())
+    crate::application::queries::cancel_registered_queries(state, None, connection_id, None)
 }
 
 #[tauri::command]
@@ -4467,41 +3419,7 @@ pub async fn cancel_query(
     state: State<'_, QueryCancellationState>,
     connection_id: String,
 ) -> Result<(), String> {
-    cancel_query_impl(&state, &connection_id)
-}
-
-/// Payload for the `database-dropped` event, emitted after a `DROP DATABASE`
-/// statement succeeds so a listener can reconcile the connection's database
-/// selection instead of leaving the dropped database in the sidebar until the
-/// next reconnect (#525).
-// `connectionId` rather than `connection_id`: the `connection-health-failed`
-// event already carries this same field in camelCase, and matching the field
-// name for the same concept matters more than matching the neighbouring
-// `batch-statement-complete` payload, which happens to use snake_case.
-#[derive(serde::Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-struct DatabaseDroppedEvent<'a> {
-    connection_id: &'a str,
-    database: &'a str,
-}
-
-/// Announces that `database` no longer exists on the server behind
-/// `connection_id`. Emitting is best-effort: a listener that missed the event
-/// only means the sidebar stays stale until the next manual refresh, which is
-/// the pre-#525 behaviour, so a failed emit must not fail the query.
-fn emit_database_dropped<R: Runtime>(app: &AppHandle<R>, connection_id: &str, database: &str) {
-    log::info!(
-        "DROP DATABASE detected on connection {}: '{}'",
-        connection_id,
-        database
-    );
-    let _ = app.emit(
-        "database-dropped",
-        DatabaseDroppedEvent {
-            connection_id,
-            database,
-        },
-    );
+    crate::application::queries::cancel_query(&state, None, &connection_id, None)
 }
 
 #[tauri::command]
@@ -4515,244 +3433,47 @@ pub async fn execute_query<R: Runtime>(
     schema: Option<String>,
     session_id: Option<String>,
 ) -> Result<QueryResult, String> {
-    log::info!(
-        "Executing query on connection: {} | Query: {}",
+    crate::application::queries::execute_query(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &state,
+        crate::application::queries::QueryRequestScope::DESKTOP,
+        crate::application::queries::QueryResponsePolicy::Unbounded,
         connection_id,
-        query
-    );
-
-    let sanitized_query = sanitize_user_query(&query);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    // Detected before the spawn, which takes ownership of `sanitized_query`.
-    // Cheap: only allocates when the statement really is a DROP DATABASE.
-    let dropped = crate::sql_database_statements::dropped_database(&sanitized_query);
-
-    let drv = driver_for_params(&params).await?;
-    let session_driver = drv.clone();
-    let session = session_id.clone();
-    let task = tokio::spawn(async move {
-        drv.execute_query_in_session(
-            &params,
-            &sanitized_query,
-            limit,
-            page.unwrap_or(1),
-            schema.as_deref(),
-            session.as_deref(),
-        )
-        .await
-    });
-
-    let abort_handle = Arc::new(task.abort_handle());
-    register_abort_handle(&state.handles, connection_id.clone(), abort_handle.clone());
-
-    let result = task.await;
-
-    unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
-
-    match result {
-        Ok(Ok((query_result, in_transaction))) => {
-            log::info!(
-                "Query executed successfully, returned {} rows",
-                query_result.rows.len()
-            );
-            // Driving a transaction one statement at a time is the whole
-            // point, so this path reports session state exactly as a batch
-            // does.
-            if let Some(id) = session_id.as_deref() {
-                emit_session_state(&app, &connection_id, id, in_transaction);
-            }
-            if let Some(database) = &dropped {
-                emit_database_dropped(&app, &connection_id, database);
-            }
-            Ok(query_result)
-        }
-        Ok(Err(e)) => {
-            log::error!("Query execution failed: {}", e);
-            emit_session_state_after_failure(
-                &app,
-                &connection_id,
-                session_driver.as_ref(),
-                session_id.as_deref(),
-            )
-            .await;
-            Err(e)
-        }
-        Err(_) => {
-            log::warn!("Query was cancelled");
-            emit_session_state_after_failure(
-                &app,
-                &connection_id,
-                session_driver.as_ref(),
-                session_id.as_deref(),
-            )
-            .await;
-            Err("Query cancelled".into())
-        }
-    }
+        query,
+        limit,
+        page,
+        schema,
+        session_id,
+    )
+    .await
 }
 
-/// Payload for the `batch-statement-complete` event, emitted once per
-/// statement the instant it finishes so the frontend can mark that result tab
-/// done in real time instead of waiting for the whole batch. `batch_id` lets a
-/// listener ignore events from other concurrent runs; `index` maps back to the
-/// statement's slot. Borrows the result so no clone of the (potentially large)
-/// row set is needed.
-#[derive(serde::Serialize, Clone)]
-struct BatchStatementEvent<'a> {
-    batch_id: &'a str,
-    index: usize,
-    statement: &'a BatchStatementResult,
-}
-
-/// Payload for the `session-transaction-state` event, emitted after a batch
-/// that carried a `session_id` so the owning tab can show whether it is
-/// still inside an explicit transaction — and therefore still holding a
-/// pooled connection.
-#[derive(serde::Serialize, Clone)]
-struct SessionTransactionStateEvent<'a> {
-    session_id: &'a str,
-    in_transaction: bool,
-}
-
-/// Sessions last reported inside a transaction, per connection id, so a
-/// disconnect can release them through the driver.
-fn open_sessions() -> &'static Mutex<HashMap<String, std::collections::HashSet<String>>> {
-    static OPEN: std::sync::OnceLock<Mutex<HashMap<String, std::collections::HashSet<String>>>> =
-        std::sync::OnceLock::new();
-    OPEN.get_or_init(Default::default)
-}
-
-fn note_session_state(connection_id: &str, session_id: &str, in_transaction: bool) {
-    let mut open = open_sessions().lock().unwrap_or_else(|e| e.into_inner());
-    if in_transaction {
-        open.entry(connection_id.to_string())
-            .or_default()
-            .insert(session_id.to_string());
-    } else if let Some(ids) = open.get_mut(connection_id) {
-        ids.remove(session_id);
-        if ids.is_empty() {
-            open.remove(connection_id);
-        }
-    }
-}
-
-fn take_open_sessions(connection_id: &str) -> Vec<String> {
-    let mut open = open_sessions().lock().unwrap_or_else(|e| e.into_inner());
-    open.remove(connection_id)
-        .map(|ids| ids.into_iter().collect())
-        .unwrap_or_default()
-}
-
-#[cfg(test)]
-mod open_sessions_tests {
-    use super::{note_session_state, take_open_sessions};
-
-    #[test]
-    fn disconnect_takes_only_that_connections_open_sessions() {
-        note_session_state("os-conn-a", "tab-1", true);
-        note_session_state("os-conn-a", "tab-2", true);
-        note_session_state("os-conn-a", "tab-2", false);
-        note_session_state("os-conn-b", "tab-3", true);
-
-        assert_eq!(take_open_sessions("os-conn-a"), vec!["tab-1".to_string()]);
-        assert!(take_open_sessions("os-conn-a").is_empty());
-        assert_eq!(take_open_sessions("os-conn-b"), vec!["tab-3".to_string()]);
-    }
-}
-
-/// Tell the UI whether a tab is inside a transaction, and remember it for disconnect.
-fn emit_session_state<R: Runtime>(
-    app: &AppHandle<R>,
-    connection_id: &str,
-    session_id: &str,
-    in_transaction: bool,
-) {
-    note_session_state(connection_id, session_id, in_transaction);
-    let _ = app.emit(
-        "session-transaction-state",
-        SessionTransactionStateEvent {
-            session_id,
-            in_transaction,
-        },
-    );
-}
-
-/// Roll back the transactions a connection's tabs left open, for every path
-/// that closes it (disconnect, failed health check). The releases run in the
-/// background, so closing a connection never waits on a tab's in-flight run.
-/// Without `params` the bookkeeping is still cleared and the idle sweep
-/// reclaims the connections.
 pub(crate) async fn release_connection_sessions<R: Runtime>(
     app: &AppHandle<R>,
     connection_id: &str,
-    params: Option<&ConnectionParams>,
+    _params: Option<&ConnectionParams>,
 ) {
-    let open = take_open_sessions(connection_id);
-    if open.is_empty() {
-        return;
-    }
-    for id in &open {
-        let _ = app.emit(
-            "session-transaction-state",
-            SessionTransactionStateEvent {
-                session_id: id,
-                in_transaction: false,
-            },
-        );
-    }
-    let Some(params) = params else {
-        log::warn!("Could not resolve {connection_id} to release its open sessions");
-        return;
-    };
-    match driver_for_params(params).await {
-        Ok(drv) => {
-            tauri::async_runtime::spawn(async move {
-                for id in open {
-                    drv.release_session(&id).await;
-                }
-            });
-        }
-        Err(e) => log::warn!("Could not release open sessions of {connection_id}: {e}"),
-    }
+    crate::application::query_sessions::release_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        connection_id,
+    )
+    .await;
 }
 
-/// A failed or cancelled run returns no session flag, so ask the driver, or
-/// the tab's TX badge would keep showing a transaction that already ended.
-async fn emit_session_state_after_failure<R: Runtime>(
-    app: &AppHandle<R>,
-    connection_id: &str,
-    drv: &dyn crate::drivers::driver_trait::DatabaseDriver,
-    session_id: Option<&str>,
-) {
-    let Some(id) = session_id else { return };
-    if let Some(in_transaction) = drv.session_in_transaction(id).await {
-        emit_session_state(app, connection_id, id, in_transaction);
-    }
-}
-
-/// Roll back and release the connection pinned to `session_id`.
-///
-/// Called when an editor tab closes, so an abandoned transaction cannot
-/// hold its locks until the idle sweep reclaims it.
 #[tauri::command]
 pub async fn release_query_session<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
     session_id: String,
 ) -> Result<(), String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for_params(&params).await?;
-    drv.release_session(&session_id).await;
-    note_session_state(&connection_id, &session_id, false);
-    Ok(())
+    crate::application::query_sessions::release(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        &session_id,
+    )
+    .await
 }
 
 /// Runs a sequence of statements that share a single physical database
@@ -4779,120 +3500,20 @@ pub async fn execute_query_batch<R: Runtime>(
     batch_id: Option<String>,
     session_id: Option<String>,
 ) -> Result<Vec<BatchStatementResult>, String> {
-    log::info!(
-        "Executing query batch on connection: {} | {} statement(s)",
+    crate::application::queries::execute_query_batch(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &state,
+        crate::application::queries::QueryRequestScope::DESKTOP,
+        crate::application::queries::QueryResponsePolicy::Unbounded,
         connection_id,
-        queries.len()
-    );
-
-    let sanitized_queries: Vec<String> = queries.iter().map(|q| sanitize_user_query(q)).collect();
-
-    // One entry per statement, computed before the spawn takes ownership of
-    // `sanitized_queries`. Index-aligned with the results returned below, the
-    // same assumption the `batch-statement-complete` event already relies on.
-    let dropped_per_statement: Vec<Option<String>> = sanitized_queries
-        .iter()
-        .map(|q| crate::sql_database_statements::dropped_database(q))
-        .collect();
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-
-    // Build a Tauri-agnostic progress sink the driver invokes per statement.
-    // Each invocation emits one event so result tabs resolve as they finish.
-    let progress: Option<Arc<crate::drivers::driver_trait::BatchProgressFn>> =
-        batch_id.map(|bid| {
-            let app = app.clone();
-            let cb: Arc<crate::drivers::driver_trait::BatchProgressFn> =
-                Arc::new(move |index, statement: &BatchStatementResult| {
-                    let _ = app.emit(
-                        "batch-statement-complete",
-                        BatchStatementEvent {
-                            batch_id: &bid,
-                            index,
-                            statement,
-                        },
-                    );
-                });
-            cb
-        });
-
-    let session_driver = drv.clone();
-    let session = session_id.clone();
-    let task = tokio::spawn(async move {
-        drv.execute_batch_in_session(
-            &params,
-            &sanitized_queries,
-            limit,
-            page.unwrap_or(1),
-            schema.as_deref(),
-            session.as_deref(),
-            progress.as_deref(),
-        )
-        .await
-    });
-
-    let abort_handle = Arc::new(task.abort_handle());
-    register_abort_handle(&state.handles, connection_id.clone(), abort_handle.clone());
-
-    let result = task.await;
-
-    unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
-
-    match result {
-        Ok(Ok((batch_results, in_transaction))) => {
-            // The tab holds a pooled connection for as long as its
-            // transaction is open, so the UI has to be able to show it and
-            // release it on close.
-            if let Some(id) = session_id.as_deref() {
-                emit_session_state(&app, &connection_id, id, in_transaction);
-            }
-            let success_count = batch_results.iter().filter(|r| r.result.is_some()).count();
-            log::info!(
-                "Batch executed: {} succeeded, {} failed (of {} total)",
-                success_count,
-                batch_results.len() - success_count,
-                batch_results.len()
-            );
-            // A batch reports per-statement outcomes, so only announce drops
-            // whose own statement succeeded; a failed DROP leaves the database
-            // in place.
-            for (dropped, statement) in dropped_per_statement.iter().zip(&batch_results) {
-                if let Some(database) = dropped {
-                    if statement.result.is_some() {
-                        emit_database_dropped(&app, &connection_id, database);
-                    }
-                }
-            }
-            Ok(batch_results)
-        }
-        Ok(Err(e)) => {
-            log::error!("Batch execution failed at setup: {}", e);
-            emit_session_state_after_failure(
-                &app,
-                &connection_id,
-                session_driver.as_ref(),
-                session_id.as_deref(),
-            )
-            .await;
-            Err(e)
-        }
-        Err(_) => {
-            log::warn!("Batch was cancelled");
-            emit_session_state_after_failure(
-                &app,
-                &connection_id,
-                session_driver.as_ref(),
-                session_id.as_deref(),
-            )
-            .await;
-            Err("Query cancelled".into())
-        }
-    }
+        queries,
+        limit,
+        page,
+        schema,
+        session_id,
+        batch_id,
+    )
+    .await
 }
 
 // --- Explain Query Plan ---
@@ -4906,54 +3527,16 @@ pub async fn explain_query_plan<R: Runtime>(
     analyze: bool,
     schema: Option<String>,
 ) -> Result<ExplainQueryOutput, String> {
-    log::info!(
-        "Explaining query on connection: {} | analyze: {} | Query: {}",
+    crate::application::queries::explain_query_plan(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &state,
+        crate::application::queries::QueryRequestScope::DESKTOP,
         connection_id,
+        query,
         analyze,
-        query
-    );
-
-    let sanitized_query = sanitize_user_query(&query);
-
-    if !crate::drivers::common::is_explainable_query(&sanitized_query) {
-        return Err(
-            "EXPLAIN is only supported for DML statements (SELECT, INSERT, UPDATE, DELETE, REPLACE). DDL statements like CREATE, DROP, or ALTER cannot be explained."
-                .into(),
-        );
-    }
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let task = tokio::spawn(async move {
-        drv.explain_query(&params, &sanitized_query, analyze, schema.as_deref())
-            .await
-    });
-
-    let abort_handle = Arc::new(task.abort_handle());
-    register_abort_handle(&state.handles, connection_id.clone(), abort_handle.clone());
-
-    let result = task.await;
-
-    unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
-
-    match result {
-        Ok(Ok(plan)) => {
-            log::info!("Explain query completed successfully");
-            Ok(plan)
-        }
-        Ok(Err(e)) => {
-            log::error!("Explain query failed: {}", e);
-            Err(e)
-        }
-        Err(_) => {
-            log::warn!("Explain query was cancelled");
-            Err("Explain query cancelled".into())
-        }
-    }
+        schema,
+    )
+    .await
 }
 
 /// Run a read on the connection pinned to `session_id`, inside its open
@@ -4979,7 +3562,10 @@ pub(crate) async fn read_in_open_transaction(
         .await?;
     // With no transaction open (a stale badge) only the savepoint lines fail; the read still runs.
     match results.into_iter().nth(1) {
-        Some(BatchStatementResult { result: Some(result), .. }) => Ok(result),
+        Some(BatchStatementResult {
+            result: Some(result),
+            ..
+        }) => Ok(result),
         Some(BatchStatementResult { error: Some(e), .. }) => Err(e),
         _ => Err("The statement produced no result".to_string()),
     }
@@ -4995,45 +3581,15 @@ pub async fn count_query<R: Runtime>(
     schema: Option<String>,
     session_id: Option<String>,
 ) -> Result<u64, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let sanitized = query.trim().trim_end_matches(';').to_string();
-
-    let count_q = format!("SELECT COUNT(*) FROM ({}) as count_wrapper", sanitized);
-
-    let drv = driver_for_params(&params).await?;
-    // The editor sends a session only for a tab inside a transaction.
-    let result = match session_id.as_deref() {
-        Some(id) => {
-            read_in_open_transaction(
-                drv.as_ref(),
-                &params,
-                &count_q,
-                None,
-                1,
-                schema.as_deref(),
-                id,
-            )
-            .await?
-        }
-        None => {
-            drv.execute_query(&params, &count_q, None, 1, schema.as_deref())
-                .await?
-        }
-    };
-
-    let total: u64 = result
-        .rows
-        .first()
-        .and_then(|r| r.first())
-        .and_then(|v| v.as_i64())
-        .map(|n| n as u64)
-        .unwrap_or(0);
-
-    Ok(total)
+    crate::application::queries::count_query(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        connection_id,
+        query,
+        schema,
+        session_id,
+    )
+    .await
 }
 
 // --- Window Title Management ---
@@ -5223,6 +3779,7 @@ fn resolve_test_connection_password(
 /// 1. Credential from request params (if provided, even if empty)
 /// 2. Credential from keychain (if save_in_keychain is enabled)
 /// 3. Credential from saved connection (as fallback)
+#[cfg(test)]
 fn resolve_ssh_test_credential(
     request_credential: Option<&str>,
     connection_id: Option<&str>,
@@ -5258,6 +3815,7 @@ fn resolve_ssh_test_credential(
 /// a saved database connection (already hydrated from the keychain by
 /// `find_connection_by_id`). Secrets explicitly provided by the request keep
 /// priority; blank saved values are ignored.
+#[cfg(test)]
 fn apply_inline_ssh_secret_fallback(
     resolved_password: Option<String>,
     resolved_passphrase: Option<String>,
@@ -5273,6 +3831,7 @@ fn apply_inline_ssh_secret_fallback(
 }
 
 /// Helper for backward compatibility - resolves SSH password
+#[cfg(test)]
 fn resolve_ssh_test_password(
     request_password: Option<&str>,
     connection_id: Option<&str>,
@@ -5301,28 +3860,13 @@ pub async fn get_views<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<crate::models::ViewInfo>, String> {
-    log::info!("Fetching views for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    log::debug!(
-        "Getting views from {} database: {}",
-        saved_conn.params.driver,
-        params.database
-    );
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv.get_views(&params, schema.as_deref()).await;
-
-    match &result {
-        Ok(views) => log::info!("Retrieved {} views from {}", views.len(), params.database),
-        Err(e) => log::error!("Failed to get views from {}: {}", params.database, e),
-    }
-
-    result
+    crate::application::metadata::get_views(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5332,28 +3876,14 @@ pub async fn get_view_definition<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<String, String> {
-    log::info!(
-        "Fetching view definition for: {} on connection: {}",
+    crate::application::database_objects::get_view_definition(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv
-        .get_view_definition(&params, &view_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully retrieved view definition for {}", view_name),
-        Err(e) => log::error!("Failed to get view definition for {}: {}", view_name, e),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5364,28 +3894,15 @@ pub async fn create_view<R: Runtime>(
     definition: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Creating view: {} on connection: {}",
+    crate::application::database_objects::create_view(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv
-        .create_view(&params, &view_name, &definition, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully created view: {}", view_name),
-        Err(e) => log::error!("Failed to create view {}: {}", view_name, e),
-    }
-
-    result
+        definition,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5396,28 +3913,15 @@ pub async fn alter_view<R: Runtime>(
     definition: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Altering view: {} on connection: {}",
+    crate::application::database_objects::alter_view(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv
-        .alter_view(&params, &view_name, &definition, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully altered view: {}", view_name),
-        Err(e) => log::error!("Failed to alter view {}: {}", view_name, e),
-    }
-
-    result
+        definition,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5427,26 +3931,14 @@ pub async fn drop_view<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Dropping view: {} on connection: {}",
+    crate::application::database_objects::drop_view(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv.drop_view(&params, &view_name, schema.as_deref()).await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully dropped view: {}", view_name),
-        Err(e) => log::error!("Failed to drop view {}: {}", view_name, e),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5456,28 +3948,14 @@ pub async fn get_view_columns<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<Vec<TableColumn>, String> {
-    log::info!(
-        "Fetching view columns for: {} on connection: {}",
+    crate::application::metadata::get_view_columns(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv
-        .get_view_columns(&params, &view_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(columns) => log::info!("Retrieved {} columns for view {}", columns.len(), view_name),
-        Err(e) => log::error!("Failed to get view columns for {}: {}", view_name, e),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5486,30 +3964,13 @@ pub async fn get_materialized_views<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<crate::models::ViewInfo>, String> {
-    log::info!("Fetching materialized views for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv.get_materialized_views(&params, schema.as_deref()).await;
-
-    match &result {
-        Ok(views) => log::info!(
-            "Retrieved {} materialized views from {}",
-            views.len(),
-            params.database
-        ),
-        Err(e) => log::error!(
-            "Failed to get materialized views from {}: {}",
-            params.database,
-            e
-        ),
-    }
-
-    result
+    crate::application::metadata::get_materialized_views(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5519,36 +3980,14 @@ pub async fn get_materialized_view_columns<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<Vec<TableColumn>, String> {
-    log::info!(
-        "Fetching materialized view columns for: {} on connection: {}",
+    crate::application::metadata::get_materialized_view_columns(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv
-        .get_materialized_view_columns(&params, &view_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(columns) => log::info!(
-            "Retrieved {} columns for materialized view {}",
-            columns.len(),
-            view_name
-        ),
-        Err(e) => log::error!(
-            "Failed to get materialized view columns for {}: {}",
-            view_name,
-            e
-        ),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5558,35 +3997,14 @@ pub async fn get_materialized_view_definition<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<String, String> {
-    log::info!(
-        "Fetching materialized view definition for: {} on connection: {}",
+    crate::application::metadata::get_materialized_view_definition(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv
-        .get_materialized_view_definition(&params, &view_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!(
-            "Successfully retrieved materialized view definition for {}",
-            view_name
-        ),
-        Err(e) => log::error!(
-            "Failed to get materialized view definition for {}: {}",
-            view_name,
-            e
-        ),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5596,28 +4014,14 @@ pub async fn refresh_materialized_view<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Refreshing materialized view: {} on connection: {}",
+    crate::application::database_objects::refresh_materialized_view(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv
-        .refresh_materialized_view(&params, &view_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully refreshed materialized view: {}", view_name),
-        Err(e) => log::error!("Failed to refresh materialized view {}: {}", view_name, e),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5626,22 +4030,13 @@ pub async fn get_triggers<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<TriggerInfo>, String> {
-    log::info!("Fetching triggers for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv.get_triggers(&params, schema.as_deref()).await;
-
-    match &result {
-        Ok(triggers) => log::info!("Retrieved {} triggers", triggers.len()),
-        Err(e) => log::error!("Failed to get triggers: {}", e),
-    }
-
-    result
+    crate::application::metadata::get_triggers(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5652,20 +4047,15 @@ pub async fn get_trigger_definition<R: Runtime>(
     table_name: String,
     schema: Option<String>,
 ) -> Result<String, String> {
-    log::info!(
-        "Fetching trigger definition for: {} on connection: {}",
+    crate::application::database_objects::get_trigger_definition(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         trigger_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    drv.get_trigger_definition(&params, &trigger_name, &table_name, schema.as_deref())
-        .await
+        table_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5675,24 +4065,14 @@ pub async fn create_trigger<R: Runtime>(
     trigger_sql: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!("Creating trigger on connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv
-        .create_trigger(&params, &trigger_sql, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully created trigger"),
-        Err(e) => log::error!("Failed to create trigger: {}", e),
-    }
-
-    result
+    crate::application::database_objects::create_trigger(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        trigger_sql,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5703,59 +4083,29 @@ pub async fn drop_trigger<R: Runtime>(
     table_name: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Dropping trigger: {} on connection: {}",
+    crate::application::database_objects::drop_trigger(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         trigger_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv
-        .drop_trigger(&params, &trigger_name, &table_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully dropped trigger: {}", trigger_name),
-        Err(e) => log::error!("Failed to drop trigger {}: {}", trigger_name, e),
-    }
-
-    result
+        table_name,
+        schema,
+    )
+    .await
 }
 
 // --- User management (gated by `DriverCapabilities::user_management`) -------
-
-/// Resolves the connection and driver shared by every user-management command.
-async fn user_mgmt_context<R: Runtime>(
-    app: &AppHandle<R>,
-    connection_id: &str,
-) -> Result<
-    (
-        std::sync::Arc<dyn crate::drivers::driver_trait::DatabaseDriver>,
-        ConnectionParams,
-    ),
-    String,
-> {
-    let saved_conn = find_connection_by_id(app, connection_id)?;
-    let expanded_params = expand_ssh_connection_params(app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, connection_id)?;
-    let drv = driver_for_params(&params).await?;
-    Ok((drv, params))
-}
 
 #[tauri::command]
 pub async fn get_db_privilege_catalog<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<crate::models::DbPrivilegeCatalog, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
-    drv.get_db_privilege_catalog().await
+    crate::application::database_objects::get_db_privilege_catalog(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5763,8 +4113,12 @@ pub async fn get_db_users<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<Vec<crate::models::DbUserInfo>, String> {
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    drv.get_db_users(&params).await
+    crate::application::database_objects::get_db_users(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5774,8 +4128,14 @@ pub async fn get_db_user_grants<R: Runtime>(
     user: String,
     host: String,
 ) -> Result<Vec<String>, String> {
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    drv.get_db_user_grants(&params, &user, &host).await
+    crate::application::database_objects::get_db_user_grants(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5786,13 +4146,15 @@ pub async fn create_db_user<R: Runtime>(
     host: String,
     password: String,
 ) -> Result<(), String> {
-    log::info!("Creating database user '{user}'@'{host}'");
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    let result = drv.create_db_user(&params, &user, &host, &password).await;
-    if let Err(e) = &result {
-        log::error!("Failed to create user '{user}'@'{host}': {e}");
-    }
-    result
+    crate::application::database_objects::create_db_user(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+        password,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5802,13 +4164,14 @@ pub async fn drop_db_user<R: Runtime>(
     user: String,
     host: String,
 ) -> Result<(), String> {
-    log::info!("Dropping database user '{user}'@'{host}'");
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    let result = drv.drop_db_user(&params, &user, &host).await;
-    if let Err(e) = &result {
-        log::error!("Failed to drop user '{user}'@'{host}': {e}");
-    }
-    result
+    crate::application::database_objects::drop_db_user(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5819,13 +4182,15 @@ pub async fn set_db_user_password<R: Runtime>(
     host: String,
     password: String,
 ) -> Result<(), String> {
-    log::info!("Changing password for database user '{user}'@'{host}'");
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    let result = drv.set_db_user_password(&params, &user, &host, &password).await;
-    if let Err(e) = &result {
-        log::error!("Failed to change password for '{user}'@'{host}': {e}");
-    }
-    result
+    crate::application::database_objects::set_db_user_password(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+        password,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5835,8 +4200,14 @@ pub async fn get_db_user_privileges<R: Runtime>(
     user: String,
     host: String,
 ) -> Result<Vec<crate::models::DbUserGrantSet>, String> {
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    drv.get_db_user_privileges(&params, &user, &host).await
+    crate::application::database_objects::get_db_user_privileges(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5850,39 +4221,30 @@ pub async fn apply_db_user_privileges<R: Runtime>(
     privileges: Vec<String>,
     grant: bool,
 ) -> Result<(), String> {
-    let scope = match (database.as_deref(), table.as_deref()) {
-        (Some(db), Some(tbl)) => format!("{db}.{tbl}"),
-        (Some(db), None) => format!("{db}.*"),
-        _ => "*.*".to_string(),
-    };
-    log::info!(
-        "{} privileges for '{user}'@'{host}' on {scope}",
-        if grant { "Granting" } else { "Revoking" },
-    );
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    let result = drv
-        .apply_db_user_privileges(
-            &params,
-            &user,
-            &host,
-            database.as_deref(),
-            table.as_deref(),
-            &privileges,
-            grant,
-        )
-        .await;
-    if let Err(e) = &result {
-        log::error!("Failed to apply privileges for '{user}'@'{host}': {e}");
-    }
-    result
+    crate::application::database_objects::apply_db_user_privileges(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+        database,
+        table,
+        privileges,
+        grant,
+    )
+    .await
 }
 
 /// Register a connection as active for health-check pinging.
 #[tauri::command]
 pub async fn register_active_connection<R: Runtime>(app: AppHandle<R>, connection_id: String) {
-    crate::health_check::register_connection(connection_id).await;
-    // Broadcast so every window learns this connection is now open.
-    crate::health_check::emit_active_changed(&app).await;
+    crate::application::connections::register_active_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        None,
+        connection_id,
+    )
+    .await;
 }
 
 /// Snapshot of connection ids currently open in the shared backend (across all
@@ -5898,34 +4260,13 @@ pub async fn disconnect_connection<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<(), String> {
-    log::info!("Disconnecting from connection: {}", connection_id);
-
-    // Unregister from health check before closing the pool.
-    crate::health_check::unregister_connection(&connection_id).await;
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    if let Some(driver) = crate::drivers::registry::get_driver(&saved_conn.params.driver).await {
-        driver
-            .invalidate_connection_metadata(Some(&connection_id))
-            .await;
-    }
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    release_connection_sessions(&app, &connection_id, Some(&params)).await;
-
-    // Close the connection pool
-    crate::pool_manager::close_pool_with_id(&params, Some(&connection_id)).await;
-
-    // Broadcast so every window learns this connection is now closed.
-    crate::health_check::emit_active_changed(&app).await;
-
-    log::info!(
-        "Successfully disconnected from connection: {}",
-        connection_id
-    );
-    Ok(())
+    crate::application::connections::disconnect_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        None,
+        &connection_id,
+    )
+    .await
 }
 
 // --- Type Registry ---
@@ -5949,16 +4290,14 @@ pub async fn map_inferred_column_types<R: Runtime>(
     kinds: Vec<String>,
     connection_id: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let drv = if let Some(id) = connection_id {
-        let saved = find_connection_by_id(&app, &id)?;
-        if saved.params.driver != driver {
-            return Err("Connection driver does not match the requested driver".into());
-        }
-        driver_for_saved(&app, &saved).await?
-    } else {
-        driver_for(&driver).await?
-    };
-    Ok(kinds.iter().map(|k| drv.map_inferred_type(k)).collect())
+    crate::application::database_objects::map_inferred_column_types(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        driver,
+        kinds,
+        connection_id,
+    )
+    .await
 }
 
 // --- DDL generation commands ---
@@ -5971,10 +4310,14 @@ pub async fn get_create_table_sql<R: Runtime>(
     columns: Vec<ColumnDefinition>,
     schema: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
-    drv.get_create_table_sql(&table_name, columns, schema.as_deref())
-        .await
+    crate::application::database_objects::get_create_table_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        table_name,
+        columns,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -5985,10 +4328,14 @@ pub async fn get_add_column_sql<R: Runtime>(
     column: ColumnDefinition,
     schema: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
-    drv.get_add_column_sql(&table, column, schema.as_deref())
-        .await
+    crate::application::database_objects::get_add_column_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        table,
+        column,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -6000,10 +4347,15 @@ pub async fn get_alter_column_sql<R: Runtime>(
     new_column: ColumnDefinition,
     schema: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
-    drv.get_alter_column_sql(&table, old_column, new_column, schema.as_deref())
-        .await
+    crate::application::database_objects::get_alter_column_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        table,
+        old_column,
+        new_column,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -6016,10 +4368,16 @@ pub async fn get_create_index_sql<R: Runtime>(
     is_unique: bool,
     schema: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
-    drv.get_create_index_sql(&table, &index_name, columns, is_unique, schema.as_deref())
-        .await
+    crate::application::database_objects::get_create_index_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        table,
+        index_name,
+        columns,
+        is_unique,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -6035,18 +4393,17 @@ pub async fn get_create_foreign_key_sql<R: Runtime>(
     on_update: Option<String>,
     schema: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
-    drv.get_create_foreign_key_sql(
-        &saved_conn.params,
-        &table,
-        &fk_name,
-        &column,
-        &ref_table,
-        &ref_column,
-        on_delete.as_deref(),
-        on_update.as_deref(),
-        schema.as_deref(),
+    crate::application::database_objects::get_create_foreign_key_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        table,
+        fk_name,
+        column,
+        ref_table,
+        ref_column,
+        on_delete,
+        on_update,
+        schema,
     )
     .await
 }
@@ -6059,13 +4416,15 @@ pub async fn drop_index_action<R: Runtime>(
     index_name: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for_params(&params).await?;
-    drv.drop_index(&params, &table, &index_name, schema.as_deref())
-        .await
+    crate::application::database_objects::drop_index(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table,
+        index_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -6076,13 +4435,15 @@ pub async fn drop_foreign_key_action<R: Runtime>(
     fk_name: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for_params(&params).await?;
-    drv.drop_foreign_key(&params, &table, &fk_name, schema.as_deref())
-        .await
+    crate::application::database_objects::drop_foreign_key(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table,
+        fk_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -6091,26 +4452,19 @@ pub async fn get_registered_drivers() -> Vec<crate::drivers::driver_trait::Plugi
 }
 
 #[tauri::command]
-pub async fn get_keybindings<R: Runtime>(_app: AppHandle<R>) -> Result<serde_json::Value, String> {
-    let config_dir = crate::paths::get_app_config_dir();
-    let path = config_dir.join("keybindings.json");
-    if !path.exists() {
-        return Ok(serde_json::Value::Object(serde_json::Map::new()));
-    }
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    serde_json::from_str(&content).map_err(|e| e.to_string())
+pub async fn get_keybindings<R: Runtime>(app: AppHandle<R>) -> Result<serde_json::Value, String> {
+    crate::application::persistence::get_keybindings(&app.state::<crate::runtime::RuntimeContext>())
 }
 
 #[tauri::command]
 pub async fn save_keybindings<R: Runtime>(
-    _app: AppHandle<R>,
+    app: AppHandle<R>,
     keybindings: serde_json::Value,
 ) -> Result<(), String> {
-    let config_dir = crate::paths::get_app_config_dir();
-    fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-    let path = config_dir.join("keybindings.json");
-    let content = serde_json::to_string_pretty(&keybindings).map_err(|e| e.to_string())?;
-    fs::write(&path, content).map_err(|e| e.to_string())
+    crate::application::persistence::save_keybindings(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &keybindings,
+    )
 }
 
 #[tauri::command]
@@ -6376,7 +4730,10 @@ pub(crate) fn reject_if_would_create_cycle(
             None => return Ok(()),
         }
     }
-    Err("Connection-group tree is deeper than the number of groups; refusing to modify it".to_string())
+    Err(
+        "Connection-group tree is deeper than the number of groups; refusing to modify it"
+            .to_string(),
+    )
 }
 
 #[tauri::command]
@@ -6400,8 +4757,11 @@ pub async fn delete_connection_group<R: Runtime>(
     let to_delete = crate::models::collect_group_subtree(&file.groups, &id);
 
     file.groups.retain(|g| !to_delete.contains(&g.id));
-    file.connections
-        .retain(|c| !c.group_id.as_ref().is_some_and(|gid| to_delete.contains(gid)));
+    file.connections.retain(|c| {
+        !c.group_id
+            .as_ref()
+            .is_some_and(|gid| to_delete.contains(gid))
+    });
 
     save_connections_and_invalidate(&app, &path, &file)?;
 
@@ -6476,28 +4836,12 @@ pub async fn get_server_now<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<String, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let query = match saved_conn.params.driver.as_str() {
-        "sqlite" => "SELECT datetime('now', 'localtime')",
-        _ => "SELECT NOW()",
-    };
-
-    let drv = driver_for_params(&params).await?;
-    let result = drv.execute_query(&params, query, Some(1), 1, None).await?;
-
-    result
-        .rows
-        .first()
-        .and_then(|row| row.first())
-        .map(|v| match v {
-            serde_json::Value::String(s) => s.clone(),
-            other => other.to_string(),
-        })
-        .ok_or_else(|| "No timestamp returned from server".to_string())
+    crate::application::queries::get_server_now(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        connection_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -6506,114 +4850,12 @@ pub async fn export_connections_payload<R: Runtime>(
     include_secrets: Option<bool>,
     connection_ids: Option<Vec<String>>,
 ) -> Result<ExportPayload, String> {
-    let include_secrets = include_secrets.unwrap_or(true);
-    let conn_path = get_config_path(&app)?;
-    let ssh_path = get_ssh_config_path(&app)?;
-
-    let mut conn_file = persistence::load_connections_file(&conn_path)?;
-    let mut ssh_connections = if ssh_path.exists() {
-        let content = fs::read_to_string(&ssh_path).map_err(|e| e.to_string())?;
-        serde_json::from_str::<Vec<SshConnection>>(&content).unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-    let mut k8s_connections = load_k8s_connections_sync(&app)?;
-
-    // When a selection is provided, keep only the selected connections (of any
-    // kind) plus the group chains needed to preserve their hierarchy. Done
-    // before password resolution so unselected credentials never leave the
-    // keychain.
-    if let Some(ids) = &connection_ids {
-        let selected: std::collections::HashSet<&str> =
-            ids.iter().map(String::as_str).collect();
-        conn_file
-            .connections
-            .retain(|c| selected.contains(c.id.as_str()));
-        ssh_connections.retain(|s| selected.contains(s.id.as_str()));
-        k8s_connections.retain(|k| selected.contains(k.id.as_str()));
-        let kept_groups = crate::models::collect_group_ancestors(
-            &conn_file.groups,
-            conn_file
-                .connections
-                .iter()
-                .filter_map(|c| c.group_id.as_deref()),
-        );
-        conn_file.groups.retain(|g| kept_groups.contains(&g.id));
-        // Same for tags: only export the ones the selection actually uses.
-        let kept_tags: std::collections::HashSet<String> = conn_file
-            .connections
-            .iter()
-            .flat_map(|c| c.tag_ids.iter().flatten())
-            .cloned()
-            .collect();
-        conn_file.tags.retain(|t| kept_tags.contains(&t.id));
-    }
-
-    let cache = app
-        .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
-        .inner()
-        .clone();
-
-    // Resolve passwords for database connections
-    for conn in &mut conn_file.connections {
-        if !include_secrets {
-            // Strip any secrets that may already live in the connections file
-            conn.params.password = None;
-            conn.params.ssh_password = None;
-            conn.params.ssh_key_passphrase = None;
-            conn.params.connection_uri = None;
-            continue;
-        }
-        if conn.params.save_in_keychain.unwrap_or(false) {
-            // Without this the export carries the marker but not the URI, and
-            // restoring elsewhere yields a connection that cannot resolve it.
-            if let Ok(Some(uri)) =
-                credential_cache::get_connection_uri_cached(&cache, &conn.id, true)
-            {
-                conn.params.connection_uri = Some(uri);
-            }
-            if let Ok(pwd) = credential_cache::get_db_password_cached(&cache, &conn.id) {
-                conn.params.password = Some(pwd);
-            }
-            if conn.params.ssh_enabled.unwrap_or(false) {
-                if let Ok(ssh_pwd) = credential_cache::get_ssh_password_cached(&cache, &conn.id) {
-                    conn.params.ssh_password = Some(ssh_pwd);
-                }
-                if let Ok(ssh_passphrase) =
-                    credential_cache::get_ssh_key_passphrase_cached(&cache, &conn.id)
-                {
-                    conn.params.ssh_key_passphrase = Some(ssh_passphrase);
-                }
-            }
-        }
-    }
-
-    // Resolve passwords for SSH connections
-    for ssh in &mut ssh_connections {
-        if !include_secrets {
-            ssh.password = None;
-            ssh.key_passphrase = None;
-            continue;
-        }
-        if ssh.save_in_keychain.unwrap_or(false) {
-            if let Ok(pwd) = credential_cache::get_ssh_password_cached(&cache, &ssh.id) {
-                ssh.password = Some(pwd);
-            }
-            if let Ok(passphrase) = credential_cache::get_ssh_key_passphrase_cached(&cache, &ssh.id)
-            {
-                ssh.key_passphrase = Some(passphrase);
-            }
-        }
-    }
-
-    Ok(ExportPayload {
-        version: 1,
-        groups: conn_file.groups,
-        connections: conn_file.connections,
-        ssh_connections,
-        k8s_connections,
-        tags: conn_file.tags,
-    })
+    crate::application::connection_files::export_payload(
+        app.state::<crate::runtime::RuntimeContext>().inner(),
+        include_secrets.unwrap_or(true),
+        connection_ids,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -6649,148 +4891,15 @@ pub async fn apply_export_payload<R: Runtime>(
     app: AppHandle<R>,
     payload: ExportPayload,
 ) -> Result<(), String> {
-    let conn_path = get_config_path(&app)?;
-    let ssh_path = get_ssh_config_path(&app)?;
-
-    let mut current_file = persistence::load_connections_file(&conn_path).unwrap_or_default();
-    let mut current_ssh = if ssh_path.exists() {
-        let content = fs::read_to_string(&ssh_path).map_err(|e| e.to_string())?;
-        serde_json::from_str::<Vec<SshConnection>>(&content).unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-
-    let cache = app
-        .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
-        .inner()
-        .clone();
-
-    // Merge groups (preserves hierarchy; demotes orphaned parent_ids to root)
-    merge_groups(&mut current_file.groups, payload.groups);
-
-    // Merge tags (import wins on id collision, name matches are unified onto
-    // the existing tag) and remap the imported connections' tag_ids so
-    // name-merged tags keep resolving.
-    let tag_remap =
-        crate::connection_tags::merge_imported_tags(&mut current_file.tags, payload.tags);
-    let mut payload_connections = payload.connections;
-    if !tag_remap.is_empty() {
-        // Existing connections may reference a tag id that the merge unified
-        // onto another tag, so the remap applies to both sides.
-        for conn in payload_connections
-            .iter_mut()
-            .chain(current_file.connections.iter_mut())
-        {
-            if let Some(tag_ids) = &mut conn.tag_ids {
-                let mut seen = std::collections::HashSet::new();
-                *tag_ids = tag_ids
-                    .iter()
-                    .map(|id| tag_remap.get(id).unwrap_or(id).clone())
-                    .filter(|id| seen.insert(id.clone()))
-                    .collect();
-            }
-        }
-    }
-
-    // Environments come from an external file: normalize instead of failing
-    // the whole import — an unknown tier just becomes "unclassified".
-    for conn in &mut payload_connections {
-        conn.environment = validate_environment(conn.environment.take()).unwrap_or(None);
-    }
-
-    // Merge connections and handle passwords
-    for mut new_conn in payload_connections {
-        // An imported payload is untrusted input and may carry an inline URI.
-        // Hold it to the same rule as a save: keychain or nothing.
-        validate_connection_uri_persistence(&new_conn.params)?;
-
-        // Handle passwords in keychain
-        if new_conn.params.save_in_keychain.unwrap_or(false) {
-            if let Some(uri) = runtime_connection_uri(&new_conn.params) {
-                let uri = uri.to_string();
-                keychain_utils::set_connection_uri(&new_conn.id, &uri)?;
-                credential_cache::set_connection_uri_cached(&cache, &new_conn.id, &uri);
-            }
-            if let Some(pwd) = &new_conn.params.password {
-                keychain_utils::set_db_password(&new_conn.id, pwd)?;
-                credential_cache::set_db_password_cached(&cache, &new_conn.id, pwd);
-            }
-            if new_conn.params.ssh_enabled.unwrap_or(false) {
-                if let Some(ssh_pwd) = &new_conn.params.ssh_password {
-                    keychain_utils::set_ssh_password(&new_conn.id, ssh_pwd)?;
-                    credential_cache::set_ssh_password_cached(&cache, &new_conn.id, ssh_pwd);
-                }
-                if let Some(ssh_passphrase) = &new_conn.params.ssh_key_passphrase {
-                    keychain_utils::set_ssh_key_passphrase(&new_conn.id, ssh_passphrase)?;
-                    credential_cache::set_ssh_key_passphrase_cached(
-                        &cache,
-                        &new_conn.id,
-                        ssh_passphrase,
-                    );
-                }
-            }
-            // Clear passwords from struct before saving to disk
-            new_conn.params.password = None;
-            new_conn.params.ssh_password = None;
-            new_conn.params.ssh_key_passphrase = None;
-        }
-
-        // The URI never reaches disk: it is either in the keychain by now, or
-        // `validate_connection_uri_persistence` rejected the payload above.
-        let imported_uri_in_keychain = runtime_connection_uri(&new_conn.params).is_some();
-        new_conn.params = params_for_persistence(&new_conn.params, imported_uri_in_keychain);
-
-        if let Some(existing) = current_file
-            .connections
-            .iter_mut()
-            .find(|c| c.id == new_conn.id)
-        {
-            *existing = new_conn;
-        } else {
-            current_file.connections.push(new_conn);
-        }
-    }
-
-    // Merge SSH connections and handle passwords
-    for mut new_ssh in payload.ssh_connections {
-        if new_ssh.save_in_keychain.unwrap_or(false) {
-            if let Some(pwd) = &new_ssh.password {
-                keychain_utils::set_ssh_password(&new_ssh.id, pwd)?;
-                credential_cache::set_ssh_password_cached(&cache, &new_ssh.id, pwd);
-            }
-            if let Some(passphrase) = &new_ssh.key_passphrase {
-                keychain_utils::set_ssh_key_passphrase(&new_ssh.id, passphrase)?;
-                credential_cache::set_ssh_key_passphrase_cached(&cache, &new_ssh.id, passphrase);
-            }
-            // Clear passwords from struct before saving to disk
-            new_ssh.password = None;
-            new_ssh.key_passphrase = None;
-        }
-
-        if let Some(existing) = current_ssh.iter_mut().find(|s| s.id == new_ssh.id) {
-            *existing = new_ssh;
-        } else {
-            current_ssh.push(new_ssh);
-        }
-    }
-
-    // Save files
-    save_connections_and_invalidate(&app, &conn_path, &current_file)?;
-    let ssh_json = serde_json::to_string_pretty(&current_ssh).map_err(|e| e.to_string())?;
-    fs::write(ssh_path, ssh_json).map_err(|e| e.to_string())?;
-
-    // Merge K8s connections
-    let k8s_path = get_k8s_config_path(&app)?;
-    let mut current_k8s = load_k8s_connections_sync(&app)?;
-    for new_k8s in payload.k8s_connections {
-        if let Some(existing) = current_k8s.iter_mut().find(|k| k.id == new_k8s.id) {
-            *existing = new_k8s;
-        } else {
-            current_k8s.push(new_k8s);
-        }
-    }
-    let k8s_json = serde_json::to_string_pretty(&current_k8s).map_err(|e| e.to_string())?;
-    fs::write(k8s_path, k8s_json).map_err(|e| e.to_string())?;
-
-    Ok(())
+    crate::application::connection_files::apply_export_payload(
+        app.state::<crate::runtime::RuntimeContext>().inner(),
+        app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>()
+            .inner()
+            .as_ref(),
+        app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
+            .inner()
+            .as_ref(),
+        payload,
+    )
+    .await
 }

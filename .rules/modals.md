@@ -4,8 +4,8 @@ This document defines the standard styling and structural patterns for all modal
 
 ## File Location
 
-- **Primary location**: `src/components/modals/*.tsx` - for standalone modals
-- **Secondary location**: `src/components/ui/*.tsx` - when modal is part of a larger UI component set
+- **Primary location**: `packages/web-ui/src/components/modals/*.tsx` - for standalone modals
+- **Secondary location**: `packages/web-ui/src/components/ui/*.tsx` - when modal is part of a larger UI component set
 
 ## Component Structure
 

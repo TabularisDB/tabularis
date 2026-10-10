@@ -1,0 +1,29 @@
+name: tabularis-web-e2e
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: tabularis-e2e
+      POSTGRES_DB: tabularis_e2e
+    ports:
+      - "45432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tabularis_e2e"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: tabularis-e2e
+      MYSQL_DATABASE: tabularis_e2e
+    ports:
+      - "43306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-ptabularis-e2e"]
+      interval: 2s
+      timeout: 3s
+      retries: 45

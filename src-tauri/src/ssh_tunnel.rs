@@ -111,7 +111,7 @@ impl SshTunnel {
         remote_host: &str,
         remote_port: u16,
     ) -> Result<Self, String> {
-        Self::new_with_tcp_override(
+        Self::new_with_askpass(
             ssh_host,
             ssh_port,
             ssh_user,
@@ -123,13 +123,16 @@ impl SshTunnel {
             remote_port,
             None,
             None,
+            None,
         )
     }
 
-    /// Like [`Self::new`], but optionally dials `tcp_host:tcp_port` instead of
-    /// `ssh_host:ssh_port` (used when an HTTP/SOCKS proxy forward is in front
-    /// of the bastion). Host-key checks still use the logical `ssh_host`.
-    pub fn new_with_tcp_override(
+    /// Like [`Self::new`], but with an optional askpass bridge for interactive
+    /// passphrase prompts and an optional `tcp_host:tcp_port` to dial instead
+    /// of `ssh_host:ssh_port` (used when an HTTP/SOCKS proxy forward is in
+    /// front of the bastion). Host-key checks still use the logical `ssh_host`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_askpass(
         ssh_host: &str,
         ssh_port: u16,
         ssh_user: &str,
@@ -139,6 +142,7 @@ impl SshTunnel {
         ssh_allow_passphrase_prompt: bool,
         remote_host: &str,
         remote_port: u16,
+        askpass_server: Option<crate::askpass::AskpassServer>,
         tcp_host: Option<&str>,
         tcp_port: Option<u16>,
     ) -> Result<Self, String> {
@@ -172,6 +176,7 @@ impl SshTunnel {
                 remote_host,
                 remote_port,
                 local_port,
+                askpass_server,
                 connect_host,
                 connect_port,
             ) {
@@ -236,6 +241,7 @@ impl SshTunnel {
         remote_host: &str,
         remote_port: u16,
         local_port: u16,
+        askpass_server: Option<crate::askpass::AskpassServer>,
         connect_host: &str,
         connect_port: u16,
     ) -> Result<Self, String> {
@@ -300,6 +306,7 @@ impl SshTunnel {
             ssh_password,
             ssh_key_file,
             ssh_key_passphrase,
+            askpass_server,
         )?;
 
         let mut child = command.spawn().map_err(|e| {
@@ -619,6 +626,28 @@ pub fn test_ssh_connection(
     ssh_key_passphrase: Option<&str>,
     ssh_allow_passphrase_prompt: bool,
 ) -> Result<String, String> {
+    test_ssh_connection_with_askpass(
+        ssh_host,
+        ssh_port,
+        ssh_user,
+        ssh_password,
+        ssh_key_file,
+        ssh_key_passphrase,
+        ssh_allow_passphrase_prompt,
+        None,
+    )
+}
+
+pub fn test_ssh_connection_with_askpass(
+    ssh_host: &str,
+    ssh_port: u16,
+    ssh_user: &str,
+    ssh_password: Option<&str>,
+    ssh_key_file: Option<&str>,
+    ssh_key_passphrase: Option<&str>,
+    ssh_allow_passphrase_prompt: bool,
+    askpass_server: Option<crate::askpass::AskpassServer>,
+) -> Result<String, String> {
     let use_system_ssh = should_use_system_ssh(ssh_password, ssh_key_file);
     eprintln!(
         "[SSH Test] Testing connection to {}:{} as {} (UseSystemSSH={}, AllowPrompt={})",
@@ -634,6 +663,7 @@ pub fn test_ssh_connection(
             ssh_key_file,
             ssh_key_passphrase,
             ssh_allow_passphrase_prompt,
+            askpass_server,
         ) {
             Err(e) if should_fall_back_to_russh(&e, ssh_password, ssh_key_passphrase) => {
                 eprintln!(
@@ -672,6 +702,7 @@ fn test_ssh_connection_system(
     ssh_key_file: Option<&str>,
     ssh_key_passphrase: Option<&str>,
     ssh_allow_passphrase_prompt: bool,
+    askpass_server: Option<crate::askpass::AskpassServer>,
 ) -> Result<String, String> {
     eprintln!("[SSH Test] Using system SSH (supports ~/.ssh/config)");
 
@@ -721,6 +752,7 @@ fn test_ssh_connection_system(
         ssh_password,
         ssh_key_file,
         ssh_key_passphrase,
+        askpass_server,
     )?;
 
     let output = command.output().map_err(|e| {
@@ -879,6 +911,7 @@ fn configure_askpass(
     ssh_password: Option<&str>,
     ssh_key_file: Option<&str>,
     ssh_key_passphrase: Option<&str>,
+    askpass_server: Option<crate::askpass::AskpassServer>,
 ) -> Result<Option<crate::askpass::AskpassServer>, String> {
     let password = ssh_password.filter(|p| !p.trim().is_empty());
     let key_passphrase = ssh_key_passphrase.filter(|p| !p.trim().is_empty());
@@ -892,7 +925,10 @@ fn configure_askpass(
         key_path: key_path.map(str::to_string),
         allow_ui: ssh_allow_passphrase_prompt,
     };
-    match crate::askpass::start_frontend_server_with(options) {
+    let server = askpass_server
+        .map(Ok)
+        .unwrap_or_else(|| crate::askpass::start_frontend_server_with(options));
+    match server {
         Ok(server) => {
             server.configure_command(command)?;
             eprintln!(

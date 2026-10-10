@@ -1,0 +1,35 @@
+{
+  "name": "e2e-driver",
+  "version": "1.0.0",
+  "description": "Deterministic external driver used by the browser E2E matrix.",
+  "default_port": null,
+  "executable": "driver.py",
+  "interpreter": "python3",
+  "default_username": "",
+  "color": "#7c3aed",
+  "icon": "database",
+  "capabilities": {
+    "schemas": false,
+    "views": false,
+    "routines": false,
+    "file_based": false,
+    "folder_based": false,
+    "connection_string": false,
+    "identifier_quote": "\"",
+    "sql_dialect": "generic",
+    "alter_primary_key": false,
+    "alter_column": false,
+    "create_foreign_keys": false,
+    "no_connection_required": true,
+    "manage_tables": false,
+    "readonly": true
+  },
+  "data_types": [
+    {
+      "name": "TEXT",
+      "category": "string",
+      "requires_length": false,
+      "requires_precision": false
+    }
+  ]
+}
