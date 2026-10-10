@@ -221,12 +221,10 @@ async fn parity_get_columns_character_max_length() {
         .iter()
         .find(|c| c.get("name").and_then(|n| n.as_str()) == Some("col_varchar"))
         .expect("col_varchar should exist");
-    // KNOWN BEHAVIOR: The PG driver does NOT populate character_maximum_length.
-    // The plugin MUST match this exact behavior (return None/null).
-    assert!(
-        varchar_col.get("character_maximum_length").is_none()
-            || varchar_col.get("character_maximum_length") == Some(&Value::Null),
-        "Built-in PG driver returns None for character_maximum_length (known limitation)"
+    assert_eq!(
+        varchar_col.get("character_maximum_length"),
+        Some(&serde_json::Value::from(255)),
+        "PG driver returns character_maximum_length for varchar(n)"
     );
 
     let text_col = arr

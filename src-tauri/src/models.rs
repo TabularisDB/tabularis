@@ -456,6 +456,14 @@ pub struct TableColumn {
     pub default_value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub character_maximum_length: Option<u64>,
+    /// Number of significant digits for numeric/decimal types (radix-10).
+    /// Populated by drivers from information_schema.numeric_precision (#840).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub numeric_precision: Option<i32>,
+    /// Number of digits after the decimal point for numeric/decimal types.
+    /// Populated by drivers from information_schema.numeric_scale (#840).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub numeric_scale: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
 }
@@ -468,6 +476,12 @@ pub struct ForeignKey {
     pub ref_column: String,
     pub on_delete: Option<String>,
     pub on_update: Option<String>,
+    /// 1-based position of this column within its (possibly composite) foreign
+    /// key constraint. The backend reports one row per column of a composite FK
+    /// that share the same `name`; `seq_in_fk` preserves key order so the SQL
+    /// generator can group rows into one multi-column `FOREIGN KEY` clause (#840).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seq_in_fk: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
