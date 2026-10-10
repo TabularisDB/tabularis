@@ -35,6 +35,8 @@ interface TableToolbarProps {
   placeholderSort: string;
   defaultLimit: number;
   columnMetadata?: TableColumn[];
+  /** Active table for plugin slot context (`data-grid.toolbar.actions`). */
+  tableName?: string | null;
   onUpdate: (filter: string, sort: string, limit: number | undefined) => void;
   onRefresh?: () => void;
   refreshDisabled?: boolean;
@@ -68,6 +70,7 @@ const TableToolbarInternal = ({
   placeholderSort,
   defaultLimit,
   columnMetadata,
+  tableName = null,
   panelOpen,
   onPanelOpenChange,
   structuredFilters,
@@ -87,7 +90,7 @@ const TableToolbarInternal = ({
   autoRefreshPausedReason = "editing",
 }: TableToolbarInternalProps) => {
   const { t } = useTranslation();
-  const { activeDriver, activeCapabilities } = useDatabase();
+  const { activeDriver, activeCapabilities, activeConnectionId, activeSchema } = useDatabase();
   const autoRefreshActive = autoRefreshIntervalMs > 0;
   // Capability-driven when available (issue #614): a postgres-compatible
   // driver registered under a different id (e.g. a standalone PostgreSQL
@@ -617,7 +620,12 @@ const TableToolbarInternal = ({
         {/* Plugin extension slot */}
         <SlotAnchor
           name="data-grid.toolbar.actions"
-          context={{}}
+          context={{
+            connectionId: activeConnectionId,
+            tableName: tableName ?? null,
+            schema: activeSchema,
+            driver: activeDriver,
+          }}
           className="flex items-center gap-1"
         />
       </div>

@@ -25,7 +25,7 @@ describe("SlotAnchor", () => {
     const { container } = render(
       <SettingsContext.Provider value={settingsValue}>
         <PluginSlotProvider>
-          <SlotAnchor name="sidebar.footer.actions" context={{}} />
+          <SlotAnchor name="sidebar.footer.actions" context={{ connectionId: null, driver: null }} />
         </PluginSlotProvider>
       </SettingsContext.Provider>,
     );
@@ -35,7 +35,7 @@ describe("SlotAnchor", () => {
 
   it("should render nothing when outside provider", () => {
     const { container } = render(
-      <SlotAnchor name="sidebar.footer.actions" context={{}} />,
+      <SlotAnchor name="sidebar.footer.actions" context={{ connectionId: null, driver: null }} />,
     );
 
     expect(container.innerHTML).toBe("");
@@ -58,7 +58,7 @@ describe("SlotAnchor", () => {
 
     render(
       <PluginSlotContext.Provider value={mockRegistry}>
-        <SlotAnchor name="sidebar.footer.actions" context={{}} />
+        <SlotAnchor name="sidebar.footer.actions" context={{ connectionId: null, driver: null }} />
       </PluginSlotContext.Provider>,
     );
 
@@ -78,7 +78,7 @@ describe("SlotAnchor", () => {
 
     render(
       <PluginSlotContext.Provider value={mockRegistry}>
-        <SlotAnchor name="sidebar.footer.actions" context={{}} />
+        <SlotAnchor name="sidebar.footer.actions" context={{ connectionId: null, driver: null }} />
       </PluginSlotContext.Provider>,
     );
 
@@ -100,7 +100,7 @@ describe("SlotAnchor", () => {
 
     render(
       <PluginSlotContext.Provider value={mockRegistry}>
-        <SlotAnchor name="data-grid.toolbar.actions" context={{}} className="test-class" />
+        <SlotAnchor name="data-grid.toolbar.actions" context={{ connectionId: null, tableName: null, schema: null, driver: null }} className="test-class" />
       </PluginSlotContext.Provider>,
     );
 
