@@ -910,6 +910,22 @@ describe('CTE and derived table completion integration', () => {
     expect(invoke).not.toHaveBeenCalledWith('get_columns', expect.anything());
   });
 
+  it('completes SQL Server bracket-quoted aliases containing escaped brackets', async () => {
+    const monaco = createMockMonaco();
+    registerSqlAutocomplete(
+      monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+      'conn1', [],
+    );
+    const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+    const value = 'WITH [My]]CTE] AS (SELECT id, name AS label FROM t) SELECT [My]]CTE]. FROM [My]]CTE]';
+    const column = value.indexOf('[My]]CTE].') + '[My]]CTE].'.length + 1;
+    const suggestions = (await provider.provideCompletionItems(
+      createMockModel(value), { lineNumber: 1, column },
+    )).suggestions;
+    expect(suggestions.map((s: { label: string }) => s.label)).toEqual(['id', 'label']);
+    expect(invoke).not.toHaveBeenCalledWith('get_columns', expect.anything());
+  });
+
   it('completes a later FROM-derived alias in the SELECT list', async () => {
     const monaco = createMockMonaco();
     registerSqlAutocomplete(
