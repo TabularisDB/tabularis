@@ -915,6 +915,7 @@
       "refreshTable": "テーブルを更新",
       "extendCellRange": "セル範囲を拡張",
       "jumpToEdge": "グリッドの端へ移動",
+      "jumpToColumn": "列に移動",
       "extendCellRangeToEdge": "セル範囲を端まで拡張",
       "selectRow": "行を選択",
       "selectColumn": "列を選択"
@@ -1219,6 +1220,9 @@
     "useShownValue": "この値を使用"
   },
   "dataGrid": {
+    "jumpToColumn": "列に移動",
+    "searchColumns": "列を検索",
+    "noMatchingColumns": "一致する列がありません",
     "noRowIdentity": "行を編集できません: \"{{table}}\" には主キーがないため、編集には結果にテーブルの全列が含まれている必要があります。すべての列を選択する(例: SELECT *)か、主キーを追加してください。",
     "resizeRelatedPanel": "ドラッグしてパネルのサイズを変更",
     "keylessRowNotFound": "\"{{column}}\" の更新時に元の値に一致する行が見つかりませんでした。テーブルに主キーがなく、データが変更された可能性があります。再読み込みして再試行してください。",

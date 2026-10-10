@@ -929,6 +929,7 @@
       "formatSql": "I-format ang SQL",
       "extendCellRange": "Palawakin ang cell range",
       "jumpToEdge": "Tumalon sa gilid ng grid",
+      "jumpToColumn": "Pumunta sa kolum",
       "extendCellRangeToEdge": "Palawakin ang range hanggang sa gilid",
       "selectRow": "Piliin ang row",
       "selectColumn": "Piliin ang column",
@@ -1235,6 +1236,9 @@
     "useShownValue": "Gamitin ang value na ito"
   },
   "dataGrid": {
+    "jumpToColumn": "Pumunta sa kolum",
+    "searchColumns": "Maghanap ng mga kolum",
+    "noMatchingColumns": "Walang katugmang kolum",
     "noRowIdentity": "Hindi ma-edit ang mga row: walang primary key ang \"{{table}}\", kaya kailangang kasama sa resulta ang lahat ng column ng table. Piliin ang lahat ng column (hal. SELECT *) o magdagdag ng primary key.",
     "resizeRelatedPanel": "I-drag para baguhin ang laki ng panel",
     "keylessRowNotFound": "Walang row na tumugma sa mga orihinal na value habang ina-update ang \"{{column}}\". Walang primary key ang table at maaaring nagbago ang data — i-refresh at subukang muli.",
