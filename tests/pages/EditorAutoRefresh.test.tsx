@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   capabilities: { schemas: true, sql_dialect: "postgresql", identifier_quote: '"' },
   t: (key: string, options?: Record<string, unknown>) => key === "toolbar.autoRefresh.failed" ? String(options?.error) : key,
   notify: vi.fn().mockResolvedValue(undefined),
+  sqlOnChange: new Map<string, (value: string) => void>(),
 }));
 vi.mock("../../src/utils/queryNotification", () => ({ notifyQueryFinished: mocks.notify }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: mocks.t }) }));
@@ -55,7 +56,14 @@ vi.mock("../../src/components/ui/AiDropdownButton", () => ({ AiDropdownButton: (
 vi.mock("../../src/components/ui/MultiResultPanel", () => ({ MultiResultPanel: () => null }));
 vi.mock("../../src/components/ui/VisualQueryBuilder", () => ({ VisualQueryBuilder: () => null }));
 vi.mock("../../src/components/ui/ContextMenu", () => ({ ContextMenu: () => null }));
-vi.mock("../../src/components/ui/SqlEditorWrapper", () => ({ SqlEditorWrapper: () => null }));
+vi.mock("../../src/components/ui/SqlEditorWrapper", () => ({
+  SqlEditorWrapper: ({
+    editorKey, onChange,
+  }: { editorKey: string; onChange: (value: string) => void }) => {
+    mocks.sqlOnChange.set(editorKey, onChange);
+    return null;
+  },
+}));
 vi.mock("../../src/components/ui/RelatedRecordsPanel", () => ({ RelatedRecordsPanel: () => null }));
 vi.mock("../../src/components/notebook/NotebookView", () => ({ NotebookView: () => null }));
 vi.mock("../../src/components/users/UserManagementView", () => ({ UserManagementView: () => null }));
@@ -124,6 +132,30 @@ describe("table auto-refresh integration", () => {
       ? Promise.resolve({ ...initialResult, rows: [[2], [3]] }) : Promise.resolve([]));
   });
   afterEach(() => { vi.useRealTimers(); });
+
+  it("persists an editor callback emitted after its console tab becomes inactive", () => {
+    const consoleTab = (id: string, query: string): Tab => ({
+      ...initialTab(id),
+      type: "console",
+      query,
+      activeTable: null,
+      result: null,
+      isEditorOpen: true,
+      autoRefreshIntervalMs: 0,
+    });
+    render(<Harness initialTabs={[
+      consoleTab("console-a", "SELECT 1"),
+      consoleTab("console-b", "SELECT 2"),
+    ]} />);
+    // Monaco's buffered onChange may fire after the user selects another tab.
+    // It must update the originating tab, not be dropped or overwrite tab B.
+    act(() => context.setActiveTabId("console-b"));
+    const delayedCallback = mocks.sqlOnChange.get("console-a");
+    expect(delayedCallback).toBeDefined();
+    act(() => delayedCallback?.("SELECT 42"));
+    expect(context.tabs.find((tab) => tab.id === "console-a")?.query).toBe("SELECT 42");
+    expect(context.tabs.find((tab) => tab.id === "console-b")?.query).toBe("SELECT 2");
+  });
 
   it("keeps the mounted grid, both scroll offsets and query settings while refreshing", async () => {
     const request = deferred<QueryResult>();
