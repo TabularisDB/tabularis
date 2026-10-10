@@ -932,6 +932,7 @@
       "refreshTable": "Aggiorna tabella",
       "extendCellRange": "Estendi intervallo di celle",
       "jumpToEdge": "Salta al bordo della griglia",
+      "jumpToColumn": "Vai alla colonna",
       "extendCellRangeToEdge": "Estendi intervallo fino al bordo",
       "selectRow": "Seleziona riga",
       "selectColumn": "Seleziona colonna"
@@ -1240,6 +1241,9 @@
     "useShownValue": "Usa questo valore"
   },
   "dataGrid": {
+    "jumpToColumn": "Vai alla colonna",
+    "searchColumns": "Cerca colonne",
+    "noMatchingColumns": "Nessuna colonna corrispondente",
     "noRowIdentity": "Impossibile modificare le righe: \"{{table}}\" non ha una chiave primaria, quindi la modifica richiede che il risultato includa tutte le colonne della tabella. Seleziona tutte le colonne (es. SELECT *) o aggiungi una chiave primaria.",
     "resizeRelatedPanel": "Trascina per ridimensionare il pannello",
     "keylessRowNotFound": "Nessuna riga corrisponde ai valori originali durante l'aggiornamento di \"{{column}}\". La tabella non ha una chiave primaria e i dati potrebbero essere cambiati: aggiorna e riprova.",

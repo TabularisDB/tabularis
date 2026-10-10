@@ -915,6 +915,7 @@
       "refreshTable": "Atualizar tabela",
       "extendCellRange": "Estender intervalo de células",
       "jumpToEdge": "Ir para a borda da grade",
+      "jumpToColumn": "Ir para coluna",
       "extendCellRangeToEdge": "Estender intervalo até a borda",
       "selectRow": "Selecionar linha",
       "selectColumn": "Selecionar coluna"
@@ -1222,6 +1223,9 @@
     "useShownValue": "Usar este valor"
   },
   "dataGrid": {
+    "jumpToColumn": "Ir para coluna",
+    "searchColumns": "Buscar colunas",
+    "noMatchingColumns": "Nenhuma coluna correspondente",
     "noRowIdentity": "Não é possível editar as linhas: \"{{table}}\" não tem chave primária, então a edição exige que o resultado inclua todas as colunas da tabela. Selecione todas as colunas (ex.: SELECT *) ou adicione uma chave primária.",
     "resizeRelatedPanel": "Arraste para redimensionar o painel",
     "keylessRowNotFound": "Nenhuma linha correspondeu aos valores originais ao atualizar \"{{column}}\". A tabela não tem chave primária e os dados podem ter mudado: atualize e tente novamente.",

@@ -901,6 +901,7 @@
       "refreshTable": "Tabelle aktualisieren",
       "extendCellRange": "Zellbereich erweitern",
       "jumpToEdge": "Zum Rand des Rasters springen",
+      "jumpToColumn": "Zu Spalte springen",
       "extendCellRangeToEdge": "Zellbereich bis zum Rand erweitern",
       "selectRow": "Zeile auswählen",
       "selectColumn": "Spalte auswählen"
@@ -1206,6 +1207,9 @@
     "useShownValue": "Diesen Wert verwenden"
   },
   "dataGrid": {
+    "jumpToColumn": "Zu Spalte springen",
+    "searchColumns": "Spalten suchen",
+    "noMatchingColumns": "Keine passenden Spalten",
     "noRowIdentity": "Zeilen können nicht bearbeitet werden: \"{{table}}\" hat keinen Primärschlüssel, daher muss das Ergebnis alle Spalten der Tabelle enthalten. Wählen Sie alle Spalten aus (z. B. SELECT *) oder fügen Sie einen Primärschlüssel hinzu.",
     "resizeRelatedPanel": "Ziehen, um die Größe des Bereichs zu ändern",
     "keylessRowNotFound": "Beim Aktualisieren von \"{{column}}\" stimmte keine Zeile mit den ursprünglichen Werten überein. Die Tabelle hat keinen Primärschlüssel und die Daten haben sich möglicherweise geändert – aktualisieren und erneut versuchen.",
