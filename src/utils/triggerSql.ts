@@ -81,15 +81,31 @@ function qualifiedFunctionName(input: TriggerSqlInput): string {
   return `${prefix}${q(triggerFunctionName(input.name, input.tableName))}`;
 }
 
-/** PostgreSQL only: the trigger function `buildTriggerSql`'s statement references. */
+/**
+ * PostgreSQL only: the trigger function `buildTriggerSql`'s statement
+ * references. When the body already carries its own `DECLARE` block
+ * (preserved verbatim by `extractFunctionBody`, including the `BEGIN` that
+ * separates declarations from statements), it is NOT re-wrapped in a second
+ * `BEGIN` — PL/pgSQL allows exactly one `BEGIN` per function body, and a
+ * `DECLARE` after `BEGIN` is a syntax error (debba review, PR #822).
+ */
 export function buildTriggerFunctionSql(input: TriggerSqlInput): string {
-  return [
-    `CREATE OR REPLACE FUNCTION ${qualifiedFunctionName(input)}() RETURNS TRIGGER AS $$`,
-    `BEGIN`,
-    input.body,
-    `END;`,
-    `$$ LANGUAGE plpgsql;`,
-  ].join("\n");
+  const hasOwnDeclareBegin = /^\s*DECLARE\b/i.test(input.body);
+  const lines = hasOwnDeclareBegin
+    ? [
+        `CREATE OR REPLACE FUNCTION ${qualifiedFunctionName(input)}() RETURNS TRIGGER AS $$`,
+        input.body,
+        `END;`,
+        `$$ LANGUAGE plpgsql;`,
+      ]
+    : [
+        `CREATE OR REPLACE FUNCTION ${qualifiedFunctionName(input)}() RETURNS TRIGGER AS $$`,
+        `BEGIN`,
+        input.body,
+        `END;`,
+        `$$ LANGUAGE plpgsql;`,
+      ];
+  return lines.join("\n");
 }
 
 /**
@@ -106,43 +122,58 @@ export function buildTriggerFunctionSql(input: TriggerSqlInput): string {
  *   $function$
  * This returns the statements that the guided-mode body field holds — including
  * a `DECLARE` block when present — so the guided-save recreates the function with
- * its original logic (variables and all). The body runs from the `DECLARE` (or
- * `BEGIN` when there are no declarations) through the matching outer `END;`.
+ * its original logic (variables and all). When there's a `DECLARE` block, the
+ * body KEEPS the `BEGIN` keyword that follows it: that's the only marker of
+ * where declarations end and statements begin, and the boundary can't be
+ * reconstructed later from the statement text alone (an assignment like
+ * `n := n + 1;` looks identical whether it's inside DECLARE's scope or after
+ * it). `buildTriggerFunctionSql` detects a leading `DECLARE` and skips adding
+ * its own `BEGIN` wrapper, so the round-trip stays valid PL/pgSQL (debba
+ * review, PR #822 — a prior version stripped `BEGIN` unconditionally, which
+ * made `buildTriggerFunctionSql` reinsert a second one before `DECLARE`).
  *
  * Nesting is tracked because a function body can contain nested `BEGIN/END`
- * (e.g. inside a loop) and `END IF;`/`END LOOP;` clauses whose `END;`-adjacent
- * tokens the naive first-`END;` regex matched too early, truncating the body
- * (debba review, PR #822). `CASE ... END` and `LOOP ... END` are matched via a
- * depth counter on the `BEGIN` keyword and the standalone `END` that closes it.
+ * (e.g. inside a loop), `END IF;`/`END LOOP;` clauses, and `CASE` — both the
+ * *expression* form (`... := CASE WHEN ... END`, closed by a bare `END`,
+ * indistinguishable from the function's own closing `END` by keyword alone)
+ * and the *statement* form (`CASE WHEN ... END CASE;`). `BEGIN` and `CASE`
+ * both open a construct that increments one depth counter; a bare `END` or
+ * `END CASE` closes the innermost of either. `END IF`/`END LOOP` close their
+ * own IF/LOOP construct and are excluded entirely, since IF/LOOP are never
+ * counted as openers (debba review, PR #822 — a prior version's lookahead
+ * excluded `END CASE` from decrementing at all, which left the depth counter
+ * permanently inflated for the CASE *statement* form and truncated the body
+ * to `null`).
  */
 export function extractFunctionBody(fnDef: string): string | null {
-  // Locate the outermost BEGIN. A DECLARE block (optional) precedes it and must
-  // be preserved in the extracted body.
+  // Locate the outermost BEGIN. A DECLARE block (optional) precedes it.
   const declareMatch = fnDef.match(/\bDECLARE\b/);
   const beginMatch = fnDef.match(/\bBEGIN\b/);
   if (!beginMatch || beginMatch.index === undefined) return null;
 
-  // Start from DECLARE if it appears before BEGIN; otherwise start at BEGIN's
-  // body (after the BEGIN keyword itself).
-  const start = declareMatch && declareMatch.index !== undefined && declareMatch.index < beginMatch.index
-    ? declareMatch.index
-    : beginMatch.index + beginMatch[0].length;
+  const hasDeclare =
+    declareMatch !== null && declareMatch.index !== undefined && declareMatch.index < beginMatch.index;
+  // When DECLARE is present, start there and keep the BEGIN keyword in the
+  // extracted body (see the function doc comment for why). Otherwise start
+  // just after BEGIN, as before.
+  const start = hasDeclare ? declareMatch.index : beginMatch.index + beginMatch[0].length;
 
-  // Walk the string from the outer BEGIN, counting BEGIN/END depth so nested
-  // blocks don't close the function early. In PL/pgSQL, only a bare `END;`
-  // closes a `BEGIN` block — `END IF;`, `END CASE;`, and `END LOOP;` close
-  // IF/CASE/LOOP constructs and must NOT decrement the BEGIN/END depth. So we
-  // match BEGIN always, but END only when NOT followed by IF/CASE/LOOP.
+  // Walk the string from the outer BEGIN, counting depth so nested blocks
+  // don't close the function early. BEGIN and CASE both open a construct a
+  // bare END or END CASE closes; END IF/END LOOP close IF/LOOP (never
+  // counted as openers) and are excluded entirely.
   let depth = 0;
   let end = -1;
   const tail = fnDef.slice(beginMatch.index);
-  const keyword = /\bBEGIN\b|\bEND\b(?!\s+(?:IF|CASE|LOOP)\b)/gi;
+  const keyword = /\bBEGIN\b|\bCASE\b|\bEND\s+CASE\b|\bEND\b(?!\s+(?:IF|LOOP|CASE)\b)/gi;
   let m: RegExpExecArray | null;
   while ((m = keyword.exec(tail)) !== null) {
-    if (m[0].toUpperCase() === "BEGIN") {
+    const token = m[0].toUpperCase().replace(/\s+/g, " ");
+    if (token === "BEGIN" || token === "CASE") {
       depth += 1;
     } else {
-      // A bare END — closes one BEGIN. The function body ends at depth 0.
+      // A bare END or END CASE — closes the innermost BEGIN or CASE. The
+      // function body ends when this returns the depth to 0.
       depth -= 1;
       if (depth === 0) {
         end = beginMatch.index + m.index;
@@ -153,11 +184,11 @@ export function extractFunctionBody(fnDef: string): string | null {
   if (end === -1) return null;
 
   // The body spans from the start (DECLARE, or just after BEGIN) up to the
-  // matching END. When a DECLARE block is present the slice includes the
-  // `BEGIN` keyword that separates declarations from statements — remove
-  // just that line so the body field holds declarations + statements, not
-  // the wrapper, preserving the indentation of the statements that follow.
-  const body = fnDef.slice(start, end).replace(/^[ \t]*BEGIN[ \t]*\r?\n/m, "").trim();
+  // matching END. Without a DECLARE block, the slice already starts after
+  // BEGIN (no wrapper to strip). With one, the slice includes the BEGIN that
+  // separates declarations from statements — kept verbatim, since
+  // buildTriggerFunctionSql detects it and skips adding its own BEGIN.
+  const body = fnDef.slice(start, end).trim();
   return body || null;
 }
 

@@ -167,9 +167,15 @@ $function$`;
       expect(extractFunctionBody("CREATE FUNCTION fn() RETURNS void AS $$ $$ LANGUAGE sql")).toBeNull();
     });
 
-    it("preserves a DECLARE block before BEGIN (debba review, PR #822)", () => {
+    it("preserves a DECLARE block, keeping the BEGIN that follows it (debba review, PR #822)", () => {
       // pg_get_functiondef includes DECLARE for functions with local variables.
       // The naive first-BEGIN slice dropped it, losing the declarations on save.
+      // The BEGIN that separates DECLARE from the statements is kept verbatim —
+      // it's the only marker of that boundary, and buildTriggerFunctionSql
+      // detects a leading DECLARE and skips adding its own BEGIN, so the
+      // round-trip stays valid PL/pgSQL (a prior version stripped BEGIN here
+      // unconditionally, which made buildTriggerFunctionSql reinsert a second
+      // BEGIN before DECLARE — a syntax error).
       const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
   RETURNS trigger
   LANGUAGE plpgsql
@@ -182,7 +188,14 @@ BEGIN
 END;
 $function$`;
       const body = extractFunctionBody(fnDef);
-      expect(body).toBe(`DECLARE\n  n integer := 0;\n  n := n + 1;\n  RETURN NEW;`);
+      expect(body).toBe(`DECLARE\n  n integer := 0;\nBEGIN\n  n := n + 1;\n  RETURN NEW;`);
+
+      // The round-trip through buildTriggerFunctionSql must be valid: exactly
+      // one BEGIN, immediately after DECLARE, never a second one before it.
+      const rebuilt = buildTriggerFunctionSql({ ...base, body: body! });
+      expect(rebuilt).toContain("DECLARE\n  n integer := 0;\nBEGIN\n  n := n + 1;");
+      expect(rebuilt).not.toMatch(/BEGIN[\s\S]*DECLARE/);
+      expect((rebuilt.match(/\bBEGIN\b/g) ?? []).length).toBe(1);
     });
 
     it("stops at the matching outer END;, not a nested IF/CASE END (debba review, PR #822)", () => {
@@ -201,6 +214,53 @@ END;
 $function$`;
       const body = extractFunctionBody(fnDef);
       expect(body).toBe(`IF NEW.amount < 0 THEN\n    NEW.note := 'negative';\n  END IF;\n  RETURN NEW;`);
+    });
+
+    it("does not truncate on a CASE *expression*'s bare END (debba review, PR #822)", () => {
+      // NEW.status := CASE WHEN ... END; closes with a bare END, which is
+      // indistinguishable from the function's own closing END by keyword
+      // alone — a prior version's depth counter treated it as the function's
+      // own END and dropped everything after it (here, "RETURN NEW;").
+      const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
+  RETURNS trigger
+  LANGUAGE plpgsql
+AS $function$
+BEGIN
+  NEW.status := CASE WHEN NEW.amount < 0 THEN 'negative' ELSE 'positive' END;
+  RETURN NEW;
+END;
+$function$`;
+      const body = extractFunctionBody(fnDef);
+      expect(body).toBe(
+        `NEW.status := CASE WHEN NEW.amount < 0 THEN 'negative' ELSE 'positive' END;\n  RETURN NEW;`,
+      );
+    });
+
+    it("handles the CASE *statement* form (END CASE;), including trailing statements", () => {
+      // CASE WHEN ... END CASE; is the statement form. A prior version
+      // excluded END CASE from decrementing the depth counter at all, which
+      // left it permanently inflated for this form and returned null instead
+      // of the body.
+      const fnDef = `CREATE OR REPLACE FUNCTION review.trg_audit_fn()
+  RETURNS trigger
+  LANGUAGE plpgsql
+AS $function$
+BEGIN
+  CASE
+    WHEN NEW.amount < 0 THEN NEW.note := 'negative';
+    ELSE NEW.note := 'positive';
+  END CASE;
+  NEW.checked := true;
+  RETURN NEW;
+END;
+$function$`;
+      const body = extractFunctionBody(fnDef);
+      expect(body).not.toBeNull();
+      expect(body).toContain("WHEN NEW.amount < 0 THEN NEW.note := 'negative';");
+      expect(body).toContain("END CASE;");
+      expect(body).toContain("NEW.checked := true;");
+      expect(body).toContain("RETURN NEW;");
+      expect(body).not.toMatch(/^END;$/m);
     });
 
     it("handles multiple nested BEGIN/END blocks (loop bodies) at the correct depth", () => {
