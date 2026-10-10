@@ -8,10 +8,10 @@ import { useAlert } from "../hooks/useAlert";
 import { useToast } from "../hooks/useToast";
 import { copyTextToClipboard } from "../utils/clipboard";
 import {
-  RESULTS_SYNC_EVENT,
   RESULTS_ACTION_EVENT,
   RESULTS_READY_EVENT,
-  RESULTS_COPY_EVENT,
+  resultsCopyEvent,
+  resultsSyncEvent,
   applyCopyResult,
   hasMultiResults,
   singleResultToEntry,
@@ -23,7 +23,7 @@ import {
 /**
  * Detached query-results window, bound to a single editor tab (its id comes from
  * the `?tab=` query param). It renders that tab's results (pushed from the main
- * window via {@link RESULTS_SYNC_EVENT}, filtered by `tabId`) and forwards user
+ * window via {@link resultsSyncEvent}) and forwards user
  * actions back, tagged with its `tabId`. The main window owns all query/DB
  * logic; this window holds no query state of its own.
  */
@@ -39,10 +39,8 @@ export const ResultsWindowPage = () => {
   useEffect(() => {
     if (!tabId) return;
     const unlistenPromise = listen<ResultsSyncPayload>(
-      RESULTS_SYNC_EVENT,
-      (event) => {
-        if (event.payload.tabId === tabId) setPayload(event.payload);
-      },
+      resultsSyncEvent(tabId),
+      (event) => setPayload(event.payload),
     );
     // Ask the main window to send this tab's current state now that we're mounted.
     emit(RESULTS_READY_EVENT, { tabId });
@@ -61,9 +59,9 @@ export const ResultsWindowPage = () => {
         kind: "error",
       });
     const unlistenPromise = listen<ResultsCopyPayload>(
-      RESULTS_COPY_EVENT,
+      resultsCopyEvent(tabId),
       (event) =>
-        applyCopyResult(event.payload, tabId, {
+        applyCopyResult(event.payload, {
           onCopied: ({ text, count }) =>
             copyTextToClipboard(text)
               .then(() =>

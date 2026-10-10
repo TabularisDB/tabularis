@@ -5,11 +5,14 @@ import {
   singleResultToEntry,
   applyAction,
   applyCopyResult,
+  resultsCopyEvent,
+  resultsSyncEvent,
   SINGLE_RESULT_ENTRY_ID,
   type ResultsDisplaySettings,
   type ResultsWindowActionHandlers,
   type ResultsSyncPayload,
 } from "../../src/utils/resultsWindowSync";
+import { generateTabId } from "../../src/utils/editor";
 import type { Tab, QueryResult, QueryResultEntry } from "../../src/types/editor";
 
 const settings: ResultsDisplaySettings = {
@@ -219,25 +222,34 @@ describe("applyCopyResult", () => {
     return { onCopied: vi.fn(), onError: vi.fn() };
   }
 
-  it("ignores results for another tab's window", () => {
+  it("passes copied rows", () => {
     const h = makeHandlers();
-    applyCopyResult({ tabId: "other", text: "a", count: 1 }, "tab1", h);
-    applyCopyResult({ tabId: "other", error: "boom" }, "tab1", h);
-    expect(h.onCopied).not.toHaveBeenCalled();
-    expect(h.onError).not.toHaveBeenCalled();
-  });
-
-  it("passes copied rows for this tab", () => {
-    const h = makeHandlers();
-    applyCopyResult({ tabId: "tab1", text: "id\n1", count: 1 }, "tab1", h);
+    applyCopyResult({ text: "id\n1", count: 1 }, h);
     expect(h.onCopied).toHaveBeenCalledWith({ text: "id\n1", count: 1 });
     expect(h.onError).not.toHaveBeenCalled();
   });
 
-  it("passes the error for this tab", () => {
+  it("passes the error", () => {
     const h = makeHandlers();
-    applyCopyResult({ tabId: "tab1", error: "boom" }, "tab1", h);
+    applyCopyResult({ error: "boom" }, h);
     expect(h.onError).toHaveBeenCalledWith("boom");
     expect(h.onCopied).not.toHaveBeenCalled();
+  });
+});
+
+describe("per-tab event names", () => {
+  it("gives each tab its own sync and copy event", () => {
+    expect(resultsSyncEvent("a")).not.toBe(resultsSyncEvent("b"));
+    expect(resultsCopyEvent("a")).not.toBe(resultsCopyEvent("b"));
+    expect(resultsSyncEvent("a")).not.toBe(resultsCopyEvent("a"));
+  });
+
+  it("builds names Tauri accepts from generated tab ids", () => {
+    const tauriEventName = /^[a-zA-Z0-9\-/:_]+$/;
+    for (let i = 0; i < 100; i++) {
+      const id = generateTabId();
+      expect(resultsSyncEvent(id)).toMatch(tauriEventName);
+      expect(resultsCopyEvent(id)).toMatch(tauriEventName);
+    }
   });
 });
