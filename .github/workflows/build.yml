@@ -206,6 +206,12 @@ jobs:
           mkdir -p ~/.cache/tauri
           curl -fsSL https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64 \
             -o ~/.cache/tauri/AppRun-x86_64
+          # Verified against GitHub's SHA-256 asset digest (release asset
+          # 274691722). The tag is mutable, so reject any different bytes
+          # before an executable is introduced into the build.
+          printf '%s  %s\n' \
+            'f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f' \
+            "$HOME/.cache/tauri/AppRun-x86_64" | sha256sum --check --status
           chmod 0755 ~/.cache/tauri/AppRun-x86_64
           test "$(stat -c '%a' ~/.cache/tauri/AppRun-x86_64)" = "755"
 
