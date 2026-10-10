@@ -366,18 +366,17 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
         &options,
     );
 
-    // Check for existing tunnel
-    {
-        let tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        if let Some(tunnel) = tunnels.get(&map_key) {
-            log::debug!("Reusing existing K8s tunnel on port {}", tunnel.local_port);
+    let preferred_local_port = match crate::k8s_tunnel::reuse_or_discard_dead(&map_key) {
+        Ok(local_port) => {
+            log::debug!("Reusing existing K8s tunnel on port {}", local_port);
             let mut new_params = params.clone();
             new_params.k8s_enabled = Some(false);
             new_params.host = Some("127.0.0.1".to_string());
-            new_params.port = Some(tunnel.local_port);
+            new_params.port = Some(local_port);
             return Ok(new_params);
         }
-    }
+        Err(previous) => previous,
+    };
 
     log::info!(
         "Creating new K8s tunnel for {}/{} in {}:{} (context: {})",
@@ -391,6 +390,7 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
         resource_name,
         port,
         &options,
+        preferred_local_port,
     )
     .map_err(|e| {
         eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
@@ -400,10 +400,7 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
     let local_port = tunnel.local_port;
     log::info!("K8s tunnel created successfully on port {}", local_port);
 
-    {
-        let mut tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        tunnels.insert(map_key, tunnel);
-    }
+    crate::k8s_tunnel::insert_tunnel(map_key, tunnel);
 
     let mut new_params = params.clone();
     new_params.k8s_enabled = Some(false);
@@ -657,6 +654,22 @@ fn is_loopback_host(host: &str) -> bool {
 }
 
 /// Resolve connection params and set connection_id for stable pooling
+
+/// Resolve params for closing a pool without respawning tunnels.
+///
+/// `build_connection_key` uses `connection_id` (plus driver/database/TLS), not
+/// the K8s local port, so closing never needs a live kubectl port-forward.
+pub(crate) fn params_for_pool_close(
+    params: &ConnectionParams,
+    connection_id: &str,
+) -> Result<ConnectionParams, String> {
+    let mut for_close = params.clone();
+    if for_close.k8s_enabled.unwrap_or(false) {
+        for_close.k8s_enabled = Some(false);
+    }
+    resolve_connection_params_with_id(&for_close, connection_id)
+}
+
 pub fn resolve_connection_params_with_id(
     params: &ConnectionParams,
     connection_id: &str,
@@ -2500,21 +2513,17 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
         &options,
     );
 
-    // Check for existing tunnel
-    {
-        let tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        if let Some(tunnel) = tunnels.get(&map_key) {
-            log::debug!(
-                "Reusing existing K8s tunnel on port {}",
-                tunnel.local_port
-            );
+    let preferred_local_port = match crate::k8s_tunnel::reuse_or_discard_dead(&map_key) {
+        Ok(local_port) => {
+            log::debug!("Reusing existing K8s tunnel on port {}", local_port);
             let mut new_params = params.clone();
             new_params.k8s_enabled = Some(false);
             new_params.host = Some("127.0.0.1".to_string());
-            new_params.port = Some(tunnel.local_port);
+            new_params.port = Some(local_port);
             return Ok(new_params);
         }
-    }
+        Err(previous) => previous,
+    };
 
     // Create new tunnel
     log::info!(
@@ -2533,6 +2542,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
         &resource_name,
         port,
         &options,
+        preferred_local_port,
     )
     .map_err(|e| {
         eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
@@ -2542,10 +2552,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
     let local_port = tunnel.local_port;
     log::info!("K8s tunnel created successfully on port {}", local_port);
 
-    {
-        let mut tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        tunnels.insert(map_key, tunnel);
-    }
+    crate::k8s_tunnel::insert_tunnel(map_key, tunnel);
 
     let mut new_params = params.clone();
     new_params.k8s_enabled = Some(false);
@@ -5910,8 +5917,10 @@ pub async fn disconnect_connection<R: Runtime>(
             .await;
     }
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    // Pool keys depend on connection_id (not the tunnel local port), so skip
+    // K8s expansion here. A dead kubectl / unreachable cluster must not block
+    // close_pool_with_id or emit_active_changed via `?` on K8sTunnel::new.
+    let params = params_for_pool_close(&expanded_params, &connection_id)?;
 
     release_connection_sessions(&app, &connection_id, Some(&params)).await;
 

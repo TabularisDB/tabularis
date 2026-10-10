@@ -4,6 +4,17 @@ use crate::models::{ConnectionParams, K8sConnection};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
+/// Serialize every test that touches the process-wide `TUNNELS` map.
+/// Both `stop_all_tunnels_tests` and `reuse_or_discard_dead_tests` call
+/// `stop_all_tunnels()`, so they must share one lock — separate
+/// `OnceLock`s race under `--test-threads > 1`.
+#[cfg(unix)]
+fn tunnels_map_lock() -> &'static std::sync::Mutex<()> {
+    static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+    LOCK.get_or_init(|| std::sync::Mutex::new(()))
+}
+
+
 mod build_tunnel_key_tests {
     use super::*;
 
@@ -468,5 +479,280 @@ mod parse_resource_ports_tests {
     fn test_empty_output() {
         let result = parse_resource_ports("");
         assert!(result.is_empty());
+    }
+}
+
+#[cfg(unix)]
+mod is_alive_tests {
+    use super::*;
+    use std::process::{Command, Stdio};
+    use std::sync::{Arc, Mutex};
+
+    fn tunnel_running(script: &str) -> K8sTunnel {
+        let child = Command::new("sh")
+            .args(["-c", script])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        K8sTunnel {
+            local_port: 54321,
+            child: Arc::new(Mutex::new(child)),
+        }
+    }
+
+    #[test]
+    fn a_running_port_forward_is_alive() {
+        let tunnel = tunnel_running("sleep 30");
+        assert!(tunnel.is_alive());
+        tunnel.stop();
+    }
+
+    #[test]
+    fn an_ended_port_forward_is_not_alive() {
+        let tunnel = tunnel_running("exit 0");
+        tunnel.child.lock().unwrap().wait().unwrap();
+        assert!(!tunnel.is_alive());
+    }
+
+    #[test]
+    fn stop_ends_a_running_port_forward() {
+        let tunnel = tunnel_running("sleep 30");
+        assert!(tunnel.is_alive());
+        tunnel.stop();
+        // give the OS a moment to report the exit after kill
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        assert!(!tunnel.is_alive());
+    }
+}
+
+#[cfg(unix)]
+mod stop_all_tunnels_tests {
+    use super::*;
+    use std::process::{Command, Stdio};
+    use std::sync::{Arc, Mutex};
+
+    fn map_lock() -> &'static Mutex<()> {
+        super::tunnels_map_lock()
+    }
+
+    fn stub_tunnel(script: &str, local_port: u16) -> K8sTunnel {
+        let child = Command::new("sh")
+            .args(["-c", script])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        K8sTunnel {
+            local_port,
+            child: Arc::new(Mutex::new(child)),
+        }
+    }
+
+    #[test]
+    fn stop_all_kills_cached_tunnels_and_clears_the_map() {
+        let _guard = map_lock().lock().unwrap();
+        // Start from a clean map so parallel suites cannot leave leftovers.
+        stop_all_tunnels();
+        let key = build_tunnel_key(
+            "test-ctx-stop-all",
+            "ns",
+            "service",
+            "db",
+            3306,
+            &K8sCommandOptions::default(),
+        );
+        let tunnel = stub_tunnel("sleep 30", 54322);
+        // Keep a handle so we can observe the kill after stop_all drops the map entry.
+        let child = Arc::clone(&tunnel.child);
+
+        {
+            let mut tunnels = get_tunnels().lock().unwrap();
+            tunnels.insert(key.clone(), tunnel);
+        }
+
+        stop_all_tunnels();
+
+        {
+            let tunnels = get_tunnels().lock().unwrap();
+            assert!(!tunnels.contains_key(&key));
+            assert!(tunnels.is_empty());
+        }
+
+        // stop() kills; try_wait reaps. Retry briefly for the SIGKILL race.
+        let mut exited = false;
+        for _ in 0..20 {
+            if matches!(child.lock().unwrap().try_wait(), Ok(Some(_))) {
+                exited = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        assert!(exited, "stub child still running after stop_all_tunnels");
+    }
+
+    #[test]
+    fn stop_all_is_a_noop_when_the_map_is_empty() {
+        let _guard = map_lock().lock().unwrap();
+        // Ensure a clean map first.
+        stop_all_tunnels();
+        stop_all_tunnels();
+        assert!(get_tunnels().lock().unwrap().is_empty());
+    }
+}
+
+#[cfg(unix)]
+mod reuse_or_discard_dead_tests {
+    use super::*;
+    use std::process::{Command, Stdio};
+    use std::sync::{Arc, Mutex};
+
+    fn map_lock() -> &'static Mutex<()> {
+        super::tunnels_map_lock()
+    }
+
+    fn stub_tunnel(script: &str, local_port: u16) -> K8sTunnel {
+        let child = Command::new("sh")
+            .args(["-c", script])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        K8sTunnel {
+            local_port,
+            child: Arc::new(Mutex::new(child)),
+        }
+    }
+
+    fn test_key(suffix: &str) -> K8sTunnelKey {
+        build_tunnel_key(
+            &format!("test-ctx-reuse-{suffix}"),
+            "ns",
+            "service",
+            "db",
+            3306,
+            &K8sCommandOptions::default(),
+        )
+    }
+
+    #[test]
+    fn alive_entry_is_reused() {
+        let _guard = map_lock().lock().unwrap();
+        stop_all_tunnels();
+        let key = test_key("alive");
+        let tunnel = stub_tunnel("sleep 30", 54331);
+        {
+            let mut tunnels = get_tunnels().lock().unwrap();
+            tunnels.insert(key.clone(), tunnel);
+        }
+
+        assert_eq!(reuse_or_discard_dead(&key), Ok(54331));
+        assert!(get_tunnels().lock().unwrap().contains_key(&key));
+
+        stop_all_tunnels();
+    }
+
+    #[test]
+    fn dead_entry_returns_previous_port_but_stays_until_insert() {
+        let _guard = map_lock().lock().unwrap();
+        stop_all_tunnels();
+        let key = test_key("dead");
+        let tunnel = stub_tunnel("exit 0", 54332);
+        // Reap the child so is_alive() reports dead.
+        tunnel.child.lock().unwrap().wait().unwrap();
+        {
+            let mut tunnels = get_tunnels().lock().unwrap();
+            tunnels.insert(key.clone(), tunnel);
+        }
+
+        // Dead entry is kept so a failed respawn still remembers the port.
+        assert_eq!(reuse_or_discard_dead(&key), Err(Some(54332)));
+        assert!(get_tunnels().lock().unwrap().contains_key(&key));
+        // A second peek still returns the same previous port.
+        assert_eq!(reuse_or_discard_dead(&key), Err(Some(54332)));
+
+        // Only insert_tunnel removes/replaces it.
+        let replacement = stub_tunnel("sleep 30", 54332);
+        insert_tunnel(key.clone(), replacement);
+        assert_eq!(
+            get_tunnels().lock().unwrap().get(&key).unwrap().local_port,
+            54332
+        );
+        assert_eq!(reuse_or_discard_dead(&key), Ok(54332));
+
+        stop_all_tunnels();
+    }
+
+    #[test]
+    fn missing_entry_returns_none() {
+        let _guard = map_lock().lock().unwrap();
+        stop_all_tunnels();
+        let key = test_key("missing");
+        assert_eq!(reuse_or_discard_dead(&key), Err(None));
+    }
+
+    #[test]
+    fn insert_tunnel_stops_displaced_child() {
+        let _guard = map_lock().lock().unwrap();
+        stop_all_tunnels();
+        let key = test_key("displace");
+        let first = stub_tunnel("sleep 30", 54333);
+        let first_child = Arc::clone(&first.child);
+        {
+            let mut tunnels = get_tunnels().lock().unwrap();
+            tunnels.insert(key.clone(), first);
+        }
+
+        let second = stub_tunnel("sleep 30", 54334);
+        insert_tunnel(key.clone(), second);
+
+        {
+            let tunnels = get_tunnels().lock().unwrap();
+            assert_eq!(tunnels.get(&key).unwrap().local_port, 54334);
+        }
+
+        let mut exited = false;
+        for _ in 0..20 {
+            if matches!(first_child.lock().unwrap().try_wait(), Ok(Some(_))) {
+                exited = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        assert!(exited, "displaced stub child still running after insert_tunnel");
+
+        stop_all_tunnels();
+    }
+}
+
+mod allocate_local_port_tests {
+    use super::*;
+    use std::net::TcpListener;
+
+    #[test]
+    fn preferred_port_is_used_when_free() {
+        // Bind then drop so we know a free port, then ask allocate for it.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+
+        assert_eq!(allocate_local_port(Some(port)).unwrap(), port);
+    }
+
+    #[test]
+    fn preferred_port_falls_back_when_taken() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let taken = listener.local_addr().unwrap().port();
+        // Keep listener alive so the preferred port is occupied.
+        let allocated = allocate_local_port(Some(taken)).unwrap();
+        assert_ne!(allocated, taken);
+        assert!(allocated > 0);
+        drop(listener);
+    }
+
+    #[test]
+    fn none_allocates_an_ephemeral_port() {
+        let port = allocate_local_port(None).unwrap();
+        assert!(port > 0);
     }
 }

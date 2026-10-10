@@ -789,6 +789,7 @@ pub fn run() {
                 crate::ssh_tunnel::stop_all_tunnels();
                 crate::proxy::stop_all_forwards();
                 crate::ssm_tunnel::stop_all_tunnels();
+                crate::k8s_tunnel::stop_all_tunnels();
             }
         });
 }

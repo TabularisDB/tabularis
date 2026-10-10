@@ -191,17 +191,14 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
 
     // Close the pool (best-effort — if params can't be resolved the pool stays orphaned
     // but will be reclaimed on next connect or app shutdown).
+    // Skip K8s expansion: pool keys depend on connection_id, and a dead kubectl
+    // / unreachable cluster must not prevent closing the pool.
     let mut params = None;
     if let Ok(saved_conn) = crate::commands::find_connection_by_id(app, connection_id) {
         if let Ok(expanded) =
             crate::commands::expand_ssh_connection_params(app, &saved_conn.params).await
         {
-            let expanded = crate::commands::expand_k8s_connection_params(app, &expanded).await;
-            params = expanded
-                .and_then(|params| {
-                    crate::commands::resolve_connection_params_with_id(&params, connection_id)
-                })
-                .ok();
+            params = crate::commands::params_for_pool_close(&expanded, connection_id).ok();
         }
     }
     // Pinned connections outlive a closed pool, so their transactions are released first.
