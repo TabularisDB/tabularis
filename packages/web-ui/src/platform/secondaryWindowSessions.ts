@@ -159,15 +159,12 @@ export class JsonViewerSessionHost {
         JSON_VIEWER_SESSION_REQUEST_EVENT,
         ({ sessionId }) => {
           const hosted = this.sessions.get(sessionId);
+          // Other windows share this bus; only the owner can answer. The viewer
+          // times out if its owner has gone away.
           if (hosted) {
             void this.platform.publishRouteEvent<JsonViewerSessionData>(
               JSON_VIEWER_SESSION_DATA_EVENT,
               { sessionId, session: hosted.session },
-            );
-          } else {
-            void this.platform.publishRouteEvent<JsonViewerSessionExpired>(
-              JSON_VIEWER_SESSION_EXPIRED_EVENT,
-              { sessionId },
             );
           }
         },

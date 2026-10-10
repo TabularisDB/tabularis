@@ -85,6 +85,27 @@ describe("secondary window routes", () => {
 });
 
 describe("JsonViewerSessionHost", () => {
+  it("lets only the owning host answer requests on the shared event bus", async () => {
+    const fixture = new RouteEventPlatformFixture();
+    const platform = fixture.asPlatform();
+    const otherHost = new JsonViewerSessionHost(platform);
+    const owner = new JsonViewerSessionHost(platform, { createSessionId: () => "owned" });
+    const data: JsonViewerSessionData[] = [];
+    const expired: JsonViewerSessionExpired[] = [];
+    await platform.subscribeRouteEvent<JsonViewerSessionData>(JSON_VIEWER_SESSION_DATA_EVENT, (value) => data.push(value));
+    await platform.subscribeRouteEvent<JsonViewerSessionExpired>(JSON_VIEWER_SESSION_EXPIRED_EVENT, (value) => expired.push(value));
+    await owner.open({ value: { id: 1 }, originalValue: { id: 1 }, columnName: "json", readOnly: false });
+    await platform.publishRouteEvent(JSON_VIEWER_SESSION_REQUEST_EVENT, { sessionId: "owned" });
+    expect(data).toHaveLength(1);
+    expect(data[0].session.value).toEqual({ id: 1 });
+    expect(expired).toEqual([]);
+    await owner.dispose();
+    await platform.publishRouteEvent(JSON_VIEWER_SESSION_REQUEST_EVENT, { sessionId: "owned" });
+    expect(data).toHaveLength(1);
+    expect(expired).toEqual([]);
+    await otherHost.dispose();
+  });
+
   it("shares session data and returns saved values across route contexts", async () => {
     const fixture = new RouteEventPlatformFixture();
     const platform = fixture.asPlatform();
@@ -155,11 +176,12 @@ describe("JsonViewerSessionHost", () => {
       JSON_VIEWER_SESSION_REQUEST_EVENT,
       { sessionId: "json-session-1" },
     );
-    expect(expired).toEqual([{ sessionId: "json-session-1" }]);
+    expect(expired).toEqual([]);
+    expect(received).toHaveLength(1);
     await host.dispose();
   });
 
-  it("expires cancelled sessions and reuses a live cell session", async () => {
+  it("removes cancelled sessions and reuses a live cell session", async () => {
     const fixture = new RouteEventPlatformFixture();
     const platform = fixture.asPlatform();
     const ids = ["json-session-1", "json-session-2"];
