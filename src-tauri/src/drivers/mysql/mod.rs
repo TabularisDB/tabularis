@@ -580,13 +580,16 @@ pub async fn get_indexes(
         }
     };
 
+    // SEQ_IN_INDEX is INT UNSIGNED on MySQL 8 (a signed BIGINT on 5.7) and sqlx
+    // won't decode an unsigned column into a signed integer, so cast it to read
+    // the same way on both.
     let query = if has_expression {
         r#"
         SELECT
             INDEX_NAME,
             COLUMN_NAME,
             NON_UNIQUE,
-            SEQ_IN_INDEX,
+            CAST(SEQ_IN_INDEX AS SIGNED),
             EXPRESSION
         FROM information_schema.STATISTICS
         WHERE TABLE_SCHEMA = ?
@@ -599,7 +602,7 @@ pub async fn get_indexes(
             INDEX_NAME,
             COLUMN_NAME,
             NON_UNIQUE,
-            SEQ_IN_INDEX
+            CAST(SEQ_IN_INDEX AS SIGNED)
         FROM information_schema.STATISTICS
         WHERE TABLE_SCHEMA = ?
         AND TABLE_NAME = ?
@@ -630,7 +633,12 @@ pub async fn get_indexes(
                 },
                 is_unique: non_unique == 0,
                 is_primary: index_name == "PRIMARY",
-                seq_in_index: r.try_get::<i64, _>(3).unwrap_or(0) as i32,
+                seq_in_index: r.try_get::<i64, _>(3).unwrap_or_else(|e| {
+                    log::warn!(
+                        "MySQL: Could not read the column position in index `{index_name}`: {e}"
+                    );
+                    0
+                }) as i32,
                 is_expression,
             }
         })
