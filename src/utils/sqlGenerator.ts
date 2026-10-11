@@ -134,7 +134,9 @@ function resolveSerialType(serialType: string, dataType: string | undefined): st
  *   `character_maximum_length` is present and the type isn't already sized.
  *
  * The "already carries a modifier" guard avoids producing `numeric(10,2)(10,2)`
- * for drivers (e.g. MySQL) whose `data_type` already embeds the precision/length.
+ * for drivers (e.g. SQLite, whose `PRAGMA table_xinfo` returns the full type
+ * declaration) whose `data_type` already embeds the precision/length. MySQL and
+ * Postgres send the bare type name with precision/length as separate fields.
  */
 function resolveTypeModifiers(column: TableColumn): string {
   const type = column.data_type;
