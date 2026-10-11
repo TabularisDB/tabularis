@@ -136,8 +136,8 @@ export function formatSortClause(
  * Calculates the next ORDER BY sort clause when clicking on a column header in the data grid.
  *
  * Cycles based on defaultSortDirection ("asc" | "desc"):
- * - With "asc":  none -> ASC -> DESC -> none (clear)
- * - With "desc": none -> DESC -> ASC -> none (clear)
+ * - With "asc":  (none / ASC) -> DESC -> clear (empty)
+ * - With "desc": (none / DESC) -> ASC -> clear (empty)
  */
 export function getNextSortClause(
   currentSort: string,
