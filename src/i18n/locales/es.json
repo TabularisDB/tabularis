@@ -1145,6 +1145,7 @@
     "sshKeyPassphrasePlaceholder": "Ingresa la frase de paso si la clave está cifrada",
     "allowSshPrompt": "Permitir solicitud de contraseña/PIN de SSH",
     "saveKeychain": "Guardar contraseñas en el Llavero",
+    "secretsStoredInPlainText": "Las contraseñas se guardarán en texto sin formato en el archivo de conexiones.",
     "testConnection": "Probar Conexión",
     "save": "Guardar",
     "failSave": "Error al guardar la conexión",

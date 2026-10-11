@@ -1162,6 +1162,7 @@
     "sshKeyPassphrasePlaceholder": "Enter key passphrase if encrypted",
     "allowSshPrompt": "Allow SSH password/PIN prompt",
     "saveKeychain": "Save passwords in Keychain",
+    "secretsStoredInPlainText": "Passwords will be stored in plain text in the connection file.",
     "testConnection": "Test Connection",
     "save": "Save",
     "failSave": "Failed to save connection",

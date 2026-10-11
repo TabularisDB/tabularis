@@ -1147,6 +1147,7 @@
     "sshKeyPassphrasePlaceholder": "Ilagay ang key passphrase kung naka-encrypt",
     "allowSshPrompt": "Payagan ang SSH password/PIN prompt",
     "saveKeychain": "I-save ang mga password sa Keychain",
+    "secretsStoredInPlainText": "Ang mga password ay ise-save bilang plain text sa file ng koneksyon.",
     "testConnection": "Subukan ang Connection",
     "save": "I-save",
     "failSave": "Nabigong i-save ang connection",

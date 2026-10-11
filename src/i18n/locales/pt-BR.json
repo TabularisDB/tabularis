@@ -1133,6 +1133,7 @@
     "sshKeyPassphrasePlaceholder": "Digite a frase-senha da chave se estiver criptografada",
     "allowSshPrompt": "Permitir prompt de senha/PIN SSH",
     "saveKeychain": "Salvar senhas no Keychain",
+    "secretsStoredInPlainText": "As senhas serão armazenadas em texto simples no arquivo de conexões.",
     "testConnection": "Testar Conexão",
     "save": "Salvar",
     "failSave": "Falha ao salvar conexão",

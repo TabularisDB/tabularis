@@ -1115,6 +1115,7 @@
     "sshKeyPassphrasePlaceholder": "Введите пароль, если ключ зашифрован",
     "allowSshPrompt": "Разрешить запрос пароля/PIN-кода SSH",
     "saveKeychain": "Сохранять пароли в Keychain",
+    "secretsStoredInPlainText": "Пароли будут сохранены в файле подключений открытым текстом.",
     "testConnection": "Проверить подключение",
     "save": "Сохранить",
     "failSave": "Не удалось сохранить подключение",

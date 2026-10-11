@@ -1,4 +1,4 @@
-use crate::models::{ConnectionGroup, ConnectionsFile, SavedConnection};
+use crate::models::{ConnectionGroup, ConnectionParams, ConnectionsFile, SavedConnection};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fs;
@@ -72,7 +72,54 @@ pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), 
     let mut json = serde_json::to_value(&to_save).map_err(|e| e.to_string())?;
     preserve_unknown_fields(path, &mut json);
     let json = serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())
+    write_private_file(path, json)
+}
+
+/// Writes `contents` so that, on Unix, the file is readable and writable only
+/// by the current user (`0o600`). An existing file is tightened to that mode
+/// as well. Other platforms fall back to a normal write.
+pub fn write_private_file(path: &Path, contents: impl AsRef<[u8]>) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+        if path.exists() {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+                .map_err(|e| e.to_string())?;
+        }
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .map_err(|e| e.to_string())?;
+        file.write_all(contents.as_ref())
+            .map_err(|e| e.to_string())?;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(|e| e.to_string())
+    }
+    #[cfg(not(unix))]
+    {
+        fs::write(path, contents).map_err(|e| e.to_string())
+    }
+}
+
+/// Keeps connection secrets out of the config file after a successful keychain
+/// write. When the keychain is unavailable, the secrets stay on `params` and
+/// `save_in_keychain` is cleared so the file is the source of truth and the
+/// save can still succeed.
+pub fn apply_secret_persistence(params: &mut ConnectionParams, keychain_stored: bool) {
+    if !params.save_in_keychain.unwrap_or(false) {
+        return;
+    }
+    if keychain_stored {
+        params.password = None;
+        params.ssh_password = None;
+        params.ssh_key_passphrase = None;
+    } else {
+        params.save_in_keychain = Some(false);
+    }
 }
 
 /// Fields of `raw` the current binary's structs do not know: anything present

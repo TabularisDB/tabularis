@@ -1093,6 +1093,7 @@
     "sshKeyPassphrasePlaceholder": "如果加密请输入密钥密码",
     "allowSshPrompt": "允许 SSH 密码/PIN 提示",
     "saveKeychain": "在密钥链中保存密码",
+    "secretsStoredInPlainText": "密码将以明文保存在连接文件中。",
     "testConnection": "测试连接",
     "save": "保存",
     "failSave": "保存连接失败",

@@ -1131,6 +1131,7 @@
     "sshKeyPassphrasePlaceholder": "鍵が暗号化されている場合はパスフレーズを入力",
     "allowSshPrompt": "SSHパスワード/PINプロンプトを許可する",
     "saveKeychain": "パスワードをキーチェーンに保存",
+    "secretsStoredInPlainText": "パスワードは接続ファイルに平文で保存されます。",
     "testConnection": "接続テスト",
     "save": "保存",
     "failSave": "接続の保存に失敗しました",

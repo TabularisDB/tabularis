@@ -1117,6 +1117,7 @@
     "sshKeyPassphrasePlaceholder": "Passphrase eingeben, falls der Schlüssel verschlüsselt ist",
     "allowSshPrompt": "SSH-Passwort/PIN-Eingabeaufforderung erlauben",
     "saveKeychain": "Passwörter im Keychain speichern",
+    "secretsStoredInPlainText": "Passwörter werden im Klartext in der Verbindungsdatei gespeichert.",
     "testConnection": "Verbindung testen",
     "save": "Speichern",
     "failSave": "Speichern der Verbindung fehlgeschlagen",

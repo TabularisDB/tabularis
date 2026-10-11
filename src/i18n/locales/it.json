@@ -1158,6 +1158,7 @@
     "sshKeyPassphrasePlaceholder": "Inserisci passphrase se la chiave è cifrata",
     "allowSshPrompt": "Consenti prompt password/PIN SSH",
     "saveKeychain": "Salva password nel Portachiavi",
+    "secretsStoredInPlainText": "Le password verranno salvate in chiaro nel file delle connessioni.",
     "testConnection": "Testa Connessione",
     "save": "Salva",
     "failSave": "Salvataggio connessione fallito",

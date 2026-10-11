@@ -1154,6 +1154,7 @@
     "sshKeyPassphrasePlaceholder": "Saisissez la phrase secrète si la clé est chiffrée",
     "allowSshPrompt": "Autoriser l'invite de mot de passe/PIN SSH",
     "saveKeychain": "Enregistrer les mots de passe dans le trousseau",
+    "secretsStoredInPlainText": "Les mots de passe seront enregistrés en clair dans le fichier de connexions.",
     "testConnection": "Tester la connexion",
     "save": "Enregistrer",
     "failSave": "Échec de l’enregistrement de la connexion",

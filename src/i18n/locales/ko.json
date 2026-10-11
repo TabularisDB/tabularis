@@ -1092,6 +1092,7 @@
     "sshKeyPassphrasePlaceholder": "암호화된 경우 키 암호를 입력하세요",
     "allowSshPrompt": "SSH 비밀번호/PIN 입력창 허용",
     "saveKeychain": "키체인에 비밀번호 저장",
+    "secretsStoredInPlainText": "비밀번호는 연결 파일에 평문으로 저장됩니다.",
     "testConnection": "연결 테스트",
     "save": "저장",
     "failSave": "연결 저장에 실패했습니다",
