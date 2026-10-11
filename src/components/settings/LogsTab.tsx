@@ -72,6 +72,12 @@ export function LogsTab() {
     }
   }, [levelFilter, settings.maxLogEntries]);
 
+  const showError = useCallback(
+    (error: unknown) =>
+      showAlert(String(error), { title: t("common.error"), kind: "error" }),
+    [t, showAlert],
+  );
+
   const handleClearLogs = useCallback(async () => {
     try {
       const confirmed = await ask(t("settings.clearLogsConfirm"), {
@@ -83,8 +89,9 @@ export function LogsTab() {
       await loadLogs();
     } catch (e) {
       console.error("Failed to clear logs", e);
+      showError(e);
     }
-  }, [t, loadLogs]);
+  }, [t, loadLogs, showError]);
 
   const handleExportLogs = useCallback(async () => {
     try {
@@ -100,8 +107,9 @@ export function LogsTab() {
       });
     } catch (e) {
       console.error("Failed to export logs", e);
+      showError(e);
     }
-  }, [t, showAlert]);
+  }, [t, showAlert, showError]);
 
   const handleToggleLogging = useCallback(
     async (enabled: boolean) => {
@@ -111,9 +119,10 @@ export function LogsTab() {
         await loadLogs();
       } catch (e) {
         console.error("Failed to toggle logging", e);
+        showError(e);
       }
     },
-    [updateSetting, loadLogs],
+    [updateSetting, loadLogs, showError],
   );
 
   const handleSetMaxSize = useCallback(
@@ -124,9 +133,10 @@ export function LogsTab() {
         await loadLogs();
       } catch (e) {
         console.error("Failed to set max size", e);
+        showError(e);
       }
     },
-    [updateSetting, loadLogs],
+    [updateSetting, loadLogs, showError],
   );
 
   useEffect(() => {
