@@ -277,10 +277,10 @@ export function mimeToExtension(mimeType: string): string {
 export function isSvgText(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
-  if (trimmed.startsWith("<svg")) return true;
+  if (/^<svg[\s>]/.test(trimmed)) return true;
   if (trimmed.startsWith("<?xml")) {
     const withoutXml = trimmed.replace(/^<\?xml[^>]*\?>/i, "").trimStart();
-    return withoutXml.startsWith("<svg");
+    return /^<svg[\s>]/.test(withoutXml);
   }
   return false;
 }
@@ -291,6 +291,22 @@ export function isSvgText(value: unknown): value is string {
  */
 export function svgTextToDataUrl(svg: string): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
+}
+
+/**
+ * Checks if a value is an image (either SVG text or a non-truncated image BLOB)
+ * without allocating or copying large base64 payload data URLs.
+ */
+export function hasCellImagePreview(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (isSvgText(value)) return true;
+  const metadata = extractBlobMetadata(value);
+  return Boolean(
+    metadata &&
+      metadata.isBase64 &&
+      metadata.mimeType.startsWith("image/") &&
+      !metadata.isTruncated,
+  );
 }
 
 /**

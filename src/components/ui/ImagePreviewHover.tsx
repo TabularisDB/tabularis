@@ -1,8 +1,18 @@
-import { cloneElement, useId, useState, type ReactElement, type CSSProperties, type KeyboardEvent } from "react";
+import {
+  cloneElement,
+  useId,
+  useState,
+  useEffect,
+  type ReactElement,
+  type CSSProperties,
+  type KeyboardEvent,
+} from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 
 interface ImagePreviewHoverProps {
-  src: string;
+  src?: string | null;
+  getSrc?: () => string | null;
   alt?: string;
   children: ReactElement<{
     "aria-describedby"?: string;
@@ -17,16 +27,24 @@ interface ImagePreviewHoverProps {
  */
 export function ImagePreviewHover({
   src,
-  alt = "Image preview",
+  getSrc,
+  alt,
   children,
   disabled = false,
   className = "inline-flex w-full items-center",
 }: ImagePreviewHoverProps) {
+  const { t } = useTranslation();
   const id = useId();
   const [position, setPosition] = useState<CSSProperties | null>(null);
+  const [activeSrc, setActiveSrc] = useState<string | null>(null);
+
+  const resolvedAlt = alt ?? t("blobInput.imagePreview", { defaultValue: "Image preview" });
 
   const show = (element: HTMLElement) => {
-    if (disabled || !src) return;
+    if (disabled) return;
+    const resolvedUrl = src ?? getSrc?.() ?? null;
+    if (!resolvedUrl) return;
+
     const rect = element.getBoundingClientRect();
     const previewSize = 160;
     const padding = 8;
@@ -41,6 +59,7 @@ export function ImagePreviewHover({
 
     const showAbove = rect.bottom + previewSize + padding > window.innerHeight;
 
+    setActiveSrc(resolvedUrl);
     setPosition({
       left,
       ...(showAbove
@@ -49,13 +68,34 @@ export function ImagePreviewHover({
     });
   };
 
+  const hide = () => {
+    setPosition(null);
+    setActiveSrc(null);
+  };
+
+  useEffect(() => {
+    if (!position) return;
+
+    const handleScrollOrResize = () => {
+      hide();
+    };
+
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+
+    return () => {
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [position]);
+
   return (
     <span
       className={className}
       onMouseEnter={(event) => show(event.currentTarget)}
-      onMouseLeave={() => setPosition(null)}
+      onMouseLeave={hide}
       onFocus={(event) => show(event.currentTarget)}
-      onBlur={() => setPosition(null)}
+      onBlur={hide}
     >
       {cloneElement(children, {
         "aria-describedby": position && !disabled ? id : undefined,
@@ -63,11 +103,12 @@ export function ImagePreviewHover({
           children.props.onKeyDown?.(event);
           if (event.key === "Escape" && position) {
             event.stopPropagation();
-            setPosition(null);
+            hide();
           }
         },
       })}
       {position &&
+        activeSrc &&
         !disabled &&
         createPortal(
           <div
@@ -77,8 +118,8 @@ export function ImagePreviewHover({
             style={position}
           >
             <img
-              src={src}
-              alt={alt}
+              src={activeSrc}
+              alt={resolvedAlt}
               className="max-w-[180px] max-h-[180px] object-contain rounded"
               draggable={false}
             />

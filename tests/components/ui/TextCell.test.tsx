@@ -33,7 +33,7 @@ describe("TextCell image preview for SVG", () => {
     const trigger = screen.getByText(/<svg/);
     fireEvent.mouseEnter(trigger);
 
-    const img = screen.getByRole("img", { name: "Image preview" });
+    const img = screen.getByRole("img", { name: /blobInput\.imagePreview|Image preview/ });
     expect(img).toBeInTheDocument();
     expect(img).toHaveAttribute(
       "src",
@@ -41,6 +41,6 @@ describe("TextCell image preview for SVG", () => {
     );
 
     fireEvent.mouseLeave(trigger);
-    expect(screen.queryByRole("img", { name: "Image preview" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /blobInput\.imagePreview|Image preview/ })).not.toBeInTheDocument();
   });
 });

@@ -24,6 +24,7 @@ import {
 import {
   isBlobColumn,
   isBlobWireFormat,
+  hasCellImagePreview,
   extractCellImagePreviewUrl,
 } from "../../utils/blob";
 import { isLongTextCellTarget, truncateCellPreview } from "../../utils/text";
@@ -701,7 +702,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                         isBlobWireFormat(displayValue)) &&
                       !isPendingDelete
                     ) {
-                      const imagePreviewUrl = extractCellImagePreviewUrl(displayValue);
+                      const hasImagePreview = hasCellImagePreview(displayValue);
                       const blobContent = (
                         <span className="inline-flex items-center gap-1 group/blobcell w-full min-w-0">
                           <span className="truncate flex-1 min-w-0">
@@ -723,9 +724,11 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                         </span>
                       );
 
-                      if (imagePreviewUrl) {
+                      if (hasImagePreview) {
                         return (
-                          <ImagePreviewHover src={imagePreviewUrl}>
+                          <ImagePreviewHover
+                            getSrc={() => extractCellImagePreviewUrl(displayValue)}
+                          >
                             {blobContent}
                           </ImagePreviewHover>
                         );

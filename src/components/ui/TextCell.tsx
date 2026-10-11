@@ -89,7 +89,11 @@ export const TextCell = ({
   );
 
   if (svgPreviewUrl) {
-    return <ImagePreviewHover src={svgPreviewUrl}>{content}</ImagePreviewHover>;
+    return (
+      <ImagePreviewHover getSrc={() => svgPreviewUrl}>
+        {content}
+      </ImagePreviewHover>
+    );
   }
 
   return content;
