@@ -74,7 +74,9 @@ jobs:
           GH_TOKEN: \${{ github.token }}
           GH_REPO: \${{ github.repository }}
           THEME_TAG: \${{ github.ref_name }}
-        run: gh release create "$THEME_TAG" theme-universal.zip --verify-tag --draft --generate-notes
+        # The registry reads the manifest from the release assets; GitHub
+        # stores .tabularium as default.tabularium, which it also accepts.
+        run: gh release create "$THEME_TAG" theme-universal.zip .tabularium --verify-tag --draft --generate-notes
 `;
 }
 

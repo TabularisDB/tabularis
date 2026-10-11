@@ -234,7 +234,9 @@ this additional check rather than silently skipping it.
 
 4. The generated workflow runs only on version tags, validates the tag/manifest
    match, packages offline and creates a **draft** release with
-   `theme-universal.zip`. Actions are SHA-pinned, checkout credentials are not
+   `theme-universal.zip` and the `.tabularium` manifest, which the registry
+   reads from the release assets (GitHub stores it as `default.tabularium`;
+   both names are accepted). Actions are SHA-pinned, checkout credentials are not
    persisted, and only the release job receives `contents: write`. It uses the
    job token, not an embedded secret or additional PAT. No untrusted-PR write job
    is generated. Review the draft and artifact before publishing it.
