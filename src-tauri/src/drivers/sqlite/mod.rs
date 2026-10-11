@@ -26,7 +26,14 @@ fn escape_identifier(name: &str) -> String {
 fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<TableColumn> {
     let pk: i32 = row.try_get("pk").unwrap_or(0);
     let notnull: i32 = row.try_get("notnull").unwrap_or(0);
-    let dflt_value: Option<String> = row.try_get("dflt_value").ok();
+    // PRAGMA table_xinfo returns NULL for a column without a default, but it
+    // reaches us as an empty string. A real `DEFAULT ''` is reported quoted
+    // (`''`), so an empty value always means "no default".
+    let dflt_value: Option<String> = row
+        .try_get::<Option<String>, _>("dflt_value")
+        .ok()
+        .flatten()
+        .filter(|value| !value.is_empty());
     let hidden: i32 = row.try_get("hidden").unwrap_or(0);
     if hidden == 1 {
         return None;

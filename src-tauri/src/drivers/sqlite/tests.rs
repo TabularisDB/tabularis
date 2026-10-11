@@ -271,6 +271,56 @@ async fn test_get_columns_excludes_hidden_virtual_table_columns() {
 }
 
 #[tokio::test]
+async fn test_get_columns_reports_missing_default_as_none() {
+    let (params, _file) = setup_test_db().await;
+
+    let path = params.database.primary().to_string();
+    let options = SqliteConnectOptions::new().filename(&path);
+    let pool = SqlitePoolOptions::new()
+        .connect_with(options)
+        .await
+        .expect("connect to test DB");
+
+    sqlx::query(
+        "CREATE TABLE defaults (
+            plain TEXT,
+            empty_text TEXT DEFAULT '',
+            zero INTEGER DEFAULT 0,
+            explicit_null TEXT DEFAULT NULL
+        )",
+    )
+    .execute(&pool)
+    .await
+    .expect("create defaults table");
+
+    pool.close().await;
+
+    let expected = [
+        ("plain", None),
+        ("empty_text", Some("''")),
+        ("zero", Some("0")),
+        ("explicit_null", Some("NULL")),
+    ];
+    let cols = get_columns(&params, "defaults")
+        .await
+        .expect("get table columns");
+    let batch = get_all_columns_batch(&params, &["defaults".to_string()])
+        .await
+        .expect("get batch columns");
+    for columns in [&cols, &batch["defaults"]] {
+        for (name, default) in expected {
+            let col = columns
+                .iter()
+                .find(|col| col.name == name)
+                .expect("column should be listed");
+            assert_eq!(col.default_value.as_deref(), default, "{name}");
+        }
+    }
+
+    crate::pool_manager::close_pool(&params).await;
+}
+
+#[tokio::test]
 async fn test_generated_table_columns_are_not_inserted_or_updated() {
     let (params, _file) = setup_test_db().await;
 
