@@ -21,7 +21,11 @@ import {
   isSetType,
   parseSetValues,
 } from "../../utils/columnTypes";
-import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
+import {
+  isBlobColumn,
+  isBlobWireFormat,
+  extractCellImagePreviewUrl,
+} from "../../utils/blob";
 import { isLongTextCellTarget, truncateCellPreview } from "../../utils/text";
 import { getForeignKeyForPreview } from "../../utils/foreignKeys";
 import { getDateInputMode } from "../../utils/dateInput";
@@ -34,6 +38,7 @@ import { JsonExpansionEditor } from "./JsonExpansionEditor";
 import { TextCell } from "./TextCell";
 import { TextExpansionEditor } from "./TextExpansionEditor";
 import { EnumSetInput } from "./EnumSetInput";
+import { ImagePreviewHover } from "./ImagePreviewHover";
 import type { ForeignKey } from "../../types/editor";
 
 /**
@@ -696,7 +701,8 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                         isBlobWireFormat(displayValue)) &&
                       !isPendingDelete
                     ) {
-                      return (
+                      const imagePreviewUrl = extractCellImagePreviewUrl(displayValue);
+                      const blobContent = (
                         <span className="inline-flex items-center gap-1 group/blobcell w-full min-w-0">
                           <span className="truncate flex-1 min-w-0">
                             {renderDefaultCellContent(
@@ -716,6 +722,16 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                           </button>
                         </span>
                       );
+
+                      if (imagePreviewUrl) {
+                        return (
+                          <ImagePreviewHover src={imagePreviewUrl}>
+                            {blobContent}
+                          </ImagePreviewHover>
+                        );
+                      }
+
+                      return blobContent;
                     }
 
                     if (fkForPreview && onForeignKeyNavigate) {
