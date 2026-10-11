@@ -9,8 +9,9 @@ makes the generated repository self-contained and usable offline.
 
 ## 1. Try a theme locally
 
-Open **Settings → Appearance → Manage themes**. Builtin themes remain available
-offline. Installed packages are read-only; **Duplicate as personal** makes an
+Open **Settings → Appearance**. Each theme's **…** menu holds its actions, and
+**Import theme** adds new ones. Builtin themes remain available offline.
+Installed packages are read-only; **Duplicate as personal** makes an
 independent editable copy. A package operation affects all its variants.
 
 - **Preview** changes the application temporarily and displays a read-only SQL
@@ -192,7 +193,8 @@ an adapted theme as a pixel-identical conversion.
 
 ## 5. Preview and install the ZIP
 
-In Appearance choose **Local package**, select the ZIP and preview its variants.
+In **Settings → Appearance**, choose **Import theme → Local package**, select
+the ZIP and preview its variants.
 No file is installed just by opening/previewing it. Installation is bound to the
 validated archive digest: if you rebuild it, preview again before installing.
 The app revalidates all bytes before the atomic commit.

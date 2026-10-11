@@ -340,7 +340,7 @@ Tabularis is **hackable with an external plugin system**. Plugins are standalone
 - **Any Database:** Add support for DuckDB, MongoDB, or any other database by writing or installing a plugin.
 - **Plugin Registry:** Official plugins are listed in [`plugins/registry.json`](./plugins/registry.json).
 - **Developer Guide:** See [`plugins/PLUGIN_GUIDE.md`](./plugins/PLUGIN_GUIDE.md) to build your own driver in any language.
-- **Declarative themes (development):** **Settings → Appearance → Manage themes** supports local packages, previews and personal/VS Code imports without executable plugin activation. See the [theme author guide](./packages/create-plugin/THEMES.md) for the separate `tabularis-theme` CLI, packaging and release gates; public runtime/tooling rollout is not implied by this development feature.
+- **Declarative themes (development):** **Settings → Appearance** supports local packages (**Import theme → Local package**), previews and personal/VS Code imports without executable plugin activation. See the [theme author guide](./packages/create-plugin/THEMES.md) for the separate `tabularis-theme` CLI, packaging and release gates; public runtime/tooling rollout is not implied by this development feature.
 
 ### Logging
 
