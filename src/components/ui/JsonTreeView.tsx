@@ -106,7 +106,7 @@ const LinkNode: React.FC<CustomNodeProps> = ({
         onClick={handleOpen}
         title={url}
         aria-label={`Open ${url}`}
-        className="inline-flex items-center p-0.5 text-muted hover:text-primary transition-colors rounded focus-visible:outline-focus cursor-pointer"
+        className="inline-flex items-center p-0.5 text-muted hover:text-primary transition-colors rounded focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus cursor-pointer"
       >
         <ExternalLink size={12} className="shrink-0" />
       </button>
@@ -124,7 +124,7 @@ const ColorSwatchNode: React.FC<CustomNodeProps> = ({
     <span className="inline-flex items-center gap-1.5">
       <span
         aria-hidden="true"
-        className="inline-block w-3 h-3 rounded-xs border border-strong shrink-0 shadow-xs"
+        className="inline-block w-3 h-3 rounded-sm border border-strong shrink-0"
         style={{ backgroundColor: color }}
       />
       {originalNode}
