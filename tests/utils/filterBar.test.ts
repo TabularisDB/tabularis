@@ -277,6 +277,55 @@ describe("filterBar utils", () => {
       );
     });
 
+    it("does not split quoted commas or doubled single quotes in IN values", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "city",
+        operator: "IN",
+        value: "'New York, NY', 'O''Brien', west",
+      };
+      expect(buildSingleFilterClause(filter))
+        .toBe("city IN ('New York, NY', 'O''Brien', 'west')");
+    });
+
+    it("splits unquoted apostrophes and inch marks without merging later items", () => {
+      const filter: StructuredFilter = {
+        id: "1", column: "name", operator: "IN", value: "O'Brien, Smith",
+      };
+      expect(buildSingleFilterClause(filter))
+        .toBe("name IN ('O''Brien', 'Smith')");
+      expect(buildSingleFilterClause({ ...filter, value: "it's, ok" }))
+        .toBe("name IN ('it''s', 'ok')");
+      expect(buildSingleFilterClause({ ...filter, value: '5" screen, 7" screen' }))
+        .toBe('name IN (\'5" screen\', \'7" screen\')');
+    });
+
+    it("preserves explicitly quoted empty strings but drops blank IN entries", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "status",
+        operator: "NOT IN",
+        value: " , '', ,active, ",
+      };
+      expect(buildSingleFilterClause(filter)).toBe("status NOT IN ('', 'active')");
+      expect(isFilterComplete({ ...filter, value: " , '' " })).toBe(true);
+      expect(isFilterComplete({ ...filter, value: " , , " })).toBe(false);
+    });
+
+    it("treats double-quoted text values as strings, not SQL identifiers", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "city",
+        operator: "IN",
+        value: '"New York, NY", "O""Brien"',
+      };
+      expect(buildSingleFilterClause(filter))
+        .toBe("city IN ('New York, NY', 'O\"Brien')");
+      expect(buildSingleFilterClause({
+        ...filter, operator: "=", value: '"New York"',
+      })).toBe('city = "New York"');
+    });
+
     it("should build NOT IN clause", () => {
       const filter: StructuredFilter = {
         id: "1",

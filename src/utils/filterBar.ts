@@ -216,10 +216,9 @@ export function buildSingleFilterClause(
   }
 
   if (op === "IN" || op === "NOT IN") {
-    const values = filter.value
-      .split(",")
-      .map((v) => quoteIfNeeded(v.trim()))
-      .filter((v) => v !== "''")
+    const values = splitFilterValues(filter.value)
+      .filter((v) => v !== "")
+      .map((value) => quoteIfNeeded(value, true))
       .join(", ");
     return `${col} ${op} (${values})`;
   }
@@ -271,17 +270,53 @@ function quoteLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-function quoteIfNeeded(value: string): string {
+/**
+ * Split IN / NOT IN values on commas outside quoted literals. A naive
+ * split(",") mangles values such as 'New York, NY' or 'O''Brien'.
+ * Preserve quoted empty strings ('') while ignoring empty list entries.
+ */
+function splitFilterValues(input: string): string[] {
+  const values: string[] = [];
+  let start = 0;
+  let quote: "'" | '"' | null = null;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (quote) {
+      if (char === quote) {
+        if (input[i + 1] === quote) {
+          i++; // doubled quote belongs to the literal
+        } else {
+          quote = null;
+        }
+      }
+    } else if (char === "'" || char === '"') {
+      // Apostrophes and inch marks inside an unquoted value are data, not
+      // delimiters for the rest of the list.
+      if (input.slice(start, i).trim() === "") quote = char;
+    } else if (char === ",") {
+      values.push(input.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  values.push(input.slice(start).trim());
+  return values;
+}
+
+function quoteIfNeeded(value: string, doubleQuotedValue = false): string {
   if (value === "") return "''";
   // If it's a pure number (integer or decimal), don't quote
   if (/^-?\d+(\.\d+)?$/.test(value)) return value;
-  // Already quoted
-  if (
-    (value.startsWith("'") && value.endsWith("'")) ||
-    (value.startsWith('"') && value.endsWith('"'))
-  ) {
+  // Single-quoted SQL literals are already escaped by the user. For IN lists,
+  // interpret double-quoted items as values; other operators keep their
+  // existing identifier behavior.
+  if (value.startsWith("'") && value.endsWith("'")) {
     return value;
   }
+  if (doubleQuotedValue && value.startsWith('"') && value.endsWith('"')) {
+    return quoteLiteral(value.slice(1, -1).replace(/""/g, '"'));
+  }
+  if (value.startsWith('"') && value.endsWith('"')) return value;
   // Escape single quotes inside the value
   return quoteLiteral(value);
 }
@@ -307,7 +342,7 @@ export function isFilterComplete(filter: StructuredFilter): boolean {
       return filter.value.trim() !== "" && (filter.value2 ?? "").trim() !== "";
     case "IN":
     case "NOT IN":
-      return filter.value.split(",").some((v) => v.trim() !== "");
+      return splitFilterValues(filter.value).some((v) => v !== "");
     default:
       return filter.value.trim() !== "";
   }
