@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
-use tauri::{Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewWindow, Window};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewWindow, Window};
 
 const MIN_WIDTH: u32 = 480;
 const MIN_HEIGHT: u32 = 320;
@@ -95,7 +95,10 @@ pub(crate) fn restore(window: &WebviewWindow) {
 /// Update only in normal mode. Maximizing/minimizing must not overwrite the
 /// last non-maximized bounds with screen-sized or zero dimensions.
 pub(crate) fn remember<R: Runtime>(window: &Window<R>) {
-    if window.is_maximized().unwrap_or(true) || window.is_minimized().unwrap_or(true) {
+    if window.is_maximized().unwrap_or(true)
+        || window.is_minimized().unwrap_or(true)
+        || window.is_fullscreen().unwrap_or(true)
+    {
         return;
     }
     let Ok(size) = window.inner_size() else {
@@ -119,15 +122,10 @@ pub(crate) fn remember<R: Runtime>(window: &Window<R>) {
         .unwrap() = Some(placement);
 }
 
-/// A single disk write when closing the main window, not on every resize pixel.
-pub(crate) fn persist<R: Runtime>(window: &Window<R>) {
-    remember(window);
-    let cached = *window
-        .app_handle()
-        .state::<WindowPlacementCache>()
-        .0
-        .lock()
-        .unwrap();
+/// Save the latest bounds captured by move/resize events. App exit and restart
+/// can bypass CloseRequested, so they persist the cache directly.
+pub(crate) fn persist_cached<R: Runtime>(app: &AppHandle<R>) {
+    let cached = *app.state::<WindowPlacementCache>().0.lock().unwrap();
     let Some(placement) = cached else { return };
     let path = placement_path();
     let result = (|| -> Result<(), Box<dyn std::error::Error>> {
@@ -140,6 +138,12 @@ pub(crate) fn persist<R: Runtime>(window: &Window<R>) {
     if let Err(e) = result {
         log::warn!("Could not save main window placement: {e}");
     }
+}
+
+/// Capture the final normal bounds when a window close event is available.
+pub(crate) fn persist<R: Runtime>(window: &Window<R>) {
+    remember(window);
+    persist_cached(&window.app_handle());
 }
 
 #[cfg(test)]

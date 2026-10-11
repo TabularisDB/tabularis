@@ -790,6 +790,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
+            // Cmd+Q and relaunch paths can exit without CloseRequested.
+            if matches!(&event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
+                window_placement::persist_cached(app_handle);
+            }
             if let tauri::RunEvent::Exit = event {
                 // Back up the freshest state before the process ends (no-op
                 // unless backups are enabled and due).
