@@ -9,7 +9,7 @@ fn staged_invalid_archive_and_corrupt_personal_file_are_rejected_without_repairi
         "0.24.0"
     )
     .is_err());
-    let root = tempfile::tempdir().unwrap();
+    let root = super::tempdir();
     let directory = root.path().join("theme-personal-v1");
     std::fs::create_dir(&directory).unwrap();
     let source = include_str!("../../../../tests/fixtures/themes/author/corrupt-personal.json");
@@ -69,7 +69,7 @@ async fn manual_node_fixture_is_usable_by_the_real_sdk_and_theme_installer() {
             .is_some()
     );
     assert_eq!(fixture_count(&base).await, before);
-    let root = tempfile::tempdir().unwrap();
+    let root = super::tempdir();
     let key = registry_key(&base).unwrap();
     transport::install_registry_package(root.path(), &base, &key, "fixture-theme", None, "0.24.0")
         .await
