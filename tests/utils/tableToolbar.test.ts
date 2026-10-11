@@ -276,6 +276,7 @@ describe('tableToolbar utils', () => {
 
       it('cycles same column: DESC -> ASC', () => {
         expect(getNextSortClause('created_at DESC', 'created_at', 'desc')).toBe('created_at ASC');
+        expect(getNextSortClause('created_at', 'created_at', 'desc')).toBe('created_at ASC');
       });
 
       it('cycles same column: ASC -> clear (empty)', () => {

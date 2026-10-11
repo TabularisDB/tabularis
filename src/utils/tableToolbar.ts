@@ -156,7 +156,7 @@ export function getNextSortClause(
 
     if (defaultSortDirection === "desc") {
       // DESC cycle: DESC -> ASC -> none
-      if (currentDir === "DESC") {
+      if (!currentDir || currentDir === "DESC") {
         return `${formattedCol} ASC`;
       }
       return "";
