@@ -218,7 +218,7 @@ export function buildSingleFilterClause(
   if (op === "IN" || op === "NOT IN") {
     const values = splitFilterValues(filter.value)
       .filter((v) => v !== "")
-      .map(quoteIfNeeded)
+      .map((value) => quoteIfNeeded(value, true))
       .join(", ");
     return `${col} ${op} (${values})`;
   }
@@ -291,7 +291,9 @@ function splitFilterValues(input: string): string[] {
         }
       }
     } else if (char === "'" || char === '"') {
-      quote = char;
+      // Apostrophes and inch marks inside an unquoted value are data, not
+      // delimiters for the rest of the list.
+      if (input.slice(start, i).trim() === "") quote = char;
     } else if (char === ",") {
       values.push(input.slice(start, i).trim());
       start = i + 1;
@@ -301,19 +303,20 @@ function splitFilterValues(input: string): string[] {
   return values;
 }
 
-function quoteIfNeeded(value: string): string {
+function quoteIfNeeded(value: string, doubleQuotedValue = false): string {
   if (value === "") return "''";
   // If it's a pure number (integer or decimal), don't quote
   if (/^-?\d+(\.\d+)?$/.test(value)) return value;
-  // Single-quoted SQL literals are already escaped by the user. Double
-  // quotes denote SQL identifiers in PostgreSQL: interpret them as a user
-  // typing a quoted value, not a column reference.
+  // Single-quoted SQL literals are already escaped by the user. For IN lists,
+  // interpret double-quoted items as values; other operators keep their
+  // existing identifier behavior.
   if (value.startsWith("'") && value.endsWith("'")) {
     return value;
   }
-  if (value.startsWith('"') && value.endsWith('"')) {
+  if (doubleQuotedValue && value.startsWith('"') && value.endsWith('"')) {
     return quoteLiteral(value.slice(1, -1).replace(/""/g, '"'));
   }
+  if (value.startsWith('"') && value.endsWith('"')) return value;
   // Escape single quotes inside the value
   return quoteLiteral(value);
 }

@@ -288,6 +288,18 @@ describe("filterBar utils", () => {
         .toBe("city IN ('New York, NY', 'O''Brien', 'west')");
     });
 
+    it("splits unquoted apostrophes and inch marks without merging later items", () => {
+      const filter: StructuredFilter = {
+        id: "1", column: "name", operator: "IN", value: "O'Brien, Smith",
+      };
+      expect(buildSingleFilterClause(filter))
+        .toBe("name IN ('O''Brien', 'Smith')");
+      expect(buildSingleFilterClause({ ...filter, value: "it's, ok" }))
+        .toBe("name IN ('it''s', 'ok')");
+      expect(buildSingleFilterClause({ ...filter, value: '5" screen, 7" screen' }))
+        .toBe('name IN (\'5" screen\', \'7" screen\')');
+    });
+
     it("preserves explicitly quoted empty strings but drops blank IN entries", () => {
       const filter: StructuredFilter = {
         id: "1",
@@ -311,7 +323,7 @@ describe("filterBar utils", () => {
         .toBe("city IN ('New York, NY', 'O\"Brien')");
       expect(buildSingleFilterClause({
         ...filter, operator: "=", value: '"New York"',
-      })).toBe("city = 'New York'");
+      })).toBe('city = "New York"');
     });
 
     it("should build NOT IN clause", () => {
