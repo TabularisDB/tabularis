@@ -1158,6 +1158,7 @@
     "manageSshConnections": "Pamahalaan ang mga SSH Connection",
     "noSshConnections": "Walang available na SSH connection",
     "sslMode": "SSL Mode",
+    "sslUnverifiedRemoteHint": "Hindi bini-verify ng mode na ito ang certificate ng server. Para sa remote na host, gamitin ang {{mode}}.",
     "enableCleartextPlugin": "I-enable ang cleartext password plugin",
     "enableCleartextPluginHint": "Ipinapadala ang password gamit ang mysql_clear_password. Kailangan para sa mga bastion tulad ng Warpgate. Ginagamit lang sa TLS connection.",
     "enableCleartextPluginTlsRequired": "Pumili ng enforced TLS mode sa itaas (Required, Verify CA, o Verify Identity) para magamit ang cleartext password plugin.",

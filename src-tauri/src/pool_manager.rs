@@ -114,6 +114,87 @@ fn postgres_pool_max_size() -> usize {
     postgres_pool_max_size_from_value(postgres_setting_value("poolMaxSize").as_ref())
 }
 
+/// PostgreSQL `ssl_mode` values produced by the connection form, connection
+/// importers, and the #614 spelling migration.
+const POSTGRES_ACCEPTED_SSL_MODES: &[&str] = &[
+    "disable",
+    "allow",
+    "prefer",
+    "require",
+    "verify-ca",
+    "verify-full",
+];
+
+/// MySQL `ssl_mode` values produced by the connection form, the JDBC URL
+/// importer, and connection importers. Importers store libpq spellings
+/// (`verify-ca`, `verify-full`, `require`, `prefer`) on MySQL connections
+/// as well. The #614 migration leaves the MySQL spellings in place.
+const MYSQL_ACCEPTED_SSL_MODES: &[&str] = &[
+    "disabled",
+    "disable",
+    "preferred",
+    "prefer",
+    "required",
+    "require",
+    "verify_ca",
+    "verify-ca",
+    "verify_identity",
+    "verify-full",
+    "verify-identity",
+];
+
+fn unknown_ssl_mode_message(value: &str, accepted: &[&str]) -> String {
+    format!(
+        "Unknown SSL mode \"{value}\". Accepted values: {}.",
+        accepted.join(", ")
+    )
+}
+
+fn normalized_ssl_mode(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
+#[derive(Clone, Copy)]
+enum PostgresSslChoice {
+    Disable,
+    Allow,
+    Prefer,
+    Require,
+    VerifyCa,
+    VerifyFull,
+}
+
+fn parse_postgres_ssl_mode(raw: &str) -> Result<PostgresSslChoice, String> {
+    match normalized_ssl_mode(raw).as_str() {
+        "disable" => Ok(PostgresSslChoice::Disable),
+        "allow" => Ok(PostgresSslChoice::Allow),
+        "prefer" => Ok(PostgresSslChoice::Prefer),
+        "require" => Ok(PostgresSslChoice::Require),
+        "verify-ca" => Ok(PostgresSslChoice::VerifyCa),
+        "verify-full" => Ok(PostgresSslChoice::VerifyFull),
+        _ => Err(unknown_ssl_mode_message(raw, POSTGRES_ACCEPTED_SSL_MODES)),
+    }
+}
+
+fn postgres_ssl_mode_verifies_certificate(raw: &str) -> bool {
+    matches!(
+        parse_postgres_ssl_mode(raw),
+        Ok(PostgresSslChoice::VerifyCa | PostgresSslChoice::VerifyFull)
+    )
+}
+
+fn parse_mysql_ssl_mode(raw: &str) -> Result<sqlx::mysql::MySqlSslMode, String> {
+    use sqlx::mysql::MySqlSslMode;
+    match normalized_ssl_mode(raw).as_str() {
+        "disabled" | "disable" => Ok(MySqlSslMode::Disabled),
+        "preferred" | "prefer" => Ok(MySqlSslMode::Preferred),
+        "required" | "require" => Ok(MySqlSslMode::Required),
+        "verify_ca" | "verify-ca" => Ok(MySqlSslMode::VerifyCa),
+        "verify_identity" | "verify-full" | "verify-identity" => Ok(MySqlSslMode::VerifyIdentity),
+        _ => Err(unknown_ssl_mode_message(raw, MYSQL_ACCEPTED_SSL_MODES)),
+    }
+}
+
 /// Stable pool key: uses `connection_id` when present (saved connections),
 /// else `host:port:database` (ad-hoc). The TLS/iam tuple is appended so
 /// different SSL settings of the same connection get separate pools.
@@ -128,6 +209,9 @@ pub(crate) fn build_connection_key(
             // likewise separates pools that force sql_mode from those that don't.
             // `iam` likewise separates RDS-IAM-token connections (which use the
             // cleartext plugin) from regular password auth.
+            // The raw ssl_mode is kept as written. `build_mysql_options` rejects
+            // unknown values, so they must not collapse onto the unset default
+            // and share a pool with a connection that skips verification.
             "ssl:{}:{}:{}:{}:clear:{}:pipes:{}:iam:{}",
             params.ssl_mode.as_deref().unwrap_or("default"),
             params.ssl_ca.as_deref().unwrap_or(""),
@@ -142,12 +226,17 @@ pub(crate) fn build_connection_key(
             }
         )),
         "postgres" => {
+            // Unset matches `build_postgres_tls_connector` (`prefer`). The raw
+            // value stays in the key so an unknown mode cannot share a pool
+            // with that default; only modes that verify the certificate fold
+            // the CA path into the key.
             let ssl_mode = params.ssl_mode.as_deref().unwrap_or("prefer");
-            let ssl_ca = match ssl_mode {
-                "verify-ca" | "verify-full" => params.ssl_ca.as_deref().unwrap_or(""),
-                _ => "",
+            let ssl_ca = if postgres_ssl_mode_verifies_certificate(ssl_mode) {
+                params.ssl_ca.as_deref().unwrap_or("")
+            } else {
+                ""
             };
-            let (ssl_cert, ssl_key) = if ssl_mode == "disable" {
+            let (ssl_cert, ssl_key) = if normalized_ssl_mode(ssl_mode) == "disable" {
                 ("", "")
             } else {
                 (
@@ -220,14 +309,10 @@ pub(crate) fn build_mysql_options(
         .ssl_ca
         .as_deref()
         .is_some_and(|s| !s.trim().is_empty());
-    let mut ssl_mode = match params.ssl_mode.as_deref().unwrap_or("required") {
-        "disabled" | "disable" => MySqlSslMode::Disabled,
-        "preferred" | "prefer" => MySqlSslMode::Preferred,
-        "required" | "require" => MySqlSslMode::Required,
-        "verify_ca" => MySqlSslMode::VerifyCa,
-        "verify_identity" => MySqlSslMode::VerifyIdentity,
-        _ => MySqlSslMode::Required,
-    };
+    // Unset keeps the historical default (`required`): encrypted, certificate
+    // not verified. An unrecognised value is an error — it must not silently
+    // fall back to that default.
+    let mut ssl_mode = parse_mysql_ssl_mode(params.ssl_mode.as_deref().unwrap_or("required"))?;
     // Auto-escalate Required/Preferred + ssl_ca to VerifyCa only for IAM
     // connections. For IAM the chain must be validated because the
     // pre-signed RDS auth token only travels safely over a verified
@@ -416,7 +501,7 @@ pub(crate) fn is_pipes_as_concat_unsupported(err: &str) -> bool {
     err.contains("pipes_as_concat") || err.contains("no_engine_substitution")
 }
 
-pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> PgConfig {
+pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> Result<PgConfig, String> {
     let mut cfg = PgConfig::new();
     cfg.user(params.username.as_deref().unwrap_or_default())
         .password(params.password.as_deref().unwrap_or_default())
@@ -424,29 +509,29 @@ pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> PgConf
         .host(params.host.as_deref().unwrap_or_default())
         .dbname(&format!("{}", params.database));
 
+    // Unset leaves tokio_postgres's default (`Prefer`). A set but unknown
+    // mode is a connection error rather than that default.
     if let Some(ssl_mode) = params.ssl_mode.as_deref() {
-        match ssl_mode {
-            "disable" => {
+        match parse_postgres_ssl_mode(ssl_mode)? {
+            PostgresSslChoice::Disable => {
                 cfg.ssl_mode(PgSslMode::Disable);
             }
             // tokio_postgres does not have SslMode::Allow.
             // "allow" (try non-SSL first, fallback to SSL) requires application-level
             // logic that this codebase does not implement. For now, map to Prefer
             // which at least allows both SSL and non-SSL connections.
-            "allow" => {
+            PostgresSslChoice::Allow | PostgresSslChoice::Prefer => {
                 cfg.ssl_mode(PgSslMode::Prefer);
             }
-            "prefer" => {
-                cfg.ssl_mode(PgSslMode::Prefer);
-            }
-            "require" | "verify-ca" | "verify-full" => {
+            PostgresSslChoice::Require
+            | PostgresSslChoice::VerifyCa
+            | PostgresSslChoice::VerifyFull => {
                 cfg.ssl_mode(PgSslMode::Require);
             }
-            _ => {}
-        };
+        }
     }
 
-    cfg
+    Ok(cfg)
 }
 
 /// Build the rustls connector for the PostgreSQL pool.
@@ -466,16 +551,18 @@ pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> PgConf
 ///   (prior to v0.10.3 this validated the chain; it now matches libpq).
 /// - `verify-ca`: force TLS, validate chain, skip hostname check
 /// - `verify-full`: force TLS, validate chain and hostname
+///
+/// An unrecognised `ssl_mode` is an error. Unset keeps `prefer`.
 pub(crate) fn build_postgres_tls_connector(
     params: &ConnectionParams,
 ) -> Result<MakeRustlsConnect, String> {
     ensure_rustls_crypto_provider();
-    let ssl_mode = params.ssl_mode.as_deref().unwrap_or("prefer");
+    let ssl_mode = parse_postgres_ssl_mode(params.ssl_mode.as_deref().unwrap_or("prefer"))?;
     let user_ca = params.ssl_ca.as_deref().filter(|s| !s.trim().is_empty());
     let user_cert = params.ssl_cert.as_deref().filter(|s| !s.trim().is_empty());
     let user_key = params.ssl_key.as_deref().filter(|s| !s.trim().is_empty());
 
-    let client_auth = if ssl_mode == "disable" {
+    let client_auth = if matches!(ssl_mode, PostgresSslChoice::Disable) {
         None
     } else {
         match (user_cert, user_key) {
@@ -497,21 +584,21 @@ pub(crate) fn build_postgres_tls_connector(
     };
 
     let builder = match ssl_mode {
-        "disable" | "allow" | "prefer" => {
+        PostgresSslChoice::Disable | PostgresSslChoice::Allow | PostgresSslChoice::Prefer => {
             // No cert verification; PgSslMode below controls whether TLS is attempted.
             let verifier = Arc::new(NoCertVerifier::new());
             ClientConfig::builder()
                 .dangerous()
                 .with_custom_certificate_verifier(verifier)
         }
-        "require" => {
+        PostgresSslChoice::Require => {
             // Force TLS, skip cert validation.
             let verifier = Arc::new(NoCertVerifier::new());
             ClientConfig::builder()
                 .dangerous()
                 .with_custom_certificate_verifier(verifier)
         }
-        "verify-ca" => {
+        PostgresSslChoice::VerifyCa => {
             // Validate chain, skip hostname. Requires an explicit CA file —
             // platform roots are not used (macOS EKU check rejects them).
             let ca_path = user_ca.ok_or_else(|| {
@@ -527,7 +614,7 @@ pub(crate) fn build_postgres_tls_connector(
                 .dangerous()
                 .with_custom_certificate_verifier(verifier)
         }
-        "verify-full" => {
+        PostgresSslChoice::VerifyFull => {
             // Validate certificate chain AND hostname.
             if user_ca.is_none() {
                 // Use platform verifier for full validation.
@@ -544,13 +631,6 @@ pub(crate) fn build_postgres_tls_connector(
                     .dangerous()
                     .with_custom_certificate_verifier(verifier)
             }
-        }
-        _ => {
-            // Unknown mode, fall back to no verification.
-            let verifier = Arc::new(NoCertVerifier::new());
-            ClientConfig::builder()
-                .dangerous()
-                .with_custom_certificate_verifier(verifier)
         }
     };
 
@@ -980,7 +1060,7 @@ pub async fn get_postgres_pool_with_id(
         key
     );
 
-    let cfg = build_postgres_configurations(params);
+    let cfg = build_postgres_configurations(params)?;
 
     let tls_connector = build_postgres_tls_connector(params).map_err(|e| {
         log::error!("Failed to create TLS connector for PostgreSQL pool: {}", e);

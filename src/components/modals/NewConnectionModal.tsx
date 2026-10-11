@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, useId } from "react";
 import { useTranslation } from "react-i18next";
 import {
   X,
@@ -86,6 +86,11 @@ import {
   toConnectionParams,
   uriPassthroughEnabled,
 } from "../../utils/connectionStringParser";
+import {
+  shouldShowUnverifiedSslHint,
+  suggestedVerifyingSslMode,
+  type SslModeFamily,
+} from "../../utils/sslMode";
 import { useConnectionCatalogue } from "../../hooks/useConnectionCatalogue";
 import { ConnectionCatalogue } from "./connection/ConnectionCatalogue";
 import { DriverVersionPicker } from "./connection/DriverVersionPicker";
@@ -268,6 +273,8 @@ export const NewConnectionModal = ({
 }: NewConnectionModalProps) => {
   const { t } = useTranslation();
   const { showAlert } = useAlert();
+  const sslModeSelectId = useId();
+  const sslModeHintId = useId();
   const { drivers, refresh: refreshDrivers } = useDrivers();
   const { settings, updateSetting } = useSettings();
   const { invalidate: invalidateK8sAsync, run: runK8sAsync } = useLatestAsync();
@@ -3281,6 +3288,17 @@ export const NewConnectionModal = ({
   );
 
   // ── rendered SSL tab content ──
+  const selectedSslMode =
+    formData.ssl_mode ||
+    (driver === "clickhouse" ? "disable" : isPostgresDialect ? "prefer" : "required");
+  // ClickHouse only offers disable/require, neither of which verifies a certificate.
+  const sslModeFamily: SslModeFamily | null =
+    driver === "clickhouse" ? null : isPostgresDialect ? "postgres" : "mysql";
+  const showUnverifiedSslHint =
+    sslModeFamily !== null &&
+    shouldShowUnverifiedSslHint(formData.host, selectedSslMode, sslModeFamily);
+  const suggestedSslMode =
+    sslModeFamily === null ? null : suggestedVerifyingSslMode(sslModeFamily);
   const sslTabContent = (
     <div className="space-y-4">
       <p className="text-xs text-muted">
@@ -3291,18 +3309,16 @@ export const NewConnectionModal = ({
 
       {/* SSL Mode */}
       <div className="flex flex-col gap-1">
-        <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
+        <label
+          htmlFor={sslModeSelectId}
+          className="text-[10px] uppercase font-semibold tracking-wider text-muted"
+        >
           {t("newConnection.sslMode", { defaultValue: "SSL Mode" })}
         </label>
         <Select
-          value={
-            formData.ssl_mode ||
-            (driver === "clickhouse"
-              ? "disable"
-              : isPostgresDialect
-                ? "prefer"
-                : "required")
-          }
+          id={sslModeSelectId}
+          ariaDescribedBy={showUnverifiedSslHint ? sslModeHintId : undefined}
+          value={selectedSslMode}
           options={
             driver === "clickhouse"
               ? ["disable", "require"]
@@ -3353,6 +3369,15 @@ export const NewConnectionModal = ({
           }}
           searchable={false}
         />
+        {showUnverifiedSslHint && suggestedSslMode && (
+          <p id={sslModeHintId} className="text-xs text-muted leading-snug">
+            {t("newConnection.sslUnverifiedRemoteHint", {
+              mode: suggestedSslMode,
+              defaultValue:
+                "This mode does not verify the server certificate. For a remote host, use {{mode}}.",
+            })}
+          </p>
+        )}
       </div>
 
       {/* SSL Certificate Files */}

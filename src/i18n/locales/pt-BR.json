@@ -1144,6 +1144,7 @@
     "manageSshConnections": "Gerenciar Conexões SSH",
     "noSshConnections": "Nenhuma conexão SSH disponível",
     "sslMode": "Modo SSL",
+    "sslUnverifiedRemoteHint": "Este modo não verifica o certificado do servidor. Para um host remoto, use {{mode}}.",
     "enableCleartextPlugin": "Ativar plugin de senha em texto claro",
     "enableCleartextPluginHint": "Envia a senha usando mysql_clear_password. Necessário para bastiões como o Warpgate. Usado apenas em conexões TLS.",
     "enableCleartextPluginTlsRequired": "Selecione um modo TLS obrigatório acima (Required, Verify CA ou Verify Identity) para usar o plugin de senha em texto claro.",

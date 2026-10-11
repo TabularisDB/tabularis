@@ -1103,6 +1103,7 @@
     "manageSshConnections": "SSH 연결 관리",
     "noSshConnections": "사용 가능한 SSH 연결이 없습니다",
     "sslMode": "SSL 모드",
+    "sslUnverifiedRemoteHint": "이 모드는 서버 인증서를 확인하지 않습니다. 원격 호스트에는 {{mode}}을(를) 사용하세요.",
     "enableCleartextPlugin": "평문 비밀번호 플러그인 활성화",
     "enableCleartextPluginHint": "mysql_clear_password로 비밀번호를 전송합니다. Warpgate 같은 배스천에 필요합니다. TLS 연결에서만 사용됩니다.",
     "enableCleartextPluginTlsRequired": "평문 비밀번호 플러그인을 사용하려면 위에서 강제 TLS 모드(필수, CA 확인 또는 신원 확인)를 선택하세요.",

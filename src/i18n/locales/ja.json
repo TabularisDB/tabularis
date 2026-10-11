@@ -1142,6 +1142,7 @@
     "manageSshConnections": "SSH 接続を管理",
     "noSshConnections": "利用可能な SSH 接続がありません",
     "sslMode": "SSL モード",
+    "sslUnverifiedRemoteHint": "このモードはサーバー証明書を検証しません。リモートホストでは {{mode}} を使ってください。",
     "enableCleartextPlugin": "クリアテキストパスワードプラグインを有効にする",
     "enableCleartextPluginHint": "mysql_clear_password を使用してパスワードを送信します。Warpgate などのバスティオンで必要です。TLS 接続でのみ使用されます。",
     "enableCleartextPluginTlsRequired": "クリアテキストパスワードプラグインを使用するには、上で強制 TLS モード（Required、Verify CA、または Verify Identity）を選択してください。",

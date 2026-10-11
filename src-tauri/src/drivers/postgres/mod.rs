@@ -2196,7 +2196,7 @@ impl DatabaseDriver for PostgresDriver {
         &self,
         params: &crate::models::ConnectionParams,
     ) -> Result<(), String> {
-        let cfg = crate::pool_manager::build_postgres_configurations(params);
+        let cfg = crate::pool_manager::build_postgres_configurations(params)?;
         let tls_connector = crate::pool_manager::build_postgres_tls_connector(params)?;
         let (client, connection) = cfg
             .connect(tls_connector)

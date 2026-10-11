@@ -1173,6 +1173,7 @@
     "manageSshConnections": "Manage SSH Connections",
     "noSshConnections": "No SSH connections available",
     "sslMode": "SSL Mode",
+    "sslUnverifiedRemoteHint": "This mode does not verify the server certificate. For a remote host, use {{mode}}.",
     "enableCleartextPlugin": "Enable cleartext password plugin",
     "enableCleartextPluginHint": "Sends the password using mysql_clear_password. Required for bastions like Warpgate. Only used over a TLS connection.",
     "enableCleartextPluginTlsRequired": "Select an enforced TLS mode above (Required, Verify CA, or Verify Identity) to use the cleartext password plugin.",
