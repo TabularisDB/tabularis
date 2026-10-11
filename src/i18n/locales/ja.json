@@ -567,7 +567,11 @@
     "fontPreviewText": "いろはにほへと ちりぬるを わかよたれそ つねならむ",
     "dataGrid": {
       "zebraStripes": "交互の行背景",
-      "zebraStripesDesc": "1行おきに背景を網掛けし、横幅の広いテーブルでも行を追いやすくします。"
+      "zebraStripesDesc": "1行おきに背景を網掛けし、横幅の広いテーブルでも行を追いやすくします。",
+      "defaultSortDirection": "デフォルトの並び替え方向",
+      "defaultSortDirectionDesc": "列ヘッダーを初めてクリックしたときの初期並び替え順序。",
+      "sortAscending": "昇順",
+      "sortDescending": "降順"
     },
     "appearance_general": "一般",
     "appearance_sqlEditor": "SQL エディタ",

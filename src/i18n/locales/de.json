@@ -556,7 +556,11 @@
     "fontPreviewText": "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern",
     "dataGrid": {
       "zebraStripes": "Abwechselnder Zeilenhintergrund",
-      "zebraStripesDesc": "Hebt jede zweite Zeile hervor, damit Sie eine Zeile auch in breiten Tabellen leichter verfolgen können."
+      "zebraStripesDesc": "Hebt jede zweite Zeile hervor, damit Sie eine Zeile auch in breiten Tabellen leichter verfolgen können.",
+      "defaultSortDirection": "Standard-Sortierrichtung",
+      "defaultSortDirectionDesc": "Anfängliche Sortierreihenfolge beim ersten Klicken auf einen Spaltenkopf.",
+      "sortAscending": "Aufsteigend",
+      "sortDescending": "Absteigend"
     },
     "appearance_general": "Allgemein",
     "appearance_sqlEditor": "SQL-Editor",

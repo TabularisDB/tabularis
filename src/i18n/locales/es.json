@@ -581,7 +581,11 @@
     "fontPreviewText": "El veloz zorro marrón salta sobre el perro perezoso",
     "dataGrid": {
       "zebraStripes": "Fondo de filas alternas",
-      "zebraStripesDesc": "Sombrea una fila de cada dos para seguir más fácilmente una fila en tablas anchas."
+      "zebraStripesDesc": "Sombrea una fila de cada dos para seguir más fácilmente una fila en tablas anchas.",
+      "defaultSortDirection": "Dirección de orden predeterminada",
+      "defaultSortDirectionDesc": "Orden inicial al hacer clic en el encabezado de una columna por primera vez.",
+      "sortAscending": "Ascendente",
+      "sortDescending": "Descendente"
     },
     "appearance_general": "General",
     "appearance_sqlEditor": "Editor SQL",

@@ -124,6 +124,25 @@ export function AppearanceTab() {
                 onChange={(v) => updateSetting("resultZebraStripes", v)}
               />
             </SettingRow>
+            <SettingRow
+              label={t("settings.dataGrid.defaultSortDirection")}
+              description={t("settings.dataGrid.defaultSortDirectionDesc")}
+            >
+              <SettingButtonGroup
+                value={settings.defaultSortDirection ?? "asc"}
+                onChange={(v) => updateSetting("defaultSortDirection", v)}
+                options={[
+                  {
+                    value: "asc",
+                    label: t("settings.dataGrid.sortAscending"),
+                  },
+                  {
+                    value: "desc",
+                    label: t("settings.dataGrid.sortDescending"),
+                  },
+                ]}
+              />
+            </SettingRow>
             <div className="py-3">
               <p className="text-sm text-primary">
                 {t("settings.dataGrid.fontFamily")}

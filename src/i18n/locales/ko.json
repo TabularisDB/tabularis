@@ -531,7 +531,11 @@
     },
     "dataGrid": {
       "zebraStripes": "줄무늬 행 배경",
-      "zebraStripesDesc": "넓은 테이블에서 행을 더 쉽게 추적할 수 있도록 한 행 건너 음영을 적용합니다."
+      "zebraStripesDesc": "넓은 테이블에서 행을 더 쉽게 추적할 수 있도록 한 행 건너 음영을 적용합니다.",
+      "defaultSortDirection": "기본 정렬 방향",
+      "defaultSortDirectionDesc": "열 머리글을 처음 클릭했을 때의 초기 정렬 순서입니다.",
+      "sortAscending": "오름차순",
+      "sortDescending": "내림차순"
     },
     "appearance_general": "일반",
     "appearance_sqlEditor": "SQL 에디터",

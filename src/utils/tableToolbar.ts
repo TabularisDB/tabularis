@@ -131,3 +131,46 @@ export function formatSortClause(
     })
     .join(", ");
 }
+
+/**
+ * Calculates the next ORDER BY sort clause when clicking on a column header in the data grid.
+ *
+ * Cycles based on defaultSortDirection ("asc" | "desc"):
+ * - With "asc":  none -> ASC -> DESC -> none (clear)
+ * - With "desc": none -> DESC -> ASC -> none (clear)
+ */
+export function getNextSortClause(
+  currentSort: string,
+  colName: string,
+  defaultSortDirection: "asc" | "desc" = "asc",
+  driver?: string | PluginManifest | DriverCapabilities | null,
+): string {
+  const parts = currentSort.trim().split(/\s+/);
+  const sortCol = parts[0]?.replace(/^["`]|["`]$/g, "") ?? "";
+  const isSameColumn = sortCol === colName && parts.length <= 2;
+
+  const formattedCol = formatSqlIdentifier(colName, driver);
+
+  if (isSameColumn) {
+    const currentDir = parts[1]?.toUpperCase();
+
+    if (defaultSortDirection === "desc") {
+      // DESC cycle: DESC -> ASC -> none
+      if (currentDir === "DESC") {
+        return `${formattedCol} ASC`;
+      }
+      return "";
+    } else {
+      // ASC cycle: ASC -> DESC -> none
+      if (!currentDir || currentDir === "ASC") {
+        return `${formattedCol} DESC`;
+      }
+      return "";
+    }
+  }
+
+  // New column clicked: first step of cycle
+  return defaultSortDirection === "desc"
+    ? `${formattedCol} DESC`
+    : `${formattedCol} ASC`;
+}

@@ -556,7 +556,11 @@
     "fontPreviewText": "The quick brown fox jumps over the lazy dog",
     "dataGrid": {
       "zebraStripes": "交替行背景",
-      "zebraStripesDesc": "为每隔一行添加底色，便于在宽表中横向追踪某一行。"
+      "zebraStripesDesc": "为每隔一行添加底色，便于在宽表中横向追踪某一行。",
+      "defaultSortDirection": "默认排序方向",
+      "defaultSortDirectionDesc": "首次点击列标题时的初始排序顺序。",
+      "sortAscending": "升序",
+      "sortDescending": "降序"
     },
     "language": "语言",
     "languageDesc": "选择您的首选语言。自动\"将使用您的系统语言。",

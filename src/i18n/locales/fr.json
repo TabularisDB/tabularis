@@ -586,7 +586,11 @@
     },
     "dataGrid": {
       "zebraStripes": "Arrière-plan alterné des lignes",
-      "zebraStripesDesc": "Ombrage une ligne sur deux pour suivre plus facilement une ligne dans les tableaux larges."
+      "zebraStripesDesc": "Ombrage une ligne sur deux pour suivre plus facilement une ligne dans les tableaux larges.",
+      "defaultSortDirection": "Direction de tri par défaut",
+      "defaultSortDirectionDesc": "Ordre de tri initial lors du premier clic sur l'en-tête d'une colonne.",
+      "sortAscending": "Croissant",
+      "sortDescending": "Décroissant"
     },
     "appearance_general": "Général",
     "appearance_sqlEditor": "Éditeur SQL",
