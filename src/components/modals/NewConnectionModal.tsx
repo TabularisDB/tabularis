@@ -65,7 +65,7 @@ import { useK8sPathOverrides } from "../../hooks/useK8sPathOverrides";
 import { useLatestAsync } from "../../hooks/useLatestAsync";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
 import { isMultiDatabaseCapable } from "../../utils/database";
-import { updateExtraField } from "../../utils/connections";
+import { updateExtraField, withoutBlankSslMode } from "../../utils/connections";
 import { normalizeLocalDatabasePath, sanitizeLocalFilePath } from "../../utils/fsPath";
 import { isLocalDriver } from "../../utils/driverCapabilities";
 import { toErrorMessage } from "../../utils/errors";
@@ -2134,9 +2134,8 @@ export const NewConnectionModal = ({
                 ) ?? "")
               : formData.database,
         };
-        const testParams = withInlineK8sPaths(
-          testParamsBase,
-          inlinePaths.options,
+        const testParams = withoutBlankSslMode(
+          withInlineK8sPaths(testParamsBase, inlinePaths.options),
         );
         const invokeTest = () =>
           invoke<string>("test_connection", {
@@ -2354,7 +2353,9 @@ export const NewConnectionModal = ({
                 ) ?? formData.database)
               : formData.database,
       };
-      const params = withInlineK8sPaths(paramsBase, inlinePaths.options);
+      const params = withoutBlankSslMode(
+        withInlineK8sPaths(paramsBase, inlinePaths.options),
+      );
       const appearancePayload =
         appearance.icon || appearance.accentColor ? appearance : undefined;
       const finalImagePath =

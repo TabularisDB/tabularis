@@ -259,6 +259,23 @@ mod tests {
         assert!(matches!(opts.get_ssl_mode(), MySqlSslMode::Required));
     }
 
+    #[test]
+    fn mysql_options_blank_ssl_mode_equals_default() {
+        let blank = mysql_params("   ");
+        let unset = connection_params("mysql", None);
+        let blank_opts = build_mysql_options(&blank, None).expect("blank ssl_mode");
+        let unset_opts = build_mysql_options(&unset, None).expect("unset ssl_mode");
+        assert!(matches!(blank_opts.get_ssl_mode(), MySqlSslMode::Required));
+        assert_eq!(
+            std::mem::discriminant(&blank_opts.get_ssl_mode()),
+            std::mem::discriminant(&unset_opts.get_ssl_mode())
+        );
+        assert_eq!(
+            build_connection_key(&blank, Some("conn-1")),
+            build_connection_key(&unset, Some("conn-1"))
+        );
+    }
+
     fn mysql_ssl_mode_name(mode: MySqlSslMode) -> &'static str {
         match mode {
             MySqlSslMode::Disabled => "Disabled",
@@ -1024,12 +1041,24 @@ mod postgres_ssl_config_tests {
     }
 
     #[test]
-    fn test_ssl_mode_blank_is_rejected() {
-        let err = match build_postgres_configurations(&params_with_ssl("   ")) {
-            Err(err) => err,
-            Ok(_) => panic!("blank ssl mode should fail"),
+    fn test_ssl_mode_blank_equals_default() {
+        let blank_cfg =
+            build_postgres_configurations(&params_with_ssl("   ")).expect("blank ssl_mode");
+        let unset_params = ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some("localhost".to_string()),
+            port: Some(5432),
+            username: Some("test".to_string()),
+            password: Some("test".to_string()),
+            database: DatabaseSelection::Single("testdb".to_string()),
+            ssl_mode: None,
+            ..Default::default()
         };
-        assert!(err.contains("Unknown SSL mode"), "{err}");
+        let unset_cfg =
+            build_postgres_configurations(&unset_params).expect("unset ssl_mode");
+        assert_eq!(blank_cfg.get_ssl_mode(), PgSslMode::Prefer);
+        assert_eq!(unset_cfg.get_ssl_mode(), PgSslMode::Prefer);
+        assert_eq!(blank_cfg.get_ssl_mode(), unset_cfg.get_ssl_mode());
     }
 }
 
@@ -1180,6 +1209,15 @@ mod postgres_tls_connector_tests {
         let mut params = params_with_ssl("prefer");
         params.ssl_mode = None;
         assert!(build_postgres_tls_connector(&params).is_ok());
+    }
+
+    #[test]
+    fn test_tls_connector_blank_ssl_mode_equals_default() {
+        let blank = params_with_ssl("  ");
+        let mut unset = params_with_ssl("prefer");
+        unset.ssl_mode = None;
+        assert!(build_postgres_tls_connector(&blank).is_ok());
+        assert!(build_postgres_tls_connector(&unset).is_ok());
     }
 
     #[test]

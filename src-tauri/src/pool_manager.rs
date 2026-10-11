@@ -154,6 +154,11 @@ fn normalized_ssl_mode(value: &str) -> String {
     value.trim().to_ascii_lowercase()
 }
 
+/// Empty or whitespace-only `ssl_mode` from the connection form is treated as unset.
+fn non_empty_ssl_mode(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|s| !s.is_empty())
+}
+
 #[derive(Clone, Copy)]
 enum PostgresSslChoice {
     Disable,
@@ -213,7 +218,7 @@ pub(crate) fn build_connection_key(
             // unknown values, so they must not collapse onto the unset default
             // and share a pool with a connection that skips verification.
             "ssl:{}:{}:{}:{}:clear:{}:pipes:{}:iam:{}",
-            params.ssl_mode.as_deref().unwrap_or("default"),
+            non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("default"),
             params.ssl_ca.as_deref().unwrap_or(""),
             params.ssl_cert.as_deref().unwrap_or(""),
             params.ssl_key.as_deref().unwrap_or(""),
@@ -230,7 +235,7 @@ pub(crate) fn build_connection_key(
             // value stays in the key so an unknown mode cannot share a pool
             // with that default; only modes that verify the certificate fold
             // the CA path into the key.
-            let ssl_mode = params.ssl_mode.as_deref().unwrap_or("prefer");
+            let ssl_mode = non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("prefer");
             let ssl_ca = if postgres_ssl_mode_verifies_certificate(ssl_mode) {
                 params.ssl_ca.as_deref().unwrap_or("")
             } else {
@@ -312,7 +317,8 @@ pub(crate) fn build_mysql_options(
     // Unset keeps the historical default (`required`): encrypted, certificate
     // not verified. An unrecognised value is an error — it must not silently
     // fall back to that default.
-    let mut ssl_mode = parse_mysql_ssl_mode(params.ssl_mode.as_deref().unwrap_or("required"))?;
+    let mut ssl_mode =
+        parse_mysql_ssl_mode(non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("required"))?;
     // Auto-escalate Required/Preferred + ssl_ca to VerifyCa only for IAM
     // connections. For IAM the chain must be validated because the
     // pre-signed RDS auth token only travels safely over a verified
@@ -511,7 +517,7 @@ pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> Result
 
     // Unset leaves tokio_postgres's default (`Prefer`). A set but unknown
     // mode is a connection error rather than that default.
-    if let Some(ssl_mode) = params.ssl_mode.as_deref() {
+    if let Some(ssl_mode) = non_empty_ssl_mode(params.ssl_mode.as_deref()) {
         match parse_postgres_ssl_mode(ssl_mode)? {
             PostgresSslChoice::Disable => {
                 cfg.ssl_mode(PgSslMode::Disable);
@@ -557,7 +563,9 @@ pub(crate) fn build_postgres_tls_connector(
     params: &ConnectionParams,
 ) -> Result<MakeRustlsConnect, String> {
     ensure_rustls_crypto_provider();
-    let ssl_mode = parse_postgres_ssl_mode(params.ssl_mode.as_deref().unwrap_or("prefer"))?;
+    let ssl_mode = parse_postgres_ssl_mode(
+        non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("prefer"),
+    )?;
     let user_ca = params.ssl_ca.as_deref().filter(|s| !s.trim().is_empty());
     let user_cert = params.ssl_cert.as_deref().filter(|s| !s.trim().is_empty());
     let user_key = params.ssl_key.as_deref().filter(|s| !s.trim().is_empty());

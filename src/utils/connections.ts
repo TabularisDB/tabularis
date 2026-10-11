@@ -119,6 +119,17 @@ export interface ConnectionParams {
  * @param key - Field name owned by the plugin
  * @param value - New value; empty string clears the field
  */
+/** Drop blank `ssl_mode` so the backend applies the driver default. */
+export function withoutBlankSslMode<T extends { ssl_mode?: string }>(
+  params: T,
+): Omit<T, "ssl_mode"> | T {
+  if (params.ssl_mode === undefined || params.ssl_mode.trim() === "") {
+    const { ssl_mode: _omit, ...rest } = params;
+    return rest;
+  }
+  return params;
+}
+
 export function updateExtraField(
   extra: Record<string, string> | undefined,
   key: string,
