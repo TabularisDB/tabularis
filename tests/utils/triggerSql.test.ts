@@ -7,6 +7,12 @@ import {
   buildTriggerSql,
   extractFunctionBody,
   parseTriggerFunctionName,
+  buildCreateTriggerSql,
+  buildCreateTriggerStatements,
+  parseTriggerDefinition,
+  resolveTriggerDialect,
+  normalizeSelection,
+  splitSqlStatements,
   type TriggerSqlInput,
 } from "../../src/utils/triggerSql";
 
@@ -32,7 +38,7 @@ describe("triggerSql", () => {
       const body = defaultTriggerBody("postgres");
       expect(body).not.toContain("BEGIN");
       expect(body).not.toContain("END");
-      expect(body).toContain("RETURN NEW;");
+      expect(body).toContain("-- trigger body");
     });
 
     it("uses an inline BEGIN/END block for mysql and sqlite", () => {
@@ -371,5 +377,130 @@ $function$`;
       expect(parseTriggerFunctionName("EXECUTE FUNCTION ();")).toBeNull();
       expect(parseTriggerFunctionName("")).toBeNull();
     });
+  });
+
+  // --- Upstream dialect-aware tests (buildCreateTriggerStatements, etc.) ---
+
+  const upstreamBase = {
+    name: "t",
+    schema: "store",
+    table: "products",
+    forEach: "ROW" as const,
+    body: "  -- x",
+  };
+
+  it("postgres emits function + trigger", () => {
+    const sql = buildCreateTriggerSql({
+      ...upstreamBase,
+      dialect: "postgres",
+      timing: "AFTER",
+      events: ["INSERT", "UPDATE"],
+    });
+    expect(sql).toContain("RETURNS TRIGGER");
+    expect(sql).toContain("AFTER INSERT OR UPDATE ON");
+    expect(sql).toContain("EXECUTE FUNCTION");
+    expect(sql).toContain("RETURN NULL;");
+  });
+
+  describe("resolveTriggerDialect", () => {
+    it("prefers capabilities.sql_dialect over the driver id", () => {
+      expect(
+        resolveTriggerDialect({ driver: "my-plugin", capabilities: { sql_dialect: "mysql" } }),
+      ).toBe("mysql");
+      expect(
+        resolveTriggerDialect({ driver: "mysql", capabilities: { sql_dialect: "postgresql" } }),
+      ).toBe("postgres");
+    });
+
+    it("is case-insensitive and accepts aliases", () => {
+      expect(resolveTriggerDialect({ capabilities: { sql_dialect: "PostgreSQL" } })).toBe("postgres");
+      expect(resolveTriggerDialect({ capabilities: { sql_dialect: "MariaDB" } })).toBe("mysql");
+    });
+
+    it("falls back to the driver id for built-in drivers", () => {
+      expect(resolveTriggerDialect({ driver: "sqlite" })).toBe("sqlite");
+      expect(resolveTriggerDialect({ driver: "postgres" })).toBe("postgres");
+    });
+
+    it("returns null for unknown drivers instead of guessing postgres", () => {
+      expect(resolveTriggerDialect({ driver: "my-plugin" })).toBeNull();
+      expect(resolveTriggerDialect({ driver: "my-plugin", capabilities: { sql_dialect: "generic" } })).toBeNull();
+      expect(resolveTriggerDialect({})).toBeNull();
+    });
+  });
+
+  it("postgres returns two statements", () => {
+    const s = buildCreateTriggerStatements({
+      ...upstreamBase,
+      dialect: "postgres",
+      timing: "AFTER",
+      events: ["INSERT"],
+    });
+    expect(s).toHaveLength(2);
+    expect(s[0]).toContain("CREATE OR REPLACE FUNCTION");
+    expect(s[1]).toContain("CREATE TRIGGER");
+  });
+
+  it("postgres BEFORE row handles DELETE", () => {
+    const sql = buildCreateTriggerSql({
+      ...upstreamBase,
+      dialect: "postgres",
+      timing: "BEFORE",
+      events: ["DELETE"],
+    });
+    expect(sql).toContain("RETURN OLD");
+  });
+
+  it("postgres edit reuses the existing function", () => {
+    const s = buildCreateTriggerStatements({
+      ...upstreamBase,
+      dialect: "postgres",
+      timing: "AFTER",
+      events: ["INSERT", "DELETE"],
+      existingTail: "EXECUTE FUNCTION public.audit()",
+    });
+    expect(s).toHaveLength(1);
+    expect(s[0]).toContain("EXECUTE FUNCTION public.audit();");
+    expect(s[0]).not.toContain("CREATE OR REPLACE FUNCTION");
+  });
+
+  it("mysql never qualifies the table with the schema", () => {
+    const sql = buildCreateTriggerSql({
+      ...upstreamBase,
+      dialect: "mysql",
+      timing: "AFTER",
+      events: ["INSERT"],
+      body: "BEGIN\nEND",
+    });
+    expect(sql).toContain("ON `products`");
+    expect(sql).not.toContain("store");
+  });
+
+  it("mysql keeps a single event", () => {
+    expect(
+      normalizeSelection("mysql", "AFTER", ["INSERT", "UPDATE"]).events,
+    ).toEqual(["INSERT"]);
+  });
+
+  it("mysql rejects INSTEAD OF", () => {
+    expect(normalizeSelection("mysql", "INSTEAD OF", ["INSERT"]).timing).toBe(
+      "BEFORE",
+    );
+  });
+
+  it("parses all events", () => {
+    expect(
+      parseTriggerDefinition(
+        "CREATE TRIGGER x BEFORE INSERT OR UPDATE OR DELETE ON t",
+      ).events,
+    ).toEqual(["INSERT", "UPDATE", "DELETE"]);
+  });
+
+  it("splits statements without breaking $$ bodies", () => {
+    const parts = splitSqlStatements(
+      "CREATE FUNCTION f() RETURNS TRIGGER AS $$ BEGIN RETURN NEW; END; $$ LANGUAGE plpgsql;\nCREATE TRIGGER t AFTER INSERT ON a FOR EACH ROW EXECUTE FUNCTION f();",
+    );
+    expect(parts).toHaveLength(2);
+    expect(parts[0]).toContain("RETURN NEW; END;");
   });
 });

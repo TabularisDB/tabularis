@@ -578,6 +578,10 @@
     "formatter_linesBetweenQueriesDesc": "Количество пустых строк между отдельными SQL-операторами.",
     "formatter_denseOperators": "Компактные операторы",
     "formatter_denseOperatorsDesc": "Убрать пробелы вокруг операторов (например, a=1 вместо a = 1).",
+    "autocomplete_title": "Автодополнение",
+    "autocomplete_keywordCase": "Регистр ключевых слов",
+    "autocomplete_keywordCaseDesc": "Регистр ключевых слов SQL, вставляемых автодополнением.",
+    "autocomplete_keywordCaseMatch": "Как при вводе",
     "editConfigJson": "Изменить config.json",
     "editConfigJsonDesc": "Прямое редактирование файла конфигурации. Изменения вступят в силу после перезапуска.",
     "configJsonModal": {
@@ -1871,7 +1875,12 @@
     "updateSuccess": "Триггер обновлён",
     "recreateTrigger": "Пересоздать триггер",
     "confirmRecreate": "Редактирование триггера требует его удаления и повторного создания. Продолжить изменение \"{{trigger}}\"?",
-    "functionNameCollision": "A function named \"{{name}}\" already exists. Rename the trigger or drop the function first."
+    "functionNameCollision": "A function named \"{{name}}\" already exists. Rename the trigger or drop the function first.",
+    "originalRestored": "Исходный триггер был восстановлен.",
+    "restoreFailed": "Не удалось также восстановить исходный триггер: ",
+    "singleEventHint": "Эта база данных допускает только одно событие на триггер.",
+    "existingFunctionHint": "Этот триггер сохраняет свою существующую функцию. Измените саму функцию в SQL-редакторе или в режиме raw SQL.",
+    "unsupportedDriver": "Редактирование триггеров не поддерживается для этого драйвера."
   },
   "community": {
     "title": "Присоединяйтесь к сообществу",

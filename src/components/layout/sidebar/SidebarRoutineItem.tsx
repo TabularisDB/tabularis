@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import type { RoutineInfo } from "../../../contexts/DatabaseContext";
+import { routineLabel } from "../../../utils/routines";
 import type { ContextMenuData } from "../../../types/sidebar";
 import { onActivationKey } from "../../../utils/keyboardEvents";
 
@@ -61,6 +62,9 @@ export const SidebarRoutineItem = ({
           routineName: routine.name,
           ...(schema ? { schema } : {}),
           ...(database ? { database } : {}),
+          ...(routine.identity_args != null
+            ? { identityArgs: routine.identity_args }
+            : {}),
         },
       );
       setParameters(params);
@@ -69,7 +73,7 @@ export const SidebarRoutineItem = ({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, routine.name, schema, database]);
+  }, [connectionId, routine.name, routine.identity_args, schema, database]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -113,7 +117,7 @@ export const SidebarRoutineItem = ({
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </span>
         <Code2 size={14} className="text-muted group-hover:text-accent-warning" />
-        <span className="truncate flex-1">{routine.name}</span>
+        <span className="truncate flex-1">{routineLabel(routine.name, routine.identity_args)}</span>
       </div>
       {isExpanded && (
         <div className="ml-[22px] border-l border-default">

@@ -1198,6 +1198,8 @@ impl DatabaseDriver for SqliteDriver {
         params: &crate::models::ConnectionParams,
         routine_name: &str,
         _schema: Option<&str>,
+        /* SQLite has no stored routines at all, let alone overloaded ones */
+        _identity_args: Option<&str>,
     ) -> Result<Vec<crate::models::RoutineParameter>, String> {
         get_routine_parameters(params, routine_name).await
     }
@@ -1208,6 +1210,7 @@ impl DatabaseDriver for SqliteDriver {
         routine_name: &str,
         routine_type: &str,
         _schema: Option<&str>,
+        _identity_args: Option<&str>,
     ) -> Result<String, String> {
         get_routine_definition(params, routine_name, routine_type).await
     }

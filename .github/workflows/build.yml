@@ -293,6 +293,25 @@ jobs:
           Copy-Item $src $portable
           gh release upload "${{ inputs.tag }}" $portable --clobber
 
+      # WinGet uses an NSIS installer, not the portable executable layout.
+      # Embed the channel in this build so only WinGet-managed installations
+      # disable the in-app updater. Keep latest.json pointing at direct builds.
+      - name: Build WinGet-managed installer (stable Windows release only)
+        if: matrix.platform == 'windows-latest' && !inputs.preview && !inputs.prerelease
+        shell: pwsh
+        env:
+          PACKAGE_MANAGER_SRC: winget
+          PACKAGE_MANAGER_NAME: winget
+        run: pnpm tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Upload WinGet-managed installer
+        if: matrix.platform == 'windows-latest' && !inputs.preview && !inputs.prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node scripts/stage-winget-installer.mjs "$env:RELEASE_TAG"
+
       - name: Stage portable executable (Windows only, preview mode)
         if: matrix.platform == 'windows-latest' && inputs.preview
         shell: pwsh

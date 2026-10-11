@@ -50,6 +50,12 @@ export const RunRoutineModal = ({
       routineName: routine.name,
       ...(schema ? { schema } : {}),
       ...(database ? { database } : {}),
+      // Without this the form offered one overload's arguments under another's
+      // name: the parameter read used to filter on schema and name only, so it
+      // answered with every overload's parameters in one list (#893).
+      ...(routine.identity_args != null
+        ? { identityArgs: routine.identity_args }
+        : {}),
     })
       .then((params) => {
         if (cancelled) return;
@@ -74,7 +80,7 @@ export const RunRoutineModal = ({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, connectionId, routine.name, schema, database]);
+  }, [isOpen, connectionId, routine.name, routine.identity_args, schema, database]);
 
   const updateInput = useCallback(
     (position: number, partial: Partial<RoutineArgInput>) => {

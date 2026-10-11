@@ -8,15 +8,24 @@ import { Modal } from "../ui/Modal";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import { useDatabase } from "../../hooks/useDatabase";
 import {
-  isPostgresDriver,
-  defaultTriggerBody,
   buildTriggerFunctionSql as buildTriggerFunctionSqlUtil,
   buildTriggerSql as buildTriggerSqlUtil,
   triggerFunctionName,
   extractFunctionBody,
   parseTriggerFunctionName,
+  TRIGGER_CAPS,
+  buildCreateTriggerStatements,
+  defaultTriggerBody,
+  normalizeSelection,
+  parseTriggerDefinition,
+  resolveTriggerDialect,
+  splitSqlStatements,
+  type TriggerDialect,
+  type TriggerEvent,
+  type TriggerTiming,
   type TriggerSqlInput,
 } from "../../utils/triggerSql";
+import { quoteIdentifier } from "../../utils/identifiers";
 import type { DriverCapabilities } from "../../types/plugins";
 
 interface TriggerEditorModalProps {
@@ -38,33 +47,36 @@ interface TriggerEditorModalProps {
   onSuccess?: () => void;
 }
 
-const TIMING_OPTIONS = ["BEFORE", "AFTER", "INSTEAD OF"];
-const EVENT_OPTIONS = ["INSERT", "UPDATE", "DELETE"];
+interface ParsedTrigger {
+  timing: TriggerTiming | null;
+  events: TriggerEvent[];
+  /** mysql/sqlite: text after FOR EACH ROW */
+  body: string | null;
+  /** postgres: text after FOR EACH ROW|STATEMENT (WHEN ... EXECUTE FUNCTION fn()) */
+  tail: string | null;
+  forEach: "ROW" | "STATEMENT";
+}
 
-function parseTriggerSql(sql: string): { timing: string | null; events: string[] | null; body: string | null } {
-  // Restrict header to the part before FOR EACH ROW to avoid matching keywords in the body
-  const forEachRowMatch = sql.match(/\bFOR\s+EACH\s+ROW\b/i);
-  const header = forEachRowMatch?.index !== undefined ? sql.slice(0, forEachRowMatch.index) : sql;
+function parseTriggerSql(sql: string, dialect: TriggerDialect): ParsedTrigger {
+  // Restrict header to the part before FOR EACH to avoid matching keywords in the body
+  const m = sql.match(/\bFOR\s+EACH\s+(ROW|STATEMENT)\b/i);
+  const hasSplit = m?.index !== undefined;
+  const header = hasSplit ? sql.slice(0, m!.index) : sql;
+  const rest = hasSplit ? sql.slice(m!.index! + m![0].length).trim() : null;
+  const { timing, events } = parseTriggerDefinition(header);
+  const forEach = m && m[1].toUpperCase() === "STATEMENT" ? "STATEMENT" : "ROW";
 
-  const timingMatch = header.match(/\b(INSTEAD\s+OF|BEFORE|AFTER)\b/i);
-  const timing = timingMatch ? timingMatch[1].toUpperCase().replace(/\s+/, " ") : null;
-
-  const eventMatch = header.match(/\b(INSERT|UPDATE|DELETE)\b/i);
-  const events = eventMatch ? [eventMatch[1].toUpperCase()] : null;
-
-  const body = forEachRowMatch?.index !== undefined
-    ? sql.slice(forEachRowMatch.index + forEachRowMatch[0].length).trim()
-    : null;
-
-  return { timing, events, body };
+  return dialect === "postgres"
+    ? { timing, events, body: null, tail: rest, forEach }
+    : { timing, events, body: rest, tail: null, forEach };
 }
 
 export const TriggerEditorModal = ({
   isOpen,
   onClose,
   connectionId,
-  triggerName,
   tableName: initialTableName,
+  triggerName,
   schema: schemaProp,
   database,
   driver,
@@ -77,10 +89,16 @@ export const TriggerEditorModal = ({
   const resolvedSchema = schemaProp ?? activeSchema ?? undefined;
   const { showAlert } = useAlert();
 
+const resolvedDialect = resolveTriggerDialect({ driver, capabilities });
+const unsupported = resolvedDialect === null;
+// Placeholder so hooks and helpers keep a valid dialect; never used to run SQL when unsupported.
+const dialect: TriggerDialect = resolvedDialect ?? "postgres";
+const caps = TRIGGER_CAPS[dialect];
+
   const [name, setName] = useState("");
   const [tableName, setTableName] = useState(initialTableName ?? "");
-  const [timing, setTiming] = useState("BEFORE");
-  const [events, setEvents] = useState<string[]>(["INSERT"]);
+  const [timing, setTiming] = useState<TriggerTiming>("BEFORE");
+  const [events, setEvents] = useState<TriggerEvent[]>(["INSERT"]);
   // The real function an EXISTING trigger's EXECUTE FUNCTION|PROCEDURE clause
   // references, as parsed on load — distinct from the generated
   // <table>_<name>_fn convention. When set, save updates THIS function
@@ -91,17 +109,19 @@ export const TriggerEditorModal = ({
   const [existingFunctionName, setExistingFunctionName] = useState<
     { name: string; schema?: string } | null
   >(null);
-  // PostgreSQL has no inline trigger body — CREATE TRIGGER only references a
-  // separate trigger function, so the guided-mode body field holds that
-  // function's PL/pgSQL statements instead of a literal BEGIN/END block
-  // (see triggerSql.ts and issue #837).
-  const isPostgres = isPostgresDriver(driver);
-  const [body, setBody] = useState(defaultTriggerBody(driver));
+  const [body, setBody] = useState(defaultTriggerBody(dialect));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawSql, setRawSql] = useState("");
   const [useRawSql, setUseRawSql] = useState(false);
+  // Definition as loaded from the database; used to restore it if an edit fails.
+  const [originalSql, setOriginalSql] = useState("");
+  // Postgres edit: keep the existing trigger function instead of regenerating it.
+  const [pgExisting, setPgExisting] = useState<{
+    tail: string;
+    forEach: "ROW" | "STATEMENT";
+  } | null>(null);
 
   const loadTriggerDefinition = useCallback(async (tName: string, tTable: string) => {
     setLoading(true);
@@ -116,74 +136,72 @@ export const TriggerEditorModal = ({
         ...(database ? { database } : {}),
       });
       setRawSql(def);
+      setOriginalSql(def);
 
       // Populate guided mode fields so switching tabs shows real values
-      const parsed = parseTriggerSql(def);
-      if (parsed.timing && TIMING_OPTIONS.includes(parsed.timing)) {
-        setTiming(parsed.timing);
-      }
-      if (parsed.events) {
-        setEvents(parsed.events);
-      }
-      if (parsed.body) {
-        // PostgreSQL: the trigger definition's body is `EXECUTE FUNCTION fn()`
-        // (or legacy `EXECUTE PROCEDURE fn()`) — not a PL/pgSQL function body.
-        // Fetch the actual function definition to get the real body statements,
-        // so the guided-save recreates the function with its original logic
-        // (not the EXECUTE clause, which is invalid PL/pgSQL and would fail the
-        // CREATE OR REPLACE, leaving the already-dropped trigger gone).
-        //
-        // Parse the real function name from the EXECUTE clause rather than
-        // assuming the `<table>_<trigger>_fn` convention — a trigger whose
-        // function follows a different naming scheme would otherwise fail the
-        // lookup and fall back to the invalid EXECUTE string.
-        if (isPostgresDriver(driver) && /\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\b/i.test(parsed.body)) {
-          try {
-            const parsedFnName = parseTriggerFunctionName(def);
-            // A schema-qualified name ("schema.fn") must be split for the RPC,
-            // which takes routineName + schema separately; fall back to the
-            // trigger's own schema for an unqualified function name.
-            let fnName: string;
-            let fnSchema: string | undefined;
-            if (parsedFnName && parsedFnName.includes(".")) {
-              const [s, ...rest] = parsedFnName.split(".");
-              fnSchema = s;
-              fnName = rest.join(".");
-            } else {
-              fnName = parsedFnName ?? triggerFunctionName(tName, tTable);
-              fnSchema = resolvedSchema;
-            }
-            const fnDef = await invoke<string>("get_routine_definition", {
-              connectionId,
-              routineName: fnName,
-              routineType: "FUNCTION",
-              ...(fnSchema ? { schema: fnSchema } : {}),
-              ...(database ? { database } : {}),
-            });
-            const fnBody = extractFunctionBody(fnDef);
-            if (fnBody) {
-              setBody(fnBody);
-            } else {
-              setBody(parsed.body);
-            }
-            // Record the function's real identity ONLY when it was actually
-            // parsed from the EXECUTE clause — not the convention-name
-            // fallback above, which exists to still attempt a body fetch,
-            // not to assert that's the function this trigger truly calls.
-            // Save uses this to update that function in place; when it's
-            // null (parsing failed), save falls back to the collision-
-            // checked convention-name path instead of guessing wrong.
-            if (parsedFnName) {
-              setExistingFunctionName({ name: fnName, schema: fnSchema });
-            }
-          } catch {
-            // Can't fetch the function definition — fall back to the parsed
-            // body (the user can edit it before saving). existingFunctionName
-            // stays null; save falls back to the convention-name path.
-            setBody(parsed.body);
+      const parsed = parseTriggerSql(def, dialect);
+      const norm = normalizeSelection(
+        dialect,
+        parsed.timing ?? "BEFORE",
+        parsed.events.length ? parsed.events : ["INSERT"],
+      );
+      setTiming(norm.timing);
+      setEvents(norm.events);
+      setPgExisting(
+        parsed.tail ? { tail: parsed.tail, forEach: parsed.forEach } : null,
+      );
+      if (parsed.body) setBody(parsed.body);
+      // PostgreSQL: the trigger definition's body is `EXECUTE FUNCTION fn()`
+      // (or legacy `EXECUTE PROCEDURE fn()`) — not a PL/pgSQL function body.
+      // Fetch the actual function definition to get the real body statements,
+      // so the guided-save recreates the function with its original logic
+      // (not the EXECUTE clause, which is invalid PL/pgSQL and would fail the
+      // CREATE OR REPLACE, leaving the already-dropped trigger gone).
+      //
+      // Parse the real function name from the EXECUTE clause rather than
+      // assuming the `<table>_<trigger>_fn` convention — a trigger whose
+      // function follows a different naming scheme would otherwise fail the
+      // lookup and fall back to the invalid EXECUTE string.
+      if (dialect === "postgres" && parsed.tail && /\bEXECUTE\s+(?:FUNCTION|PROCEDURE)\b/i.test(parsed.tail)) {
+        try {
+          const parsedFnName = parseTriggerFunctionName(def);
+          // A schema-qualified name ("schema.fn") must be split for the RPC,
+          // which takes routineName + schema separately; fall back to the
+          // trigger's own schema for an unqualified function name.
+          let fnName: string;
+          let fnSchema: string | undefined;
+          if (parsedFnName && parsedFnName.includes(".")) {
+            const [s, ...rest] = parsedFnName.split(".");
+            fnSchema = s;
+            fnName = rest.join(".");
+          } else {
+            fnName = parsedFnName ?? triggerFunctionName(tName, tTable);
+            fnSchema = resolvedSchema;
           }
-        } else {
-          setBody(parsed.body);
+          const fnDef = await invoke<string>("get_routine_definition", {
+            connectionId,
+            routineName: fnName,
+            routineType: "FUNCTION",
+            ...(fnSchema ? { schema: fnSchema } : {}),
+            ...(database ? { database } : {}),
+          });
+          const fnBody = extractFunctionBody(fnDef);
+          if (fnBody) {
+            setBody(fnBody);
+          }
+          // Record the function's real identity ONLY when it was actually
+          // parsed from the EXECUTE clause — not the convention-name
+          // fallback above, which exists to still attempt a body fetch,
+          // not to assert that's the function this trigger truly calls.
+          // Save uses this to update that function in place; when it's
+          // null (parsing failed), save falls back to the collision-
+          // checked convention-name path instead of guessing wrong.
+          if (parsedFnName) {
+            setExistingFunctionName({ name: fnName, schema: fnSchema });
+          }
+        } catch {
+          // Can't fetch the function definition — existingFunctionName
+          // stays null; save falls back to the convention-name path.
         }
       }
     } catch (e) {
@@ -191,28 +209,32 @@ export const TriggerEditorModal = ({
     } finally {
       setLoading(false);
     }
-  }, [connectionId, t, resolvedSchema, database, driver]);
+  }, [connectionId, t, resolvedSchema, dialect, database]);
 
   useEffect(() => {
-    if (isOpen) {
-      if (isNewTrigger) {
-        setName("");
-        setTableName(initialTableName ?? "");
-        setTiming("BEFORE");
-        setEvents(["INSERT"]);
-        setBody(defaultTriggerBody(driver));
-        setRawSql("");
-        setUseRawSql(false);
-        setError(null);
-        setExistingFunctionName(null);
-      } else if (triggerName && initialTableName) {
-        setName(triggerName);
-        setTableName(initialTableName);
-        loadTriggerDefinition(triggerName, initialTableName);
-      }
+    if (!isOpen || unsupported) return;
+    if (isNewTrigger) {
+      setName("");
+      setTableName(initialTableName ?? "");
+      setTiming("BEFORE");
+      setEvents(["INSERT"]);
+      setBody(defaultTriggerBody(dialect));
+      setRawSql("");
+      setOriginalSql("");
+      setPgExisting(null);
+      setUseRawSql(false);
+      setError(null);
+      setExistingFunctionName(null);
+    } else if (triggerName && initialTableName) {
+      setName(triggerName);
+      setTableName(initialTableName);
+      loadTriggerDefinition(triggerName, initialTableName);
     }
-  }, [isOpen, triggerName, initialTableName, isNewTrigger, loadTriggerDefinition, driver]);
+  }, [isOpen, unsupported, triggerName, initialTableName, isNewTrigger, loadTriggerDefinition, dialect]);
 
+  // Our trigger-identity helpers: used by the PG guided-edit save path to
+  // create/replace the function the trigger actually calls (by its real name,
+  // not the convention) before dropping/recreating the trigger.
   const sqlInput: TriggerSqlInput = {
     name,
     tableName,
@@ -224,31 +246,83 @@ export const TriggerEditorModal = ({
     capabilities,
     ...(existingFunctionName ? { existingFunctionName } : {}),
   };
-
   const buildTriggerFunctionSql = () => buildTriggerFunctionSqlUtil(sqlInput);
+  const buildTriggerSqlUtilFn = (): string => buildTriggerSqlUtil(sqlInput);
 
-  const buildTriggerSql = (): string => {
-    if (useRawSql) return rawSql;
-    return buildTriggerSqlUtil(sqlInput);
+  // Upstream's dialect-aware multi-statement builder: used by the CREATE path
+  // and non-PG/raw-mode flows. For PG with an existing function (edit), this
+  // re-emits the EXECUTE FUNCTION tail verbatim (no function re-creation).
+  const buildGuidedStatements = (): string[] => {
+    const q = (id: string) => quoteIdentifier(id, capabilities ?? driver ?? "postgres");
+    return buildCreateTriggerStatements({
+      dialect,
+      name,
+      schema: resolvedSchema,
+      table: tableName,
+      timing,
+      events,
+      forEach: pgExisting?.forEach ?? "ROW",
+      body,
+      quote: q,
+      existingTail: !isNewTrigger && pgExisting ? pgExisting.tail : undefined,
+    });
   };
 
-  // What the "Generated SQL Preview" panel shows. For PostgreSQL this is
-  // both statements handleSave actually runs — the function on its own
+  const buildStatements = (): string[] => {
+    if (useRawSql) {
+      return dialect === "postgres" ? splitSqlStatements(rawSql) : [rawSql];
+    }
+    return buildGuidedStatements();
+  };
+
+  // What the "Generated SQL Preview" panel shows. For PostgreSQL guided edit
+  // this is both statements handleSave actually runs — the function on its own
   // isn't meaningful to review without the trigger that will call it.
   const buildPreviewSql = (): string => {
     if (useRawSql) return rawSql;
-    return isPostgres ? `${buildTriggerFunctionSql()}\n\n${buildTriggerSql()}` : buildTriggerSql();
+    if (dialect === "postgres" && !isNewTrigger && existingFunctionName) {
+      return `${buildTriggerFunctionSql()}\n\n${buildTriggerSqlUtilFn()}`;
+    }
+    return buildGuidedStatements().join("\n\n");
   };
 
-  const toggleEvent = (ev: string) => {
-    setEvents(prev =>
-      prev.includes(ev) ? prev.filter(e => e !== ev) : [...prev, ev]
-    );
+ const toggleEvent = (ev: TriggerEvent) => {
+  const next = !caps.multiEvent
+    ? [ev]
+    : events.includes(ev)
+      ? events.filter((e) => e !== ev)
+      : [...events, ev];
+  const norm = normalizeSelection(dialect, timing, next);
+  setTiming(norm.timing);
+  setEvents(norm.events);
+};
+
+  const selectTiming = (next: TriggerTiming) => {
+    const norm = normalizeSelection(dialect, next, events);
+    setTiming(norm.timing);
+    setEvents(norm.events);
+  };
+
+  const switchToRaw = () => {
+    // Start raw mode from what guided mode would generate (valid for this dialect).
+    if (!rawSql.trim()) setRawSql(buildGuidedStatements().join("\n\n"));
+    setUseRawSql(true);
+  };
+
+  const createAll = async (statements: string[]) => {
+    for (const triggerSql of statements) {
+      await invoke("create_trigger", {
+        connectionId,
+        triggerSql,
+        ...(resolvedSchema ? { schema: resolvedSchema } : {})
+      });
+    }
   };
 
   const handleSave = async () => {
-    const sql = buildTriggerSql();
-    if (!sql.trim()) {
+    if (unsupported) return;
+    const statements = buildStatements().filter(s => s.trim());
+    if (statements.length === 0) {
       showAlert(t("triggers.sqlRequired"), { kind: "error" });
       return;
     }
@@ -263,81 +337,103 @@ export const TriggerEditorModal = ({
 
     setSaving(true);
     setError(null);
-    try {
-      // PostgreSQL: the trigger function must exist before the trigger can
-      // reference it, and the two can't run as one combined statement (neither
-      // the builtin driver nor the plugin's Postgres client executes multiple
-      // semicolon-separated commands in a single call — see issue #837).
-      //
-      // ORDERING: create/replace the
-      // function BEFORE dropping the existing trigger, so a failure in the
-      // function step leaves the existing trigger intact. Previously the drop
-      // ran first, so a failed function creation left the trigger gone with no
-      // rollback.
-      //
-      // IDENTITY: when editing a trigger
-      // whose real function was parsed on load (existingFunctionName), save
-      // updates THAT function via CREATE OR REPLACE — safe, since it's a
-      // function this same trigger already calls. Otherwise (a brand-new
-      // trigger, or an existing one whose function name couldn't be parsed —
-      // e.g. a raw-SQL-authored trigger with an unusual EXECUTE clause), the
-      // generated <table>_<name>_fn convention name is used, and we first
-      // probe that no unrelated function already owns it — refusing instead
-      // of silently creating a second function or clobbering someone else's.
-      if (isPostgres && !useRawSql) {
-        if (isNewTrigger || !existingFunctionName) {
-          // Refuse to silently overwrite an existing function that happens to
-          // share the generated name — the user can rename the trigger instead.
-          try {
-            await invoke<string>("get_routine_definition", {
-              connectionId,
-              routineName: triggerFunctionName(name, tableName),
-              routineType: "FUNCTION",
-              ...(resolvedSchema ? { schema: resolvedSchema } : {}),
-              ...(database ? { database } : {}),
-            });
-            setError(
-              t("triggers.functionNameCollision", {
-                name: triggerFunctionName(name, tableName),
-              }),
-            );
-            return;
-          } catch {
-            // The function doesn't exist — expected for a new trigger (or an
-            // existing one whose function couldn't be identified); proceed.
-          }
-        }
+
+    // PostgreSQL guided edit with a parsed existing function: use the
+    // function-first save path. CREATE OR REPLACE FUNCTION runs BEFORE
+    // drop_trigger so a function-creation failure leaves the existing
+    // trigger intact (the drop never happens). This also preserves the
+    // function's real identity — updating the function the trigger
+    // actually calls, not a convention-named orphan.
+    const pgGuidedEdit = dialect === "postgres" && !useRawSql && !isNewTrigger && existingFunctionName;
+    if (pgGuidedEdit) {
+      let triggerDropped = false;
+      try {
         await invoke("execute_query", {
           connectionId,
           query: buildTriggerFunctionSql(),
           ...(resolvedSchema ? { schema: resolvedSchema } : {}),
           ...(database ? { database } : {}),
         });
-      }
-
-      if (!isNewTrigger) {
-        // Drop the existing trigger only AFTER the function step succeeded, so
-        // a function-creation failure never leaves the trigger dropped.
-        try {
-          await invoke("drop_trigger", {
-            connectionId,
-            triggerName: name,
-            tableName,
-            ...(resolvedSchema ? { schema: resolvedSchema } : {}),
-            ...(database ? { database } : {}),
-          });
-        } catch (e) {
-          setError(t("triggers.dropError") + String(e));
-          return;
+        await invoke("drop_trigger", {
+          connectionId,
+          triggerName: name,
+          tableName,
+          ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+          ...(database ? { database } : {}),
+        });
+        triggerDropped = true;
+        await invoke("create_trigger", {
+          connectionId,
+          triggerSql: buildTriggerSqlUtilFn(),
+          ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+          ...(database ? { database } : {}),
+        });
+        showAlert(t("triggers.updateSuccess"), { kind: "info" });
+        onSuccess?.();
+        onClose();
+      } catch (e) {
+        let message = t("triggers.saveError") + String(e);
+        // Only restore if the trigger was actually dropped — if the function
+        // step failed (before the drop), the original trigger is still intact
+        // and restoring would create a duplicate.
+        if (triggerDropped && originalSql.trim()) {
+          try {
+            await createAll(splitSqlStatements(originalSql));
+            message += "\n" + t("triggers.originalRestored");
+          } catch (restoreError) {
+            message += "\n" + t("triggers.restoreFailed") + String(restoreError);
+          }
         }
+        setError(message);
+      } finally {
+        setSaving(false);
       }
+      return;
+    }
 
-      await invoke("create_trigger", {
-        connectionId,
-        triggerSql: sql,
-        ...(resolvedSchema ? { schema: resolvedSchema } : {}),
-        ...(database ? { database } : {}),
-      });
+    // All other paths (new trigger, non-PG, raw mode, or PG edit without a
+    // parsed function name): drop-then-create with safe-restore on failure.
+    // PostgreSQL new trigger (guided): probe that no unrelated function
+    // already owns the generated convention name — refuse BEFORE dropping so
+    // a collision never leaves the existing trigger gone.
+    if (dialect === "postgres" && !useRawSql && (isNewTrigger || !existingFunctionName)) {
+      try {
+        await invoke<string>("get_routine_definition", {
+          connectionId,
+          routineName: triggerFunctionName(name, tableName),
+          routineType: "FUNCTION",
+          ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+          ...(database ? { database } : {}),
+        });
+        setError(
+          t("triggers.functionNameCollision", {
+            name: triggerFunctionName(name, tableName),
+          }),
+        );
+        setSaving(false);
+        return;
+      } catch {
+        // The function doesn't exist — expected for a new trigger; proceed.
+      }
+    }
+
+    if (!isNewTrigger) {
+      try {
+        await invoke("drop_trigger", {
+          connectionId,
+          triggerName: name,
+          tableName,
+          ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+        });
+      } catch (e) {
+        setError(t("triggers.dropError") + String(e));
+        setSaving(false);
+        return;
+      }
+    }
+
+    try {
+      await createAll(statements);
       showAlert(
         isNewTrigger ? t("triggers.createSuccess") : t("triggers.updateSuccess"),
         { kind: "info" }
@@ -345,7 +441,22 @@ export const TriggerEditorModal = ({
       onSuccess?.();
       onClose();
     } catch (e) {
-      setError(t("triggers.saveError") + String(e));
+      let message = t("triggers.saveError") + String(e);
+      if (!isNewTrigger && originalSql.trim()) {
+        // The old trigger was already dropped: put it back so a failed edit loses nothing.
+        try {
+          await createAll(
+            dialect === "postgres" ? splitSqlStatements(originalSql) : [originalSql]
+          );
+          message += "\n" + t("triggers.originalRestored");
+        } catch (restoreError) {
+          message +=
+          "\n" +
+          t("triggers.restoreFailed") +
+          String(restoreError);
+        }
+      }
+      setError(message);
     } finally {
       setSaving(false);
     }
@@ -393,6 +504,28 @@ export const TriggerEditorModal = ({
     });
   };
 
+  if (unsupported) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[480px] p-6 space-y-4">
+          <div className="flex items-start gap-2 text-accent-error">
+            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <p className="text-sm">{t("triggers.unsupportedDriver")}</p>
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
+            >
+              {t("common.cancel")}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+  const keepsExistingFunction = !isNewTrigger && dialect === "postgres" && !!pgExisting && !existingFunctionName;
+
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[800px] max-h-[90vh] overflow-hidden flex flex-col">
@@ -426,7 +559,7 @@ export const TriggerEditorModal = ({
           {error && (
             <div className="bg-accent-error/10 border border-accent-error/25 text-accent-error px-4 py-3 rounded-lg flex items-start gap-2">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
-              <div className="text-sm">{error}</div>
+              <div className="text-sm whitespace-pre-wrap">{error}</div>
             </div>
           )}
 
@@ -446,7 +579,7 @@ export const TriggerEditorModal = ({
               {t("triggers.guidedMode")}
             </button>
             <button
-              onClick={() => setUseRawSql(true)}
+              onClick={switchToRaw}
               className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${useRawSql ? "bg-accent-primary text-inverse" : "text-secondary hover:text-primary border border-strong"}`}
             >
               {t("triggers.rawSqlMode")}
@@ -510,10 +643,10 @@ export const TriggerEditorModal = ({
                     {t("triggers.timing")}
                   </label>
                   <div className="flex gap-2">
-                    {TIMING_OPTIONS.map((opt) => (
+                    {caps.timings.map((opt) => (
                       <button
                         key={opt}
-                        onClick={() => setTiming(opt)}
+                        onClick={() => selectTiming(opt)}
                         className={`px-3 py-1.5 text-sm rounded-lg transition-colors border ${timing === opt ? "bg-accent-primary border-accent-primary text-inverse" : "border-strong text-secondary hover:text-primary"}`}
                       >
                         {opt}
@@ -526,7 +659,7 @@ export const TriggerEditorModal = ({
                     {t("triggers.events")}
                   </label>
                   <div className="flex gap-2">
-                    {EVENT_OPTIONS.map((opt) => (
+                    {caps.events.map((opt) => (
                       <button
                         key={opt}
                         onClick={() => toggleEvent(opt)}
@@ -536,23 +669,34 @@ export const TriggerEditorModal = ({
                       </button>
                     ))}
                   </div>
+                  {!caps.multiEvent && (
+                    <p className="text-xs text-muted mt-1">
+                     {t("triggers.singleEventHint")}
+                    </p>
+                  )}
                 </div>
               </div>
 
               {/* Trigger body */}
-              <div>
-                <label className="text-xs uppercase font-bold text-muted mb-1 block">
-                  {t("triggers.body")}
-                </label>
-                <div className="border border-strong rounded-lg overflow-hidden h-48">
-                  <SqlEditorWrapper
-                    initialValue={body}
-                    onChange={setBody}
-                    height="100%"
-                    onRun={handleSave}
-                  />
+              {keepsExistingFunction ? (
+                <p className="text-xs text-muted">
+              {t("triggers.existingFunctionHint")}
+                </p>
+              ) : (
+                <div>
+                  <label className="text-xs uppercase font-bold text-muted mb-1 block">
+                    {t("triggers.body")}
+                  </label>
+                  <div className="border border-strong rounded-lg overflow-hidden h-48">
+                    <SqlEditorWrapper
+                      initialValue={body}
+                      onChange={setBody}
+                      height="100%"
+                      onRun={handleSave}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* SQL preview */}
               <div className="border border-default rounded-lg overflow-hidden">
@@ -577,7 +721,7 @@ export const TriggerEditorModal = ({
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || loading}
+            disabled={saving || loading || unsupported}
             className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
             {saving && <Loader2 size={16} className="animate-spin" />}

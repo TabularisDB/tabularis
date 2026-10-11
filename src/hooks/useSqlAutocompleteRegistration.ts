@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useContext, useEffect } from "react";
 import type { Monaco } from "@monaco-editor/react";
 import { ensureMonaco } from "../utils/monaco";
 import { useDatabase } from "./useDatabase";
+import { SettingsContext } from "../contexts/SettingsContext";
 import { usesMultiDatabaseLayout, isSchemaBasedMultiDb } from "../utils/database";
 import { registerSqlAutocomplete, disposeSqlAutocomplete } from "../utils/autocomplete";
 
@@ -35,6 +36,9 @@ export function useSqlAutocompleteRegistration(
     selectedDatabases,
     loadNestedSchemaData,
   } = useDatabase();
+  const settingsContext = useContext(SettingsContext);
+  const keywordCase =
+    settingsContext?.settings.autocompleteKeywordCase ?? "match";
 
   const schema = options?.schema ?? activeSchema;
   const tabDatabase = options?.database ?? null;
@@ -120,6 +124,7 @@ export function useSqlAutocompleteRegistration(
         effectiveTables,
         defaultNamespace,
         activeCapabilities ?? activeDriver ?? null,
+        keywordCase,
       );
 
       // E2E: expose the effective tables for tauri-wd tests. The bug: this
@@ -158,5 +163,6 @@ export function useSqlAutocompleteRegistration(
     isMultiDb,
     isNestedMultiDb,
     selectedDatabases,
+    keywordCase,
   ]);
 }

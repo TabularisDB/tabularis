@@ -1052,6 +1052,8 @@ pub async fn get_routine_parameters<R: Runtime>(
     routine_name: String,
     schema: Option<String>,
     database: Option<String>,
+    /* The signature of the overload the user clicked, where the dialect has them (#893) */
+    identity_args: Option<String>,
 ) -> Result<Vec<RoutineParameter>, String> {
     log::info!(
         "Fetching routine parameters for: {} on connection: {}",
@@ -1068,8 +1070,13 @@ pub async fn get_routine_parameters<R: Runtime>(
     }
 
     let drv = driver_for_params(&params).await?;
-    drv.get_routine_parameters(&params, &routine_name, schema.as_deref())
-        .await
+    drv.get_routine_parameters(
+        &params,
+        &routine_name,
+        schema.as_deref(),
+        identity_args.as_deref(),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1080,6 +1087,7 @@ pub async fn get_routine_definition<R: Runtime>(
     routine_type: String, // "PROCEDURE" or "FUNCTION" - mainly for MySQL SHOW CREATE
     schema: Option<String>,
     database: Option<String>,
+    identity_args: Option<String>,
 ) -> Result<String, String> {
     log::info!(
         "Fetching routine definition for: {} ({}) on connection: {}",
@@ -1097,8 +1105,14 @@ pub async fn get_routine_definition<R: Runtime>(
     }
 
     let drv = driver_for_params(&params).await?;
-    drv.get_routine_definition(&params, &routine_name, &routine_type, schema.as_deref())
-        .await
+    drv.get_routine_definition(
+        &params,
+        &routine_name,
+        &routine_type,
+        schema.as_deref(),
+        identity_args.as_deref(),
+    )
+    .await
 }
 
 /// Preview generation only; the returned SQL is never executed here.
@@ -1166,6 +1180,7 @@ pub async fn get_routine_edit_script<R: Runtime>(
     routine_type: String,
     schema: Option<String>,
     database: Option<String>,
+    identity_args: Option<String>,
 ) -> Result<String, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
@@ -1176,8 +1191,14 @@ pub async fn get_routine_edit_script<R: Runtime>(
     }
 
     let drv = driver_for_params(&params).await?;
-    drv.get_routine_edit_script(&params, &routine_name, &routine_type, schema.as_deref())
-        .await
+    drv.get_routine_edit_script(
+        &params,
+        &routine_name,
+        &routine_type,
+        schema.as_deref(),
+        identity_args.as_deref(),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1188,6 +1209,7 @@ pub async fn drop_routine<R: Runtime>(
     routine_type: String,
     schema: Option<String>,
     database: Option<String>,
+    identity_args: Option<String>,
 ) -> Result<(), String> {
     log::info!(
         "Dropping routine: {} ({}) on connection: {}",
@@ -1205,8 +1227,14 @@ pub async fn drop_routine<R: Runtime>(
     }
 
     let drv = driver_for_params(&params).await?;
-    drv.drop_routine(&params, &routine_name, &routine_type, schema.as_deref())
-        .await
+    drv.drop_routine(
+        &params,
+        &routine_name,
+        &routine_type,
+        schema.as_deref(),
+        identity_args.as_deref(),
+    )
+    .await
 }
 
 #[tauri::command]

@@ -47,6 +47,13 @@ export interface RoutineDefinitionTarget {
   routineType: string;
   schema?: string;
   database?: string;
+  /**
+   * The clicked overload's signature, where the dialect has overloads (#893).
+   * The host omits the field where there are none, so absent is what arrives;
+   * `null` stays in the type so a change on that side is a type error here
+   * rather than a `(null)` suffix.
+   */
+  identityArgs?: string | null;
 }
 
 export interface TriggerDefinitionTarget {
@@ -84,6 +91,8 @@ export interface ViewDatabaseObject
 export interface RoutineDatabaseObject extends DatabaseObjectBase {
   type: "routine";
   routineType: string;
+  /** The clicked overload's signature, where the dialect has overloads (#893). */
+  identityArgs?: string | null;
 }
 
 export interface TriggerDatabaseObject extends DatabaseObjectBase {
@@ -164,6 +173,9 @@ export async function openObjectDefinition(
             routineType: object.routineType,
             ...schemaParam,
             ...databaseParam,
+            ...(object.identityArgs != null
+              ? { identityArgs: object.identityArgs }
+              : {}),
           })
         : await runtime.loadTriggerDefinition({
             connectionId: object.connectionId,
@@ -288,6 +300,14 @@ export function loadRoutineDefinition(
     routineType: target.routineType,
     ...(target.schema ? { schema: target.schema } : {}),
     ...(target.database ? { database: target.database } : {}),
+    // `!= null` rather than truthiness: "" is the signature of a no-argument
+    // routine, and dropping it would ask for an arbitrary overload again on
+    // exactly the routine that has none. Loose rather than strict only because
+    // the type still admits `null`; the host omits the field instead of sending
+    // one, so this is belt and braces rather than the live case.
+    ...(target.identityArgs != null
+      ? { identityArgs: target.identityArgs }
+      : {}),
   });
 }
 

@@ -566,6 +566,10 @@
     "formatter_linesBetweenQueriesDesc": "SQL 语句之间插入的空行数。",
     "formatter_denseOperators": "紧凑运算符",
     "formatter_denseOperatorsDesc": "移除运算符周围的空格（例如 a=1 而非 a = 1）。",
+    "autocomplete_title": "自动补全",
+    "autocomplete_keywordCase": "关键字大小写",
+    "autocomplete_keywordCaseDesc": "自动补全插入的 SQL 关键字的大小写。",
+    "autocomplete_keywordCaseMatch": "跟随输入",
     "projectStatus": "项目状态",
     "roadmapDesc": "此项目是正在进行的工作 (WIP)。核心功能已稳定，但我们有更大的计划。",
     "support": "支持开发",
@@ -951,6 +955,13 @@
     "notifyLongQueriesDesc": "当 Tabularis 处于后台时，查询完成后发送桌面通知。",
     "notifyLongQueriesThreshold": "通知阈值",
     "notifyLongQueriesThresholdDesc": "仅通知运行时间不短于此值的查询。"
+  },
+  "triggers":{
+    "originalRestored": "已恢复原始触发器。",
+    "restoreFailed": "恢复原始触发器也失败了：",
+    "singleEventHint": "此数据库每个触发器仅允许一个事件。",
+    "existingFunctionHint": "此触发器保留其现有函数。请在 SQL 编辑器或原始 SQL 模式中编辑函数本身。",
+    "unsupportedDriver": "此驱动程序不支持触发器编辑。"
   },
   "update": {
     "badges": {

@@ -65,7 +65,12 @@ fn new_arrivals_import(add_columns: Vec<ColumnDefinition>) -> ClipboardImportReq
 #[test]
 fn mysql_import_sends_booleans_in_created_columns_as_literals() {
     // MySQL creates `in_stock` as TINYINT(1) and, in strict mode, rejects 'true' (#904).
-    let boolean_columns = boolean_literal_columns(&new_arrivals_import(Vec::new()), "mysql", true);
+    let boolean_columns = boolean_literal_columns(
+        &new_arrivals_import(Vec::new()),
+        "mysql",
+        true,
+        &HashSet::new(),
+    );
     assert_eq!(boolean_columns, [false, false, false, true, false]);
     let row = [
         "KB-101",
@@ -100,21 +105,80 @@ fn boolean_literals_cover_the_values_the_parser_accepts() {
 
 #[test]
 fn import_keeps_quoted_values_for_columns_it_did_not_create() {
-    // Appending into existing columns: their real type is unknown, so 'true' stays a string.
-    let existing = boolean_literal_columns(&new_arrivals_import(Vec::new()), "mysql", false);
+    // Appending into existing columns that aren't TINYINT: 'true' stays a string.
+    let existing = boolean_literal_columns(
+        &new_arrivals_import(Vec::new()),
+        "mysql",
+        false,
+        &HashSet::new(),
+    );
     assert_eq!(existing, [false; 5]);
     // A BOOLEAN column this import adds gets literals, like one in a new table.
     let added = boolean_literal_columns(
         &new_arrivals_import(vec![column("in_stock", "BOOLEAN")]),
         "mysql",
         false,
+        &HashSet::new(),
     );
     assert_eq!(added, [false, false, false, true, false]);
     // Other drivers keep today's quoted values (PostgreSQL casts them to boolean).
     for driver in ["postgres", "sqlite"] {
         assert_eq!(
-            boolean_literal_columns(&new_arrivals_import(Vec::new()), driver, true),
+            boolean_literal_columns(
+                &new_arrivals_import(Vec::new()),
+                driver,
+                true,
+                &HashSet::new()
+            ),
             [false; 5]
         );
     }
+}
+
+fn table_column(name: &str, data_type: &str) -> TableColumn {
+    TableColumn {
+        name: name.into(),
+        data_type: data_type.into(),
+        is_pk: false,
+        is_nullable: true,
+        is_auto_increment: false,
+        is_generated: false,
+        default_value: None,
+        character_maximum_length: None,
+        comment: None,
+    }
+}
+
+#[test]
+fn mysql_appends_send_booleans_into_existing_tinyint_columns_as_literals() {
+    // Appending the #904 sample to an existing table whose `in_stock` is TINYINT(1).
+    let existing = HashSet::from(["in_stock".to_string()]);
+    assert_eq!(
+        boolean_literal_columns(&new_arrivals_import(Vec::new()), "mysql", false, &existing),
+        [false, false, false, true, false]
+    );
+    // Only MySQL needs this; other drivers keep quoted values.
+    assert_eq!(
+        boolean_literal_columns(
+            &new_arrivals_import(Vec::new()),
+            "postgres",
+            false,
+            &existing
+        ),
+        [false; 5]
+    );
+}
+
+#[test]
+fn existing_tinyint_columns_are_found_by_type() {
+    let columns = [
+        table_column("in_stock", "tinyint"),
+        table_column("name", "varchar"),
+        table_column("quantity", "int"),
+        table_column("archived", "TINYINT"),
+    ];
+    assert_eq!(
+        tinyint_column_names(&columns),
+        HashSet::from(["in_stock".to_string(), "archived".to_string()])
+    );
 }
