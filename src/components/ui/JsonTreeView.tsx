@@ -1,16 +1,20 @@
 import { useContext, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Search } from "lucide-react";
+import { ExternalLink, Search } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   JsonEditor,
   defaultTheme,
   githubDarkTheme,
   githubLightTheme,
+  type CustomNodeDefinition,
+  type CustomNodeProps,
   type JsonData,
   type Theme as JerTheme,
 } from "json-edit-react";
 import { ThemeContext } from "../../contexts/ThemeContext";
 import type { Theme } from "../../types/theme";
+import { isColorString, isLinkString } from "../../utils/jsonValueDecorators";
 
 export interface JsonTreeViewProps {
   value: unknown;
@@ -78,6 +82,72 @@ function buildTheme(theme: Theme | undefined): JerTheme {
     },
   };
 }
+
+const LinkNode: React.FC<CustomNodeProps> = ({
+  value,
+  originalNode,
+}) => {
+  const url = typeof value === "string" ? value.trim() : "";
+
+  const handleOpen = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await openUrl(url);
+    } catch (err) {
+      console.error("Failed to open URL:", err);
+    }
+  };
+
+  return (
+    <span className="inline-flex items-center gap-1.5 flex-wrap">
+      {originalNode}
+      <button
+        type="button"
+        onClick={handleOpen}
+        title={url}
+        aria-label={`Open ${url}`}
+        className="inline-flex items-center p-0.5 text-muted hover:text-primary transition-colors rounded focus-visible:outline-focus cursor-pointer"
+      >
+        <ExternalLink size={12} className="shrink-0" />
+      </button>
+    </span>
+  );
+};
+
+const ColorSwatchNode: React.FC<CustomNodeProps> = ({
+  value,
+  originalNode,
+}) => {
+  const color = typeof value === "string" ? value.trim() : "";
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        aria-hidden="true"
+        className="inline-block w-3 h-3 rounded-xs border border-strong shrink-0 shadow-xs"
+        style={{ backgroundColor: color }}
+      />
+      {originalNode}
+    </span>
+  );
+};
+
+const CUSTOM_NODE_DEFINITIONS: CustomNodeDefinition[] = [
+  {
+    condition: ({ value }) => isLinkString(value),
+    element: LinkNode,
+    passOriginalNode: true,
+    showOnView: true,
+    showOnEdit: false,
+  },
+  {
+    condition: ({ value }) => isColorString(value),
+    element: ColorSwatchNode,
+    passOriginalNode: true,
+    showOnView: true,
+    showOnEdit: false,
+  },
+];
 
 export const JsonTreeView = ({
   value,
@@ -154,6 +224,7 @@ export const JsonTreeView = ({
                 },
               },
             }}
+            customNodeDefinitions={CUSTOM_NODE_DEFINITIONS}
             enableClipboard={enableClipboard}
           />
         </div>
@@ -199,6 +270,7 @@ export const JsonTreeView = ({
               },
             },
           }}
+          customNodeDefinitions={CUSTOM_NODE_DEFINITIONS}
           enableClipboard={enableClipboard}
         />
       </div>

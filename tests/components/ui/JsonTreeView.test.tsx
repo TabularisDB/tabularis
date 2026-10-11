@@ -240,4 +240,30 @@ describe("JsonTreeView", () => {
       expect(lastProps.current!.searchText).toBe("updated");
     });
   });
+
+  describe("customNodeDefinitions (links and colors)", () => {
+    it("passes customNodeDefinitions with link and color conditions", () => {
+      render(<JsonTreeView value={{ url: "https://example.com", color: "#1e90ff" }} />);
+
+      const defs = lastProps.current!.customNodeDefinitions;
+      expect(defs).toBeDefined();
+      expect(defs!.length).toBe(2);
+
+      const [linkDef, colorDef] = defs!;
+
+      // Link condition matches URLs and mailto
+      expect(linkDef.condition({ value: "https://example.com" } as any, "" as any)).toBe(true);
+      expect(linkDef.condition({ value: "mailto:support@tabularis.dev" } as any, "" as any)).toBe(true);
+      expect(linkDef.condition({ value: "not-a-link" } as any, "" as any)).toBe(false);
+
+      // Color condition matches hex, rgb, hsl
+      expect(colorDef.condition({ value: "#1e90ff" } as any, "" as any)).toBe(true);
+      expect(colorDef.condition({ value: "rgb(255, 0, 0)" } as any, "" as any)).toBe(true);
+      expect(colorDef.condition({ value: "not-a-color" } as any, "" as any)).toBe(false);
+
+      // Does not interfere with editing
+      expect(linkDef.showOnEdit).toBe(false);
+      expect(colorDef.showOnEdit).toBe(false);
+    });
+  });
 });
