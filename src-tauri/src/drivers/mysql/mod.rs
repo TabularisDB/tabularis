@@ -25,7 +25,8 @@ pub use explain::explain_query;
 use extract::extract_value;
 use helpers::{
     escape_identifier, inline_str_placeholders, is_raw_sql_function, is_wkt_geometry,
-    mysql_bytes_literal, mysql_row_str, mysql_row_str_opt, mysql_string_literal,
+    mysql_bytes_literal, mysql_row_max_length, mysql_row_str, mysql_row_str_opt,
+    mysql_string_literal,
 };
 use sqlx::{Column, Row};
 use stmt_classify::is_text_protocol_stmt;
@@ -319,7 +320,7 @@ pub async fn get_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
+        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
         FROM information_schema.columns
         WHERE table_schema = ? AND table_name = ?
         ORDER BY ordinal_position
@@ -337,7 +338,7 @@ pub async fn get_columns(
             let null_str = mysql_row_str(r, 4);
             let extra = mysql_row_str(r, 5);
             let default_val = mysql_row_str_opt(r, 6);
-            let character_maximum_length: Option<u64> = r.try_get(7).ok();
+            let character_maximum_length = mysql_row_max_length(r, 7, &column_name);
             let numeric_precision: Option<i32> = r
                 .try_get::<Option<i64>, _>(9)
                 .ok()
@@ -462,7 +463,7 @@ pub async fn get_all_columns_batch(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
+        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
         FROM information_schema.columns
         WHERE table_schema = ?
         ORDER BY table_name, ordinal_position
@@ -481,7 +482,7 @@ pub async fn get_all_columns_batch(
         let null_str = mysql_row_str(row, 5);
         let extra = mysql_row_str(row, 6);
         let default_val = mysql_row_str_opt(row, 7);
-        let character_maximum_length: Option<u64> = row.try_get(8).ok();
+        let character_maximum_length = mysql_row_max_length(row, 8, &column_name);
         let numeric_precision: Option<i32> = row
             .try_get::<Option<i64>, _>(10)
             .ok()
@@ -1167,7 +1168,7 @@ pub async fn get_view_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-            SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length, CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
+            SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
             FROM information_schema.columns
             WHERE table_schema = ? AND table_name = ?
             ORDER BY ordinal_position
@@ -1185,7 +1186,7 @@ pub async fn get_view_columns(
             let null_str = mysql_row_str(r, 4);
             let extra = mysql_row_str(r, 5);
             let default_val = mysql_row_str_opt(r, 6);
-            let character_maximum_length: Option<u64> = r.try_get(7).ok();
+            let character_maximum_length = mysql_row_max_length(r, 7, &column_name);
             let numeric_precision: Option<i32> = r
                 .try_get::<Option<i64>, _>(8)
                 .ok()
@@ -1258,6 +1259,8 @@ pub async fn get_routines(
             name: mysql_row_str(r, 0),
             routine_type: mysql_row_str(r, 1),
             definition: mysql_row_str_opt(r, 2),
+            /* MySQL cannot overload: a schema and a name identify one routine */
+            identity_args: None,
         })
         .collect())
 }
@@ -1314,11 +1317,20 @@ pub async fn get_routine_parameters(
 
     let rows = fetch_all_rows(&pool, text, query, &[db_name, routine_name]).await?;
 
-    parameters.extend(rows.iter().map(|r| RoutineParameter {
-        name: mysql_row_str(r, 0),
-        data_type: mysql_row_str(r, 1),
-        mode: mysql_row_str(r, 2),
-        ordinal_position: r.try_get::<i64, _>(3).unwrap_or(0) as i32,
+    parameters.extend(rows.iter().map(|r| {
+        let name = mysql_row_str(r, 0);
+        let ordinal_position = r.try_get::<i64, _>(3).unwrap_or_else(|e| {
+            log::warn!(
+                "MySQL: Could not read the position of parameter `{name}` of `{routine_name}`: {e}"
+            );
+            0
+        }) as i32;
+        RoutineParameter {
+            name,
+            data_type: mysql_row_str(r, 1),
+            mode: mysql_row_str(r, 2),
+            ordinal_position,
+        }
     }));
 
     Ok(parameters)
@@ -2175,6 +2187,8 @@ impl DatabaseDriver for MysqlDriver {
         params: &crate::models::ConnectionParams,
         routine_name: &str,
         schema: Option<&str>,
+        /* MySQL cannot overload: a schema and a name identify one routine */
+        _identity_args: Option<&str>,
     ) -> Result<Vec<crate::models::RoutineParameter>, String> {
         get_routine_parameters(params, routine_name, schema).await
     }
@@ -2185,6 +2199,8 @@ impl DatabaseDriver for MysqlDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        /* MySQL cannot overload: a schema and a name identify one routine */
+        _identity_args: Option<&str>,
     ) -> Result<String, String> {
         get_routine_definition(params, routine_name, routine_type, schema).await
     }
@@ -2305,6 +2321,8 @@ impl DatabaseDriver for MysqlDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        /* MySQL cannot overload: a schema and a name identify one routine */
+        _identity_args: Option<&str>,
     ) -> Result<String, String> {
         let definition = get_routine_definition(params, routine_name, routine_type, schema).await?;
         Ok(routines::routine_edit_script(
@@ -2320,6 +2338,8 @@ impl DatabaseDriver for MysqlDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        /* MySQL cannot overload: a schema and a name identify one routine */
+        _identity_args: Option<&str>,
     ) -> Result<(), String> {
         let sql = routines::drop_routine_sql(routine_name, routine_type);
         execute_query(params, &sql, None, 1, schema)

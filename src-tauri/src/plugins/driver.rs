@@ -794,12 +794,13 @@ impl DatabaseDriver for RpcDriver {
         params: &ConnectionParams,
         routine_name: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<Vec<RoutineParameter>, String> {
         let res = self
             .process
             .call(
                 "get_routine_parameters",
-                json!({ "params": params, "routine_name": routine_name, "schema": schema }),
+                json!({ "params": params, "routine_name": routine_name, "schema": schema, "identity_args": identity_args }),
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
@@ -811,8 +812,9 @@ impl DatabaseDriver for RpcDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<String, String> {
-        let res = self.process.call("get_routine_definition", json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema })).await?;
+        let res = self.process.call("get_routine_definition", json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema, "identity_args": identity_args })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -886,19 +888,26 @@ impl DatabaseDriver for RpcDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<String, String> {
         let res = self
             .process
             .call(
                 "get_routine_edit_script",
-                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema, "identity_args": identity_args }),
             )
             .await;
         match res {
             Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
             Err(e) if is_method_not_found(&e) => {
-                self.get_routine_definition(params, routine_name, routine_type, schema)
-                    .await
+                self.get_routine_definition(
+                    params,
+                    routine_name,
+                    routine_type,
+                    schema,
+                    identity_args,
+                )
+                .await
             }
             Err(e) => Err(e),
         }
@@ -910,12 +919,13 @@ impl DatabaseDriver for RpcDriver {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<(), String> {
         let res = self
             .process
             .call(
                 "drop_routine",
-                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema, "identity_args": identity_args }),
             )
             .await;
         match res {

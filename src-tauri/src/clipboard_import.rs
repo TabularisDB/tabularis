@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use crate::{
     commands::{
@@ -5,7 +6,7 @@ use crate::{
         resolve_connection_params_with_id,
     },
     drivers::{driver_trait::DatabaseDriver, registry::get_driver},
-    models::ColumnDefinition,
+    models::{ColumnDefinition, TableColumn},
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime};
@@ -54,21 +55,58 @@ fn boolean_literal(value: &str) -> Option<&'static str> {
 
 /// MySQL creates BOOLEAN as TINYINT(1) and, in strict mode, rejects quoted words
 /// like 'true', so the BOOLEAN columns this import created get TRUE/FALSE
-/// literals. Columns that already existed keep quoted values: their real type
-/// isn't known here.
+/// literals, and so do existing TINYINT columns: a word like 'true' could never
+/// be stored in one as-is. Other existing columns keep quoted values, so a text
+/// column holding yes/no is left alone.
 fn boolean_literal_columns(
     req: &ClipboardImportRequest,
     driver_id: &str,
     table_created: bool,
+    existing_tinyint_columns: &HashSet<String>,
 ) -> Vec<bool> {
     req.columns
         .iter()
         .map(|col| {
+            let created_boolean = col.data_type.eq_ignore_ascii_case("BOOLEAN")
+                && (table_created || req.add_columns.iter().any(|added| added.name == col.name));
             driver_id == "mysql"
-                && col.data_type.eq_ignore_ascii_case("BOOLEAN")
-                && (table_created || req.add_columns.iter().any(|added| added.name == col.name))
+                && (created_boolean || existing_tinyint_columns.contains(&col.name))
         })
         .collect()
+}
+
+/// Names of the TINYINT columns among a table's columns (MySQL reports BOOLEAN
+/// columns as plain `tinyint`).
+fn tinyint_column_names(columns: &[TableColumn]) -> HashSet<String> {
+    columns
+        .iter()
+        .filter(|col| col.data_type.eq_ignore_ascii_case("tinyint"))
+        .map(|col| col.name.clone())
+        .collect()
+}
+
+/// The target table's TINYINT columns when a MySQL import appends to a table it
+/// didn't create; empty otherwise, or when the columns can't be read.
+async fn existing_tinyint_columns(
+    drv: &dyn DatabaseDriver,
+    params: &crate::models::ConnectionParams,
+    req: &ClipboardImportRequest,
+    schema_ref: Option<&str>,
+    table_created: bool,
+) -> HashSet<String> {
+    if table_created || drv.manifest().id != "mysql" {
+        return HashSet::new();
+    }
+    match drv.get_columns(params, &req.table_name, schema_ref).await {
+        Ok(columns) => tinyint_column_names(&columns),
+        Err(e) => {
+            log::warn!(
+                "Clipboard import: could not read the columns of '{}': {e}",
+                req.table_name
+            );
+            HashSet::new()
+        }
+    }
 }
 
 fn row_to_values_clause(row: &[Option<String>], boolean_columns: &[bool]) -> String {
@@ -229,7 +267,10 @@ async fn insert_rows(
         .collect::<Vec<_>>()
         .join(", ");
 
-    let boolean_columns = boolean_literal_columns(req, &drv.manifest().id, table_created);
+    let existing_tinyint =
+        existing_tinyint_columns(drv, params, req, schema_ref, table_created).await;
+    let boolean_columns =
+        boolean_literal_columns(req, &drv.manifest().id, table_created, &existing_tinyint);
 
     const BATCH_SIZE: usize = 500;
     let mut rows_inserted = 0;

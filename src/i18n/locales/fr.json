@@ -613,6 +613,10 @@
     "formatter_linesBetweenQueriesDesc": "Nombre de lignes vides entre les instructions SQL séparées.",
     "formatter_denseOperators": "Opérateurs compacts",
     "formatter_denseOperatorsDesc": "Supprimer les espaces autour des opérateurs (ex. a=1 au lieu de a = 1).",
+    "autocomplete_title": "Autocomplétion",
+    "autocomplete_keywordCase": "Casse des mots-clés",
+    "autocomplete_keywordCaseDesc": "Casse des mots-clés SQL insérés par l’autocomplétion.",
+    "autocomplete_keywordCaseMatch": "Suivre la saisie",
     "editConfigJson": "Modifier config.json",
     "editConfigJsonDesc": "Modifiez directement le fichier de configuration brut. Un redémarrage est nécessaire pour appliquer les changements.",
     "configJsonModal": {
@@ -1897,7 +1901,12 @@
     "createSuccess": "Trigger créé avec succès",
     "updateSuccess": "Trigger mis à jour avec succès",
     "recreateTrigger": "Recréer le trigger",
-    "confirmRecreate": "Modifier un trigger nécessite de le supprimer puis de le recréer. Continuer la modification de « {{trigger}} » ?"
+    "confirmRecreate": "Modifier un trigger nécessite de le supprimer puis de le recréer. Continuer la modification de « {{trigger}} » ?",
+    "originalRestored": "Le déclencheur d'origine a été restauré.",
+    "restoreFailed": "La restauration du déclencheur d'origine a également échoué : ",
+    "singleEventHint": "Cette base de données n'autorise qu'un seul événement par déclencheur.",
+    "existingFunctionHint": "Ce déclencheur conserve sa fonction existante. Modifiez la fonction elle-même dans l'éditeur SQL ou en mode SQL brut.",
+    "unsupportedDriver": "La modification des déclencheurs n'est pas prise en charge pour ce pilote."
   },
   "community": {
     "title": "Rejoindre la communauté",

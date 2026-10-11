@@ -80,6 +80,10 @@ export function useDatabaseObjectNavigation(
             name: routine.name,
             routineType: routine.routine_type,
             schema,
+            // Carries whatever the listing reported for this row, so View
+            // Definition reaches the overload that was clicked rather than
+            // whichever one a LIMIT 1 happened to return (#893).
+            identityArgs: routine.identity_args,
           },
           runtime,
         ),

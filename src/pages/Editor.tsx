@@ -133,11 +133,11 @@ import { notifyQueryFinished } from "../utils/queryNotification";
 import {
   buildSyncPayload,
   applyAction,
-  RESULTS_SYNC_EVENT,
   RESULTS_ACTION_EVENT,
   RESULTS_READY_EVENT,
   RESULTS_CLOSED_EVENT,
-  RESULTS_COPY_EVENT,
+  resultsCopyEvent,
+  resultsSyncEvent,
   type CopiedRows,
   type ResultsCopyPayload,
   type ResultsWindowActionHandlers,
@@ -2063,14 +2063,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   }, []);
 
   // Push each detached tab's result state to its window whenever the tabs
-  // change (every detached tab is re-synced; its window filters by tabId).
+  // change.
   useEffect(() => {
     if (detachedTabIds.size === 0) return;
     for (const id of detachedTabIds) {
       const tab = tabs.find((t) => t.id === id);
       if (tab) {
         emit(
-          RESULTS_SYNC_EVENT,
+          resultsSyncEvent(id),
           buildSyncPayload(tab, {
             connectionId: activeConnectionId,
             copyFormat,
@@ -2237,7 +2237,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       const tab = tabsRef.current.find((t) => t.id === tabId);
       if (tab) {
         emit(
-          RESULTS_SYNC_EVENT,
+          resultsSyncEvent(tabId),
           buildSyncPayload(tab, {
             connectionId: activeConnectionId,
             copyFormat,
@@ -2258,11 +2258,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         try {
           const copied = await rows;
           if (!copied) return;
-          payload = { tabId, ...copied };
+          payload = copied;
         } catch (e) {
-          payload = { tabId, error: String(e) };
+          payload = { error: String(e) };
         }
-        emit(RESULTS_COPY_EVENT, payload);
+        emit(resultsCopyEvent(tabId), payload);
       };
       return {
         onRunQueryPage: (query, page) => runQuery(query, page, tabId),
@@ -4924,7 +4924,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 dialect={activeDialect}
                 foldPreview
                 onChange={(val) => {
-                  if (!isActive) return;
+                  // Debounced Monaco edits can arrive after this tab becomes
+                  // inactive. The callback belongs to the tab's stable id;
+                  // dropping it would lose the user's latest SQL on switch.
                   updateTab(tab.id, {
                     query: val,
                     ...(tab.sourceFilePath
