@@ -72,15 +72,42 @@ async fn test_get_routine_parameters() {
     require_pg!();
     let params = pg_params();
 
-    let routine_params = postgres::get_routine_parameters(&params, "add_numbers", "test_schema")
-        .await
-        .expect("get_routine_parameters should succeed");
+    // Signature-less: still the pre-#893 read, whose list may carry the
+    // parameters of every overload at once. That is what this assertion has
+    // always tolerated, and the arm below is the one that does not.
+    let routine_params =
+        postgres::get_routine_parameters(&params, "add_numbers", "test_schema", None)
+            .await
+            .expect("get_routine_parameters should succeed");
 
-    // At least 2 params (from the 2-arg version); may include params from both overloads
     assert!(
         routine_params.len() >= 2,
         "add_numbers should have at least 2 parameters, got: {}",
         routine_params.len()
+    );
+
+    // Asked for one overload by its signature, the list is that overload's own.
+    // `add_numbers` is seeded with a two-argument and a three-argument version,
+    // so without the filter this came back with every overload's parameters in
+    // one list, two of them at ordinal_position 1 (#893).
+    let two_arg = postgres::get_routine_parameters(
+        &params,
+        "add_numbers",
+        "test_schema",
+        Some("a integer, b integer"),
+    )
+    .await
+    .expect("get_routine_parameters for the two-argument overload");
+
+    let named: Vec<&str> = two_arg
+        .iter()
+        .filter(|p| !p.name.is_empty())
+        .map(|p| p.name.as_str())
+        .collect();
+    assert_eq!(
+        named,
+        vec!["a", "b"],
+        "the two-argument overload takes exactly a and b, got: {named:?}"
     );
 }
 
@@ -90,7 +117,7 @@ async fn test_get_routine_definition() {
     require_pg!();
     let params = pg_params();
 
-    let def = postgres::get_routine_definition(&params, "get_user", "FUNCTION", "test_schema")
+    let def = postgres::get_routine_definition(&params, "get_user", "FUNCTION", "test_schema", None)
         .await
         .expect("get_routine_definition should succeed");
 
@@ -120,7 +147,7 @@ async fn test_drop_routine() {
 
     // Drop it
     let drop_result =
-        postgres::drop_routine(&params, "temp_drop_test", "FUNCTION", "test_schema").await;
+        postgres::drop_routine(&params, "temp_drop_test", "FUNCTION", "test_schema", None).await;
 
     assert!(
         drop_result.is_ok(),

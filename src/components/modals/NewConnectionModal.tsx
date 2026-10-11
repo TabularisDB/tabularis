@@ -2515,10 +2515,25 @@ export const NewConnectionModal = ({
         driver: newDriver,
         host: parsed.host || "localhost",
         port: parsed.port,
+        // Keep the user's TLS mode if the URL does not specify one.
+        // A driver switch must not retain the prior driver's TLS mode.
+        ...(parsed.ssl_mode !== undefined || driverChanged
+          ? { ssl_mode: parsed.ssl_mode ?? "" }
+          : {}),
         database: parsed.database || "",
         connection_uri: parsed.connection_uri,
         connection_uri_in_keychain: false,
       };
+
+      const importingMysql = newDriver === "mysql" || newDriver === "mariadb" ||
+        parsedDriver?.capabilities?.sql_dialect === "mysql";
+      const tlsDisabled = parsed.ssl_mode !== undefined &&
+        !["required", "verify_ca", "verify_identity"].includes(parsed.ssl_mode);
+      // The MySQL cleartext login and IAM login require enforced TLS.
+      if ((importingMysql && tlsDisabled) || (driverChanged && !importingMysql)) {
+        parsedFields.enable_cleartext_plugin = false;
+        parsedFields.use_iam_auth = false;
+      }
 
       // Plugin-owned extra fields belong to the driver that produced them, so
       // an import that switches driver drops them like the catalogue does.
@@ -2730,27 +2745,21 @@ export const NewConnectionModal = ({
               </div>
               {connectionStringExamples.length > 0 && (
                 <>
-                  <select
-                    aria-label={t("newConnection.connectionStringExample", {
+                  <Select
+                    ariaLabel={t("newConnection.connectionStringExample", {
                       defaultValue: "Connection string example",
                     })}
-                    value=""
-                    onChange={(event) =>
-                      handleConnectionStringChange(event.target.value)
-                    }
-                    className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary focus:border-focus focus:outline-none"
-                  >
-                    <option value="" disabled>
-                      {t("newConnection.chooseConnectionStringExample", {
-                        defaultValue: "Choose an example",
-                      })}
-                    </option>
-                    {connectionStringExamples.map((example) => (
-                      <option key={`${example.label}:${example.value}`} value={example.value}>
-                        {example.label}
-                      </option>
-                    ))}
-                  </select>
+                    value={selectedConnectionStringExample?.value ?? null}
+                    options={connectionStringExamples.map((example) => example.value)}
+                    labels={Object.fromEntries(
+                      connectionStringExamples.map((example) => [example.value, example.label]),
+                    )}
+                    onChange={handleConnectionStringChange}
+                    placeholder={t("newConnection.chooseConnectionStringExample", {
+                      defaultValue: "Choose an example",
+                    })}
+                    searchable={false}
+                  />
                   {selectedConnectionStringExample?.description && (
                     <p className="text-xs text-secondary">
                       {selectedConnectionStringExample.description}

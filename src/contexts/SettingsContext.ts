@@ -1,6 +1,7 @@
 import { createContext } from "react";
 import type { AppLanguage } from "../i18n/config";
 import { DEFAULT_MASKING_PATTERNS } from "../utils/columnMasking";
+import type { AutocompleteKeywordCase } from "../utils/autocomplete";
 import type {
   GlobalProxySettings,
   ProxyOverride,
@@ -101,8 +102,14 @@ export interface Settings {
   editorShowLineNumbers?: boolean;
   editorAcceptSuggestionOnEnter?: boolean;
   runStatementUnderCursor?: boolean;
+  /** Case of SQL keywords inserted by autocomplete. Default: "match". */
+  autocompleteKeywordCase?: AutocompleteKeywordCase;
   /** Delay destructive-query and production-write confirmations for five seconds. Default: false. */
   safetyConfirmationDelayEnabled?: boolean;
+  /** Send a desktop notification when a long-running query finishes while the window is unfocused. Default: true. */
+  notifyLongQueries?: boolean;
+  /** Minimum execution time in seconds before a finished query triggers a notification. Default: 20. */
+  notifyLongQueriesThresholdSec?: number;
   // SQL Formatter
   formatterKeywordCase?: "upper" | "lower" | "preserve";
   formatterIndentStyle?: "standard" | "tabularLeft" | "tabularRight";
@@ -245,7 +252,10 @@ export const DEFAULT_SETTINGS: Settings = {
   editorShowLineNumbers: true,
   editorAcceptSuggestionOnEnter: true,
   runStatementUnderCursor: true,
+  autocompleteKeywordCase: "match",
   safetyConfirmationDelayEnabled: false,
+  notifyLongQueries: true,
+  notifyLongQueriesThresholdSec: 20,
   formatterKeywordCase: "upper",
   formatterIndentStyle: "standard",
   formatterTabWidth: 2,

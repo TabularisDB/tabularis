@@ -1,8 +1,20 @@
 {
   "toolbar": {
+    "autoRefresh": {
+      "label": "Aggiornamento automatico",
+      "off": "Disattivato",
+      "seconds": "{{seconds}} s",
+      "paused": "In pausa durante la modifica",
+      "pausedSelection": "In pausa finché ci sono righe selezionate",
+      "refresh": "Aggiorna tabella",
+      "failed": "Aggiornamento non riuscito: {{error}}"
+    },
     "filters": "Filtri",
     "toggleFilterPanel": "Pannello filtri strutturati",
     "filterConditions": "Condizioni filtro",
+    "matchMode": "Modalità di corrispondenza",
+    "matchAll": "Tutte",
+    "matchAny": "Qualsiasi",
     "activeOf": "{{active}} di {{total}} attivi",
     "noFilters": "Nessun filtro —",
     "addFirstFilter": "aggiungi il primo filtro",
@@ -21,7 +33,19 @@
     "selectForApplyAll": "Seleziona per Applica tutti",
     "valuePlaceholder": "valore",
     "fromPlaceholder": "da",
-    "toPlaceholder": "a"
+    "toPlaceholder": "a",
+    "opContains": "contiene",
+    "opStartsWith": "inizia con",
+    "opEndsWith": "finisce con",
+    "opIsEmpty": "è vuoto",
+    "opIsNotEmpty": "non è vuoto"
+  },
+  "triggers":{
+    "originalRestored": "Il trigger originale è stato ripristinato.",
+    "restoreFailed": "Anche il ripristino del trigger originale è fallito: ",
+    "singleEventHint": "Questo database consente un solo evento per trigger.",
+    "existingFunctionHint": "Questo trigger mantiene la sua funzione esistente. Modifica la funzione direttamente nell'editor SQL o in modalità SQL grezzo.",
+    "unsupportedDriver": "La modifica dei trigger non è supportata per questo driver."
   },
   "tags": {
     "label": "Tag",
@@ -190,6 +214,16 @@
     "noQueryHistory": "Nessuna cronologia query",
     "noHistorySearchResults": "Nessuna query corrisponde alla ricerca",
     "searchHistory": "Cerca nella cronologia...",
+    "historyOutcomeFilter": "Filtra per esito",
+    "historyOutcomeAny": "Qualsiasi esito",
+    "historyOutcomeSucceeded": "Riuscite",
+    "historyOutcomeFailed": "Fallite",
+    "historyTimeRangeFilter": "Filtra per periodo",
+    "historyTimeAll": "Sempre",
+    "historyTimeLastHour": "Ultima ora",
+    "historyTimeToday": "Oggi",
+    "historyTimeLast7Days": "Ultimi 7 giorni",
+    "historyTimeLast30Days": "Ultimi 30 giorni",
     "clearAllHistory": "Cancella Tutta la Cronologia",
     "historyRecoveredTitle": "Cronologia query azzerata",
     "historyRecoveredBody": "Il file di cronologia era corrotto ed è stato spostato in backup. Le nuove query verranno registrate normalmente. File di backup:",
@@ -569,6 +603,10 @@
     "runStatementUnderCursorDesc": "Quando uno script contiene più istruzioni, esegue quella sotto il cursore invece di mostrare il selettore di query. Seleziona il testo per eseguire un intervallo specifico.",
     "safetyConfirmationDelay": "Ritarda le conferme di sicurezza",
     "safetyConfirmationDelayDesc": "Disabilita i pulsanti di conferma per cinque secondi per le query distruttive e le scritture in produzione.",
+    "notifyLongQueries": "Notifica al termine delle query lunghe",
+    "notifyLongQueriesDesc": "Invia una notifica desktop quando una query termina mentre Tabularis è in background.",
+    "notifyLongQueriesThreshold": "Soglia di notifica",
+    "notifyLongQueriesThresholdDesc": "Notifica solo le query eseguite per almeno questo tempo.",
     "formatter_title": "Formattatore SQL",
     "formatter_keywordCase": "Maiuscole parole chiave",
     "formatter_keywordCaseDesc": "Come vengono capitalizzate le parole chiave SQL (SELECT, FROM, WHERE) dopo la formattazione.",
@@ -583,6 +621,10 @@
     "formatter_linesBetweenQueriesDesc": "Numero di righe vuote tra istruzioni SQL separate.",
     "formatter_denseOperators": "Operatori compatti",
     "formatter_denseOperatorsDesc": "Rimuovi spazi intorno agli operatori (es. a=1 invece di a = 1).",
+    "autocomplete_title": "Autocompletamento",
+    "autocomplete_keywordCase": "Maiuscole parole chiave",
+    "autocomplete_keywordCaseDesc": "Maiuscole e minuscole delle parole chiave SQL inserite dall’autocompletamento.",
+    "autocomplete_keywordCaseMatch": "Come digitato",
     "editConfigJson": "Modifica config.json",
     "editConfigJsonDesc": "Modifica direttamente il file di configurazione grezzo. È necessario un riavvio per applicare le modifiche.",
     "configJsonModal": {
@@ -705,7 +747,7 @@
     "clearLogs": "Pulisci Log",
     "clearLogsConfirm": "Sei sicuro di voler cancellare tutti i log?",
     "exportLogs": "Esporta Log",
-    "exportLogsSuccess": "Log esportati negli appunti",
+    "exportLogsSuccess": "Log esportati",
     "noLogs": "Nessun log disponibile",
     "refreshLogs": "Aggiorna",
     "logLevel": "Livello",
@@ -883,6 +925,7 @@
       "newConnection": "Nuova connessione",
       "newTab": "Nuovo tab",
       "closeTab": "Chiudi tab",
+      "reopenClosedTab": "Riapri scheda chiusa",
       "nextPage": "Pagina successiva",
       "prevPage": "Pagina precedente",
       "switchConnection": "Passa alla connessione 1–9",
@@ -900,6 +943,7 @@
       "refreshTable": "Aggiorna tabella",
       "extendCellRange": "Estendi intervallo di celle",
       "jumpToEdge": "Salta al bordo della griglia",
+      "jumpToColumn": "Vai alla colonna",
       "extendCellRangeToEdge": "Estendi intervallo fino al bordo",
       "selectRow": "Seleziona riga",
       "selectColumn": "Seleziona colonna"
@@ -1058,6 +1102,10 @@
     "dbNameRequired": "Il nome del database è richiesto",
     "connectionUriRequiresKeychain": "Gli URI di connessione devono essere salvati nel Portachiavi di sistema. Attiva “Salva password nel Portachiavi” per continuare.",
     "connectionUriRequired": "L'URI di connessione è richiesto",
+    "connectionString": "Stringa di connessione",
+    "connectionStringPlaceholder": "es. mysql://user:pass@localhost:3306/db",
+    "connectionStringExample": "Esempio di stringa di connessione",
+    "chooseConnectionStringExample": "Scegli un esempio",
     "dbType": "Tipo Database",
     "host": "Host",
     "port": "Porta",
@@ -1204,6 +1252,9 @@
     "useShownValue": "Usa questo valore"
   },
   "dataGrid": {
+    "jumpToColumn": "Vai alla colonna",
+    "searchColumns": "Cerca colonne",
+    "noMatchingColumns": "Nessuna colonna corrispondente",
     "noRowIdentity": "Impossibile modificare le righe: \"{{table}}\" non ha una chiave primaria, quindi la modifica richiede che il risultato includa tutte le colonne della tabella. Seleziona tutte le colonne (es. SELECT *) o aggiungi una chiave primaria.",
     "resizeRelatedPanel": "Trascina per ridimensionare il pannello",
     "keylessRowNotFound": "Nessuna riga corrisponde ai valori originali durante l'aggiornamento di \"{{column}}\". La tabella non ha una chiave primaria e i dati potrebbero essere cambiati: aggiorna e riprova.",
@@ -1327,6 +1378,7 @@
       "reattach": "Riaggancia"
     },
     "closeTab": "Chiudi scheda",
+    "reopenClosedTab": "Riapri scheda chiusa",
     "closeOthers": "Chiudi altre schede",
     "closeRight": "Chiudi schede a destra",
     "closeLeft": "Chiudi schede a sinistra",
@@ -1665,6 +1717,14 @@
       "collapseAll": "Comprimi tutto",
       "expandAll": "Espandi tutto",
       "collapsed": "Compresso"
+    },
+    "queryNotification": {
+      "successTitle": "Query completata",
+      "errorTitle": "Query fallita",
+      "body": "{{tab}} · {{duration}}",
+      "batchSuccessTitle": "Esegui tutto completato",
+      "batchErrorTitle": "Esegui tutto completato con errori",
+      "batchBody": "{{tab}} · {{succeeded}} completate, {{failed}} fallite · {{duration}}"
     }
   },
   "createTable": {

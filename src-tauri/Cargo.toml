@@ -116,7 +116,13 @@ libc = "0.2"
 # GTK dependencies for Wayland window title workaround (Linux only)
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
-zbus = { version = "5.14", default-features = false, features = ["tokio"] }
+# Keep zbus on the async-io backend. The `tokio` feature makes
+# `zbus::utils::block_on` drive a Tokio runtime, which panics when invoked from
+# inside a Tokio task and, in a `panic = "abort"` release build, aborts the
+# whole app. Cargo feature unification propagates that feature to the zbus used
+# by notify-rust, which is what triggers the crash on the Linux notification
+# path (the MCP approval alert).
+zbus = { version = "5.14", default-features = false, features = ["async-io"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

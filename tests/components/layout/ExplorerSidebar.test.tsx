@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
 import { ExplorerSidebar } from "../../../src/components/layout/ExplorerSidebar";
 import { useDatabase } from "../../../src/hooks/useDatabase";
 import { useSavedQueries } from "../../../src/hooks/useSavedQueries";
@@ -54,6 +55,26 @@ vi.mock("../../../src/utils/editorNavigation", async (importOriginal) => {
 vi.mock("../../../src/components/modals/RunRoutineModal", () => ({
   RunRoutineModal: ({ onRun }: { onRun: (sql: string) => void }) => (
     <button onClick={() => onRun("SELECT refresh_orders()")}>run-routine-modal</button>
+  ),
+}));
+
+// Stand-in for the import dialog: it shows the schema it targets, one button reports a
+// finished import and the other closes the dialog.
+vi.mock("../../../src/components/modals/ClipboardImportModal", () => ({
+  ClipboardImportModal: ({
+    schema,
+    onSuccess,
+    onClose,
+  }: {
+    schema?: string;
+    onSuccess: () => void;
+    onClose: () => void;
+  }) => (
+    <>
+      <span>{`clipboard-import-schema:${schema ?? "active"}`}</span>
+      <button onClick={onSuccess}>clipboard-import-success</button>
+      <button onClick={onClose}>clipboard-import-close</button>
+    </>
   ),
 }));
 
@@ -385,6 +406,138 @@ describe("ExplorerSidebar — database object navigation", () => {
         preventAutoRun: true,
       }),
     );
+  });
+
+  it("schema layout — New routine targets the schema it was opened from, not the active one", async () => {
+    vi.mocked(useDatabase).mockReturnValue({
+      ...databaseState,
+      activeCapabilities: { schemas: true, routines: true, routine_management: true },
+      activeSchema: "public",
+      schemas: ["public", "sales"],
+      selectedSchemas: ["sales"],
+      schemaDataMap: {
+        sales: { tables: [], views: [], routines: [], triggers: [], isLoaded: true, isLoading: false },
+      },
+    } as unknown as ReturnType<typeof useDatabase>);
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === "get_routine_create_template" ? "CREATE PROCEDURE sales.my_procedure()" : undefined,
+    );
+    renderSidebar();
+
+    fireEvent.click(screen.getByText("sales"));
+    fireEvent.click(screen.getByTitle("routines.newRoutine"));
+    fireEvent.click(screen.getByText("routines.newProcedure"));
+
+    await waitFor(() =>
+      expect(openEditor).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          initialQuery: "CREATE PROCEDURE sales.my_procedure()",
+          schema: "sales",
+        }),
+      ),
+    );
+    expect(invoke).toHaveBeenCalledWith("get_routine_create_template", {
+      connectionId: "c1",
+      routineType: "PROCEDURE",
+      schema: "sales",
+    });
+  });
+
+  describe("Import from Clipboard", () => {
+    const refreshTables = vi.fn();
+    const refreshSchemaData = vi.fn();
+    const refreshDatabaseData = vi.fn();
+
+    const importFromClipboard = (state: Record<string, unknown>) => {
+      vi.mocked(useDatabase).mockReturnValue({
+        ...databaseState,
+        refreshTables,
+        refreshSchemaData,
+        refreshDatabaseData,
+        ...state,
+      } as unknown as ReturnType<typeof useDatabase>);
+      renderSidebar();
+      act(() => {
+        window.dispatchEvent(new Event("tabularis:paste-import"));
+      });
+      // Count only the refreshes the finished import triggers.
+      for (const refresh of [refreshTables, refreshSchemaData, refreshDatabaseData]) refresh.mockClear();
+      fireEvent.click(screen.getByText("clipboard-import-success"));
+    };
+
+    it("refreshes the active schema in the schema layout", async () => {
+      importFromClipboard({
+        activeCapabilities: { schemas: true },
+        activeSchema: "public",
+        schemas: ["public", "sales"],
+      });
+
+      expect(screen.getByText("clipboard-import-schema:active")).toBeInTheDocument();
+      await waitFor(() => expect(refreshSchemaData).toHaveBeenCalledWith("public"));
+      expect(refreshTables).not.toHaveBeenCalled();
+    });
+
+    it("imports into the schema of the table it was opened from", async () => {
+      vi.mocked(useDatabase).mockReturnValue({
+        ...databaseState,
+        refreshTables,
+        refreshSchemaData,
+        refreshDatabaseData,
+        activeCapabilities: { schemas: true },
+        activeSchema: "public",
+        schemas: ["public", "sales"],
+        selectedSchemas: ["sales"],
+        schemaDataMap: {
+          sales: {
+            tables: [{ name: "sales_orders" }],
+            views: [],
+            routines: [],
+            triggers: [],
+            isLoaded: true,
+            isLoading: false,
+          },
+        },
+      } as unknown as ReturnType<typeof useDatabase>);
+      renderSidebar();
+
+      fireEvent.click(screen.getByText("sales"));
+      fireEvent.contextMenu(screen.getByText("sales_orders"));
+      fireEvent.click(screen.getByText("clipboardImport.contextMenuLabel"));
+      expect(screen.getByText("clipboard-import-schema:sales")).toBeInTheDocument();
+
+      for (const refresh of [refreshTables, refreshSchemaData, refreshDatabaseData]) refresh.mockClear();
+      fireEvent.click(screen.getByText("clipboard-import-success"));
+      await waitFor(() => expect(refreshSchemaData).toHaveBeenCalledWith("sales"));
+      expect(refreshSchemaData).not.toHaveBeenCalledWith("public");
+    });
+
+    it("refreshes the active database in the multi-database layout", async () => {
+      importFromClipboard({
+        activeDriver: "mysql",
+        activeCapabilities: { schemas: false, file_based: false },
+        activeSchema: "tabularis_demo",
+        selectedDatabases: ["tabularis_demo", "analytics"],
+        loadDatabaseData: vi.fn(),
+      });
+
+      await waitFor(() => expect(refreshDatabaseData).toHaveBeenCalledWith("tabularis_demo"));
+      expect(refreshTables).not.toHaveBeenCalled();
+    });
+
+    it("refreshes the table list in the flat layout", async () => {
+      importFromClipboard({});
+
+      await waitFor(() => expect(refreshTables).toHaveBeenCalledTimes(1));
+    });
+
+    it("keeps the dialog on its success message until it is closed", () => {
+      importFromClipboard({});
+
+      expect(screen.getByText("clipboard-import-success")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("clipboard-import-close"));
+      expect(screen.queryByText("clipboard-import-success")).not.toBeInTheDocument();
+    });
   });
 
   it("disables table actions that require an active connection", () => {

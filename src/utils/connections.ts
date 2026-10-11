@@ -67,6 +67,8 @@ export interface ConnectionParams {
   port?: number;
   username?: string;
   password?: string;
+  /** TLS mode selected for the server connection. */
+  ssl_mode?: string;
   /** Raw driver-specific connection URI, forwarded verbatim to the driver.
    * Never persisted in connections.json: it embeds credentials and is stored
    * in the OS keychain instead. */

@@ -52,6 +52,7 @@ interface MultiResultPanelProps {
   onSelectResult: (entryId: string) => void;
   onRerunEntry: (entryId: string) => void;
   onPageChange: (entryId: string, page: number) => void;
+  onCopyAllRows: (entryId: string) => void;
   onCloseEntry: (entryId: string) => void;
   onCloseOtherEntries: (entryId: string) => void;
   onCloseEntriesToRight: (entryId: string) => void;
@@ -252,6 +253,7 @@ export function MultiResultPanel({
   onSelectResult,
   onRerunEntry,
   onPageChange,
+  onCopyAllRows,
   onCloseEntry,
   onCloseOtherEntries,
   onCloseEntriesToRight,
@@ -481,6 +483,7 @@ export function MultiResultPanel({
               onPageChange={(page) => onPageChange(activeEntry.id, page)}
               initialScrollTop={getInitialScrollTop?.(activeEntry.id)}
               onScrollTopChange={(top) => onScrollTopChange?.(activeEntry.id, top)}
+              onCopyAllRows={() => onCopyAllRows(activeEntry.id)}
             />
           </div>
         </>
@@ -547,6 +550,7 @@ export function MultiResultPanel({
                   })
                 }
                 onPageChange={(page) => onPageChange(entry.id, page)}
+                onCopyAllRows={() => onCopyAllRows(entry.id)}
                 onRename={(label) => onRenameEntry(entry.id, label)}
                 onRerun={() => onRerunEntry(entry.id)}
                 onAiRename={() => handleAiRename(entry.id)}

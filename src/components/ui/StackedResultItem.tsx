@@ -33,6 +33,7 @@ interface StackedResultItemProps {
   aiRenaming: boolean;
   onToggleCollapse: () => void;
   onPageChange: (page: number) => void;
+  onCopyAllRows: () => void;
   onRename: (label: string) => void;
   onRerun: () => void;
   onAiRename: () => void;
@@ -53,6 +54,7 @@ export function StackedResultItem({
   aiRenaming,
   onToggleCollapse,
   onPageChange,
+  onCopyAllRows,
   onRename,
   onRerun,
   onAiRename,
@@ -331,6 +333,7 @@ export function StackedResultItem({
                   onPageChange={onPageChange}
                   initialScrollTop={initialScrollTop}
                   onScrollTopChange={onScrollTopChange}
+                  onCopyAllRows={onCopyAllRows}
                   compact
                 />
               </div>

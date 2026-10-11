@@ -15,6 +15,7 @@ interface ResultEntryContentProps {
   csvDelimiter: string;
   csvIncludeHeaders: boolean;
   onPageChange: (page: number) => void;
+  onCopyAllRows?: () => void;
   compact?: boolean;
   commandTargetRef?: Ref<DataGridCommandTarget>;
   initialScrollTop?: number;
@@ -28,6 +29,7 @@ export function ResultEntryContent({
   csvDelimiter,
   csvIncludeHeaders,
   onPageChange,
+  onCopyAllRows,
   compact,
   commandTargetRef,
   initialScrollTop,
@@ -134,6 +136,7 @@ export function ResultEntryContent({
           hasMore={entry.result.pagination?.has_more}
           initialScrollTop={initialScrollTop}
           onScrollTopChange={onScrollTopChange}
+          onCopyAllRows={onCopyAllRows}
         />
       </div>
     );
@@ -187,6 +190,7 @@ export function ResultEntryContent({
           hasMore={entry.result.pagination?.has_more}
           initialScrollTop={initialScrollTop}
           onScrollTopChange={onScrollTopChange}
+          onCopyAllRows={onCopyAllRows}
         />
       </div>
     </div>

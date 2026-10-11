@@ -22,6 +22,38 @@ describe("cellValueFilter", () => {
       );
     });
 
+    it.each(["real", "FLOAT4", " real "])(
+      "compares PostgreSQL %s cell values at column precision",
+      (columnType) => {
+        for (const operator of ["=", "<>"] as const) {
+          for (const value of [89.9, "89.9"]) {
+            expect(
+              buildCellValueFilterClause("price", operator, value, "postgres", columnType),
+            ).toBe(`"price" ${operator} CAST(89.9 AS real)`);
+          }
+        }
+      },
+    );
+
+    it("keeps other column types and dialects at their existing precision", () => {
+      for (const operator of ["=", "<>"] as const) {
+        expect(
+          buildCellValueFilterClause("price", operator, 89.9, "postgres", "double precision"),
+        ).toBe(`"price" ${operator} 89.9`);
+        expect(
+          buildCellValueFilterClause("price", operator, 89.9, "mysql", "real"),
+        ).toBe(`\`price\` ${operator} 89.9`);
+      }
+    });
+
+    it("keeps PostgreSQL real NULL predicates unchanged", () => {
+      for (const operator of ["IS NULL", "IS NOT NULL"] as const) {
+        expect(
+          buildCellValueFilterClause("price", operator, null, "postgres", "real"),
+        ).toBe(`"price" ${operator}`);
+      }
+    });
+
     it("emits bigint values unquoted", () => {
       expect(
         buildCellValueFilterClause("id", "=", BigInt("9007199254740993"), "sqlite"),

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { save } from "@tauri-apps/plugin-dialog";
 import { LogsTab } from "../../../src/components/settings/LogsTab";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), updateSetting: vi.fn(), showAlert: vi.fn() }));
@@ -29,5 +30,34 @@ describe("LogsTab theme controls", () => {
       expect(await screen.findByText(level, { selector: "span" })).toHaveClass(`text-accent-${tone}`);
     }
     expect(mocks.invoke.mock.calls.every(([command]) => command === "get_logs" || command === "get_log_settings")).toBe(true);
+  });
+});
+
+describe("LogsTab export", () => {
+  it("writes the logs to the chosen file and confirms the export", async () => {
+    vi.mocked(save).mockResolvedValue("/tmp/tabularis.log");
+    const loadLogs = mocks.invoke.getMockImplementation();
+    mocks.invoke.mockImplementation(async (command: string, args?: unknown) =>
+      command === "export_logs" ? undefined : loadLogs?.(command, args),
+    );
+    render(<LogsTab />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "settings.exportLogs" }));
+
+    await waitFor(() =>
+      expect(mocks.showAlert).toHaveBeenCalledWith("settings.exportLogsSuccess", expect.objectContaining({ kind: "info" })),
+    );
+    expect(mocks.invoke).toHaveBeenCalledWith("export_logs", { filePath: "/tmp/tabularis.log" });
+  });
+
+  it("does nothing when the save dialog is cancelled", async () => {
+    vi.mocked(save).mockResolvedValue(null);
+    render(<LogsTab />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "settings.exportLogs" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    expect(mocks.invoke).not.toHaveBeenCalledWith("export_logs", expect.anything());
+    expect(mocks.showAlert).not.toHaveBeenCalled();
   });
 });

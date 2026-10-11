@@ -20,7 +20,7 @@ import { SidebarTriggerItem } from "./SidebarTriggerItem";
 import type { SchemaData, RoutineInfo, TriggerInfo } from "../../../contexts/DatabaseContext";
 import type { TableColumn } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
-import { groupRoutinesByType } from "../../../utils/routines";
+import { groupRoutinesByType, routineLabel } from "../../../utils/routines";
 import { formatObjectCount } from "../../../utils/schema";
 import { fuzzyFilter } from "../../../utils/fuzzy";
 import { onActivationKey } from "../../../utils/keyboardEvents";
@@ -61,6 +61,8 @@ interface SidebarSchemaItemProps {
   onCreateTable: () => void;
   onCreateView: () => void;
   onCreateTrigger: (schema: string) => void;
+  /** Omitted when the driver cannot manage routines. */
+  onCreateRoutine?: (e: React.MouseEvent, schema: string) => void;
   showTriggers?: boolean;
   refreshingMatView?: string | null;
 }
@@ -91,6 +93,7 @@ export const SidebarSchemaItem = ({
   onCreateTable,
   onCreateView,
   onCreateTrigger,
+  onCreateRoutine,
   showTriggers = false,
   refreshingMatView = null,
 }: SidebarSchemaItemProps) => {
@@ -124,6 +127,9 @@ export const SidebarSchemaItem = ({
   const materializedViews = schemaData?.materializedViews ?? [];
   const routines = schemaData?.routines ?? [];
   const routineError = schemaData?.routineError;
+  const routineErrorIndicator = routineError ? (
+    <MetadataErrorIndicator error={routineError} title={t("sidebar.routineMetadataErrorTitle")} />
+  ) : undefined;
   const triggers = schemaData?.triggers ?? [];
   const filteredTriggers = fuzzyFilter(triggers, triggerFilter, (tr) => tr.name);
   const isLoading = schemaData?.isLoading ?? false;
@@ -417,12 +423,25 @@ export const SidebarSchemaItem = ({
                 title={`${t("sidebar.routines")} (${routines.length})`}
                 isOpen={routinesOpen}
                 onToggle={() => setRoutinesOpen(!routinesOpen)}
-                actions={routineError ? (
-                  <MetadataErrorIndicator
-                    error={routineError}
-                    title={t("sidebar.routineMetadataErrorTitle")}
-                  />
-                ) : undefined}
+                actions={
+                  onCreateRoutine ? (
+                    <div className="flex items-center gap-1 mr-2.5">
+                      {routineErrorIndicator}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCreateRoutine(e, schemaName);
+                        }}
+                        className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                        title={t("routines.newRoutine")}
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    routineErrorIndicator
+                  )
+                }
               >
                 {routines.length === 0 ? (
                   <div className="text-center p-2 text-xs text-muted italic">
@@ -441,7 +460,7 @@ export const SidebarSchemaItem = ({
                         />
                         {functionsOpen && groupedRoutines.functions.map((routine) => (
                           <SidebarRoutineItem
-                            key={routine.name}
+                            key={routineLabel(routine.name, routine.identity_args)}
                             routine={routine}
                             connectionId={connectionId}
                             onContextMenu={onContextMenu}
@@ -463,7 +482,7 @@ export const SidebarSchemaItem = ({
                         />
                         {proceduresOpen && groupedRoutines.procedures.map((routine) => (
                           <SidebarRoutineItem
-                            key={routine.name}
+                            key={routineLabel(routine.name, routine.identity_args)}
                             routine={routine}
                             connectionId={connectionId}
                             onContextMenu={onContextMenu}

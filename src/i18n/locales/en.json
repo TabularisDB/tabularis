@@ -1,8 +1,20 @@
 {
   "toolbar": {
+    "autoRefresh": {
+      "label": "Auto-refresh",
+      "off": "Off",
+      "seconds": "{{seconds}}s",
+      "paused": "Paused while editing",
+      "pausedSelection": "Paused while rows are selected",
+      "refresh": "Refresh table",
+      "failed": "Refresh failed: {{error}}"
+    },
     "filters": "Filters",
     "toggleFilterPanel": "Toggle structured filter panel",
     "filterConditions": "Filter conditions",
+    "matchMode": "Match mode",
+    "matchAll": "Match all",
+    "matchAny": "Match any",
     "activeOf": "{{active}} of {{total}} active",
     "noFilters": "No filters —",
     "addFirstFilter": "add the first filter",
@@ -21,7 +33,12 @@
     "selectForApplyAll": "Select for Apply All",
     "valuePlaceholder": "value",
     "fromPlaceholder": "from",
-    "toPlaceholder": "to"
+    "toPlaceholder": "to",
+    "opContains": "contains",
+    "opStartsWith": "starts with",
+    "opEndsWith": "ends with",
+    "opIsEmpty": "is empty",
+    "opIsNotEmpty": "is not empty"
   },
   "tags": {
     "label": "Tags",
@@ -203,6 +220,16 @@
     "noQueryHistory": "No query history",
     "noHistorySearchResults": "No queries match your search",
     "searchHistory": "Search history...",
+    "historyOutcomeFilter": "Filter by outcome",
+    "historyOutcomeAny": "Any outcome",
+    "historyOutcomeSucceeded": "Succeeded",
+    "historyOutcomeFailed": "Failed",
+    "historyTimeRangeFilter": "Filter by time range",
+    "historyTimeAll": "All time",
+    "historyTimeLastHour": "Last hour",
+    "historyTimeToday": "Today",
+    "historyTimeLast7Days": "Last 7 days",
+    "historyTimeLast30Days": "Last 30 days",
     "clearAllHistory": "Clear All History",
     "historyRecoveredTitle": "Query history was reset",
     "historyRecoveredBody": "The history file was corrupted and has been moved aside. New queries will be recorded as usual. Backup file:",
@@ -574,6 +601,10 @@
     "runStatementUnderCursorDesc": "When a script has multiple statements, run the one under the cursor instead of showing the query picker. Select text to run a specific range.",
     "safetyConfirmationDelay": "Delay safety confirmations",
     "safetyConfirmationDelayDesc": "Disable confirmation buttons for five seconds for destructive queries and production writes.",
+    "notifyLongQueries": "Notify when long queries finish",
+    "notifyLongQueriesDesc": "Send a desktop notification when a query finishes while Tabularis is in the background.",
+    "notifyLongQueriesThreshold": "Notification threshold",
+    "notifyLongQueriesThresholdDesc": "Only notify for queries that ran at least this long.",
     "formatter_title": "SQL Formatter",
     "formatter_keywordCase": "Keyword Case",
     "formatter_keywordCaseDesc": "How SQL keywords (SELECT, FROM, WHERE) are capitalized after formatting.",
@@ -588,6 +619,10 @@
     "formatter_linesBetweenQueriesDesc": "Number of blank lines inserted between separate SQL statements.",
     "formatter_denseOperators": "Dense Operators",
     "formatter_denseOperatorsDesc": "Remove spaces around operators (e.g. a=1 instead of a = 1).",
+    "autocomplete_title": "Autocomplete",
+    "autocomplete_keywordCase": "Keyword case",
+    "autocomplete_keywordCaseDesc": "Case of SQL keywords inserted by autocomplete",
+    "autocomplete_keywordCaseMatch": "Match typing",
     "editConfigJson": "Edit config.json",
     "editConfigJsonDesc": "Directly edit the raw configuration file. A restart is required to apply changes.",
     "configJsonModal": {
@@ -717,7 +752,7 @@
     "clearLogs": "Clear Logs",
     "clearLogsConfirm": "Are you sure you want to clear all logs?",
     "exportLogs": "Export Logs",
-    "exportLogsSuccess": "Logs exported to clipboard",
+    "exportLogsSuccess": "Logs exported",
     "noLogs": "No logs available",
     "refreshLogs": "Refresh",
     "logLevel": "Level",
@@ -895,6 +930,7 @@
       "newConnection": "New connection",
       "newTab": "New tab",
       "closeTab": "Close tab",
+      "reopenClosedTab": "Reopen closed tab",
       "nextPage": "Next page",
       "prevPage": "Previous page",
       "saveGridChanges": "Save pending changes",
@@ -913,6 +949,7 @@
       "refreshTable": "Refresh table",
       "extendCellRange": "Extend cell range",
       "jumpToEdge": "Jump to grid edge",
+      "jumpToColumn": "Jump to column",
       "extendCellRangeToEdge": "Extend cell range to edge",
       "selectRow": "Select row",
       "selectColumn": "Select column"
@@ -1069,6 +1106,10 @@
     "dbNameRequired": "Database name is required",
     "connectionUriRequiresKeychain": "Connection URIs must be saved in the OS keychain. Enable “Save passwords in Keychain” to continue.",
     "connectionUriRequired": "Connection URI is required",
+    "connectionString": "Connection String",
+    "connectionStringPlaceholder": "e.g. mysql://user:pass@localhost:3306/db",
+    "connectionStringExample": "Connection string example",
+    "chooseConnectionStringExample": "Choose an example",
     "dbType": "Database Type",
     "host": "Host",
     "port": "Port",
@@ -1215,6 +1256,9 @@
     "useShownValue": "Use this value"
   },
   "dataGrid": {
+    "jumpToColumn": "Jump to column",
+    "searchColumns": "Search columns",
+    "noMatchingColumns": "No matching columns",
     "noRowIdentity": "Rows can't be edited: \"{{table}}\" has no primary key, so editing requires the result to include all table columns. Select all columns (e.g. SELECT *) or add a primary key.",
     "resizeRelatedPanel": "Drag to resize panel",
     "keylessRowNotFound": "No row matched the original values while updating \"{{column}}\". The table has no primary key and its data may have changed — refresh and retry.",
@@ -1343,6 +1387,7 @@
       "reattach": "Re-attach"
     },
     "closeTab": "Close Tab",
+    "reopenClosedTab": "Reopen Closed Tab",
     "closeOthers": "Close Other Tabs",
     "closeRight": "Close Tabs to Right",
     "closeLeft": "Close Tabs to Left",
@@ -1683,6 +1728,14 @@
       "collapseAll": "Collapse all",
       "expandAll": "Expand all",
       "collapsed": "Collapsed"
+    },
+    "queryNotification": {
+      "successTitle": "Query finished",
+      "errorTitle": "Query failed",
+      "body": "{{tab}} · {{duration}}",
+      "batchSuccessTitle": "Run All finished",
+      "batchErrorTitle": "Run All finished with errors",
+      "batchBody": "{{tab}} · {{succeeded}} succeeded, {{failed}} failed · {{duration}}"
     }
   },
   "createTable": {
@@ -1857,7 +1910,12 @@
     "createSuccess": "Trigger created successfully",
     "updateSuccess": "Trigger updated successfully",
     "recreateTrigger": "Recreate Trigger",
-    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?"
+    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?",
+    "originalRestored": "The original trigger was restored.",
+    "restoreFailed": "Restoring the original trigger also failed: ",
+    "singleEventHint": "This database allows one event per trigger.",
+    "existingFunctionHint": "This trigger keeps its existing function. Edit the function itself in the SQL editor or raw SQL mode.",
+    "unsupportedDriver": "Trigger editing is not supported for this driver."
   },
   "community": {
     "title": "Join the Community",

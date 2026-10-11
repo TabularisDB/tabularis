@@ -285,7 +285,7 @@ async fn golden_get_materialized_view_columns() {
 async fn golden_get_routine_parameters() {
     require_pg!();
     let params = pg_params();
-    let result = postgres::get_routine_parameters(&params, "add_numbers", "test_schema")
+    let result = postgres::get_routine_parameters(&params, "add_numbers", "test_schema", None)
         .await
         .expect("get_routine_parameters");
     write_golden("get_routine_parameters_add_numbers.json", &result);
@@ -298,7 +298,7 @@ async fn golden_get_routine_definition() {
     require_pg!();
     let params = pg_params();
     let result =
-        postgres::get_routine_definition(&params, "add_numbers", "FUNCTION", "test_schema")
+        postgres::get_routine_definition(&params, "add_numbers", "FUNCTION", "test_schema", None)
             .await
             .expect("get_routine_definition");
     write_golden("get_routine_definition_add_numbers.json", &result);

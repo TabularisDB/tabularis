@@ -6,4 +6,5 @@ export type ContextMenuData =
   | SavedQuery
   | { tableName: string; schema?: string }
   | (RoutineInfo & { schema?: string })
-  | QueryHistoryEntry;
+  | QueryHistoryEntry
+  | { schema: string };

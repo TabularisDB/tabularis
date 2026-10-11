@@ -11,6 +11,8 @@ fn column(name: &str, data_type: &str, is_pk: bool, is_nullable: bool) -> TableC
         is_generated: false,
         default_value: None,
         character_maximum_length: None,
+        numeric_precision: None,
+        numeric_scale: None,
         comment: None,
     }
 }
@@ -31,6 +33,7 @@ fn formats_columns_relationships_and_truncation() {
                 ref_column: "id".to_string(),
                 on_delete: None,
                 on_update: None,
+                seq_in_fk: None,
             }],
         }],
         total_table_count: 3,

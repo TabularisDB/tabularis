@@ -3,6 +3,13 @@ import { cleanTabForStorage, restoreTabFromStorage } from '../../src/utils/tabCl
 import type { Tab } from '../../src/types/editor';
 
 describe('tabCleaner', () => {
+  it('restores only the interval and starts without runtime refresh state', () => {
+    const restored = restoreTabFromStorage({ autoRefreshIntervalMs: 30000, isAutoRefreshing: true, autoRefreshError: 'old' });
+    expect(restored.autoRefreshIntervalMs).toBe(30000);
+    expect(restored.isAutoRefreshing).toBe(false);
+    expect(restored.autoRefreshError).toBe('');
+    expect(restoreTabFromStorage({}).autoRefreshIntervalMs).toBe(0);
+  });
   describe('cleanTabForStorage', () => {
     it('should preserve persistent fields', () => {
       const tab: Tab = {
@@ -19,6 +26,9 @@ describe('tabCleaner', () => {
         sortClause: 'name ASC',
         limitClause: 100,
         pageSize: 51,
+        autoRefreshIntervalMs: 10000,
+        isAutoRefreshing: true,
+        autoRefreshError: 'offline',
         queryParams: { param1: 'value1' },
         sourceFilePath: '/tmp/my-query.sql',
         sourceFileContent: 'SELECT 1;',
@@ -49,6 +59,9 @@ describe('tabCleaner', () => {
       expect(cleaned.sortClause).toBe('name ASC');
       expect(cleaned.limitClause).toBe(100);
       expect(cleaned.pageSize).toBe(51);
+      expect(cleaned.autoRefreshIntervalMs).toBe(10000);
+      expect(cleaned).not.toHaveProperty('isAutoRefreshing');
+      expect(cleaned).not.toHaveProperty('autoRefreshError');
       expect(cleaned.queryParams).toEqual({ param1: 'value1' });
       expect(cleaned.sourceFilePath).toBe('/tmp/my-query.sql');
       expect(cleaned.sourceFileContent).toBe('SELECT 1;');

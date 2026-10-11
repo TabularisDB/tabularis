@@ -108,6 +108,7 @@ pub mod theme_models;
 pub mod theme_packages;
 pub mod updater;
 pub mod window_decorations;
+mod window_placement;
 pub mod drivers {
     pub mod common;
     pub mod driver_trait;
@@ -193,15 +194,16 @@ pub fn run() {
         // Initialize the logger so plugin-loading and driver RPC errors (which
         // use the `log` crate) are visible. The custom logger writes to stderr
         // only, leaving the stdout JSON-RPC stream clean.
-        init_logger(create_log_buffer(1000), log::LevelFilter::Info);
+        init_logger(create_log_buffer(1000), args.log_level());
         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
         rt.block_on(mcp::run_mcp_server());
         return;
     }
 
-    // Configure log level based on debug flag
-    // Default to Info level so users can see application logs
-    let log_level = log::LevelFilter::Info;
+    // Info by default so users can see application logs; --debug raises it
+    // to Debug, which includes sqlx queries, and RUST_LOG is honoured when the
+    // flag is absent.
+    let log_level = args.log_level();
 
     // Store debug flag in global state
     DEBUG_MODE.store(args.debug, Ordering::Relaxed);
@@ -269,6 +271,7 @@ pub fn run() {
         .manage(explain_import::PendingExplainFile::default())
         .manage(json_viewer::JsonViewerStore::default())
         .manage(results_window::ResultsWindowStore::default())
+        .manage(window_placement::WindowPlacementCache::default())
         .manage(query_history::QueryHistoryState::default())
         .setup(move |app| {
             #[cfg(target_os = "linux")]
@@ -295,6 +298,11 @@ pub fn run() {
                 &app.handle(),
                 startup_config.window_decorations.as_ref(),
             );
+            // Restore the main window's last normal size and position.
+            // The explicit start_maximized preference below still takes precedence.
+            if let Some(window) = app.get_webview_window("main") {
+                window_placement::restore(&window);
+            }
 
             // Allow the SSH tunnel code (which runs without a Tauri context)
             // to bridge askpass prompts to the frontend.
@@ -451,6 +459,20 @@ pub fn run() {
                 }
             }
             Ok(())
+        })
+        // Only the main window is persisted; utility windows retain their
+        // existing per-feature sizing and placement behavior.
+        .on_window_event(|window, event| {
+            if window.label() != "main" { return; }
+            match event {
+                tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
+                    window_placement::remember(window);
+                }
+                tauri::WindowEvent::CloseRequested { .. } => {
+                    window_placement::persist(window);
+                }
+                _ => {}
+            }
         })
         .invoke_handler(tauri::generate_handler![
             system_theme::get_linux_system_theme,
@@ -769,6 +791,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
+            // Cmd+Q and relaunch paths can exit without CloseRequested.
+            if matches!(&event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
+                window_placement::persist_cached(app_handle);
+            }
             if let tauri::RunEvent::Exit = event {
                 // Back up the freshest state before the process ends (no-op
                 // unless backups are enabled and due).

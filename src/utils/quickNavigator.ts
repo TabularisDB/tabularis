@@ -7,6 +7,7 @@ import type {
 } from "../contexts/DatabaseContext";
 import type { DatabaseObject } from "./databaseObjectActions";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
+import { routineLabel } from "./routines";
 
 interface NavigatorItemBase {
   name: string;
@@ -80,7 +81,10 @@ function createNavigatorItems({
     ),
     ...(data.routines ?? []).map(
       (item): NavigatorItem => ({
-        name: item.name,
+        // Labelled with the signature where the dialect reports one, for the
+        // same reason the sidebar is: four overloads of a name are otherwise
+        // four identical palette entries (#893).
+        name: routineLabel(item.name, item.identity_args),
         type: "routine",
         schema: group,
         detail: item.routine_type,
@@ -170,8 +174,18 @@ export function toDatabaseObject(
     case "routine":
       return {
         ...base,
+        // The BARE name, overriding the label `base` carried in from the
+        // navigator entry. `DatabaseObject.name` is an identifier: it reaches
+        // `get_routine_definition` as `routineName` and the catalog filters
+        // `p.proname` on it, and Copy name puts it on the clipboard for pasting
+        // into SQL. A label there broke every PostgreSQL routine opened from
+        // the palette, not only the overloaded ones, because `f()` is a label
+        // too. The signature travels in `identityArgs`, which is where the
+        // lookup can use it.
+        name: item.item.name,
         type: "routine",
         routineType: item.item.routine_type,
+        identityArgs: item.item.identity_args,
       };
     case "trigger":
       return {

@@ -12,6 +12,7 @@ import type {
 } from "../../../src/types/pluginSlots";
 
 interface MockSelectProps {
+  ariaLabel?: string;
   value: string | null;
   options: string[];
   onChange: (value: string) => void;
@@ -66,9 +67,9 @@ vi.mock("../../../src/components/ui/Modal", () => ({
 }));
 
 vi.mock("../../../src/components/ui/Select", () => ({
-  Select: ({ value, options, onChange, placeholder, labels }: MockSelectProps) => (
+  Select: ({ ariaLabel, value, options, onChange, placeholder, labels }: MockSelectProps) => (
     <select
-      aria-label={placeholder ?? "select"}
+      aria-label={ariaLabel ?? placeholder ?? "select"}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
     >
@@ -1595,6 +1596,40 @@ describe("NewConnectionModal extra_fields slot credential toggle", () => {
     });
     expect(updateConnectionPayload()).toMatchObject({ username: "sa" });
     expect(updateConnectionPayload()).not.toHaveProperty("password");
+  });
+
+  it("keeps TLS verification when an edit imports a URL with no SSL option", async () => {
+    renderModal(createInitialConnection({
+      driver: "mysql",
+      ssl_mode: "verify_identity",
+    }));
+    const input = await screen.findByPlaceholderText("newConnection.connectionStringPlaceholder");
+    fireEvent.change(input, {
+      target: { value: "mysql://root:secret@db.example.com:3306/shop" },
+    });
+    fireEvent.click(screen.getByText("newConnection.save"));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("update_connection", expect.anything()));
+    expect(updateConnectionPayload()).toMatchObject({ ssl_mode: "verify_identity" });
+  });
+
+  it("clears MySQL TLS-only options when an imported URL disables TLS", async () => {
+    renderModal(createInitialConnection({
+      driver: "mysql",
+      ssl_mode: "required",
+      enable_cleartext_plugin: true,
+      use_iam_auth: true,
+    }));
+    const input = await screen.findByPlaceholderText("newConnection.connectionStringPlaceholder");
+    fireEvent.change(input, {
+      target: { value: "jdbc:mysql://db.example.com:3306/shop?sslMode=DISABLED" },
+    });
+    fireEvent.click(screen.getByText("newConnection.save"));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("update_connection", expect.anything()));
+    expect(updateConnectionPayload()).toMatchObject({
+      ssl_mode: "disabled",
+      enable_cleartext_plugin: false,
+      use_iam_auth: false,
+    });
   });
 
   it("ignores the login of an imported connection string while the inputs are hidden", async () => {

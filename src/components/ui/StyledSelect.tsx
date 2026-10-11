@@ -4,10 +4,18 @@ export interface StyledSelectProps {
   value: string;
   onChange: (value: string) => void;
   options: string[];
+  /** Optional display label for each option value (falls back to the value). */
+  getOptionLabel?: (value: string) => string;
   className?: string;
 }
 
-export const StyledSelect = ({ value, onChange, options, className = "" }: StyledSelectProps) => (
+export const StyledSelect = ({
+  value,
+  onChange,
+  options,
+  getOptionLabel,
+  className = "",
+}: StyledSelectProps) => (
   <div className={`relative shrink-0 ${className}`}>
     <select
       value={value}
@@ -16,7 +24,7 @@ export const StyledSelect = ({ value, onChange, options, className = "" }: Style
     >
       {options.map((opt) => (
         <option key={opt} value={opt}>
-          {opt}
+          {getOptionLabel ? getOptionLabel(opt) : opt}
         </option>
       ))}
     </select>

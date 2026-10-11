@@ -85,6 +85,8 @@ export interface PendingInsertion {
   displayIndex: number;
 }
 
+export type AutoRefreshInterval = 0 | 5000 | 10000 | 30000 | 60000;
+
 export interface Tab {
   id: string;
   title: string;
@@ -102,6 +104,9 @@ export interface Tab {
   columnMetadata?: TableColumn[]; // Full column metadata (includes data_type for geometric types, etc.)
   foreignKeys?: ForeignKey[]; // FK definitions for the active table (used for click-to-navigate)
   isLoading?: boolean;
+  autoRefreshIntervalMs?: AutoRefreshInterval;
+  isAutoRefreshing?: boolean;
+  autoRefreshError?: string;
   connectionId: string;
   flowState?: FlowState;
   pendingChanges?: Record<

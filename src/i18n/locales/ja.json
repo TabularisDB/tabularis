@@ -1,8 +1,20 @@
 {
   "toolbar": {
+    "autoRefresh": {
+      "label": "自動更新",
+      "off": "オフ",
+      "seconds": "{{seconds}}秒",
+      "paused": "編集中は一時停止",
+      "pausedSelection": "行の選択中は一時停止",
+      "refresh": "テーブルを更新",
+      "failed": "更新に失敗しました: {{error}}"
+    },
     "filters": "フィルター",
     "toggleFilterPanel": "構造化フィルターパネルを切り替え",
     "filterConditions": "フィルター条件",
+    "matchMode": "一致モード",
+    "matchAll": "すべて一致",
+    "matchAny": "いずれか一致",
     "activeOf": "{{total}} 件中 {{active}} 件が有効",
     "noFilters": "フィルターなし —",
     "addFirstFilter": "最初のフィルターを追加",
@@ -21,7 +33,12 @@
     "selectForApplyAll": "すべて適用に含める",
     "valuePlaceholder": "値",
     "fromPlaceholder": "開始",
-    "toPlaceholder": "終了"
+    "toPlaceholder": "終了",
+    "opContains": "含む",
+    "opStartsWith": "で始まる",
+    "opEndsWith": "で終わる",
+    "opIsEmpty": "空である",
+    "opIsNotEmpty": "空でない"
   },
   "tags": {
     "label": "タグ",
@@ -203,6 +220,16 @@
     "noQueryHistory": "クエリ履歴はありません",
     "noHistorySearchResults": "検索に一致するクエリがありません",
     "searchHistory": "履歴を検索...",
+    "historyOutcomeFilter": "結果で絞り込み",
+    "historyOutcomeAny": "すべての結果",
+    "historyOutcomeSucceeded": "成功",
+    "historyOutcomeFailed": "失敗",
+    "historyTimeRangeFilter": "期間で絞り込み",
+    "historyTimeAll": "全期間",
+    "historyTimeLastHour": "直近1時間",
+    "historyTimeToday": "今日",
+    "historyTimeLast7Days": "直近7日",
+    "historyTimeLast30Days": "直近30日",
     "clearAllHistory": "すべての履歴を削除",
     "historyRecoveredTitle": "クエリ履歴をリセットしました",
     "historyRecoveredBody": "履歴ファイルが破損していたためバックアップに移動しました。新しいクエリは通常どおり記録されます。バックアップ ファイル:",
@@ -549,6 +576,10 @@
     "runStatementUnderCursorDesc": "スクリプトに複数のステートメントがある場合、クエリ選択画面を表示せずにカーソル位置のステートメントを実行します。特定の範囲を実行するにはテキストを選択してください。",
     "safetyConfirmationDelay": "安全確認を遅延",
     "safetyConfirmationDelayDesc": "破壊的なクエリと本番環境への書き込みでは、確認ボタンを5秒間無効にします。",
+    "notifyLongQueries": "長時間のクエリ終了時に通知",
+    "notifyLongQueriesDesc": "Tabularisがバックグラウンドの間にクエリが終了すると、デスクトップ通知を送信します。",
+    "notifyLongQueriesThreshold": "通知しきい値",
+    "notifyLongQueriesThresholdDesc": "この時間以上実行されたクエリのみ通知します。",
     "formatter_title": "SQLフォーマッター",
     "formatter_keywordCase": "キーワードの大文字/小文字",
     "formatter_keywordCaseDesc": "フォーマット後のSQLキーワード（SELECT、FROM、WHERE）の大文字/小文字。",
@@ -563,6 +594,10 @@
     "formatter_linesBetweenQueriesDesc": "SQL文間に挿入する空行の数。",
     "formatter_denseOperators": "演算子を詰める",
     "formatter_denseOperatorsDesc": "演算子の周りのスペースを削除（例：a = 1 → a=1）。",
+    "autocomplete_title": "オートコンプリート",
+    "autocomplete_keywordCase": "キーワードの大文字/小文字",
+    "autocomplete_keywordCaseDesc": "オートコンプリートで挿入されるSQLキーワードの大文字/小文字。",
+    "autocomplete_keywordCaseMatch": "入力に合わせる",
     "editConfigJson": "config.json を編集",
     "editConfigJsonDesc": "生の設定ファイルを直接編集します。変更を反映するには再起動が必要です。",
     "configJsonModal": {
@@ -688,7 +723,7 @@
     "clearLogs": "ログを消去",
     "clearLogsConfirm": "すべてのログを消去してもよろしいですか？",
     "exportLogs": "ログをエクスポート",
-    "exportLogsSuccess": "ログをクリップボードにエクスポートしました",
+    "exportLogsSuccess": "ログをエクスポートしました",
     "noLogs": "ログがありません",
     "refreshLogs": "更新",
     "logLevel": "レベル",
@@ -866,6 +901,7 @@
       "newConnection": "新規接続",
       "newTab": "新規タブ",
       "closeTab": "タブを閉じる",
+      "reopenClosedTab": "閉じたタブを再度開く",
       "nextPage": "次のページ",
       "prevPage": "前のページ",
       "switchConnection": "接続 1〜9 に切り替え",
@@ -883,6 +919,7 @@
       "refreshTable": "テーブルを更新",
       "extendCellRange": "セル範囲を拡張",
       "jumpToEdge": "グリッドの端へ移動",
+      "jumpToColumn": "列に移動",
       "extendCellRangeToEdge": "セル範囲を端まで拡張",
       "selectRow": "行を選択",
       "selectColumn": "列を選択"
@@ -1038,6 +1075,10 @@
     "dbNameRequired": "データベース名は必須です",
     "connectionUriRequiresKeychain": "接続 URI は OS のキーチェーンに保存する必要があります。「パスワードをキーチェーンに保存」を有効にしてください。",
     "connectionUriRequired": "接続 URI は必須です",
+    "connectionString": "?????",
+    "connectionStringPlaceholder": "?: mysql://user:pass@localhost:3306/db",
+    "connectionStringExample": "???????",
+    "chooseConnectionStringExample": "????",
     "dbType": "データベースの種類",
     "host": "ホスト",
     "port": "ポート",
@@ -1183,6 +1224,9 @@
     "useShownValue": "この値を使用"
   },
   "dataGrid": {
+    "jumpToColumn": "列に移動",
+    "searchColumns": "列を検索",
+    "noMatchingColumns": "一致する列がありません",
     "noRowIdentity": "行を編集できません: \"{{table}}\" には主キーがないため、編集には結果にテーブルの全列が含まれている必要があります。すべての列を選択する(例: SELECT *)か、主キーを追加してください。",
     "resizeRelatedPanel": "ドラッグしてパネルのサイズを変更",
     "keylessRowNotFound": "\"{{column}}\" の更新時に元の値に一致する行が見つかりませんでした。テーブルに主キーがなく、データが変更された可能性があります。再読み込みして再試行してください。",
@@ -1325,6 +1369,7 @@
     },
     "tableRunPrompt": "Run (Ctrl/Command+F5) を押してテーブルデータを読み込んでください",
     "closeTab": "タブを閉じる",
+    "reopenClosedTab": "閉じたタブを再度開く",
     "closeOthers": "他のタブを閉じる",
     "closeRight": "右側のタブを閉じる",
     "closeLeft": "左側のタブを閉じる",
@@ -1645,6 +1690,14 @@
       "collapseAll": "すべて折りたたむ",
       "expandAll": "すべて展開",
       "collapsed": "折りたたみ中"
+    },
+    "queryNotification": {
+      "successTitle": "クエリが完了しました",
+      "errorTitle": "クエリが失敗しました",
+      "body": "{{tab}} · {{duration}}",
+      "batchSuccessTitle": "すべて実行が完了しました",
+      "batchErrorTitle": "すべて実行がエラーで完了しました",
+      "batchBody": "{{tab}} · 成功 {{succeeded}} 件、失敗 {{failed}} 件 · {{duration}}"
     }
   },
   "createTable": {
@@ -1819,7 +1872,12 @@
     "createSuccess": "トリガーを正常に作成しました",
     "updateSuccess": "トリガーを正常に更新しました",
     "recreateTrigger": "トリガーを再作成",
-    "confirmRecreate": "トリガーを編集するには、いったん削除して再作成する必要があります。「{{trigger}}」の変更を続行しますか？"
+    "confirmRecreate": "トリガーを編集するには、いったん削除して再作成する必要があります。「{{trigger}}」の変更を続行しますか？",
+    "originalRestored": "元のトリガーを復元しました。",
+    "restoreFailed": "元のトリガーの復元にも失敗しました：",
+    "singleEventHint": "このデータベースでは、1つのトリガーにつき1つのイベントのみ指定できます。",
+    "existingFunctionHint": "このトリガーは既存の関数をそのまま使用します。関数自体はSQLエディタまたはRaw SQLモードで編集してください。",
+    "unsupportedDriver": "このドライバーではトリガーの編集はサポートされていません。"
   },
   "community": {
     "title": "コミュニティに参加",

@@ -1,8 +1,20 @@
 {
   "toolbar": {
+    "autoRefresh": {
+      "label": "자동 새로고침",
+      "off": "끄기",
+      "seconds": "{{seconds}}초",
+      "paused": "편집 중 일시 중지됨",
+      "pausedSelection": "행이 선택된 동안 일시 중지됨",
+      "refresh": "테이블 새로고침",
+      "failed": "새로고침 실패: {{error}}"
+    },
     "filters": "필터",
     "toggleFilterPanel": "구조화된 필터 패널 토글",
     "filterConditions": "필터 조건",
+    "matchMode": "일치 모드",
+    "matchAll": "모두 일치",
+    "matchAny": "하나라도 일치",
     "activeOf": "{{total}}개 중 {{active}}개 적용됨",
     "noFilters": "필터 없음 —",
     "addFirstFilter": "첫 필터 추가하기",
@@ -21,7 +33,12 @@
     "selectForApplyAll": "전체 적용에 포함",
     "valuePlaceholder": "값",
     "fromPlaceholder": "시작",
-    "toPlaceholder": "끝"
+    "toPlaceholder": "끝",
+    "opContains": "포함",
+    "opStartsWith": "으로 시작",
+    "opEndsWith": "으로 끝남",
+    "opIsEmpty": "비어 있음",
+    "opIsNotEmpty": "비어 있지 않음"
   },
   "common": {
     "save": "저장",
@@ -180,6 +197,16 @@
     "noQueryHistory": "쿼리 기록이 없습니다",
     "noHistorySearchResults": "검색과 일치하는 쿼리가 없습니다",
     "searchHistory": "기록 검색...",
+    "historyOutcomeFilter": "결과로 필터",
+    "historyOutcomeAny": "모든 결과",
+    "historyOutcomeSucceeded": "성공",
+    "historyOutcomeFailed": "실패",
+    "historyTimeRangeFilter": "기간으로 필터",
+    "historyTimeAll": "전체 기간",
+    "historyTimeLastHour": "지난 1시간",
+    "historyTimeToday": "오늘",
+    "historyTimeLast7Days": "지난 7일",
+    "historyTimeLast30Days": "지난 30일",
     "clearAllHistory": "전체 기록 지우기",
     "historyRecoveredTitle": "쿼리 기록이 초기화되었습니다",
     "historyRecoveredBody": "기록 파일이 손상되어 별도로 이동했습니다. 이후 쿼리는 정상적으로 기록됩니다. 백업 파일:",
@@ -513,6 +540,10 @@
     "runStatementUnderCursorDesc": "스크립트에 여러 구문이 있을 때 쿼리 선택 창을 표시하지 않고 커서 위치의 구문을 실행합니다. 특정 범위를 실행하려면 텍스트를 선택하세요.",
     "safetyConfirmationDelay": "안전 확인 지연",
     "safetyConfirmationDelayDesc": "파괴적인 쿼리와 프로덕션 쓰기의 확인 버튼을 5초 동안 비활성화합니다.",
+    "notifyLongQueries": "긴 쿼리 완료 시 알림",
+    "notifyLongQueriesDesc": "Tabularis가 백그라운드에 있는 동안 쿼리가 완료되면 데스크톱 알림을 보냅니다.",
+    "notifyLongQueriesThreshold": "알림 기준 시간",
+    "notifyLongQueriesThresholdDesc": "이 시간 이상 실행된 쿼리에만 알림을 보냅니다.",
     "formatter_title": "SQL 포맷터",
     "formatter_keywordCase": "키워드 대소문자",
     "formatter_keywordCaseDesc": "포맷 후 SQL 키워드(SELECT, FROM, WHERE)의 대소문자 처리.",
@@ -527,6 +558,10 @@
     "formatter_linesBetweenQueriesDesc": "SQL 문 사이에 삽입할 빈 줄 수.",
     "formatter_denseOperators": "밀집 연산자",
     "formatter_denseOperatorsDesc": "연산자 주위 공백 제거 (예: a = 1 → a=1).",
+    "autocomplete_title": "자동완성",
+    "autocomplete_keywordCase": "키워드 대소문자",
+    "autocomplete_keywordCaseDesc": "자동완성으로 삽입되는 SQL 키워드의 대소문자.",
+    "autocomplete_keywordCaseMatch": "입력에 맞춤",
     "editConfigJson": "config.json 편집",
     "editConfigJsonDesc": "원본 설정 파일을 직접 편집합니다. 변경 사항을 적용하려면 재시작이 필요합니다.",
     "configJsonModal": {
@@ -652,7 +687,7 @@
     "clearLogs": "로그 지우기",
     "clearLogsConfirm": "모든 로그를 지우시겠습니까?",
     "exportLogs": "로그 내보내기",
-    "exportLogsSuccess": "로그가 클립보드로 내보내졌습니다",
+    "exportLogsSuccess": "로그를 내보냈습니다",
     "noLogs": "표시할 로그가 없습니다",
     "refreshLogs": "새로고침",
     "logLevel": "레벨",
@@ -828,6 +863,7 @@
       "newConnection": "새 연결",
       "newTab": "새 탭",
       "closeTab": "탭 닫기",
+      "reopenClosedTab": "닫은 탭 다시 열기",
       "nextPage": "다음 페이지",
       "prevPage": "이전 페이지",
       "saveGridChanges": "대기 중인 변경 사항 저장",
@@ -842,6 +878,7 @@
       "formatSql": "SQL 포맷",
       "extendCellRange": "셀 범위 확장",
       "jumpToEdge": "그리드 가장자리로 이동",
+      "jumpToColumn": "열로 이동",
       "extendCellRangeToEdge": "셀 범위를 가장자리까지 확장",
       "selectRow": "행 선택",
       "selectColumn": "열 선택",
@@ -999,6 +1036,10 @@
     "dbNameRequired": "데이터베이스 이름은 필수입니다",
     "connectionUriRequiresKeychain": "연결 URI는 OS 키체인에 저장해야 합니다. “키체인에 비밀번호 저장”을 활성화하세요.",
     "connectionUriRequired": "연결 URI는 필수입니다",
+    "connectionString": "?? ???",
+    "connectionStringPlaceholder": "?: mysql://user:pass@localhost:3306/db",
+    "connectionStringExample": "?? ??? ??",
+    "chooseConnectionStringExample": "?? ??",
     "dbType": "데이터베이스 종류",
     "host": "호스트",
     "port": "포트",
@@ -1144,6 +1185,9 @@
     "useShownValue": "이 값 사용"
   },
   "dataGrid": {
+    "jumpToColumn": "열로 이동",
+    "searchColumns": "열 검색",
+    "noMatchingColumns": "일치하는 열이 없습니다",
     "noRowIdentity": "행을 편집할 수 없습니다: \"{{table}}\"에 기본 키가 없으므로 편집하려면 결과에 테이블의 모든 열이 포함되어야 합니다. 모든 열을 선택하거나(예: SELECT *) 기본 키를 추가하세요.",
     "resizeRelatedPanel": "드래그하여 패널 크기 조정",
     "keylessRowNotFound": "\"{{column}}\" 업데이트 중 원래 값과 일치하는 행이 없습니다. 테이블에 기본 키가 없고 데이터가 변경되었을 수 있습니다. 새로 고친 후 다시 시도하세요.",
@@ -1270,6 +1314,7 @@
       "reattach": "다시 붙이기"
     },
     "closeTab": "탭 닫기",
+    "reopenClosedTab": "닫은 탭 다시 열기",
     "closeOthers": "다른 탭 닫기",
     "closeRight": "오른쪽 탭 닫기",
     "closeLeft": "왼쪽 탭 닫기",
@@ -1608,6 +1653,14 @@
       "collapseAll": "모두 접기",
       "expandAll": "모두 펼치기",
       "collapsed": "접힘"
+    },
+    "queryNotification": {
+      "successTitle": "쿼리 완료",
+      "errorTitle": "쿼리 실패",
+      "body": "{{tab}} · {{duration}}",
+      "batchSuccessTitle": "모두 실행 완료",
+      "batchErrorTitle": "모두 실행 완료(오류 있음)",
+      "batchBody": "{{tab}} · 성공 {{succeeded}}개, 실패 {{failed}}개 · {{duration}}"
     }
   },
   "createTable": {
@@ -1782,7 +1835,12 @@
     "createSuccess": "트리거가 생성되었습니다",
     "updateSuccess": "트리거가 업데이트되었습니다",
     "recreateTrigger": "트리거 재생성",
-    "confirmRecreate": "트리거를 편집하려면 삭제 후 다시 생성해야 합니다. \"{{trigger}}\" 수정을 계속하시겠습니까?"
+    "confirmRecreate": "트리거를 편집하려면 삭제 후 다시 생성해야 합니다. \"{{trigger}}\" 수정을 계속하시겠습니까?",
+    "originalRestored": "원래 트리거를 복원했습니다.",
+    "restoreFailed": "원래 트리거 복원에도 실패했습니다: ",
+    "singleEventHint": "이 데이터베이스는 트리거당 하나의 이벤트만 허용합니다.",
+    "existingFunctionHint": "이 트리거는 기존 함수를 유지합니다. 함수 자체는 SQL 편집기 또는 Raw SQL 모드에서 수정하세요.",
+    "unsupportedDriver": "이 드라이버에서는 트리거 편집이 지원되지 않습니다."
   },
   "community": {
     "title": "커뮤니티에 참여하세요",

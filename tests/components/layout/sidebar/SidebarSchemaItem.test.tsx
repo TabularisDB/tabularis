@@ -12,45 +12,45 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+const baseSchemaData = {
+  tables: [],
+  views: [],
+  materializedViews: [],
+  routines: [],
+  triggers: [],
+  isLoaded: true,
+  isLoading: false,
+};
+
+const defaultProps = {
+  schemaName: "public",
+  activeTable: null,
+  // Matching activeSchema auto-expands the schema body on first render.
+  activeSchema: "public",
+  connectionId: "conn-123",
+  driver: "postgres",
+  schemaVersion: 1,
+  onLoadSchema: vi.fn(),
+  onRefreshSchema: vi.fn(),
+  onTableClick: vi.fn(),
+  onTableDoubleClick: vi.fn(),
+  onViewClick: vi.fn(),
+  onViewDoubleClick: vi.fn(),
+  onRoutineDoubleClick: vi.fn(),
+  onTriggerDoubleClick: vi.fn(),
+  onContextMenu: vi.fn(),
+  onAddColumn: vi.fn(),
+  onEditColumn: vi.fn(),
+  onAddIndex: vi.fn(),
+  onDropIndex: vi.fn(),
+  onAddForeignKey: vi.fn(),
+  onDropForeignKey: vi.fn(),
+  onCreateTable: vi.fn(),
+  onCreateView: vi.fn(),
+  onCreateTrigger: vi.fn(),
+};
+
 describe("SidebarSchemaItem — materialized view double-click", () => {
-  const baseSchemaData = {
-    tables: [],
-    views: [],
-    materializedViews: [],
-    routines: [],
-    triggers: [],
-    isLoaded: true,
-    isLoading: false,
-  };
-
-  const defaultProps = {
-    schemaName: "public",
-    activeTable: null,
-    // Matching activeSchema auto-expands the schema body on first render.
-    activeSchema: "public",
-    connectionId: "conn-123",
-    driver: "postgres",
-    schemaVersion: 1,
-    onLoadSchema: vi.fn(),
-    onRefreshSchema: vi.fn(),
-    onTableClick: vi.fn(),
-    onTableDoubleClick: vi.fn(),
-    onViewClick: vi.fn(),
-    onViewDoubleClick: vi.fn(),
-    onRoutineDoubleClick: vi.fn(),
-    onTriggerDoubleClick: vi.fn(),
-    onContextMenu: vi.fn(),
-    onAddColumn: vi.fn(),
-    onEditColumn: vi.fn(),
-    onAddIndex: vi.fn(),
-    onDropIndex: vi.fn(),
-    onAddForeignKey: vi.fn(),
-    onDropForeignKey: vi.fn(),
-    onCreateTable: vi.fn(),
-    onCreateView: vi.fn(),
-    onCreateTrigger: vi.fn(),
-  };
-
   beforeEach(() => {
     vi.mocked(invoke).mockClear();
   });
@@ -95,5 +95,24 @@ describe("SidebarSchemaItem — materialized view double-click", () => {
       "public",
       true,
     );
+  });
+});
+
+describe("SidebarSchemaItem — New routine button", () => {
+  it("opens the New routine menu for its own schema", () => {
+    const onCreateRoutine = vi.fn();
+    render(
+      <SidebarSchemaItem {...defaultProps} schemaData={baseSchemaData} onCreateRoutine={onCreateRoutine} />,
+    );
+
+    fireEvent.click(screen.getByTitle("routines.newRoutine"));
+
+    expect(onCreateRoutine).toHaveBeenCalledWith(expect.anything(), "public");
+  });
+
+  it("has no New routine button without routine management", () => {
+    render(<SidebarSchemaItem {...defaultProps} schemaData={baseSchemaData} />);
+
+    expect(screen.queryByTitle("routines.newRoutine")).toBeNull();
   });
 });

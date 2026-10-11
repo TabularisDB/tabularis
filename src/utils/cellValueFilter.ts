@@ -1,6 +1,6 @@
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { quoteIdentifier } from "./identifiers";
-import { formatSqlValueForFilter } from "./foreignKeys";
+import { formatSqlValueForColumnComparison } from "./foreignKeys";
 
 export type CellValueFilterOperator = "=" | "<>" | "IS NULL" | "IS NOT NULL";
 
@@ -23,7 +23,7 @@ export function buildCellValueFilterClause(
   const col = quoteIdentifier(column, driver);
   if (operator === "IS NULL") return `${col} IS NULL`;
   if (operator === "IS NOT NULL") return `${col} IS NOT NULL`;
-  return `${col} ${operator} ${formatSqlValueForFilter(value, columnType)}`;
+  return `${col} ${operator} ${formatSqlValueForColumnComparison(value, driver, columnType)}`;
 }
 
 /**

@@ -252,6 +252,7 @@ export function InfoTab() {
                         aur: "AUR",
                         snap: "Snap Store",
                         flatpak: "Flathub",
+                        winget: "WinGet",
                       } as Record<string, string>
                     )[installationSource] ?? installationSource,
                 })}

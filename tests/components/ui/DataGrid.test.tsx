@@ -11,6 +11,13 @@ import {
   serializePkKey,
   USE_DEFAULT_SENTINEL,
 } from "../../../src/utils/dataGrid";
+import { KeybindingsContext } from "../../../src/contexts/KeybindingsContext";
+
+vi.mock("lucide-react", async (importOriginal) => await importOriginal());
+vi.mock("../../../src/components/ui/CellCodeEditor", () => ({
+  CellCodeEditor: ({ value, onChange }: { value: string; onChange: (value: string) => void }) =>
+    <textarea aria-label="Expanded value" value={value} onChange={(event) => onChange(event.target.value)} />,
+}));
 
 vi.mock("../../../src/hooks/useDatabase", () => ({
   useDatabase: () => ({ activeSchema: null, connections: [] }),
@@ -27,6 +34,7 @@ const {
   scrollToIndexMock,
   scrollToOffsetMock,
   virtualizerRenderControl,
+  sidebarState,
 } = vi.hoisted(() => ({
   showToastMock: vi.fn(),
   openRowEditorMock: vi.fn(),
@@ -36,6 +44,7 @@ const {
   // Lets a single test simulate the virtualizer's first, unmeasured commit,
   // where it has no virtual items yet.
   virtualizerRenderControl: { forceEmpty: false },
+  sidebarState: { isOpen: false, activePanel: null as string | null },
 }));
 
 vi.mock("../../../src/hooks/useToast", () => ({
@@ -62,8 +71,7 @@ vi.mock("../../../src/hooks/useSettings", () => ({
 
 vi.mock("../../../src/hooks/useRightSidebar", () => ({
   useRightSidebar: () => ({
-    isOpen: false,
-    activePanel: null,
+    ...sidebarState,
     rowEditorData: null,
     isPinned: false,
     openRowEditor: openRowEditorMock,
@@ -331,6 +339,87 @@ describe("DataGrid keyboard navigation", () => {
   const gridOf = (container: HTMLElement) =>
     container.querySelector('div[tabindex="0"]')!;
 
+  const renderJumpGrid = (onMarkForDeletion?: (pkVal: unknown) => void) => render(
+    <KeybindingsContext.Provider value={{
+      shortcuts: [],
+      matchesShortcut: (event, id) => id === "jump_to_column" &&
+        event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "j",
+      saveOverride: async () => {},
+      resetOverride: async () => {},
+      overrides: {},
+      isMac: false,
+    }}>
+      <DataGrid
+        columns={["id", "customer_name", "email"]}
+        data={[[1, "Alice", "alice@example.com"]]}
+        columnMetadata={[{
+          name: "customer_name",
+          data_type: "varchar",
+          is_pk: false,
+          is_nullable: false,
+          is_auto_increment: false,
+        }]}
+        pkColumns={onMarkForDeletion ? ["id"] : undefined}
+        selectedRows={onMarkForDeletion ? new Set([0]) : undefined}
+        onMarkForDeletion={onMarkForDeletion}
+        readonly={!onMarkForDeletion}
+      />
+    </KeybindingsContext.Provider>,
+  );
+
+  it("finds a column by keyboard and focuses its cell", async () => {
+    const { container } = renderJumpGrid();
+    const grid = gridOf(container);
+    fireEvent.keyDown(grid, { key: "J", ctrlKey: true, shiftKey: true });
+
+    const search = screen.getByRole("combobox", { name: "dataGrid.searchColumns" });
+    expect(search).toHaveFocus();
+    fireEvent.change(search, { target: { value: "cust name" } });
+    expect(screen.getByRole("option", { name: /customer_name.*varchar/ })).toBeInTheDocument();
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    await waitFor(() => expect(cellAt(container, 0, 1)).toHaveClass("ring-2"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(grid).toHaveFocus();
+  });
+
+  it("returns focus to the grid when Escape closes the picker", () => {
+    const { container } = renderJumpGrid();
+    const grid = gridOf(container);
+    fireEvent.keyDown(grid, { key: "j", ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(grid).toHaveFocus();
+  });
+
+  it("leaves native copy available in the picker search field", () => {
+    const { container } = renderJumpGrid();
+    fireEvent.click(cellAt(container, 0, 0));
+    fireEvent.keyDown(gridOf(container), { key: "j", ctrlKey: true, shiftKey: true });
+    const search = screen.getByRole("combobox");
+    fireEvent.change(search, { target: { value: "customer" } });
+    expect(fireEvent.keyDown(search, { key: "c", ctrlKey: true })).toBe(true);
+  });
+
+  it("does not stage selected rows for deletion from the picker search", () => {
+    const onMarkForDeletion = vi.fn();
+    const { container } = renderJumpGrid(onMarkForDeletion);
+    const grid = gridOf(container);
+    fireEvent.keyDown(grid, { key: "j", ctrlKey: true, shiftKey: true });
+    const search = screen.getByRole("combobox", { name: "dataGrid.searchColumns" });
+    fireEvent.change(search, { target: { value: "customer" } });
+
+    // Native editing keys must not reach the document-level row deletion handler.
+    expect(fireEvent.keyDown(search, { key: "Backspace" })).toBe(true);
+    expect(fireEvent.keyDown(search, { key: "Delete" })).toBe(true);
+    expect(onMarkForDeletion).not.toHaveBeenCalled();
+
+    // The keyboard row deletion shortcut still works from the grid itself.
+    fireEvent.keyDown(search, { key: "Escape" });
+    fireEvent.keyDown(grid, { key: "Backspace" });
+    expect(onMarkForDeletion).toHaveBeenCalledTimes(1);
+  });
+
   it("focuses the first cell on the first arrow key press", () => {
     const { container } = renderGrid();
 
@@ -557,6 +646,61 @@ describe("DataGrid keyboard editing", () => {
 
     expect(container.querySelector("textarea")).toBeNull();
     expect(gridOf(container)).toHaveFocus();
+  });
+
+  it("reports editing immediately and releases the block on cancel and unmount", async () => {
+    const ref = createRef<DataGridCommandTarget>();
+    const onEditingChange = vi.fn();
+    const onPendingChange = vi.fn();
+    const { container, unmount } = render(<DataGrid ref={ref} columns={["id", "name"]}
+      data={[[1, "Alice"]]} tableName="users" pkColumns={["id"]}
+      onPendingChange={onPendingChange} onEditingChange={onEditingChange} />);
+    fireEvent.doubleClick(cellAt(container, 0, 1));
+    expect(ref.current?.isEditing()).toBe(true);
+    expect(onEditingChange).toHaveBeenLastCalledWith(true);
+    fireEvent.keyDown(container.querySelector("textarea")!, { key: "Escape" });
+    expect(ref.current?.isEditing()).toBe(false);
+    expect(onEditingChange).toHaveBeenLastCalledWith(false);
+    await act(async () => {});
+    expect(onPendingChange).not.toHaveBeenCalled();
+    fireEvent.doubleClick(cellAt(container, 0, 1));
+    unmount();
+    expect(onEditingChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("blocks refresh while the expanded text editor is open", () => {
+    const ref = createRef<DataGridCommandTarget>();
+    const onEditingChange = vi.fn();
+    render(<DataGrid ref={ref} columns={["id", "description"]}
+      data={[[1, "long description ".repeat(20)]]} tableName="jobs" pkColumns={["id"]}
+      columnMetadata={[{ name: "description", data_type: "text", is_pk: false, is_nullable: true, is_auto_increment: false }]}
+      onPendingChange={vi.fn()} onEditingChange={onEditingChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "textCell.expand" }));
+    expect(ref.current?.isEditing()).toBe(true);
+    expect(onEditingChange).toHaveBeenLastCalledWith(true);
+    fireEvent.click(screen.getByRole("button", { name: "common.cancel" }));
+    expect(ref.current?.isEditing()).toBe(false);
+    expect(onEditingChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("releases the row-editor block when the sidebar closes", () => {
+    const ref = createRef<DataGridCommandTarget>();
+    const onEditingChange = vi.fn();
+    const grid = () => <DataGrid ref={ref} columns={["id"]} data={[[1]]}
+      onEditingChange={onEditingChange} />;
+    try {
+      sidebarState.isOpen = true;
+      sidebarState.activePanel = "row-editor";
+      const { rerender } = render(grid());
+      expect(ref.current?.isEditing()).toBe(true);
+      sidebarState.isOpen = false;
+      rerender(grid());
+      expect(ref.current?.isEditing()).toBe(false);
+      expect(onEditingChange).toHaveBeenLastCalledWith(false);
+    } finally {
+      sidebarState.isOpen = false;
+      sidebarState.activePanel = null;
+    }
   });
 
   it("opens an empty editor for a cell pending the database DEFAULT", () => {
