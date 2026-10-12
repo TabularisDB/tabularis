@@ -14,6 +14,8 @@ interface MonacoEditorMockProps {
     acceptSuggestionOnEnter?: string;
     folding?: boolean;
     showFoldingControls?: string;
+    renderControlCharacters?: boolean;
+    unicodeHighlight?: { invisibleCharacters?: boolean; ambiguousCharacters?: boolean };
   };
 }
 
@@ -50,6 +52,9 @@ vi.mock('../../../src/components/ui/LazyMonaco', async () => {
           data-accept-suggestion-on-enter={options?.acceptSuggestionOnEnter}
           data-folding={String(options?.folding)}
           data-folding-controls={options?.showFoldingControls}
+          data-render-control-characters={String(options?.renderControlCharacters)}
+          data-highlight-invisible={String(options?.unicodeHighlight?.invisibleCharacters)}
+          data-highlight-ambiguous={String(options?.unicodeHighlight?.ambiguousCharacters)}
           defaultValue={defaultValue}
           onChange={(e) => onChange?.(e.target.value)}
         />
@@ -128,6 +133,7 @@ describe('SqlEditorWrapper', () => {
     monacoRenderState.beforeMount = undefined;
     monacoRenderState.onMount = undefined;
     matchesShortcutMock.mockReturnValue(false);
+    settingsValue.settings = DEFAULT_SETTINGS;
   });
 
   const mountCapturedEditor = () => {
@@ -155,6 +161,23 @@ describe('SqlEditorWrapper', () => {
 
     return { addAction, addCommand, keyDownHandlers, trigger };
   };
+
+  it('highlights hidden Unicode by default and honors the saved editor setting', () => {
+    const { unmount } = render(
+      <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />,
+      { wrapper },
+    );
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-highlight-invisible', 'true');
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-highlight-ambiguous', 'true');
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-render-control-characters', 'true');
+    unmount();
+
+    settingsValue.settings = { ...DEFAULT_SETTINGS, editorHighlightInvisibleCharacters: false };
+    render(<SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />, { wrapper });
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-highlight-invisible', 'false');
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-highlight-ambiguous', 'false');
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-render-control-characters', 'false');
+  });
 
   it('repairs selected pasted SQL with one undo step and leaves other text alone', () => {
     render(<SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />, { wrapper });
