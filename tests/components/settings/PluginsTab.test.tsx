@@ -482,6 +482,28 @@ describe("PluginsTab theme package removal", () => {
     expect(invoke).not.toHaveBeenCalledWith("uninstall_theme_package", expect.anything());
   });
 
+  it("blocks duplicate driver uninstall while the plugin process is draining", async () => {
+    let finishUninstall!: () => void;
+    const pending = new Promise<void>((resolve) => { finishUninstall = resolve; });
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "get_plugin_startup_errors") return [];
+      if (command === "uninstall_plugin") return pending;
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    renderTab("installed");
+    const remove = card("PostgreSQL").getByRole("button", { name: "Remove" });
+    fireEvent.click(remove);
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Remove Plugin" }))
+      .getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("uninstall_plugin", { pluginId: "postgresql" }));
+    expect(remove).toBeDisabled();
+    fireEvent.click(remove);
+    expect(vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "uninstall_plugin")).toHaveLength(1);
+    await act(async () => { finishUninstall(); });
+    await waitFor(() => expect(mocks.refreshDrivers).toHaveBeenCalled());
+    expect(remove).toBeEnabled();
+  });
+
   it("blocks duplicate removal and closing until catalog refresh finishes", async () => {
     let finish!: () => void;
     mocks.refreshCatalog.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve; }));
