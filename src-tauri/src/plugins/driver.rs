@@ -117,7 +117,11 @@ fn is_method_not_found(err: &str) -> bool {
 /// Only substitute an explicitly selected member of that array. Unselected,
 /// single-DB and schema-only (e.g. PostgreSQL) requests stay unchanged.
 fn route_selected_plugin_database(request: &mut Value) {
-    let Some(selected) = request.get("schema").and_then(Value::as_str).map(str::to_owned) else {
+    let Some(selected) = request
+        .get("schema")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+    else {
         return;
     };
     let Some(connection) = request.get_mut("params").and_then(Value::as_object_mut) else {
@@ -126,10 +130,14 @@ fn route_selected_plugin_database(request: &mut Value) {
     let Some(databases) = connection.get("database").and_then(Value::as_array) else {
         return;
     };
-    if databases.len() < 2 || !databases.iter().any(|db| db.as_str() == Some(selected.as_str())) {
+    if databases.len() < 2
+        || !databases
+            .iter()
+            .any(|db| db.as_str() == Some(selected.as_str()))
+    {
         return;
     }
-    connection.insert("database".to_string(), Value::String(selected.to_string()));
+    connection.insert("database".to_string(), Value::String(selected));
 }
 
 /// Message sent to the management task that owns the plugin child process.
@@ -1777,7 +1785,6 @@ mod tests {
     use super::*;
     use crate::models::DatabaseSelection;
 
-
     #[test]
     fn selected_plugin_database_routing_only_changes_multi_database_requests() {
         let mut multi = json!({
@@ -1815,17 +1822,26 @@ mod tests {
             .unwrap()
             .route_selected_database = false;
         let mut params = test_connection_params();
-        params.database = DatabaseSelection::Multiple(vec![
-            "sales".to_string(), "analytics".to_string(),
-        ]);
-        assert!(driver.get_tables(&params, Some("sales")).await.unwrap().is_empty());
+        params.database =
+            DatabaseSelection::Multiple(vec!["sales".to_string(), "analytics".to_string()]);
+        assert!(driver
+            .get_tables(&params, Some("sales"))
+            .await
+            .unwrap()
+            .is_empty());
     }
 
     #[tokio::test]
     async fn rpc_selected_database_reaches_metadata_query_and_batch_sessions() {
         let driver = test_driver(|req| {
-            assert_eq!(req.params["schema"], "3", "selection must still be available");
-            assert_eq!(req.params["params"]["database"], "3", "selected DB must be scalar");
+            assert_eq!(
+                req.params["schema"], "3",
+                "selection must still be available"
+            );
+            assert_eq!(
+                req.params["params"]["database"], "3",
+                "selected DB must be scalar"
+            );
             match req.method.as_str() {
                 "get_tables" => json!([]),
                 "execute_query" => json!({
@@ -1840,14 +1856,23 @@ mod tests {
         params.database = DatabaseSelection::Multiple(vec!["0".to_string(), "3".to_string()]);
 
         assert!(driver.get_tables(&params, Some("3")).await.unwrap().is_empty());
-        let (query_result, _in_tx) = driver.execute_query_in_session(
-            &params, "GET db3-key", None, 1, Some("3"), Some("db3-session")
-        ).await.unwrap();
+        let (query_result, _in_tx) = driver
+            .execute_query_in_session(&params, "GET db3-key", None, 1, Some("3"), Some("db3-session"))
+            .await
+            .unwrap();
         assert_eq!(query_result.rows.len(), 1);
-        let (results, _in_tx) = driver.execute_batch_in_session(
-            &params, &["GET db3-key".to_string()], None, 1, Some("3"),
-            Some("db3-session"), None
-        ).await.unwrap();
+        let (results, _in_tx) = driver
+            .execute_batch_in_session(
+                &params,
+                &["GET db3-key".to_string()],
+                None,
+                1,
+                Some("3"),
+                Some("db3-session"),
+                None,
+            )
+            .await
+            .unwrap();
         assert!(results.is_empty());
     }
 
