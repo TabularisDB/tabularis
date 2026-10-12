@@ -1,8 +1,17 @@
 import { formatCellValue } from './dataGrid';
 
+// RFC 4180 quoting, as the file export uses: a field with the delimiter, a quote or a line break
+// is wrapped in quotes, and its quotes are doubled.
+function csvField(text: string, delimiter: string): string {
+  if (text.includes(delimiter) || text.includes('"') || /\r?\n/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
 export function rowToCSV(row: unknown[], nullLabel: string = "null", delimiter: string = ","): string {
   return row
-    .map((cell) => formatCellValue(cell, nullLabel))
+    .map((cell) => csvField(formatCellValue(cell, nullLabel), delimiter))
     .join(delimiter);
 }
 
@@ -13,7 +22,7 @@ export function rowsToCSV(rows: unknown[][], nullLabel: string = "null", delimit
 }
 
 export function rowsToCSVWithHeaders(rows: unknown[][], columns: string[], nullLabel: string = "null", delimiter: string = ","): string {
-  const header = columns.join(delimiter);
+  const header = columns.map((column) => csvField(column, delimiter)).join(delimiter);
   const body = rowsToCSV(rows, nullLabel, delimiter);
   return body ? `${header}\n${body}` : header;
 }
