@@ -439,6 +439,64 @@ describe("ExplorerSidebar — database object navigation", () => {
     expect(screen.queryByText("active_orders")).not.toBeInTheDocument();
   });
 
+  const renderMaterializedView = (capabilities: Record<string, unknown>) => {
+    vi.mocked(useDatabase).mockReturnValue({
+      ...databaseState,
+      activeCapabilities: { schemas: true, ...capabilities },
+      activeSchema: "public",
+      schemas: ["public", "sales"],
+      selectedSchemas: ["sales"],
+      schemaDataMap: {
+        sales: {
+          tables: [],
+          views: [],
+          materializedViews: [{ name: "daily_totals" }],
+          routines: [],
+          triggers: [],
+          isLoaded: true,
+          isLoading: false,
+        },
+      },
+    } as unknown as ReturnType<typeof useDatabase>);
+    renderSidebar();
+    fireEvent.click(screen.getByText("sales"));
+    fireEvent.click(screen.getByText("sidebar.materializedViews (1)"));
+    fireEvent.contextMenu(screen.getByText("daily_totals"));
+  };
+
+  it("context menu — materialized view hides definition items when materialized_views is unset", () => {
+    renderMaterializedView({});
+    expect(screen.getByText("sidebar.refreshMaterializedView")).toBeInTheDocument();
+    expect(screen.queryByText("sidebar.showDefinition")).not.toBeInTheDocument();
+    expect(screen.queryByText("sidebar.copyDdl")).not.toBeInTheDocument();
+  });
+
+  it("context menu — copy DDL on a materialized view fetches its definition with the schema", async () => {
+    const ddl = "CREATE MATERIALIZED VIEW sales.daily_totals AS SELECT 1";
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === "get_materialized_view_definition" ? ddl : [],
+    );
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    renderMaterializedView({ materialized_views: true });
+    await act(async () => {
+      fireEvent.click(screen.getByText("sidebar.copyDdl"));
+    });
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(ddl);
+    });
+    expect(invoke).toHaveBeenCalledWith("get_materialized_view_definition", {
+      connectionId: "c1",
+      viewName: "daily_totals",
+      schema: "sales",
+    });
+  });
+
   it("context menu — run routine opens the call for review without executing it", () => {
     vi.mocked(useDatabase).mockReturnValue({
       ...databaseState,
