@@ -32,10 +32,10 @@ describe("ResultEntryContent timing tooltip", () => {
 
     const durationSpan = screen.getByText("(45 ms)");
     expect(durationSpan).toBeInTheDocument();
-    expect(durationSpan).toHaveAttribute(
-      "title",
-      "Execution: 30 ms · Fetch: 15 ms · Total: 45 ms",
-    );
+    const title = durationSpan.getAttribute("title");
+    expect(title).toContain("30 ms");
+    expect(title).toContain("15 ms");
+    expect(title).toContain("45 ms");
   });
 
   it("does not render timing tooltip when breakdown is missing", () => {

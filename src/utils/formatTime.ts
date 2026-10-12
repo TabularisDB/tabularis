@@ -99,8 +99,12 @@ export function formatTimingTooltip(
   if (fetchTimeMs !== null && fetchTimeMs !== undefined) {
     parts.push(`${fetchLabel}: ${formatDuration(fetchTimeMs)}`);
   }
-  if (totalTimeMs !== null && totalTimeMs !== undefined) {
-    parts.push(`${totalLabel}: ${formatDuration(totalTimeMs)}`);
+  const effectiveTotal =
+    serverTimeMs !== null && serverTimeMs !== undefined && fetchTimeMs !== null && fetchTimeMs !== undefined
+      ? serverTimeMs + fetchTimeMs
+      : totalTimeMs;
+  if (effectiveTotal !== null && effectiveTotal !== undefined) {
+    parts.push(`${totalLabel}: ${formatDuration(effectiveTotal)}`);
   }
 
   return parts.length > 0 ? parts.join(" · ") : null;
