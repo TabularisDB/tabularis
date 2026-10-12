@@ -166,7 +166,7 @@ describe('SqlEditorWrapper', () => {
     if (!action) throw new Error('cleanup action was not registered');
     const edits: unknown[] = [];
     const events: string[] = [];
-    const selection = { isEmpty: () => false, value: "SELECT\\u200B \\u201Cid\\u201D" };
+    const selection = { isEmpty: () => false, value: "SELECT\u200B \u201Cid\u201D" };
     const model = {
       getValueInRange: (range: { value: string }) => range.value,
       getFullModelRange: () => ({ value: 'SHOULD NOT REPLACE THIS' }),
@@ -188,7 +188,7 @@ describe('SqlEditorWrapper', () => {
     const action = addAction.mock.calls.map(([descriptor]) => descriptor as { id: string; run: (ed: unknown) => void })
       .find((descriptor) => descriptor.id === 'tabularis.removeInvisibleSqlCharacters');
     if (!action) throw new Error('cleanup action was not registered');
-    let value = 'SELECT\\uFEFF 1；';
+    let value = 'SELECT\uFEFF 1；';
     const executeEdits = vi.fn();
     const pushUndoStop = vi.fn();
     const fullRange = { isEmpty: () => true };
