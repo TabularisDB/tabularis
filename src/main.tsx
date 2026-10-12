@@ -14,6 +14,7 @@ import { EditorProvider } from './contexts/EditorProvider';
 import { ThemeProvider } from './contexts/ThemeProvider';
 import { UpdateProvider } from './contexts/UpdateProvider';
 import { ProductionGuardProvider } from './contexts/ProductionGuardContext';
+import { PasswordPromptProvider } from './contexts/PasswordPromptProvider';
 import { LoadingState } from './components/ui/LoadingState';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
@@ -23,6 +24,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <ThemeProvider>
           <SettingsProvider>
             <ToastProvider>
+              <PasswordPromptProvider>
               <DatabaseProvider>
                 <SavedQueriesProvider>
                 <QueryHistoryProvider>
@@ -34,6 +36,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
                 </QueryHistoryProvider>
               </SavedQueriesProvider>
               </DatabaseProvider>
+              </PasswordPromptProvider>
             </ToastProvider>
           </SettingsProvider>
         </ThemeProvider>

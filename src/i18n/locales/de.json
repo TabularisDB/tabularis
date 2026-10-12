@@ -1225,6 +1225,15 @@
   "dateInput": {
     "useShownValue": "Diesen Wert verwenden"
   },
+  "connectionPassword": {
+    "title": "Passwort erforderlich",
+    "subtitle": "Passwort für „{{name}}“ eingeben",
+    "subtitleWithUser": "Passwort von {{user}} für „{{name}}“ eingeben",
+    "remember": "Passwort speichern",
+    "rememberHint": "Wenn die Verbindung gelingt, wird das Passwort für das nächste Mal in der Verbindung gespeichert.",
+    "sessionOnlyHint": "Das Passwort wird nur bis zum Schließen von Tabularis im Speicher gehalten und nie auf die Festplatte geschrieben.",
+    "connect": "Verbinden"
+  },
   "dataGrid": {
     "jumpToColumn": "Zu Spalte springen",
     "searchColumns": "Spalten suchen",

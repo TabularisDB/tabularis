@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useDatabase } from './useDatabase';
 import { buildConnectionStatus, partitionConnections } from '../utils/connectionManager';
 import { toErrorMessage } from '../utils/errors';
+import { isConnectionCancelled } from '../utils/connectionPassword';
 
 export type { ConnectionStatus } from '../utils/connectionManager';
 
@@ -43,8 +44,7 @@ export function useConnectionManager() {
     try {
       await connect(connectionId);
     } catch (e) {
-      const errorMsg = toErrorMessage(e);
-      setError(errorMsg);
+      if (!isConnectionCancelled(e)) setError(toErrorMessage(e));
       throw e;
     } finally {
       setConnectingId(null);

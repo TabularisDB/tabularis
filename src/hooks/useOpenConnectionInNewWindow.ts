@@ -1,6 +1,8 @@
 import { useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDatabase } from "./useDatabase";
+import { usePasswordPrompt } from "./usePasswordPrompt";
+import { testSavedConnection } from "../utils/connectionPassword";
 import type { SavedConnection } from "../contexts/DatabaseContext";
 
 /**
@@ -18,6 +20,7 @@ import type { SavedConnection } from "../contexts/DatabaseContext";
  */
 export function useOpenConnectionInNewWindow() {
   const { detachConnection, isConnectionOpen, isConnectionOpenAnywhere } = useDatabase();
+  const { requestPassword } = usePasswordPrompt();
 
   return useCallback(
     async (connectionId: string, name?: string | null) => {
@@ -28,9 +31,9 @@ export function useOpenConnectionInNewWindow() {
         const connections = await invoke<SavedConnection[]>("get_connections");
         const conn = connections.find((c) => c.id === connectionId);
         if (!conn) throw new Error("Connection not found");
-        await invoke<string>("test_connection", {
-          request: { params: conn.params, connection_id: connectionId },
-        });
+        // A rejected password is asked for (and saved) here, so the new
+        // window then connects with it without prompting again.
+        await testSavedConnection(conn, requestPassword);
       }
 
       await invoke("open_connection_window", {
@@ -42,6 +45,6 @@ export function useOpenConnectionInNewWindow() {
         detachConnection(connectionId);
       }
     },
-    [detachConnection, isConnectionOpen, isConnectionOpenAnywhere],
+    [detachConnection, isConnectionOpen, isConnectionOpenAnywhere, requestPassword],
   );
 }
