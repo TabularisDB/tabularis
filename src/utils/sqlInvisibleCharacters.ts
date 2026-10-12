@@ -35,13 +35,19 @@ function replacementFor(character: string): string {
 /**
  * Find changes in SQL code. Do not change quoted values, identifiers, or
  * comments. The SQL splitter supplies quote rules for the active dialect.
- * An unknown dialect uses the previous cleanup behavior.
+ * Missing or unrecognized dialects use conservative generic quote rules.
  */
 export function getSqlInvisibleCharacterEdits(
   text: string,
   dialect?: Dialect | string,
 ): SqlCharacterCleanupEdit[] {
-  const nonCodeSpans = scanNonCodeSpans(text, dialect);
+  // The action is exposed in notebook and modal editors without a dialect.
+  // Default to conservative generic parsing rather than mutating SQL literals.
+  const supportedDialects: ReadonlySet<string> = new Set([
+    'postgres', 'mysql', 'mssql', 'sqlite', 'oracle', 'generic',
+  ]);
+  const cleanupDialect = dialect && supportedDialects.has(dialect) ? dialect : 'generic';
+  const nonCodeSpans = scanNonCodeSpans(text, cleanupDialect);
   const edits: SqlCharacterCleanupEdit[] = [];
   let spanIndex = 0;
 
