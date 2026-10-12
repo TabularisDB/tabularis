@@ -117,6 +117,7 @@
     "materializedViews": "Materialized Views",
     "refreshMaterializedView": "Refresh",
     "showDefinition": "Show Definition",
+    "copyDdl": "Copy DDL",
     "editView": "Edit View",
     "viewDefinition": "View Definition",
     "dropView": "Drop View",

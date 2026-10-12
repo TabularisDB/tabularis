@@ -117,6 +117,7 @@
     "materializedViews": "マテリアライズドビュー",
     "refreshMaterializedView": "更新",
     "showDefinition": "定義を表示",
+    "copyDdl": "DDLをコピー",
     "editView": "ビューを編集",
     "viewDefinition": "ビュー定義",
     "dropView": "ビューを削除",

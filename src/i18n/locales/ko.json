@@ -94,6 +94,7 @@
     "materializedViews": "구체화 뷰",
     "refreshMaterializedView": "새로고침",
     "showDefinition": "정의 보기",
+    "copyDdl": "DDL 복사",
     "editView": "뷰 편집",
     "viewDefinition": "뷰 정의",
     "dropView": "뷰 삭제",

@@ -117,6 +117,7 @@
     "materializedViews": "Материализованные представления",
     "refreshMaterializedView": "Обновить",
     "showDefinition": "Показать определение",
+    "copyDdl": "Копировать DDL",
     "editView": "Изменить представление",
     "viewDefinition": "Определение представления",
     "dropView": "Удалить представление",

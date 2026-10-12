@@ -117,6 +117,7 @@
     "materializedViews": "Mga Materialized View",
     "refreshMaterializedView": "I-refresh",
     "showDefinition": "Ipakita ang Definition",
+    "copyDdl": "Kopyahin ang DDL",
     "editView": "I-edit ang View",
     "viewDefinition": "Definition ng View",
     "dropView": "I-drop ang View",

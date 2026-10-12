@@ -124,6 +124,7 @@
     "materializedViews": "Viste Materializzate",
     "refreshMaterializedView": "Aggiorna",
     "showDefinition": "Mostra Definizione",
+    "copyDdl": "Copia DDL",
     "editView": "Modifica Vista",
     "viewDefinition": "Definizione Vista",
     "dropView": "Elimina Vista",

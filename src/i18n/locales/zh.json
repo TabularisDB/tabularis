@@ -116,6 +116,7 @@
     "materializedViews": "物化视图",
     "refreshMaterializedView": "刷新",
     "showDefinition": "显示定义",
+    "copyDdl": "复制 DDL",
     "editView": "编辑视图",
     "viewDefinition": "视图定义",
     "dropView": "删除视图",
