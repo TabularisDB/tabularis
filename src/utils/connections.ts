@@ -124,7 +124,8 @@ export function withoutBlankSslMode<T extends { ssl_mode?: string }>(
   params: T,
 ): Omit<T, "ssl_mode"> | T {
   if (params.ssl_mode === undefined || params.ssl_mode.trim() === "") {
-    const { ssl_mode: _omit, ...rest } = params;
+    const rest = { ...params };
+    delete rest.ssl_mode;
     return rest;
   }
   return params;
