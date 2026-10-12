@@ -101,6 +101,8 @@ export interface Settings {
   editorWordWrap?: boolean;
   editorShowLineNumbers?: boolean;
   editorAcceptSuggestionOnEnter?: boolean;
+  /** Enable Vim keybindings (normal/visual/insert) in SQL editors. Default: false. */
+  editorVimMode?: boolean;
   runStatementUnderCursor?: boolean;
   /** Case of SQL keywords inserted by autocomplete. Default: "match". */
   autocompleteKeywordCase?: AutocompleteKeywordCase;
@@ -251,6 +253,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editorWordWrap: true,
   editorShowLineNumbers: true,
   editorAcceptSuggestionOnEnter: true,
+  editorVimMode: false,
   runStatementUnderCursor: true,
   autocompleteKeywordCase: "match",
   safetyConfirmationDelayEnabled: false,
