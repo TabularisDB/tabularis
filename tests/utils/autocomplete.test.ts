@@ -877,6 +877,11 @@ describe('autocomplete', () => {
 
 
 describe('CTE and derived table completion integration', () => {
+  beforeEach(() => {
+    clearAutocompleteCache();
+    vi.clearAllMocks();
+  });
+
   it('completes CTE output names without a server column RPC', async () => {
     const monaco = createMockMonaco();
     registerSqlAutocomplete(
