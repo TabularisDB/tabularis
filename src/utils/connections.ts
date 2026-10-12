@@ -107,18 +107,6 @@ export interface ConnectionParams {
   proxy?: ProxyOverride;
 }
 
-/**
- * Update one entry of the opaque `extra` connection fields map.
- *
- * Pure function — returns a new map, never mutates its input.
- * - Blank keys are ignored (the input is returned unchanged).
- * - An empty value removes the key, and the map collapsing to empty yields
- *   `undefined` so nothing extra is persisted or sent to the backend.
- *
- * @param extra - Current extra fields map (may be undefined)
- * @param key - Field name owned by the plugin
- * @param value - New value; empty string clears the field
- */
 /** Drop blank `ssl_mode` so the backend applies the driver default. */
 export function withoutBlankSslMode<T extends { ssl_mode?: string }>(
   params: T,
@@ -131,6 +119,18 @@ export function withoutBlankSslMode<T extends { ssl_mode?: string }>(
   return params;
 }
 
+/**
+ * Update one entry of the opaque `extra` connection fields map.
+ *
+ * Pure function — returns a new map, never mutates its input.
+ * - Blank keys are ignored (the input is returned unchanged).
+ * - An empty value removes the key, and the map collapsing to empty yields
+ *   `undefined` so nothing extra is persisted or sent to the backend.
+ *
+ * @param extra - Current extra fields map (may be undefined)
+ * @param key - Field name owned by the plugin
+ * @param value - New value; empty string clears the field
+ */
 export function updateExtraField(
   extra: Record<string, string> | undefined,
   key: string,
