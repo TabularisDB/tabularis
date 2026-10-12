@@ -1832,6 +1832,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rpc_schema_aware_query_keeps_database_list_on_name_collision() {
+        let mut driver = test_driver(|req| {
+            assert_eq!(req.method, "execute_query");
+            assert_eq!(req.params["schema"], "sales");
+            assert_eq!(
+                req.params["params"]["database"],
+                json!(["sales", "analytics"]),
+                "a SQL schema with the same name as a database must not select it"
+            );
+            json!({
+                "columns": ["id"],
+                "rows": [[1]],
+                "affected_rows": 0,
+                "pagination": null
+            })
+        });
+        Arc::get_mut(&mut driver.process)
+            .unwrap()
+            .route_selected_database = false;
+        let mut params = test_connection_params();
+        params.database =
+            DatabaseSelection::Multiple(vec!["sales".into(), "analytics".into()]);
+        let (result, _) = driver
+            .execute_query_in_session(
+                &params,
+                "SELECT id FROM sales.orders",
+                None,
+                1,
+                Some("sales"),
+                None,
+            )
+            .await
+            .expect("schema-aware SQL query");
+        assert_eq!(result.rows, vec![vec![json!(1)]]);
+    }
+
+    #[tokio::test]
     async fn rpc_selected_database_reaches_metadata_query_and_batch_sessions() {
         let driver = test_driver(|req| {
             assert_eq!(
