@@ -782,6 +782,18 @@ struct KeychainSecretWrites {
 }
 
 impl KeychainSecretWrites {
+    /// Delete every secret this save wrote to the keychain. Used once the
+    /// config file landed with the secrets inline because a later keychain
+    /// write failed, so nothing the config doesn't point at is left behind.
+    fn discard(self, cache: &credential_cache::CredentialCache, connection_id: &str) {
+        Self {
+            db_password: self.db_password.map(|_| None),
+            ssh_password: self.ssh_password.map(|_| None),
+            ssh_key_passphrase: self.ssh_key_passphrase.map(|_| None),
+        }
+        .roll_back(cache, connection_id);
+    }
+
     fn roll_back(self, cache: &credential_cache::CredentialCache, connection_id: &str) {
         fn restore(
             label: &str,
@@ -1420,6 +1432,11 @@ pub async fn save_connection<R: Runtime>(
         keychain_writes.roll_back(&cache, &id);
         return Err(err);
     }
+    if !persisted_in_keychain {
+        // A later keychain write failed and the secrets went to the config
+        // file instead; drop the ones that did reach the keychain.
+        keychain_writes.discard(&cache, &id);
+    }
 
     log::info!("Connection saved successfully: {} (ID: {})", name, id);
 
@@ -1661,6 +1678,11 @@ pub async fn update_connection<R: Runtime>(
     {
         keychain_writes.roll_back(&cache, &id);
         return Err(err);
+    }
+    if !persisted_in_keychain {
+        // Same as save: the fallback put the secrets in the config file, so
+        // the keychain copies from this update are orphans.
+        keychain_writes.discard(&cache, &id);
     }
 
     let mut metadata_changed = false;
