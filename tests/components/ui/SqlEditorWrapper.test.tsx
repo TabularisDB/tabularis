@@ -156,6 +156,60 @@ describe('SqlEditorWrapper', () => {
     return { addAction, addCommand, keyDownHandlers, trigger };
   };
 
+  it('repairs selected pasted SQL with one undo step and leaves other text alone', () => {
+    render(<SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />, { wrapper });
+    const { addAction } = mountCapturedEditor();
+    const action = addAction.mock.calls
+      .map(([descriptor]) => descriptor as { id: string; run: (ed: unknown) => void })
+      .find((descriptor) => descriptor.id === 'tabularis.removeInvisibleSqlCharacters');
+    expect(action?.label).toBe('editor.removeInvisibleCharacters');
+    if (!action) throw new Error('cleanup action was not registered');
+    const edits: unknown[] = [];
+    const events: string[] = [];
+    const selection = { isEmpty: () => false, value: "SELECT\\u200B \\u201Cid\\u201D" };
+    const model = {
+      getValueInRange: (range: { value: string }) => range.value,
+      getFullModelRange: () => ({ value: 'SHOULD NOT REPLACE THIS' }),
+    };
+    const ed = {
+      getModel: () => model,
+      getSelections: () => [selection],
+      pushUndoStop: () => events.push('undo'),
+      executeEdits: (_source: string, next: unknown[]) => { events.push('edit'); edits.push(...next); },
+    };
+    action.run(ed);
+    expect(events).toEqual(['undo', 'edit', 'undo']);
+    expect(edits).toEqual([{ range: selection, text: 'SELECT "id"', forceMoveMarkers: true }]);
+  });
+
+  it('cleans the entire document when no text is selected and skips clean text', () => {
+    render(<SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />, { wrapper });
+    const { addAction } = mountCapturedEditor();
+    const action = addAction.mock.calls.map(([descriptor]) => descriptor as { id: string; run: (ed: unknown) => void })
+      .find((descriptor) => descriptor.id === 'tabularis.removeInvisibleSqlCharacters');
+    if (!action) throw new Error('cleanup action was not registered');
+    let value = 'SELECT\\uFEFF 1；';
+    const executeEdits = vi.fn();
+    const pushUndoStop = vi.fn();
+    const fullRange = { isEmpty: () => true };
+    const ed = {
+      getModel: () => ({
+        getFullModelRange: () => fullRange,
+        getValueInRange: () => value,
+      }),
+      getSelections: () => [],
+      executeEdits,
+      pushUndoStop,
+    };
+    action.run(ed);
+    expect(executeEdits).toHaveBeenCalledWith('removeInvisibleSqlCharacters',
+      [{ range: fullRange, text: 'SELECT 1;', forceMoveMarkers: true }]);
+    expect(pushUndoStop).toHaveBeenCalledTimes(2);
+    value = 'SELECT 1;';
+    action.run(ed);
+    expect(executeEdits).toHaveBeenCalledTimes(1);
+  });
+
   it('converts the selection to an SQL list in one undoable edit, only when text is selected', () => {
     render(
       <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />,
