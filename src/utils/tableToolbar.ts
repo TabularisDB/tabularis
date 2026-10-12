@@ -136,8 +136,10 @@ export function formatSortClause(
  * Calculates the next ORDER BY sort clause when clicking on a column header in the data grid.
  *
  * Cycles based on defaultSortDirection ("asc" | "desc"):
- * - With "asc":  (none / ASC) -> DESC -> clear (empty)
- * - With "desc": (none / DESC) -> ASC -> clear (empty)
+ * - With "asc":  none -> ASC -> DESC -> none (clear)
+ * - With "desc": none -> DESC -> ASC -> none (clear)
+ *
+ * Missing direction on an existing sort (e.g. bare "col") is treated as ASC (standard SQL).
  */
 export function getNextSortClause(
   currentSort: string,
@@ -155,13 +157,16 @@ export function getNextSortClause(
     const currentDir = parts[1]?.toUpperCase();
 
     if (defaultSortDirection === "desc") {
-      // DESC cycle: DESC -> ASC -> none
-      if (!currentDir || currentDir === "DESC") {
+      // DESC cycle: DESC -> ASC -> none (clear)
+      // When direction is omitted (e.g. bare "col"), SQL treats it as ASC,
+      // so in DESC cycle it is already ASC and cycles to none (clear).
+      if (currentDir === "DESC") {
         return `${formattedCol} ASC`;
       }
       return "";
     } else {
-      // ASC cycle: ASC -> DESC -> none
+      // ASC cycle: ASC -> DESC -> none (clear)
+      // Missing direction is treated as default ASC -> cycles to DESC.
       if (!currentDir || currentDir === "ASC") {
         return `${formattedCol} DESC`;
       }
