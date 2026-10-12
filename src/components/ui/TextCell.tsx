@@ -32,12 +32,7 @@ export const TextCell = ({
     [displayText],
   );
 
-  const svgPreviewUrl = useMemo(() => {
-    if (isSvgText(value)) {
-      return svgTextToDataUrl(value);
-    }
-    return null;
-  }, [value]);
+  const isSvg = useMemo(() => isSvgText(value), [value]);
 
   useLayoutEffect(() => {
     const el = textRef.current;
@@ -88,9 +83,11 @@ export const TextCell = ({
     </span>
   );
 
-  if (svgPreviewUrl) {
+  if (isSvg) {
     return (
-      <ImagePreviewHover getSrc={() => svgPreviewUrl}>
+      <ImagePreviewHover
+        getSrc={() => (typeof value === "string" ? svgTextToDataUrl(value) : null)}
+      >
         {content}
       </ImagePreviewHover>
     );

@@ -77,7 +77,8 @@ export function ImagePreviewHover({
     if (!position) return;
 
     const handleScrollOrResize = () => {
-      hide();
+      setPosition(null);
+      setActiveSrc(null);
     };
 
     window.addEventListener("scroll", handleScrollOrResize, true);
