@@ -1,5 +1,6 @@
 /** Characters copied from rich text that can change SQL parsing without being visible. */
-const ZERO_WIDTH_OR_DIRECTIONAL = /[\u00AD\u034F\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g;
+const ZERO_WIDTH_OR_DIRECTIONAL =
+  /(?:[\u00AD\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]|\u034F)/g;
 const TYPOGRAPHIC_QUOTES = /[\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F]/g;
 const WIDE_PUNCTUATION: Record<string, string> = {
   '，': ',', '；': ';', '：': ':', '（': '(', '）': ')',
