@@ -2842,6 +2842,7 @@ mod tests {
             manifest,
             process: Arc::new(PluginProcess {
                 plugin_id: "test-plugin".to_string(),
+                route_selected_database: false,
                 sender: tx,
                 next_id: AtomicU64::new(1),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
@@ -2874,6 +2875,7 @@ mod tests {
             manifest: test_manifest(), // empty type_mappings
             process: Arc::new(PluginProcess {
                 plugin_id: "test-plugin".to_string(),
+                route_selected_database: false,
                 sender: tx,
                 next_id: AtomicU64::new(1),
                 shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
