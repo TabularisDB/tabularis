@@ -48,8 +48,15 @@ describe('cleanSqlInvisibleCharacters', () => {
     expect(cleanSqlInvisibleCharacters(once, 'postgres')).toBe(once);
   });
 
-  it('retains the original fallback for an unknown dialect', () => {
-    expect(cleanSqlInvisibleCharacters("SELECT 'a\u200Bb'"))
-      .toBe("SELECT 'ab'");
+  it('preserves quoted SQL when no dialect is supplied or recognized', () => {
+    // Notebook cells, modal editors and some plugins omit the dialect.
+    const sql = "SELECT 'It’s O’Brien', '你好，世界', '👨‍👩‍👧', \"col\u200Bname\", col\u200B;";
+    const expected = sql.replace('col\u200B;', 'col;');
+    for (const dialect of [undefined, 'unrecognized-plugin-dialect']) {
+      expect(cleanSqlInvisibleCharacters(sql, dialect)).toBe(expected);
+      const edits = getSqlInvisibleCharacterEdits(sql, dialect);
+      expect(edits).toHaveLength(1);
+      expect(sql.slice(edits[0].start, edits[0].end)).toBe('\u200B');
+    }
   });
 });
