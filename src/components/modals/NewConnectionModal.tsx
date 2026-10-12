@@ -371,7 +371,7 @@ export const NewConnectionModal = ({
     // New connections store secrets in the keychain. An edit starts from the
     // saved flag so a slow credential load cannot flip an existing connection.
     save_in_keychain: initialConnection
-      ? initialConnection.params.save_in_keychain
+      ? (initialConnection.params.save_in_keychain ?? false)
       : true,
   });
   const [selectedDatabasesState, setSelectedDatabasesState] = useState<

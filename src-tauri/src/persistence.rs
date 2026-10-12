@@ -84,6 +84,8 @@ pub fn write_private_file(path: &Path, contents: impl AsRef<[u8]>) -> Result<(),
         use std::io::Write;
         use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
+        // `mode` only applies when the file is created, so tighten an existing
+        // file before the new contents land in it.
         if path.exists() {
             fs::set_permissions(path, fs::Permissions::from_mode(0o600))
                 .map_err(|e| e.to_string())?;
@@ -95,9 +97,7 @@ pub fn write_private_file(path: &Path, contents: impl AsRef<[u8]>) -> Result<(),
             .mode(0o600)
             .open(path)
             .map_err(|e| e.to_string())?;
-        file.write_all(contents.as_ref())
-            .map_err(|e| e.to_string())?;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(|e| e.to_string())
+        file.write_all(contents.as_ref()).map_err(|e| e.to_string())
     }
     #[cfg(not(unix))]
     {

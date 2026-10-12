@@ -771,6 +771,72 @@ fn persist_connection_uri_change(
     )
 }
 
+/// Keychain secrets a connection save wrote, each with the value it held
+/// before. If the config file write fails afterwards they are put back, so a
+/// save that never landed doesn't leave secrets behind in the keychain.
+#[derive(Default)]
+struct KeychainSecretWrites {
+    db_password: Option<Option<String>>,
+    ssh_password: Option<Option<String>>,
+    ssh_key_passphrase: Option<Option<String>>,
+}
+
+impl KeychainSecretWrites {
+    fn roll_back(self, cache: &credential_cache::CredentialCache, connection_id: &str) {
+        fn restore(
+            label: &str,
+            connection_id: &str,
+            previous: Option<String>,
+            set: impl FnOnce(&str) -> Result<(), String>,
+            delete: impl FnOnce() -> Result<(), String>,
+        ) {
+            let result = match previous.as_deref() {
+                Some(value) => set(value),
+                None => delete(),
+            };
+            if let Err(err) = result {
+                log::warn!(
+                    "Failed to roll back the {} for {} after a failed save: {}",
+                    label,
+                    connection_id,
+                    err
+                );
+            }
+        }
+
+        if let Some(previous) = self.db_password {
+            restore(
+                "DB password",
+                connection_id,
+                previous,
+                |value| keychain_utils::set_db_password(connection_id, value),
+                || keychain_utils::delete_db_password(connection_id),
+            );
+            credential_cache::invalidate_db_password(cache, connection_id);
+        }
+        if let Some(previous) = self.ssh_password {
+            restore(
+                "SSH password",
+                connection_id,
+                previous,
+                |value| keychain_utils::set_ssh_password(connection_id, value),
+                || keychain_utils::delete_ssh_password(connection_id),
+            );
+            credential_cache::invalidate_ssh_password(cache, connection_id);
+        }
+        if let Some(previous) = self.ssh_key_passphrase {
+            restore(
+                "SSH key passphrase",
+                connection_id,
+                previous,
+                |value| keychain_utils::set_ssh_key_passphrase(connection_id, value),
+                || keychain_utils::delete_ssh_key_passphrase(connection_id),
+            );
+            credential_cache::invalidate_ssh_key_passphrase(cache, connection_id);
+        }
+    }
+}
+
 /// Strip the URI out of the params that go to `connections.json`, leaving only
 /// the marker that says a keychain entry exists.
 fn params_for_persistence(
@@ -1262,6 +1328,7 @@ pub async fn save_connection<R: Runtime>(
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     let connection_uri = runtime_connection_uri(&params).map(str::to_owned);
     let mut params_to_save = params_for_persistence(&params, connection_uri.is_some());
+    let mut keychain_writes = KeychainSecretWrites::default();
 
     if params.save_in_keychain.unwrap_or(false) {
         log::debug!("Storing passwords in keychain for connection: {}", name);
@@ -1269,7 +1336,10 @@ pub async fn save_connection<R: Runtime>(
         match keychain_utils::stored_password_change(params.password.as_deref()) {
             keychain_utils::StoredPasswordChange::Store(pwd) => {
                 match keychain_utils::set_db_password(&id, pwd) {
-                    Ok(()) => credential_cache::set_db_password_cached(&cache, &id, pwd),
+                    Ok(()) => {
+                        keychain_writes.db_password = Some(None);
+                        credential_cache::set_db_password_cached(&cache, &id, pwd);
+                    }
                     Err(err) => {
                         log::warn!(
                             "Keychain unavailable while saving connection {}; storing secrets in the config file: {}",
@@ -1287,7 +1357,10 @@ pub async fn save_connection<R: Runtime>(
         if keychain_stored && params.ssh_enabled.unwrap_or(false) {
             if let Some(ssh_pwd) = &params.ssh_password {
                 match keychain_utils::set_ssh_password(&id, ssh_pwd) {
-                    Ok(()) => credential_cache::set_ssh_password_cached(&cache, &id, ssh_pwd),
+                    Ok(()) => {
+                        keychain_writes.ssh_password = Some(None);
+                        credential_cache::set_ssh_password_cached(&cache, &id, ssh_pwd);
+                    }
                     Err(err) => {
                         log::warn!(
                             "Keychain unavailable while saving the SSH password for {}; storing secrets in the config file: {}",
@@ -1301,11 +1374,14 @@ pub async fn save_connection<R: Runtime>(
                 if let Some(ssh_passphrase) = &params.ssh_key_passphrase {
                     if !ssh_passphrase.trim().is_empty() {
                         match keychain_utils::set_ssh_key_passphrase(&id, ssh_passphrase) {
-                            Ok(()) => credential_cache::set_ssh_key_passphrase_cached(
-                                &cache,
-                                &id,
-                                ssh_passphrase,
-                            ),
+                            Ok(()) => {
+                                keychain_writes.ssh_key_passphrase = Some(None);
+                                credential_cache::set_ssh_key_passphrase_cached(
+                                    &cache,
+                                    &id,
+                                    ssh_passphrase,
+                                );
+                            }
                             Err(err) => {
                                 log::warn!(
                                     "Keychain unavailable while saving the SSH key passphrase for {}; storing secrets in the config file: {}",
@@ -1334,13 +1410,16 @@ pub async fn save_connection<R: Runtime>(
         environment: validate_environment(environment)?,
     };
     conn_file.connections.push(new_conn.clone());
-    persist_connection_uri_change(
+    if let Err(err) = persist_connection_uri_change(
         &cache,
         &id,
         false,
         connection_uri.as_deref().map(Some),
         || save_connections_and_invalidate(&app, &path, &conn_file),
-    )?;
+    ) {
+        keychain_writes.roll_back(&cache, &id);
+        return Err(err);
+    }
 
     log::info!("Connection saved successfully: {} (ID: {})", name, id);
 
@@ -1461,12 +1540,17 @@ pub async fn update_connection<R: Runtime>(
         params_for_persistence(&params, connection_uri.is_some() || preserve_stored_uri);
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    let mut keychain_writes = KeychainSecretWrites::default();
     if params.save_in_keychain.unwrap_or(false) {
         let mut keychain_stored = true;
         match keychain_utils::stored_password_change(params.password.as_deref()) {
             keychain_utils::StoredPasswordChange::Store(pwd) => {
+                let previous = keychain_utils::get_db_password(&id, "").ok();
                 match keychain_utils::set_db_password(&id, pwd) {
-                    Ok(()) => credential_cache::set_db_password_cached(&cache, &id, pwd),
+                    Ok(()) => {
+                        keychain_writes.db_password = Some(previous);
+                        credential_cache::set_db_password_cached(&cache, &id, pwd);
+                    }
                     Err(err) => {
                         log::warn!(
                             "Keychain unavailable while updating connection {}; storing secrets in the config file: {}",
@@ -1480,15 +1564,21 @@ pub async fn update_connection<R: Runtime>(
             // the login inputs. The previous secret must not survive, or the
             // next connect would hand a stale login to the driver.
             keychain_utils::StoredPasswordChange::Delete => {
+                let previous = keychain_utils::get_db_password(&id, "").ok();
                 keychain_utils::delete_db_password(&id)?;
+                keychain_writes.db_password = Some(previous);
                 credential_cache::invalidate_db_password(&cache, &id);
             }
             keychain_utils::StoredPasswordChange::Keep => {}
         }
         if keychain_stored && params.ssh_enabled.unwrap_or(false) {
             if let Some(ssh_pwd) = &params.ssh_password {
+                let previous = keychain_utils::get_ssh_password(&id, "").ok();
                 match keychain_utils::set_ssh_password(&id, ssh_pwd) {
-                    Ok(()) => credential_cache::set_ssh_password_cached(&cache, &id, ssh_pwd),
+                    Ok(()) => {
+                        keychain_writes.ssh_password = Some(previous);
+                        credential_cache::set_ssh_password_cached(&cache, &id, ssh_pwd);
+                    }
                     Err(err) => {
                         log::warn!(
                             "Keychain unavailable while updating the SSH password for {}; storing secrets in the config file: {}",
@@ -1501,12 +1591,16 @@ pub async fn update_connection<R: Runtime>(
             if keychain_stored {
                 if let Some(ssh_passphrase) = &params.ssh_key_passphrase {
                     if !ssh_passphrase.trim().is_empty() {
+                        let previous = keychain_utils::get_ssh_key_passphrase(&id, "").ok();
                         match keychain_utils::set_ssh_key_passphrase(&id, ssh_passphrase) {
-                            Ok(()) => credential_cache::set_ssh_key_passphrase_cached(
-                                &cache,
-                                &id,
-                                ssh_passphrase,
-                            ),
+                            Ok(()) => {
+                                keychain_writes.ssh_key_passphrase = Some(previous);
+                                credential_cache::set_ssh_key_passphrase_cached(
+                                    &cache,
+                                    &id,
+                                    ssh_passphrase,
+                                );
+                            }
                             Err(err) => {
                                 log::warn!(
                                     "Keychain unavailable while updating the SSH key passphrase for {}; storing secrets in the config file: {}",
@@ -1560,9 +1654,14 @@ pub async fn update_connection<R: Runtime>(
 
     conn_file.connections[conn_idx] = updated.clone();
 
-    persist_connection_uri_change(&cache, &id, existing_uri_in_keychain, uri_change, || {
-        save_connections_and_invalidate(&app, &path, &conn_file)
-    })?;
+    if let Err(err) =
+        persist_connection_uri_change(&cache, &id, existing_uri_in_keychain, uri_change, || {
+            save_connections_and_invalidate(&app, &path, &conn_file)
+        })
+    {
+        keychain_writes.roll_back(&cache, &id);
+        return Err(err);
+    }
 
     let mut metadata_changed = false;
     for driver_id in [&previous_driver_id, &updated.params.driver] {
