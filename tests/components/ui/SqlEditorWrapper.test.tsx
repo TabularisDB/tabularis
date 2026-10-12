@@ -179,56 +179,89 @@ describe('SqlEditorWrapper', () => {
     expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-render-control-characters', 'false');
   });
 
-  it('repairs selected pasted SQL with one undo step and leaves other text alone', () => {
-    render(<SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />, { wrapper });
+  it('cleans only selected SQL code and keeps quoted text unchanged', () => {
+    render(
+      <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} dialect="postgres" />,
+      { wrapper },
+    );
     const { addAction } = mountCapturedEditor();
     const action = addAction.mock.calls
       .map(([descriptor]) => descriptor as { id: string; run: (ed: unknown) => void })
       .find((descriptor) => descriptor.id === 'tabularis.removeInvisibleSqlCharacters');
     expect(action?.label).toBe('editor.removeInvisibleCharacters');
     if (!action) throw new Error('cleanup action was not registered');
-    const edits: unknown[] = [];
-    const events: string[] = [];
-    const selection = { isEmpty: () => false, value: "SELECT\u200B \u201Cid\u201D" };
-    const model = {
-      getValueInRange: (range: { value: string }) => range.value,
-      getFullModelRange: () => ({ value: 'SHOULD NOT REPLACE THIS' }),
+
+    const sql = "SELECT\u200B 'It’s O’Brien' AS \u201Cid\u201D, \u201Coutside\u201D";
+    const comma = sql.indexOf(',');
+    const selection = {
+      isEmpty: () => false,
+      getStartPosition: () => ({ lineNumber: 1, column: 1 }),
+      getEndPosition: () => ({ lineNumber: 1, column: comma + 1 }),
     };
+    const model = {
+      getValue: () => sql,
+      getOffsetAt: (position: { column: number }) => position.column - 1,
+      getPositionAt: (offset: number) => ({ lineNumber: 1, column: offset + 1 }),
+    };
+    const edits: Array<{ range: { startColumn: number }; text: string }> = [];
+    const events: string[] = [];
     const ed = {
       getModel: () => model,
       getSelections: () => [selection],
       pushUndoStop: () => events.push('undo'),
-      executeEdits: (_source: string, next: unknown[]) => { events.push('edit'); edits.push(...next); },
+      executeEdits: (_source: string, next: typeof edits) => {
+        events.push('edit');
+        edits.push(...next);
+      },
     };
+
     action.run(ed);
     expect(events).toEqual(['undo', 'edit', 'undo']);
-    expect(edits).toEqual([{ range: selection, text: 'SELECT "id"', forceMoveMarkers: true }]);
+    expect(edits.map(({ range, text }) => [range.startColumn, text])).toEqual([
+      [sql.indexOf('\u200B') + 1, ''],
+      [sql.indexOf('\u201C') + 1, '"'],
+      [sql.indexOf('\u201D') + 1, '"'],
+    ]);
   });
 
-  it('cleans the entire document when no text is selected and skips clean text', () => {
-    render(<SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />, { wrapper });
+  it('cleans the full model with small edits and skips clean text', () => {
+    render(
+      <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} dialect="postgres" />,
+      { wrapper },
+    );
     const { addAction } = mountCapturedEditor();
-    const action = addAction.mock.calls.map(([descriptor]) => descriptor as { id: string; run: (ed: unknown) => void })
+    const action = addAction.mock.calls
+      .map(([descriptor]) => descriptor as { id: string; run: (ed: unknown) => void })
       .find((descriptor) => descriptor.id === 'tabularis.removeInvisibleSqlCharacters');
     if (!action) throw new Error('cleanup action was not registered');
-    let value = 'SELECT\uFEFF 1；';
+    let sql = "SELECT\uFEFF 1； '👨‍👩‍👧'";
+    const model = {
+      getValue: () => sql,
+      getPositionAt: (offset: number) => ({ lineNumber: 1, column: offset + 1 }),
+    };
     const executeEdits = vi.fn();
     const pushUndoStop = vi.fn();
-    const fullRange = { isEmpty: () => true };
     const ed = {
-      getModel: () => ({
-        getFullModelRange: () => fullRange,
-        getValueInRange: () => value,
-      }),
+      getModel: () => model,
       getSelections: () => [],
       executeEdits,
       pushUndoStop,
     };
     action.run(ed);
-    expect(executeEdits).toHaveBeenCalledWith('removeInvisibleSqlCharacters',
-      [{ range: fullRange, text: 'SELECT 1;', forceMoveMarkers: true }]);
+    expect(executeEdits).toHaveBeenCalledTimes(1);
+    const edits = executeEdits.mock.calls[0][1] as Array<{
+      range: { startColumn: number; endColumn: number };
+      text: string;
+      forceMoveMarkers: boolean;
+    }>;
+    expect(edits.map(({ range, text, forceMoveMarkers }) => [
+      sql.slice(range.startColumn - 1, range.endColumn - 1),
+      text,
+      forceMoveMarkers,
+    ])).toEqual([['\uFEFF', '', false], ['；', ';', false]]);
     expect(pushUndoStop).toHaveBeenCalledTimes(2);
-    value = 'SELECT 1;';
+
+    sql = "SELECT 1; '👨‍👩‍👧'";
     action.run(ed);
     expect(executeEdits).toHaveBeenCalledTimes(1);
   });
