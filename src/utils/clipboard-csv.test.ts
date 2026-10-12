@@ -10,6 +10,10 @@ describe("CSV clipboard quoting", () => {
     expect(rowToCSV(['say "hi"'])).toBe('"say ""hi"""');
   });
 
+  it("quotes a value with a lone carriage return, as the file export does", () => {
+    expect(rowsToCSV([["hello\rworld", "x"]])).toBe('"hello\rworld",x');
+  });
+
   it("quotes a value with a line break", () => {
     expect(rowsToCSV([["line1\nline2", "x"]])).toBe('"line1\nline2",x');
   });

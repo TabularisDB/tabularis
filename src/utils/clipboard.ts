@@ -3,7 +3,7 @@ import { formatCellValue } from './dataGrid';
 // RFC 4180 quoting, as the file export uses: a field with the delimiter, a quote or a line break
 // is wrapped in quotes, and its quotes are doubled.
 function csvField(text: string, delimiter: string): string {
-  if (text.includes(delimiter) || text.includes('"') || /\r?\n/.test(text)) {
+  if (text.includes(delimiter) || text.includes('"') || /[\r\n]/.test(text)) {
     return `"${text.replace(/"/g, '""')}"`;
   }
   return text;
