@@ -926,6 +926,36 @@ describe('CTE and derived table completion integration', () => {
     expect(invoke).not.toHaveBeenCalledWith('get_columns', expect.anything());
   });
 
+  it('prefers a physical FROM alias over a same-named CTE when completing columns', async () => {
+    const { parseTablesFromQuery } = await import('../../src/utils/sqlAnalysis');
+    (parseTablesFromQuery as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Map([['t', { name: 'beta' }]]),
+    );
+    (invoke as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { name: 'id', data_type: 'INTEGER' },
+      { name: 'label', data_type: 'TEXT' },
+      { name: 'score', data_type: 'INTEGER' },
+    ]);
+
+    const monaco = createMockMonaco();
+    registerSqlAutocomplete(
+      monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+      'conn1', [{ name: 'beta' }],
+    );
+    const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+    const value = 'WITH t AS (SELECT secret FROM users) SELECT t. FROM beta t';
+    const column = value.indexOf('SELECT t.') + 'SELECT t.'.length + 1;
+    const model = createMockModel(value);
+    // Use a real cursor offset here: the shared test mock otherwise jumps to EOF.
+    model.getOffsetAt.mockImplementation((pos) => pos.column - 1);
+    const suggestions = (await provider.provideCompletionItems(
+      model, { lineNumber: 1, column },
+    )).suggestions;
+
+    expect(suggestions.map((s: { label: string }) => s.label)).toEqual(['id', 'label', 'score']);
+    expect(invoke).toHaveBeenCalledWith('get_columns', expect.objectContaining({ tableName: 'beta' }));
+  });
+
   it('completes a later FROM-derived alias in the SELECT list', async () => {
     const monaco = createMockMonaco();
     registerSqlAutocomplete(
