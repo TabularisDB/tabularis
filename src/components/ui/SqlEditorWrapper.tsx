@@ -19,7 +19,7 @@ import {
 } from "../../utils/sqlSplitter";
 import { formatSql } from "../../utils/sqlFormat";
 import { toSqlList } from "../../utils/editor";
-import { cleanSqlInvisibleCharacters } from "../../utils/sqlInvisibleCharacters";
+import { getSqlInvisibleCharacterEdits } from "../../utils/sqlInvisibleCharacters";
 import { isTextCompositionKeyEvent } from "../../utils/keyboardEvents";
 import type { SqlDialect } from "../../utils/sql";
 import type { RunContext } from "../../utils/runTarget";
@@ -448,13 +448,36 @@ const SqlEditorInternal = ({
           if (!model) return;
           const selections = ed.getSelections() ?? [];
           const selected = selections.filter((range) => !range.isEmpty());
-          const ranges = selected.length > 0 ? selected : [model.getFullModelRange()];
-          const edits = ranges.flatMap((range) => {
-            const oldText = model.getValueInRange(range);
-            const cleaned = cleanSqlInvisibleCharacters(oldText);
-            return cleaned === oldText ? [] : [{ range, text: cleaned, forceMoveMarkers: true }];
-          });
+          const selectionOffsets = selected.map((range) => ({
+            start: model.getOffsetAt(range.getStartPosition()),
+            end: model.getOffsetAt(range.getEndPosition()),
+          }));
+          // Scan the full document so a partial selection cannot hide the
+          // quote that starts a string or a quoted identifier.
+          const changes = getSqlInvisibleCharacterEdits(
+            model.getValue(),
+            dialectRef.current,
+          );
+          const edits = changes
+            .filter(({ start, end }) =>
+              selectionOffsets.length === 0 ||
+              selectionOffsets.some((range) => start >= range.start && end <= range.end))
+            .map(({ start, end, text }) => {
+              const from = model.getPositionAt(start);
+              const to = model.getPositionAt(end);
+              return {
+                range: {
+                  startLineNumber: from.lineNumber,
+                  startColumn: from.column,
+                  endLineNumber: to.lineNumber,
+                  endColumn: to.column,
+                },
+                text,
+                forceMoveMarkers: false,
+              };
+            });
           if (edits.length === 0) return;
+          // Small edits keep the cursor near its original position.
           ed.pushUndoStop();
           ed.executeEdits('removeInvisibleSqlCharacters', edits);
           ed.pushUndoStop();
