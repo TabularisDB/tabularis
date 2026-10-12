@@ -113,6 +113,19 @@ fn is_method_not_found(err: &str) -> bool {
     err.to_lowercase().contains("method not found") || err.contains("-32601")
 }
 
+/// A manager task may be aborted after its outer shutdown bound. If that
+/// drops a pending response sender, tell the caller shutdown caused it rather
+/// than reporting a generic unresponsive plugin.
+fn dropped_plugin_response_error(shutting_down: bool) -> PluginCallError {
+    if shutting_down {
+        "Plugin shutdown grace period elapsed before RPC completed"
+            .to_string()
+            .into()
+    } else {
+        "Plugin process did not respond".to_string().into()
+    }
+}
+
 /// Message sent to the management task that owns the plugin child process.
 enum PluginCommand {
     /// Dispatch a JSON-RPC request and route the response back via the sender.
@@ -422,12 +435,18 @@ impl PluginProcess {
         let Some(timeout) = timeout else {
             return rx
                 .await
-                .unwrap_or_else(|_| Err("Plugin process did not respond".to_string().into()));
+                .unwrap_or_else(|_| {
+                    Err(dropped_plugin_response_error(
+                        !self.accepting_calls.load(Ordering::Acquire),
+                    ))
+                });
         };
 
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(result)) => result,
-            Ok(Err(_)) => Err("Plugin process did not respond".to_string().into()),
+            Ok(Err(_)) => Err(dropped_plugin_response_error(
+                !self.accepting_calls.load(Ordering::Acquire),
+            )),
             Err(_) => {
                 // Tell the management task to drop the now-orphaned pending
                 // entry so it does not leak one slot per timeout.
@@ -1811,6 +1830,16 @@ pub(crate) fn with_test_driver_id(mut driver: RpcDriver, id: &str) -> RpcDriver 
 mod tests {
     use super::*;
     use crate::models::DatabaseSelection;
+
+    #[test]
+    fn dropped_response_reports_shutdown_on_abort_path() {
+        let shutdown_error = dropped_plugin_response_error(true).to_string();
+        assert!(shutdown_error.contains("Plugin shutdown grace period elapsed"));
+        assert_eq!(
+            dropped_plugin_response_error(false).to_string(),
+            "Plugin process did not respond"
+        );
+    }
 
     fn test_connection_params() -> ConnectionParams {
         ConnectionParams {
