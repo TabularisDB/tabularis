@@ -18,8 +18,14 @@ export function resolvePluginConfig(
 /** Host default for `pluginCallTimeoutSeconds`; mirrors the Rust constant. */
 export const DEFAULT_PLUGIN_CALL_TIMEOUT_SECONDS = 120;
 
+/** Host default for `pluginShutdownGraceSeconds`; mirrors the Rust constant. */
+export const DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECONDS = 2;
+
 /** Upper bound accepted by the timeout inputs (24 hours). */
 export const MAX_PLUGIN_CALL_TIMEOUT_SECONDS = 86_400;
+
+/** Upper bound accepted by the shutdown-grace inputs (24 hours). */
+export const MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS = MAX_PLUGIN_CALL_TIMEOUT_SECONDS;
 
 /**
  * Parses a timeout typed by the user. Returns undefined for blank or invalid
@@ -65,6 +71,49 @@ export function resolveEffectiveCallTimeout(
     config?.callTimeoutSeconds ??
     globalTimeout ??
     DEFAULT_PLUGIN_CALL_TIMEOUT_SECONDS
+  );
+}
+
+/**
+ * Parses a shutdown grace typed by the user. Same bounds as the call timeout:
+ * blank or invalid input is undefined; otherwise whole seconds clamped to
+ * [0, MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS] (0 waits until in-flight calls finish).
+ */
+export function parseShutdownGraceSeconds(raw: string): number | undefined {
+  return parseCallTimeoutSeconds(raw);
+}
+
+/**
+ * Returns a copy of `config` with its shutdown grace override set from raw
+ * user input. Blank or invalid input removes the override so the plugin
+ * inherits the global value.
+ */
+export function withShutdownGraceOverride(
+  config: PluginConfig,
+  rawGrace: string,
+): PluginConfig {
+  const next = { ...config };
+  const seconds = parseShutdownGraceSeconds(rawGrace);
+  if (seconds === undefined) {
+    delete next.shutdownGraceSeconds;
+  } else {
+    next.shutdownGraceSeconds = seconds;
+  }
+  return next;
+}
+
+/**
+ * Grace period that applies to a plugin: its own override, else the global
+ * setting, else the host default. 0 means wait until in-flight calls finish.
+ */
+export function resolveEffectiveShutdownGrace(
+  globalGrace: number | undefined,
+  config: PluginConfig | undefined,
+): number {
+  return (
+    config?.shutdownGraceSeconds ??
+    globalGrace ??
+    DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECONDS
   );
 }
 

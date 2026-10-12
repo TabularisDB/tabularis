@@ -27,6 +27,8 @@ export interface PluginConfig {
   settings?: Record<string, unknown>;
   /** Per-plugin override of `pluginCallTimeoutSeconds`. Unset inherits the global value; 0 disables the timeout. */
   callTimeoutSeconds?: number;
+  /** Per-plugin override of `pluginShutdownGraceSeconds`. Unset inherits the global value; 0 waits until in-flight calls finish. */
+  shutdownGraceSeconds?: number;
 }
 
 /** One entry in the append-only driver-migration history. Kept even after an
@@ -93,6 +95,8 @@ export interface Settings {
   plugins?: Record<string, PluginConfig>;
   /** Seconds the host waits for a plugin to answer a single call. 0 disables the timeout. Default: 120. */
   pluginCallTimeoutSeconds?: number;
+  /** Seconds in-flight plugin calls may run after shutdown is requested. 0 waits until they finish. Default: 2. */
+  pluginShutdownGraceSeconds?: number;
   editorTheme?: string;
   editorFontFamily?: string;
   editorFontSize?: number;

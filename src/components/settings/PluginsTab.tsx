@@ -1652,7 +1652,7 @@ export function PluginsTab({
         </div>
 
         <PluginCallTimeoutSection
-          key={String(settings.pluginCallTimeoutSeconds)}
+          key={`${String(settings.pluginCallTimeoutSeconds)}:${String(settings.pluginShutdownGraceSeconds)}`}
         />
       </div>
 

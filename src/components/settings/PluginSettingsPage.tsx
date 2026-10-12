@@ -16,7 +16,10 @@ import {
   getDisplayInterpreter,
   withCallTimeoutOverride,
   resolveEffectiveCallTimeout,
+  withShutdownGraceOverride,
+  resolveEffectiveShutdownGrace,
   MAX_PLUGIN_CALL_TIMEOUT_SECONDS,
+  MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS,
   resolveSettingsWithDefaults,
   validateSettings,
 } from "../../utils/pluginConfig";
@@ -76,8 +79,15 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
   const [callTimeout, setCallTimeout] = useState(
     currentConfig?.callTimeoutSeconds?.toString() ?? "",
   );
+  const [shutdownGrace, setShutdownGrace] = useState(
+    currentConfig?.shutdownGraceSeconds?.toString() ?? "",
+  );
   const inheritedCallTimeout = resolveEffectiveCallTimeout(
     settings.pluginCallTimeoutSeconds,
+    undefined,
+  );
+  const inheritedShutdownGrace = resolveEffectiveShutdownGrace(
+    settings.pluginShutdownGraceSeconds,
     undefined,
   );
   const definitions = useMemo(() => manifest?.settings ?? [], [manifest]);
@@ -153,9 +163,12 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
     setSaving(true);
     setSaved(false);
     try {
-    const baseConfig = withCallTimeoutOverride(
-      resolvePluginConfig(currentConfig, interpreter),
-      callTimeout,
+    const baseConfig = withShutdownGraceOverride(
+      withCallTimeoutOverride(
+        resolvePluginConfig(currentConfig, interpreter),
+        callTimeout,
+      ),
+      shutdownGrace,
     );
     const mergedSettings =
       definitions.length > 0
@@ -195,6 +208,7 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
     dynamicValues,
     interpreter,
     callTimeout,
+    shutdownGrace,
     currentConfig,
     settings.plugins,
     updateSetting,
@@ -402,6 +416,48 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
                 className="inline-flex items-center justify-center w-8 h-8 border border-default rounded-md text-muted hover:text-primary hover:border-strong transition-colors shrink-0"
                 title={t("settings.plugins.pluginSettings.callTimeoutInherit")}
                 aria-label={t("settings.plugins.pluginSettings.callTimeoutInherit")}
+              >
+                <RotateCcw size={12} />
+              </button>
+            )}
+          </div>
+        </SettingSection>
+      )}
+
+      {!isBuiltin && (
+        <SettingSection
+          title={t("settings.plugins.pluginSettings.shutdownGrace")}
+          description={t("settings.plugins.pluginSettings.shutdownGraceDesc")}
+        >
+          <div className="py-3 flex items-center gap-2">
+            <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
+              type="number"
+              min={0}
+              max={MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS}
+              step={1}
+              value={shutdownGrace}
+              aria-label={t("settings.plugins.pluginSettings.shutdownGrace")}
+              placeholder={t(
+                "settings.plugins.pluginSettings.shutdownGracePlaceholder",
+                { seconds: inheritedShutdownGrace },
+              )}
+              onChange={(e) => {
+                setShutdownGrace(e.target.value);
+                setSaved(false);
+              }}
+              className="w-56 bg-base border border-default rounded-lg px-3 py-2 text-sm text-primary placeholder:text-muted focus:outline-none focus:border-focus/50"
+            />
+            <span className="text-sm text-muted">{t("settings.seconds")}</span>
+            {shutdownGrace !== "" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShutdownGrace("");
+                  setSaved(false);
+                }}
+                className="inline-flex items-center justify-center w-8 h-8 border border-default rounded-md text-muted hover:text-primary hover:border-strong transition-colors shrink-0"
+                title={t("settings.plugins.pluginSettings.shutdownGraceInherit")}
+                aria-label={t("settings.plugins.pluginSettings.shutdownGraceInherit")}
               >
                 <RotateCcw size={12} />
               </button>

@@ -27,8 +27,11 @@ use std::os::windows::process::CommandExt;
 
 /// The first operation waits for initialization of its own plugin only.
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
-/// Allow already accepted RPC calls to finish before killing a plugin.
-const PLUGIN_SHUTDOWN_GRACE: Duration = Duration::from_secs(2);
+/// Default drain window. The value used at shutdown is
+/// [`crate::plugins::shutdown_grace::for_plugin`] (per-plugin override, then
+/// the global setting, then this default). `0` waits without a deadline.
+const PLUGIN_SHUTDOWN_GRACE: Duration =
+    crate::plugins::shutdown_grace::DEFAULT_PLUGIN_SHUTDOWN_GRACE;
 
 /// Flag to create the process without a console window on Windows.
 #[cfg(windows)]
@@ -176,7 +179,7 @@ pub struct PluginProcess {
     sender: mpsc::Sender<PluginCommand>,
     next_id: AtomicU64,
     accepting_calls: std::sync::atomic::AtomicBool,
-    shutdown_tx: tokio::sync::Mutex<Option<oneshot::Sender<()>>>,
+    shutdown_tx: tokio::sync::Mutex<Option<oneshot::Sender<Option<Duration>>>>,
     manager_task: tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
     pub pid: Option<u32>,
     initialization_settings: Option<HashMap<String, Value>>,
@@ -190,7 +193,7 @@ impl PluginProcess {
         interpreter: Option<String>,
     ) -> Result<Self, String> {
         let (tx, rx) = mpsc::channel::<PluginCommand>(100);
-        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let (shutdown_tx, shutdown_rx) = oneshot::channel::<Option<Duration>>();
 
         // Spawn the child process directly in the async context so that any
         // spawn failure is immediately propagated as an error (no silent panic).
@@ -224,6 +227,7 @@ impl PluginProcess {
             })?;
 
         let pid = child.id();
+        let shutdown_plugin_id = plugin_id.clone();
 
         // Hand the running child off to the management task.
         let manager_task = tokio::spawn(async move {
@@ -240,25 +244,34 @@ impl PluginProcess {
                 oneshot::Sender<Result<Value, PluginCallError>>,
             > = HashMap::new();
             let mut line_buf = String::new();
+            let mut shutting_down = false;
             let mut shutdown_deadline: Option<tokio::time::Instant> = None;
             let mut channel_drained = false;
 
             loop {
-                if shutdown_deadline.is_some()
-                    && channel_drained
-                    && pending_requests.is_empty()
-                {
+                if shutting_down && channel_drained && pending_requests.is_empty() {
                     break;
                 }
                 tokio::select! {
-                    _ = &mut shutdown_rx, if shutdown_deadline.is_none() => {
+                    resolved = &mut shutdown_rx, if !shutting_down => {
                         // Existing callers with a reserved queue slot may still
                         // enqueue; receive those requests before deciding we are
                         // fully drained. No fresh reservations are allowed.
                         rx.close();
-                        shutdown_deadline =
-                            Some(tokio::time::Instant::now() + PLUGIN_SHUTDOWN_GRACE);
-                        log::info!("Plugin shutdown requested; draining in-flight RPCs");
+                        shutting_down = true;
+                        // A dropped sender is not a configured "wait forever".
+                        let grace = resolved.unwrap_or(Some(PLUGIN_SHUTDOWN_GRACE));
+                        if let Some(grace) = grace {
+                            shutdown_deadline = Some(tokio::time::Instant::now() + grace);
+                            log::info!(
+                                "Plugin {shutdown_plugin_id} draining RPCs for {}s",
+                                grace.as_secs()
+                            );
+                        } else {
+                            log::info!(
+                                "Plugin {shutdown_plugin_id} draining RPCs until they finish"
+                            );
+                        }
                     }
                     _ = tokio::time::sleep_until(
                         shutdown_deadline.unwrap_or_else(tokio::time::Instant::now)
@@ -300,7 +313,7 @@ impl PluginProcess {
                                 }
                             }
                             None => {
-                                if shutdown_deadline.is_some() {
+                                if shutting_down {
                                     channel_drained = true;
                                 } else {
                                     log::warn!("Plugin process channel closed without shutdown signal");
@@ -378,19 +391,25 @@ impl PluginProcess {
         // Unregistered drivers may still be held by existing Arc references;
         // reject their new calls immediately rather than silently enqueueing.
         self.accepting_calls.store(false, Ordering::Release);
+        // Resolved once and handed to the manager so the drain deadline and
+        // this join bound cannot disagree. `None` waits until in-flight calls
+        // finish (configured 0). A finite grace keeps disable/uninstall bounded.
+        let grace = crate::plugins::shutdown_grace::for_plugin(&self.plugin_id);
         {
             let mut guard = self.shutdown_tx.lock().await;
             if let Some(tx) = guard.take() {
-                let _ = tx.send(());
+                let _ = tx.send(grace);
             }
         }
-        // Disable/uninstall/restart must not wait without bound. The management
-        // task itself also enforces the grace period and reaps its child.
         if let Some(mut task) = self.manager_task.lock().await.take() {
-            if tokio::time::timeout(
-                PLUGIN_SHUTDOWN_GRACE + Duration::from_secs(1),
-                &mut task,
-            ).await.is_err() {
+            let timed_out = match grace.map(|grace| grace + Duration::from_secs(1)) {
+                Some(bound) => tokio::time::timeout(bound, &mut task).await.is_err(),
+                None => {
+                    let _ = (&mut task).await;
+                    false
+                }
+            };
+            if timed_out {
                 // kill_on_drop on the child guarantees no orphan if stdin
                 // becomes stuck and the normal grace timer cannot run.
                 task.abort();
