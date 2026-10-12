@@ -5,7 +5,9 @@
     "is_pk": true,
     "is_nullable": false,
     "is_auto_increment": true,
-    "is_generated": false
+    "is_generated": false,
+    "numeric_precision": 32,
+    "numeric_scale": 0
   },
   {
     "name": "current_mood",

@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Elegir entre valores",
+      "title": "Elegir valores",
+      "search": "Buscar valores",
+      "loading": "Cargando valores…",
+      "error": "No se pudieron cargar los valores",
+      "retry": "Reintentar",
+      "empty": "No hay valores en esta columna",
+      "noMatch": "No hay valores coincidentes",
+      "limited": "Los {{count}} más frecuentes",
+      "use": "Usar {{count}} seleccionados",
+      "useNone": "Usar seleccionados"
+    },
     "autoRefresh": {
       "label": "Actualización automática",
       "off": "Desactivada",
@@ -104,6 +117,7 @@
     "materializedViews": "Vistas Materializadas",
     "refreshMaterializedView": "Actualizar",
     "showDefinition": "Mostrar Definición",
+    "copyDdl": "Copiar DDL",
     "editView": "Editar Vista",
     "viewDefinition": "Definición de Vista",
     "dropView": "Eliminar Vista",
@@ -207,6 +221,16 @@
     "noQueryHistory": "Sin historial de consultas",
     "noHistorySearchResults": "Ninguna consulta coincide con la busqueda",
     "searchHistory": "Buscar en el historial...",
+    "historyOutcomeFilter": "Filtrar por resultado",
+    "historyOutcomeAny": "Cualquier resultado",
+    "historyOutcomeSucceeded": "Correctas",
+    "historyOutcomeFailed": "Fallidas",
+    "historyTimeRangeFilter": "Filtrar por periodo",
+    "historyTimeAll": "Todo el tiempo",
+    "historyTimeLastHour": "Última hora",
+    "historyTimeToday": "Hoy",
+    "historyTimeLast7Days": "Últimos 7 días",
+    "historyTimeLast30Days": "Últimos 30 días",
     "clearAllHistory": "Borrar Todo el Historial",
     "historyRecoveredTitle": "Historial de consultas restablecido",
     "historyRecoveredBody": "El archivo de historial estaba corrupto y se ha movido a un respaldo. Las nuevas consultas se registrarán con normalidad. Archivo de respaldo:",
@@ -598,6 +622,10 @@
     "formatter_linesBetweenQueriesDesc": "Número de líneas en blanco entre sentencias SQL separadas.",
     "formatter_denseOperators": "Operadores compactos",
     "formatter_denseOperatorsDesc": "Eliminar espacios alrededor de operadores (ej. a=1 en lugar de a = 1).",
+    "autocomplete_title": "Autocompletado",
+    "autocomplete_keywordCase": "Mayúsculas en palabras clave",
+    "autocomplete_keywordCaseDesc": "Mayúsculas y minúsculas de las palabras clave SQL insertadas por el autocompletado.",
+    "autocomplete_keywordCaseMatch": "Igualar lo escrito",
     "editConfigJson": "Editar config.json",
     "editConfigJsonDesc": "Edita directamente el archivo de configuración en bruto. Se requiere reinicio para aplicar los cambios.",
     "configJsonModal": {
@@ -916,6 +944,7 @@
       "refreshTable": "Actualizar tabla",
       "extendCellRange": "Extender rango de celdas",
       "jumpToEdge": "Saltar al borde de la cuadrícula",
+      "jumpToColumn": "Ir a columna",
       "extendCellRangeToEdge": "Extender rango hasta el borde",
       "selectRow": "Seleccionar fila",
       "selectColumn": "Seleccionar columna"
@@ -1117,6 +1146,7 @@
     "sshKeyPassphrasePlaceholder": "Ingresa la frase de paso si la clave está cifrada",
     "allowSshPrompt": "Permitir solicitud de contraseña/PIN de SSH",
     "saveKeychain": "Guardar contraseñas en el Llavero",
+    "secretsStoredInPlainText": "Las contraseñas se guardarán en texto sin formato en el archivo de conexiones.",
     "testConnection": "Probar Conexión",
     "save": "Guardar",
     "failSave": "Error al guardar la conexión",
@@ -1224,6 +1254,9 @@
     "useShownValue": "Usar este valor"
   },
   "dataGrid": {
+    "jumpToColumn": "Ir a columna",
+    "searchColumns": "Buscar columnas",
+    "noMatchingColumns": "No hay columnas coincidentes",
     "noRowIdentity": "No se pueden editar las filas: \"{{table}}\" no tiene clave primaria, por lo que la edición requiere que el resultado incluya todas las columnas de la tabla. Selecciona todas las columnas (p. ej. SELECT *) o añade una clave primaria.",
     "resizeRelatedPanel": "Arrastra para redimensionar el panel",
     "keylessRowNotFound": "Ninguna fila coincidió con los valores originales al actualizar \"{{column}}\". La tabla no tiene clave primaria y los datos pueden haber cambiado: actualiza y vuelve a intentarlo.",
@@ -1308,6 +1341,13 @@
     "primaryKey": "Clave Primaria",
     "auto": "Auto"
   },
+  "triggers":{
+    "originalRestored": "Se restauró el trigger original.",
+    "restoreFailed": "La restauración del trigger original también falló: ",
+    "singleEventHint": "Esta base de datos permite un solo evento por trigger.",
+    "existingFunctionHint": "Este trigger conserva su función existente. Edita la función directamente en el editor SQL o en el modo SQL sin procesar.",
+    "unsupportedDriver": "La edición de activadores no es compatible con este controlador."
+  },
   "editor": {
     "quickNavigator": {
       "placeholder": "Buscar tablas, vistas, rutinas, triggers...",
@@ -1359,6 +1399,7 @@
       "detached": "Resultados separados en una ventana aparte",
       "reattach": "Volver a acoplar"
     },
+    "duplicateTab": "Duplicar Pestaña",
     "closeTab": "Cerrar Pestaña",
     "reopenClosedTab": "Reabrir Pestaña Cerrada",
     "closeOthers": "Cerrar Otras Pestañas",

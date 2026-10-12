@@ -3,7 +3,7 @@
  *
  * 1. Scaffold a plugin into a temporary directory (network, file, and
  *    --with-ui variants).
- * 2. Run `cargo check` on each — must exit 0.
+ * 2. Run `cargo check` and `cargo fmt --check` on each — must exit 0.
  * 3. For --with-ui, also verify the ui/ directory has the expected files.
  *
  * Intended to be run via `pnpm --filter @tabularis/create-plugin smoke`.
@@ -56,8 +56,12 @@ function scaffoldOne(kind: "network" | "file", withUi: boolean): void {
   step(`cargo check ${label}`);
   run("cargo", ["check", "--quiet"], target);
 
+  // A fresh plugin should not need reformatting on its first `just fmt`.
+  step(`cargo fmt --check ${label}`);
+  run("cargo", ["fmt", "--check"], target);
+
   rmSync(dir, { recursive: true, force: true });
-  console.log(`  ✓ ${label} — cargo check clean`);
+  console.log(`  ✓ ${label} — cargo check and cargo fmt clean`);
 }
 
 function main(): void {

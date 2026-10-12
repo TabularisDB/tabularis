@@ -58,10 +58,20 @@ vi.mock("../../../src/components/modals/RunRoutineModal", () => ({
   ),
 }));
 
-// Stand-in for the import dialog: one button reports a finished import, the other closes the dialog.
+// Stand-in for the import dialog: it shows the schema it targets, one button reports a
+// finished import and the other closes the dialog.
 vi.mock("../../../src/components/modals/ClipboardImportModal", () => ({
-  ClipboardImportModal: ({ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void }) => (
+  ClipboardImportModal: ({
+    schema,
+    onSuccess,
+    onClose,
+  }: {
+    schema?: string;
+    onSuccess: () => void;
+    onClose: () => void;
+  }) => (
     <>
+      <span>{`clipboard-import-schema:${schema ?? "active"}`}</span>
       <button onClick={onSuccess}>clipboard-import-success</button>
       <button onClick={onClose}>clipboard-import-close</button>
     </>
@@ -377,6 +387,116 @@ describe("ExplorerSidebar — database object navigation", () => {
     expect(objectNavigation.count).toHaveBeenCalledWith("orders", undefined);
   });
 
+  it("context menu — show definition opens the view DDL in a read-only tab", async () => {
+    const ddl = "CREATE OR REPLACE VIEW active_orders AS SELECT 1";
+    vi.mocked(invoke).mockResolvedValue(ddl);
+    openContextMenuOn("active_orders");
+    fireEvent.click(screen.getByText("sidebar.showDefinition"));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("get_view_definition", {
+        connectionId: "c1",
+        viewName: "active_orders",
+      });
+    });
+    expect(objectNavigation.openDefinition).toHaveBeenCalledWith(
+      ddl,
+      "active_orders Definition",
+      undefined,
+      true,
+    );
+  });
+
+  it("context menu — copy DDL copies the view definition and shows feedback", async () => {
+    const showAlert = vi.fn();
+    vi.mocked(useAlert).mockReturnValue({
+      showAlert,
+    } as unknown as ReturnType<typeof useAlert>);
+    const ddl = "CREATE VIEW active_orders AS SELECT 1";
+    vi.mocked(invoke).mockResolvedValue(ddl);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    openContextMenuOn("active_orders");
+    await act(async () => {
+      fireEvent.click(screen.getByText("sidebar.copyDdl"));
+    });
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(ddl);
+    });
+    expect(showAlert).toHaveBeenCalledWith("common.copied", { kind: "info" });
+  });
+
+  it("does not list views when the driver does not support them", () => {
+    vi.mocked(useDatabase).mockReturnValue({
+      ...databaseState,
+      activeCapabilities: { views: false, routines: true, triggers: true },
+      views: [{ name: "active_orders" }],
+    } as unknown as ReturnType<typeof useDatabase>);
+    renderSidebar();
+    expect(screen.queryByText("active_orders")).not.toBeInTheDocument();
+  });
+
+  const renderMaterializedView = (capabilities: Record<string, unknown>) => {
+    vi.mocked(useDatabase).mockReturnValue({
+      ...databaseState,
+      activeCapabilities: { schemas: true, ...capabilities },
+      activeSchema: "public",
+      schemas: ["public", "sales"],
+      selectedSchemas: ["sales"],
+      schemaDataMap: {
+        sales: {
+          tables: [],
+          views: [],
+          materializedViews: [{ name: "daily_totals" }],
+          routines: [],
+          triggers: [],
+          isLoaded: true,
+          isLoading: false,
+        },
+      },
+    } as unknown as ReturnType<typeof useDatabase>);
+    renderSidebar();
+    fireEvent.click(screen.getByText("sales"));
+    fireEvent.click(screen.getByText("sidebar.materializedViews (1)"));
+    fireEvent.contextMenu(screen.getByText("daily_totals"));
+  };
+
+  it("context menu — materialized view hides definition items when materialized_views is unset", () => {
+    renderMaterializedView({});
+    expect(screen.getByText("sidebar.refreshMaterializedView")).toBeInTheDocument();
+    expect(screen.queryByText("sidebar.showDefinition")).not.toBeInTheDocument();
+    expect(screen.queryByText("sidebar.copyDdl")).not.toBeInTheDocument();
+  });
+
+  it("context menu — copy DDL on a materialized view fetches its definition with the schema", async () => {
+    const ddl = "CREATE MATERIALIZED VIEW sales.daily_totals AS SELECT 1";
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === "get_materialized_view_definition" ? ddl : [],
+    );
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    renderMaterializedView({ materialized_views: true });
+    await act(async () => {
+      fireEvent.click(screen.getByText("sidebar.copyDdl"));
+    });
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(ddl);
+    });
+    expect(invoke).toHaveBeenCalledWith("get_materialized_view_definition", {
+      connectionId: "c1",
+      viewName: "daily_totals",
+      schema: "sales",
+    });
+  });
+
   it("context menu — run routine opens the call for review without executing it", () => {
     vi.mocked(useDatabase).mockReturnValue({
       ...databaseState,
@@ -463,8 +583,43 @@ describe("ExplorerSidebar — database object navigation", () => {
         schemas: ["public", "sales"],
       });
 
+      expect(screen.getByText("clipboard-import-schema:active")).toBeInTheDocument();
       await waitFor(() => expect(refreshSchemaData).toHaveBeenCalledWith("public"));
       expect(refreshTables).not.toHaveBeenCalled();
+    });
+
+    it("imports into the schema of the table it was opened from", async () => {
+      vi.mocked(useDatabase).mockReturnValue({
+        ...databaseState,
+        refreshTables,
+        refreshSchemaData,
+        refreshDatabaseData,
+        activeCapabilities: { schemas: true },
+        activeSchema: "public",
+        schemas: ["public", "sales"],
+        selectedSchemas: ["sales"],
+        schemaDataMap: {
+          sales: {
+            tables: [{ name: "sales_orders" }],
+            views: [],
+            routines: [],
+            triggers: [],
+            isLoaded: true,
+            isLoading: false,
+          },
+        },
+      } as unknown as ReturnType<typeof useDatabase>);
+      renderSidebar();
+
+      fireEvent.click(screen.getByText("sales"));
+      fireEvent.contextMenu(screen.getByText("sales_orders"));
+      fireEvent.click(screen.getByText("clipboardImport.contextMenuLabel"));
+      expect(screen.getByText("clipboard-import-schema:sales")).toBeInTheDocument();
+
+      for (const refresh of [refreshTables, refreshSchemaData, refreshDatabaseData]) refresh.mockClear();
+      fireEvent.click(screen.getByText("clipboard-import-success"));
+      await waitFor(() => expect(refreshSchemaData).toHaveBeenCalledWith("sales"));
+      expect(refreshSchemaData).not.toHaveBeenCalledWith("public");
     });
 
     it("refreshes the active database in the multi-database layout", async () => {

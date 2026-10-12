@@ -167,6 +167,65 @@ export function findExistingTableTab(
   );
 }
 
+/** Literal suffix so a duplicated tab stays recognizable in every locale. */
+export const DUPLICATE_TAB_TITLE_SUFFIX = " (copy)";
+
+/** Console and table tabs can be duplicated. Notebooks cannot. */
+export function canDuplicateTab(type: Tab["type"] | undefined): boolean {
+  return type === "console" || type === "table";
+}
+
+/**
+ * Fields copied into a new tab: SQL, parameters, table, schema/database,
+ * and editability flags (`readOnly`, `materialized`).
+ * Results, the source `.sql` path, and notebook ids are left behind.
+ */
+export function buildDuplicatedTab(source: Tab): Partial<Tab> | null {
+  if (!canDuplicateTab(source.type)) return null;
+
+  const duplicate: Partial<Tab> = {
+    type: source.type,
+    title: `${source.title}${DUPLICATE_TAB_TITLE_SUFFIX}`,
+    query: source.query,
+    activeTable: source.activeTable,
+  };
+
+  if (source.queryParams) {
+    duplicate.queryParams = { ...source.queryParams };
+  }
+
+  if (source.schema !== undefined) {
+    duplicate.schema = source.schema;
+  }
+
+  if (source.materialized) {
+    duplicate.materialized = true;
+  }
+
+  if (source.readOnly) {
+    duplicate.readOnly = true;
+  }
+
+  return duplicate;
+}
+
+/**
+ * Insert `tab` immediately after `afterTabId`, preserving every other tab's
+ * relative order (including tabs from other connections). Appends when the
+ * id is missing. Does not mutate `tabs`.
+ */
+export function insertTabAfter(
+  tabs: Tab[],
+  afterTabId: string,
+  tab: Tab,
+): Tab[] {
+  const index = tabs.findIndex((candidate) => candidate.id === afterTabId);
+  if (index === -1) return [...tabs, tab];
+  const next = tabs.slice();
+  next.splice(index + 1, 0, tab);
+  return next;
+}
+
 export function getConnectionTabs(
   tabs: Tab[],
   connectionId: string | null,

@@ -66,7 +66,7 @@ fn unknown_manifest_metadata_is_tolerated_but_grants_no_files() {
 
 #[test]
 fn display_named_packages_install_and_resolve_under_their_id() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = super::tempdir();
     let key = local_registry_key();
     let bytes = display_named_package();
     let preview = local_preview(&bytes, "0.99.0").unwrap();

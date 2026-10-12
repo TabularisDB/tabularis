@@ -367,6 +367,155 @@ describe("connectionStringParser", () => {
     });
   });
 
+  describe("JDBC connection strings and URL options", () => {
+    it("parses JDBC PostgreSQL and MySQL URLs like their standard forms", () => {
+      const postgres = parseConnectionString(
+        "jdbc:postgresql://db.example.com:5432/app?user=alice&password=secret",
+        CAPABILITY_DRIVERS,
+      );
+      const mysql = parseConnectionString(
+        "jdbc:mysql://mysql.example.com:3306/app",
+        CAPABILITY_DRIVERS,
+      );
+      expect(postgres).toEqual(parseConnectionString(
+        "postgresql://db.example.com:5432/app?user=alice&password=secret",
+        CAPABILITY_DRIVERS,
+      ));
+      expect(mysql).toEqual(parseConnectionString(
+        "mysql://mysql.example.com:3306/app",
+        CAPABILITY_DRIVERS,
+      ));
+      expect(postgres.success && postgres.params.username).toBe("alice");
+      expect(postgres.success && postgres.params.password).toBe("secret");
+      expect(mysql.success && mysql.params.driver).toBe("mysql");
+    });
+
+    it("reads URL query credentials when the authority contains none", () => {
+      const result = parseConnectionString(
+        "mysql://db.example.com/app?username=a%2Bb&password=p%26q",
+        CAPABILITY_DRIVERS,
+      );
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.params.username).toBe("a+b");
+        expect(result.params.password).toBe("p&q");
+      }
+    });
+
+    it("does not mix query credentials with authority credentials", () => {
+      const result = parseConnectionString(
+        "postgres://authority@host/db?user=query&password=querypass",
+        CAPABILITY_DRIVERS,
+      );
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.params.username).toBe("authority");
+        expect(result.params.password).toBeUndefined();
+      }
+    });
+
+    it("parses PostgreSQL sslmode and ssl-mode into connection parameters", () => {
+      const result = parseConnectionString(
+        "jdbc:postgresql://host/app?user=alice&sslmode=require",
+        CAPABILITY_DRIVERS,
+      );
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.params.ssl_mode).toBe("require");
+        expect(toConnectionParams(result.params).ssl_mode).toBe("require");
+      }
+      const verify = parseConnectionString(
+        "postgres://host/app?ssl-mode=verify-full",
+        CAPABILITY_DRIVERS,
+      );
+      expect(verify.success && verify.params.ssl_mode).toBe("verify-full");
+    });
+
+    it("maps MySQL TLS options to the connection form's supported values", () => {
+      const required = parseConnectionString(
+        "jdbc:mysql://host/app?ssl-mode=require",
+        CAPABILITY_DRIVERS,
+      );
+      expect(required.success && required.params.ssl_mode).toBe("required");
+      const ca = parseConnectionString(
+        "mysql://host/app?sslmode=verify-ca",
+        CAPABILITY_DRIVERS,
+      );
+      expect(ca.success && ca.params.ssl_mode).toBe("verify_ca");
+      const identity = parseConnectionString(
+        "mysql://host/app?ssl-mode=verify-identity",
+        CAPABILITY_DRIVERS,
+      );
+      expect(identity.success && identity.params.ssl_mode).toBe("verify_identity");
+      const invalid = parseConnectionString(
+        "postgres://host/app?sslmode=unknown",
+        CAPABILITY_DRIVERS,
+      );
+      expect(invalid.success && invalid.params.ssl_mode).toBeUndefined();
+    });
+
+    it("honors case-insensitive JDBC sslMode keys without weakening MySQL verification", () => {
+      for (const [parameter, expected] of [
+        ["sslMode=VERIFY_IDENTITY", "verify_identity"],
+        ["SSLMode=verify_ca", "verify_ca"],
+        ["sslMode=DISABLED", "disabled"],
+      ]) {
+        const parsed = parseConnectionString(
+          `jdbc:mysql://127.0.0.1:3306/app?${parameter}`,
+          CAPABILITY_DRIVERS,
+        );
+        expect(parsed.success && parsed.params.ssl_mode).toBe(expected);
+      }
+      // Canonical sslMode outranks a conflicting ssl-mode even when it
+      // appears later in the URL. Do not accidentally weaken TLS.
+      const conflict = parseConnectionString(
+        "jdbc:mysql://host/app?ssl-mode=DISABLED&sslMode=VERIFY_IDENTITY",
+        CAPABILITY_DRIVERS,
+      );
+      expect(conflict.success && conflict.params.ssl_mode).toBe("verify_identity");
+
+      const pg = parseConnectionString(
+        "jdbc:postgresql://host/app?SSLMode=VERIFY-FULL",
+        CAPABILITY_DRIVERS,
+      );
+      expect(pg.success && pg.params.ssl_mode).toBe("verify-full");
+    });
+
+    it("recognizes only supported JDBC URLs, preserving opaque JDBC plugin URLs", () => {
+      expect(looksLikeConnectionString(
+        "jdbc:postgresql://host/app",
+        CAPABILITY_DRIVERS,
+      )).toBe(true);
+      expect(looksLikeConnectionString(
+        "jdbc:mysql://host/app",
+        CAPABILITY_DRIVERS,
+      )).toBe(true);
+      expect(looksLikeConnectionString(
+        "jdbc:oracle://host/app",
+        CAPABILITY_DRIVERS,
+      )).toBe(false);
+      const opaque = "jdbc:h2:mem:test";
+      const result = parseConnectionString(opaque, [JDBC_DRIVER]);
+      expect(result.success && result.params.connection_uri).toBe(opaque);
+
+      // A separately installed JDBC passthrough driver remains authoritative
+      // even when its URI uses a PostgreSQL-like nested scheme.
+      const nested = "jdbc:postgresql://host/app";
+      const nestedResult = parseConnectionString(nested, [JDBC_DRIVER, ...CAPABILITY_DRIVERS]);
+      expect(nestedResult.success && nestedResult.params.driver).toBe("jdbc");
+      expect(nestedResult.success && nestedResult.params.connection_uri).toBe(nested);
+    });
+
+    it("does not rewrite passthrough MongoDB URIs or their credentials", () => {
+      const result = parseConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.params.connection_uri).toBe(ATLAS_URI);
+        expect(result.params.ssl_mode).toBeUndefined();
+      }
+    });
+  });
+
   describe("toConnectionParams", () => {
     it("should convert parsed result to ConnectionParams", () => {
       const parsed: ParsedConnectionString = {

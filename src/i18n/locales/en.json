@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Pick from values",
+      "title": "Pick values",
+      "search": "Search values",
+      "loading": "Loading values…",
+      "error": "Couldn't load values",
+      "retry": "Retry",
+      "empty": "No values in this column",
+      "noMatch": "No matching values",
+      "limited": "Top {{count}} by count",
+      "use": "Use {{count}} selected",
+      "useNone": "Use selected"
+    },
     "autoRefresh": {
       "label": "Auto-refresh",
       "off": "Off",
@@ -104,6 +117,7 @@
     "materializedViews": "Materialized Views",
     "refreshMaterializedView": "Refresh",
     "showDefinition": "Show Definition",
+    "copyDdl": "Copy DDL",
     "editView": "Edit View",
     "viewDefinition": "View Definition",
     "dropView": "Drop View",
@@ -220,6 +234,16 @@
     "noQueryHistory": "No query history",
     "noHistorySearchResults": "No queries match your search",
     "searchHistory": "Search history...",
+    "historyOutcomeFilter": "Filter by outcome",
+    "historyOutcomeAny": "Any outcome",
+    "historyOutcomeSucceeded": "Succeeded",
+    "historyOutcomeFailed": "Failed",
+    "historyTimeRangeFilter": "Filter by time range",
+    "historyTimeAll": "All time",
+    "historyTimeLastHour": "Last hour",
+    "historyTimeToday": "Today",
+    "historyTimeLast7Days": "Last 7 days",
+    "historyTimeLast30Days": "Last 30 days",
     "clearAllHistory": "Clear All History",
     "historyRecoveredTitle": "Query history was reset",
     "historyRecoveredBody": "The history file was corrupted and has been moved aside. New queries will be recorded as usual. Backup file:",
@@ -609,6 +633,10 @@
     "formatter_linesBetweenQueriesDesc": "Number of blank lines inserted between separate SQL statements.",
     "formatter_denseOperators": "Dense Operators",
     "formatter_denseOperatorsDesc": "Remove spaces around operators (e.g. a=1 instead of a = 1).",
+    "autocomplete_title": "Autocomplete",
+    "autocomplete_keywordCase": "Keyword case",
+    "autocomplete_keywordCaseDesc": "Case of SQL keywords inserted by autocomplete",
+    "autocomplete_keywordCaseMatch": "Match typing",
     "editConfigJson": "Edit config.json",
     "editConfigJsonDesc": "Directly edit the raw configuration file. A restart is required to apply changes.",
     "configJsonModal": {
@@ -935,6 +963,7 @@
       "refreshTable": "Refresh table",
       "extendCellRange": "Extend cell range",
       "jumpToEdge": "Jump to grid edge",
+      "jumpToColumn": "Jump to column",
       "extendCellRangeToEdge": "Extend cell range to edge",
       "selectRow": "Select row",
       "selectColumn": "Select column"
@@ -1134,6 +1163,7 @@
     "sshKeyPassphrasePlaceholder": "Enter key passphrase if encrypted",
     "allowSshPrompt": "Allow SSH password/PIN prompt",
     "saveKeychain": "Save passwords in Keychain",
+    "secretsStoredInPlainText": "Passwords will be stored in plain text in the connection file.",
     "testConnection": "Test Connection",
     "save": "Save",
     "failSave": "Failed to save connection",
@@ -1241,6 +1271,9 @@
     "useShownValue": "Use this value"
   },
   "dataGrid": {
+    "jumpToColumn": "Jump to column",
+    "searchColumns": "Search columns",
+    "noMatchingColumns": "No matching columns",
     "noRowIdentity": "Rows can't be edited: \"{{table}}\" has no primary key, so editing requires the result to include all table columns. Select all columns (e.g. SELECT *) or add a primary key.",
     "resizeRelatedPanel": "Drag to resize panel",
     "keylessRowNotFound": "No row matched the original values while updating \"{{column}}\". The table has no primary key and its data may have changed — refresh and retry.",
@@ -1368,6 +1401,7 @@
       "detached": "Results detached to a separate window",
       "reattach": "Re-attach"
     },
+    "duplicateTab": "Duplicate Tab",
     "closeTab": "Close Tab",
     "reopenClosedTab": "Reopen Closed Tab",
     "closeOthers": "Close Other Tabs",
@@ -1892,7 +1926,12 @@
     "createSuccess": "Trigger created successfully",
     "updateSuccess": "Trigger updated successfully",
     "recreateTrigger": "Recreate Trigger",
-    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?"
+    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?",
+    "originalRestored": "The original trigger was restored.",
+    "restoreFailed": "Restoring the original trigger also failed: ",
+    "singleEventHint": "This database allows one event per trigger.",
+    "existingFunctionHint": "This trigger keeps its existing function. Edit the function itself in the SQL editor or raw SQL mode.",
+    "unsupportedDriver": "Trigger editing is not supported for this driver."
   },
   "community": {
     "title": "Join the Community",

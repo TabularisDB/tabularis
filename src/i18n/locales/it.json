@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Scegli tra i valori",
+      "title": "Scegli valori",
+      "search": "Cerca valori",
+      "loading": "Caricamento valori…",
+      "error": "Impossibile caricare i valori",
+      "retry": "Riprova",
+      "empty": "Nessun valore in questa colonna",
+      "noMatch": "Nessun valore corrispondente",
+      "limited": "I {{count}} più frequenti",
+      "use": "Usa {{count}} selezionati",
+      "useNone": "Usa selezionati"
+    },
     "autoRefresh": {
       "label": "Aggiornamento automatico",
       "off": "Disattivato",
@@ -39,6 +52,13 @@
     "opEndsWith": "finisce con",
     "opIsEmpty": "è vuoto",
     "opIsNotEmpty": "non è vuoto"
+  },
+  "triggers":{
+    "originalRestored": "Il trigger originale è stato ripristinato.",
+    "restoreFailed": "Anche il ripristino del trigger originale è fallito: ",
+    "singleEventHint": "Questo database consente un solo evento per trigger.",
+    "existingFunctionHint": "Questo trigger mantiene la sua funzione esistente. Modifica la funzione direttamente nell'editor SQL o in modalità SQL grezzo.",
+    "unsupportedDriver": "La modifica dei trigger non è supportata per questo driver."
   },
   "tags": {
     "label": "Tag",
@@ -104,6 +124,7 @@
     "materializedViews": "Viste Materializzate",
     "refreshMaterializedView": "Aggiorna",
     "showDefinition": "Mostra Definizione",
+    "copyDdl": "Copia DDL",
     "editView": "Modifica Vista",
     "viewDefinition": "Definizione Vista",
     "dropView": "Elimina Vista",
@@ -207,6 +228,16 @@
     "noQueryHistory": "Nessuna cronologia query",
     "noHistorySearchResults": "Nessuna query corrisponde alla ricerca",
     "searchHistory": "Cerca nella cronologia...",
+    "historyOutcomeFilter": "Filtra per esito",
+    "historyOutcomeAny": "Qualsiasi esito",
+    "historyOutcomeSucceeded": "Riuscite",
+    "historyOutcomeFailed": "Fallite",
+    "historyTimeRangeFilter": "Filtra per periodo",
+    "historyTimeAll": "Sempre",
+    "historyTimeLastHour": "Ultima ora",
+    "historyTimeToday": "Oggi",
+    "historyTimeLast7Days": "Ultimi 7 giorni",
+    "historyTimeLast30Days": "Ultimi 30 giorni",
     "clearAllHistory": "Cancella Tutta la Cronologia",
     "historyRecoveredTitle": "Cronologia query azzerata",
     "historyRecoveredBody": "Il file di cronologia era corrotto ed è stato spostato in backup. Le nuove query verranno registrate normalmente. File di backup:",
@@ -604,6 +635,10 @@
     "formatter_linesBetweenQueriesDesc": "Numero di righe vuote tra istruzioni SQL separate.",
     "formatter_denseOperators": "Operatori compatti",
     "formatter_denseOperatorsDesc": "Rimuovi spazi intorno agli operatori (es. a=1 invece di a = 1).",
+    "autocomplete_title": "Autocompletamento",
+    "autocomplete_keywordCase": "Maiuscole parole chiave",
+    "autocomplete_keywordCaseDesc": "Maiuscole e minuscole delle parole chiave SQL inserite dall’autocompletamento.",
+    "autocomplete_keywordCaseMatch": "Come digitato",
     "editConfigJson": "Modifica config.json",
     "editConfigJsonDesc": "Modifica direttamente il file di configurazione grezzo. È necessario un riavvio per applicare le modifiche.",
     "configJsonModal": {
@@ -922,6 +957,7 @@
       "refreshTable": "Aggiorna tabella",
       "extendCellRange": "Estendi intervallo di celle",
       "jumpToEdge": "Salta al bordo della griglia",
+      "jumpToColumn": "Vai alla colonna",
       "extendCellRangeToEdge": "Estendi intervallo fino al bordo",
       "selectRow": "Seleziona riga",
       "selectColumn": "Seleziona colonna"
@@ -1123,6 +1159,7 @@
     "sshKeyPassphrasePlaceholder": "Inserisci passphrase se la chiave è cifrata",
     "allowSshPrompt": "Consenti prompt password/PIN SSH",
     "saveKeychain": "Salva password nel Portachiavi",
+    "secretsStoredInPlainText": "Le password verranno salvate in chiaro nel file delle connessioni.",
     "testConnection": "Testa Connessione",
     "save": "Salva",
     "failSave": "Salvataggio connessione fallito",
@@ -1230,6 +1267,9 @@
     "useShownValue": "Usa questo valore"
   },
   "dataGrid": {
+    "jumpToColumn": "Vai alla colonna",
+    "searchColumns": "Cerca colonne",
+    "noMatchingColumns": "Nessuna colonna corrispondente",
     "noRowIdentity": "Impossibile modificare le righe: \"{{table}}\" non ha una chiave primaria, quindi la modifica richiede che il risultato includa tutte le colonne della tabella. Seleziona tutte le colonne (es. SELECT *) o aggiungi una chiave primaria.",
     "resizeRelatedPanel": "Trascina per ridimensionare il pannello",
     "keylessRowNotFound": "Nessuna riga corrisponde ai valori originali durante l'aggiornamento di \"{{column}}\". La tabella non ha una chiave primaria e i dati potrebbero essere cambiati: aggiorna e riprova.",
@@ -1352,6 +1392,7 @@
       "detached": "Risultati sganciati in una finestra separata",
       "reattach": "Riaggancia"
     },
+    "duplicateTab": "Duplica scheda",
     "closeTab": "Chiudi scheda",
     "reopenClosedTab": "Riapri scheda chiusa",
     "closeOthers": "Chiudi altre schede",

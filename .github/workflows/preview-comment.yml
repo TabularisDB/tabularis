@@ -31,8 +31,10 @@ jobs:
           RUN_URL: ${{ github.event.workflow_run.html_url }}
           CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_OWNER: ${{ github.event.workflow_run.head_repository.owner.login }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           # workflow_run.pull_requests is empty for fork PRs, so the PR is
-          # looked up from the commit instead; this tells signed from unsigned.
+          # looked up from the head branch instead; this tells signed from unsigned.
           IS_FORK: ${{ github.event.workflow_run.head_repository.full_name != github.repository }}
         shell: bash
         run: |
@@ -45,8 +47,14 @@ jobs:
             exit 0
           fi
 
-          pr=$(gh api "repos/$GH_REPO/commits/$SHA/pulls" \
-            --jq '[.[] | select(.state == "open")] | .[0].number // empty')
+          # By head owner:branch first: commits/{sha}/pulls on this repo
+          # returns nothing for a commit that only lives in a fork.
+          pr=$(gh api -X GET "repos/$GH_REPO/pulls" -f state=open -f head="$HEAD_OWNER:$HEAD_BRANCH" \
+            --jq '[.[] | select(.head.sha == env.SHA)] | .[0].number // empty')
+          if [ -z "$pr" ]; then
+            pr=$(gh api "repos/$GH_REPO/commits/$SHA/pulls" \
+              --jq '[.[] | select(.state == "open")] | .[0].number // empty')
+          fi
           if [ -z "$pr" ]; then
             echo "No open PR for $SHA — nothing to comment on."
             exit 0

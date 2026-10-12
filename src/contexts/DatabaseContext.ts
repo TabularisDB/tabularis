@@ -17,6 +17,19 @@ export interface RoutineInfo {
   name: string;
   routine_type: string;
   definition?: string;
+  /**
+   * The routine's argument signature, where the dialect needs one to tell two
+   * routines of the same name apart. PostgreSQL overloads, so a name there is a
+   * set rather than a routine and every read that followed a click had to pick
+   * one of them arbitrarily (#893). Absent on the dialects where a name is
+   * enough; an EMPTY string is the real signature of a no-argument routine.
+   *
+   * The Rust field is an `Option<String>` that the host skips when it is
+   * `None`, so the wire sends absent; the type admits `null` so that a change
+   * on that side is a type error here rather than a `(null)` suffix in the
+   * sidebar.
+   */
+  identity_args?: string | null;
 }
 
 export interface TriggerInfo {

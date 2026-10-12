@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "값에서 선택",
+      "title": "값 선택",
+      "search": "값 검색",
+      "loading": "값을 불러오는 중…",
+      "error": "값을 불러올 수 없습니다",
+      "retry": "다시 시도",
+      "empty": "이 열에 값이 없습니다",
+      "noMatch": "일치하는 값이 없습니다",
+      "limited": "개수 기준 상위 {{count}}개",
+      "use": "선택한 {{count}}개 사용",
+      "useNone": "선택 항목 사용"
+    },
     "autoRefresh": {
       "label": "자동 새로고침",
       "off": "끄기",
@@ -81,6 +94,7 @@
     "materializedViews": "구체화 뷰",
     "refreshMaterializedView": "새로고침",
     "showDefinition": "정의 보기",
+    "copyDdl": "DDL 복사",
     "editView": "뷰 편집",
     "viewDefinition": "뷰 정의",
     "dropView": "뷰 삭제",
@@ -197,6 +211,16 @@
     "noQueryHistory": "쿼리 기록이 없습니다",
     "noHistorySearchResults": "검색과 일치하는 쿼리가 없습니다",
     "searchHistory": "기록 검색...",
+    "historyOutcomeFilter": "결과로 필터",
+    "historyOutcomeAny": "모든 결과",
+    "historyOutcomeSucceeded": "성공",
+    "historyOutcomeFailed": "실패",
+    "historyTimeRangeFilter": "기간으로 필터",
+    "historyTimeAll": "전체 기간",
+    "historyTimeLastHour": "지난 1시간",
+    "historyTimeToday": "오늘",
+    "historyTimeLast7Days": "지난 7일",
+    "historyTimeLast30Days": "지난 30일",
     "clearAllHistory": "전체 기록 지우기",
     "historyRecoveredTitle": "쿼리 기록이 초기화되었습니다",
     "historyRecoveredBody": "기록 파일이 손상되어 별도로 이동했습니다. 이후 쿼리는 정상적으로 기록됩니다. 백업 파일:",
@@ -548,6 +572,10 @@
     "formatter_linesBetweenQueriesDesc": "SQL 문 사이에 삽입할 빈 줄 수.",
     "formatter_denseOperators": "밀집 연산자",
     "formatter_denseOperatorsDesc": "연산자 주위 공백 제거 (예: a = 1 → a=1).",
+    "autocomplete_title": "자동완성",
+    "autocomplete_keywordCase": "키워드 대소문자",
+    "autocomplete_keywordCaseDesc": "자동완성으로 삽입되는 SQL 키워드의 대소문자.",
+    "autocomplete_keywordCaseMatch": "입력에 맞춤",
     "editConfigJson": "config.json 편집",
     "editConfigJsonDesc": "원본 설정 파일을 직접 편집합니다. 변경 사항을 적용하려면 재시작이 필요합니다.",
     "configJsonModal": {
@@ -864,6 +892,7 @@
       "formatSql": "SQL 포맷",
       "extendCellRange": "셀 범위 확장",
       "jumpToEdge": "그리드 가장자리로 이동",
+      "jumpToColumn": "열로 이동",
       "extendCellRangeToEdge": "셀 범위를 가장자리까지 확장",
       "selectRow": "행 선택",
       "selectColumn": "열 선택",
@@ -1064,6 +1093,7 @@
     "sshKeyPassphrasePlaceholder": "암호화된 경우 키 암호를 입력하세요",
     "allowSshPrompt": "SSH 비밀번호/PIN 입력창 허용",
     "saveKeychain": "키체인에 비밀번호 저장",
+    "secretsStoredInPlainText": "비밀번호는 연결 파일에 평문으로 저장됩니다.",
     "testConnection": "연결 테스트",
     "save": "저장",
     "failSave": "연결 저장에 실패했습니다",
@@ -1170,6 +1200,9 @@
     "useShownValue": "이 값 사용"
   },
   "dataGrid": {
+    "jumpToColumn": "열로 이동",
+    "searchColumns": "열 검색",
+    "noMatchingColumns": "일치하는 열이 없습니다",
     "noRowIdentity": "행을 편집할 수 없습니다: \"{{table}}\"에 기본 키가 없으므로 편집하려면 결과에 테이블의 모든 열이 포함되어야 합니다. 모든 열을 선택하거나(예: SELECT *) 기본 키를 추가하세요.",
     "resizeRelatedPanel": "드래그하여 패널 크기 조정",
     "keylessRowNotFound": "\"{{column}}\" 업데이트 중 원래 값과 일치하는 행이 없습니다. 테이블에 기본 키가 없고 데이터가 변경되었을 수 있습니다. 새로 고친 후 다시 시도하세요.",
@@ -1295,6 +1328,7 @@
       "detached": "결과가 별도 창으로 분리되었습니다",
       "reattach": "다시 붙이기"
     },
+    "duplicateTab": "탭 복제",
     "closeTab": "탭 닫기",
     "reopenClosedTab": "닫은 탭 다시 열기",
     "closeOthers": "다른 탭 닫기",
@@ -1817,7 +1851,12 @@
     "createSuccess": "트리거가 생성되었습니다",
     "updateSuccess": "트리거가 업데이트되었습니다",
     "recreateTrigger": "트리거 재생성",
-    "confirmRecreate": "트리거를 편집하려면 삭제 후 다시 생성해야 합니다. \"{{trigger}}\" 수정을 계속하시겠습니까?"
+    "confirmRecreate": "트리거를 편집하려면 삭제 후 다시 생성해야 합니다. \"{{trigger}}\" 수정을 계속하시겠습니까?",
+    "originalRestored": "원래 트리거를 복원했습니다.",
+    "restoreFailed": "원래 트리거 복원에도 실패했습니다: ",
+    "singleEventHint": "이 데이터베이스는 트리거당 하나의 이벤트만 허용합니다.",
+    "existingFunctionHint": "이 트리거는 기존 함수를 유지합니다. 함수 자체는 SQL 편집기 또는 Raw SQL 모드에서 수정하세요.",
+    "unsupportedDriver": "이 드라이버에서는 트리거 편집이 지원되지 않습니다."
   },
   "community": {
     "title": "커뮤니티에 참여하세요",

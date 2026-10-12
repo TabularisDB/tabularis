@@ -130,6 +130,16 @@
     "overridable": false
   },
   {
+    "id": "jump_to_column",
+    "category": "data_grid",
+    "defaultMac": "⌘+Shift+J",
+    "defaultWin": "Ctrl+Shift+J",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "j", "code": "KeyJ" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "j", "code": "KeyJ" },
+    "i18nKey": "settings.shortcuts.jumpToColumn",
+    "overridable": true
+  },
+  {
     "id": "extend_cell_range_to_edge",
     "category": "data_grid",
     "defaultMac": "⌘+Shift+↑↓←→",

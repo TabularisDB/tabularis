@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Aus Werten wählen",
+      "title": "Werte auswählen",
+      "search": "Werte suchen",
+      "loading": "Werte werden geladen…",
+      "error": "Werte konnten nicht geladen werden",
+      "retry": "Erneut versuchen",
+      "empty": "Keine Werte in dieser Spalte",
+      "noMatch": "Keine passenden Werte",
+      "limited": "Top {{count}} nach Anzahl",
+      "use": "{{count}} ausgewählte verwenden",
+      "useNone": "Auswahl verwenden"
+    },
     "autoRefresh": {
       "label": "Automatisch aktualisieren",
       "off": "Aus",
@@ -104,6 +117,7 @@
     "materializedViews": "Materialisierte Ansichten",
     "refreshMaterializedView": "Aktualisieren",
     "showDefinition": "Definition anzeigen",
+    "copyDdl": "DDL kopieren",
     "editView": "Ansicht bearbeiten",
     "viewDefinition": "Ansichtsdefinition",
     "dropView": "Ansicht löschen",
@@ -207,6 +221,16 @@
     "noQueryHistory": "Kein Abfrageverlauf",
     "noHistorySearchResults": "Keine Abfragen entsprechen deiner Suche",
     "searchHistory": "Verlauf durchsuchen...",
+    "historyOutcomeFilter": "Nach Ergebnis filtern",
+    "historyOutcomeAny": "Beliebiges Ergebnis",
+    "historyOutcomeSucceeded": "Erfolgreich",
+    "historyOutcomeFailed": "Fehlgeschlagen",
+    "historyTimeRangeFilter": "Nach Zeitraum filtern",
+    "historyTimeAll": "Gesamte Zeit",
+    "historyTimeLastHour": "Letzte Stunde",
+    "historyTimeToday": "Heute",
+    "historyTimeLast7Days": "Letzte 7 Tage",
+    "historyTimeLast30Days": "Letzte 30 Tage",
     "clearAllHistory": "Gesamten Verlauf löschen",
     "historyRecoveredTitle": "Abfrageverlauf zurückgesetzt",
     "historyRecoveredBody": "Die Verlaufsdatei war beschädigt und wurde beiseitegelegt. Neue Abfragen werden wie gewohnt aufgezeichnet. Sicherungsdatei:",
@@ -573,6 +597,10 @@
     "formatter_linesBetweenQueriesDesc": "Anzahl der Leerzeilen zwischen separaten SQL-Anweisungen.",
     "formatter_denseOperators": "Kompakte Operatoren",
     "formatter_denseOperatorsDesc": "Leerzeichen um Operatoren entfernen (z.B. a=1 statt a = 1).",
+    "autocomplete_title": "Autovervollständigung",
+    "autocomplete_keywordCase": "Schlüsselwort-Schreibweise",
+    "autocomplete_keywordCaseDesc": "Groß-/Kleinschreibung von SQL-Schlüsselwörtern, die durch die Autovervollständigung eingefügt werden.",
+    "autocomplete_keywordCaseMatch": "An Eingabe anpassen",
     "editConfigJson": "config.json bearbeiten",
     "editConfigJsonDesc": "Bearbeite die rohe Konfigurationsdatei direkt. Ein Neustart ist erforderlich, um Änderungen anzuwenden.",
     "configJsonModal": {
@@ -891,6 +919,7 @@
       "refreshTable": "Tabelle aktualisieren",
       "extendCellRange": "Zellbereich erweitern",
       "jumpToEdge": "Zum Rand des Rasters springen",
+      "jumpToColumn": "Zu Spalte springen",
       "extendCellRangeToEdge": "Zellbereich bis zum Rand erweitern",
       "selectRow": "Zeile auswählen",
       "selectColumn": "Spalte auswählen"
@@ -1089,6 +1118,7 @@
     "sshKeyPassphrasePlaceholder": "Passphrase eingeben, falls der Schlüssel verschlüsselt ist",
     "allowSshPrompt": "SSH-Passwort/PIN-Eingabeaufforderung erlauben",
     "saveKeychain": "Passwörter im Keychain speichern",
+    "secretsStoredInPlainText": "Passwörter werden im Klartext in der Verbindungsdatei gespeichert.",
     "testConnection": "Verbindung testen",
     "save": "Speichern",
     "failSave": "Speichern der Verbindung fehlgeschlagen",
@@ -1196,6 +1226,9 @@
     "useShownValue": "Diesen Wert verwenden"
   },
   "dataGrid": {
+    "jumpToColumn": "Zu Spalte springen",
+    "searchColumns": "Spalten suchen",
+    "noMatchingColumns": "Keine passenden Spalten",
     "noRowIdentity": "Zeilen können nicht bearbeitet werden: \"{{table}}\" hat keinen Primärschlüssel, daher muss das Ergebnis alle Spalten der Tabelle enthalten. Wählen Sie alle Spalten aus (z. B. SELECT *) oder fügen Sie einen Primärschlüssel hinzu.",
     "resizeRelatedPanel": "Ziehen, um die Größe des Bereichs zu ändern",
     "keylessRowNotFound": "Beim Aktualisieren von \"{{column}}\" stimmte keine Zeile mit den ursprünglichen Werten überein. Die Tabelle hat keinen Primärschlüssel und die Daten haben sich möglicherweise geändert – aktualisieren und erneut versuchen.",
@@ -1338,6 +1371,7 @@
       "reattach": "Wieder andocken"
     },
     "tableRunPrompt": "Drücke Ausführen (Ctrl/Command+F5), um Tabellendaten zu laden",
+    "duplicateTab": "Tab duplizieren",
     "closeTab": "Tab schließen",
     "reopenClosedTab": "Geschlossenen Tab wieder öffnen",
     "closeOthers": "Andere Tabs schließen",
@@ -2373,6 +2407,13 @@
         "connection_uri": "Verwendet eine Verbindungszeichenfolge, vom Plugin noch nicht unterstützt"
       }
     }
+  },
+  "triggers":{
+    "originalRestored": "Der ursprüngliche Trigger wurde wiederhergestellt.",
+    "restoreFailed": "Die Wiederherstellung des ursprünglichen Triggers ist ebenfalls fehlgeschlagen: ",
+    "singleEventHint": "Diese Datenbank erlaubt nur ein Ereignis pro Trigger.",
+    "existingFunctionHint": "Dieser Trigger behält seine bestehende Funktion. Bearbeiten Sie die Funktion selbst im SQL-Editor oder im Raw-SQL-Modus.",
+    "unsupportedDriver": "Das Bearbeiten von Auslösern wird für diesen Treiber nicht unterstützt."
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Datenbanken suchen…",

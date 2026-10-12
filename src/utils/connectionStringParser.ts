@@ -15,6 +15,8 @@ export interface ParsedConnectionString {
   port?: number;
   username?: string;
   password?: string;
+  /** TLS mode selected through sslmode / ssl-mode in an imported URI. */
+  ssl_mode?: string;
   database: string;
   /** Original connection string, preserved verbatim for URI-passthrough drivers.
    * When set it is authoritative: the decomposed fields above are only there so
@@ -76,6 +78,51 @@ function normalizeProtocol(protocol: string): string {
 function getProtocolFromConnectionString(value: string): string | null {
   const match = /^([a-z][a-z\d+.-]*):/i.exec(value);
   return match ? normalizeProtocol(match[1]) : null;
+}
+
+/** JDBC wrappers for built-in PostgreSQL/MySQL URLs use an ordinary URI
+ * after the prefix. Leave other JDBC and raw plugin URIs untouched. */
+function normalizeJdbcConnectionString(value: string): string {
+  const match = /^jdbc:(postgres(?:ql)?|mysql|mariadb):\/\//i.exec(value);
+  return match ? value.slice(5) : value;
+}
+
+/** Normalize known URI SSL settings to the values offered by the connection form.
+ * @returns A mapped SSL mode, or undefined for an unknown mode or protocol.
+ */
+function getSslModeFromUrl(url: URL, protocol: string): string | undefined {
+  // URLSearchParams.get is case-sensitive, but Connector/J uses "sslMode".
+  // Recognize that spelling along with the existing hyphen/underscore aliases.
+  // Keep the original alias priority (sslmode > ssl-mode > ssl_mode)
+  // even if a differently named query parameter appears first.
+  const params = Array.from(url.searchParams.entries());
+  const getParam = (name: string) =>
+    params.find(([key]) => key.toLowerCase() === name)?.[1];
+  const mode = (
+    getParam("sslmode") ?? getParam("ssl-mode") ?? getParam("ssl_mode")
+  )?.trim().toLowerCase();
+  if (!mode) return undefined;
+
+  if (protocol === "mysql" || protocol === "mariadb") {
+    const mysqlModes: Record<string, string> = {
+      disable: "disabled", disabled: "disabled",
+      prefer: "preferred", preferred: "preferred",
+      require: "required", required: "required",
+      "verify-ca": "verify_ca", verify_ca: "verify_ca",
+      "verify-full": "verify_identity", "verify-identity": "verify_identity",
+      verify_identity: "verify_identity",
+    };
+    return mysqlModes[mode];
+  }
+  if (protocol === "postgres" || protocol === "postgresql") {
+    const pgModes: Record<string, string> = {
+      disable: "disable", allow: "allow", prefer: "prefer",
+      require: "require", "verify-ca": "verify-ca",
+      "verify-full": "verify-full",
+    };
+    return pgModes[mode];
+  }
+  return undefined;
 }
 
 /**
@@ -244,9 +291,14 @@ export function parseConnectionString(
     return { success: false, error: "Connection string is empty" };
   }
 
-  const trimmed = connectionString.trim();
-
   const registry = buildProtocolRegistry(drivers);
+  const raw = connectionString.trim();
+  // A driver explicitly registering the JDBC scheme may own its URI syntax.
+  // Normalize only when JDBC is not being handled as an opaque passthrough.
+  const declaredJdbcDriver = registry.get(getProtocolFromConnectionString(raw) ?? "");
+  const trimmed = declaredJdbcDriver?.passthrough
+    ? raw
+    : normalizeJdbcConnectionString(raw);
   const declaredProtocol = getProtocolFromConnectionString(trimmed);
   const declaredDriver = declaredProtocol
     ? registry.get(declaredProtocol)
@@ -323,8 +375,16 @@ export function parseConnectionString(
 
   const host = url.hostname || undefined;
   const port = url.port ? Number.parseInt(url.port, 10) : undefined;
-  const username = url.username ? decodeURIComponent(url.username) : undefined;
-  const password = url.password ? decodeURIComponent(url.password) : undefined;
+  // Never combine credentials from the authority and query string: the
+  // authority wins, even if its password is empty or missing.
+  const hasAuthorityCredentials = !!(url.username || url.password);
+  const username = hasAuthorityCredentials
+    ? (url.username ? decodeURIComponent(url.username) : undefined)
+    : (url.searchParams.get("user") || url.searchParams.get("username") || undefined);
+  const password = hasAuthorityCredentials
+    ? (url.password ? decodeURIComponent(url.password) : undefined)
+    : (url.searchParams.get("password") || undefined);
+  const ssl_mode = getSslModeFromUrl(url, protocol);
 
   let database = url.pathname;
   if (database.startsWith("/")) {
@@ -348,6 +408,7 @@ export function parseConnectionString(
       username,
       password,
       database,
+      ssl_mode,
     },
   };
 }
@@ -364,6 +425,7 @@ export function toConnectionParams(
     port: parsed.port,
     username: parsed.username,
     password: parsed.password,
+    ssl_mode: parsed.ssl_mode,
     database: parsed.database,
     connection_uri: parsed.connection_uri,
   };
@@ -379,9 +441,12 @@ export function looksLikeConnectionString(
 ): boolean {
   if (!value || !value.trim()) return false;
 
-  const trimmed = value.trim();
-
   const registry = buildProtocolRegistry(drivers);
+  const raw = value.trim();
+  const declaredJdbcDriver = registry.get(getProtocolFromConnectionString(raw) ?? "");
+  const trimmed = declaredJdbcDriver?.passthrough
+    ? raw
+    : normalizeJdbcConnectionString(raw);
   const declaredProtocol = getProtocolFromConnectionString(trimmed);
   const declaredDriver = declaredProtocol
     ? registry.get(declaredProtocol)

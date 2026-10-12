@@ -4,6 +4,8 @@ import { hasPendingTableEdits, tableRefreshIdentity } from "../utils/autoRefresh
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
+  buildDuplicatedTab,
+  canDuplicateTab,
   getTabDisplayTitle,
   reconstructTableQuery,
   resolveTabPageSize,
@@ -101,6 +103,7 @@ import { NewRowModal } from "../components/modals/NewRowModal";
 import { QuerySelectionModal } from "../components/modals/QuerySelectionModal";
 import { ConfirmModal } from "../components/modals/ConfirmModal";
 import { ExplainSelectionModal } from "../components/modals/ExplainSelectionModal";
+import { useTabSwitcher } from "../hooks/useTabSwitcher";
 import { TabSwitcherModal } from "../components/modals/TabSwitcherModal";
 import { QueryModal } from "../components/modals/QueryModal";
 import { QueryParamsModal } from "../components/modals/QueryParamsModal";
@@ -133,11 +136,11 @@ import { notifyQueryFinished } from "../utils/queryNotification";
 import {
   buildSyncPayload,
   applyAction,
-  RESULTS_SYNC_EVENT,
   RESULTS_ACTION_EVENT,
   RESULTS_READY_EVENT,
   RESULTS_CLOSED_EVENT,
-  RESULTS_COPY_EVENT,
+  resultsCopyEvent,
+  resultsSyncEvent,
   type CopiedRows,
   type ResultsCopyPayload,
   type ResultsWindowActionHandlers,
@@ -198,7 +201,6 @@ import { RelatedRecordsPanel } from "../components/ui/RelatedRecordsPanel";
 import {
   getTabScrollState,
   getAdjacentTabIndex,
-  resolveNextTabId,
   isFocusedPane,
 } from "../utils/tabScroll";
 import { computeAutoScrollSpeed } from "../utils/notebookDnd";
@@ -273,6 +275,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     closeTabsToLeft,
     closeTabsToRight,
     getAutoRefreshSchedule,
+    getRecentTabIds,
     reopenClosedTab,
     canReopenClosedTab,
   } = useEditor();
@@ -505,7 +508,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     resolve: resolveDangerousQuery,
   } = useQueryGuards(activeConnectionId);
   const guardProductionWrite = useProductionGuard();
-  const [isTabSwitcherOpen, setIsTabSwitcherOpen] = useState(false);
+  const tabSwitcher = useTabSwitcher({
+    tabs,
+    activeTabId,
+    connectionId: activeConnectionId,
+    enabled: isFocusedPane(explorerConnectionId, activeConnectionId),
+    getRecentTabIds,
+    setActiveTabId,
+  });
   const [isRunDropdownOpen, setIsRunDropdownOpen] = useState(false);
   const [isDbDropdownOpen, setIsDbDropdownOpen] = useState(false);
   // Toolbar dropdowns close on outside mousedown instead of a fixed backdrop:
@@ -992,6 +1002,17 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const clearEntryScrollTops = useCallback((tabId: string) => {
     clearScrollTopsForTab(scrollTopByEntryKeyRef.current, tabId);
   }, []);
+
+  const handleDuplicateTab = useCallback(
+    (tabId: string) => {
+      const source = tabsRef.current.find((tab) => tab.id === tabId);
+      if (!source) return;
+      const duplicate = buildDuplicatedTab(source);
+      if (!duplicate) return;
+      addTab(duplicate, { insertAfterId: source.id, forceNew: true });
+    },
+    [addTab],
+  );
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
@@ -2063,14 +2084,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   }, []);
 
   // Push each detached tab's result state to its window whenever the tabs
-  // change (every detached tab is re-synced; its window filters by tabId).
+  // change.
   useEffect(() => {
     if (detachedTabIds.size === 0) return;
     for (const id of detachedTabIds) {
       const tab = tabs.find((t) => t.id === id);
       if (tab) {
         emit(
-          RESULTS_SYNC_EVENT,
+          resultsSyncEvent(id),
           buildSyncPayload(tab, {
             connectionId: activeConnectionId,
             copyFormat,
@@ -2237,7 +2258,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       const tab = tabsRef.current.find((t) => t.id === tabId);
       if (tab) {
         emit(
-          RESULTS_SYNC_EVENT,
+          resultsSyncEvent(tabId),
           buildSyncPayload(tab, {
             connectionId: activeConnectionId,
             copyFormat,
@@ -2258,11 +2279,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         try {
           const copied = await rows;
           if (!copied) return;
-          payload = { tabId, ...copied };
+          payload = copied;
         } catch (e) {
-          payload = { tabId, error: String(e) };
+          payload = { error: String(e) };
         }
-        emit(RESULTS_COPY_EVENT, payload);
+        emit(resultsCopyEvent(tabId), payload);
       };
       return {
         onRunQueryPage: (query, page) => runQuery(query, page, tabId),
@@ -2667,30 +2688,6 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleRunButton, handleRunAll]);
 
-  // Global Ctrl+Tab shortcut: open tab switcher and advance to next tab circularly.
-  // In split mode only the focused pane (explorerConnectionId) handles the shortcut.
-  useEffect(() => {
-    const focused = isFocusedPane(explorerConnectionId, activeConnectionId);
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!focused || !e.ctrlKey || e.key !== "Tab") return;
-      e.preventDefault();
-      setIsTabSwitcherOpen(true);
-      const nextId = resolveNextTabId(tabsRef.current, activeTabIdRef.current);
-      if (nextId !== null) setActiveTabId(nextId);
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (!focused || e.key !== "Control") return;
-      setIsTabSwitcherOpen(false);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-    };
-  }, [explorerConnectionId, activeConnectionId, setActiveTabId]);
-
   // Cmd/Ctrl+T: new console tab; Cmd/Ctrl+Right: next page; Cmd/Ctrl+Left: prev page
   useEffect(() => {
     const focused = isFocusedPane(explorerConnectionId, activeConnectionId);
@@ -2819,6 +2816,39 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       runQuery(undefined, 1, undefined, undefined, filter, sort, limit);
     },
     [updateTab, runQuery],
+  );
+
+  // Read-only helper for the filter value picker (issue #869): runs on the
+  // tab's own session so it sees the same rows as the grid.
+  const runToolbarQuery = useCallback(
+    async (sql: string): Promise<QueryResult> => {
+      const tabId = activeTabIdRef.current;
+      const currentTab = tabsRef.current.find((tb) => tb.id === tabId);
+      if (!currentTab || currentTab.connectionId !== activeConnectionIdRef.current) {
+        throw new Error("No active connection");
+      }
+      const connectionId = currentTab.connectionId;
+      const schema = currentTab.schema ?? activeSchema;
+      const table = currentTab.activeTable;
+      const result = await getAutoRefreshSchedule(currentTab.id).run(async () => {
+        const targetTab = tabsRef.current.find((tab) => tab.id === currentTab.id);
+        if (!targetTab || activeTabIdRef.current !== currentTab.id ||
+          activeConnectionIdRef.current !== connectionId ||
+          targetTab.connectionId !== connectionId || targetTab.activeTable !== table ||
+          (targetTab.schema ?? activeSchema) !== schema) {
+          throw new Error("The table changed before the values query could run");
+        }
+        return invoke<QueryResult>("execute_query", {
+          connectionId,
+          query: sql,
+          sessionId: currentTab.id,
+          ...(schema ? { schema } : {}),
+        });
+      });
+      if (!result) throw new Error("The values query did not run");
+      return result;
+    },
+    [activeSchema, getAutoRefreshSchedule],
   );
 
   const handleForeignKeyShowPanel = useCallback(
@@ -4924,7 +4954,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 dialect={activeDialect}
                 foldPreview
                 onChange={(val) => {
-                  if (!isActive) return;
+                  // Debounced Monaco edits can arrive after this tab becomes
+                  // inactive. The callback belongs to the tab's stable id;
+                  // dropping it would lose the user's latest SQL on switch.
                   updateTab(tab.id, {
                     query: val,
                     ...(tab.sourceFilePath
@@ -4988,6 +5020,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               placeholderSort={placeholders.sort}
               defaultLimit={settings.resultPageSize || 100}
               columnMetadata={activeTab?.columnMetadata}
+              tableName={activeTab?.activeTable}
               onUpdate={handleToolbarUpdate}
               onRefresh={handleRefresh}
               refreshDisabled={!!activeTab.isLoading || refreshBlockedByEdits || refreshSnapshot.editing}
@@ -4998,6 +5031,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               }}
               autoRefreshPaused={!!activeTab.autoRefreshIntervalMs && (refreshBlockedByEdits || refreshSnapshot.editing || refreshBlockedBySelection)}
               autoRefreshPausedReason={refreshBlockedByEdits || refreshSnapshot.editing ? "editing" : "selection"}
+              tableSchema={activeTab.schema}
+              onRunQuery={runToolbarQuery}
             />
           ) : (
             <div
@@ -5707,15 +5742,12 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         }
       />
       <TabSwitcherModal
-        isOpen={isTabSwitcherOpen}
-        tabs={tabs}
+        isOpen={tabSwitcher.isOpen}
+        tabs={tabSwitcher.tabs}
         activeTabId={activeTabId}
-        onSelect={(tabId) => {
-          setActiveTabId(tabId);
-          setIsTabSwitcherOpen(false);
-        }}
+        onSelect={tabSwitcher.select}
         onClose={(tabId) => handleCloseTab(tabId)}
-        onDismiss={() => setIsTabSwitcherOpen(false)}
+        onDismiss={tabSwitcher.dismiss}
       />
       {saveQueryModal.isOpen && (
         <QueryModal
@@ -5806,6 +5838,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                     label: t("editor.convertToConsole"),
                     icon: FileCode,
                     action: () => handleConvertToConsole(tabContextMenu.tabId),
+                  },
+                ]
+              : []),
+            ...(contextTab && canDuplicateTab(contextTab.type)
+              ? [
+                  {
+                    label: t("editor.duplicateTab"),
+                    icon: Copy,
+                    action: () => handleDuplicateTab(tabContextMenu.tabId),
                   },
                 ]
               : []),

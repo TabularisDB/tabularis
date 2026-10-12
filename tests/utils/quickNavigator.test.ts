@@ -50,6 +50,106 @@ describe("quickNavigator utility", () => {
       expect(result[3]).toEqual({ name: "on_users_insert", type: "trigger", schema: "default_db", detail: "on users", item: params.triggers[0] });
     });
 
+    it('labels overloaded routines by signature so the palette entries differ (#893)', () => {
+      // Four overloads of one name were four identical palette entries, and
+      // picking one of them opened whichever the catalog returned first.
+      const params: NavigatorItemParams = {
+        activeConnectionId: 'conn-1',
+        hasSchemas: false,
+        isMultiDb: false,
+        schemas: [],
+        schemaDataMap: {},
+        selectedDatabases: [],
+        databaseDataMap: {},
+        tables: [],
+        views: [],
+        routines: [
+          { name: 'f', routine_type: 'FUNCTION', identity_args: '' },
+          { name: 'f', routine_type: 'FUNCTION', identity_args: 'a integer' },
+          { name: 'f', routine_type: 'FUNCTION', identity_args: 'a text' },
+        ],
+        triggers: [],
+        activeSchema: 'default_db',
+      };
+
+      const names = getNavigatorItems(params).map((i) => i.name);
+      expect(names).toEqual(['f()', 'f(a integer)', 'f(a text)']);
+      expect(new Set(names).size).toBe(3);
+    });
+
+    it('carries the signature into the object descriptor the palette opens (#893)', () => {
+      // Without this the palette kept opening an arbitrary overload while the
+      // sidebar opened the right one, which is worse than both being wrong.
+      const item = {
+        name: 'f(a text)',
+        type: 'routine' as const,
+        schema: 'default_db',
+        detail: 'FUNCTION',
+        item: { name: 'f', routine_type: 'FUNCTION', identity_args: 'a text' },
+      };
+
+      const descriptor = toDatabaseObject(item, {
+        connectionId: 'conn-1',
+        driver: 'postgres',
+        isMultiDatabase: false,
+      });
+
+      expect(descriptor).toMatchObject({
+        type: 'routine',
+        routineType: 'FUNCTION',
+        identityArgs: 'a text',
+      });
+    });
+
+    it('keeps the BARE name on the descriptor, not the display label (#893)', () => {
+      // DatabaseObject.name is an identifier, not a label: it reaches
+      // get_routine_definition as routineName and the catalog filters
+      // p.proname on it, and Copy name puts it on the clipboard. Carrying the
+      // label through broke every PostgreSQL routine opened from the palette,
+      // overloaded or not, because `f()` is a label too.
+      const item = {
+        name: 'f(a text)',
+        type: 'routine' as const,
+        schema: 'default_db',
+        detail: 'FUNCTION',
+        item: { name: 'f', routine_type: 'FUNCTION', identity_args: 'a text' },
+      };
+
+      const descriptor = toDatabaseObject(item, {
+        connectionId: 'conn-1',
+        driver: 'postgres',
+        isMultiDatabase: false,
+      });
+
+      expect(descriptor.name).toBe('f');
+      expect(descriptor.name).not.toContain('(');
+    });
+
+    it('labels a routine with no signature by its bare name (#893)', () => {
+      // A dialect that cannot overload reports no signature. The host skips the
+      // field when it is None, so it arrives absent; `null` is covered too,
+      // because the type still admits it and the label must not read (null).
+      const params: NavigatorItemParams = {
+        activeConnectionId: 'conn-1',
+        hasSchemas: false,
+        isMultiDb: false,
+        schemas: [],
+        schemaDataMap: {},
+        selectedDatabases: [],
+        databaseDataMap: {},
+        tables: [],
+        views: [],
+        routines: [
+          { name: 'do_thing', routine_type: 'PROCEDURE', identity_args: null },
+          { name: 'do_other', routine_type: 'PROCEDURE' },
+        ],
+        triggers: [],
+        activeSchema: 'default_db',
+      };
+
+      expect(getNavigatorItems(params).map((i) => i.name)).toEqual(['do_thing', 'do_other']);
+    });
+
     it("should extract items in schema mode", () => {
       const mockSchemaData: SchemaData = {
         tables: [{ name: "orders" }],

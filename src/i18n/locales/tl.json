@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Pumili mula sa mga value",
+      "title": "Pumili ng mga value",
+      "search": "Maghanap ng value",
+      "loading": "Nilo-load ang mga value…",
+      "error": "Hindi ma-load ang mga value",
+      "retry": "Subukang muli",
+      "empty": "Walang value sa column na ito",
+      "noMatch": "Walang tugmang value",
+      "limited": "Nangungunang {{count}} ayon sa bilang",
+      "use": "Gamitin ang {{count}} napili",
+      "useNone": "Gamitin ang napili"
+    },
     "autoRefresh": {
       "label": "Awtomatikong pag-refresh",
       "off": "Naka-off",
@@ -104,6 +117,7 @@
     "materializedViews": "Mga Materialized View",
     "refreshMaterializedView": "I-refresh",
     "showDefinition": "Ipakita ang Definition",
+    "copyDdl": "Kopyahin ang DDL",
     "editView": "I-edit ang View",
     "viewDefinition": "Definition ng View",
     "dropView": "I-drop ang View",
@@ -220,6 +234,16 @@
     "noQueryHistory": "Walang kasaysayan ng query",
     "noHistorySearchResults": "Walang query na tumugma sa iyong paghahanap",
     "searchHistory": "Maghanap sa kasaysayan...",
+    "historyOutcomeFilter": "I-filter ayon sa resulta",
+    "historyOutcomeAny": "Anumang resulta",
+    "historyOutcomeSucceeded": "Matagumpay",
+    "historyOutcomeFailed": "Nabigo",
+    "historyTimeRangeFilter": "I-filter ayon sa oras",
+    "historyTimeAll": "Lahat ng oras",
+    "historyTimeLastHour": "Nakaraang oras",
+    "historyTimeToday": "Ngayon",
+    "historyTimeLast7Days": "Nakaraang 7 araw",
+    "historyTimeLast30Days": "Nakaraang 30 araw",
     "clearAllHistory": "Burahin ang Lahat ng Kasaysayan",
     "historyRecoveredTitle": "Na-reset ang kasaysayan ng query",
     "historyRecoveredBody": "Sira ang file ng kasaysayan at inilipat ito. Normal na maitatala ang mga bagong query. Backup file:",
@@ -603,6 +627,10 @@
     "formatter_linesBetweenQueriesDesc": "Bilang ng blank lines sa pagitan ng SQL statements.",
     "formatter_denseOperators": "Siksik na Operators",
     "formatter_denseOperatorsDesc": "Alisin ang spaces sa paligid ng operators (hal. a=1 sa halip na a = 1).",
+    "autocomplete_title": "Autocomplete",
+    "autocomplete_keywordCase": "Case ng keyword",
+    "autocomplete_keywordCaseDesc": "Case ng mga SQL keyword na ini-insert ng autocomplete.",
+    "autocomplete_keywordCaseMatch": "Sundin ang tina-type",
     "editConfigJson": "I-edit ang config.json",
     "editConfigJsonDesc": "Direktang i-edit ang raw configuration file. Kailangan ng restart para mailapat ang mga pagbabago.",
     "configJsonModal": {
@@ -919,6 +947,7 @@
       "formatSql": "I-format ang SQL",
       "extendCellRange": "Palawakin ang cell range",
       "jumpToEdge": "Tumalon sa gilid ng grid",
+      "jumpToColumn": "Pumunta sa kolum",
       "extendCellRangeToEdge": "Palawakin ang range hanggang sa gilid",
       "selectRow": "Piliin ang row",
       "selectColumn": "Piliin ang column",
@@ -1119,6 +1148,7 @@
     "sshKeyPassphrasePlaceholder": "Ilagay ang key passphrase kung naka-encrypt",
     "allowSshPrompt": "Payagan ang SSH password/PIN prompt",
     "saveKeychain": "I-save ang mga password sa Keychain",
+    "secretsStoredInPlainText": "Ang mga password ay ise-save bilang plain text sa file ng koneksyon.",
     "testConnection": "Subukan ang Connection",
     "save": "I-save",
     "failSave": "Nabigong i-save ang connection",
@@ -1225,6 +1255,9 @@
     "useShownValue": "Gamitin ang value na ito"
   },
   "dataGrid": {
+    "jumpToColumn": "Pumunta sa kolum",
+    "searchColumns": "Maghanap ng mga kolum",
+    "noMatchingColumns": "Walang katugmang kolum",
     "noRowIdentity": "Hindi ma-edit ang mga row: walang primary key ang \"{{table}}\", kaya kailangang kasama sa resulta ang lahat ng column ng table. Piliin ang lahat ng column (hal. SELECT *) o magdagdag ng primary key.",
     "resizeRelatedPanel": "I-drag para baguhin ang laki ng panel",
     "keylessRowNotFound": "Walang row na tumugma sa mga orihinal na value habang ina-update ang \"{{column}}\". Walang primary key ang table at maaaring nagbago ang data — i-refresh at subukang muli.",
@@ -1351,6 +1384,7 @@
       "detached": "Na-detach ang mga resulta sa hiwalay na window",
       "reattach": "I-attach muli"
     },
+    "duplicateTab": "I-duplicate ang Tab",
     "closeTab": "Isara ang Tab",
     "reopenClosedTab": "Muling Buksan ang Saradong Tab",
     "closeOthers": "Isara ang Ibang Tab",
@@ -1873,7 +1907,12 @@
     "createSuccess": "Matagumpay na nagawa ang trigger",
     "updateSuccess": "Matagumpay na na-update ang trigger",
     "recreateTrigger": "I-recreate ang Trigger",
-    "confirmRecreate": "Ang pag-edit ng trigger ay nangangailangan ng pag-drop at pag-recreate nito. Magpatuloy sa pagbabago ng \"{{trigger}}\"?"
+    "confirmRecreate": "Ang pag-edit ng trigger ay nangangailangan ng pag-drop at pag-recreate nito. Magpatuloy sa pagbabago ng \"{{trigger}}\"?",
+    "originalRestored": "Naibalik ang orihinal na trigger.",
+    "restoreFailed": "Nabigo rin ang pagbalik sa orihinal na trigger: ",
+    "singleEventHint": "Isang event lang bawat trigger ang pinapayagan ng database na ito.",
+    "existingFunctionHint": "Pinananatili ng trigger na ito ang kasalukuyang function nito. I-edit ang mismong function sa SQL editor o sa raw SQL mode.",
+    "unsupportedDriver": "Hindi sinusuportahan ang pag-edit ng trigger para sa driver na ito."
   },
   "community": {
     "title": "Sumali sa Komunidad",

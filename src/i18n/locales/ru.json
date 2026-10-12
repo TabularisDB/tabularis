@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Выбрать из значений",
+      "title": "Выбор значений",
+      "search": "Поиск значений",
+      "loading": "Загрузка значений…",
+      "error": "Не удалось загрузить значения",
+      "retry": "Повторить",
+      "empty": "В этом столбце нет значений",
+      "noMatch": "Нет подходящих значений",
+      "limited": "Топ-{{count}} по количеству",
+      "use": "Использовать выбранные: {{count}}",
+      "useNone": "Использовать выбранные"
+    },
     "autoRefresh": {
       "label": "Автообновление",
       "off": "Выкл.",
@@ -104,6 +117,7 @@
     "materializedViews": "Материализованные представления",
     "refreshMaterializedView": "Обновить",
     "showDefinition": "Показать определение",
+    "copyDdl": "Копировать DDL",
     "editView": "Изменить представление",
     "viewDefinition": "Определение представления",
     "dropView": "Удалить представление",
@@ -220,6 +234,16 @@
     "noQueryHistory": "История запросов пуста",
     "noHistorySearchResults": "Запросы не найдены",
     "searchHistory": "Поиск в истории...",
+    "historyOutcomeFilter": "Фильтр по результату",
+    "historyOutcomeAny": "Любой результат",
+    "historyOutcomeSucceeded": "Успешные",
+    "historyOutcomeFailed": "С ошибкой",
+    "historyTimeRangeFilter": "Фильтр по времени",
+    "historyTimeAll": "За всё время",
+    "historyTimeLastHour": "Последний час",
+    "historyTimeToday": "Сегодня",
+    "historyTimeLast7Days": "Последние 7 дней",
+    "historyTimeLast30Days": "Последние 30 дней",
     "clearAllHistory": "Очистить всю историю",
     "historyRecoveredTitle": "История запросов сброшена",
     "historyRecoveredBody": "Файл истории был повреждён и перенесён в резервную копию. Новые запросы будут записываться как обычно. Резервный файл:",
@@ -568,6 +592,10 @@
     "formatter_linesBetweenQueriesDesc": "Количество пустых строк между отдельными SQL-операторами.",
     "formatter_denseOperators": "Компактные операторы",
     "formatter_denseOperatorsDesc": "Убрать пробелы вокруг операторов (например, a=1 вместо a = 1).",
+    "autocomplete_title": "Автодополнение",
+    "autocomplete_keywordCase": "Регистр ключевых слов",
+    "autocomplete_keywordCaseDesc": "Регистр ключевых слов SQL, вставляемых автодополнением.",
+    "autocomplete_keywordCaseMatch": "Как при вводе",
     "editConfigJson": "Изменить config.json",
     "editConfigJsonDesc": "Прямое редактирование файла конфигурации. Изменения вступят в силу после перезапуска.",
     "configJsonModal": {
@@ -884,6 +912,7 @@
       "refreshTable": "Обновить таблицу",
       "extendCellRange": "Расширить диапазон ячеек",
       "jumpToEdge": "Перейти к краю таблицы",
+      "jumpToColumn": "Перейти к столбцу",
       "extendCellRangeToEdge": "Расширить диапазон до края",
       "selectRow": "Выделить строку",
       "selectColumn": "Выделить столбец"
@@ -1087,6 +1116,7 @@
     "sshKeyPassphrasePlaceholder": "Введите пароль, если ключ зашифрован",
     "allowSshPrompt": "Разрешить запрос пароля/PIN-кода SSH",
     "saveKeychain": "Сохранять пароли в Keychain",
+    "secretsStoredInPlainText": "Пароли будут сохранены в файле подключений открытым текстом.",
     "testConnection": "Проверить подключение",
     "save": "Сохранить",
     "failSave": "Не удалось сохранить подключение",
@@ -1194,6 +1224,9 @@
     "useShownValue": "Использовать это значение"
   },
   "dataGrid": {
+    "jumpToColumn": "Перейти к столбцу",
+    "searchColumns": "Поиск столбцов",
+    "noMatchingColumns": "Совпадающих столбцов нет",
     "noRowIdentity": "Строки нельзя редактировать: у \"{{table}}\" нет первичного ключа, поэтому результат должен включать все столбцы таблицы. Выберите все столбцы (например, SELECT *) или добавьте первичный ключ.",
     "resizeRelatedPanel": "Перетащите, чтобы изменить размер панели",
     "keylessRowNotFound": "При обновлении \"{{column}}\" ни одна строка не совпала с исходными значениями. У таблицы нет первичного ключа, данные могли измениться — обновите и повторите попытку.",
@@ -1338,6 +1371,7 @@
       "reattach": "Прикрепить обратно"
     },
     "tableRunPrompt": "Нажмите «Запустить» (Ctrl/Command+F5) для загрузки данных таблицы",
+    "duplicateTab": "Дублировать вкладку",
     "closeTab": "Закрыть вкладку",
     "reopenClosedTab": "Открыть закрытую вкладку",
     "closeOthers": "Закрыть остальные вкладки",
@@ -1854,7 +1888,12 @@
     "createSuccess": "Триггер создан",
     "updateSuccess": "Триггер обновлён",
     "recreateTrigger": "Пересоздать триггер",
-    "confirmRecreate": "Редактирование триггера требует его удаления и повторного создания. Продолжить изменение \"{{trigger}}\"?"
+    "confirmRecreate": "Редактирование триггера требует его удаления и повторного создания. Продолжить изменение \"{{trigger}}\"?",
+    "originalRestored": "Исходный триггер был восстановлен.",
+    "restoreFailed": "Не удалось также восстановить исходный триггер: ",
+    "singleEventHint": "Эта база данных допускает только одно событие на триггер.",
+    "existingFunctionHint": "Этот триггер сохраняет свою существующую функцию. Измените саму функцию в SQL-редакторе или в режиме raw SQL.",
+    "unsupportedDriver": "Редактирование триггеров не поддерживается для этого драйвера."
   },
   "community": {
     "title": "Присоединяйтесь к сообществу",

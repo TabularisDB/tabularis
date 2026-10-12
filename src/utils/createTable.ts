@@ -23,19 +23,19 @@ export function getCreateTableRefreshPlan(target: CreateTableTarget): CreateTabl
 }
 
 /**
- * Import from Clipboard writes into the active schema (the active database in the
+ * Import from Clipboard writes into its target schema (a database in the
  * multi-database layout), so it refreshes the same tree Create Table would there.
  */
 export function getClipboardImportTarget(
-  activeSchema: string | null,
+  schema: string | null,
   layout: { schemaLayout: boolean; multiDatabaseLayout: boolean },
 ): CreateTableTarget {
-  if (activeSchema && layout.schemaLayout) {
-    return { kind: "schema", schema: activeSchema };
+  if (schema && layout.schemaLayout) {
+    return { kind: "schema", schema };
   }
 
-  if (activeSchema && layout.multiDatabaseLayout) {
-    return { kind: "database", schema: activeSchema };
+  if (schema && layout.multiDatabaseLayout) {
+    return { kind: "database", schema };
   }
 
   return DEFAULT_CREATE_TABLE_TARGET;

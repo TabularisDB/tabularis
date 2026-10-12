@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "値から選択",
+      "title": "値を選択",
+      "search": "値を検索",
+      "loading": "値を読み込み中…",
+      "error": "値を読み込めませんでした",
+      "retry": "再試行",
+      "empty": "この列に値がありません",
+      "noMatch": "一致する値がありません",
+      "limited": "件数上位 {{count}} 件",
+      "use": "選択した {{count}} 件を使用",
+      "useNone": "選択を使用"
+    },
     "autoRefresh": {
       "label": "自動更新",
       "off": "オフ",
@@ -104,6 +117,7 @@
     "materializedViews": "マテリアライズドビュー",
     "refreshMaterializedView": "更新",
     "showDefinition": "定義を表示",
+    "copyDdl": "DDLをコピー",
     "editView": "ビューを編集",
     "viewDefinition": "ビュー定義",
     "dropView": "ビューを削除",
@@ -220,6 +234,16 @@
     "noQueryHistory": "クエリ履歴はありません",
     "noHistorySearchResults": "検索に一致するクエリがありません",
     "searchHistory": "履歴を検索...",
+    "historyOutcomeFilter": "結果で絞り込み",
+    "historyOutcomeAny": "すべての結果",
+    "historyOutcomeSucceeded": "成功",
+    "historyOutcomeFailed": "失敗",
+    "historyTimeRangeFilter": "期間で絞り込み",
+    "historyTimeAll": "全期間",
+    "historyTimeLastHour": "直近1時間",
+    "historyTimeToday": "今日",
+    "historyTimeLast7Days": "直近7日",
+    "historyTimeLast30Days": "直近30日",
     "clearAllHistory": "すべての履歴を削除",
     "historyRecoveredTitle": "クエリ履歴をリセットしました",
     "historyRecoveredBody": "履歴ファイルが破損していたためバックアップに移動しました。新しいクエリは通常どおり記録されます。バックアップ ファイル:",
@@ -584,6 +608,10 @@
     "formatter_linesBetweenQueriesDesc": "SQL文間に挿入する空行の数。",
     "formatter_denseOperators": "演算子を詰める",
     "formatter_denseOperatorsDesc": "演算子の周りのスペースを削除（例：a = 1 → a=1）。",
+    "autocomplete_title": "オートコンプリート",
+    "autocomplete_keywordCase": "キーワードの大文字/小文字",
+    "autocomplete_keywordCaseDesc": "オートコンプリートで挿入されるSQLキーワードの大文字/小文字。",
+    "autocomplete_keywordCaseMatch": "入力に合わせる",
     "editConfigJson": "config.json を編集",
     "editConfigJsonDesc": "生の設定ファイルを直接編集します。変更を反映するには再起動が必要です。",
     "configJsonModal": {
@@ -905,6 +933,7 @@
       "refreshTable": "テーブルを更新",
       "extendCellRange": "セル範囲を拡張",
       "jumpToEdge": "グリッドの端へ移動",
+      "jumpToColumn": "列に移動",
       "extendCellRangeToEdge": "セル範囲を端まで拡張",
       "selectRow": "行を選択",
       "selectColumn": "列を選択"
@@ -1103,6 +1132,7 @@
     "sshKeyPassphrasePlaceholder": "鍵が暗号化されている場合はパスフレーズを入力",
     "allowSshPrompt": "SSHパスワード/PINプロンプトを許可する",
     "saveKeychain": "パスワードをキーチェーンに保存",
+    "secretsStoredInPlainText": "パスワードは接続ファイルに平文で保存されます。",
     "testConnection": "接続テスト",
     "save": "保存",
     "failSave": "接続の保存に失敗しました",
@@ -1209,6 +1239,9 @@
     "useShownValue": "この値を使用"
   },
   "dataGrid": {
+    "jumpToColumn": "列に移動",
+    "searchColumns": "列を検索",
+    "noMatchingColumns": "一致する列がありません",
     "noRowIdentity": "行を編集できません: \"{{table}}\" には主キーがないため、編集には結果にテーブルの全列が含まれている必要があります。すべての列を選択する(例: SELECT *)か、主キーを追加してください。",
     "resizeRelatedPanel": "ドラッグしてパネルのサイズを変更",
     "keylessRowNotFound": "\"{{column}}\" の更新時に元の値に一致する行が見つかりませんでした。テーブルに主キーがなく、データが変更された可能性があります。再読み込みして再試行してください。",
@@ -1350,6 +1383,7 @@
       "reattach": "元に戻す"
     },
     "tableRunPrompt": "Run (Ctrl/Command+F5) を押してテーブルデータを読み込んでください",
+    "duplicateTab": "タブを複製",
     "closeTab": "タブを閉じる",
     "reopenClosedTab": "閉じたタブを再度開く",
     "closeOthers": "他のタブを閉じる",
@@ -1854,7 +1888,12 @@
     "createSuccess": "トリガーを正常に作成しました",
     "updateSuccess": "トリガーを正常に更新しました",
     "recreateTrigger": "トリガーを再作成",
-    "confirmRecreate": "トリガーを編集するには、いったん削除して再作成する必要があります。「{{trigger}}」の変更を続行しますか？"
+    "confirmRecreate": "トリガーを編集するには、いったん削除して再作成する必要があります。「{{trigger}}」の変更を続行しますか？",
+    "originalRestored": "元のトリガーを復元しました。",
+    "restoreFailed": "元のトリガーの復元にも失敗しました：",
+    "singleEventHint": "このデータベースでは、1つのトリガーにつき1つのイベントのみ指定できます。",
+    "existingFunctionHint": "このトリガーは既存の関数をそのまま使用します。関数自体はSQLエディタまたはRaw SQLモードで編集してください。",
+    "unsupportedDriver": "このドライバーではトリガーの編集はサポートされていません。"
   },
   "community": {
     "title": "コミュニティに参加",

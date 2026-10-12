@@ -29,8 +29,8 @@ fn window_label(tab_id: &str) -> String {
 }
 
 /// Open (or focus) the detached results window for a given tab. Result data is
-/// streamed from the main window via the `results-window:sync` event (keyed by
-/// `tabId`), so no payload is passed here.
+/// streamed from the main window via `resultsSyncEvent(tabId)` in
+/// `src/utils/resultsWindowSync.ts`, so no payload is passed here.
 #[tauri::command]
 pub async fn open_results_window(
     app: AppHandle,

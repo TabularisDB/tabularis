@@ -5,6 +5,47 @@ import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { formatSqlIdentifier, getQuoteChar, quoteIdentifier } from "./identifiers";
 import { getCurrentStatement, parseTablesFromQuery, type ParsedTableRef } from "./sqlAnalysis";
 import { analyzeSqlContext, findStatementScopeEnd, getKeywordRelevance, getSuggestionKinds } from "./sqlContext";
+import { maskNestedSqlBodies, parseDerivedTables } from "./derivedTables";
+
+export type AutocompleteKeywordCase = "match" | "upper" | "lower";
+
+// Decide whether a keyword completion should be upper or lower case.
+export function resolveKeywordCase(
+  mode: AutocompleteKeywordCase | undefined,
+  typedPrefix: string,
+): "upper" | "lower" {
+  if (mode === "upper") return "upper";
+  if (mode === "lower") return "lower";
+
+  const letters = typedPrefix.replace(/[^A-Za-z]/g, "");
+  if (letters.length === 0) return "upper";
+  return letters === letters.toLowerCase() ? "lower" : "upper";
+}
+
+// Apply the keyword-case setting
+export function applyKeywordCase(
+  keyword: string,
+  mode: AutocompleteKeywordCase | undefined,
+  typedPrefix: string,
+): string {
+  return resolveKeywordCase(mode, typedPrefix) === "lower"
+    ? keyword.toLowerCase()
+    : keyword.toUpperCase();
+}
+
+/**
+ * In "match" mode the case is decided by the first typed letters. When the
+ * list is opened with none yet (a trigger character such as " ", or Ctrl+Space
+ * on an empty word), Monaco would only re-filter the items it already has as
+ * the user types, keeping the fallback case. Marking that result incomplete
+ * makes Monaco ask the provider again once there is a letter to match.
+ */
+export function needsKeywordCaseRetrigger(
+  mode: AutocompleteKeywordCase | undefined,
+  typedPrefix: string,
+): boolean {
+  return (mode ?? "match") === "match" && !/[A-Za-z]/.test(typedPrefix);
+}
 
 // Lightweight column cache with TTL and size limits
 interface CachedColumns {
@@ -119,13 +160,15 @@ export const registerSqlAutocomplete = (
   tables: TableInfo[],
   schema?: string | null,
   driver?: string | PluginManifest | DriverCapabilities | null,
+  keywordCase: AutocompleteKeywordCase = "match",
 ) => {
   const provider = monaco.languages.registerCompletionItemProvider("sql", {
     triggerCharacters: [".", " "],
-    provideCompletionItems: async (model: { getWordUntilPosition: (position: { lineNumber: number; column: number }) => { startColumn: number; endColumn: number }; getValueInRange: (range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => string; getValue: () => string; getOffsetAt: (position: { lineNumber: number; column: number }) => number }, position: { lineNumber: number; column: number }) => {
+    provideCompletionItems: async (model: { getWordUntilPosition: (position: { lineNumber: number; column: number }) => { word?: string; startColumn: number; endColumn: number }; getValueInRange: (range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => string; getValue: () => string; getOffsetAt: (position: { lineNumber: number; column: number }) => number }, position: { lineNumber: number; column: number }) => {
       if (!connectionId) return { suggestions: [] };
 
       const wordUntil = model.getWordUntilPosition(position);
+      const typedPrefix = wordUntil.word ?? "";
 
       const range = {
         startLineNumber: position.lineNumber,
@@ -208,12 +251,16 @@ export const registerSqlAutocomplete = (
       // resolvable through the merged map so correlated references
       // (`WHERE o.user_id = u.id`) keep completing via the dot trigger.
       const currentStatement = getCurrentStatement(model, position);
-      const outerAliases = parseTablesFromQuery(currentStatement);
+      const sourceText = model.getValue();
+      const cursorOffset = Math.min(sourceText.length, model.getOffsetAt(position));
+      const derivedTables = parseDerivedTables(sourceText, cursorOffset);
+      const derivedByName = new Map(derivedTables.map(t => [t.name.toLowerCase(), t]));
+      const outerAliases = parseTablesFromQuery(maskNestedSqlBodies(currentStatement));
       let scopedAliases = outerAliases;
       if (sqlContext.statementStart > 0) {
         const fullText = model.getValue();
         const scopeEnd = findStatementScopeEnd(fullText, fullTextUntilPosition.length);
-        scopedAliases = parseTablesFromQuery(fullText.slice(sqlContext.statementStart, scopeEnd));
+        scopedAliases = parseTablesFromQuery(maskNestedSqlBodies(fullText.slice(sqlContext.statementStart, scopeEnd)));
       }
       const tableAliases =
         scopedAliases === outerAliases
@@ -226,9 +273,13 @@ export const registerSqlAutocomplete = (
       // ============================================
       // Try qualified (db.table.) first, then simple (table.)
       const qualifiedDotMatch = textUntilPosition.match(/`?([a-zA-Z0-9_]+)`?\.`?([a-zA-Z0-9_]+)`?\.([a-zA-Z0-9_]*)$/);
-      const simpleDotMatch = qualifiedDotMatch ? null : textUntilPosition.match(/(?:["'`])?([a-zA-Z0-9_]+)(?:["'`])?\.([a-zA-Z0-9_]*)$/);
-
-      if (qualifiedDotMatch || simpleDotMatch) {
+      // Parse quoted aliases first: the unquoted pattern would otherwise
+      // incorrectly extract only the final word of "My CTE".
+      const quotedDotMatch = qualifiedDotMatch
+        ? null
+        : textUntilPosition.match(/(?:"((?:[^"]|"")*)"|`((?:[^`]|``)*)`|\[((?:[^\]]|\]\])*)\])\.([a-zA-Z0-9_]*)$/);
+      const simpleDotMatch = qualifiedDotMatch || quotedDotMatch ? null : textUntilPosition.match(/(?:["'`])?([a-zA-Z0-9_]+)(?:["'`])?\.([a-zA-Z0-9_]*)$/);
+      if (qualifiedDotMatch || simpleDotMatch || quotedDotMatch) {
         // In a table operand, `namespace.partial` refers to a table rather than
         // a column. Resolve this before the regular table/alias dot path so
         // `FROM Ops.Add` does not request columns for a table named `Ops`.
@@ -268,10 +319,36 @@ export const registerSqlAutocomplete = (
           const found = tables.find(t => t.name.toLowerCase() === tblName && t.schema?.toLowerCase() === dbName);
           dotTables = found ? [found] : [{ name: tblName, schema: dbName }];
         } else {
-          const typedName = simpleDotMatch![1].toLowerCase();
-          partialColumn = simpleDotMatch![2];
-          // Resolve via alias map (carries schema when FROM used qualified ref)
+          const quotedAlias = quotedDotMatch
+            ? (quotedDotMatch[1] ?? quotedDotMatch[2] ?? quotedDotMatch[3] ?? "")
+                .replace(/""/g, '"').replace(/``/g, "`").replace(/\]\]/g, "]")
+            : "";
+          const typedName = (simpleDotMatch?.[1] ?? quotedAlias).toLowerCase();
+          partialColumn = simpleDotMatch?.[2] ?? quotedDotMatch?.[4] ?? "";
+          // Virtual relations belong to this SQL statement, not the server.
+          // Resolve them before asking get_columns for a physical table.
           const aliasRef: ParsedTableRef | undefined = tableAliases?.get(typedName);
+          // A FROM alias wins over a same-named CTE (or one in an earlier statement).
+          const virtualTable = aliasRef
+            ? derivedByName.get(aliasRef.name.toLowerCase())
+            : derivedByName.get(typedName);
+          if (virtualTable) {
+            const columnRange = {
+              startLineNumber: position.lineNumber,
+              endLineNumber: position.lineNumber,
+              startColumn: position.column - partialColumn.length,
+              endColumn: position.column,
+            };
+            return {
+              suggestions: virtualTable.columns.map(c => ({
+                label: c.name,
+                kind: monaco.languages.CompletionItemKind.Field,
+                detail: `${virtualTable.kind} ${virtualTable.name}`,
+                ...buildIdentifierInsert(c.name, columnRange),
+                sortText: `0_${c.name}`,
+              })),
+            };
+          }
           if (aliasRef) {
             const found = tables.find(t =>
               t.name.toLowerCase() === aliasRef.name.toLowerCase() &&
@@ -324,11 +401,37 @@ export const registerSqlAutocomplete = (
         sortText: string;
         filterText?: string;
       }> = [];
-      
+
+      // CTEs in the FROM list and derived FROM subqueries are local
+      // column sources. Derived FROM subqueries have no physical-table ref
+      // after their bodies are masked, so collect them directly.
+      if (suggestionKinds.columns) {
+        const seenVirtual = new Set<string>();
+        for (const virtual of derivedTables) {
+          const referenced = virtual.kind === "Derived table" ||
+            Array.from(scopedAliases?.values() ?? []).some(
+              ref => ref.name.toLowerCase() === virtual.name.toLowerCase(),
+            );
+          if (!referenced) continue;
+          for (const col of virtual.columns) {
+            if (seenVirtual.has(col.name.toLowerCase())) continue;
+            seenVirtual.add(col.name.toLowerCase());
+            contextColumnSuggestions.push({
+              label: col.name,
+              kind: monaco.languages.CompletionItemKind.Field,
+              detail: `${virtual.kind} ${virtual.name}`,
+              ...buildIdentifierInsert(col.name, range),
+              sortText: `0_${col.name}`,
+            });
+          }
+        }
+      }
+
       if (suggestionKinds.columns && scopedAliases && scopedAliases.size > 0) {
         // Deduplicate parsed refs by (schema, name) — multiple aliases can point to the same table
         const seenRefs = new Set<string>();
         const uniqueRefs = Array.from(scopedAliases.values()).filter(ref => {
+          if (derivedByName.has(ref.name.toLowerCase())) return false;
           const key = `${ref.schema ?? ''}:${ref.name}`;
           return seenRefs.has(key) ? false : (seenRefs.add(key), true);
         });
@@ -375,7 +478,7 @@ export const registerSqlAutocomplete = (
           matchingTables.map(t => getTableColumns(connectionId, t.name, t.schema ?? schema))
         );
 
-        const seenColumns = new Set<string>();
+        const seenColumns = new Set(contextColumnSuggestions.map(col => col.label));
 
         matchingTables.forEach((table, idx) => {
           const columns = results[idx];
@@ -420,13 +523,18 @@ export const registerSqlAutocomplete = (
             .filter(kw => !colLabels.has(kw))
             .map((kw) => ({ kw, relevance: getKeywordRelevance(sqlContext.clause, kw) }))
             .filter(({ relevance }) => relevance !== 'hidden')
-            .map(({ kw, relevance }) => ({
-              label: kw,
-              kind: monaco.languages.CompletionItemKind.Keyword,
-              insertText: kw,
-              range,
-              sortText: relevance === 'high' ? `2_0_${kw}` : `2_1_${kw}`
-            }))
+            .map(({ kw, relevance }) => {
+              // Only the displayed/inserted text is re-cased; filtering,
+              // relevance and sortText keep using the canonical uppercase kw.
+              const text = applyKeywordCase(kw, keywordCase, typedPrefix);
+              return {
+                label: text,
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: text,
+                range,
+                sortText: relevance === 'high' ? `2_0_${kw}` : `2_1_${kw}`
+              };
+            })
         : [];
 
       // ============================================
@@ -448,6 +556,11 @@ export const registerSqlAutocomplete = (
           ...tableSuggestions,
           ...keywordSuggestions,
         ],
+        // See needsKeywordCaseRetrigger: re-query on the first typed letter.
+        ...(keywordSuggestions.length > 0 &&
+        needsKeywordCaseRetrigger(keywordCase, typedPrefix)
+          ? { incomplete: true }
+          : {}),
       };
     },
   });

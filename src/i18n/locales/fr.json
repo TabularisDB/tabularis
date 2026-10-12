@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Choisir parmi les valeurs",
+      "title": "Choisir des valeurs",
+      "search": "Rechercher des valeurs",
+      "loading": "Chargement des valeurs…",
+      "error": "Impossible de charger les valeurs",
+      "retry": "Réessayer",
+      "empty": "Aucune valeur dans cette colonne",
+      "noMatch": "Aucune valeur correspondante",
+      "limited": "Les {{count}} plus fréquentes",
+      "use": "Utiliser {{count}} sélectionnées",
+      "useNone": "Utiliser la sélection"
+    },
     "autoRefresh": {
       "label": "Actualisation automatique",
       "off": "Désactivée",
@@ -104,6 +117,7 @@
     "materializedViews": "Vues matérialisées",
     "refreshMaterializedView": "Actualiser",
     "showDefinition": "Afficher la définition",
+    "copyDdl": "Copier le DDL",
     "editView": "Modifier la vue",
     "viewDefinition": "Définition de la vue",
     "dropView": "Supprimer la vue",
@@ -220,6 +234,16 @@
     "noQueryHistory": "Aucun historique de requêtes",
     "noHistorySearchResults": "Aucune requête ne correspond à votre recherche",
     "searchHistory": "Rechercher dans l’historique...",
+    "historyOutcomeFilter": "Filtrer par résultat",
+    "historyOutcomeAny": "Tous les résultats",
+    "historyOutcomeSucceeded": "Réussies",
+    "historyOutcomeFailed": "Échouées",
+    "historyTimeRangeFilter": "Filtrer par période",
+    "historyTimeAll": "Tout le temps",
+    "historyTimeLastHour": "Dernière heure",
+    "historyTimeToday": "Aujourd'hui",
+    "historyTimeLast7Days": "7 derniers jours",
+    "historyTimeLast30Days": "30 derniers jours",
     "clearAllHistory": "Effacer tout l’historique",
     "historyRecoveredTitle": "Historique des requêtes réinitialisé",
     "historyRecoveredBody": "Le fichier d’historique était corrompu et a été mis de côté. Les nouvelles requêtes seront enregistrées normalement. Fichier de sauvegarde :",
@@ -603,6 +627,10 @@
     "formatter_linesBetweenQueriesDesc": "Nombre de lignes vides entre les instructions SQL séparées.",
     "formatter_denseOperators": "Opérateurs compacts",
     "formatter_denseOperatorsDesc": "Supprimer les espaces autour des opérateurs (ex. a=1 au lieu de a = 1).",
+    "autocomplete_title": "Autocomplétion",
+    "autocomplete_keywordCase": "Casse des mots-clés",
+    "autocomplete_keywordCaseDesc": "Casse des mots-clés SQL insérés par l’autocomplétion.",
+    "autocomplete_keywordCaseMatch": "Suivre la saisie",
     "editConfigJson": "Modifier config.json",
     "editConfigJsonDesc": "Modifiez directement le fichier de configuration brut. Un redémarrage est nécessaire pour appliquer les changements.",
     "configJsonModal": {
@@ -925,6 +953,7 @@
       "refreshTable": "Actualiser la table",
       "extendCellRange": "Étendre la plage de cellules",
       "jumpToEdge": "Aller au bord de la grille",
+      "jumpToColumn": "Aller à la colonne",
       "extendCellRangeToEdge": "Étendre la plage jusqu'au bord",
       "selectRow": "Sélectionner la ligne",
       "selectColumn": "Sélectionner la colonne"
@@ -1126,6 +1155,7 @@
     "sshKeyPassphrasePlaceholder": "Saisissez la phrase secrète si la clé est chiffrée",
     "allowSshPrompt": "Autoriser l'invite de mot de passe/PIN SSH",
     "saveKeychain": "Enregistrer les mots de passe dans le trousseau",
+    "secretsStoredInPlainText": "Les mots de passe seront enregistrés en clair dans le fichier de connexions.",
     "testConnection": "Tester la connexion",
     "save": "Enregistrer",
     "failSave": "Échec de l’enregistrement de la connexion",
@@ -1233,6 +1263,9 @@
     "useShownValue": "Utiliser cette valeur"
   },
   "dataGrid": {
+    "jumpToColumn": "Aller à la colonne",
+    "searchColumns": "Rechercher des colonnes",
+    "noMatchingColumns": "Aucune colonne correspondante",
     "noRowIdentity": "Impossible de modifier les lignes : \"{{table}}\" n'a pas de clé primaire, la modification nécessite donc que le résultat inclue toutes les colonnes de la table. Sélectionnez toutes les colonnes (p. ex. SELECT *) ou ajoutez une clé primaire.",
     "resizeRelatedPanel": "Faites glisser pour redimensionner le panneau",
     "keylessRowNotFound": "Aucune ligne ne correspond aux valeurs d'origine lors de la mise à jour de \"{{column}}\". La table n'a pas de clé primaire et les données ont peut-être changé : actualisez puis réessayez.",
@@ -1360,6 +1393,7 @@
       "detached": "Résultats détachés dans une fenêtre séparée",
       "reattach": "Rattacher"
     },
+    "duplicateTab": "Dupliquer l’onglet",
     "closeTab": "Fermer l’onglet",
     "reopenClosedTab": "Réouvrir l’onglet fermé",
     "closeOthers": "Fermer les autres onglets",
@@ -1883,7 +1917,12 @@
     "createSuccess": "Trigger créé avec succès",
     "updateSuccess": "Trigger mis à jour avec succès",
     "recreateTrigger": "Recréer le trigger",
-    "confirmRecreate": "Modifier un trigger nécessite de le supprimer puis de le recréer. Continuer la modification de « {{trigger}} » ?"
+    "confirmRecreate": "Modifier un trigger nécessite de le supprimer puis de le recréer. Continuer la modification de « {{trigger}} » ?",
+    "originalRestored": "Le déclencheur d'origine a été restauré.",
+    "restoreFailed": "La restauration du déclencheur d'origine a également échoué : ",
+    "singleEventHint": "Cette base de données n'autorise qu'un seul événement par déclencheur.",
+    "existingFunctionHint": "Ce déclencheur conserve sa fonction existante. Modifiez la fonction elle-même dans l'éditeur SQL ou en mode SQL brut.",
+    "unsupportedDriver": "La modification des déclencheurs n'est pas prise en charge pour ce pilote."
   },
   "community": {
     "title": "Rejoindre la communauté",

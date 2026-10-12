@@ -452,6 +452,25 @@ describe('matchesReservedShortcut', () => {
 // ─── default shortcut conflicts ──────────────────────────────────────────────
 
 describe('default shortcut conflicts', () => {
+  it('keeps Jump to column rebindable and free of default conflicts', () => {
+    const jump = shortcutDefs.find((shortcut) => shortcut.id === 'jump_to_column');
+    expect(jump).toBeDefined();
+    expect(jump?.category).toBe('data_grid');
+    expect(jump?.overridable).toBe(true);
+    expect(jump?.i18nKey).toBe('settings.shortcuts.jumpToColumn');
+
+    for (const other of shortcutDefs) {
+      if (other.id === 'jump_to_column') continue;
+      expect(keyMatchesOverlap(jump!.macMatch, other.macMatch, true)).toBe(false);
+      expect(keyMatchesOverlap(jump!.winMatch, other.winMatch, false)).toBe(false);
+    }
+    const override = { jump_to_column: {
+      mac: { metaKey: true, key: 'g' },
+      win: { ctrlKey: true, key: 'g' },
+    } };
+    expect(matchesEvent(makeEvent({ key: 'g', ctrlKey: true }), resolveMatch(jump!, override, false))).toBe(true);
+  });
+
   it('reopen_closed_tab does not overlap any other default shortcut', () => {
     const reopen = shortcutDefs.find(
       (shortcut) => shortcut.id === 'reopen_closed_tab',

@@ -17,9 +17,13 @@ import {
   replaceCurrentWord,
   buildStructuredFilterClause,
   buildSingleFilterClause,
+  isFilterComplete,
   createEmptyFilter,
+  buildDistinctValuesQuery,
+  buildValuePickerWhere,
+  parseDistinctValues,
 } from "../../utils/filterBar";
-import type { StructuredFilter, FilterCombinator } from "../../utils/filterBar";
+import type { StructuredFilter, FilterCombinator, DistinctValue } from "../../utils/filterBar";
 import { formatSqlIdentifier } from "../../utils/identifiers";
 import { formatSortClause } from "../../utils/tableToolbar";
 import { FilterRow } from "./FilterRow";
@@ -34,6 +38,8 @@ interface TableToolbarProps {
   placeholderSort: string;
   defaultLimit: number;
   columnMetadata?: TableColumn[];
+  /** Active table for plugin slot context (`data-grid.toolbar.actions`). */
+  tableName?: string | null;
   onUpdate: (filter: string, sort: string, limit: number | undefined) => void;
   onRefresh?: () => void;
   refreshDisabled?: boolean;
@@ -42,6 +48,13 @@ interface TableToolbarProps {
   autoRefreshPaused?: boolean;
   /** Why auto-refresh is paused; only read while `autoRefreshPaused` is true. */
   autoRefreshPausedReason?: "editing" | "selection";
+  /** Schema of the table shown in the grid. */
+  tableSchema?: string | null;
+  /**
+   * Runs a read-only query against the tab's connection. Enables the filter
+   * value picker (issue #869) together with `tableName`.
+   */
+  onRunQuery?: (sql: string) => Promise<{ rows: unknown[][] }>;
 }
 
 interface TableToolbarInternalProps extends TableToolbarProps {
@@ -67,6 +80,7 @@ const TableToolbarInternal = ({
   placeholderSort,
   defaultLimit,
   columnMetadata,
+  tableName = null,
   panelOpen,
   onPanelOpenChange,
   structuredFilters,
@@ -84,9 +98,11 @@ const TableToolbarInternal = ({
   onAutoRefreshChange,
   autoRefreshPaused,
   autoRefreshPausedReason = "editing",
+  tableSchema,
+  onRunQuery,
 }: TableToolbarInternalProps) => {
   const { t } = useTranslation();
-  const { activeDriver, activeCapabilities } = useDatabase();
+  const { activeDriver, activeCapabilities, activeConnectionId, activeSchema } = useDatabase();
   const autoRefreshActive = autoRefreshIntervalMs > 0;
   // Capability-driven when available (issue #614): a postgres-compatible
   // driver registered under a different id (e.g. a standalone PostgreSQL
@@ -176,7 +192,7 @@ const TableToolbarInternal = ({
     const clause = buildStructuredFilterClause(structuredFilters, quotingDriver, combinator);
     onUpdate(clause, formatSortClause(sortInput, quotingDriver), getLimitVal(limitInput));
     structuredFilters.forEach((f) => {
-      if (f.enabled !== false) {
+      if (f.enabled !== false && isFilterComplete(f)) {
         onTriggerApplied(f.id);
       } else {
         onResetApplied(f.id);
@@ -184,16 +200,38 @@ const TableToolbarInternal = ({
     });
   }, [structuredFilters, combinator, sortInput, limitInput, getLimitVal, onUpdate, onTriggerApplied, onResetApplied, quotingDriver]);
 
+  const queryForValues = useCallback(
+    (filter: StructuredFilter) => buildDistinctValuesQuery({
+      table: tableName ?? "",
+      schema: tableSchema,
+      column: filter.column,
+      driver: quotingDriver,
+      where: buildValuePickerWhere(structuredFilters, filter.id, quotingDriver, combinator),
+    }),
+    [tableName, tableSchema, quotingDriver, structuredFilters, combinator],
+  );
+
+  // Count values using the other complete filters, excluding the edited row.
+  const loadValuesFor = useCallback(
+    async (filter: StructuredFilter): Promise<DistinctValue[]> => {
+      if (!onRunQuery || !tableName) return [];
+      const result = await onRunQuery(queryForValues(filter));
+      return parseDistinctValues(result.rows);
+    },
+    [onRunQuery, tableName, queryForValues],
+  );
+  const canPickValues = !!onRunQuery && !!tableName;
+
   // Applies only that single row's filter — resets Applied on all others
   const handleApplySingle = useCallback(
     (filter: StructuredFilter) => {
       onUpdate(
-        buildSingleFilterClause(filter, quotingDriver),
+        isFilterComplete(filter) ? buildSingleFilterClause(filter, quotingDriver) : "",
         formatSortClause(sortInput, quotingDriver),
         getLimitVal(limitInput),
       );
       onResetAllApplied();
-      onTriggerApplied(filter.id);
+      if (isFilterComplete(filter)) onTriggerApplied(filter.id);
     },
     [sortInput, limitInput, getLimitVal, onUpdate, onResetAllApplied, onTriggerApplied, quotingDriver]
   );
@@ -616,7 +654,12 @@ const TableToolbarInternal = ({
         {/* Plugin extension slot */}
         <SlotAnchor
           name="data-grid.toolbar.actions"
-          context={{}}
+          context={{
+            connectionId: activeConnectionId,
+            tableName: tableName ?? null,
+            schema: activeSchema,
+            driver: activeDriver,
+          }}
           className="flex items-center gap-1"
         />
       </div>
@@ -698,6 +741,10 @@ const TableToolbarInternal = ({
                   onEscape={closePanel}
                   isApplied={appliedFilters[filter.id] === true}
                   onTriggerApplied={() => onTriggerApplied(filter.id)}
+                  onLoadValues={canPickValues ? loadValuesFor : undefined}
+                  valuePickerContextKey={canPickValues
+                    ? JSON.stringify([activeConnectionId, queryForValues(filter)])
+                    : undefined}
                 />
               ))
             )}

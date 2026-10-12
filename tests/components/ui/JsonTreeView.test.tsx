@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import type { JsonEditorProps } from "json-edit-react";
+import type { JsonEditorProps, NodeData } from "json-edit-react";
 
 type CapturedProps = JsonEditorProps & {
   restrictEdit?: boolean;
@@ -238,6 +238,32 @@ describe("JsonTreeView", () => {
 
       rerender(<JsonTreeView value={{ a: 1 }} searchQuery="updated" />);
       expect(lastProps.current!.searchText).toBe("updated");
+    });
+  });
+
+  describe("customNodeDefinitions (links and colors)", () => {
+    it("passes customNodeDefinitions with link and color conditions", () => {
+      render(<JsonTreeView value={{ url: "https://example.com", color: "#1e90ff" }} />);
+
+      const defs = lastProps.current!.customNodeDefinitions;
+      expect(defs).toBeDefined();
+      expect(defs!.length).toBe(2);
+
+      const [linkDef, colorDef] = defs!;
+
+      // Link condition matches URLs and mailto
+      expect(linkDef.condition({ value: "https://example.com" } as unknown as NodeData)).toBe(true);
+      expect(linkDef.condition({ value: "mailto:support@tabularis.dev" } as unknown as NodeData)).toBe(true);
+      expect(linkDef.condition({ value: "not-a-link" } as unknown as NodeData)).toBe(false);
+
+      // Color condition matches hex, rgb, hsl
+      expect(colorDef.condition({ value: "#1e90ff" } as unknown as NodeData)).toBe(true);
+      expect(colorDef.condition({ value: "rgb(255, 0, 0)" } as unknown as NodeData)).toBe(true);
+      expect(colorDef.condition({ value: "not-a-color" } as unknown as NodeData)).toBe(false);
+
+      // Does not interfere with editing
+      expect(linkDef.showOnEdit).toBe(false);
+      expect(colorDef.showOnEdit).toBe(false);
     });
   });
 });

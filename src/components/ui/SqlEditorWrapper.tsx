@@ -122,8 +122,8 @@ const SqlEditorInternal = ({
   }, []);
 
   // Values handed to onChange that the consumer has not echoed back through
-  // initialValue yet. Bounded because a consumer may drop updates (Editor.tsx
-  // ignores onChange from inactive tabs).
+  // initialValue yet. Bounded because other consumers may drop updates or
+  // defer echoing them back.
   const pendingEchoesRef = useRef<string[]>([]);
 
   // Sync editor value only when initialValue changes externally (e.g., a saved
