@@ -118,6 +118,8 @@ pub struct AppConfig {
     pub editor_line_height: Option<f32>,
     pub editor_tab_size: Option<u32>,
     pub editor_word_wrap: Option<bool>,
+    /// Highlight hidden Unicode and look-alike characters in the SQL editor.
+    pub editor_highlight_invisible_characters: Option<bool>,
     pub editor_show_line_numbers: Option<bool>,
     /// Whether the Enter key accepts the active autocomplete suggestion in the
     /// SQL editor. Maps to Monaco's `acceptSuggestionOnEnter` setting: `true`
