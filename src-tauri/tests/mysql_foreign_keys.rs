@@ -105,6 +105,34 @@ async fn assert_keys(
         "table={table_name:?}, schema={schema:?}, text_protocol={:?}",
         params.enable_cleartext_plugin
     );
+
+    // Also assert against get_all_foreign_keys_batch to verify both query paths
+    let batch = tokio::time::timeout(
+        Duration::from_secs(30),
+        mysql::get_all_foreign_keys_batch(params, schema),
+    )
+    .await
+    .expect("batch foreign-key discovery timed out")
+    .expect("batch foreign-key discovery failed");
+    let batch_keys = batch.get(table_name).map(Vec::as_slice).unwrap_or_default();
+    let actual_batch: Vec<_> = batch_keys
+        .iter()
+        .map(|key| {
+            (
+                key.name.as_str(),
+                key.column_name.as_str(),
+                key.ref_table.as_str(),
+                key.ref_column.as_str(),
+                key.on_update.as_deref(),
+                key.on_delete.as_deref(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        actual_batch, expected,
+        "batch table={table_name:?}, schema={schema:?}, text_protocol={:?}",
+        params.enable_cleartext_plugin
+    );
 }
 
 /// The CAST(... AS SIGNED) reads from #939: numeric precision/scale through both
