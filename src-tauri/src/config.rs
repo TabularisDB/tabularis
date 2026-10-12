@@ -546,6 +546,10 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         if config.editor_word_wrap.is_some() {
             existing_config.editor_word_wrap = config.editor_word_wrap;
         }
+        if config.editor_highlight_invisible_characters.is_some() {
+            existing_config.editor_highlight_invisible_characters =
+                config.editor_highlight_invisible_characters;
+        }
         if config.editor_show_line_numbers.is_some() {
             existing_config.editor_show_line_numbers = config.editor_show_line_numbers;
         }
@@ -1202,6 +1206,7 @@ mod tests {
         assert!(config.editor_line_height.is_none());
         assert!(config.editor_tab_size.is_none());
         assert!(config.editor_word_wrap.is_none());
+        assert!(config.editor_highlight_invisible_characters.is_none());
         assert!(config.editor_show_line_numbers.is_none());
         assert!(config.editor_accept_suggestion_on_enter.is_none());
     }
@@ -1215,6 +1220,7 @@ mod tests {
         config.editor_line_height = Some(1.5);
         config.editor_tab_size = Some(4);
         config.editor_word_wrap = Some(false);
+        config.editor_highlight_invisible_characters = Some(false);
         config.editor_show_line_numbers = Some(true);
         config.editor_theme = Some("tabularis-light".to_string());
         config.editor_accept_suggestion_on_enter = Some(true);
@@ -1229,6 +1235,7 @@ mod tests {
         assert!(json.contains("editorLineHeight"));
         assert!(json.contains("editorTabSize"));
         assert!(json.contains("editorWordWrap"));
+        assert!(json.contains("editorHighlightInvisibleCharacters"));
         assert!(json.contains("editorShowLineNumbers"));
         assert!(json.contains("editorTheme"));
         assert!(json.contains("editorAcceptSuggestionOnEnter"));
@@ -1253,6 +1260,7 @@ mod tests {
             "editorLineHeight": 1.8,
             "editorTabSize": 2,
             "editorWordWrap": true,
+            "editorHighlightInvisibleCharacters": false,
             "editorShowLineNumbers": true,
             "editorTheme": "tabularis-dark",
             "editorAcceptSuggestionOnEnter": true,
@@ -1267,6 +1275,7 @@ mod tests {
         assert_eq!(config.editor_font_size, Some(14));
         assert_eq!(config.editor_tab_size, Some(2));
         assert_eq!(config.editor_word_wrap, Some(true));
+        assert_eq!(config.editor_highlight_invisible_characters, Some(false));
         assert_eq!(config.editor_show_line_numbers, Some(true));
         assert_eq!(config.editor_theme.as_deref(), Some("tabularis-dark"));
         assert_eq!(config.editor_accept_suggestion_on_enter, Some(true));
