@@ -2694,6 +2694,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!focused) return;
 
+      const target = e.target as HTMLElement | null;
+      const isTypingTarget =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+
       if (matchesShortcut(e, "close_tab")) {
         e.preventDefault();
         const currentTabId = activeTabIdRef.current;
@@ -2714,6 +2721,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       }
 
       if (matchesShortcut(e, "next_page")) {
+        if (isTypingTarget) return;
         const tab = tabsRef.current.find(
           (t) => t.id === activeTabIdRef.current,
         );
@@ -2725,6 +2733,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       }
 
       if (matchesShortcut(e, "prev_page")) {
+        if (isTypingTarget) return;
         const tab = tabsRef.current.find(
           (t) => t.id === activeTabIdRef.current,
         );
