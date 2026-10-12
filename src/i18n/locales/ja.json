@@ -1416,7 +1416,7 @@
     "queryParameters": "クエリパラメータ",
     "formatSql": "SQLをフォーマット",
     "convertSelectionToSqlList": "選択範囲をSQLリストに変換",
-    "removeInvisibleCharacters": "不可視文字を削除",
+    "removeInvisibleCharacters": "貼り付けた文字をクリーンアップ",
     "convertToConsole": "コンソールに変換",
     "parameters": "パラメータ",
     "paramValuePlaceholder": "値 (例: 'text' や 123)",

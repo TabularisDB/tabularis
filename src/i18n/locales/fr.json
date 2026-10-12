@@ -1445,7 +1445,7 @@
     "queryParameters": "Paramètres de requête",
     "formatSql": "Formater SQL",
     "convertSelectionToSqlList": "Convertir la sélection en liste SQL",
-    "removeInvisibleCharacters": "Supprimer les caractères invisibles",
+    "removeInvisibleCharacters": "Nettoyer les caractères collés",
     "convertToConsole": "Convertir en console",
     "parameters": "Paramètres",
     "paramValuePlaceholder": "Valeur (ex. 'texte' ou 123)",

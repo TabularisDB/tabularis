@@ -1453,7 +1453,7 @@
     "queryParameters": "Query Parameters",
     "formatSql": "Format SQL",
     "convertSelectionToSqlList": "Convert Selection to SQL List",
-    "removeInvisibleCharacters": "Remove invisible characters",
+    "removeInvisibleCharacters": "Clean up pasted characters",
     "convertToConsole": "Convert to Console",
     "parameters": "Parameters",
     "paramValuePlaceholder": "Value (e.g. 'text' or 123)",

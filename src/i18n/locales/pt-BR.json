@@ -1422,7 +1422,7 @@
     "queryParameters": "Parâmetros da Consulta",
     "formatSql": "Formatar SQL",
     "convertSelectionToSqlList": "Converter seleção em lista SQL",
-    "removeInvisibleCharacters": "Remover caracteres invisíveis",
+    "removeInvisibleCharacters": "Limpar caracteres colados",
     "convertToConsole": "Converter para Console",
     "parameters": "Parâmetros",
     "paramValuePlaceholder": "Valor (ex.: 'texto' ou 123)",

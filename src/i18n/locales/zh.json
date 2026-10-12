@@ -1372,7 +1372,7 @@
     "queryParameters": "查询参数",
     "formatSql": "格式化 SQL",
     "convertSelectionToSqlList": "将所选内容转换为 SQL 列表",
-    "removeInvisibleCharacters": "移除不可见字符",
+    "removeInvisibleCharacters": "清理粘贴的字符",
     "convertToConsole": "转换为控制台",
     "parameters": "参数",
     "paramValuePlaceholder": "值（例如 'text' 或 123）",
