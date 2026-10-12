@@ -148,6 +148,8 @@ enum PluginCommand {
 pub struct PluginProcess {
     /// Plugin id used to resolve the configured call timeout.
     plugin_id: String,
+    /// Only schema-less plugins map sidebar database selections to params.database.
+    route_selected_database: bool,
     sender: mpsc::Sender<PluginCommand>,
     next_id: AtomicU64,
     shutdown_tx: tokio::sync::Mutex<Option<oneshot::Sender<()>>>,
@@ -305,6 +307,7 @@ impl PluginProcess {
 
         Ok(Self {
             plugin_id,
+            route_selected_database: false,
             sender: tx,
             next_id: AtomicU64::new(1),
             shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
@@ -364,7 +367,9 @@ impl PluginProcess {
     ) -> Result<Value, PluginCallError> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let mut params = params;
-        route_selected_plugin_database(&mut params);
+        if self.route_selected_database {
+            route_selected_plugin_database(&mut params);
+        }
         let req = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
             method: method.to_string(),
@@ -421,6 +426,8 @@ impl RpcDriver {
     ) -> Result<Self, String> {
         let mut process =
             PluginProcess::new(manifest.id.clone(), executable_path, interpreter).await?;
+        // Real SQL schemas must never be mistaken for a selected logical database.
+        process.route_selected_database = !manifest.capabilities.schemas;
         // Register manifests immediately. Initialize only when this plugin is
         // actually used, so idle plugins cannot delay the GUI or MCP startup.
         process.initialization_settings = Some(settings);
@@ -1740,6 +1747,7 @@ where
         manifest: test_manifest(),
         process: Arc::new(PluginProcess {
             plugin_id: "test-plugin".to_string(),
+            route_selected_database: true,
             sender: tx,
             next_id: AtomicU64::new(1),
             shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
@@ -1792,6 +1800,25 @@ mod tests {
             route_selected_plugin_database(&mut routed);
             assert_eq!(routed, input);
         }
+    }
+
+    #[tokio::test]
+    async fn rpc_schema_aware_plugin_preserves_multi_database_parameters() {
+        let mut driver = test_driver(|req| {
+            assert_eq!(req.params["schema"], "sales");
+            assert_eq!(req.params["params"]["database"], json!(["sales", "analytics"]));
+            json!([])
+        });
+        // SQL Server-style drivers declare schemas; a schema can share a
+        // database name without changing the connection's database selection.
+        Arc::get_mut(&mut driver.process)
+            .unwrap()
+            .route_selected_database = false;
+        let mut params = test_connection_params();
+        params.database = DatabaseSelection::Multiple(vec![
+            "sales".to_string(), "analytics".to_string(),
+        ]);
+        assert!(driver.get_tables(&params, Some("sales")).await.unwrap().is_empty());
     }
 
     #[tokio::test]
