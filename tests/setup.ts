@@ -81,6 +81,9 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => {
       if (options) {
+        if (typeof options.defaultValue === "string") {
+          return options.defaultValue;
+        }
         // Simple interpolation for testing
         let result = key;
         Object.entries(options).forEach(([k, v]) => {

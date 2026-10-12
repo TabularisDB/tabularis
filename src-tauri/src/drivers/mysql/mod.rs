@@ -1406,6 +1406,8 @@ async fn exec_on_mysql_conn(
             truncated: false,
             pagination: None,
             additional_results: None,
+            server_time_ms: None,
+            fetch_time_ms: None,
         });
     }
 
@@ -1427,6 +1429,8 @@ async fn exec_on_mysql_conn(
             truncated: false,
             pagination: None,
             additional_results: None,
+            server_time_ms: None,
+            fetch_time_ms: None,
         });
     }
 
@@ -1459,6 +1463,9 @@ async fn exec_on_mysql_conn(
     // terminator per result set, which the collector folds into discrete sets.
     let mut collector = multi_result::ResultSetCollector::new(manual_limit);
 
+    let start_instant = std::time::Instant::now();
+    let mut server_time_ms: Option<f64> = None;
+
     // Scope the stream so `conn` borrow is released before returning
     {
         use futures::stream::StreamExt;
@@ -1470,6 +1477,9 @@ async fn exec_on_mysql_conn(
         };
 
         while let Some(result) = event_stream.next().await {
+            if server_time_ms.is_none() {
+                server_time_ms = Some(start_instant.elapsed().as_secs_f64() * 1000.0);
+            }
             match result {
                 Ok(sqlx::Either::Left(_)) => collector.end_result_set(),
                 Ok(sqlx::Either::Right(row)) => {
@@ -1500,6 +1510,12 @@ async fn exec_on_mysql_conn(
         }
     } // event_stream dropped here — conn borrow released
 
+    let total_elapsed_ms = start_instant.elapsed().as_secs_f64() * 1000.0;
+    let (server_time, fetch_time) = match server_time_ms {
+        Some(s_ms) => (Some(s_ms), Some((total_elapsed_ms - s_ms).max(0.0))),
+        None => (Some(total_elapsed_ms), Some(0.0)),
+    };
+
     let mut result_sets = collector.finish();
     let primary = if result_sets.is_empty() {
         multi_result::ResultSetData::default()
@@ -1524,6 +1540,8 @@ async fn exec_on_mysql_conn(
                     truncated: set.truncated,
                     pagination: None,
                     additional_results: None,
+                    server_time_ms: None,
+                    fetch_time_ms: None,
                 })
                 .collect(),
         )
@@ -1546,6 +1564,8 @@ async fn exec_on_mysql_conn(
         truncated,
         pagination,
         additional_results,
+        server_time_ms: server_time,
+        fetch_time_ms: fetch_time,
     })
 }
 

@@ -1365,6 +1365,11 @@
     "newRow": "新規行",
     "editing": "編集中: {{table}}",
     "rowsRetrieved": "{{count}} 行を取得しました",
+    "timing": {
+      "execution": "実行",
+      "fetch": "取得",
+      "total": "合計"
+    },
     "queryExecuted": "クエリが正常に実行されました",
     "rowsAffected": "{{count}} 行に影響",
     "autoPaginated": "自動ページング",

@@ -1352,6 +1352,11 @@
     "newRow": "Nova Linha",
     "editing": "Editando: {{table}}",
     "rowsRetrieved": "{{count}} linhas obtidas",
+    "timing": {
+      "execution": "Execução",
+      "fetch": "Transferência",
+      "total": "Total"
+    },
     "queryExecuted": "Consulta executada com sucesso",
     "rowsAffected": "{{count}} linhas afetadas",
     "autoPaginated": "Paginado automaticamente",

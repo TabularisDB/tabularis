@@ -17,7 +17,11 @@ import { ResultEntryContent } from "./ResultEntryContent";
 import type { DataGridCommandTarget } from "./DataGrid";
 import { PaginationControls } from "./PaginationControls";
 import { ResizeHandle } from "../notebook/ResizeHandle";
-import { formatDuration } from "../../utils/formatTime";
+import {
+  formatDuration,
+  formatTimingTooltip,
+  type TimingLabels,
+} from "../../utils/formatTime";
 import { onActivationKey } from "../../utils/keyboardEvents";
 import { getEntryDisplayLabel, getStackedGridHeight } from "../../utils/multiResult";
 import type { QueryResultEntry } from "../../types/editor";
@@ -103,6 +107,22 @@ export function StackedResultItem({
     }
     setIsEditing(false);
   };
+
+  const timingLabels: TimingLabels = {
+    execution: t("editor.timing.execution", { defaultValue: "Execution" }),
+    fetch: t("editor.timing.fetch", { defaultValue: "Fetch" }),
+    total: t("editor.timing.total", { defaultValue: "Total" }),
+  };
+  const timingTooltip = entry.result
+    ? formatTimingTooltip(
+        {
+          serverTimeMs: entry.result.server_time_ms,
+          fetchTimeMs: entry.result.fetch_time_ms,
+          totalTimeMs: entry.executionTime,
+        },
+        timingLabels,
+      ) ?? undefined
+    : undefined;
 
   const hasResult = !entry.isLoading && !entry.error && entry.result;
 
@@ -248,7 +268,10 @@ export function StackedResultItem({
             <span className="text-muted text-[11px] truncate whitespace-nowrap">
               {t("editor.rowsRetrieved", { count: entry.result!.rows.length })}
               {entry.executionTime !== null && (
-                <span className="hidden @[400px]:inline font-mono ml-1">
+                <span
+                  className="hidden @[400px]:inline font-mono ml-1"
+                  title={timingTooltip}
+                >
                   ({formatDuration(entry.executionTime)})
                 </span>
               )}

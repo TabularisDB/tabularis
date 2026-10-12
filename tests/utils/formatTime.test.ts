@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { formatDuration, parseDuration, formatElapsedTime } from '../../src/utils/formatTime';
+import {
+  formatDuration,
+  parseDuration,
+  formatElapsedTime,
+  formatTimingTooltip,
+} from '../../src/utils/formatTime';
 
 describe('formatTime', () => {
   describe('formatDuration', () => {
@@ -149,6 +154,46 @@ describe('formatTime', () => {
       expect(formatElapsedTime(59)).toBe('00:59'); // Just before 1 minute
       expect(formatElapsedTime(60)).toBe('01:00'); // Exactly 1 minute
       expect(formatElapsedTime(61)).toBe('01:01'); // Just after 1 minute
+    });
+  });
+
+  describe('formatTimingTooltip', () => {
+    it('returns null when neither serverTimeMs nor fetchTimeMs is present', () => {
+      expect(formatTimingTooltip({})).toBeNull();
+      expect(formatTimingTooltip({ serverTimeMs: null, fetchTimeMs: null })).toBeNull();
+      expect(formatTimingTooltip({ totalTimeMs: 120 })).toBeNull();
+    });
+
+    it('formats server and fetch breakdown with default labels', () => {
+      const tooltip = formatTimingTooltip({
+        serverTimeMs: 15,
+        fetchTimeMs: 5,
+        totalTimeMs: 25,
+      });
+      expect(tooltip).toBe('Execution: 15 ms · Fetch: 5 ms · Total: 25 ms');
+    });
+
+    it('formats partial breakdown without total or without fetch', () => {
+      const tooltip = formatTimingTooltip({
+        serverTimeMs: 1500,
+      });
+      expect(tooltip).toBe('Execution: 1.50 s');
+    });
+
+    it('respects custom labels', () => {
+      const tooltip = formatTimingTooltip(
+        {
+          serverTimeMs: 20,
+          fetchTimeMs: 10,
+          totalTimeMs: 35,
+        },
+        {
+          execution: 'Ejecución',
+          fetch: 'Transferencia',
+          total: 'Total',
+        },
+      );
+      expect(tooltip).toBe('Ejecución: 20 ms · Transferencia: 10 ms · Total: 35 ms');
     });
   });
 });

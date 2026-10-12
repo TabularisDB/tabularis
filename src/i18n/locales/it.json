@@ -1374,6 +1374,11 @@
     "newRow": "Nuova riga",
     "editing": "Modifica: {{table}}",
     "rowsRetrieved": "{{count}} righe recuperate",
+    "timing": {
+      "execution": "Esecuzione",
+      "fetch": "Recupero",
+      "total": "Totale"
+    },
     "queryExecuted": "Query eseguita con successo",
     "rowsAffected": "{{count}} righe interessate",
     "autoPaginated": "Impaginazione automatica",

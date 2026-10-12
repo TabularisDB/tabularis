@@ -1353,6 +1353,11 @@
     "newRow": "Новая строка",
     "editing": "Редактирование: {{table}}",
     "rowsRetrieved": "Строк: {{count}}",
+    "timing": {
+      "execution": "Выполнение",
+      "fetch": "Получение",
+      "total": "Всего"
+    },
     "queryExecuted": "Запрос выполнен успешно",
     "rowsAffected": "затронуто строк: {{count}}",
     "autoPaginated": "Автопостраничный вывод",

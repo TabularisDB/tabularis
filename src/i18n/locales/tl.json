@@ -1366,6 +1366,11 @@
     "newRow": "Bagong Row",
     "editing": "Ine-edit: {{table}}",
     "rowsRetrieved": "{{count}} row ang nakuha",
+    "timing": {
+      "execution": "Pagpapatupad",
+      "fetch": "Pagkuha",
+      "total": "Kabuuan"
+    },
     "queryExecuted": "Matagumpay na naisakatuparan ang query",
     "rowsAffected": "{{count}} row ang naapektuhan",
     "autoPaginated": "Auto paginated",

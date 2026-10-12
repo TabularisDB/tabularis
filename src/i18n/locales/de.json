@@ -1353,6 +1353,11 @@
     "newRow": "Neue Zeile",
     "editing": "Bearbeitung: {{table}}",
     "rowsRetrieved": "{{count}} Zeilen abgerufen",
+    "timing": {
+      "execution": "Ausführung",
+      "fetch": "Abruf",
+      "total": "Gesamt"
+    },
     "queryExecuted": "Abfrage erfolgreich ausgeführt",
     "rowsAffected": "{{count}} Zeilen betroffen",
     "autoPaginated": "Automatisch paginiert",

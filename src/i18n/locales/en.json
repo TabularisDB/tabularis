@@ -1383,6 +1383,11 @@
     "newRow": "New Row",
     "editing": "Editing: {{table}}",
     "rowsRetrieved": "{{count}} rows retrieved",
+    "timing": {
+      "execution": "Execution",
+      "fetch": "Fetch",
+      "total": "Total"
+    },
     "queryExecuted": "Query executed successfully",
     "rowsAffected": "{{count}} rows affected",
     "autoPaginated": "Auto paginated",

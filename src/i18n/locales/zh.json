@@ -1328,6 +1328,11 @@
     "newRow": "新建行",
     "editing": "编辑中：{{table}}",
     "rowsRetrieved": "已检索 {{count}} 行",
+    "timing": {
+      "execution": "执行",
+      "fetch": "获取",
+      "total": "总计"
+    },
     "queryExecuted": "查询执行成功",
     "rowsAffected": "{{count}} 行受影响",
     "autoPaginated": "自动分页",

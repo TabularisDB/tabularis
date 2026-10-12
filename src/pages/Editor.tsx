@@ -131,7 +131,7 @@ import {
   extractQueryParams,
   interpolateQueryParams,
 } from "../utils/queryParameters";
-import { formatDuration } from "../utils/formatTime";
+import { formatDuration, formatTimingTooltip } from "../utils/formatTime";
 import { notifyQueryFinished } from "../utils/queryNotification";
 import {
   buildSyncPayload,
@@ -5267,7 +5267,25 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                           count: activeTab.result.rows.length,
                         })}{" "}
                         {activeTab.executionTime !== null && (
-                          <span className="hidden @[400px]:inline text-muted ml-2 font-mono">
+                          <span
+                            className="hidden @[400px]:inline text-muted ml-2 font-mono"
+                            title={
+                              activeTab.result
+                                ? formatTimingTooltip(
+                                    {
+                                      serverTimeMs: activeTab.result.server_time_ms,
+                                      fetchTimeMs: activeTab.result.fetch_time_ms,
+                                      totalTimeMs: activeTab.executionTime,
+                                    },
+                                    {
+                                      execution: t("editor.timing.execution", { defaultValue: "Execution" }),
+                                      fetch: t("editor.timing.fetch", { defaultValue: "Fetch" }),
+                                      total: t("editor.timing.total", { defaultValue: "Total" }),
+                                    },
+                                  ) ?? undefined
+                                : undefined
+                            }
+                          >
                             ({formatDuration(activeTab.executionTime)})
                           </span>
                         )}

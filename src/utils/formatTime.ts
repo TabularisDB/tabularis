@@ -60,3 +60,49 @@ export function formatElapsedTime(seconds: number): string {
   const secs = seconds % 60;
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
+
+export interface TimingBreakdown {
+  serverTimeMs?: number | null;
+  fetchTimeMs?: number | null;
+  totalTimeMs?: number | null;
+}
+
+export interface TimingLabels {
+  execution?: string;
+  fetch?: string;
+  total?: string;
+}
+
+/**
+ * Builds a tooltip string breaking down execution and fetch times when available.
+ * Returns null if neither serverTimeMs nor fetchTimeMs is present.
+ */
+export function formatTimingTooltip(
+  breakdown: TimingBreakdown,
+  labels: TimingLabels = {},
+): string | null {
+  const { serverTimeMs, fetchTimeMs, totalTimeMs } = breakdown;
+  if (serverTimeMs === null || serverTimeMs === undefined) {
+    if (fetchTimeMs === null || fetchTimeMs === undefined) {
+      return null;
+    }
+  }
+
+  const execLabel = labels.execution ?? "Execution";
+  const fetchLabel = labels.fetch ?? "Fetch";
+  const totalLabel = labels.total ?? "Total";
+
+  const parts: string[] = [];
+  if (serverTimeMs !== null && serverTimeMs !== undefined) {
+    parts.push(`${execLabel}: ${formatDuration(serverTimeMs)}`);
+  }
+  if (fetchTimeMs !== null && fetchTimeMs !== undefined) {
+    parts.push(`${fetchLabel}: ${formatDuration(fetchTimeMs)}`);
+  }
+  if (totalTimeMs !== null && totalTimeMs !== undefined) {
+    parts.push(`${totalLabel}: ${formatDuration(totalTimeMs)}`);
+  }
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+

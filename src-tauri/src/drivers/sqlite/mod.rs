@@ -665,6 +665,8 @@ async fn exec_on_sqlite_conn(
             truncated: false,
             pagination: None,
             additional_results: None,
+            server_time_ms: None,
+            fetch_time_ms: None,
         });
     }
 
@@ -691,6 +693,8 @@ async fn exec_on_sqlite_conn(
     }
 
     // Streaming
+    let start_instant = std::time::Instant::now();
+    let mut server_time_ms: Option<f64> = None;
     let mut rows_stream = sqlx::query(&final_query).fetch(&mut *conn);
 
     let mut columns: Vec<String> = Vec::new();
@@ -700,6 +704,9 @@ async fn exec_on_sqlite_conn(
     use futures::stream::StreamExt;
 
     while let Some(result) = rows_stream.next().await {
+        if server_time_ms.is_none() {
+            server_time_ms = Some(start_instant.elapsed().as_secs_f64() * 1000.0);
+        }
         match result {
             Ok(row) => {
                 if columns.is_empty() {
@@ -724,6 +731,12 @@ async fn exec_on_sqlite_conn(
         }
     }
 
+    let total_elapsed_ms = start_instant.elapsed().as_secs_f64() * 1000.0;
+    let (server_time, fetch_time) = match server_time_ms {
+        Some(s_ms) => (Some(s_ms), Some((total_elapsed_ms - s_ms).max(0.0))),
+        None => (Some(total_elapsed_ms), Some(0.0)),
+    };
+
     // Apply LIMIT +1 result: if we got page_size+1 rows, has_more=true
     if let Some(ref mut p) = pagination {
         let has_more = json_rows.len() > p.page_size as usize;
@@ -741,6 +754,8 @@ async fn exec_on_sqlite_conn(
         truncated,
         pagination,
         additional_results: None,
+        server_time_ms: server_time,
+        fetch_time_ms: fetch_time,
     })
 }
 

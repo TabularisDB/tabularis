@@ -4,7 +4,11 @@ import { CheckCircle2 } from "lucide-react";
 import { DataGrid, type DataGridCommandTarget } from "./DataGrid";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { PaginationControls } from "./PaginationControls";
-import { formatDuration } from "../../utils/formatTime";
+import {
+  formatDuration,
+  formatTimingTooltip,
+  type TimingLabels,
+} from "../../utils/formatTime";
 import { getStackedGridHeight } from "../../utils/multiResult";
 import type { QueryResultEntry } from "../../types/editor";
 
@@ -71,6 +75,22 @@ export function ResultEntryContent({
     );
   }
 
+  const timingLabels: TimingLabels = {
+    execution: t("editor.timing.execution", { defaultValue: "Execution" }),
+    fetch: t("editor.timing.fetch", { defaultValue: "Fetch" }),
+    total: t("editor.timing.total", { defaultValue: "Total" }),
+  };
+  const timingTooltip = entry.result
+    ? formatTimingTooltip(
+        {
+          serverTimeMs: entry.result.server_time_ms,
+          fetchTimeMs: entry.result.fetch_time_ms,
+          totalTimeMs: entry.executionTime,
+        },
+        timingLabels,
+      ) ?? undefined
+    : undefined;
+
   // A statement that returns no result set (INSERT/UPDATE/DELETE/DDL such as
   // CREATE/ALTER/DROP VIEW) still succeeded — surface that explicitly instead
   // of an empty grid with a misleading "0 rows retrieved" header.
@@ -78,7 +98,7 @@ export function ResultEntryContent({
     const affected = entry.result.affected_rows ?? 0;
     const time =
       entry.executionTime !== null ? (
-        <span className="text-muted font-mono">
+        <span className="text-muted font-mono" title={timingTooltip}>
           ({formatDuration(entry.executionTime)})
         </span>
       ) : null;
@@ -152,7 +172,10 @@ export function ResultEntryContent({
               count: entry.result.rows.length,
             })}{" "}
             {entry.executionTime !== null && (
-              <span className="hidden @[400px]:inline text-muted ml-2 font-mono">
+              <span
+                className="hidden @[400px]:inline text-muted ml-2 font-mono"
+                title={timingTooltip}
+              >
                 ({formatDuration(entry.executionTime)})
               </span>
             )}

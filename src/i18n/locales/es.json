@@ -1382,6 +1382,11 @@
     "newRow": "Nueva Fila",
     "editing": "Editando: {{table}}",
     "rowsRetrieved": "{{count}} filas obtenidas",
+    "timing": {
+      "execution": "Ejecución",
+      "fetch": "Transferencia",
+      "total": "Total"
+    },
     "queryExecuted": "Consulta ejecutada correctamente",
     "rowsAffected": "{{count}} filas afectadas",
     "autoPaginated": "Paginación automática",
