@@ -147,6 +147,11 @@ describe('SqlEditorWrapper', () => {
       dispose: vi.fn(),
       getContribution: vi.fn(() => null),
       getModel: vi.fn(() => null),
+      getSelection: vi.fn(() => null),
+      getPosition: vi.fn(() => null),
+      createDecorationsCollection: vi.fn(() => ({ clear: vi.fn(), set: vi.fn() })),
+      onDidChangeCursorSelection: vi.fn(),
+      onDidChangeModelContent: vi.fn(),
       onKeyDown: vi.fn((handler: (event: MonacoKeyDownEventMock) => void) => {
         keyDownHandlers.push(handler);
       }),
