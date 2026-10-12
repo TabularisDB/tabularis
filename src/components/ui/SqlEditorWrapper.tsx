@@ -19,6 +19,7 @@ import {
 } from "../../utils/sqlSplitter";
 import { formatSql } from "../../utils/sqlFormat";
 import { toSqlList } from "../../utils/editor";
+import { cleanSqlInvisibleCharacters } from "../../utils/sqlInvisibleCharacters";
 import { isTextCompositionKeyEvent } from "../../utils/keyboardEvents";
 import type { SqlDialect } from "../../utils/sql";
 import type { RunContext } from "../../utils/runTarget";
@@ -436,6 +437,30 @@ const SqlEditorInternal = ({
         },
       });
 
+      // An explicit, undoable repair for hidden characters pasted from rich text.
+      editor.addAction({
+        id: 'tabularis.removeInvisibleSqlCharacters',
+        label: t('editor.removeInvisibleCharacters'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.6,
+        run: (ed) => {
+          const model = ed.getModel();
+          if (!model) return;
+          const selections = ed.getSelections() ?? [];
+          const selected = selections.filter((range) => !range.isEmpty());
+          const ranges = selected.length > 0 ? selected : [model.getFullModelRange()];
+          const edits = ranges.flatMap((range) => {
+            const oldText = model.getValueInRange(range);
+            const cleaned = cleanSqlInvisibleCharacters(oldText);
+            return cleaned === oldText ? [] : [{ range, text: cleaned, forceMoveMarkers: true }];
+          });
+          if (edits.length === 0) return;
+          ed.pushUndoStop();
+          ed.executeEdits('removeInvisibleSqlCharacters', edits);
+          ed.pushUndoStop();
+        },
+      });
+
       // Convert selected values (e.g. a column pasted from a spreadsheet) into
       // a quoted list for IN (...). Shown only when text is selected; every
       // selection is replaced in one edit, so a single undo restores it.
@@ -594,6 +619,12 @@ const SqlEditorInternal = ({
           lineHeight: settings.editorLineHeight ?? 1.5,
           tabSize: settings.editorTabSize ?? 2,
           wordWrap: (settings.editorWordWrap ?? true) ? 'on' : 'off',
+          unicodeHighlight: {
+            invisibleCharacters: settings.editorHighlightInvisibleCharacters ?? true,
+            ambiguousCharacters: settings.editorHighlightInvisibleCharacters ?? true,
+            nonBasicASCII: false,
+          },
+          renderControlCharacters: settings.editorHighlightInvisibleCharacters ?? true,
           lineNumbers: (settings.editorShowLineNumbers ?? true) ? 'on' : 'off',
           folding: true,
           showFoldingControls: 'always',
