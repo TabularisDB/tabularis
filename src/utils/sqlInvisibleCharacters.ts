@@ -1,22 +1,75 @@
-/** Characters copied from rich text that can change SQL parsing without being visible. */
-const ZERO_WIDTH_OR_DIRECTIONAL =
-  /(?:[\u00AD\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]|\u034F)/g;
-const TYPOGRAPHIC_QUOTES = /[\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F]/g;
+import { scanNonCodeSpans, type Dialect } from './sqlSplitter';
+
+/** A replacement in the original SQL text, using UTF-16 offsets. */
+export interface SqlCharacterCleanupEdit {
+  readonly start: number;
+  readonly end: number;
+  readonly text: string;
+}
+
+/** Characters that are not normally visible in pasted SQL code. */
+const CLEANUP_CHARACTERS =
+  /[\u00A0\u00AD\u034F\u061C\u180E\u2000-\u200F\u2028\u2029\u202A-\u202F\u2060\u2066-\u2069\u3000\u3164\uFEFF\u2018-\u201F，；：（）＝．＋－＊／！]/g;
+
 const WIDE_PUNCTUATION: Record<string, string> = {
   '，': ',', '；': ';', '：': ':', '（': '(', '）': ')',
-  '＝': '=', '．': '.', '＋': '+', '－': '-', '＊': '*', '／': '/',
+  '＝': '=', '．': '.', '＋': '+', '－': '-', '＊': '*', '／': '/', '！': '!',
 };
 
-/** Clean pasted SQL text on explicit user request, never during typing.
- * Keep line breaks and tabs, so this does not change statement layout.
- * Text inside quoted SQL literals is also changed, which is why the operation
- * is an undoable editor action rather than an automatic rewrite.
+function replacementFor(character: string): string {
+  if (/[\u00AD\u034F\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/.test(character)) {
+    return '';
+  }
+  if (/[\u00A0\u2000-\u200A\u2028\u2029\u202F\u3000\u3164]/.test(character)) {
+    return ' ';
+  }
+  if (/[\u2018-\u201B]/.test(character)) return "'";
+  if (/[\u201C-\u201F]/.test(character)) return '"';
+  return WIDE_PUNCTUATION[character] ?? character;
+}
+
+/**
+ * Find changes in SQL code. Do not change quoted values, identifiers, or
+ * comments. The SQL splitter supplies quote rules for the active dialect.
+ * An unknown dialect uses the previous cleanup behavior.
  */
-export function cleanSqlInvisibleCharacters(text: string): string {
-  return text
-    .replace(ZERO_WIDTH_OR_DIRECTIONAL, '')
-    .replace(/[\u00A0\u202F\u3000]/g, ' ')
-    .replace(TYPOGRAPHIC_QUOTES, (character) =>
-      '\u2018\u2019\u201A\u201B'.includes(character) ? "'" : '"')
-    .replace(/[，；：（）＝．＋－＊／]/g, (character) => WIDE_PUNCTUATION[character]);
+export function getSqlInvisibleCharacterEdits(
+  text: string,
+  dialect?: Dialect | string,
+): SqlCharacterCleanupEdit[] {
+  const nonCodeSpans = scanNonCodeSpans(text, dialect);
+  const edits: SqlCharacterCleanupEdit[] = [];
+  let spanIndex = 0;
+
+  for (const match of text.matchAll(CLEANUP_CHARACTERS)) {
+    const start = match.index;
+    while (spanIndex < nonCodeSpans.length && nonCodeSpans[spanIndex].end <= start) {
+      spanIndex += 1;
+    }
+    const span = nonCodeSpans[spanIndex];
+    if (span && start >= span.start && start < span.end) continue;
+
+    const replacement = replacementFor(match[0]);
+    if (replacement !== match[0]) {
+      edits.push({ start, end: start + match[0].length, text: replacement });
+    }
+  }
+  return edits;
+}
+
+/** Clean pasted SQL only when the user runs the editor action. */
+export function cleanSqlInvisibleCharacters(
+  text: string,
+  dialect?: Dialect | string,
+): string {
+  const edits = getSqlInvisibleCharacterEdits(text, dialect);
+  if (edits.length === 0) return text;
+
+  let result = '';
+  let offset = 0;
+  for (const edit of edits) {
+    result += text.slice(offset, edit.start) + edit.text;
+    offset = edit.end;
+  }
+  return result + text.slice(offset);
 }
