@@ -9,6 +9,8 @@ export interface SqlCharacterCleanupEdit {
 
 /** Characters that are not normally visible in pasted SQL code. */
 const CLEANUP_CHARACTERS =
+  // Each match is one code point. Some of these characters combine with others.
+  // eslint-disable-next-line no-misleading-character-class
   /[\u00A0\u00AD\u034F\u061C\u180E\u2000-\u200F\u2028\u2029\u202A-\u202F\u2060\u2066-\u2069\u3000\u3164\uFEFF\u2018-\u201F，；：（）＝．＋－＊／！]/g;
 
 const WIDE_PUNCTUATION: Record<string, string> = {
@@ -17,6 +19,8 @@ const WIDE_PUNCTUATION: Record<string, string> = {
 };
 
 function replacementFor(character: string): string {
+  // Each match is one code point. Do not match a complete text cluster.
+  // eslint-disable-next-line no-misleading-character-class
   if (/[\u00AD\u034F\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/.test(character)) {
     return '';
   }
