@@ -286,8 +286,10 @@ export const registerSqlAutocomplete = (
           // Virtual relations belong to this SQL statement, not the server.
           // Resolve them before asking get_columns for a physical table.
           const aliasRef: ParsedTableRef | undefined = tableAliases?.get(typedName);
-          const virtualTable = derivedByName.get(typedName) ??
-            (aliasRef ? derivedByName.get(aliasRef.name.toLowerCase()) : undefined);
+          // A FROM alias wins over a same-named CTE (or one in an earlier statement).
+          const virtualTable = aliasRef
+            ? derivedByName.get(aliasRef.name.toLowerCase())
+            : derivedByName.get(typedName);
           if (virtualTable) {
             const columnRange = {
               startLineNumber: position.lineNumber,
