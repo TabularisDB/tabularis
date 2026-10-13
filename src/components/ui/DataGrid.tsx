@@ -1981,6 +1981,7 @@ export const DataGrid = React.memo(
           csvIncludeHeaders,
           csvDelimiter,
           tableName,
+          driver: activeDriver,
         }),
         rowsCopiedToast(rows.length),
       );
@@ -2014,6 +2015,7 @@ export const DataGrid = React.memo(
           csvIncludeHeaders,
           csvDelimiter,
           tableName,
+          driver: activeDriver,
         }),
         t("dataGrid.copiedCells", {
           count: rangeRows.length * projected.columns.length,
@@ -2044,6 +2046,7 @@ export const DataGrid = React.memo(
           delimiter: csvDelimiter,
           includeHeader: csvIncludeHeaders,
           tableName: tableName ?? "table",
+          driver: activeDriver,
         });
         await copyToClipboard(text);
       },
