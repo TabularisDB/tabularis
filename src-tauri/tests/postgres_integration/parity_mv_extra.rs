@@ -1,10 +1,12 @@
 //! Extra parity tests for materialized views — MV definition retrieval.
 //!
 //! Both the built-in PostgreSQL driver and the plugin driver must return the
-//! same materialized view definition. Earlier the built-in driver failed with
-//! "error serializing parameter 0" on PG 16 because it bound a `String`
-//! directly to `regclass`; the fix casts through `text` first, matching
-//! `get_view_definition`.
+//! same materialized view definition. The built-in driver failed on PG 16
+//! ("error serializing parameter 0") when it bound a `String` directly to
+//! `regclass`. It now resolves the MV by a `pg_class`/`pg_namespace` join
+//! with `relkind = 'm'`, binding schema/name as text — which also avoids
+//! the regclass serialization failure. See `get_view_definition` for the
+//! plain-view variant.
 
 use crate::parity::ParityHarness;
 

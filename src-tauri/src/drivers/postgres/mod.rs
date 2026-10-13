@@ -1643,8 +1643,9 @@ pub async fn get_materialized_view_definition(
     // Resolve via pg_class/pg_namespace with a `relkind = 'm'` filter so only
     // materialized views match — a regular view or table name returns no row
     // (a clean "not found") instead of wrong DDL. `pg_get_viewdef` alone
-    // resolves any relation by name. Bind schema/name as text (tokio-postgres
-    // cannot serialize a String directly to regclass on PG 16).
+    // resolves any relation by name. Binding schema/name as separate text
+    // params also avoids the PG 16 "error serializing parameter 0" failure
+    // that a direct `regclass` bind triggers.
     let row = client
         .query_one(
             "SELECT pg_get_viewdef(c.oid, true) AS definition \
