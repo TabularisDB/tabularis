@@ -1,6 +1,6 @@
 import type { ForeignKey } from "../types/schema";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { isPostgresDialect, quoteIdentifier } from "./identifiers";
+import { isMysqlDialect, isPostgresDialect, quoteIdentifier } from "./identifiers";
 
 const NUMERIC_TYPE_KEYWORDS = [
   "int",
@@ -124,6 +124,12 @@ export function formatSqlValueForColumnComparison(
   driver: string | PluginManifest | DriverCapabilities | null | undefined,
   columnType?: string,
 ): string {
+  if (isMysqlDialect(driver) && /^float(?:\s+unsigned)?$/i.test(columnType?.trim() ?? "") &&
+      typeof value === "number" && Number.isFinite(value)) {
+    // CAST AS FLOAT requires MySQL 8.0.17+; widening also works on MySQL 5.7.
+    const widened = Math.fround(value);
+    if (Number.isFinite(widened)) return String(widened);
+  }
   const literal = formatSqlValueForFilter(value, columnType);
   const isPostgresReal = isPostgresDialect(driver) &&
     /^(real|float4)$/i.test(columnType?.trim() ?? "");

@@ -896,3 +896,20 @@ fn transaction_effect_does_not_match_plpgsql_block_bodies() {
         TransactionEffect::None
     );
 }
+
+#[test]
+fn float4_decimal_conversion_preserves_values_and_round_trips() {
+    for (value, expected) in [(89.9f32, 89.9f64), (59.99, 59.99), (29.5, 29.5)] {
+        assert_eq!(super::float4_to_json_f64(value), Some(expected));
+    }
+    for value in [
+        f32::MAX,
+        f32::MIN_POSITIVE,
+        f32::from_bits(1),
+        f32::from_bits(0x15ae43fd),
+        -0.0,
+    ] {
+        let decimal = super::float4_to_json_f64(value).unwrap();
+        assert_eq!((decimal as f32).to_bits(), value.to_bits());
+    }
+}

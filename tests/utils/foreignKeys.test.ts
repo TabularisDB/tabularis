@@ -124,6 +124,34 @@ describe("foreignKeys", () => {
       ).toBe('"id" = 9007199254740993');
     });
 
+    it("compares MySQL FLOAT values using their widened single precision", () => {
+      const capabilities: DriverCapabilities = {
+        schemas: true, views: true, routines: true,
+        file_based: false, folder_based: false,
+        identifier_quote: "`", alter_primary_key: true, sql_dialect: "mysql",
+      };
+      const manifest: PluginManifest = {
+        id: "mysql-compatible", name: "MySQL compatible", version: "1.0.0",
+        description: "", default_port: 3306, capabilities,
+      };
+      for (const driver of ["mysql", capabilities, manifest]) {
+        for (const columnType of ["float", "FLOAT UNSIGNED"]) {
+          expect(buildForeignKeyFilterClause(orgFk, 89.9, driver, columnType)).toBe(
+            "`id` = 89.9000015258789",
+          );
+        }
+        expect(buildForeignKeyFilterClause(orgFk, 1e100, driver, "float")).toBe(
+          "`id` = 1e+100",
+        );
+        expect(buildForeignKeyFilterClause(orgFk, 89.9, driver, "double")).toBe(
+          "`id` = 89.9",
+        );
+      }
+      expect(buildForeignKeyFilterClause(orgFk, 89.9, "postgres", "float")).toBe(
+        '\"id\" = 89.9',
+      );
+    });
+
     it("compares PostgreSQL real values at column precision", () => {
       const capabilities: DriverCapabilities = {
         schemas: true, views: true, routines: true,

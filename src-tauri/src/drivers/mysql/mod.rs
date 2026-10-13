@@ -6,6 +6,7 @@ mod explain;
 mod helpers;
 mod multi_result;
 mod routines;
+mod row_identity;
 mod stmt_classify;
 mod users;
 
@@ -28,6 +29,7 @@ use helpers::{
     mysql_bytes_literal, mysql_row_max_length, mysql_row_str, mysql_row_str_opt,
     mysql_string_literal,
 };
+use row_identity::get_float_columns;
 use sqlx::{Column, Row};
 use stmt_classify::is_text_protocol_stmt;
 
@@ -694,13 +696,25 @@ fn r_count(row: &sqlx::mysql::MySqlRow) -> i64 {
 /// Sort the pk_map into a deterministic (col, val) vec for use with QueryBuilder.
 fn build_mysql_pk_where(
     pk_map: &HashMap<String, serde_json::Value>,
+    float_columns: &std::collections::HashSet<String>,
 ) -> Result<Vec<(String, serde_json::Value)>, String> {
     if pk_map.is_empty() {
         return Err("pk_map must not be empty".into());
     }
     let mut pairs: Vec<(String, serde_json::Value)> = pk_map
         .iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
+        .map(|(k, v)| {
+            let value = if float_columns.contains(k) {
+                // CAST AS FLOAT requires MySQL 8.0.17+; widen for MySQL 5.7 too.
+                v.as_f64()
+                    .and_then(|value| serde_json::Number::from_f64(f64::from(value as f32)))
+                    .map(serde_json::Value::Number)
+                    .unwrap_or_else(|| v.clone())
+            } else {
+                v.clone()
+            };
+            (k.clone(), value)
+        })
         .collect();
     pairs.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(pairs)
@@ -716,6 +730,7 @@ pub async fn save_blob_column_to_file(
 ) -> Result<(), String> {
     let row = mysql_fetch_one_with_pk(
         params,
+        table,
         &format!(
             "SELECT `{}` FROM `{}`",
             escape_identifier(col_name),
@@ -736,6 +751,7 @@ pub async fn fetch_blob_column_as_data_url(
 ) -> Result<String, String> {
     let row = mysql_fetch_one_with_pk(
         params,
+        table,
         &format!(
             "SELECT `{}` FROM `{}`",
             escape_identifier(col_name),
@@ -751,12 +767,14 @@ pub async fn fetch_blob_column_as_data_url(
 /// Execute a SELECT query appending a WHERE clause built from pk_map and return the first row.
 async fn mysql_fetch_one_with_pk(
     params: &ConnectionParams,
+    table: &str,
     select_from: &str,
     pk_map: &HashMap<String, serde_json::Value>,
 ) -> Result<sqlx::mysql::MySqlRow, String> {
     let pool = get_mysql_pool(params).await?;
     let text = resolve_text_proto(&pool, params).await?;
-    let pairs = build_mysql_pk_where(pk_map)?;
+    let float_columns = get_float_columns(&pool, text, table).await;
+    let pairs = build_mysql_pk_where(pk_map, &float_columns)?;
     let mut first = true;
     let mut qb3 = sqlx::QueryBuilder::<sqlx::MySql>::new(format!("{} WHERE ", select_from));
     for (col, val) in &pairs {
@@ -780,12 +798,14 @@ async fn mysql_fetch_one_with_pk(
 /// Returns the number of affected rows.
 async fn mysql_execute_with_pk(
     params: &ConnectionParams,
+    table: &str,
     prefix: &str,
     pk_map: &HashMap<String, serde_json::Value>,
 ) -> Result<u64, String> {
     let pool = get_mysql_pool(params).await?;
     let text = resolve_text_proto(&pool, params).await?;
-    let pairs = build_mysql_pk_where(pk_map)?;
+    let float_columns = get_float_columns(&pool, text, table).await;
+    let pairs = build_mysql_pk_where(pk_map, &float_columns)?;
     let mut qb = sqlx::QueryBuilder::<sqlx::MySql>::new(format!("{} WHERE ", prefix));
     let mut first = true;
     for (col, val) in &pairs {
@@ -814,6 +834,7 @@ pub async fn delete_record(
 ) -> Result<u64, String> {
     mysql_execute_with_pk(
         params,
+        table,
         &format!("DELETE FROM `{}`", escape_identifier(table)),
         pk_map,
     )
@@ -913,7 +934,8 @@ pub async fn update_record(
     // Behind a prepared-statement-less bastion every value is inlined as an
     // escaped literal instead of bound (see `force_text_protocol`).
     let text = resolve_text_proto(&pool, params).await?;
-    let pk_pairs = build_mysql_pk_where(pk_map)?;
+    let float_columns = get_float_columns(&pool, text, table).await;
+    let pk_pairs = build_mysql_pk_where(pk_map, &float_columns)?;
 
     let mut qb = sqlx::QueryBuilder::new(format!(
         "UPDATE `{}` SET `{}` = ",
