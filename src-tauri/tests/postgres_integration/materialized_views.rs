@@ -56,6 +56,25 @@ async fn test_get_materialized_view_definition() {
 
 #[tokio::test]
 #[ignore]
+async fn test_get_materialized_view_definition_rejects_regular_view() {
+    require_pg!();
+    let params = pg_params();
+
+    // `active_users` is a regular view (relkind = 'v'), not a materialized
+    // view. Passing it to get_materialized_view_definition must error instead
+    // of returning the regular view's DDL labeled as a materialized view.
+    let result =
+        postgres::get_materialized_view_definition(&params, "active_users", "test_schema").await;
+    assert!(
+        result.is_err(),
+        "get_materialized_view_definition should reject a regular view name, \
+         but it returned: {:?}",
+        result
+    );
+}
+
+#[tokio::test]
+#[ignore]
 async fn test_refresh_materialized_view() {
     require_pg!();
     let params = pg_params();
