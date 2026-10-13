@@ -303,6 +303,30 @@ describe("DataGrid read-only cell viewers (#654)", () => {
     expect(openRowEditorMock).not.toHaveBeenCalled();
     expect(invoke).not.toHaveBeenCalled();
   });
+
+  it("opens the row editor with the tab's own schema/database, not the connection's global active schema", () => {
+    render(
+      <DataGrid
+        columns={["id"]}
+        data={[[1]]}
+        tableName="orders"
+        connectionId="conn-1"
+        schema="sales"
+        database="analytics"
+        pkColumns={["id"]}
+        selectedRows={new Set([0])}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    act(() => {
+      window.dispatchEvent(new Event("tabularis:toggle-right-sidebar"));
+    });
+
+    expect(openRowEditorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ schema: "sales", database: "analytics" }),
+    );
+  });
 });
 
 describe("DataGrid keyboard navigation", () => {

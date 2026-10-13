@@ -1,4 +1,5 @@
 import type {
+  NestedDatabaseData,
   RoutineInfo,
   SchemaData,
   TableInfo,
@@ -12,6 +13,7 @@ import { routineLabel } from "./routines";
 interface NavigatorItemBase {
   name: string;
   schema?: string;
+  database?: string;
   detail?: string;
 }
 
@@ -37,10 +39,12 @@ export interface NavigatorItemParams {
   activeConnectionId: string | null;
   hasSchemas: boolean;
   isMultiDb: boolean;
+  isNestedMultiDb: boolean;
   schemas: string[];
   schemaDataMap: Record<string, SchemaData>;
   selectedDatabases: string[];
   databaseDataMap: Record<string, SchemaData>;
+  nestedDatabaseDataMap: Record<string, NestedDatabaseData>;
   tables: TableInfo[];
   views: ViewInfo[];
   routines: RoutineInfo[];
@@ -55,11 +59,13 @@ type NavigatorData = Pick<
 
 interface NavigatorGroup {
   group?: string;
+  database?: string;
   data: NavigatorData;
 }
 
 function createNavigatorItems({
   group,
+  database,
   data,
 }: NavigatorGroup): NavigatorItem[] {
   return [
@@ -68,6 +74,7 @@ function createNavigatorItems({
         name: item.name,
         type: "table",
         schema: group,
+        database,
         item,
       }),
     ),
@@ -76,6 +83,7 @@ function createNavigatorItems({
         name: item.name,
         type: "view",
         schema: group,
+        database,
         item,
       }),
     ),
@@ -87,6 +95,7 @@ function createNavigatorItems({
         name: routineLabel(item.name, item.identity_args),
         type: "routine",
         schema: group,
+        database,
         detail: item.routine_type,
         item,
       }),
@@ -96,6 +105,7 @@ function createNavigatorItems({
         name: item.name,
         type: "trigger",
         schema: group,
+        database,
         detail: `on ${item.table_name}`,
         item,
       }),
@@ -108,10 +118,12 @@ export function getNavigatorItems(params: NavigatorItemParams): NavigatorItem[] 
     activeConnectionId,
     hasSchemas,
     isMultiDb,
+    isNestedMultiDb,
     schemas,
     schemaDataMap,
     selectedDatabases,
     databaseDataMap,
+    nestedDatabaseDataMap,
     tables,
     views,
     routines,
@@ -122,7 +134,16 @@ export function getNavigatorItems(params: NavigatorItemParams): NavigatorItem[] 
   if (!activeConnectionId) return [];
 
   let groups: NavigatorGroup[];
-  if (hasSchemas) {
+  if (isNestedMultiDb) {
+    groups = selectedDatabases.flatMap((database) => {
+      const nested = nestedDatabaseDataMap[database];
+      if (!nested) return [];
+      return nested.selectedSchemas.flatMap((group) => {
+        const data = nested.schemaDataMap[group];
+        return data ? [{ group, database, data }] : [];
+      });
+    });
+  } else if (hasSchemas) {
     groups = schemas.flatMap((group) => {
       const data = schemaDataMap[group];
       return data ? [{ group, data }] : [];
@@ -156,6 +177,7 @@ export function toDatabaseObject(
     connectionId: context.connectionId,
     name: item.name,
     schema: item.schema,
+    database: item.database,
   };
 
   switch (item.type) {
@@ -167,9 +189,11 @@ export function toDatabaseObject(
         driver: context.driver,
         qualifySchema: !context.isMultiDatabase,
         title:
-          context.isMultiDatabase && item.schema
-            ? `${item.name} (${item.schema})`
-            : undefined,
+          item.database && item.schema
+            ? `${item.name} (${item.database}.${item.schema})`
+            : context.isMultiDatabase && item.schema
+              ? `${item.name} (${item.schema})`
+              : undefined,
       };
     case "routine":
       return {

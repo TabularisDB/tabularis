@@ -46,7 +46,7 @@ export const GenerateSQLModal = ({
   const navigate = useNavigate();
   const { connectionDataMap } = useDatabase();
   const { showAlert } = useAlert();
-  const { connectionId, tableName, schema } = target;
+  const { connectionId, tableName, schema, database } = target;
   const connectionData = connectionDataMap[connectionId];
   const dialect =
     connectionData?.capabilities ?? connectionData?.driver;
@@ -62,7 +62,7 @@ export const GenerateSQLModal = ({
   const [templates, setTemplates] = useState<TableQueryTemplates>({});
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const requestKey = JSON.stringify([connectionId, tableName, schema, dialect]);
+  const requestKey = JSON.stringify([connectionId, tableName, schema, database, dialect]);
   const busy = loading || loadedKey !== requestKey;
   const displayedError = dialectError ?? (loadedKey === requestKey ? loadError : null);
   const { copied, copy: copyText } = useCopyFeedback();
@@ -81,25 +81,30 @@ export const GenerateSQLModal = ({
       setLoadError(null);
       try {
         const schemaParam = schema ? { schema } : {};
+        const databaseParam = database ? { database } : {};
         const [fetchedColumns, foreignKeys, indexes, tables] = await Promise.all([
           invoke<TableColumn[]>("get_columns", {
             connectionId,
             tableName,
             ...schemaParam,
+            ...databaseParam,
           }),
           invoke<ForeignKey[]>("get_foreign_keys", {
             connectionId,
             tableName,
             ...schemaParam,
+            ...databaseParam,
           }),
           invoke<Index[]>("get_indexes", {
             connectionId,
             tableName,
             ...schemaParam,
+            ...databaseParam,
           }),
           invoke<TableInfo[]>("get_tables", {
             connectionId,
             ...schemaParam,
+            ...databaseParam,
           }),
         ]);
 
@@ -110,6 +115,7 @@ export const GenerateSQLModal = ({
                 tableName,
                 schema,
                 fetchedColumns.map((column) => column.name),
+                database,
               )
             : {};
         const generatedSQL = generateCreateTableSQL(
@@ -148,6 +154,7 @@ export const GenerateSQLModal = ({
     dialect,
     t,
     schema,
+    database,
     showAlert,
     requestKey,
   ]);

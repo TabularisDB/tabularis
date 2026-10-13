@@ -103,6 +103,7 @@ export function NotebookView({
     tab.schema || activeSchema || (isMultiDb ? selectedDatabases[0] : null);
   useSqlAutocompleteRegistration(connectionId, {
     schema: effectiveSchema,
+    database: tab.database,
     enabled: isActive,
   });
   const { settings } = useSettings();
