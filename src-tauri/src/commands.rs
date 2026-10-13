@@ -6330,13 +6330,20 @@ pub async fn disconnect_connection<R: Runtime>(
     };
     crate::pool_manager::close_pool_with_id(&close_params, Some(&connection_id)).await;
 
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    // Pool keys depend on connection_id (not the tunnel local port), so skip
-    // K8s expansion here. A dead kubectl / unreachable cluster must not block
-    // emit_active_changed via `?` on K8sTunnel::new.
-    let params = params_for_pool_close(&expanded_params, &connection_id)?;
-
-    release_connection_sessions(&app, &connection_id, Some(&params)).await;
+    // Resolve SSH-expanded params best-effort for release_connection_sessions,
+    // which needs the driver to roll back pinned transactions. If SSH/K8s
+    // resolution fails (dead bastion / unreachable cluster), fall back to the
+    // tunnel-free close_params — the driver lookup only needs params.driver,
+    // which is the same with or without tunnel expansion. Either way the pool
+    // is already closed and emit_active_changed runs below (#1065).
+    let release_params = match expand_ssh_connection_params(&app, &saved_conn.params).await {
+        Ok(expanded) => params_for_pool_close(&expanded, &connection_id).unwrap_or(close_params.clone()),
+        Err(e) => {
+            log::warn!("Failed to expand SSH params for session release on {connection_id}: {e}");
+            close_params.clone()
+        }
+    };
+    release_connection_sessions(&app, &connection_id, Some(&release_params)).await;
 
     // Broadcast so every window learns this connection is now closed.
     crate::health_check::emit_active_changed(&app).await;

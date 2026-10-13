@@ -195,22 +195,36 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
     // A dead bastion / unreachable cluster must not prevent pool cleanup (#1065).
     let mut params = None;
     if let Ok(saved_conn) = crate::commands::find_connection_by_id(app, connection_id) {
-        match crate::commands::params_for_pool_close(&saved_conn.params, connection_id) {
-            Ok(close_params) => {
-                crate::pool_manager::close_pool_with_id(&close_params, Some(connection_id)).await;
+        // Close the pool, falling back to the saved params if tunnel-free
+        // resolution fails — the pool key matches because it doesn't use the
+        // host/port for saved connections (#1065).
+        let close_params = match crate::commands::params_for_pool_close(&saved_conn.params, connection_id) {
+            Ok(p) => p,
+            Err(e) => {
+                log::warn!(
+                    "Health check: failed to resolve tunnel-free params for pool close on {connection_id}: {e}"
+                );
+                let mut fallback = saved_conn.params.clone();
+                fallback.connection_id = Some(connection_id.to_string());
+                fallback
             }
-            Err(e) => log::warn!(
-                "Health check: failed to resolve tunnel-free params for pool close on {connection_id}: {e}"
-            ),
-        }
+        };
+        crate::pool_manager::close_pool_with_id(&close_params, Some(connection_id)).await;
 
         // SSH-expanded params are only needed for release_connection_sessions,
-        // which calls driver_for_params. If SSH is down, release gets None and
-        // only emits session-state events (no driver-side rollback).
-        if let Ok(expanded) =
-            crate::commands::expand_ssh_connection_params(app, &saved_conn.params).await
-        {
-            params = crate::commands::params_for_pool_close(&expanded, connection_id).ok();
+        // which calls driver_for_params. If SSH is down, fall back to the
+        // tunnel-free close_params — the driver lookup only needs params.driver.
+        match crate::commands::expand_ssh_connection_params(app, &saved_conn.params).await {
+            Ok(expanded) => {
+                params = Some(
+                    crate::commands::params_for_pool_close(&expanded, connection_id)
+                        .unwrap_or(close_params),
+                );
+            }
+            Err(e) => {
+                log::warn!("Health check: failed to expand SSH params on {connection_id}: {e}");
+                params = Some(close_params);
+            }
         }
     }
     // Release pinned transaction sessions after closing the pool. A checked-out
