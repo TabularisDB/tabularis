@@ -17,11 +17,8 @@ import { ResultEntryContent } from "./ResultEntryContent";
 import type { DataGridCommandTarget } from "./DataGrid";
 import { PaginationControls } from "./PaginationControls";
 import { ResizeHandle } from "../notebook/ResizeHandle";
-import {
-  formatDuration,
-  formatTimingTooltip,
-  type TimingLabels,
-} from "../../utils/formatTime";
+import { formatDuration, formatTimingTooltip } from "../../utils/formatTime";
+import { useTimingLabels } from "../../hooks/useTimingLabels";
 import { onActivationKey } from "../../utils/keyboardEvents";
 import { getEntryDisplayLabel, getStackedGridHeight } from "../../utils/multiResult";
 import type { QueryResultEntry } from "../../types/editor";
@@ -108,11 +105,7 @@ export function StackedResultItem({
     setIsEditing(false);
   };
 
-  const timingLabels: TimingLabels = {
-    execution: t("editor.timing.execution", { defaultValue: "Execution" }),
-    fetch: t("editor.timing.fetch", { defaultValue: "Fetch" }),
-    total: t("editor.timing.total", { defaultValue: "Total" }),
-  };
+  const timingLabels = useTimingLabels();
   const timingTooltip = entry.result
     ? formatTimingTooltip(
         {

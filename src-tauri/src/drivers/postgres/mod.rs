@@ -1152,11 +1152,8 @@ async fn exec_on_pg_client(
         }
     }
 
-    let total_elapsed_ms = start_instant.elapsed().as_secs_f64() * 1000.0;
-    let (server_time, fetch_time) = match server_time_ms {
-        Some(s_ms) => (Some(s_ms), Some((total_elapsed_ms - s_ms).max(0.0))),
-        None => (Some(total_elapsed_ms), Some(0.0)),
-    };
+    let (server_time, fetch_time) =
+        crate::drivers::common::calculate_query_timing_from_start(start_instant, server_time_ms);
 
     let pagination = if let Some((page_size, p)) = pagination_meta {
         let has_more = json_rows.len() > page_size as usize;

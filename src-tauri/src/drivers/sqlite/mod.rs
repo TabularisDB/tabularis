@@ -731,11 +731,8 @@ async fn exec_on_sqlite_conn(
         }
     }
 
-    let total_elapsed_ms = start_instant.elapsed().as_secs_f64() * 1000.0;
-    let (server_time, fetch_time) = match server_time_ms {
-        Some(s_ms) => (Some(s_ms), Some((total_elapsed_ms - s_ms).max(0.0))),
-        None => (Some(total_elapsed_ms), Some(0.0)),
-    };
+    let (server_time, fetch_time) =
+        crate::drivers::common::calculate_query_timing_from_start(start_instant, server_time_ms);
 
     // Apply LIMIT +1 result: if we got page_size+1 rows, has_more=true
     if let Some(ref mut p) = pagination {

@@ -1510,11 +1510,8 @@ async fn exec_on_mysql_conn(
         }
     } // event_stream dropped here — conn borrow released
 
-    let total_elapsed_ms = start_instant.elapsed().as_secs_f64() * 1000.0;
-    let (server_time, fetch_time) = match server_time_ms {
-        Some(s_ms) => (Some(s_ms), Some((total_elapsed_ms - s_ms).max(0.0))),
-        None => (Some(total_elapsed_ms), Some(0.0)),
-    };
+    let (server_time, fetch_time) =
+        crate::drivers::common::calculate_query_timing_from_start(start_instant, server_time_ms);
 
     let mut result_sets = collector.finish();
     let primary = if result_sets.is_empty() {

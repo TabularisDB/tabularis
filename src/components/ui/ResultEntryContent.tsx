@@ -4,11 +4,8 @@ import { CheckCircle2 } from "lucide-react";
 import { DataGrid, type DataGridCommandTarget } from "./DataGrid";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { PaginationControls } from "./PaginationControls";
-import {
-  formatDuration,
-  formatTimingTooltip,
-  type TimingLabels,
-} from "../../utils/formatTime";
+import { formatDuration, formatTimingTooltip } from "../../utils/formatTime";
+import { useTimingLabels } from "../../hooks/useTimingLabels";
 import { getStackedGridHeight } from "../../utils/multiResult";
 import type { QueryResultEntry } from "../../types/editor";
 
@@ -40,6 +37,7 @@ export function ResultEntryContent({
   onScrollTopChange,
 }: ResultEntryContentProps) {
   const { t } = useTranslation();
+  const timingLabels = useTimingLabels();
 
   if (entry.isLoading) {
     if (compact) {
@@ -75,11 +73,6 @@ export function ResultEntryContent({
     );
   }
 
-  const timingLabels: TimingLabels = {
-    execution: t("editor.timing.execution", { defaultValue: "Execution" }),
-    fetch: t("editor.timing.fetch", { defaultValue: "Fetch" }),
-    total: t("editor.timing.total", { defaultValue: "Total" }),
-  };
   const timingTooltip = entry.result
     ? formatTimingTooltip(
         {

@@ -100,9 +100,11 @@ export function formatTimingTooltip(
     parts.push(`${fetchLabel}: ${formatDuration(fetchTimeMs)}`);
   }
   const effectiveTotal =
-    serverTimeMs !== null && serverTimeMs !== undefined && fetchTimeMs !== null && fetchTimeMs !== undefined
-      ? serverTimeMs + fetchTimeMs
-      : totalTimeMs;
+    totalTimeMs !== null && totalTimeMs !== undefined
+      ? totalTimeMs
+      : serverTimeMs !== null && serverTimeMs !== undefined && fetchTimeMs !== null && fetchTimeMs !== undefined
+        ? serverTimeMs + fetchTimeMs
+        : null;
   if (effectiveTotal !== null && effectiveTotal !== undefined) {
     parts.push(`${totalLabel}: ${formatDuration(effectiveTotal)}`);
   }

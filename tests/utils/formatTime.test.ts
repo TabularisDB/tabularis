@@ -170,6 +170,14 @@ describe('formatTime', () => {
         fetchTimeMs: 5,
         totalTimeMs: 25,
       });
+      expect(tooltip).toBe('Execution: 15 ms · Fetch: 5 ms · Total: 25 ms');
+    });
+
+    it('falls back to server + fetch when totalTimeMs is not provided', () => {
+      const tooltip = formatTimingTooltip({
+        serverTimeMs: 15,
+        fetchTimeMs: 5,
+      });
       expect(tooltip).toBe('Execution: 15 ms · Fetch: 5 ms · Total: 20 ms');
     });
 
@@ -193,7 +201,7 @@ describe('formatTime', () => {
           total: 'Total',
         },
       );
-      expect(tooltip).toBe('Ejecución: 20 ms · Transferencia: 10 ms · Total: 30 ms');
+      expect(tooltip).toBe('Ejecución: 20 ms · Transferencia: 10 ms · Total: 35 ms');
     });
   });
 });
