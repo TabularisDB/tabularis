@@ -1993,6 +1993,7 @@ export const DataGrid = React.memo(
       csvIncludeHeaders,
       csvDelimiter,
       tableName,
+      activeDriver,
       copyToClipboard,
       rowsCopiedToast,
     ]);
@@ -2029,6 +2030,7 @@ export const DataGrid = React.memo(
       csvIncludeHeaders,
       csvDelimiter,
       tableName,
+      activeDriver,
       copyToClipboard,
       t,
     ]);
@@ -2059,6 +2061,7 @@ export const DataGrid = React.memo(
         csvIncludeHeaders,
         tableName,
         copyToClipboard,
+        activeDriver,
       ],
     );
 
