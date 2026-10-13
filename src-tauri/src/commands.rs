@@ -6292,8 +6292,11 @@ pub async fn disconnect_connection<R: Runtime>(
 
     release_connection_sessions(&app, &connection_id, Some(&params)).await;
 
-    // Close the connection pool
-    crate::pool_manager::close_pool_with_id(&params, Some(&connection_id)).await;
+    // Close every pool for this connection, including per-database override
+    // pools created while browsing multiple databases (see #946).
+    // `close_pools_for_connection_id` matches by connection_id prefix, so it
+    // subsumes the single-key close on single-database connections.
+    crate::pool_manager::close_pools_for_connection_id(&params.driver, &connection_id).await;
 
     // Broadcast so every window learns this connection is now closed.
     crate::health_check::emit_active_changed(&app).await;
