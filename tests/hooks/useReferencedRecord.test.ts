@@ -10,10 +10,11 @@ import {
   fetchReferencedRecord,
   type FetchReferencedRecordParams,
 } from "../../src/hooks/useReferencedRecord";
-import type { ForeignKey } from "../../src/types/editor";
+import type { ForeignKey } from "../../src/types/schema";
 
 const fk: ForeignKey = {
-  column: "user_id",
+  name: "fk_users",
+  column_name: "user_id",
   ref_table: "users",
   ref_column: "id",
 };
