@@ -1642,7 +1642,7 @@ pub async fn get_materialized_view_definition(
 
     let row = client
         .query_one(
-            "SELECT pg_get_viewdef($1::regclass, true) as definition",
+            "SELECT pg_get_viewdef(($1::text)::regclass, true) as definition",
             &[&qualified],
         )
         .await
