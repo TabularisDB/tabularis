@@ -184,6 +184,35 @@ describe('SqlEditorWrapper', () => {
     expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-render-control-characters', 'false');
   });
 
+  it.each([
+    ['tabularis.transformToUppercase', 'editor.transformToUppercase', 'editor.action.transformToUppercase'],
+    ['tabularis.transformToLowercase', 'editor.transformToLowercase', 'editor.action.transformToLowercase'],
+  ])('registers %s as a selection-only context menu action', (id, label, command) => {
+    render(
+      <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />,
+      { wrapper },
+    );
+    const { addAction } = mountCapturedEditor();
+    const action = addAction.mock.calls
+      .map(([descriptor]) => descriptor as {
+        id: string;
+        label: string;
+        contextMenuGroupId?: string;
+        precondition?: string;
+        run: (ed: unknown) => void;
+      })
+      .find((descriptor) => descriptor.id === id);
+    if (!action) throw new Error(`${id} was not registered`);
+
+    expect(action.label).toBe(label);
+    expect(action.contextMenuGroupId).toBe('1_modification');
+    expect(action.precondition).toBe('editorHasSelection');
+
+    const ed = { trigger: vi.fn() };
+    action.run(ed);
+    expect(ed.trigger).toHaveBeenCalledWith('contextmenu', command, null);
+  });
+
   it('cleans only selected SQL code and keeps quoted text unchanged', () => {
     render(
       <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} dialect="postgres" />,

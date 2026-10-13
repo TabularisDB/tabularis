@@ -1431,6 +1431,8 @@
     "queryParameters": "Параметры запроса",
     "formatSql": "Форматировать SQL",
     "convertSelectionToSqlList": "Преобразовать выделение в список SQL",
+    "transformToUppercase": "Преобразовать в верхний регистр",
+    "transformToLowercase": "Преобразовать в нижний регистр",
     "removeInvisibleCharacters": "Очистить вставленные символы",
     "convertToConsole": "Преобразовать в консоль",
     "parameters": "Параметры",

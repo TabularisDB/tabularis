@@ -1469,6 +1469,8 @@
     "queryParameters": "Paramètres de requête",
     "formatSql": "Formater SQL",
     "convertSelectionToSqlList": "Convertir la sélection en liste SQL",
+    "transformToUppercase": "Convertir en majuscules",
+    "transformToLowercase": "Convertir en minuscules",
     "removeInvisibleCharacters": "Nettoyer les caractères collés",
     "convertToConsole": "Convertir en console",
     "parameters": "Paramètres",

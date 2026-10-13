@@ -511,6 +511,30 @@ const SqlEditorInternal = ({
         },
       });
 
+      // Case transforms reuse Monaco's built-in commands, which already
+      // handle multi-cursor selections in a single undo step.
+      editor.addAction({
+        id: 'tabularis.transformToUppercase',
+        label: t('editor.transformToUppercase'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.7,
+        precondition: 'editorHasSelection',
+        run: (ed) => {
+          ed.trigger('contextmenu', 'editor.action.transformToUppercase', null);
+        },
+      });
+
+      editor.addAction({
+        id: 'tabularis.transformToLowercase',
+        label: t('editor.transformToLowercase'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.8,
+        precondition: 'editorHasSelection',
+        run: (ed) => {
+          ed.trigger('contextmenu', 'editor.action.transformToLowercase', null);
+        },
+      });
+
       // Ctrl+K starts Monaco chords, so leave the unified palette shortcut
       // untouched. Ctrl+Shift+A conflicts with Monaco and must be handled here.
       editor.onKeyDown((e) => {

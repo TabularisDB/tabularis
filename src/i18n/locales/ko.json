@@ -1404,6 +1404,8 @@
     "queryParameters": "쿼리 매개변수",
     "formatSql": "SQL 포맷",
     "convertSelectionToSqlList": "선택 영역을 SQL 목록으로 변환",
+    "transformToUppercase": "대문자로 변환",
+    "transformToLowercase": "소문자로 변환",
     "removeInvisibleCharacters": "붙여넣은 문자 정리",
     "convertToConsole": "콘솔로 변환",
     "parameters": "매개변수",

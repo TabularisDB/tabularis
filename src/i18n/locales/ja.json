@@ -1440,6 +1440,8 @@
     "queryParameters": "クエリパラメータ",
     "formatSql": "SQLをフォーマット",
     "convertSelectionToSqlList": "選択範囲をSQLリストに変換",
+    "transformToUppercase": "大文字に変換",
+    "transformToLowercase": "小文字に変換",
     "removeInvisibleCharacters": "貼り付けた文字をクリーンアップ",
     "convertToConsole": "コンソールに変換",
     "parameters": "パラメータ",
