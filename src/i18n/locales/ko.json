@@ -1158,6 +1158,8 @@
     "allDatabases": "모든 데이터베이스",
     "chooseDatabases": "데이터베이스 선택",
     "allDatabasesHint": "연결 시 서버의 모든 데이터베이스가 자동으로 로드됩니다. 서버에서 생성되거나 삭제된 데이터베이스는 이 연결을 수정하지 않아도 자동으로 반영됩니다.",
+    "defaultDatabase": "기본 데이터베이스",
+    "defaultDatabaseHint": "새 쿼리 탭은 이 데이터베이스를 사용합니다. 선택에서 제거하면 다음으로 선택된 데이터베이스가 기본값이 됩니다.",
     "selectDatabasesHint": "이 연결에 포함할 데이터베이스를 선택하세요.",
     "loadDatabasesHint": "데이터베이스 불러오기를 클릭하여 사용 가능한 데이터베이스를 가져오세요."
   },

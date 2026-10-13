@@ -64,6 +64,7 @@ import { resolveSsmDocument, testSsmConnection } from "../../utils/ssm";
 import { useK8sPathOverrides } from "../../hooks/useK8sPathOverrides";
 import { useLatestAsync } from "../../hooks/useLatestAsync";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
+import { DefaultDatabaseSelect } from "./NewConnectionModal/DefaultDatabaseSelect";
 import { isMultiDatabaseCapable, isSchemaBasedMultiDbCapable, hasOptedIntoDatabaseSelection } from "../../utils/database";
 import { updateExtraField, withoutBlankSslMode } from "../../utils/connections";
 import { normalizeLocalDatabasePath, sanitizeLocalFilePath } from "../../utils/fsPath";
@@ -1782,18 +1783,11 @@ export const NewConnectionModal = ({
       });
       if (!shouldApply()) return;
       setAvailableDatabases(databases);
-      if (initialConnection) {
-        // Pre-select databases already associated with the connection
-        const existing = Array.isArray(initialConnection.params.database)
-          ? initialConnection.params.database
-          : initialConnection.params.database
-            ? [initialConnection.params.database as string]
-            : [];
-        setSelectedDatabasesState((prev) => {
-          const merged = Array.from(new Set([...existing, ...prev]));
-          return merged.filter((db) => databases.includes(db));
-        });
-      }
+      // Initialization restores the saved order. Reloads must preserve the
+      // draft default and must not reselect databases the user removed.
+      setSelectedDatabasesState((prev) =>
+        prev.filter((db) => databases.includes(db)),
+      );
     } catch (err) {
       if (!shouldApply()) return;
       const errorMsg =
@@ -3237,6 +3231,12 @@ export const NewConnectionModal = ({
         </div>
       ) : (
         <>
+      {selectedDatabasesState.length > 0 && (
+        <DefaultDatabaseSelect
+          databases={selectedDatabasesState}
+          onChange={setSelectedDatabasesState}
+        />
+      )}
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted">
           {t("newConnection.selectDatabasesHint", {

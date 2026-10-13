@@ -22,6 +22,7 @@ interface MockSelectProps {
 
 const driverState = vi.hoisted(() => ({
   defaultPort: 15432 as number | null,
+  multiDatabase: false,
   catalogueDriver: "mysql" as "mysql" | "sqlite",
 }));
 
@@ -47,6 +48,11 @@ const eventMocks = vi.hoisted(() => ({
 const alertMocks = vi.hoisted(() => ({
   showAlert: vi.fn(),
 }));
+
+// Exercise the database-list icons, which are absent from the shared mock.
+vi.mock("lucide-react", async (importOriginal) => {
+  return importOriginal<typeof import("lucide-react")>();
+});
 
 vi.mock("@tauri-apps/api/event", () => ({
   listen: eventMocks.listen,
@@ -101,6 +107,7 @@ vi.mock("../../../src/hooks/useDrivers", () => ({
         default_port: driverState.defaultPort,
         is_builtin: true,
         capabilities: {
+          schemas: driverState.multiDatabase ? false : undefined,
           file_based: false,
           folder_based: false,
           connection_string: true,
@@ -346,6 +353,7 @@ describe("NewConnectionModal layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     driverState.defaultPort = 15432;
+    driverState.multiDatabase = false;
     vi.mocked(invoke).mockResolvedValue("ok");
     sshMocks.loadSshConnections.mockResolvedValue([]);
     sshMocks.testSshConnection.mockResolvedValue("ok");
@@ -356,6 +364,100 @@ describe("NewConnectionModal layout", () => {
     k8sMocks.getK8sResources.mockResolvedValue(["mysql-svc"]);
     k8sMocks.getK8sResourcePorts.mockResolvedValue([6543]);
     k8sMocks.validateK8sPath.mockResolvedValue(undefined);
+  });
+
+  describe("default database selection", () => {
+    const databases = ["analytics", "production", "reporting"];
+
+    async function openDatabaseSelection(selected = databases) {
+      driverState.multiDatabase = true;
+      vi.mocked(invoke).mockImplementation(async (command) =>
+        command === "list_databases" ? databases : "ok",
+      );
+      renderModal(createInitialConnection({
+        host: "localhost", database: selected,
+      }));
+      fireEvent.click(await screen.findByText("newConnection.selectDatabases"));
+      return screen.findByRole("combobox", { name: "newConnection.defaultDatabase" });
+    }
+
+    it("restores and saves a non-alphabetical default using the existing format", async () => {
+      const select = await openDatabaseSelection(["production", "analytics", "reporting"]);
+      expect(select).toHaveValue("production");
+      fireEvent.change(select, { target: { value: "reporting" } });
+      fireEvent.click(screen.getByText("newConnection.save"));
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+        "update_connection", expect.objectContaining({
+          params: expect.objectContaining({ database: ["reporting", "production", "analytics"] }),
+        }),
+      ));
+    });
+
+    it("keeps the draft default and deselection when databases are reloaded", async () => {
+      const select = await openDatabaseSelection();
+      fireEvent.change(select, { target: { value: "reporting" } });
+      fireEvent.click(screen.getByRole("button", { name: "analytics", exact: true }));
+      vi.mocked(invoke).mockClear();
+      fireEvent.click(screen.getByText("newConnection.loadDatabases"));
+      await waitFor(() => expect(screen.getByText("newConnection.loadDatabases")).not.toBeDisabled());
+      expect(select).toHaveValue("reporting");
+      expect(screen.queryByRole("option", { name: "analytics", exact: true })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText("newConnection.save"));
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+        "update_connection", expect.objectContaining({
+          params: expect.objectContaining({ database: ["reporting", "production"] }),
+        }),
+      ));
+    });
+
+    it("falls back to the next selected database when the default is removed", async () => {
+      const select = await openDatabaseSelection();
+      fireEvent.change(select, { target: { value: "reporting" } });
+      fireEvent.click(screen.getByRole("button", { name: "reporting", exact: true }));
+      expect(select).toHaveValue("analytics");
+      fireEvent.click(screen.getByRole("button", { name: "analytics", exact: true }));
+      expect(select).toHaveValue("production");
+      fireEvent.click(screen.getByText("newConnection.save"));
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+        "update_connection", expect.objectContaining({
+          params: expect.objectContaining({ database: "production" }),
+        }),
+      ));
+    });
+
+    it("saves the chosen default for a new connection", async () => {
+      driverState.multiDatabase = true;
+      vi.mocked(invoke).mockImplementation(async (command) => {
+        if (command === "list_databases") return databases;
+        if (command === "save_connection") return { id: "new-connection" };
+        return "ok";
+      });
+      renderModal();
+      pickEngineFromCatalogue();
+      fireEvent.change(screen.getByPlaceholderText("newConnection.namePlaceholder"), { target: { value: "Local" } });
+      fireEvent.change(screen.getByPlaceholderText("localhost"), { target: { value: "localhost" } });
+      fireEvent.click(screen.getByText("newConnection.selectDatabases"));
+      fireEvent.click(screen.getByText("newConnection.chooseDatabases"));
+      fireEvent.click(screen.getByText("newConnection.loadDatabases"));
+      fireEvent.click(await screen.findByRole("button", { name: "analytics", exact: true }));
+      fireEvent.click(screen.getByRole("button", { name: "production", exact: true }));
+      fireEvent.change(screen.getByRole("combobox", { name: "newConnection.defaultDatabase" }), { target: { value: "production" } });
+      fireEvent.click(screen.getByText("newConnection.save"));
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+        "save_connection", expect.objectContaining({ params: expect.objectContaining({ database: ["production", "analytics"] }) }),
+      ));
+    });
+
+    it("does not persist a stale default in all-databases mode", async () => {
+      const select = await openDatabaseSelection();
+      fireEvent.change(select, { target: { value: "reporting" } });
+      fireEvent.click(screen.getByText("newConnection.allDatabases"));
+      expect(screen.queryByRole("combobox", { name: "newConnection.defaultDatabase" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText("newConnection.save"));
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+        "update_connection", expect.objectContaining({ params: expect.objectContaining({ database: "" }) }),
+      ));
+    });
   });
 
   it("fills and parses a selected connection string example", async () => {

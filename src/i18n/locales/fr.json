@@ -1221,6 +1221,8 @@
     "allDatabases": "Toutes les bases de données",
     "chooseDatabases": "Choisir les bases de données",
     "allDatabasesHint": "À la connexion, toutes les bases de données du serveur sont chargées automatiquement. Les bases créées ou supprimées sur le serveur apparaissent d’elles-mêmes, sans modifier cette connexion.",
+    "defaultDatabase": "Base de données par défaut",
+    "defaultDatabaseHint": "Les nouveaux onglets de requête utilisent cette base de données. Si vous la retirez de la sélection, la suivante devient la base par défaut.",
     "selectDatabasesHint": "Sélectionnez les bases de données à inclure dans cette connexion.",
     "loadDatabasesHint": "Cliquez sur Charger les bases de données pour récupérer celles disponibles."
   },

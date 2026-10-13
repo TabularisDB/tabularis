@@ -296,13 +296,13 @@ describe('DatabaseProvider', () => {
     });
   });
 
-  it('leaves no database active when several are selected', async () => {
-    // With a choice to make, none is picked for the user.
+  it.each([['firstdb', 'seconddb'], ['seconddb', 'firstdb']])('preserves the saved default %s when connecting', async (first, second) => {
+    // The sidebar has no active database, but query tabs use the saved order.
     const twoDbConnection = [
       {
         id: 'conn-two',
         name: 'Two DB MySQL',
-        params: { driver: 'mysql', host: 'localhost', database: ['firstdb', 'seconddb'] },
+        params: { driver: 'mysql', host: 'localhost', database: [first, second] },
       },
     ];
 
@@ -330,8 +330,9 @@ describe('DatabaseProvider', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.selectedDatabases).toEqual(['firstdb', 'seconddb']);
+      expect(result.current.selectedDatabases).toEqual([first, second]);
       expect(result.current.activeSchema).toBeNull();
+      expect(invoke).toHaveBeenCalledWith('get_tables', { connectionId: 'conn-two', schema: first });
     });
   });
 

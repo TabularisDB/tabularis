@@ -1200,6 +1200,8 @@
     "allDatabases": "Todos os bancos de dados",
     "chooseDatabases": "Escolher bancos de dados",
     "allDatabasesHint": "Ao conectar, todos os bancos de dados do servidor são carregados automaticamente. Bancos criados ou removidos no servidor aparecem sozinhos — sem editar esta conexão.",
+    "defaultDatabase": "Banco de dados padrão",
+    "defaultDatabaseHint": "As novas abas de consulta usam este banco de dados. Se você o remover da seleção, o próximo banco selecionado será o padrão.",
     "selectDatabasesHint": "Selecione os bancos de dados a incluir nesta conexão.",
     "loadDatabasesHint": "Clique em Carregar bancos de dados para buscar os disponíveis."
   },

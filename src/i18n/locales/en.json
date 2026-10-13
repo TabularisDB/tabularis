@@ -1229,6 +1229,8 @@
     "allDatabases": "All databases",
     "chooseDatabases": "Choose databases",
     "allDatabasesHint": "Every database on the server is loaded automatically when connecting. Databases created or dropped on the server show up on their own — no need to edit this connection.",
+    "defaultDatabase": "Default database",
+    "defaultDatabaseHint": "New query tabs use this database. If you remove it from the selection, the next selected database becomes the default.",
     "selectDatabasesHint": "Select the databases to include in this connection.",
     "loadDatabasesHint": "Click Load Databases to fetch available databases."
   },

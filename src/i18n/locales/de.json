@@ -1184,6 +1184,8 @@
     "allDatabases": "Alle Datenbanken",
     "chooseDatabases": "Datenbanken auswählen",
     "allDatabasesHint": "Beim Verbinden werden automatisch alle Datenbanken des Servers geladen. Auf dem Server erstellte oder gelöschte Datenbanken erscheinen von selbst — ohne diese Verbindung zu bearbeiten.",
+    "defaultDatabase": "Standarddatenbank",
+    "defaultDatabaseHint": "Neue Abfrage-Tabs verwenden diese Datenbank. Wenn Sie sie aus der Auswahl entfernen, wird die nächste ausgewählte Datenbank zum Standard.",
     "selectDatabasesHint": "Die Datenbanken auswählen, die diese Verbindung enthalten soll.",
     "loadDatabasesHint": "Auf „Datenbanken laden“ klicken, um die verfügbaren Datenbanken abzurufen."
   },

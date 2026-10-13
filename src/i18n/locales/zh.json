@@ -1160,6 +1160,8 @@
     "allDatabases": "所有数据库",
     "chooseDatabases": "选择数据库",
     "allDatabasesHint": "连接时自动加载服务器上的所有数据库。在服务器上创建或删除的数据库会自动出现,无需编辑此连接。",
+    "defaultDatabase": "默认数据库",
+    "defaultDatabaseHint": "新查询标签页使用此数据库。如果将其从选择中移除，下一个已选数据库将成为默认数据库。",
     "selectDatabasesHint": "选择要包含在此连接中的数据库。",
     "loadDatabasesHint": "点击“加载数据库”以获取可用的数据库。"
   },

@@ -1213,6 +1213,8 @@
     "allDatabases": "Lahat ng database",
     "chooseDatabases": "Pumili ng mga database",
     "allDatabasesHint": "Sa pagkonekta, awtomatikong nilo-load ang lahat ng database sa server. Ang mga database na ginawa o tinanggal sa server ay lalabas nang kusa — hindi na kailangang i-edit ang koneksyong ito.",
+    "defaultDatabase": "Default na database",
+    "defaultDatabaseHint": "Ginagamit ng mga bagong query tab ang database na ito. Kapag inalis mo ito sa mga napili, magiging default ang susunod na napiling database.",
     "selectDatabasesHint": "Piliin ang mga database na isasama sa koneksyong ito.",
     "loadDatabasesHint": "I-click ang I-load ang mga database para kunin ang mga available."
   },
