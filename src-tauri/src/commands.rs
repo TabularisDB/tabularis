@@ -6267,7 +6267,7 @@ pub async fn get_active_connections() -> Vec<String> {
     crate::health_check::active_connections().await
 }
 
-/// Disconnect from a database connection by closing its connection pool
+/// Disconnect from a database connection by closing all of its connection pools
 #[tauri::command]
 pub async fn disconnect_connection<R: Runtime>(
     app: AppHandle<R>,
@@ -6287,7 +6287,7 @@ pub async fn disconnect_connection<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     // Pool keys depend on connection_id (not the tunnel local port), so skip
     // K8s expansion here. A dead kubectl / unreachable cluster must not block
-    // close_pool_with_id or emit_active_changed via `?` on K8sTunnel::new.
+    // close_pools_for_connection_id or emit_active_changed via `?` on K8sTunnel::new.
     let params = params_for_pool_close(&expanded_params, &connection_id)?;
 
     release_connection_sessions(&app, &connection_id, Some(&params)).await;
