@@ -144,6 +144,8 @@ pub async fn get_columns(
             c.column_default::text,
             c.is_identity::text,
             c.character_maximum_length,
+            c.numeric_precision,
+            c.numeric_scale,
             d.description::text AS comment,
             (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
              FROM pg_enum e
@@ -175,10 +177,19 @@ pub async fn get_columns(
             let default_val: String = r.try_get("column_default").unwrap_or_default();
             let is_identity: String = r.try_get("is_identity").unwrap_or_default(); // YES/NO
             let character_maximum_length: Option<u64> = r
-                .try_get::<_, Option<i64>>("character_maximum_length")
+                .try_get::<_, Option<i32>>("character_maximum_length")
                 .ok()
                 .flatten()
                 .and_then(|v| u64::try_from(v).ok());
+
+            let numeric_precision: Option<i32> = r
+                .try_get::<_, Option<i32>>("numeric_precision")
+                .ok()
+                .flatten();
+            let numeric_scale: Option<i32> = r
+                .try_get::<_, Option<i32>>("numeric_scale")
+                .ok()
+                .flatten();
 
             let is_auto = is_identity == "YES" || default_val.contains("nextval");
 
@@ -205,6 +216,8 @@ pub async fn get_columns(
                 is_generated: false,
                 default_value,
                 character_maximum_length,
+                numeric_precision,
+                numeric_scale,
                 comment: r.try_get("comment").ok(),
             }
         })
@@ -238,13 +251,14 @@ pub async fn get_foreign_keys(
                 WHEN 'c' THEN 'CASCADE'
                 WHEN 'n' THEN 'SET NULL'
                 WHEN 'd' THEN 'SET DEFAULT'
-            END::text AS delete_rule
+            END::text AS delete_rule,
+            cols.key_seq
         FROM pg_constraint con
         JOIN pg_class src_cl ON src_cl.oid = con.conrelid
         JOIN pg_namespace src_nsp ON src_nsp.oid = src_cl.relnamespace
         JOIN pg_class ref_cl ON ref_cl.oid = con.confrelid
         JOIN pg_namespace ref_nsp ON ref_nsp.oid = ref_cl.relnamespace
-        JOIN unnest(con.conkey, con.confkey) AS cols(src_attnum, ref_attnum) ON true
+        JOIN unnest(con.conkey, con.confkey) WITH ORDINALITY AS cols(src_attnum, ref_attnum, key_seq) ON true
         JOIN pg_attribute src_att
             ON src_att.attrelid = src_cl.oid
             AND src_att.attnum = cols.src_attnum
@@ -257,7 +271,7 @@ pub async fn get_foreign_keys(
           AND con.conparentid = 0
           AND src_nsp.nspname = $1
           AND src_cl.relname = $2
-        ORDER BY con.conname, cols.src_attnum
+        ORDER BY con.conname, cols.key_seq
     "#;
 
     let rows = query_all(&pool, &query, &[&schema, &table_name]).await?;
@@ -271,6 +285,17 @@ pub async fn get_foreign_keys(
             ref_column: r.try_get("foreign_column_name").unwrap_or_default(),
             on_update: r.try_get("update_rule").ok(),
             on_delete: r.try_get("delete_rule").ok(),
+            // WITH ORDINALITY yields the position within conkey/confkey — the
+            // true composite-key column order, independent of raw attnum (#840).
+            // The ordinal column is a Postgres bigint (i64); narrow to i32 for
+            // the struct field. A composite key's position is always small, so
+            // the cast is lossless, but try_get as i64 first to match the wire
+            // type (sqlx won't decode bigint into i32).
+            seq_in_fk: r
+                .try_get::<_, Option<i64>>("key_seq")
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok()),
         })
         .collect())
 }
@@ -298,6 +323,8 @@ pub async fn get_all_columns_batch(
             c.column_default,
             c.is_identity,
             c.character_maximum_length,
+            c.numeric_precision,
+            c.numeric_scale,
             d.description::text AS comment,
             (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
              FROM pg_enum e
@@ -330,10 +357,18 @@ pub async fn get_all_columns_batch(
         let default_val: String = row.try_get("column_default").unwrap_or_default();
         let is_identity: String = row.try_get("is_identity").unwrap_or_default();
         let character_maximum_length: Option<u64> = row
-            .try_get::<_, Option<i64>>("character_maximum_length")
+            .try_get::<_, Option<i32>>("character_maximum_length")
             .ok()
             .flatten()
             .and_then(|v| u64::try_from(v).ok());
+        let numeric_precision: Option<i32> = row
+            .try_get::<_, Option<i32>>("numeric_precision")
+            .ok()
+            .flatten();
+        let numeric_scale: Option<i32> = row
+            .try_get::<_, Option<i32>>("numeric_scale")
+            .ok()
+            .flatten();
 
         let is_auto = is_identity == "YES" || default_val.contains("nextval");
 
@@ -360,6 +395,8 @@ pub async fn get_all_columns_batch(
             is_generated: false,
             default_value,
             character_maximum_length,
+            numeric_precision,
+            numeric_scale,
             comment: row.try_get("comment").ok(),
         };
 
@@ -401,13 +438,14 @@ pub async fn get_all_foreign_keys_batch(
                 WHEN 'c' THEN 'CASCADE'
                 WHEN 'n' THEN 'SET NULL'
                 WHEN 'd' THEN 'SET DEFAULT'
-            END::text AS delete_rule
+            END::text AS delete_rule,
+            cols.key_seq
         FROM pg_constraint con
         JOIN pg_class src_cl ON src_cl.oid = con.conrelid
         JOIN pg_namespace src_nsp ON src_nsp.oid = src_cl.relnamespace
         JOIN pg_class ref_cl ON ref_cl.oid = con.confrelid
         JOIN pg_namespace ref_nsp ON ref_nsp.oid = ref_cl.relnamespace
-        JOIN unnest(con.conkey, con.confkey) AS cols(src_attnum, ref_attnum) ON true
+        JOIN unnest(con.conkey, con.confkey) WITH ORDINALITY AS cols(src_attnum, ref_attnum, key_seq) ON true
         JOIN pg_attribute src_att
             ON src_att.attrelid = src_cl.oid
             AND src_att.attnum = cols.src_attnum
@@ -419,7 +457,7 @@ pub async fn get_all_foreign_keys_batch(
         WHERE con.contype = 'f'
         AND con.conparentid = 0
         AND src_nsp.nspname = $1
-        ORDER BY src_cl.relname, con.conname, cols.src_attnum
+        ORDER BY src_cl.relname, con.conname, cols.key_seq
     "#;
 
     let rows = query_all(&pool, &query, &[&schema]).await?;
@@ -436,6 +474,11 @@ pub async fn get_all_foreign_keys_batch(
             ref_column: row.try_get("foreign_column_name").unwrap_or_default(),
             on_update: row.try_get("update_rule").ok(),
             on_delete: row.try_get("delete_rule").ok(),
+            seq_in_fk: row
+                .try_get::<_, Option<i64>>("key_seq")
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok()),
         };
 
         result.entry(table_name).or_insert_with(Vec::new).push(fk);
@@ -1137,6 +1180,35 @@ pub async fn execute_query(
     Ok(result)
 }
 
+/// Runs one statement inside `BEGIN READ ONLY` and always rolls it back, so
+/// PostgreSQL rejects any write the statement attempts (`SELECT … INTO`,
+/// `setval`, a volatile function that modifies data).
+///
+/// If the rollback fails, or the run is dropped mid-flight, the connection is
+/// closed instead of returned to the pool, so the read-only transaction never
+/// leaks into another caller.
+pub async fn execute_read_only_query(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+) -> Result<QueryResult, String> {
+    let mut in_flight = InFlight(Some(acquire_pg_client(params, schema).await?));
+    let client = in_flight.0.as_ref().expect("set above");
+    client
+        .batch_execute("BEGIN READ ONLY")
+        .await
+        .map_err(|e| format_pg_error(&e))?;
+    let outcome = exec_on_pg_client(client, query, limit, page).await;
+    match client.batch_execute("ROLLBACK").await {
+        // Back to the pool only once the transaction is closed.
+        Ok(()) => drop(in_flight.0.take()),
+        Err(e) => log::warn!("PostgreSQL: ROLLBACK after a read-only query failed: {e}"),
+    }
+    outcome
+}
+
 /// `execute_query` with the tab's connection carried across calls.
 ///
 /// One statement at a time is how a transaction is actually driven — run
@@ -1410,6 +1482,8 @@ pub async fn get_view_columns(
             c.column_default,
             c.is_identity,
             c.character_maximum_length,
+            c.numeric_precision,
+            c.numeric_scale,
             (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
              FROM pg_enum e
              JOIN pg_type t ON t.oid = e.enumtypid
@@ -1433,10 +1507,18 @@ pub async fn get_view_columns(
             let default_val: String = r.try_get("column_default").unwrap_or_default();
             let is_identity: String = r.try_get("is_identity").unwrap_or_default();
             let character_maximum_length: Option<u64> = r
-                .try_get::<_, Option<i64>>("character_maximum_length")
+                .try_get::<_, Option<i32>>("character_maximum_length")
                 .ok()
                 .flatten()
                 .and_then(|v| u64::try_from(v).ok());
+            let numeric_precision: Option<i32> = r
+                .try_get::<_, Option<i32>>("numeric_precision")
+                .ok()
+                .flatten();
+            let numeric_scale: Option<i32> = r
+                .try_get::<_, Option<i32>>("numeric_scale")
+                .ok()
+                .flatten();
 
             let is_auto = is_identity == "YES" || default_val.contains("nextval");
 
@@ -1463,6 +1545,8 @@ pub async fn get_view_columns(
                 is_generated: false,
                 default_value,
                 character_maximum_length,
+                numeric_precision,
+                numeric_scale,
                 comment: None,
             }
         })
@@ -1530,6 +1614,8 @@ pub async fn get_materialized_view_columns(
             is_generated: false,
             default_value: None,
             character_maximum_length: None,
+            numeric_precision: None,
+            numeric_scale: None,
             comment: None,
         })
         .collect())
@@ -2136,7 +2222,7 @@ impl DatabaseDriver for PostgresDriver {
         &self,
         params: &crate::models::ConnectionParams,
     ) -> Result<(), String> {
-        let cfg = crate::pool_manager::build_postgres_configurations(params);
+        let cfg = crate::pool_manager::build_postgres_configurations(params)?;
         let tls_connector = crate::pool_manager::build_postgres_tls_connector(params)?;
         let (client, connection) = cfg
             .connect(tls_connector)
@@ -2455,6 +2541,17 @@ impl DatabaseDriver for PostgresDriver {
         session_id: Option<&str>,
     ) -> Result<(crate::models::QueryResult, bool), String> {
         execute_query_in_session(params, query, limit, page, schema, session_id).await
+    }
+
+    async fn execute_read_only_query(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<crate::models::QueryResult, String> {
+        execute_read_only_query(params, query, limit, page, schema).await
     }
 
     async fn execute_batch(

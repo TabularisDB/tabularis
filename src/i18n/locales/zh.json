@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "从值中选择",
+      "title": "选择值",
+      "search": "搜索值",
+      "loading": "正在加载值…",
+      "error": "无法加载值",
+      "retry": "重试",
+      "empty": "此列没有值",
+      "noMatch": "没有匹配的值",
+      "limited": "按数量排名前 {{count}}",
+      "use": "使用已选的 {{count}} 个",
+      "useNone": "使用所选"
+    },
     "autoRefresh": {
       "label": "自动刷新",
       "off": "关闭",
@@ -103,6 +116,7 @@
     "materializedViews": "物化视图",
     "refreshMaterializedView": "刷新",
     "showDefinition": "显示定义",
+    "copyDdl": "复制 DDL",
     "editView": "编辑视图",
     "viewDefinition": "视图定义",
     "dropView": "删除视图",
@@ -552,6 +566,8 @@
     "english": "English",
     "italian": "Italiano",
     "spanish": "Español",
+    "appearance_editorHighlightInvisibleCharacters": "显示不可见字符",
+    "appearance_editorHighlightInvisibleCharactersDesc": "突出显示 SQL 中隐藏的 Unicode 字符和形似字符。",
     "formatter_title": "SQL 格式化",
     "formatter_keywordCase": "关键字大小写",
     "formatter_keywordCaseDesc": "格式化后 SQL 关键字（SELECT、FROM、WHERE）的大小写处理。",
@@ -1081,6 +1097,7 @@
     "sshKeyPassphrasePlaceholder": "如果加密请输入密钥密码",
     "allowSshPrompt": "允许 SSH 密码/PIN 提示",
     "saveKeychain": "在密钥链中保存密码",
+    "secretsStoredInPlainText": "密码将以明文保存在连接文件中。",
     "testConnection": "测试连接",
     "save": "保存",
     "failSave": "保存连接失败",
@@ -1090,6 +1107,7 @@
     "manageSshConnections": "管理 SSH 连接",
     "noSshConnections": "无 SSH 连接可用",
     "sslMode": "SSL 模式",
+    "sslUnverifiedRemoteHint": "此模式不会验证服务器证书。远程主机请使用 {{mode}}。",
     "enableCleartextPlugin": "启用明文密码插件",
     "enableCleartextPluginHint": "使用 mysql_clear_password 发送密码。Warpgate 等堡垒机需要此选项。仅在 TLS 连接上使用。",
     "enableCleartextPluginTlsRequired": "请在上方选择强制 TLS 模式（Required、Verify CA 或 Verify Identity）以使用明文密码插件。",
@@ -1332,6 +1350,7 @@
       "reattach": "重新附加"
     },
     "tableRunPrompt": "按运行（Ctrl/Command+F5）加载表数据",
+    "duplicateTab": "复制标签",
     "closeTab": "关闭标签",
     "reopenClosedTab": "重新打开已关闭的标签",
     "closeOthers": "关闭其他标签",
@@ -1382,6 +1401,7 @@
     "queryParameters": "查询参数",
     "formatSql": "格式化 SQL",
     "convertSelectionToSqlList": "将所选内容转换为 SQL 列表",
+    "removeInvisibleCharacters": "清理粘贴的字符",
     "convertToConsole": "转换为控制台",
     "parameters": "参数",
     "paramValuePlaceholder": "值（例如 'text' 或 123）",

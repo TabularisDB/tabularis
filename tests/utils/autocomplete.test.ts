@@ -1261,3 +1261,130 @@ describe('autocomplete', () => {
     });
   });
 });
+
+
+describe('CTE and derived table completion integration', () => {
+  beforeEach(() => {
+    clearAutocompleteCache();
+    vi.clearAllMocks();
+  });
+
+  it('completes CTE output names without a server column RPC', async () => {
+    const monaco = createMockMonaco();
+    registerSqlAutocomplete(
+      monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+      'conn1', [],
+    );
+    const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+    const value = 'WITH recent AS (SELECT id, occurred_at AS ts FROM events) SELECT recent. FROM recent';
+    const column = value.indexOf('recent.') + 'recent.'.length + 1;
+    const suggestions = (await provider.provideCompletionItems(
+      createMockModel(value), { lineNumber: 1, column },
+    )).suggestions;
+    expect(suggestions.map((s: { label: string }) => s.label)).toEqual(['id', 'ts']);
+    expect(suggestions[0].detail).toContain('CTE recent');
+    expect(invoke).not.toHaveBeenCalledWith('get_columns', expect.anything());
+  });
+
+  it('completes quoted CTE aliases containing spaces', async () => {
+    const monaco = createMockMonaco();
+    registerSqlAutocomplete(
+      monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+      'conn1', [],
+    );
+    const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+    const value = 'WITH "My CTE" AS (SELECT id, "Display Name" AS label FROM t) SELECT "My CTE". FROM "My CTE"';
+    const column = value.indexOf('"My CTE".') + '"My CTE".'.length + 1;
+    const suggestions = (await provider.provideCompletionItems(
+      createMockModel(value), { lineNumber: 1, column },
+    )).suggestions;
+    expect(suggestions.map((s: { label: string }) => s.label)).toEqual(['id', 'label']);
+    expect(invoke).not.toHaveBeenCalledWith('get_columns', expect.anything());
+  });
+
+  it('completes SQL Server bracket-quoted aliases containing escaped brackets', async () => {
+    const monaco = createMockMonaco();
+    registerSqlAutocomplete(
+      monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+      'conn1', [],
+    );
+    const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+    const value = 'WITH [My]]CTE] AS (SELECT id, name AS label FROM t) SELECT [My]]CTE]. FROM [My]]CTE]';
+    const column = value.indexOf('[My]]CTE].') + '[My]]CTE].'.length + 1;
+    const suggestions = (await provider.provideCompletionItems(
+      createMockModel(value), { lineNumber: 1, column },
+    )).suggestions;
+    expect(suggestions.map((s: { label: string }) => s.label)).toEqual(['id', 'label']);
+    expect(invoke).not.toHaveBeenCalledWith('get_columns', expect.anything());
+  });
+
+  it('prefers a physical FROM alias over a same-named CTE when completing columns', async () => {
+    const { parseTablesFromQuery } = await import('../../src/utils/sqlAnalysis');
+    (parseTablesFromQuery as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Map([['t', { name: 'beta' }]]),
+    );
+    (invoke as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { name: 'id', data_type: 'INTEGER' },
+      { name: 'label', data_type: 'TEXT' },
+      { name: 'score', data_type: 'INTEGER' },
+    ]);
+
+    const monaco = createMockMonaco();
+    registerSqlAutocomplete(
+      monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+      'conn1', [{ name: 'beta' }],
+    );
+    const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+    const value = 'WITH t AS (SELECT secret FROM users) SELECT t. FROM beta t';
+    const column = value.indexOf('SELECT t.') + 'SELECT t.'.length + 1;
+    const model = createMockModel(value);
+    // Use a real cursor offset here: the shared test mock otherwise jumps to EOF.
+    model.getOffsetAt.mockImplementation((pos) => pos.column - 1);
+    const suggestions = (await provider.provideCompletionItems(
+      model, { lineNumber: 1, column },
+    )).suggestions;
+
+    expect(suggestions.map((s: { label: string }) => s.label)).toEqual(['id', 'label', 'score']);
+    expect(invoke).toHaveBeenCalledWith('get_columns', expect.objectContaining({ tableName: 'beta' }));
+  });
+
+  it('completes a later FROM-derived alias in the SELECT list', async () => {
+    const monaco = createMockMonaco();
+    registerSqlAutocomplete(
+      monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+      'conn1', [],
+    );
+    const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+    const value = 'SELECT x. FROM (SELECT a, b FROM inner_t) x';
+    const column = value.indexOf('x.') + 3;
+    const suggestions = (await provider.provideCompletionItems(
+      createMockModel(value), { lineNumber: 1, column },
+    )).suggestions;
+    expect(suggestions.map((s: { label: string }) => s.label)).toEqual(['a', 'b']);
+    expect(invoke).not.toHaveBeenCalledWith('get_columns', expect.anything());
+  });
+
+  it('does not leak a subquery physical table into the outer WHERE scope', async () => {
+    const { parseTablesFromQuery } = await import('../../src/utils/sqlAnalysis');
+    (parseTablesFromQuery as ReturnType<typeof vi.fn>).mockImplementation((sql: string) =>
+      sql.includes('inner_t')
+        ? new Map([['inner_t', { name: 'inner_t' }]])
+        : new Map(),
+    );
+    const monaco = createMockMonaco();
+    registerSqlAutocomplete(
+      monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+      'conn1', [{ name: 'inner_t' }],
+    );
+    const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+    const value = 'SELECT * FROM (SELECT id FROM inner_t) x WHERE ';
+    await provider.provideCompletionItems(
+      createMockModel(value), { lineNumber: 1, column: value.length + 1 },
+    );
+    expect(parseTablesFromQuery).toHaveBeenCalledWith(
+      expect.not.stringContaining('inner_t'),
+    );
+    expect(invoke).not.toHaveBeenCalledWith('get_columns',
+      expect.objectContaining({ tableName: 'inner_t' }));
+  });
+});

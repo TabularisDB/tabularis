@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "값에서 선택",
+      "title": "값 선택",
+      "search": "값 검색",
+      "loading": "값을 불러오는 중…",
+      "error": "값을 불러올 수 없습니다",
+      "retry": "다시 시도",
+      "empty": "이 열에 값이 없습니다",
+      "noMatch": "일치하는 값이 없습니다",
+      "limited": "개수 기준 상위 {{count}}개",
+      "use": "선택한 {{count}}개 사용",
+      "useNone": "선택 항목 사용"
+    },
     "autoRefresh": {
       "label": "자동 새로고침",
       "off": "끄기",
@@ -81,6 +94,7 @@
     "materializedViews": "구체화 뷰",
     "refreshMaterializedView": "새로고침",
     "showDefinition": "정의 보기",
+    "copyDdl": "DDL 복사",
     "editView": "뷰 편집",
     "viewDefinition": "뷰 정의",
     "dropView": "뷰 삭제",
@@ -531,6 +545,8 @@
     "appearance_editorTabSize": "탭 크기",
     "appearance_editorWordWrap": "자동 줄바꿈",
     "appearance_editorWordWrapDesc": "에디터에서 가로 스크롤 대신 긴 줄을 자동으로 줄바꿈합니다.",
+    "appearance_editorHighlightInvisibleCharacters": "보이지 않는 문자 표시",
+    "appearance_editorHighlightInvisibleCharactersDesc": "SQL에서 숨겨진 유니코드 문자와 비슷하게 보이는 문자를 표시합니다.",
     "appearance_editorShowLineNumbers": "줄 번호 표시",
     "appearance_editorShowLineNumbersDesc": "에디터 여백에 줄 번호를 표시합니다.",
     "appearance_editorAcceptSuggestionOnEnter": "Enter로 제안 수락",
@@ -1080,6 +1096,7 @@
     "sshKeyPassphrasePlaceholder": "암호화된 경우 키 암호를 입력하세요",
     "allowSshPrompt": "SSH 비밀번호/PIN 입력창 허용",
     "saveKeychain": "키체인에 비밀번호 저장",
+    "secretsStoredInPlainText": "비밀번호는 연결 파일에 평문으로 저장됩니다.",
     "testConnection": "연결 테스트",
     "save": "저장",
     "failSave": "연결 저장에 실패했습니다",
@@ -1089,6 +1106,7 @@
     "manageSshConnections": "SSH 연결 관리",
     "noSshConnections": "사용 가능한 SSH 연결이 없습니다",
     "sslMode": "SSL 모드",
+    "sslUnverifiedRemoteHint": "이 모드는 서버 인증서를 확인하지 않습니다. 원격 호스트에는 {{mode}}을(를) 사용하세요.",
     "enableCleartextPlugin": "평문 비밀번호 플러그인 활성화",
     "enableCleartextPluginHint": "mysql_clear_password로 비밀번호를 전송합니다. Warpgate 같은 배스천에 필요합니다. TLS 연결에서만 사용됩니다.",
     "enableCleartextPluginTlsRequired": "평문 비밀번호 플러그인을 사용하려면 위에서 강제 TLS 모드(필수, CA 확인 또는 신원 확인)를 선택하세요.",
@@ -1314,6 +1332,7 @@
       "detached": "결과가 별도 창으로 분리되었습니다",
       "reattach": "다시 붙이기"
     },
+    "duplicateTab": "탭 복제",
     "closeTab": "탭 닫기",
     "reopenClosedTab": "닫은 탭 다시 열기",
     "closeOthers": "다른 탭 닫기",
@@ -1383,6 +1402,7 @@
     "queryParameters": "쿼리 매개변수",
     "formatSql": "SQL 포맷",
     "convertSelectionToSqlList": "선택 영역을 SQL 목록으로 변환",
+    "removeInvisibleCharacters": "붙여넣은 문자 정리",
     "convertToConsole": "콘솔로 변환",
     "parameters": "매개변수",
     "paramValuePlaceholder": "값 (예: 'text' 또는 123)",

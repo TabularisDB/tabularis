@@ -14,6 +14,8 @@ interface MonacoEditorMockProps {
     acceptSuggestionOnEnter?: string;
     folding?: boolean;
     showFoldingControls?: string;
+    renderControlCharacters?: boolean;
+    unicodeHighlight?: { invisibleCharacters?: boolean; ambiguousCharacters?: boolean };
   };
 }
 
@@ -50,6 +52,9 @@ vi.mock('../../../src/components/ui/LazyMonaco', async () => {
           data-accept-suggestion-on-enter={options?.acceptSuggestionOnEnter}
           data-folding={String(options?.folding)}
           data-folding-controls={options?.showFoldingControls}
+          data-render-control-characters={String(options?.renderControlCharacters)}
+          data-highlight-invisible={String(options?.unicodeHighlight?.invisibleCharacters)}
+          data-highlight-ambiguous={String(options?.unicodeHighlight?.ambiguousCharacters)}
           defaultValue={defaultValue}
           onChange={(e) => onChange?.(e.target.value)}
         />
@@ -128,6 +133,7 @@ describe('SqlEditorWrapper', () => {
     monacoRenderState.beforeMount = undefined;
     monacoRenderState.onMount = undefined;
     matchesShortcutMock.mockReturnValue(false);
+    settingsValue.settings = DEFAULT_SETTINGS;
   });
 
   const mountCapturedEditor = () => {
@@ -141,6 +147,11 @@ describe('SqlEditorWrapper', () => {
       dispose: vi.fn(),
       getContribution: vi.fn(() => null),
       getModel: vi.fn(() => null),
+      getSelection: vi.fn(() => null),
+      getPosition: vi.fn(() => null),
+      createDecorationsCollection: vi.fn(() => ({ clear: vi.fn(), set: vi.fn() })),
+      onDidChangeCursorSelection: vi.fn(),
+      onDidChangeModelContent: vi.fn(),
       onKeyDown: vi.fn((handler: (event: MonacoKeyDownEventMock) => void) => {
         keyDownHandlers.push(handler);
       }),
@@ -155,6 +166,110 @@ describe('SqlEditorWrapper', () => {
 
     return { addAction, addCommand, keyDownHandlers, trigger };
   };
+
+  it('highlights hidden Unicode by default and honors the saved editor setting', () => {
+    const { unmount } = render(
+      <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />,
+      { wrapper },
+    );
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-highlight-invisible', 'true');
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-highlight-ambiguous', 'true');
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-render-control-characters', 'true');
+    unmount();
+
+    settingsValue.settings = { ...DEFAULT_SETTINGS, editorHighlightInvisibleCharacters: false };
+    render(<SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />, { wrapper });
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-highlight-invisible', 'false');
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-highlight-ambiguous', 'false');
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-render-control-characters', 'false');
+  });
+
+  it('cleans only selected SQL code and keeps quoted text unchanged', () => {
+    render(
+      <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} dialect="postgres" />,
+      { wrapper },
+    );
+    const { addAction } = mountCapturedEditor();
+    const action = addAction.mock.calls
+      .map(([descriptor]) => descriptor as { id: string; run: (ed: unknown) => void })
+      .find((descriptor) => descriptor.id === 'tabularis.removeInvisibleSqlCharacters');
+    expect(action?.label).toBe('editor.removeInvisibleCharacters');
+    if (!action) throw new Error('cleanup action was not registered');
+
+    const sql = "SELECT\u200B 'It’s O’Brien' AS \u201Cid\u201D, \u201Coutside\u201D";
+    const comma = sql.indexOf(',');
+    const selection = {
+      isEmpty: () => false,
+      getStartPosition: () => ({ lineNumber: 1, column: 1 }),
+      getEndPosition: () => ({ lineNumber: 1, column: comma + 1 }),
+    };
+    const model = {
+      getValue: () => sql,
+      getOffsetAt: (position: { column: number }) => position.column - 1,
+      getPositionAt: (offset: number) => ({ lineNumber: 1, column: offset + 1 }),
+    };
+    const edits: Array<{ range: { startColumn: number }; text: string }> = [];
+    const events: string[] = [];
+    const ed = {
+      getModel: () => model,
+      getSelections: () => [selection],
+      pushUndoStop: () => events.push('undo'),
+      executeEdits: (_source: string, next: typeof edits) => {
+        events.push('edit');
+        edits.push(...next);
+      },
+    };
+
+    action.run(ed);
+    expect(events).toEqual(['undo', 'edit', 'undo']);
+    expect(edits.map(({ range, text }) => [range.startColumn, text])).toEqual([
+      [sql.indexOf('\u200B') + 1, ''],
+      [sql.indexOf('\u201C') + 1, '"'],
+      [sql.indexOf('\u201D') + 1, '"'],
+    ]);
+  });
+
+  it('cleans the full model with small edits and skips clean text', () => {
+    render(
+      <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} dialect="postgres" />,
+      { wrapper },
+    );
+    const { addAction } = mountCapturedEditor();
+    const action = addAction.mock.calls
+      .map(([descriptor]) => descriptor as { id: string; run: (ed: unknown) => void })
+      .find((descriptor) => descriptor.id === 'tabularis.removeInvisibleSqlCharacters');
+    if (!action) throw new Error('cleanup action was not registered');
+    let sql = "SELECT\uFEFF 1； '👨‍👩‍👧'";
+    const model = {
+      getValue: () => sql,
+      getPositionAt: (offset: number) => ({ lineNumber: 1, column: offset + 1 }),
+    };
+    const executeEdits = vi.fn();
+    const pushUndoStop = vi.fn();
+    const ed = {
+      getModel: () => model,
+      getSelections: () => [],
+      executeEdits,
+      pushUndoStop,
+    };
+    action.run(ed);
+    expect(executeEdits).toHaveBeenCalledTimes(1);
+    const edits = executeEdits.mock.calls[0][1] as Array<{
+      range: { startColumn: number; endColumn: number };
+      text: string;
+      forceMoveMarkers: boolean;
+    }>;
+    expect(edits.map(({ range, text, forceMoveMarkers }) => [
+      sql.slice(range.startColumn - 1, range.endColumn - 1),
+      text,
+      forceMoveMarkers,
+    ])).toEqual([['\uFEFF', '', false], ['；', ';', false]]);
+    expect(pushUndoStop).toHaveBeenCalledTimes(2);
+
+    sql = "SELECT 1; '👨‍👩‍👧'";
+    action.run(ed);
+    expect(executeEdits).toHaveBeenCalledTimes(1);
+  });
 
   it('converts the selection to an SQL list in one undoable edit, only when text is selected', () => {
     render(

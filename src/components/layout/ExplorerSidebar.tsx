@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { copyTextToClipboard } from "../../utils/clipboard";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { quoteIdentifier, quoteTableRef } from "../../utils/identifiers";
@@ -486,6 +487,81 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   ) => {
     objectNavigation?.open(viewName, schema, { materialized });
   };
+
+  const createViewDefinitionContextItems = useCallback(
+    (
+      viewName: string,
+      schema?: string,
+      materialized = false,
+      database?: string,
+    ): ContextMenuItem[] => {
+      const supported = materialized
+        ? activeCapabilities?.materialized_views === true
+        : activeCapabilities?.views !== false;
+      if (!supported || !activeConnectionId) {
+        return [];
+      }
+
+      const failPrefix = materialized
+        ? t("views.failGetDefinition")
+        : t("sidebar.failGetViewDefinition");
+
+      const fetchDefinition = () =>
+        invoke<string>(
+          materialized
+            ? "get_materialized_view_definition"
+            : "get_view_definition",
+          {
+            connectionId: activeConnectionId,
+            viewName,
+            ...(schema ? { schema } : {}),
+            ...(database ? { database } : {}),
+          },
+        );
+
+      return [
+        {
+          label: t("sidebar.showDefinition"),
+          icon: FileText,
+          action: async () => {
+            try {
+              const definition = await fetchDefinition();
+              objectNavigation?.openDefinition(
+                definition,
+                `${viewName} Definition`,
+                schema,
+                true,
+              );
+            } catch (e) {
+              console.error(e);
+              showAlert(failPrefix + String(e), { kind: "error" });
+            }
+          },
+        },
+        {
+          label: t("sidebar.copyDdl"),
+          icon: Copy,
+          action: async () => {
+            try {
+              const definition = await fetchDefinition();
+              await copyTextToClipboard(definition);
+              showAlert(t("common.copied"), { kind: "info" });
+            } catch (e) {
+              console.error(e);
+              showAlert(failPrefix + String(e), { kind: "error" });
+            }
+          },
+        },
+      ];
+    },
+    [
+      activeCapabilities,
+      activeConnectionId,
+      objectNavigation,
+      showAlert,
+      t,
+    ],
+  );
 
   // Multi-database: open table/view without qualified prefix — backend uses USE <db> for isolation
   const handleOpenDatabaseTable = (tableName: string, database?: string) => {
@@ -2450,6 +2526,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   );
                                 },
                               },
+                              ...createViewDefinitionContextItems(
+                                contextMenu.id,
+                                viewCtxSchema,
+                                false,
+                              ),
                               {
                                 label: t("sidebar.editView"),
                                 icon: Edit,
@@ -2543,29 +2624,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   }
                                 },
                               },
-                              {
-                                label: t("sidebar.showDefinition"),
-                                icon: FileText,
-                                action: async () => {
-                                  try {
-                                    const definition = await invoke<string>("get_materialized_view_definition", {
-                                      connectionId: activeConnectionId,
-                                      viewName: contextMenu.id,
-                                      ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
-                                      ...(mvCtxDatabase ? { database: mvCtxDatabase } : {}),
-                                    });
-                                    objectNavigation?.openDefinition(
-                                      definition,
-                                      `${contextMenu.id} Definition`,
-                                      mvCtxSchema,
-                                      true,
-                                    );
-                                  } catch (e) {
-                                    console.error(e);
-                                    showAlert(t("views.failGetDefinition") + String(e), { kind: "error" });
-                                  }
-                                },
-                              },
+                              ...createViewDefinitionContextItems(
+                                contextMenu.id,
+                                mvCtxSchema,
+                                true,
+                                mvCtxDatabase,
+                              ),
                               {
                                 label: t("sidebar.copyName"),
                                 icon: Copy,

@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Choisir parmi les valeurs",
+      "title": "Choisir des valeurs",
+      "search": "Rechercher des valeurs",
+      "loading": "Chargement des valeurs…",
+      "error": "Impossible de charger les valeurs",
+      "retry": "Réessayer",
+      "empty": "Aucune valeur dans cette colonne",
+      "noMatch": "Aucune valeur correspondante",
+      "limited": "Les {{count}} plus fréquentes",
+      "use": "Utiliser {{count}} sélectionnées",
+      "useNone": "Utiliser la sélection"
+    },
     "autoRefresh": {
       "label": "Actualisation automatique",
       "off": "Désactivée",
@@ -104,6 +117,7 @@
     "materializedViews": "Vues matérialisées",
     "refreshMaterializedView": "Actualiser",
     "showDefinition": "Afficher la définition",
+    "copyDdl": "Copier le DDL",
     "editView": "Modifier la vue",
     "viewDefinition": "Définition de la vue",
     "dropView": "Supprimer la vue",
@@ -586,6 +600,8 @@
     "appearance_editorTabSize": "Taille de tabulation",
     "appearance_editorWordWrap": "Retour à la ligne automatique",
     "appearance_editorWordWrapDesc": "Retourne les longues lignes dans l’éditeur au lieu d’un défilement horizontal.",
+    "appearance_editorHighlightInvisibleCharacters": "Afficher les caractères invisibles",
+    "appearance_editorHighlightInvisibleCharactersDesc": "Signale les caractères Unicode invisibles et les caractères similaires dans le SQL.",
     "appearance_editorShowLineNumbers": "Afficher les numéros de ligne",
     "appearance_editorShowLineNumbersDesc": "Affiche les numéros de ligne dans la marge de l’éditeur.",
     "appearance_editorAcceptSuggestionOnEnter": "Accepter la suggestion avec Entrée",
@@ -1142,6 +1158,7 @@
     "sshKeyPassphrasePlaceholder": "Saisissez la phrase secrète si la clé est chiffrée",
     "allowSshPrompt": "Autoriser l'invite de mot de passe/PIN SSH",
     "saveKeychain": "Enregistrer les mots de passe dans le trousseau",
+    "secretsStoredInPlainText": "Les mots de passe seront enregistrés en clair dans le fichier de connexions.",
     "testConnection": "Tester la connexion",
     "save": "Enregistrer",
     "failSave": "Échec de l’enregistrement de la connexion",
@@ -1151,6 +1168,7 @@
     "manageSshConnections": "Gérer les connexions SSH",
     "noSshConnections": "Aucune connexion SSH disponible",
     "sslMode": "Mode SSL",
+    "sslUnverifiedRemoteHint": "Ce mode ne vérifie pas le certificat du serveur. Pour un hôte distant, utilisez {{mode}}.",
     "enableCleartextPlugin": "Activer le plugin de mot de passe en clair",
     "enableCleartextPluginHint": "Envoie le mot de passe via mysql_clear_password. Requis pour les bastions comme Warpgate. Utilisé uniquement sur une connexion TLS.",
     "enableCleartextPluginTlsRequired": "Sélectionnez un mode TLS strict ci-dessus (Required, Verify CA ou Verify Identity) pour utiliser le plugin de mot de passe en clair.",
@@ -1379,6 +1397,7 @@
       "detached": "Résultats détachés dans une fenêtre séparée",
       "reattach": "Rattacher"
     },
+    "duplicateTab": "Dupliquer l’onglet",
     "closeTab": "Fermer l’onglet",
     "reopenClosedTab": "Réouvrir l’onglet fermé",
     "closeOthers": "Fermer les autres onglets",
@@ -1448,6 +1467,7 @@
     "queryParameters": "Paramètres de requête",
     "formatSql": "Formater SQL",
     "convertSelectionToSqlList": "Convertir la sélection en liste SQL",
+    "removeInvisibleCharacters": "Nettoyer les caractères collés",
     "convertToConsole": "Convertir en console",
     "parameters": "Paramètres",
     "paramValuePlaceholder": "Valeur (ex. 'texte' ou 123)",

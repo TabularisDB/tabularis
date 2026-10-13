@@ -2,6 +2,8 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight } from "lucide-react";
 import { truncateCellPreview } from "../../utils/text";
+import { isSvgText, svgTextToDataUrl } from "../../utils/blob";
+import { ImagePreviewHover } from "./ImagePreviewHover";
 
 interface TextCellProps {
   value: unknown;
@@ -30,6 +32,8 @@ export const TextCell = ({
     [displayText],
   );
 
+  const isSvg = useMemo(() => isSvgText(value), [value]);
+
   useLayoutEffect(() => {
     const el = textRef.current;
     if (!el) return;
@@ -47,7 +51,7 @@ export const TextCell = ({
     ? previewText.replace(/\n/g, " ⏎ ")
     : previewText;
 
-  return (
+  const content = (
     <span
       className="flex items-center gap-1 group/textcell w-full"
       title={truncated ? `${previewText}…` : displayText}
@@ -78,4 +82,16 @@ export const TextCell = ({
       )}
     </span>
   );
+
+  if (isSvg) {
+    return (
+      <ImagePreviewHover
+        getSrc={() => (typeof value === "string" ? svgTextToDataUrl(value) : null)}
+      >
+        {content}
+      </ImagePreviewHover>
+    );
+  }
+
+  return content;
 };

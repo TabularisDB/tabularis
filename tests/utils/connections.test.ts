@@ -8,6 +8,7 @@ import {
   connectionSubtitle,
   getCardClass,
   updateExtraField,
+  withoutBlankSslMode,
   migrationDirectionForDriver,
   connectionOrderAfterMove,
   type ConnectionParams,
@@ -35,6 +36,23 @@ const makeRemoteCaps = (): DriverCapabilities => ({
 });
 
 describe('connections', () => {
+  describe('withoutBlankSslMode', () => {
+    it('omits blank ssl_mode', () => {
+      expect(withoutBlankSslMode({ driver: 'mysql', ssl_mode: '' })).toEqual({
+        driver: 'mysql',
+      });
+      expect(withoutBlankSslMode({ driver: 'mysql', ssl_mode: '   ' })).toEqual({
+        driver: 'mysql',
+      });
+    });
+
+    it('keeps a non-blank ssl_mode', () => {
+      expect(
+        withoutBlankSslMode({ driver: 'postgres', ssl_mode: 'require' }),
+      ).toEqual({ driver: 'postgres', ssl_mode: 'require' });
+    });
+  });
+
   describe('formatConnectionString', () => {
     it('should format SQLite connection string', () => {
       const params: ConnectionParams = {

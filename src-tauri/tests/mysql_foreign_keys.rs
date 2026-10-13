@@ -107,6 +107,49 @@ async fn assert_keys(
     );
 }
 
+/// The CAST(... AS SIGNED) reads from #939: numeric precision/scale through both
+/// column queries, and each column's position in a composite key through both
+/// foreign-key queries.
+async fn assert_numeric_columns_and_key_order(params: &ConnectionParams) {
+    let label = format!("text_protocol={:?}", params.enable_cleartext_plugin);
+    let timeout = Duration::from_secs(30);
+    let columns = tokio::time::timeout(timeout, mysql::get_columns(params, "parent", None))
+        .await
+        .expect("column discovery timed out")
+        .expect("column discovery failed");
+    let column_batch = tokio::time::timeout(timeout, mysql::get_all_columns_batch(params, None))
+        .await
+        .expect("batch column discovery timed out")
+        .expect("batch column discovery failed");
+    for columns in [&columns, &column_batch["parent"]] {
+        let amount = columns
+            .iter()
+            .find(|column| column.name == "amount")
+            .expect("parent.amount should be listed");
+        assert_eq!(
+            (amount.numeric_precision, amount.numeric_scale),
+            (Some(10), Some(2)),
+            "{label}"
+        );
+    }
+
+    let keys = tokio::time::timeout(timeout, mysql::get_foreign_keys(params, "composite", None))
+        .await
+        .expect("foreign-key discovery timed out")
+        .expect("foreign-key discovery failed");
+    let key_batch = tokio::time::timeout(timeout, mysql::get_all_foreign_keys_batch(params, None))
+        .await
+        .expect("batch foreign-key discovery timed out")
+        .expect("batch foreign-key discovery failed");
+    for keys in [&keys, &key_batch["composite"]] {
+        let order: Vec<_> = keys
+            .iter()
+            .map(|key| (key.column_name.as_str(), key.seq_in_fk))
+            .collect();
+        assert_eq!(order, [("z_col", Some(1)), ("a_col", Some(2))], "{label}");
+    }
+}
+
 async fn exercise_foreign_keys(
     connection: &mut MySqlConnection,
     params: &ConnectionParams,
@@ -115,7 +158,7 @@ async fn exercise_foreign_keys(
     let [first, second] = schemas;
     for schema in schemas {
         execute(connection, &format!(
-            "CREATE TABLE {} (id INT PRIMARY KEY, z INT NOT NULL, a INT NOT NULL, UNIQUE (z, a)) ENGINE=InnoDB",
+            "CREATE TABLE {} (id INT PRIMARY KEY, z INT NOT NULL, a INT NOT NULL, amount DECIMAL(10,2), UNIQUE (z, a)) ENGINE=InnoDB",
             table(schema, "parent")
         )).await;
     }
@@ -259,6 +302,7 @@ async fn exercise_foreign_keys(
                 ],
             )
             .await;
+            assert_numeric_columns_and_key_order(&selected).await;
             assert_keys(
                 &selected,
                 "self_ref",

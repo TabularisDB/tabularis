@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, useId } from "react";
 import { useTranslation } from "react-i18next";
 import {
   X,
@@ -40,6 +40,7 @@ import { SshConnectionsModal } from "./SshConnectionsModal";
 import { K8sConnectionsModal } from "./K8sConnectionsModal";
 import { Select } from "../ui/Select";
 import { SlotAnchor } from "../ui/SlotAnchor";
+import { useAlert } from "../../hooks/useAlert";
 import { useDrivers } from "../../hooks/useDrivers";
 import { useSettings } from "../../hooks/useSettings";
 import { usePluginSlotRegistry } from "../../hooks/usePluginSlotRegistry";
@@ -64,7 +65,7 @@ import { useK8sPathOverrides } from "../../hooks/useK8sPathOverrides";
 import { useLatestAsync } from "../../hooks/useLatestAsync";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
 import { isMultiDatabaseCapable, isSchemaBasedMultiDbCapable, hasOptedIntoDatabaseSelection } from "../../utils/database";
-import { updateExtraField } from "../../utils/connections";
+import { updateExtraField, withoutBlankSslMode } from "../../utils/connections";
 import { normalizeLocalDatabasePath, sanitizeLocalFilePath } from "../../utils/fsPath";
 import { isLocalDriver } from "../../utils/driverCapabilities";
 import { toErrorMessage } from "../../utils/errors";
@@ -85,6 +86,11 @@ import {
   toConnectionParams,
   uriPassthroughEnabled,
 } from "../../utils/connectionStringParser";
+import {
+  shouldShowUnverifiedSslHint,
+  suggestedVerifyingSslMode,
+  type SslModeFamily,
+} from "../../utils/sslMode";
 import { useConnectionCatalogue } from "../../hooks/useConnectionCatalogue";
 import { ConnectionCatalogue } from "./connection/ConnectionCatalogue";
 import { DriverVersionPicker } from "./connection/DriverVersionPicker";
@@ -266,6 +272,9 @@ export const NewConnectionModal = ({
   initialConnection,
 }: NewConnectionModalProps) => {
   const { t } = useTranslation();
+  const { showAlert } = useAlert();
+  const sslModeSelectId = useId();
+  const sslModeHintId = useId();
   const { drivers, refresh: refreshDrivers } = useDrivers();
   const { settings, updateSetting } = useSettings();
   const { invalidate: invalidateK8sAsync, run: runK8sAsync } = useLatestAsync();
@@ -366,6 +375,11 @@ export const NewConnectionModal = ({
     ssh_enabled: false,
     ssh_port: 22,
     k8s_enabled: false,
+    // New connections store secrets in the keychain. An edit starts from the
+    // saved flag so a slow credential load cannot flip an existing connection.
+    save_in_keychain: initialConnection
+      ? (initialConnection.params.save_in_keychain ?? false)
+      : true,
   });
   const [selectedDatabasesState, setSelectedDatabasesState] = useState<
     string[]
@@ -1963,6 +1977,7 @@ export const NewConnectionModal = ({
           ssh_port: 22,
           k8s_enabled: false,
           ssm_enabled: false,
+          save_in_keychain: true,
         });
         setSelectedDatabasesState([]);
         setLoadAllDatabases(true);
@@ -2007,7 +2022,7 @@ export const NewConnectionModal = ({
       ssh_password: undefined,
       ssh_key_file: undefined,
       ssh_key_passphrase: undefined,
-      save_in_keychain: false,
+      save_in_keychain: true,
       k8s_enabled: false,
       k8s_connection_id: undefined,
       k8s_context: undefined,
@@ -2150,9 +2165,8 @@ export const NewConnectionModal = ({
                 ) ?? "")
               : formData.database,
         };
-        const testParams = withInlineK8sPaths(
-          testParamsBase,
-          inlinePaths.options,
+        const testParams = withoutBlankSslMode(
+          withInlineK8sPaths(testParamsBase, inlinePaths.options),
         );
         const invokeTest = () =>
           invoke<string>("test_connection", {
@@ -2378,7 +2392,9 @@ export const NewConnectionModal = ({
                 ) ?? formData.database)
               : formData.database,
       };
-      const params = withInlineK8sPaths(paramsBase, inlinePaths.options);
+      const params = withoutBlankSslMode(
+        withInlineK8sPaths(paramsBase, inlinePaths.options),
+      );
       const appearancePayload =
         appearance.icon || appearance.accentColor ? appearance : undefined;
       const finalImagePath =
@@ -2400,6 +2416,7 @@ export const NewConnectionModal = ({
       setTestResult(null);
       try {
         let savedConnectionId: string;
+        let persistedInKeychain = params.save_in_keychain;
         if (initialConnection) {
           // An omitted password means "keep the stored one". While a plugin
           // hides the login inputs the empty password is deliberate: it is
@@ -2408,25 +2425,32 @@ export const NewConnectionModal = ({
             delete params.password;
           }
           if (!params.ssh_password?.trim()) delete params.ssh_password;
-          await invoke("update_connection", {
+          const updated = await invoke<{
+            params?: { save_in_keychain?: boolean };
+          }>("update_connection", {
             id: initialConnection.id,
             name,
             params,
             detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
             environment: environment || null,
           });
+          persistedInKeychain = updated?.params?.save_in_keychain;
           savedConnectionId = initialConnection.id;
           await invoke("set_connection_appearance", {
             id: initialConnection.id,
             appearance: appearancePayload ?? null,
           });
         } else {
-          const saved = await invoke<{ id: string }>("save_connection", {
+          const saved = await invoke<{
+            id: string;
+            params?: { save_in_keychain?: boolean };
+          }>("save_connection", {
             name,
             params,
             detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
             environment: environment || null,
           });
+          persistedInKeychain = saved.params?.save_in_keychain;
           savedConnectionId = saved.id;
           if (appearancePayload) {
             await invoke("set_connection_appearance", {
@@ -2452,6 +2476,12 @@ export const NewConnectionModal = ({
             setTestResult(null);
           }
           return;
+        }
+
+        if (params.save_in_keychain && persistedInKeychain === false) {
+          showAlert(t("newConnection.secretsStoredInPlainText"), {
+            kind: "warning",
+          });
         }
 
         if (onSave) onSave();
@@ -2989,19 +3019,34 @@ export const NewConnectionModal = ({
           )}
 
           {/* Keychain */}
-          <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
-            <input
-              type="checkbox"
-              checked={!!formData.save_in_keychain}
-              onChange={(e) => {
-                updateField("save_in_keychain", e.target.checked);
-              }}
-              className="accent-accent-primary w-3.5 h-3.5 rounded"
-            />
-            <span className="text-xs text-secondary">
-              {t("newConnection.saveKeychain")}
-            </span>
-          </label>
+          <div className="flex flex-col gap-1">
+            <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+              <input
+                type="checkbox"
+                checked={!!formData.save_in_keychain}
+                onChange={(e) => {
+                  updateField("save_in_keychain", e.target.checked);
+                }}
+                aria-describedby={
+                  formData.save_in_keychain
+                    ? undefined
+                    : "connection-secrets-plaintext-warning"
+                }
+                className="accent-accent-primary w-3.5 h-3.5 rounded"
+              />
+              <span className="text-xs text-secondary">
+                {t("newConnection.saveKeychain")}
+              </span>
+            </label>
+            {!formData.save_in_keychain && (
+              <p
+                id="connection-secrets-plaintext-warning"
+                className="text-xs text-accent-warning"
+              >
+                {t("newConnection.secretsStoredInPlainText")}
+              </p>
+            )}
+          </div>
         </>
       )}
 
@@ -3328,6 +3373,17 @@ export const NewConnectionModal = ({
   );
 
   // ── rendered SSL tab content ──
+  const selectedSslMode =
+    formData.ssl_mode ||
+    (driver === "clickhouse" ? "disable" : isPostgresDialect ? "prefer" : "required");
+  // ClickHouse only offers disable/require, neither of which verifies a certificate.
+  const sslModeFamily: SslModeFamily | null =
+    driver === "clickhouse" ? null : isPostgresDialect ? "postgres" : "mysql";
+  const showUnverifiedSslHint =
+    sslModeFamily !== null &&
+    shouldShowUnverifiedSslHint(formData.host, selectedSslMode, sslModeFamily);
+  const suggestedSslMode =
+    sslModeFamily === null ? null : suggestedVerifyingSslMode(sslModeFamily);
   const sslTabContent = (
     <div className="space-y-4">
       <p className="text-xs text-muted">
@@ -3338,18 +3394,16 @@ export const NewConnectionModal = ({
 
       {/* SSL Mode */}
       <div className="flex flex-col gap-1">
-        <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
+        <label
+          htmlFor={sslModeSelectId}
+          className="text-[10px] uppercase font-semibold tracking-wider text-muted"
+        >
           {t("newConnection.sslMode", { defaultValue: "SSL Mode" })}
         </label>
         <Select
-          value={
-            formData.ssl_mode ||
-            (driver === "clickhouse"
-              ? "disable"
-              : isPostgresDialect
-                ? "prefer"
-                : "required")
-          }
+          id={sslModeSelectId}
+          ariaDescribedBy={showUnverifiedSslHint ? sslModeHintId : undefined}
+          value={selectedSslMode}
           options={
             driver === "clickhouse"
               ? ["disable", "require"]
@@ -3400,6 +3454,15 @@ export const NewConnectionModal = ({
           }}
           searchable={false}
         />
+        {showUnverifiedSslHint && suggestedSslMode && (
+          <p id={sslModeHintId} className="text-xs text-muted leading-snug">
+            {t("newConnection.sslUnverifiedRemoteHint", {
+              mode: suggestedSslMode,
+              defaultValue:
+                "This mode does not verify the server certificate. For a remote host, use {{mode}}.",
+            })}
+          </p>
+        )}
       </div>
 
       {/* SSL Certificate Files */}

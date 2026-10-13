@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Pumili mula sa mga value",
+      "title": "Pumili ng mga value",
+      "search": "Maghanap ng value",
+      "loading": "Nilo-load ang mga value…",
+      "error": "Hindi ma-load ang mga value",
+      "retry": "Subukang muli",
+      "empty": "Walang value sa column na ito",
+      "noMatch": "Walang tugmang value",
+      "limited": "Nangungunang {{count}} ayon sa bilang",
+      "use": "Gamitin ang {{count}} napili",
+      "useNone": "Gamitin ang napili"
+    },
     "autoRefresh": {
       "label": "Awtomatikong pag-refresh",
       "off": "Naka-off",
@@ -104,6 +117,7 @@
     "materializedViews": "Mga Materialized View",
     "refreshMaterializedView": "I-refresh",
     "showDefinition": "Ipakita ang Definition",
+    "copyDdl": "Kopyahin ang DDL",
     "editView": "I-edit ang View",
     "viewDefinition": "Definition ng View",
     "dropView": "I-drop ang View",
@@ -586,6 +600,8 @@
     "appearance_editorTabSize": "Tab Size",
     "appearance_editorWordWrap": "Word Wrap",
     "appearance_editorWordWrapDesc": "I-wrap ang mahahabang linya sa editor sa halip na mag-scroll nang pahiga.",
+    "appearance_editorHighlightInvisibleCharacters": "Ipakita ang mga nakatagong character",
+    "appearance_editorHighlightInvisibleCharactersDesc": "Markahan ang mga nakatagong Unicode at magkahawig na character sa SQL.",
     "appearance_editorShowLineNumbers": "Ipakita ang mga Line Number",
     "appearance_editorShowLineNumbersDesc": "Ipakita ang mga line number sa editor gutter.",
     "appearance_editorAcceptSuggestionOnEnter": "Tanggapin ang Suggestion gamit ang Enter",
@@ -1135,6 +1151,7 @@
     "sshKeyPassphrasePlaceholder": "Ilagay ang key passphrase kung naka-encrypt",
     "allowSshPrompt": "Payagan ang SSH password/PIN prompt",
     "saveKeychain": "I-save ang mga password sa Keychain",
+    "secretsStoredInPlainText": "Ang mga password ay ise-save bilang plain text sa file ng koneksyon.",
     "testConnection": "Subukan ang Connection",
     "save": "I-save",
     "failSave": "Nabigong i-save ang connection",
@@ -1144,6 +1161,7 @@
     "manageSshConnections": "Pamahalaan ang mga SSH Connection",
     "noSshConnections": "Walang available na SSH connection",
     "sslMode": "SSL Mode",
+    "sslUnverifiedRemoteHint": "Hindi bini-verify ng mode na ito ang certificate ng server. Para sa remote na host, gamitin ang {{mode}}.",
     "enableCleartextPlugin": "I-enable ang cleartext password plugin",
     "enableCleartextPluginHint": "Ipinapadala ang password gamit ang mysql_clear_password. Kailangan para sa mga bastion tulad ng Warpgate. Ginagamit lang sa TLS connection.",
     "enableCleartextPluginTlsRequired": "Pumili ng enforced TLS mode sa itaas (Required, Verify CA, o Verify Identity) para magamit ang cleartext password plugin.",
@@ -1370,6 +1388,7 @@
       "detached": "Na-detach ang mga resulta sa hiwalay na window",
       "reattach": "I-attach muli"
     },
+    "duplicateTab": "I-duplicate ang Tab",
     "closeTab": "Isara ang Tab",
     "reopenClosedTab": "Muling Buksan ang Saradong Tab",
     "closeOthers": "Isara ang Ibang Tab",
@@ -1439,6 +1458,7 @@
     "queryParameters": "Mga Parameter ng Query",
     "formatSql": "I-format ang SQL",
     "convertSelectionToSqlList": "I-convert ang napili sa listahan ng SQL",
+    "removeInvisibleCharacters": "Linisin ang mga na-paste na character",
     "convertToConsole": "I-convert sa Console",
     "parameters": "Mga Parameter",
     "paramValuePlaceholder": "Value (hal. 'text' o 123)",

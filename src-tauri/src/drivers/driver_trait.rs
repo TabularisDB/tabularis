@@ -728,6 +728,28 @@ pub trait DatabaseDriver: Send + Sync {
         Ok((result, false))
     }
 
+    /// `execute_query` with the database itself refusing writes.
+    ///
+    /// Used for MCP queries that run without the user's approval because
+    /// they were classified as reads. Keyword classification cannot see what
+    /// a function call does, so built-in drivers run the statement in a
+    /// read-only transaction that is always rolled back, and the database
+    /// rejects any write the classifier missed.
+    ///
+    /// The default implementation delegates to [`Self::execute_query`]:
+    /// plugin drivers have no read-only mode, so for them classification is
+    /// the only safeguard.
+    async fn execute_read_only_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<QueryResult, String> {
+        self.execute_query(params, query, limit, page, schema).await
+    }
+
     /// `execute_batch` with the caller's connection carried across calls.
     ///
     /// `session_id` identifies a long-lived caller — an editor tab. When a

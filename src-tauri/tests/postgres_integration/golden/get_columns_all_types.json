@@ -5,7 +5,9 @@
     "is_pk": true,
     "is_nullable": false,
     "is_auto_increment": true,
-    "is_generated": false
+    "is_generated": false,
+    "numeric_precision": 32,
+    "numeric_scale": 0
   },
   {
     "name": "col_text",
@@ -22,7 +24,8 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "character_maximum_length": 255
   },
   {
     "name": "col_int",
@@ -30,7 +33,9 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "numeric_precision": 32,
+    "numeric_scale": 0
   },
   {
     "name": "col_bigint",
@@ -38,7 +43,9 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "numeric_precision": 64,
+    "numeric_scale": 0
   },
   {
     "name": "col_smallint",
@@ -46,7 +53,9 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "numeric_precision": 16,
+    "numeric_scale": 0
   },
   {
     "name": "col_float",
@@ -54,7 +63,8 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "numeric_precision": 24
   },
   {
     "name": "col_double",
@@ -62,7 +72,8 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "numeric_precision": 53
   },
   {
     "name": "col_numeric",
@@ -70,7 +81,9 @@
     "is_pk": false,
     "is_nullable": true,
     "is_auto_increment": false,
-    "is_generated": false
+    "is_generated": false,
+    "numeric_precision": 10,
+    "numeric_scale": 2
   },
   {
     "name": "col_bool",

@@ -127,6 +127,10 @@ async fn table_query_template_coerces_a_multi_database_selection_before_the_rpc(
         json!("SELECT * FROM orders;")
     });
     driver.manifest.capabilities.table_query_templates = true;
+    // Schema-based plugin: with_primary_database flattens Multiple to primary.
+    Arc::get_mut(&mut driver.process)
+        .unwrap()
+        .route_selected_database = false;
     let params = ConnectionParams {
         database: DatabaseSelection::Multiple(vec![
             "tabularis_pr822_demo".to_string(),

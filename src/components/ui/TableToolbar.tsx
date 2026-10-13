@@ -19,11 +19,15 @@ import {
   buildSingleFilterClause,
   isFilterComplete,
   createEmptyFilter,
+  buildDistinctValuesQuery,
+  buildValuePickerWhere,
+  parseDistinctValues,
 } from "../../utils/filterBar";
-import type { StructuredFilter, FilterCombinator } from "../../utils/filterBar";
+import type { StructuredFilter, FilterCombinator, DistinctValue } from "../../utils/filterBar";
 import { formatSqlIdentifier } from "../../utils/identifiers";
 import { formatSortClause } from "../../utils/tableToolbar";
 import { FilterRow } from "./FilterRow";
+import { StyledSelect } from "./StyledSelect";
 import { SlotAnchor } from "./SlotAnchor";
 import { useDatabase } from "../../hooks/useDatabase";
 
@@ -45,6 +49,13 @@ interface TableToolbarProps {
   autoRefreshPaused?: boolean;
   /** Why auto-refresh is paused; only read while `autoRefreshPaused` is true. */
   autoRefreshPausedReason?: "editing" | "selection";
+  /** Schema of the table shown in the grid. */
+  tableSchema?: string | null;
+  /**
+   * Runs a read-only query against the tab's connection. Enables the filter
+   * value picker (issue #869) together with `tableName`.
+   */
+  onRunQuery?: (sql: string) => Promise<{ rows: unknown[][] }>;
 }
 
 interface TableToolbarInternalProps extends TableToolbarProps {
@@ -88,6 +99,8 @@ const TableToolbarInternal = ({
   onAutoRefreshChange,
   autoRefreshPaused,
   autoRefreshPausedReason = "editing",
+  tableSchema,
+  onRunQuery,
 }: TableToolbarInternalProps) => {
   const { t } = useTranslation();
   const { activeDriver, activeCapabilities, activeConnectionId, activeSchema } = useDatabase();
@@ -187,6 +200,28 @@ const TableToolbarInternal = ({
       }
     });
   }, [structuredFilters, combinator, sortInput, limitInput, getLimitVal, onUpdate, onTriggerApplied, onResetApplied, quotingDriver]);
+
+  const queryForValues = useCallback(
+    (filter: StructuredFilter) => buildDistinctValuesQuery({
+      table: tableName ?? "",
+      schema: tableSchema,
+      column: filter.column,
+      driver: quotingDriver,
+      where: buildValuePickerWhere(structuredFilters, filter.id, quotingDriver, combinator),
+    }),
+    [tableName, tableSchema, quotingDriver, structuredFilters, combinator],
+  );
+
+  // Count values using the other complete filters, excluding the edited row.
+  const loadValuesFor = useCallback(
+    async (filter: StructuredFilter): Promise<DistinctValue[]> => {
+      if (!onRunQuery || !tableName) return [];
+      const result = await onRunQuery(queryForValues(filter));
+      return parseDistinctValues(result.rows);
+    },
+    [onRunQuery, tableName, queryForValues],
+  );
+  const canPickValues = !!onRunQuery && !!tableName;
 
   // Applies only that single row's filter — resets Applied on all others
   const handleApplySingle = useCallback(
@@ -587,26 +622,21 @@ const TableToolbarInternal = ({
               }`}>
               <RefreshCw size={14} />
             </button>
-            <label className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5">
               <span className={`hidden @[800px]:inline ${autoRefreshActive ? "text-accent" : ""}`}>
                 {t("toolbar.autoRefresh.label")}
               </span>
-              <select aria-label={t("toolbar.autoRefresh.label")}
-                value={autoRefreshIntervalMs}
-                onChange={(event) => onAutoRefreshChange(normalizeAutoRefreshInterval(Number(event.target.value)))}
-                data-active={autoRefreshActive || undefined}
-                className={`bg-base border rounded px-1 py-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
-                  autoRefreshActive
-                    ? "border-accent-primary/50 text-accent font-medium"
-                    : "border-default text-secondary"
-                }`}>
-                {AUTO_REFRESH_INTERVALS.map((interval) => (
-                  <option key={interval} value={interval}>
-                    {interval ? t("toolbar.autoRefresh.seconds", { seconds: interval / 1000 }) : t("toolbar.autoRefresh.off")}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <StyledSelect
+                ariaLabel={t("toolbar.autoRefresh.label")}
+                value={String(autoRefreshIntervalMs)}
+                onChange={(value) => onAutoRefreshChange(normalizeAutoRefreshInterval(Number(value)))}
+                options={AUTO_REFRESH_INTERVALS.map(String)}
+                getOptionLabel={(value) => Number(value)
+                  ? t("toolbar.autoRefresh.seconds", { seconds: Number(value) / 1000 })
+                  : t("toolbar.autoRefresh.off")}
+                active={autoRefreshActive}
+              />
+            </div>
             {/* Always mounted so screen readers announce text changes reliably. */}
             <span role="status" className="text-muted">
               {autoRefreshPaused
@@ -707,6 +737,10 @@ const TableToolbarInternal = ({
                   onEscape={closePanel}
                   isApplied={appliedFilters[filter.id] === true}
                   onTriggerApplied={() => onTriggerApplied(filter.id)}
+                  onLoadValues={canPickValues ? loadValuesFor : undefined}
+                  valuePickerContextKey={canPickValues
+                    ? JSON.stringify([activeConnectionId, queryForValues(filter)])
+                    : undefined}
                 />
               ))
             )}

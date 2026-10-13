@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Scegli tra i valori",
+      "title": "Scegli valori",
+      "search": "Cerca valori",
+      "loading": "Caricamento valori…",
+      "error": "Impossibile caricare i valori",
+      "retry": "Riprova",
+      "empty": "Nessun valore in questa colonna",
+      "noMatch": "Nessun valore corrispondente",
+      "limited": "I {{count}} più frequenti",
+      "use": "Usa {{count}} selezionati",
+      "useNone": "Usa selezionati"
+    },
     "autoRefresh": {
       "label": "Aggiornamento automatico",
       "off": "Disattivato",
@@ -111,6 +124,7 @@
     "materializedViews": "Viste Materializzate",
     "refreshMaterializedView": "Aggiorna",
     "showDefinition": "Mostra Definizione",
+    "copyDdl": "Copia DDL",
     "editView": "Modifica Vista",
     "viewDefinition": "Definizione Vista",
     "dropView": "Elimina Vista",
@@ -594,6 +608,8 @@
     "appearance_editorTabSize": "Dimensione Tab",
     "appearance_editorWordWrap": "A Capo Automatico",
     "appearance_editorWordWrapDesc": "Manda a capo le righe lunghe nell'editor invece di scorrere orizzontalmente.",
+    "appearance_editorHighlightInvisibleCharacters": "Mostra caratteri invisibili",
+    "appearance_editorHighlightInvisibleCharactersDesc": "Evidenzia i caratteri Unicode nascosti e quelli simili in SQL.",
     "appearance_editorShowLineNumbers": "Mostra Numeri di Riga",
     "appearance_editorShowLineNumbersDesc": "Visualizza i numeri di riga nel margine dell'editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Accetta Suggerimento con Invio",
@@ -1146,6 +1162,7 @@
     "sshKeyPassphrasePlaceholder": "Inserisci passphrase se la chiave è cifrata",
     "allowSshPrompt": "Consenti prompt password/PIN SSH",
     "saveKeychain": "Salva password nel Portachiavi",
+    "secretsStoredInPlainText": "Le password verranno salvate in chiaro nel file delle connessioni.",
     "testConnection": "Testa Connessione",
     "save": "Salva",
     "failSave": "Salvataggio connessione fallito",
@@ -1155,6 +1172,7 @@
     "manageSshConnections": "Gestisci Connessioni SSH",
     "noSshConnections": "Nessuna connessione SSH disponibile",
     "sslMode": "Modalità SSL",
+    "sslUnverifiedRemoteHint": "Questa modalità non verifica il certificato del server. Per un host remoto, usa {{mode}}.",
     "enableCleartextPlugin": "Abilita il plugin password in chiaro",
     "enableCleartextPluginHint": "Invia la password tramite mysql_clear_password. Richiesto per bastion come Warpgate. Usato solo su una connessione TLS.",
     "enableCleartextPluginTlsRequired": "Seleziona sopra una modalità TLS rigorosa (Required, Verify CA o Verify Identity) per usare il plugin password in chiaro.",
@@ -1378,6 +1396,7 @@
       "detached": "Risultati sganciati in una finestra separata",
       "reattach": "Riaggancia"
     },
+    "duplicateTab": "Duplica scheda",
     "closeTab": "Chiudi scheda",
     "reopenClosedTab": "Riapri scheda chiusa",
     "closeOthers": "Chiudi altre schede",
@@ -1446,6 +1465,7 @@
     "queryParameters": "Parametri Query",
     "formatSql": "Formatta SQL",
     "convertSelectionToSqlList": "Converti selezione in lista SQL",
+    "removeInvisibleCharacters": "Pulisci i caratteri incollati",
     "convertToConsole": "Converti in Console",
     "parameters": "Parametri",
     "paramValuePlaceholder": "Valore (es. 'testo' o 123)",

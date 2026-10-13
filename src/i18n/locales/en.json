@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Pick from values",
+      "title": "Pick values",
+      "search": "Search values",
+      "loading": "Loading values…",
+      "error": "Couldn't load values",
+      "retry": "Retry",
+      "empty": "No values in this column",
+      "noMatch": "No matching values",
+      "limited": "Top {{count}} by count",
+      "use": "Use {{count}} selected",
+      "useNone": "Use selected"
+    },
     "autoRefresh": {
       "label": "Auto-refresh",
       "off": "Off",
@@ -104,6 +117,7 @@
     "materializedViews": "Materialized Views",
     "refreshMaterializedView": "Refresh",
     "showDefinition": "Show Definition",
+    "copyDdl": "Copy DDL",
     "editView": "Edit View",
     "viewDefinition": "View Definition",
     "dropView": "Drop View",
@@ -592,6 +606,8 @@
     "appearance_editorTabSize": "Tab Size",
     "appearance_editorWordWrap": "Word Wrap",
     "appearance_editorWordWrapDesc": "Wrap long lines in the editor instead of scrolling horizontally.",
+    "appearance_editorHighlightInvisibleCharacters": "Show invisible characters",
+    "appearance_editorHighlightInvisibleCharactersDesc": "Mark hidden Unicode and look-alike characters in SQL.",
     "appearance_editorShowLineNumbers": "Show Line Numbers",
     "appearance_editorShowLineNumbersDesc": "Display line numbers in the editor gutter.",
     "appearance_editorAcceptSuggestionOnEnter": "Accept Suggestion with Enter",
@@ -1150,6 +1166,7 @@
     "sshKeyPassphrasePlaceholder": "Enter key passphrase if encrypted",
     "allowSshPrompt": "Allow SSH password/PIN prompt",
     "saveKeychain": "Save passwords in Keychain",
+    "secretsStoredInPlainText": "Passwords will be stored in plain text in the connection file.",
     "testConnection": "Test Connection",
     "save": "Save",
     "failSave": "Failed to save connection",
@@ -1159,6 +1176,7 @@
     "manageSshConnections": "Manage SSH Connections",
     "noSshConnections": "No SSH connections available",
     "sslMode": "SSL Mode",
+    "sslUnverifiedRemoteHint": "This mode does not verify the server certificate. For a remote host, use {{mode}}.",
     "enableCleartextPlugin": "Enable cleartext password plugin",
     "enableCleartextPluginHint": "Sends the password using mysql_clear_password. Required for bastions like Warpgate. Only used over a TLS connection.",
     "enableCleartextPluginTlsRequired": "Select an enforced TLS mode above (Required, Verify CA, or Verify Identity) to use the cleartext password plugin.",
@@ -1387,6 +1405,7 @@
       "detached": "Results detached to a separate window",
       "reattach": "Re-attach"
     },
+    "duplicateTab": "Duplicate Tab",
     "closeTab": "Close Tab",
     "reopenClosedTab": "Reopen Closed Tab",
     "closeOthers": "Close Other Tabs",
@@ -1456,6 +1475,7 @@
     "queryParameters": "Query Parameters",
     "formatSql": "Format SQL",
     "convertSelectionToSqlList": "Convert Selection to SQL List",
+    "removeInvisibleCharacters": "Clean up pasted characters",
     "convertToConsole": "Convert to Console",
     "parameters": "Parameters",
     "paramValuePlaceholder": "Value (e.g. 'text' or 123)",

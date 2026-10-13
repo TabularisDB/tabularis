@@ -320,7 +320,7 @@ pub async fn get_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, '')
+        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
         FROM information_schema.columns
         WHERE table_schema = ? AND table_name = ?
         ORDER BY ordinal_position
@@ -339,6 +339,16 @@ pub async fn get_columns(
             let extra = mysql_row_str(r, 5);
             let default_val = mysql_row_str_opt(r, 6);
             let character_maximum_length = mysql_row_max_length(r, 7, &column_name);
+            let numeric_precision: Option<i32> = r
+                .try_get::<Option<i64>, _>(9)
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok());
+            let numeric_scale: Option<i32> = r
+                .try_get::<Option<i64>, _>(10)
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok());
 
             // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
             // while `column_type` returns the full definition with allowed values
@@ -371,6 +381,8 @@ pub async fn get_columns(
                 is_generated: false,
                 default_value,
                 character_maximum_length,
+                numeric_precision,
+                numeric_scale,
                 comment: mysql_row_str_opt(r, 8),
             }
         })
@@ -398,7 +410,8 @@ pub async fn get_foreign_keys(
             kcu.REFERENCED_TABLE_NAME,
             kcu.REFERENCED_COLUMN_NAME,
             rc.UPDATE_RULE,
-            rc.DELETE_RULE
+            rc.DELETE_RULE,
+            CAST(kcu.ORDINAL_POSITION AS SIGNED)
         FROM information_schema.KEY_COLUMN_USAGE kcu
         JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
         ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
@@ -427,6 +440,14 @@ pub async fn get_foreign_keys(
             ref_column: mysql_row_str(r, 3),
             on_update: mysql_row_str_opt(r, 4),
             on_delete: mysql_row_str_opt(r, 5),
+            // ORDINAL_POSITION is 1-based position within the key (#840).
+            // CAST AS SIGNED so sqlx decodes it as i64 (the column is bigint
+            // unsigned in information_schema).
+            seq_in_fk: r
+                .try_get::<Option<i64>, _>(6)
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok()),
         })
         .collect())
 }
@@ -442,7 +463,7 @@ pub async fn get_all_columns_batch(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, '')
+        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), NULLIF(column_comment, ''), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
         FROM information_schema.columns
         WHERE table_schema = ?
         ORDER BY table_name, ordinal_position
@@ -462,6 +483,16 @@ pub async fn get_all_columns_batch(
         let extra = mysql_row_str(row, 6);
         let default_val = mysql_row_str_opt(row, 7);
         let character_maximum_length = mysql_row_max_length(row, 8, &column_name);
+        let numeric_precision: Option<i32> = row
+            .try_get::<Option<i64>, _>(10)
+            .ok()
+            .flatten()
+            .and_then(|v| i32::try_from(v).ok());
+        let numeric_scale: Option<i32> = row
+            .try_get::<Option<i64>, _>(11)
+            .ok()
+            .flatten()
+            .and_then(|v| i32::try_from(v).ok());
 
         // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
         // while `column_type` returns the full definition with allowed values
@@ -494,6 +525,8 @@ pub async fn get_all_columns_batch(
             is_generated: false,
             default_value,
             character_maximum_length,
+            numeric_precision,
+            numeric_scale,
             comment: mysql_row_str_opt(row, 9),
         };
 
@@ -524,7 +557,8 @@ pub async fn get_all_foreign_keys_batch(
             kcu.REFERENCED_TABLE_NAME,
             kcu.REFERENCED_COLUMN_NAME,
             rc.UPDATE_RULE,
-            rc.DELETE_RULE
+            rc.DELETE_RULE,
+            CAST(kcu.ORDINAL_POSITION AS SIGNED)
         FROM information_schema.KEY_COLUMN_USAGE kcu
         JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
         ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
@@ -548,6 +582,11 @@ pub async fn get_all_foreign_keys_batch(
             ref_column: mysql_row_str(row, 4),
             on_update: mysql_row_str_opt(row, 5),
             on_delete: mysql_row_str_opt(row, 6),
+            seq_in_fk: row
+                .try_get::<Option<i64>, _>(7)
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok()),
         };
 
         result.entry(table_name).or_insert_with(Vec::new).push(fk);
@@ -581,13 +620,16 @@ pub async fn get_indexes(
         }
     };
 
+    // SEQ_IN_INDEX is INT UNSIGNED on MySQL 8 (a signed BIGINT on 5.7) and sqlx
+    // won't decode an unsigned column into a signed integer, so cast it to read
+    // the same way on both.
     let query = if has_expression {
         r#"
         SELECT
             INDEX_NAME,
             COLUMN_NAME,
             NON_UNIQUE,
-            SEQ_IN_INDEX,
+            CAST(SEQ_IN_INDEX AS SIGNED),
             EXPRESSION
         FROM information_schema.STATISTICS
         WHERE TABLE_SCHEMA = ?
@@ -600,7 +642,7 @@ pub async fn get_indexes(
             INDEX_NAME,
             COLUMN_NAME,
             NON_UNIQUE,
-            SEQ_IN_INDEX
+            CAST(SEQ_IN_INDEX AS SIGNED)
         FROM information_schema.STATISTICS
         WHERE TABLE_SCHEMA = ?
         AND TABLE_NAME = ?
@@ -631,7 +673,12 @@ pub async fn get_indexes(
                 },
                 is_unique: non_unique == 0,
                 is_primary: index_name == "PRIMARY",
-                seq_in_index: r.try_get::<i64, _>(3).unwrap_or(0) as i32,
+                seq_in_index: r.try_get::<i64, _>(3).unwrap_or_else(|e| {
+                    log::warn!(
+                        "MySQL: Could not read the column position in index `{index_name}`: {e}"
+                    );
+                    0
+                }) as i32,
                 is_expression,
             }
         })
@@ -1129,7 +1176,7 @@ pub async fn get_view_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-            SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED)
+            SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, CAST(character_maximum_length AS UNSIGNED), CAST(numeric_precision AS SIGNED), CAST(numeric_scale AS SIGNED)
             FROM information_schema.columns
             WHERE table_schema = ? AND table_name = ?
             ORDER BY ordinal_position
@@ -1148,6 +1195,16 @@ pub async fn get_view_columns(
             let extra = mysql_row_str(r, 5);
             let default_val = mysql_row_str_opt(r, 6);
             let character_maximum_length = mysql_row_max_length(r, 7, &column_name);
+            let numeric_precision: Option<i32> = r
+                .try_get::<Option<i64>, _>(8)
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok());
+            let numeric_scale: Option<i32> = r
+                .try_get::<Option<i64>, _>(9)
+                .ok()
+                .flatten()
+                .and_then(|v| i32::try_from(v).ok());
 
             // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
             // while `column_type` returns the full definition with allowed values
@@ -1180,6 +1237,8 @@ pub async fn get_view_columns(
                 is_generated: false,
                 default_value,
                 character_maximum_length,
+                numeric_precision,
+                numeric_scale,
                 comment: None,
             }
         })
@@ -1502,6 +1561,37 @@ pub async fn execute_query(
     // so it only needs to know whether to use the text protocol.
     let text = TextProto::protocol_only(force_text_protocol(params));
     exec_on_mysql_conn(&mut *conn, query, limit, page, text).await
+}
+
+/// Runs one statement inside `START TRANSACTION READ ONLY` and always rolls
+/// it back, so MySQL rejects any table write the statement attempts (for
+/// example a stored function that modifies data). File writes such as
+/// `INTO OUTFILE` are not table writes; the MCP classifier gates those.
+///
+/// If the rollback fails, or the run is dropped mid-flight, the connection is
+/// closed instead of returned to the pool.
+pub async fn execute_read_only_query(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+) -> Result<QueryResult, String> {
+    use sqlx::Executor as _;
+    let mut guard =
+        crate::drivers::common::DetachOnDrop::new(acquire_mysql_conn(params, schema).await?);
+    guard
+        .conn()
+        .execute(sqlx::raw_sql("START TRANSACTION READ ONLY"))
+        .await
+        .map_err(|e| e.to_string())?;
+    let text = TextProto::protocol_only(force_text_protocol(params));
+    let outcome = exec_on_mysql_conn(guard.conn(), query, limit, page, text).await;
+    match guard.conn().execute(sqlx::raw_sql("ROLLBACK")).await {
+        Ok(_) => guard.release(),
+        Err(e) => log::warn!("MySQL: ROLLBACK after a read-only query failed: {e}"),
+    }
+    outcome
 }
 
 /// Runs a sequence of statements on a single pooled connection so that
@@ -2324,6 +2414,17 @@ impl DatabaseDriver for MysqlDriver {
         schema: Option<&str>,
     ) -> Result<crate::models::QueryResult, String> {
         execute_query(params, query, limit, page, schema).await
+    }
+
+    async fn execute_read_only_query(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<crate::models::QueryResult, String> {
+        execute_read_only_query(params, query, limit, page, schema).await
     }
 
     async fn execute_batch(

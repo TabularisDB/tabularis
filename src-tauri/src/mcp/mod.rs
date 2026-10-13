@@ -1319,14 +1319,26 @@ async fn tool_run_query(
         }
     }
 
-    let result = driver
-        .execute_query(&db_params, &effective_query, Some(max_rows), 1, None)
-        .await
-        .map_err(|e| JsonRpcError {
-            code: -32000,
-            message: e,
-            data: None,
-        })?;
+    // A query that reached this point without the user approving it is only
+    // here because it was classified as a read, and so is anything sent to a
+    // read-only connection. Classification cannot see what a function call
+    // does, so have the database refuse writes too.
+    let run_read_only = config::is_connection_readonly(config, &conn.id)
+        || (approval_mode != "off" && !needs_approval);
+    let result = if run_read_only {
+        driver
+            .execute_read_only_query(&db_params, &effective_query, Some(max_rows), 1, None)
+            .await
+    } else {
+        driver
+            .execute_query(&db_params, &effective_query, Some(max_rows), 1, None)
+            .await
+    }
+    .map_err(|e| JsonRpcError {
+        code: -32000,
+        message: e,
+        data: None,
+    })?;
 
     audit.rows = Some(result.rows.len());
 

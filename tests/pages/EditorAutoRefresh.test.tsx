@@ -351,4 +351,26 @@ describe("table auto-refresh integration", () => {
     expect(screen.getByTestId("grid")).toBe(grid);
     expect(context.activeTab?.result?.rows).toEqual(rows);
   });
+  it("waits for a values query before running an overdue table refresh without resetting its deadline", async () => {
+    const pickerRequest = deferred<QueryResult>();
+    vi.mocked(invoke).mockImplementation((command, args) => command === "execute_query"
+      ? String(args?.query).includes("COUNT(*)") ? pickerRequest.promise : Promise.resolve(initialResult)
+      : Promise.resolve([]));
+    render(<Harness initialTabs={[{ ...initialTab(), columnMetadata: [
+      { name: "id", data_type: "integer", is_pk: true, is_nullable: false, is_auto_increment: false },
+    ] }]} />);
+    fireEvent.click(screen.getByTitle("toolbar.toggleFilterPanel"));
+    fireEvent.click(screen.getByRole("button", { name: "toolbar.valuePicker.open" }));
+    await advance(0);
+    expect(queries()).toHaveLength(1);
+    expect(queries()[0][1]).toMatchObject({ connectionId: "connection-1", sessionId: "table-1", schema: "private" });
+    await advance(7000);
+    expect(queries()).toHaveLength(1);
+    await act(async () => { pickerRequest.resolve({ columns: ["id", "count"], rows: [[7, 3]], affected_rows: 0 }); });
+    await advance(0);
+    expect(queries()).toHaveLength(2);
+    expect(String(queries()[1][1]?.query)).not.toContain("COUNT(*)");
+    expect(screen.getByTestId("grid")).toHaveTextContent("[[1]]");
+  });
+
 });

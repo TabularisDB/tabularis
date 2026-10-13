@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "値から選択",
+      "title": "値を選択",
+      "search": "値を検索",
+      "loading": "値を読み込み中…",
+      "error": "値を読み込めませんでした",
+      "retry": "再試行",
+      "empty": "この列に値がありません",
+      "noMatch": "一致する値がありません",
+      "limited": "件数上位 {{count}} 件",
+      "use": "選択した {{count}} 件を使用",
+      "useNone": "選択を使用"
+    },
     "autoRefresh": {
       "label": "自動更新",
       "off": "オフ",
@@ -104,6 +117,7 @@
     "materializedViews": "マテリアライズドビュー",
     "refreshMaterializedView": "更新",
     "showDefinition": "定義を表示",
+    "copyDdl": "DDLをコピー",
     "editView": "ビューを編集",
     "viewDefinition": "ビュー定義",
     "dropView": "ビューを削除",
@@ -567,6 +581,8 @@
     "appearance_editorTabSize": "タブサイズ",
     "appearance_editorWordWrap": "ワードラップ",
     "appearance_editorWordWrapDesc": "エディタ内の長い行を横スクロールせず折り返します。",
+    "appearance_editorHighlightInvisibleCharacters": "不可視文字を表示",
+    "appearance_editorHighlightInvisibleCharactersDesc": "SQL内の不可視Unicode文字や紛らわしい文字を強調表示します。",
     "appearance_editorShowLineNumbers": "行番号を表示",
     "appearance_editorShowLineNumbersDesc": "エディタの左端に行番号を表示します。",
     "appearance_editorAcceptSuggestionOnEnter": "Enter で候補を確定",
@@ -1119,6 +1135,7 @@
     "sshKeyPassphrasePlaceholder": "鍵が暗号化されている場合はパスフレーズを入力",
     "allowSshPrompt": "SSHパスワード/PINプロンプトを許可する",
     "saveKeychain": "パスワードをキーチェーンに保存",
+    "secretsStoredInPlainText": "パスワードは接続ファイルに平文で保存されます。",
     "testConnection": "接続テスト",
     "save": "保存",
     "failSave": "接続の保存に失敗しました",
@@ -1128,6 +1145,7 @@
     "manageSshConnections": "SSH 接続を管理",
     "noSshConnections": "利用可能な SSH 接続がありません",
     "sslMode": "SSL モード",
+    "sslUnverifiedRemoteHint": "このモードはサーバー証明書を検証しません。リモートホストでは {{mode}} を使ってください。",
     "enableCleartextPlugin": "クリアテキストパスワードプラグインを有効にする",
     "enableCleartextPluginHint": "mysql_clear_password を使用してパスワードを送信します。Warpgate などのバスティオンで必要です。TLS 接続でのみ使用されます。",
     "enableCleartextPluginTlsRequired": "クリアテキストパスワードプラグインを使用するには、上で強制 TLS モード（Required、Verify CA、または Verify Identity）を選択してください。",
@@ -1369,6 +1387,7 @@
       "reattach": "元に戻す"
     },
     "tableRunPrompt": "Run (Ctrl/Command+F5) を押してテーブルデータを読み込んでください",
+    "duplicateTab": "タブを複製",
     "closeTab": "タブを閉じる",
     "reopenClosedTab": "閉じたタブを再度開く",
     "closeOthers": "他のタブを閉じる",
@@ -1419,6 +1438,7 @@
     "queryParameters": "クエリパラメータ",
     "formatSql": "SQLをフォーマット",
     "convertSelectionToSqlList": "選択範囲をSQLリストに変換",
+    "removeInvisibleCharacters": "貼り付けた文字をクリーンアップ",
     "convertToConsole": "コンソールに変換",
     "parameters": "パラメータ",
     "paramValuePlaceholder": "値 (例: 'text' や 123)",

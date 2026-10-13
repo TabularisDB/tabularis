@@ -1025,6 +1025,8 @@ mod tests {
             default_value: None,
             character_maximum_length: None,
             comment: None,
+            numeric_precision: None,
+            numeric_scale: None,
         }
     }
 

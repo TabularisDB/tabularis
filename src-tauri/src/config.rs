@@ -118,6 +118,8 @@ pub struct AppConfig {
     pub editor_line_height: Option<f32>,
     pub editor_tab_size: Option<u32>,
     pub editor_word_wrap: Option<bool>,
+    /// Highlight hidden Unicode and look-alike characters in the SQL editor.
+    pub editor_highlight_invisible_characters: Option<bool>,
     pub editor_show_line_numbers: Option<bool>,
     /// Whether the Enter key accepts the active autocomplete suggestion in the
     /// SQL editor. Maps to Monaco's `acceptSuggestionOnEnter` setting: `true`
@@ -544,6 +546,10 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.editor_word_wrap.is_some() {
             existing_config.editor_word_wrap = config.editor_word_wrap;
+        }
+        if config.editor_highlight_invisible_characters.is_some() {
+            existing_config.editor_highlight_invisible_characters =
+                config.editor_highlight_invisible_characters;
         }
         if config.editor_show_line_numbers.is_some() {
             existing_config.editor_show_line_numbers = config.editor_show_line_numbers;
@@ -1123,6 +1129,7 @@ pub fn get_config_json(app: AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 pub fn relaunch_app(app: AppHandle) {
+    crate::window_placement::persist_cached(&app);
     app.restart();
 }
 
@@ -1327,6 +1334,7 @@ mod tests {
         assert!(config.editor_line_height.is_none());
         assert!(config.editor_tab_size.is_none());
         assert!(config.editor_word_wrap.is_none());
+        assert!(config.editor_highlight_invisible_characters.is_none());
         assert!(config.editor_show_line_numbers.is_none());
         assert!(config.editor_accept_suggestion_on_enter.is_none());
     }
@@ -1340,6 +1348,7 @@ mod tests {
         config.editor_line_height = Some(1.5);
         config.editor_tab_size = Some(4);
         config.editor_word_wrap = Some(false);
+        config.editor_highlight_invisible_characters = Some(false);
         config.editor_show_line_numbers = Some(true);
         config.editor_theme = Some("tabularis-light".to_string());
         config.editor_accept_suggestion_on_enter = Some(true);
@@ -1354,6 +1363,7 @@ mod tests {
         assert!(json.contains("editorLineHeight"));
         assert!(json.contains("editorTabSize"));
         assert!(json.contains("editorWordWrap"));
+        assert!(json.contains("editorHighlightInvisibleCharacters"));
         assert!(json.contains("editorShowLineNumbers"));
         assert!(json.contains("editorTheme"));
         assert!(json.contains("editorAcceptSuggestionOnEnter"));
@@ -1378,6 +1388,7 @@ mod tests {
             "editorLineHeight": 1.8,
             "editorTabSize": 2,
             "editorWordWrap": true,
+            "editorHighlightInvisibleCharacters": false,
             "editorShowLineNumbers": true,
             "editorTheme": "tabularis-dark",
             "editorAcceptSuggestionOnEnter": true,
@@ -1392,6 +1403,7 @@ mod tests {
         assert_eq!(config.editor_font_size, Some(14));
         assert_eq!(config.editor_tab_size, Some(2));
         assert_eq!(config.editor_word_wrap, Some(true));
+        assert_eq!(config.editor_highlight_invisible_characters, Some(false));
         assert_eq!(config.editor_show_line_numbers, Some(true));
         assert_eq!(config.editor_theme.as_deref(), Some("tabularis-dark"));
         assert_eq!(config.editor_accept_suggestion_on_enter, Some(true));

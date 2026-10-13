@@ -104,9 +104,9 @@ fn exe_path_looks_like_winget(exe: &str) -> bool {
 /// Detect WinGet using injectable env roots and directory/exe predicates.
 ///
 /// Covers portable WinGet layouts under `%LOCALAPPDATA%\Microsoft\WinGet\Packages`
-/// and machine roots under `Program Files\WinGet\Packages`. The NSIS installer
-/// submitted by `.github/workflows/winget.yml` does not leave those folders, so
-/// those installs still need a marker written at install time (see #896).
+/// and machine roots under `Program Files\WinGet\Packages`. WinGet NSIS builds
+/// instead embed `PACKAGE_MANAGER_SRC` and `PACKAGE_MANAGER_NAME` at compile
+/// time and are detected before this portable-layout fallback.
 #[cfg(any(test, target_os = "windows"))]
 fn detect_winget_with(
     local_app_data: Option<&str>,

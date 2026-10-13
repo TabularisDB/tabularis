@@ -20,6 +20,16 @@ mod zip_layout;
 use super::*;
 use serde_json::{json, Value};
 
+/// A temporary directory reached through its real path. macOS keeps temporary
+/// files under /var, a symlink to /private/var, and theme storage refuses any
+/// path that passes through a symlink (`files::check_path`).
+pub(super) fn tempdir() -> tempfile::TempDir {
+    let root = std::env::temp_dir();
+    #[cfg(unix)]
+    let root = root.canonicalize().unwrap();
+    tempfile::tempdir_in(root).unwrap()
+}
+
 #[test]
 fn shared_contract_vectors_match_native_validation() {
     let cases: Value = serde_json::from_str(include_str!(

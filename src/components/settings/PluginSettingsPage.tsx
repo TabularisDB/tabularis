@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { FolderOpen, Check, RotateCcw, ExternalLink } from "lucide-react";
+import { FolderOpen, Check, RotateCcw, ExternalLink, Loader2 } from "lucide-react";
 import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useDrivers } from "../../hooks/useDrivers";
@@ -86,6 +86,7 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
   >(() => resolveSettingsWithDefaults(definitions, currentConfig?.settings));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const getSettingLabel = useCallback(
     (def: PluginSettingDefinition) =>
@@ -135,6 +136,7 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
   );
 
   const handleSave = useCallback(async () => {
+    if (saving) return;
     const validationErrors = validateSettings(definitions, dynamicValues);
     if (Object.keys(validationErrors).length > 0) {
       const errorMessages: Record<string, string> = {};
@@ -148,6 +150,9 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
       return;
     }
 
+    setSaving(true);
+    setSaved(false);
+    try {
     const baseConfig = withCallTimeoutOverride(
       resolvePluginConfig(currentConfig, interpreter),
       callTimeout,
@@ -181,7 +186,11 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
     }
 
     setSaved(true);
+    } finally {
+      setSaving(false);
+    }
   }, [
+    saving,
     definitions,
     dynamicValues,
     interpreter,
@@ -436,8 +445,11 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
       <div className="flex items-center gap-3 pt-2">
         <button
           onClick={handleSave}
-          className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors"
+          disabled={saving}
+          aria-busy={saving}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
+          {saving && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
           {t("common.save")}
         </button>
         {saved && (

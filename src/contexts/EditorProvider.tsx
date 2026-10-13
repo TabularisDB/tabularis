@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import type { Tab, SchemaCache, TableSchema, QueryResultEntry } from "../types/editor";
-import { EditorContext } from "./EditorContext";
+import { EditorContext, type AddTabOptions } from "./EditorContext";
 import { useDatabase } from "../hooks/useDatabase";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -11,6 +11,7 @@ import {
   createInitialTabState,
   generateTabTitle,
   findExistingTableTab,
+  insertTabAfter,
   getConnectionTabs,
   getActiveTab,
   closeTabWithState,
@@ -23,6 +24,7 @@ import {
   createSchemaCacheEntry,
 } from "../utils/editor";
 import { moveTab } from "../utils/tabDnd";
+import { getRecentTabIds as orderRecentTabs } from "../utils/tabScroll";
 import { createAutoRefreshSchedule, type AutoRefreshSchedule } from "../utils/autoRefresh";
 import {
   pushClosedTabs,
@@ -41,6 +43,39 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabIds, setActiveTabIds] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const recentTabs = useRef<Record<string, string[]>>({});
+  const previewTabs = useRef<Record<string, string | null>>({});
+  const historySnapshot = useRef<{
+    tabKey: string;
+    activeIds: Record<string, string>;
+    connectionId: string | null;
+  } | null>(null);
+
+  // History is runtime-only and belongs to the connection, not an editor pane.
+  useEffect(() => {
+    const tabKey = JSON.stringify(tabs.map((tab) => [tab.connectionId, tab.id]));
+    const previous = historySnapshot.current;
+    const tabsChanged = previous?.tabKey !== tabKey;
+    if (!tabsChanged && previous?.activeIds === activeTabIds && previous.connectionId === activeConnectionId) return;
+    historySnapshot.current = { tabKey, activeIds: activeTabIds, connectionId: activeConnectionId };
+    // Result updates do not affect history. Prune all connections only when
+    // the open tabs change, including tabs removed from an inactive connection.
+    if (tabsChanged) {
+      for (const connectionId of Object.keys(recentTabs.current)) {
+        if (connectionId === activeConnectionId) continue;
+        const open = tabs.filter((tab) => tab.connectionId === connectionId);
+        recentTabs.current[connectionId] = orderRecentTabs(open, recentTabs.current[connectionId]);
+      }
+    }
+    if (!activeConnectionId) return;
+    const open = tabs.filter((tab) => tab.connectionId === activeConnectionId);
+    const activeId = activeTabIds[activeConnectionId];
+    const history = recentTabs.current[activeConnectionId] ?? [];
+    const committed = activeId && previewTabs.current[activeConnectionId] !== activeId
+      ? [activeId, ...history]
+      : history;
+    recentTabs.current[activeConnectionId] = orderRecentTabs(open, committed);
+  }, [tabs, activeTabIds, activeConnectionId]);
 
   // Closed tabs per connection, for "reopen closed tab". The state mirrors
   // closedTabsRef (kept in sync immediately) so consumers re-render on
@@ -216,28 +251,43 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     : null;
 
   const setActiveTabId = useCallback(
-    (id: string | null) => {
+    (id: string, options?: { preview?: boolean }) => {
       if (activeConnectionId && id) {
+        previewTabs.current[activeConnectionId] = options?.preview ? id : null;
+        if (!options?.preview) {
+          const history = recentTabs.current[activeConnectionId] ?? [];
+          recentTabs.current[activeConnectionId] = [id, ...history.filter((entry) => entry !== id)];
+        }
         setActiveTabIds((prev) => ({ ...prev, [activeConnectionId]: id }));
       }
     },
     [activeConnectionId],
   );
 
+  const getRecentTabIds = useCallback(() => {
+    if (!activeConnectionId) return [];
+    return orderRecentTabs(
+      tabsRef.current.filter((tab) => tab.connectionId === activeConnectionId),
+      recentTabs.current[activeConnectionId] ?? [],
+    );
+  }, [activeConnectionId]);
+
   const addTab = useCallback(
-    (partial?: Partial<Tab>) => {
+    (partial?: Partial<Tab>, options?: AddTabOptions) => {
       if (!activeConnectionId) return "";
 
-      const existing = findExistingTableTab(
-        tabsRef.current,
-        activeConnectionId,
-        partial?.activeTable || undefined,
-        partial?.schema,
-        partial?.database,
-      );
-      if (existing) {
-        setActiveTabId(existing.id);
-        return existing.id;
+      if (!options?.forceNew) {
+        const existing = findExistingTableTab(
+          tabsRef.current,
+          activeConnectionId,
+          partial?.activeTable || undefined,
+          partial?.schema,
+          partial?.database,
+        );
+        if (existing) {
+          setActiveTabId(existing.id);
+          return existing.id;
+        }
       }
 
       const id = generateTabId();
@@ -249,7 +299,9 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
           connectionId: activeConnectionId,
           ...partial,
         });
-        return [...prev, newTab];
+        return options?.insertAfterId
+          ? insertTabAfter(prev, options.insertAfterId, newTab)
+          : [...prev, newTab];
       });
       setActiveTabId(id);
       return id;
@@ -546,6 +598,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       reorderTab,
       updateResultEntry,
       setActiveTabId,
+      getRecentTabIds,
       closeAllTabs,
       closeOtherTabs,
       closeTabsToLeft: closeTabsToLeftInternal,
@@ -566,6 +619,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       reorderTab,
       updateResultEntry,
       setActiveTabId,
+      getRecentTabIds,
       closeAllTabs,
       closeOtherTabs,
       closeTabsToLeftInternal,

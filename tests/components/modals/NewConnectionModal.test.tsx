@@ -44,8 +44,16 @@ const eventMocks = vi.hoisted(() => ({
   unlisten: vi.fn(),
 }));
 
+const alertMocks = vi.hoisted(() => ({
+  showAlert: vi.fn(),
+}));
+
 vi.mock("@tauri-apps/api/event", () => ({
   listen: eventMocks.listen,
+}));
+
+vi.mock("../../../src/hooks/useAlert", () => ({
+  useAlert: () => ({ showAlert: alertMocks.showAlert }),
 }));
 
 vi.mock("../../../src/components/ui/Modal", () => ({
@@ -1761,5 +1769,150 @@ describe("NewConnectionModal PostgreSQL multi-database opt-in", () => {
     renderModal(createInitialConnection({ driver: "mysql", database: "shop" }));
 
     expect(screen.queryByText("newConnection.browseMultipleDatabases")).not.toBeInTheDocument();
+  });
+});
+
+describe("NewConnectionModal keychain default", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    driverState.defaultPort = 3306;
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "save_connection") {
+        return Promise.resolve({
+          id: "new-connection",
+          params: { save_in_keychain: true },
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+    sshMocks.loadSshConnections.mockResolvedValue([]);
+    k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+  });
+
+  function keychainCheckbox() {
+    return screen.getByRole("checkbox", { name: "newConnection.saveKeychain" });
+  }
+
+  it("defaults a new connection to the keychain and keeps it on when the driver changes", () => {
+    renderModal();
+    pickEngineFromCatalogue();
+
+    expect(keychainCheckbox()).toBeChecked();
+    expect(
+      screen.queryByText("newConnection.secretsStoredInPlainText"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "newConnection.changeDatabase" }));
+    pickEngineFromCatalogue();
+
+    expect(keychainCheckbox()).toBeChecked();
+    expect(
+      screen.queryByText("newConnection.secretsStoredInPlainText"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("warns that secrets are stored in plain text when the keychain is turned off", () => {
+    renderModal();
+    pickEngineFromCatalogue();
+
+    fireEvent.click(keychainCheckbox());
+
+    expect(keychainCheckbox()).not.toBeChecked();
+    expect(
+      screen.getByText("newConnection.secretsStoredInPlainText"),
+    ).toBeInTheDocument();
+  });
+
+  it("saves a new connection with the keychain enabled", async () => {
+    renderModal();
+    pickEngineFromCatalogue();
+
+    fireEvent.change(screen.getByPlaceholderText("newConnection.namePlaceholder"), {
+      target: { value: "Local" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("newConnection.dbNamePlaceholder"), {
+      target: { value: "shop" },
+    });
+    fireEvent.click(screen.getByText("newConnection.save"));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "save_connection",
+        expect.objectContaining({
+          params: expect.objectContaining({ save_in_keychain: true }),
+        }),
+      );
+    });
+    expect(alertMocks.showAlert).not.toHaveBeenCalled();
+  });
+
+  it("tells the user when a save fell back to plain text", async () => {
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "save_connection") {
+        return Promise.resolve({
+          id: "new-connection",
+          params: { save_in_keychain: false },
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+    renderModal();
+    pickEngineFromCatalogue();
+
+    fireEvent.change(screen.getByPlaceholderText("newConnection.namePlaceholder"), {
+      target: { value: "Local" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("newConnection.dbNamePlaceholder"), {
+      target: { value: "shop" },
+    });
+    fireEvent.click(screen.getByText("newConnection.save"));
+
+    await waitFor(() => {
+      expect(alertMocks.showAlert).toHaveBeenCalledWith(
+        "newConnection.secretsStoredInPlainText",
+        { kind: "warning" },
+      );
+    });
+  });
+
+  it("keeps an existing connection's stored keychain setting", async () => {
+    renderModal(
+      createInitialConnection({
+        save_in_keychain: false,
+        database: "shop",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "get_connection_by_id",
+        expect.anything(),
+      );
+    });
+    expect(keychainCheckbox()).not.toBeChecked();
+    expect(
+      screen.getByText("newConnection.secretsStoredInPlainText"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps an existing keychain-backed connection opted in", async () => {
+    renderModal(
+      createInitialConnection({
+        save_in_keychain: true,
+        database: "shop",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "get_connection_by_id",
+        expect.anything(),
+      );
+    });
+    expect(keychainCheckbox()).toBeChecked();
+    expect(
+      screen.queryByText("newConnection.secretsStoredInPlainText"),
+    ).not.toBeInTheDocument();
   });
 });

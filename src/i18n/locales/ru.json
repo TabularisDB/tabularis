@@ -1,5 +1,18 @@
 {
   "toolbar": {
+    "valuePicker": {
+      "open": "Выбрать из значений",
+      "title": "Выбор значений",
+      "search": "Поиск значений",
+      "loading": "Загрузка значений…",
+      "error": "Не удалось загрузить значения",
+      "retry": "Повторить",
+      "empty": "В этом столбце нет значений",
+      "noMatch": "Нет подходящих значений",
+      "limited": "Топ-{{count}} по количеству",
+      "use": "Использовать выбранные: {{count}}",
+      "useNone": "Использовать выбранные"
+    },
     "autoRefresh": {
       "label": "Автообновление",
       "off": "Выкл.",
@@ -104,6 +117,7 @@
     "materializedViews": "Материализованные представления",
     "refreshMaterializedView": "Обновить",
     "showDefinition": "Показать определение",
+    "copyDdl": "Копировать DDL",
     "editView": "Изменить представление",
     "viewDefinition": "Определение представления",
     "dropView": "Удалить представление",
@@ -551,6 +565,8 @@
     "appearance_editorTabSize": "Размер отступа",
     "appearance_editorWordWrap": "Перенос строк",
     "appearance_editorWordWrapDesc": "Переносить длинные строки в редакторе вместо горизонтальной прокрутки.",
+    "appearance_editorHighlightInvisibleCharacters": "Показывать невидимые символы",
+    "appearance_editorHighlightInvisibleCharactersDesc": "Выделять скрытые символы Unicode и похожие символы в SQL.",
     "appearance_editorShowLineNumbers": "Показывать номера строк",
     "appearance_editorShowLineNumbersDesc": "Отображать номера строк на полях редактора.",
     "appearance_editorAcceptSuggestionOnEnter": "Принимать подсказку по Enter",
@@ -1103,6 +1119,7 @@
     "sshKeyPassphrasePlaceholder": "Введите пароль, если ключ зашифрован",
     "allowSshPrompt": "Разрешить запрос пароля/PIN-кода SSH",
     "saveKeychain": "Сохранять пароли в Keychain",
+    "secretsStoredInPlainText": "Пароли будут сохранены в файле подключений открытым текстом.",
     "testConnection": "Проверить подключение",
     "save": "Сохранить",
     "failSave": "Не удалось сохранить подключение",
@@ -1112,6 +1129,7 @@
     "manageSshConnections": "Управление SSH-подключениями",
     "noSshConnections": "Нет доступных SSH-подключений",
     "sslMode": "Режим SSL",
+    "sslUnverifiedRemoteHint": "Этот режим не проверяет сертификат сервера. Для удалённого хоста используйте {{mode}}.",
     "enableCleartextPlugin": "Включить плагин пароля в открытом виде",
     "enableCleartextPluginHint": "Отправляет пароль через mysql_clear_password. Требуется для бастионов, таких как Warpgate. Используется только при TLS-соединении.",
     "enableCleartextPluginTlsRequired": "Выберите выше строгий режим TLS (Required, Verify CA или Verify Identity), чтобы использовать плагин пароля в открытом виде.",
@@ -1357,6 +1375,7 @@
       "reattach": "Прикрепить обратно"
     },
     "tableRunPrompt": "Нажмите «Запустить» (Ctrl/Command+F5) для загрузки данных таблицы",
+    "duplicateTab": "Дублировать вкладку",
     "closeTab": "Закрыть вкладку",
     "reopenClosedTab": "Открыть закрытую вкладку",
     "closeOthers": "Закрыть остальные вкладки",
@@ -1410,6 +1429,7 @@
     "queryParameters": "Параметры запроса",
     "formatSql": "Форматировать SQL",
     "convertSelectionToSqlList": "Преобразовать выделение в список SQL",
+    "removeInvisibleCharacters": "Очистить вставленные символы",
     "convertToConsole": "Преобразовать в консоль",
     "parameters": "Параметры",
     "paramValuePlaceholder": "Значение (например, 'текст' или 123)",

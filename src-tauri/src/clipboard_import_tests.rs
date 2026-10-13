@@ -145,6 +145,8 @@ fn table_column(name: &str, data_type: &str) -> TableColumn {
         is_generated: false,
         default_value: None,
         character_maximum_length: None,
+        numeric_precision: None,
+        numeric_scale: None,
         comment: None,
     }
 }
