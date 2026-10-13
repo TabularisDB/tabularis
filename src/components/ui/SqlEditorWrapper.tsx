@@ -12,6 +12,10 @@ import { useKeybindings } from "../../hooks/useKeybindings";
 import { CommandPaletteDispatchContext } from "../../contexts/CommandPaletteContext";
 import { getFontCSS } from "../../utils/settings";
 import {
+  EDITOR_FONT_SIZE_DEFAULT,
+  stepEditorFontSize,
+} from "../../utils/editorFontSize";
+import {
   splitBatches,
   findStatementAtOffset,
   type Dialect,
@@ -59,6 +63,37 @@ function isLinux(): boolean {
   return platform.toUpperCase().includes("LINUX");
 }
 
+type EditorZoomAction = "in" | "out" | "reset";
+
+/**
+ * Maps a key event to a font zoom action. Zoom in also accepts `+`, which is
+ * what layouts that need Shift for `=` report, by matching it as `=`.
+ */
+function getEditorZoomAction(
+  event: KeyboardEvent,
+  matches: (event: KeyboardEvent, id: string) => boolean,
+): EditorZoomAction | null {
+  if (matches(event, "editor_zoom_in")) return "in";
+  if (
+    event.key === "+" &&
+    matches(
+      new KeyboardEvent("keydown", {
+        key: "=",
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+      }),
+      "editor_zoom_in",
+    )
+  ) {
+    return "in";
+  }
+  if (matches(event, "editor_zoom_out")) return "out";
+  if (matches(event, "editor_zoom_reset")) return "reset";
+  return null;
+}
+
 /** Debounced onChange emissions remembered until the consumer echoes them back. */
 const MAX_PENDING_ECHOES = 50;
 
@@ -99,13 +134,18 @@ const SqlEditorInternal = ({
     statements: Statement[];
   }>({ model: null, versionId: -1, statements: [] });
   const editorTheme = useEditorTheme();
-  const { settings } = useSettings();
+  const { settings, updateSetting } = useSettings();
   const { matchesShortcut } = useKeybindings();
   const commandPaletteDispatch = useContext(CommandPaletteDispatchContext);
   const matchesShortcutRef = useRef(matchesShortcut);
   matchesShortcutRef.current = matchesShortcut;
   const togglePaletteRef = useRef(commandPaletteDispatch?.togglePalette);
   togglePaletteRef.current = commandPaletteDispatch?.togglePalette;
+  // Read from the zoom shortcuts, so they always step from the saved size.
+  const editorFontSizeRef = useRef(settings.editorFontSize);
+  editorFontSizeRef.current = settings.editorFontSize;
+  const updateSettingRef = useRef(updateSetting);
+  updateSettingRef.current = updateSetting;
 
   // Dispose editor on unmount to prevent "domNode" errors from ResizeObserver
   // firing after the DOM container is removed (e.g., cell deletion/movement)
@@ -531,6 +571,20 @@ const SqlEditorInternal = ({
           e.preventDefault();
           e.stopPropagation();
           editor.trigger("keyboard", "editor.action.triggerSuggest", {});
+          return;
+        }
+
+        const zoom = getEditorZoomAction(e.browserEvent, matchesShortcutRef.current);
+        if (zoom) {
+          e.preventDefault();
+          e.stopPropagation();
+          const next =
+            zoom === "reset"
+              ? EDITOR_FONT_SIZE_DEFAULT
+              : stepEditorFontSize(editorFontSizeRef.current, zoom === "in" ? 1 : -1);
+          if (next !== editorFontSizeRef.current) {
+            updateSettingRef.current("editorFontSize", next);
+          }
         }
       });
 
@@ -643,7 +697,7 @@ const SqlEditorInternal = ({
         options={{
           accessibilitySupport: 'auto',
           minimap: { enabled: false },
-          fontSize: settings.editorFontSize ?? 14,
+          fontSize: settings.editorFontSize ?? EDITOR_FONT_SIZE_DEFAULT,
           fontFamily: getFontCSS(settings.editorFontFamily ?? "JetBrains Mono"),
           lineHeight: settings.editorLineHeight ?? 1.5,
           tabSize: settings.editorTabSize ?? 2,

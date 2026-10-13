@@ -513,6 +513,55 @@ describe('SqlEditorWrapper', () => {
     expect(container).toBeInTheDocument();
   });
 
+  describe('font zoom shortcuts', () => {
+    const zoomMatcher = (event: KeyboardEvent, id: string) =>
+      event.ctrlKey &&
+      !event.shiftKey &&
+      ((id === 'editor_zoom_in' && event.key === '=') ||
+        (id === 'editor_zoom_out' && event.key === '-') ||
+        (id === 'editor_zoom_reset' && event.key === '0'));
+
+    const pressKey = (fontSize: number | undefined, init: KeyboardEventInit) => {
+      matchesShortcutMock.mockImplementation(zoomMatcher);
+      settingsValue.settings = { ...DEFAULT_SETTINGS, editorFontSize: fontSize };
+      render(
+        <SqlEditorWrapper initialValue="" onChange={mockOnChange} onRun={mockOnRun} />,
+        { wrapper },
+      );
+      const { keyDownHandlers } = mountCapturedEditor();
+      const event = {
+        browserEvent: new KeyboardEvent('keydown', init),
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      };
+      keyDownHandlers.forEach((handler) => handler(event));
+      return event;
+    };
+
+    it.each([
+      [14, { key: '=', ctrlKey: true }, 15],
+      [14, { key: '+', ctrlKey: true, shiftKey: true }, 15],
+      [14, { key: '-', ctrlKey: true }, 13],
+      [18, { key: '0', ctrlKey: true }, 14],
+    ])('changes the saved size from %i on %o', (size, init, expected) => {
+      const event = pressKey(size, init);
+      expect(event.preventDefault).toHaveBeenCalledOnce();
+      expect(settingsValue.updateSetting).toHaveBeenCalledWith('editorFontSize', expected);
+    });
+
+    it('stops at the bounds without saving again', () => {
+      const event = pressKey(20, { key: '=', ctrlKey: true });
+      expect(event.preventDefault).toHaveBeenCalledOnce();
+      expect(settingsValue.updateSetting).not.toHaveBeenCalled();
+    });
+
+    it('ignores the keys without the modifier', () => {
+      const event = pressKey(14, { key: '=' });
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(settingsValue.updateSetting).not.toHaveBeenCalled();
+    });
+  });
+
   it('opens the action palette before Monaco consumes its shortcut', () => {
     matchesShortcutMock.mockImplementation(
       (_event, id) => id === 'command_palette_actions',

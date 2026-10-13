@@ -328,5 +328,35 @@
     "winMatch": { "shiftKey": true, "altKey": true, "key": "f" },
     "i18nKey": "settings.shortcuts.formatSql",
     "overridable": false
+  },
+  {
+    "id": "editor_zoom_in",
+    "category": "editor",
+    "defaultMac": "⌘+=",
+    "defaultWin": "Ctrl+=",
+    "macMatch": { "metaKey": true, "key": "=" },
+    "winMatch": { "ctrlKey": true, "key": "=" },
+    "i18nKey": "settings.shortcuts.editorZoomIn",
+    "overridable": true
+  },
+  {
+    "id": "editor_zoom_out",
+    "category": "editor",
+    "defaultMac": "⌘+-",
+    "defaultWin": "Ctrl+-",
+    "macMatch": { "metaKey": true, "key": "-" },
+    "winMatch": { "ctrlKey": true, "key": "-" },
+    "i18nKey": "settings.shortcuts.editorZoomOut",
+    "overridable": true
+  },
+  {
+    "id": "editor_zoom_reset",
+    "category": "editor",
+    "defaultMac": "⌘+0",
+    "defaultWin": "Ctrl+0",
+    "macMatch": { "metaKey": true, "key": "0" },
+    "winMatch": { "ctrlKey": true, "key": "0" },
+    "i18nKey": "settings.shortcuts.editorZoomReset",
+    "overridable": true
   }
 ]
