@@ -1384,6 +1384,8 @@
     "newRow": "Nueva Fila",
     "editing": "Editando: {{table}}",
     "rowsRetrieved": "{{count}} filas obtenidas",
+    "columnsCount_one": "{{count}} columna",
+    "columnsCount_other": "{{count}} columnas",
     "queryExecuted": "Consulta ejecutada correctamente",
     "rowsAffected": "{{count}} filas afectadas",
     "autoPaginated": "Paginación automática",

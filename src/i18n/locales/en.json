@@ -1385,6 +1385,8 @@
     "newRow": "New Row",
     "editing": "Editing: {{table}}",
     "rowsRetrieved": "{{count}} rows retrieved",
+    "columnsCount_one": "{{count}} column",
+    "columnsCount_other": "{{count}} columns",
     "queryExecuted": "Query executed successfully",
     "rowsAffected": "{{count}} rows affected",
     "autoPaginated": "Auto paginated",

@@ -1368,6 +1368,8 @@
     "newRow": "Bagong Row",
     "editing": "Ine-edit: {{table}}",
     "rowsRetrieved": "{{count}} row ang nakuha",
+    "columnsCount_one": "{{count}} column",
+    "columnsCount_other": "{{count}} column",
     "queryExecuted": "Matagumpay na naisakatuparan ang query",
     "rowsAffected": "{{count}} row ang naapektuhan",
     "autoPaginated": "Auto paginated",

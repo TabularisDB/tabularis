@@ -1354,6 +1354,8 @@
     "newRow": "Nova Linha",
     "editing": "Editando: {{table}}",
     "rowsRetrieved": "{{count}} linhas obtidas",
+    "columnsCount_one": "{{count}} coluna",
+    "columnsCount_other": "{{count}} colunas",
     "queryExecuted": "Consulta executada com sucesso",
     "rowsAffected": "{{count}} linhas afetadas",
     "autoPaginated": "Paginado automaticamente",

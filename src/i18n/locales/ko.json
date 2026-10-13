@@ -1312,6 +1312,8 @@
     "newRow": "새 행",
     "editing": "편집 중: {{table}}",
     "rowsRetrieved": "{{count}}개 행 조회됨",
+    "columnsCount_one": "열 {{count}}개",
+    "columnsCount_other": "열 {{count}}개",
     "queryExecuted": "쿼리가 성공적으로 실행되었습니다",
     "rowsAffected": "{{count}}개 행 영향받음",
     "autoPaginated": "자동 페이지네이션됨",

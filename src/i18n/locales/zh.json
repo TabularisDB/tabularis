@@ -1330,6 +1330,8 @@
     "newRow": "新建行",
     "editing": "编辑中：{{table}}",
     "rowsRetrieved": "已检索 {{count}} 行",
+    "columnsCount_one": "{{count}} 列",
+    "columnsCount_other": "{{count}} 列",
     "queryExecuted": "查询执行成功",
     "rowsAffected": "{{count}} 行受影响",
     "autoPaginated": "自动分页",
