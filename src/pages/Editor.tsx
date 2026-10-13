@@ -5719,6 +5719,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       driver={activeDriver}
                       capabilities={activeCapabilities}
                       schema={activeSchema}
+                      database={activeTab?.database ?? activeDatabaseName ?? undefined}
                       onClose={() => setActiveFkQuery(null)}
                       onNavigateToTab={handleForeignKeyNavigate}
                     />
