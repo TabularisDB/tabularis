@@ -251,21 +251,11 @@ async fn golden_get_materialized_view_definition() {
     require_pg!();
     let params = pg_params();
     let result =
-        postgres::get_materialized_view_definition(&params, "user_stats", "test_schema").await;
-    // KNOWN BUG: Built-in driver errors with "error serializing parameter 0" on PG 16
-    // due to regclass cast issue. Capture the error as the golden expectation — the
-    // plugin must replicate this behavior until the driver is fixed.
-    match result {
-        Ok(def) => {
-            write_golden("get_mv_definition.json", &def);
-            assert_golden("get_mv_definition.json", &def);
-        }
-        Err(ref e) => {
-            // Expected failure — record it as the golden expectation
-            write_golden("get_mv_definition.json", e);
-            assert_golden("get_mv_definition.json", e);
-        }
-    }
+        postgres::get_materialized_view_definition(&params, "user_stats", "test_schema")
+            .await
+            .expect("get_materialized_view_definition");
+    write_golden("get_mv_definition.json", &result);
+    assert_golden("get_mv_definition.json", &result);
 }
 
 #[tokio::test]
