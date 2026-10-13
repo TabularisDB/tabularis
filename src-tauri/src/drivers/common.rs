@@ -21,18 +21,7 @@ pub use query::{
 pub use routines::{
     generic_drop_routine_sql, generic_routine_call_sql, quote_qualified, render_sql_literal,
 };
+pub(crate) use safe_int::float4_to_json_f64;
 pub use safe_int::{
     i64_to_json, parse_unsafe_bigint_string, u64_to_json, JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT,
 };
-
-// Preserve the shortest f32 decimal instead of widening its binary approximation.
-pub(crate) fn float4_to_json_f64(v: f32) -> Option<f64> {
-    v.to_string().parse::<f64>().ok().map(|decimal| {
-        // Avoid double rounding when the decimal lands on an f32 midpoint.
-        if decimal as f32 == v {
-            decimal
-        } else {
-            f64::from(v)
-        }
-    })
-}

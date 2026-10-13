@@ -166,11 +166,11 @@ const TableToolbarInternal = ({
   };
 
   const closePanel = useCallback(() => {
-    const clause = buildStructuredFilterClause(structuredFilters, quotingDriver, combinator);
+    const clause = buildStructuredFilterClause(structuredFilters, quotingDriver, combinator, "auto", columnMetadata);
     setFilterInput(clause);
     onPanelOpenChange(false);
     onUpdate(clause, formatSortClause(sortInput, quotingDriver), getLimitVal(limitInput));
-  }, [structuredFilters, combinator, sortInput, limitInput, getLimitVal, onUpdate, onPanelOpenChange, quotingDriver]);
+  }, [structuredFilters, combinator, sortInput, limitInput, getLimitVal, onUpdate, onPanelOpenChange, quotingDriver, columnMetadata]);
 
   const handleCombinatorChange = (next: FilterCombinator) => {
     if (next === combinator) return;
@@ -190,7 +190,7 @@ const TableToolbarInternal = ({
 
   // Applies all enabled filters — does NOT close panel
   const handleApplyAll = useCallback(() => {
-    const clause = buildStructuredFilterClause(structuredFilters, quotingDriver, combinator);
+    const clause = buildStructuredFilterClause(structuredFilters, quotingDriver, combinator, "auto", columnMetadata);
     onUpdate(clause, formatSortClause(sortInput, quotingDriver), getLimitVal(limitInput));
     structuredFilters.forEach((f) => {
       if (f.enabled !== false && isFilterComplete(f)) {
@@ -199,7 +199,7 @@ const TableToolbarInternal = ({
         onResetApplied(f.id);
       }
     });
-  }, [structuredFilters, combinator, sortInput, limitInput, getLimitVal, onUpdate, onTriggerApplied, onResetApplied, quotingDriver]);
+  }, [structuredFilters, combinator, sortInput, limitInput, getLimitVal, onUpdate, onTriggerApplied, onResetApplied, quotingDriver, columnMetadata]);
 
   const queryForValues = useCallback(
     (filter: StructuredFilter) => buildDistinctValuesQuery({
@@ -207,9 +207,9 @@ const TableToolbarInternal = ({
       schema: tableSchema,
       column: filter.column,
       driver: quotingDriver,
-      where: buildValuePickerWhere(structuredFilters, filter.id, quotingDriver, combinator),
+      where: buildValuePickerWhere(structuredFilters, filter.id, quotingDriver, combinator, columnMetadata),
     }),
-    [tableName, tableSchema, quotingDriver, structuredFilters, combinator],
+    [tableName, tableSchema, quotingDriver, structuredFilters, combinator, columnMetadata],
   );
 
   // Count values using the other complete filters, excluding the edited row.
@@ -227,14 +227,21 @@ const TableToolbarInternal = ({
   const handleApplySingle = useCallback(
     (filter: StructuredFilter) => {
       onUpdate(
-        isFilterComplete(filter) ? buildSingleFilterClause(filter, quotingDriver) : "",
+        isFilterComplete(filter)
+          ? buildSingleFilterClause(
+              filter,
+              quotingDriver,
+              "auto",
+              columnMetadata?.find((c) => c.name === filter.column)?.data_type,
+            )
+          : "",
         formatSortClause(sortInput, quotingDriver),
         getLimitVal(limitInput),
       );
       onResetAllApplied();
       if (isFilterComplete(filter)) onTriggerApplied(filter.id);
     },
-    [sortInput, limitInput, getLimitVal, onUpdate, onResetAllApplied, onTriggerApplied, quotingDriver]
+    [sortInput, limitInput, getLimitVal, onUpdate, onResetAllApplied, onTriggerApplied, quotingDriver, columnMetadata]
   );
 
   const handleUnset = () => {
@@ -416,7 +423,7 @@ const TableToolbarInternal = ({
       commitSql(filterInput, sortInput, limitInput);
     } else {
       onUpdate(
-        buildStructuredFilterClause(structuredFilters, quotingDriver, combinator),
+        buildStructuredFilterClause(structuredFilters, quotingDriver, combinator, "auto", columnMetadata),
         formatSortClause(sortInput, quotingDriver),
         getLimitVal(limitInput),
       );
@@ -428,7 +435,7 @@ const TableToolbarInternal = ({
       commitSql(filterInput, sortInput, limitInput);
     } else {
       onUpdate(
-        buildStructuredFilterClause(structuredFilters, quotingDriver, combinator),
+        buildStructuredFilterClause(structuredFilters, quotingDriver, combinator, "auto", columnMetadata),
         formatSortClause(sortInput, quotingDriver),
         getLimitVal(limitInput),
       );
@@ -536,7 +543,7 @@ const TableToolbarInternal = ({
           <div className="flex items-center gap-1.5 flex-1 px-2 py-1 min-w-0">
             <Filter size={12} className="text-muted shrink-0" />
             <span className="text-xs text-muted font-mono truncate">
-              {buildStructuredFilterClause(structuredFilters, quotingDriver, combinator) || (
+              {buildStructuredFilterClause(structuredFilters, quotingDriver, combinator, "auto", columnMetadata) || (
                 <em className="not-italic opacity-50">{t("toolbar.noActiveFilters")}</em>
               )}
             </span>

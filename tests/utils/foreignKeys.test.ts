@@ -148,7 +148,7 @@ describe("foreignKeys", () => {
         );
       }
       expect(buildForeignKeyFilterClause(orgFk, 89.9, "postgres", "float")).toBe(
-        '\"id\" = 89.9',
+        '"id" = 89.9',
       );
     });
 

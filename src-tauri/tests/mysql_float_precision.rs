@@ -1,3 +1,13 @@
+//! Opt-in coverage of MySQL FLOAT display and row matching against a real
+//! server: values read back as their shortest decimal, and UPDATE, DELETE and
+//! blob fetch still find the row by that value over both wire protocols.
+//!
+//! Run against a disposable, TLS-enabled local MySQL/MariaDB server:
+//! `cargo test --test mysql_float_precision -- --ignored --nocapture`
+//! Set TABULARIS_TEST_MYSQL=1 and TABULARIS_TEST_MYSQL_HOST, _PORT, _USER,
+//! and _PASSWORD explicitly. The account must be able to create databases.
+//! Each run creates a UUID-named database and drops only the database it created.
+
 use futures::FutureExt;
 use sqlx::mysql::{MySqlConnectOptions, MySqlSslMode};
 use sqlx::{Connection, Executor, MySqlConnection};
@@ -26,6 +36,11 @@ async fn execute(connection: &mut MySqlConnection, sql: &str) {
 
 async fn exercise_float_identity(connection: &mut MySqlConnection, params: &ConnectionParams) {
     execute(connection, "CREATE TABLE float_demo (price FLOAT, unsigned_price FLOAT UNSIGNED, precise DOUBLE, marker INT, payload BLOB)").await;
+    execute(
+        connection,
+        "CREATE TABLE float_pk (price FLOAT PRIMARY KEY, marker INT)",
+    )
+    .await;
     for text_protocol in [false, true] {
         let params = ConnectionParams {
             enable_cleartext_plugin: Some(text_protocol),
@@ -91,13 +106,36 @@ async fn exercise_float_identity(connection: &mut MySqlConnection, params: &Conn
                 .await
                 .expect("duplicate survives LIMIT 1");
         assert_eq!(remaining.rows, vec![vec![serde_json::json!(89.9)]]);
+
+        execute(connection, "TRUNCATE TABLE float_pk").await;
+        execute(connection, "INSERT INTO float_pk VALUES (89.9,0),(59.99,0)").await;
+        let key = std::collections::HashMap::from([("price".to_string(), serde_json::json!(89.9))]);
+        assert_eq!(
+            mysql::update_record(
+                &params,
+                "float_pk",
+                &key,
+                "marker",
+                serde_json::json!(1),
+                1024
+            )
+            .await
+            .expect("update by displayed FLOAT primary key"),
+            1
+        );
+        assert_eq!(
+            mysql::delete_record(&params, "float_pk", &key)
+                .await
+                .expect("delete by displayed FLOAT primary key"),
+            1
+        );
         close_pool(&params).await;
     }
 }
 
 #[tokio::test]
 #[ignore = "requires an explicitly configured disposable local MySQL/MariaDB server with TLS"]
-async fn float_display_and_keyless_row_identity() {
+async fn float_display_and_row_identity() {
     assert_eq!(required_env(""), "1", "set TABULARIS_TEST_MYSQL=1");
     let host = required_env("_HOST");
     assert!(

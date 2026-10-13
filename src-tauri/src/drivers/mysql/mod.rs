@@ -705,7 +705,8 @@ fn build_mysql_pk_where(
         .iter()
         .map(|(k, v)| {
             let value = if float_columns.contains(k) {
-                // CAST AS FLOAT requires MySQL 8.0.17+; widen for MySQL 5.7 too.
+                // MySQL compares FLOAT as DOUBLE, so the shortest decimal misses the
+                // stored value. CAST(? AS FLOAT) needs MySQL 8.0.17+.
                 v.as_f64()
                     .and_then(|value| serde_json::Number::from_f64(f64::from(value as f32)))
                     .map(serde_json::Value::Number)
@@ -773,7 +774,7 @@ async fn mysql_fetch_one_with_pk(
 ) -> Result<sqlx::mysql::MySqlRow, String> {
     let pool = get_mysql_pool(params).await?;
     let text = resolve_text_proto(&pool, params).await?;
-    let float_columns = get_float_columns(&pool, text, table).await;
+    let float_columns = get_float_columns(&pool, text, table, pk_map).await;
     let pairs = build_mysql_pk_where(pk_map, &float_columns)?;
     let mut first = true;
     let mut qb3 = sqlx::QueryBuilder::<sqlx::MySql>::new(format!("{} WHERE ", select_from));
@@ -804,7 +805,7 @@ async fn mysql_execute_with_pk(
 ) -> Result<u64, String> {
     let pool = get_mysql_pool(params).await?;
     let text = resolve_text_proto(&pool, params).await?;
-    let float_columns = get_float_columns(&pool, text, table).await;
+    let float_columns = get_float_columns(&pool, text, table, pk_map).await;
     let pairs = build_mysql_pk_where(pk_map, &float_columns)?;
     let mut qb = sqlx::QueryBuilder::<sqlx::MySql>::new(format!("{} WHERE ", prefix));
     let mut first = true;
@@ -934,7 +935,7 @@ pub async fn update_record(
     // Behind a prepared-statement-less bastion every value is inlined as an
     // escaped literal instead of bound (see `force_text_protocol`).
     let text = resolve_text_proto(&pool, params).await?;
-    let float_columns = get_float_columns(&pool, text, table).await;
+    let float_columns = get_float_columns(&pool, text, table, pk_map).await;
     let pk_pairs = build_mysql_pk_where(pk_map, &float_columns)?;
 
     let mut qb = sqlx::QueryBuilder::new(format!(

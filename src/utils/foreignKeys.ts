@@ -118,15 +118,23 @@ export function formatSqlValueForFilter(value: unknown, columnType?: string): st
   return `'${str.replace(/'/g, "''")}'`;
 }
 
+export function isMysqlFloatColumn(
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+  columnType?: string,
+): boolean {
+  return isMysqlDialect(driver) && /^float(?:\s+unsigned)?$/i.test(columnType?.trim() ?? "");
+}
+
 /** Formats a filter literal at the column's comparison precision. */
 export function formatSqlValueForColumnComparison(
   value: unknown,
   driver: string | PluginManifest | DriverCapabilities | null | undefined,
   columnType?: string,
 ): string {
-  if (isMysqlDialect(driver) && /^float(?:\s+unsigned)?$/i.test(columnType?.trim() ?? "") &&
-      typeof value === "number" && Number.isFinite(value)) {
-    // CAST AS FLOAT requires MySQL 8.0.17+; widening also works on MySQL 5.7.
+  if (isMysqlFloatColumn(driver, columnType) && typeof value === "number" &&
+      Number.isFinite(value)) {
+    // MySQL compares FLOAT as DOUBLE, so the shortest decimal misses the
+    // stored value. CAST(? AS FLOAT) needs MySQL 8.0.17+.
     const widened = Math.fround(value);
     if (Number.isFinite(widened)) return String(widened);
   }

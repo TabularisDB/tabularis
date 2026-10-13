@@ -31,7 +31,7 @@ pub(super) fn extract_fallback_value(
     index: usize,
     effective_type: &str,
 ) -> Option<serde_json::Value> {
-    if effective_type == "FLOAT" || effective_type == "FLOAT UNSIGNED" {
+    if effective_type == "FLOAT" {
         if let Ok(value) = row.try_get::<f32, _>(index) {
             return Some(serde_json::Value::from(float4_to_json_f64(value)));
         }
