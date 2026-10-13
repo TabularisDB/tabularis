@@ -255,6 +255,16 @@
     "insertToEditor": "エディタに挿入",
     "openInNewTab": "新しいタブで開く",
     "copyQuery": "クエリをコピー",
+    "copyDetails": "詳細をコピー",
+    "historyDetails": {
+      "database": "データベース",
+      "executed": "実行日時",
+      "duration": "所要時間",
+      "rowsAffected": "影響を受けた行",
+      "status": "ステータス",
+      "success": "成功",
+      "error": "エラー"
+    },
     "runQuery": "クエリを実行",
     "dateGroupToday": "今日",
     "dateGroupYesterday": "昨日",

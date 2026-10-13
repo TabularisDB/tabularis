@@ -241,6 +241,16 @@
     "insertToEditor": "插入到编辑器",
     "openInNewTab": "在新标签中打开",
     "copyQuery": "复制查询",
+    "copyDetails": "复制详情",
+    "historyDetails": {
+      "database": "数据库",
+      "executed": "执行时间",
+      "duration": "耗时",
+      "rowsAffected": "受影响行数",
+      "status": "状态",
+      "success": "成功",
+      "error": "错误"
+    },
     "runQuery": "运行查询",
     "dateGroupToday": "今天",
     "dateGroupYesterday": "昨天",

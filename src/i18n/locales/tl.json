@@ -255,6 +255,16 @@
     "insertToEditor": "Ipasok sa Editor",
     "openInNewTab": "Buksan sa Bagong Tab",
     "copyQuery": "Kopyahin ang Query",
+    "copyDetails": "Kopyahin ang Detalye",
+    "historyDetails": {
+      "database": "Database",
+      "executed": "Pinatakbo",
+      "duration": "Tagal",
+      "rowsAffected": "Mga row na naapektuhan",
+      "status": "Status",
+      "success": "tagumpay",
+      "error": "error"
+    },
     "runQuery": "I-run ang Query",
     "dateGroupToday": "Ngayon",
     "dateGroupYesterday": "Kahapon",

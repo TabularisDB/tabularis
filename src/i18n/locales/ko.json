@@ -232,6 +232,16 @@
     "insertToEditor": "에디터에 삽입",
     "openInNewTab": "새 탭에서 열기",
     "copyQuery": "쿼리 복사",
+    "copyDetails": "세부 정보 복사",
+    "historyDetails": {
+      "database": "데이터베이스",
+      "executed": "실행 시각",
+      "duration": "소요 시간",
+      "rowsAffected": "영향받은 행",
+      "status": "상태",
+      "success": "성공",
+      "error": "오류"
+    },
     "runQuery": "쿼리 실행",
     "dateGroupToday": "오늘",
     "dateGroupYesterday": "어제",

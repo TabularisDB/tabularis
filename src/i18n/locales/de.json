@@ -242,6 +242,16 @@
     "insertToEditor": "In Editor einfügen",
     "openInNewTab": "In neuem Tab öffnen",
     "copyQuery": "Abfrage kopieren",
+    "copyDetails": "Details kopieren",
+    "historyDetails": {
+      "database": "Datenbank",
+      "executed": "Ausgeführt",
+      "duration": "Dauer",
+      "rowsAffected": "Betroffene Zeilen",
+      "status": "Status",
+      "success": "erfolgreich",
+      "error": "Fehler"
+    },
     "runQuery": "Abfrage ausführen",
     "dateGroupToday": "Heute",
     "dateGroupYesterday": "Gestern",

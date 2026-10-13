@@ -242,6 +242,16 @@
     "insertToEditor": "Insertar en el Editor",
     "openInNewTab": "Abrir en Nueva Pestaña",
     "copyQuery": "Copiar Consulta",
+    "copyDetails": "Copiar Detalles",
+    "historyDetails": {
+      "database": "Base de datos",
+      "executed": "Ejecutada",
+      "duration": "Duración",
+      "rowsAffected": "Filas afectadas",
+      "status": "Estado",
+      "success": "correcta",
+      "error": "error"
+    },
     "runQuery": "Ejecutar Consulta",
     "dateGroupToday": "Hoy",
     "dateGroupYesterday": "Ayer",

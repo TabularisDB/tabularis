@@ -255,6 +255,16 @@
     "insertToEditor": "Insert to Editor",
     "openInNewTab": "Open in New Tab",
     "copyQuery": "Copy Query",
+    "copyDetails": "Copy Details",
+    "historyDetails": {
+      "database": "Database",
+      "executed": "Executed",
+      "duration": "Duration",
+      "rowsAffected": "Rows affected",
+      "status": "Status",
+      "success": "success",
+      "error": "error"
+    },
     "runQuery": "Run Query",
     "dateGroupToday": "Today",
     "dateGroupYesterday": "Yesterday",

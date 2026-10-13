@@ -255,6 +255,16 @@
     "insertToEditor": "Вставить в редактор",
     "openInNewTab": "Открыть в новой вкладке",
     "copyQuery": "Копировать запрос",
+    "copyDetails": "Копировать сведения",
+    "historyDetails": {
+      "database": "База данных",
+      "executed": "Выполнен",
+      "duration": "Длительность",
+      "rowsAffected": "Затронуто строк",
+      "status": "Статус",
+      "success": "успешно",
+      "error": "ошибка"
+    },
     "runQuery": "Выполнить запрос",
     "dateGroupToday": "Сегодня",
     "dateGroupYesterday": "Вчера",

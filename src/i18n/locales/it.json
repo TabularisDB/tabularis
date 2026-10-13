@@ -249,6 +249,16 @@
     "insertToEditor": "Inserisci nell'Editor",
     "openInNewTab": "Apri in Nuova Scheda",
     "copyQuery": "Copia Query",
+    "copyDetails": "Copia Dettagli",
+    "historyDetails": {
+      "database": "Database",
+      "executed": "Eseguita",
+      "duration": "Durata",
+      "rowsAffected": "Righe interessate",
+      "status": "Stato",
+      "success": "successo",
+      "error": "errore"
+    },
     "runQuery": "Esegui Query",
     "dateGroupToday": "Oggi",
     "dateGroupYesterday": "Ieri",

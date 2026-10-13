@@ -232,6 +232,16 @@
     "insertToEditor": "Inserir no Editor",
     "openInNewTab": "Abrir em Nova Aba",
     "copyQuery": "Copiar Consulta",
+    "copyDetails": "Copiar Detalhes",
+    "historyDetails": {
+      "database": "Banco de dados",
+      "executed": "Executada",
+      "duration": "Duração",
+      "rowsAffected": "Linhas afetadas",
+      "status": "Status",
+      "success": "sucesso",
+      "error": "erro"
+    },
     "runQuery": "Executar Consulta",
     "dateGroupToday": "Hoje",
     "dateGroupYesterday": "Ontem",

@@ -255,6 +255,16 @@
     "insertToEditor": "Insérer dans l’éditeur",
     "openInNewTab": "Ouvrir dans un nouvel onglet",
     "copyQuery": "Copier la requête",
+    "copyDetails": "Copier les détails",
+    "historyDetails": {
+      "database": "Base de données",
+      "executed": "Exécutée",
+      "duration": "Durée",
+      "rowsAffected": "Lignes affectées",
+      "status": "Statut",
+      "success": "succès",
+      "error": "erreur"
+    },
     "runQuery": "Exécuter la requête",
     "dateGroupToday": "Aujourd’hui",
     "dateGroupYesterday": "Hier",
