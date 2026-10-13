@@ -2018,7 +2018,9 @@
   },
   "contextMenu": {
     "openSidebar": "Открыть в боковом редакторе",
-    "openJsonEditor": "Открыть в JSON-редакторе"
+    "openJsonEditor": "Открыть в JSON-редакторе",
+    "openLink": "Открыть ссылку",
+    "openLinkFailed": "Не удалось открыть ссылку: {{error}}"
   },
   "blobInput": {
     "noData": "Нет данных BLOB",

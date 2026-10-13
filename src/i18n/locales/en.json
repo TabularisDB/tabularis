@@ -2056,7 +2056,9 @@
   },
   "contextMenu": {
     "openSidebar": "Open Sidebar Editor",
-    "openJsonEditor": "Open in JSON Editor"
+    "openJsonEditor": "Open in JSON Editor",
+    "openLink": "Open link",
+    "openLinkFailed": "Could not open the link: {{error}}"
   },
   "blobInput": {
     "noData": "No BLOB data",

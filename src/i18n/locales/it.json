@@ -1999,7 +1999,9 @@
   },
   "contextMenu": {
     "openSidebar": "Apri Barra Laterale",
-    "openJsonEditor": "Apri nell'editor JSON"
+    "openJsonEditor": "Apri nell'editor JSON",
+    "openLink": "Apri link",
+    "openLinkFailed": "Impossibile aprire il link: {{error}}"
   },
   "blobInput": {
     "noData": "Nessun dato BLOB",

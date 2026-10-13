@@ -1914,7 +1914,9 @@
   },
   "contextMenu": {
     "openSidebar": "打开侧边栏编辑器",
-    "openJsonEditor": "在 JSON 编辑器中打开"
+    "openJsonEditor": "在 JSON 编辑器中打开",
+    "openLink": "打开链接",
+    "openLinkFailed": "无法打开链接：{{error}}"
   },
   "blobInput": {
     "noData": "无 BLOB 数据",

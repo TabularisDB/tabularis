@@ -2047,7 +2047,9 @@
   },
   "contextMenu": {
     "openSidebar": "Ouvrir l’éditeur latéral",
-    "openJsonEditor": "Ouvrir dans l’éditeur JSON"
+    "openJsonEditor": "Ouvrir dans l’éditeur JSON",
+    "openLink": "Ouvrir le lien",
+    "openLinkFailed": "Impossible d’ouvrir le lien : {{error}}"
   },
   "blobInput": {
     "noData": "Aucune donnée BLOB",

@@ -16,6 +16,7 @@ import {
   createColumnHelper,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { SlotAnchor } from "./SlotAnchor";
 import {
@@ -91,6 +92,7 @@ import {
   getCellValueFilterOperators,
   type CellValueFilterOperator,
 } from "../../utils/cellValueFilter";
+import { isLinkString } from "../../utils/jsonValueDecorators";
 import {
   getDateInputMode,
   parseDateTime,
@@ -3013,6 +3015,30 @@ export const DataGrid = React.memo(
                   label: t("contextMenu.openJsonEditor"),
                   icon: Braces,
                   action: openJsonEditor,
+                });
+              }
+
+              // "Open link": only for a plain http(s) URL or mailto address, so
+              // other schemes (file:, javascript:, ...) never reach the opener.
+              // A masked cell shows dots, so it never offers its real value.
+              if (
+                isLinkString(contextCellValue) &&
+                !isCellMasked(contextMenu.rowIndex, contextMenu.colIndex)
+              ) {
+                const link = contextCellValue.trim();
+                menuItems.push({
+                  label: t("contextMenu.openLink"),
+                  icon: ExternalLink,
+                  action: () => {
+                    setContextMenu(null);
+                    openUrl(link).catch((e: unknown) => {
+                      console.error("Failed to open link:", e);
+                      showToast(
+                        t("contextMenu.openLinkFailed", { error: String(e) }),
+                        { kind: "error" },
+                      );
+                    });
+                  },
                 });
               }
 

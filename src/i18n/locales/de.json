@@ -1961,7 +1961,9 @@
   },
   "contextMenu": {
     "openSidebar": "Seitenleisten-Editor öffnen",
-    "openJsonEditor": "Im JSON-Editor öffnen"
+    "openJsonEditor": "Im JSON-Editor öffnen",
+    "openLink": "Link öffnen",
+    "openLinkFailed": "Der Link konnte nicht geöffnet werden: {{error}}"
   },
   "blobInput": {
     "noData": "Keine BLOB-Daten",

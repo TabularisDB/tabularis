@@ -2021,7 +2021,9 @@
   },
   "contextMenu": {
     "openSidebar": "Abrir Editor na Barra Lateral",
-    "openJsonEditor": "Abrir no Editor JSON"
+    "openJsonEditor": "Abrir no Editor JSON",
+    "openLink": "Abrir link",
+    "openLinkFailed": "Não foi possível abrir o link: {{error}}"
   },
   "blobInput": {
     "noData": "Nenhum dado BLOB",

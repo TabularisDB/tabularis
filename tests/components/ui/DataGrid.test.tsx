@@ -1,5 +1,6 @@
 import { act, render, fireEvent, screen, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { createRef, useState, type ComponentProps } from "react";
 import { vi } from "vitest";
 import {
@@ -1844,6 +1845,102 @@ describe("DataGrid filter-by-value context menu", () => {
     fireEvent.contextMenu(cellAt(container, 0, 1));
     await screen.findByText("dataGrid.copyCell");
     expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+  });
+});
+
+describe("DataGrid open link context menu", () => {
+  const cellAt = (container: HTMLElement, rowIndex: number, colIndex: number) =>
+    container.querySelector(
+      `tr[data-row-index="${rowIndex}"] td[data-col-index="${colIndex}"]`,
+    )!;
+
+  // "email" is masked by DEFAULT_MASKING_PATTERNS (settings mock is `{}`).
+  const renderLinksGrid = () =>
+    render(
+      <DataGrid
+        columns={["id", "website", "contact", "email", "notes"]}
+        data={[
+          [
+            1,
+            "  https://example.com/profile  ",
+            "mailto:alice@example.com",
+            "mailto:alice@example.com",
+            "plain text",
+          ],
+          [2, "file:///etc/passwd", "javascript:alert(1)", null, "ftp://host/x"],
+        ]}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        readonly
+      />,
+    );
+
+  beforeEach(() => {
+    vi.mocked(openUrl).mockReset();
+    vi.mocked(openUrl).mockResolvedValue(undefined);
+    showToastMock.mockClear();
+  });
+
+  it("opens the trimmed URL of an http(s) cell", async () => {
+    const { container } = renderLinksGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 1));
+    fireEvent.click(await screen.findByText("contextMenu.openLink"));
+
+    expect(openUrl).toHaveBeenCalledExactlyOnceWith("https://example.com/profile");
+  });
+
+  it("opens a mailto address", async () => {
+    const { container } = renderLinksGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 2));
+    fireEvent.click(await screen.findByText("contextMenu.openLink"));
+
+    expect(openUrl).toHaveBeenCalledExactlyOnceWith("mailto:alice@example.com");
+  });
+
+  it("never offers the entry for other schemes or plain text", async () => {
+    const { container } = renderLinksGrid();
+
+    for (const [row, col] of [
+      [0, 4],
+      [1, 1],
+      [1, 2],
+      [1, 4],
+    ] as const) {
+      fireEvent.contextMenu(cellAt(container, row, col));
+      await screen.findByText("dataGrid.copyCell");
+      expect(screen.queryByText("contextMenu.openLink")).toBeNull();
+      fireEvent.keyDown(document, { key: "Escape" });
+    }
+  });
+
+  it("never offers the entry for a masked cell", async () => {
+    const { container } = renderLinksGrid();
+
+    expect(cellAt(container, 0, 3)).toHaveTextContent("••••••");
+    fireEvent.contextMenu(cellAt(container, 0, 3));
+    await screen.findByText("dataGrid.copyCell");
+    expect(screen.queryByText("contextMenu.openLink")).toBeNull();
+    expect(openUrl).not.toHaveBeenCalled();
+  });
+
+  it("logs a failure to open the link and reports it with an error toast", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(openUrl).mockRejectedValue("no handler");
+    const { container } = renderLinksGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 1));
+    fireEvent.click(await screen.findByText("contextMenu.openLink"));
+
+    await waitFor(() =>
+      expect(showToastMock).toHaveBeenCalledWith(
+        expect.stringContaining("contextMenu.openLinkFailed"),
+        { kind: "error" },
+      ),
+    );
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });
 

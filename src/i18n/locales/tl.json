@@ -2037,7 +2037,9 @@
   },
   "contextMenu": {
     "openSidebar": "Buksan ang Sidebar Editor",
-    "openJsonEditor": "Buksan sa JSON Editor"
+    "openJsonEditor": "Buksan sa JSON Editor",
+    "openLink": "Buksan ang link",
+    "openLinkFailed": "Hindi mabuksan ang link: {{error}}"
   },
   "blobInput": {
     "noData": "Walang BLOB data",

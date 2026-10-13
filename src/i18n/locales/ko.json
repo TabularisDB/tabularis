@@ -1981,7 +1981,9 @@
   },
   "contextMenu": {
     "openSidebar": "사이드바 에디터에서 열기",
-    "openJsonEditor": "JSON 에디터에서 열기"
+    "openJsonEditor": "JSON 에디터에서 열기",
+    "openLink": "링크 열기",
+    "openLinkFailed": "링크를 열 수 없습니다: {{error}}"
   },
   "blobInput": {
     "noData": "BLOB 데이터 없음",
