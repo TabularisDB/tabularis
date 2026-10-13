@@ -189,12 +189,24 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
     // Unregister first to prevent further pings.
     unregister_connection(connection_id).await;
 
-    // Close the pool (best-effort — if params can't be resolved the pool stays orphaned
-    // but will be reclaimed on next connect or app shutdown).
-    // Skip K8s expansion: pool keys depend on connection_id, and a dead kubectl
-    // / unreachable cluster must not prevent closing the pool.
+    // Close pools before resolving SSH params. Pool keys depend only on
+    // connection_id (plus driver/database/TLS), not the tunnel's local port,
+    // so `params_for_pool_close` disables tunnels to avoid respawning them.
+    // A dead bastion / unreachable cluster must not prevent pool cleanup (#1065).
     let mut params = None;
     if let Ok(saved_conn) = crate::commands::find_connection_by_id(app, connection_id) {
+        match crate::commands::params_for_pool_close(&saved_conn.params, connection_id) {
+            Ok(close_params) => {
+                crate::pool_manager::close_pool_with_id(&close_params, Some(connection_id)).await;
+            }
+            Err(e) => log::warn!(
+                "Health check: failed to resolve tunnel-free params for pool close on {connection_id}: {e}"
+            ),
+        }
+
+        // SSH-expanded params are only needed for release_connection_sessions,
+        // which calls driver_for_params. If SSH is down, release gets None and
+        // only emits session-state events (no driver-side rollback).
         if let Ok(expanded) =
             crate::commands::expand_ssh_connection_params(app, &saved_conn.params).await
         {
@@ -203,9 +215,6 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
     }
     // Pinned connections outlive a closed pool, so their transactions are released first.
     crate::commands::release_connection_sessions(app, connection_id, params.as_ref()).await;
-    if let Some(params) = &params {
-        crate::pool_manager::close_pool_with_id(params, Some(connection_id)).await;
-    }
 
     // Notify frontend.
     let payload = serde_json::json!({
