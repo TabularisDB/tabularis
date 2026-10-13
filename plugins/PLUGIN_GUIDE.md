@@ -22,6 +22,20 @@ An external plugin in Tabularis is a separate executable (binary or script) that
 - **Responses:** The plugin processes the request and writes a JSON-RPC response object to its `stdout`, followed by a newline (`\n`).
 - **Logging:** Any output to `stderr` from the plugin is inherited/logged by Tabularis without interfering with the JSON-RPC communication.
 
+### Selecting a database in a multi-database plugin
+
+The request-level `schema` field holds the item selected in the explorer.
+For plugins with `capabilities.schemas: false`, a connection can also have
+`params.database: ["0", "3"]` (Redis is one example). When `schema` is an
+exact member of that array, the host sends only the selected database as
+`params.database: "3"` for that RPC. Other parameters and the request's
+`schema` stay unchanged.
+
+For plugins with `capabilities.schemas: true`, the host does **not** rewrite
+`params.database`. A schema can have the same name as a database, and the
+plugin must use `schema` to select the namespace within its database.
+Single-database values and requests with no matching selection are unchanged.
+
 ### Lifecycle
 
 1. Tabularis discovers plugins in its data folder at startup:

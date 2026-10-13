@@ -22,6 +22,7 @@ interface MockSelectProps {
 
 const driverState = vi.hoisted(() => ({
   defaultPort: 15432 as number | null,
+  multiDatabase: false,
   catalogueDriver: "mysql" as "mysql" | "sqlite",
 }));
 
@@ -44,8 +45,21 @@ const eventMocks = vi.hoisted(() => ({
   unlisten: vi.fn(),
 }));
 
+const alertMocks = vi.hoisted(() => ({
+  showAlert: vi.fn(),
+}));
+
+// Exercise the database-list icons, which are absent from the shared mock.
+vi.mock("lucide-react", async (importOriginal) => {
+  return importOriginal<typeof import("lucide-react")>();
+});
+
 vi.mock("@tauri-apps/api/event", () => ({
   listen: eventMocks.listen,
+}));
+
+vi.mock("../../../src/hooks/useAlert", () => ({
+  useAlert: () => ({ showAlert: alertMocks.showAlert }),
 }));
 
 vi.mock("../../../src/components/ui/Modal", () => ({
@@ -93,6 +107,7 @@ vi.mock("../../../src/hooks/useDrivers", () => ({
         default_port: driverState.defaultPort,
         is_builtin: true,
         capabilities: {
+          schemas: driverState.multiDatabase ? false : undefined,
           file_based: false,
           folder_based: false,
           connection_string: true,
@@ -133,6 +148,7 @@ vi.mock("../../../src/hooks/useDrivers", () => ({
           folder_based: false,
           connection_string: true,
           supports_ssl: true,
+          schemas: true,
           sql_dialect: "postgres",
         },
       },
@@ -337,6 +353,7 @@ describe("NewConnectionModal layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     driverState.defaultPort = 15432;
+    driverState.multiDatabase = false;
     vi.mocked(invoke).mockResolvedValue("ok");
     sshMocks.loadSshConnections.mockResolvedValue([]);
     sshMocks.testSshConnection.mockResolvedValue("ok");
@@ -347,6 +364,100 @@ describe("NewConnectionModal layout", () => {
     k8sMocks.getK8sResources.mockResolvedValue(["mysql-svc"]);
     k8sMocks.getK8sResourcePorts.mockResolvedValue([6543]);
     k8sMocks.validateK8sPath.mockResolvedValue(undefined);
+  });
+
+  describe("default database selection", () => {
+    const databases = ["analytics", "production", "reporting"];
+
+    async function openDatabaseSelection(selected = databases) {
+      driverState.multiDatabase = true;
+      vi.mocked(invoke).mockImplementation(async (command) =>
+        command === "list_databases" ? databases : "ok",
+      );
+      renderModal(createInitialConnection({
+        host: "localhost", database: selected,
+      }));
+      fireEvent.click(await screen.findByText("newConnection.selectDatabases"));
+      return screen.findByRole("combobox", { name: "newConnection.defaultDatabase" });
+    }
+
+    it("restores and saves a non-alphabetical default using the existing format", async () => {
+      const select = await openDatabaseSelection(["production", "analytics", "reporting"]);
+      expect(select).toHaveValue("production");
+      fireEvent.change(select, { target: { value: "reporting" } });
+      fireEvent.click(screen.getByText("newConnection.save"));
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+        "update_connection", expect.objectContaining({
+          params: expect.objectContaining({ database: ["reporting", "production", "analytics"] }),
+        }),
+      ));
+    });
+
+    it("keeps the draft default and deselection when databases are reloaded", async () => {
+      const select = await openDatabaseSelection();
+      fireEvent.change(select, { target: { value: "reporting" } });
+      fireEvent.click(screen.getByRole("button", { name: "analytics", exact: true }));
+      vi.mocked(invoke).mockClear();
+      fireEvent.click(screen.getByText("newConnection.loadDatabases"));
+      await waitFor(() => expect(screen.getByText("newConnection.loadDatabases")).not.toBeDisabled());
+      expect(select).toHaveValue("reporting");
+      expect(screen.queryByRole("option", { name: "analytics", exact: true })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText("newConnection.save"));
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+        "update_connection", expect.objectContaining({
+          params: expect.objectContaining({ database: ["reporting", "production"] }),
+        }),
+      ));
+    });
+
+    it("falls back to the next selected database when the default is removed", async () => {
+      const select = await openDatabaseSelection();
+      fireEvent.change(select, { target: { value: "reporting" } });
+      fireEvent.click(screen.getByRole("button", { name: "reporting", exact: true }));
+      expect(select).toHaveValue("analytics");
+      fireEvent.click(screen.getByRole("button", { name: "analytics", exact: true }));
+      expect(select).toHaveValue("production");
+      fireEvent.click(screen.getByText("newConnection.save"));
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+        "update_connection", expect.objectContaining({
+          params: expect.objectContaining({ database: "production" }),
+        }),
+      ));
+    });
+
+    it("saves the chosen default for a new connection", async () => {
+      driverState.multiDatabase = true;
+      vi.mocked(invoke).mockImplementation(async (command) => {
+        if (command === "list_databases") return databases;
+        if (command === "save_connection") return { id: "new-connection" };
+        return "ok";
+      });
+      renderModal();
+      pickEngineFromCatalogue();
+      fireEvent.change(screen.getByPlaceholderText("newConnection.namePlaceholder"), { target: { value: "Local" } });
+      fireEvent.change(screen.getByPlaceholderText("localhost"), { target: { value: "localhost" } });
+      fireEvent.click(screen.getByText("newConnection.selectDatabases"));
+      fireEvent.click(screen.getByText("newConnection.chooseDatabases"));
+      fireEvent.click(screen.getByText("newConnection.loadDatabases"));
+      fireEvent.click(await screen.findByRole("button", { name: "analytics", exact: true }));
+      fireEvent.click(screen.getByRole("button", { name: "production", exact: true }));
+      fireEvent.change(screen.getByRole("combobox", { name: "newConnection.defaultDatabase" }), { target: { value: "production" } });
+      fireEvent.click(screen.getByText("newConnection.save"));
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+        "save_connection", expect.objectContaining({ params: expect.objectContaining({ database: ["production", "analytics"] }) }),
+      ));
+    });
+
+    it("does not persist a stale default in all-databases mode", async () => {
+      const select = await openDatabaseSelection();
+      fireEvent.change(select, { target: { value: "reporting" } });
+      fireEvent.click(screen.getByText("newConnection.allDatabases"));
+      expect(screen.queryByRole("combobox", { name: "newConnection.defaultDatabase" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText("newConnection.save"));
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+        "update_connection", expect.objectContaining({ params: expect.objectContaining({ database: "" }) }),
+      ));
+    });
   });
 
   it("fills and parses a selected connection string example", async () => {
@@ -1698,5 +1809,212 @@ describe("NewConnectionModal extra_fields slot credential toggle", () => {
         .checked,
     ).toBe(false);
     expect(screen.getByTestId("plugin-extra")).toHaveTextContent("{}");
+  });
+});
+
+describe("NewConnectionModal PostgreSQL multi-database opt-in", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(invoke).mockResolvedValue("ok");
+    sshMocks.loadSshConnections.mockResolvedValue([]);
+    k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+  });
+
+  it("shows the single Database field (not the Databases tab) for a single-database PostgreSQL connection", () => {
+    // A saved PG connection with a plain string database must NOT be treated
+    // as opted into multi-database mode — the Database field stays editable
+    // and the Databases tab is hidden .
+    renderModal(createInitialConnection({ driver: "postgresql", database: "mydb" }));
+
+    // Database field label is present (editable single-database field).
+    expect(screen.getByText("newConnection.dbName")).toBeInTheDocument();
+    // The Databases tab is NOT in the tab bar.
+    expect(screen.queryByText("newConnection.selectDatabases")).not.toBeInTheDocument();
+    // The opt-in checkbox is present and unchecked.
+    const checkbox = screen.getByLabelText("newConnection.browseMultipleDatabases", { exact: false });
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+  });
+
+  it("shows the Databases tab (not the single Database field) for an all-databases PostgreSQL connection", async () => {
+    // A saved PG connection with database: "" (all-databases mode) IS opted in.
+    // The edit-load effect sets optedIntoSchemaMultiDb asynchronously, so wait.
+    renderModal(createInitialConnection({ driver: "postgresql", database: "" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("newConnection.selectDatabases")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("newConnection.dbName")).not.toBeInTheDocument();
+    const checkbox = screen.getByLabelText("newConnection.browseMultipleDatabases", { exact: false });
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("opts a single-database PostgreSQL connection into multi-database mode via the checkbox", () => {
+    renderModal(createInitialConnection({ driver: "postgresql", database: "mydb" }));
+
+    const checkbox = screen.getByLabelText("newConnection.browseMultipleDatabases", { exact: false });
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+
+    fireEvent.click(checkbox);
+
+    // After opting in: the single Database field hides and the Databases tab appears.
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByText("newConnection.dbName")).not.toBeInTheDocument();
+    expect(screen.getByText("newConnection.selectDatabases")).toBeInTheDocument();
+  });
+
+  it("does not show the opt-in checkbox for a non-schema-based driver (MySQL mock has no schemas capability)", () => {
+    // The MySQL test driver omits `schemas`, so it is neither flat-multi-db-
+    // capable nor schema-based-multi-db-capable — a single-database driver in
+    // this harness. The opt-in checkbox must not appear for it (only
+    // schema-based drivers get the checkbox).
+    renderModal(createInitialConnection({ driver: "mysql", database: "shop" }));
+
+    expect(screen.queryByText("newConnection.browseMultipleDatabases")).not.toBeInTheDocument();
+  });
+});
+
+describe("NewConnectionModal keychain default", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    driverState.defaultPort = 3306;
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "save_connection") {
+        return Promise.resolve({
+          id: "new-connection",
+          params: { save_in_keychain: true },
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+    sshMocks.loadSshConnections.mockResolvedValue([]);
+    k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+  });
+
+  function keychainCheckbox() {
+    return screen.getByRole("checkbox", { name: "newConnection.saveKeychain" });
+  }
+
+  it("defaults a new connection to the keychain and keeps it on when the driver changes", () => {
+    renderModal();
+    pickEngineFromCatalogue();
+
+    expect(keychainCheckbox()).toBeChecked();
+    expect(
+      screen.queryByText("newConnection.secretsStoredInPlainText"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "newConnection.changeDatabase" }));
+    pickEngineFromCatalogue();
+
+    expect(keychainCheckbox()).toBeChecked();
+    expect(
+      screen.queryByText("newConnection.secretsStoredInPlainText"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("warns that secrets are stored in plain text when the keychain is turned off", () => {
+    renderModal();
+    pickEngineFromCatalogue();
+
+    fireEvent.click(keychainCheckbox());
+
+    expect(keychainCheckbox()).not.toBeChecked();
+    expect(
+      screen.getByText("newConnection.secretsStoredInPlainText"),
+    ).toBeInTheDocument();
+  });
+
+  it("saves a new connection with the keychain enabled", async () => {
+    renderModal();
+    pickEngineFromCatalogue();
+
+    fireEvent.change(screen.getByPlaceholderText("newConnection.namePlaceholder"), {
+      target: { value: "Local" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("newConnection.dbNamePlaceholder"), {
+      target: { value: "shop" },
+    });
+    fireEvent.click(screen.getByText("newConnection.save"));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "save_connection",
+        expect.objectContaining({
+          params: expect.objectContaining({ save_in_keychain: true }),
+        }),
+      );
+    });
+    expect(alertMocks.showAlert).not.toHaveBeenCalled();
+  });
+
+  it("tells the user when a save fell back to plain text", async () => {
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "save_connection") {
+        return Promise.resolve({
+          id: "new-connection",
+          params: { save_in_keychain: false },
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+    renderModal();
+    pickEngineFromCatalogue();
+
+    fireEvent.change(screen.getByPlaceholderText("newConnection.namePlaceholder"), {
+      target: { value: "Local" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("newConnection.dbNamePlaceholder"), {
+      target: { value: "shop" },
+    });
+    fireEvent.click(screen.getByText("newConnection.save"));
+
+    await waitFor(() => {
+      expect(alertMocks.showAlert).toHaveBeenCalledWith(
+        "newConnection.secretsStoredInPlainText",
+        { kind: "warning" },
+      );
+    });
+  });
+
+  it("keeps an existing connection's stored keychain setting", async () => {
+    renderModal(
+      createInitialConnection({
+        save_in_keychain: false,
+        database: "shop",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "get_connection_by_id",
+        expect.anything(),
+      );
+    });
+    expect(keychainCheckbox()).not.toBeChecked();
+    expect(
+      screen.getByText("newConnection.secretsStoredInPlainText"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps an existing keychain-backed connection opted in", async () => {
+    renderModal(
+      createInitialConnection({
+        save_in_keychain: true,
+        database: "shop",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "get_connection_by_id",
+        expect.anything(),
+      );
+    });
+    expect(keychainCheckbox()).toBeChecked();
+    expect(
+      screen.queryByText("newConnection.secretsStoredInPlainText"),
+    ).not.toBeInTheDocument();
   });
 });

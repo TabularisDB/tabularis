@@ -7,6 +7,24 @@ export interface TabLike {
   id: string;
 }
 
+/** Keep live history entries first, then append tabs not visited this session. */
+export function getRecentTabIds(tabs: TabLike[], history: readonly string[]): string[] {
+  const open = new Set(tabs.map((tab) => tab.id));
+  return [...new Set([...history, ...tabs.map((tab) => tab.id)])].filter((id) => open.has(id));
+}
+
+/** Resolve a step in a frozen MRU order without changing the history. */
+export function resolveRecentTabId(
+  order: readonly string[],
+  activeTabId: string | null,
+  backwards = false,
+): string | null {
+  if (order.length === 0) return null;
+  const index = order.indexOf(activeTabId ?? "");
+  if (index === -1) return order[backwards ? order.length - 1 : 0];
+  return order[(index + (backwards ? -1 : 1) + order.length) % order.length];
+}
+
 /**
  * Computes whether the scroll container can scroll left or right
  * based on its current scroll position and dimensions.

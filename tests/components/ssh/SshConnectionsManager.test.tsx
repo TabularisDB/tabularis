@@ -120,6 +120,27 @@ describe("SshConnectionsManager", () => {
     expect(sshMocks.updateSshConnection).not.toHaveBeenCalled();
   });
 
+  it("warns about plain-text secrets when the keychain box is unticked", async () => {
+    render(<SshConnectionsManager />);
+    await waitFor(() => screen.getByText("Prod bastion"));
+    fireEvent.click(screen.getByText("sshConnections.createNew"));
+
+    const toggle = screen.getByLabelText("newConnection.saveKeychain");
+    expect(toggle).toBeChecked();
+    expect(toggle).not.toHaveAttribute("aria-describedby");
+    expect(
+      screen.queryByText("newConnection.secretsStoredInPlainText"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+
+    expect(toggle).not.toBeChecked();
+    const warning = screen.getByText("newConnection.secretsStoredInPlainText");
+    expect(warning).toHaveAttribute("id", "ssh-secrets-plaintext-warning");
+    expect(toggle).toHaveAttribute("aria-describedby", "ssh-secrets-plaintext-warning");
+    expect(toggle).toHaveAccessibleDescription("newConnection.secretsStoredInPlainText");
+  });
+
   it("asks for confirmation before deleting and deletes on confirm", async () => {
     render(<SshConnectionsManager />);
     await screen.findByText("Prod bastion");

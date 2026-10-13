@@ -779,6 +779,195 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
+    // Statements that start like a read but write. A leading SELECT or PRAGMA
+    // is not enough: these must be gated like the writes they are, or they
+    // slip past read-only mode and the write-approval prompt.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn classify_select_into_is_write() {
+        assert_eq!(
+            classify_query_kind("SELECT 1 AS x INTO mcp_bypass_test"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("SELECT * INTO stolen_copy FROM users"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("select * into temp t from users"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("WITH a AS (SELECT 1) SELECT * INTO t2 FROM a"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("(SELECT * INTO t2 FROM users)"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("EXPLAIN ANALYZE SELECT * INTO t2 FROM users"),
+            "write"
+        );
+    }
+
+    #[test]
+    fn classify_mysql_select_into_file_is_write() {
+        assert_eq!(
+            classify_query_kind("SELECT * FROM users INTO OUTFILE '/tmp/x'"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("SELECT secret FROM users LIMIT 1 INTO DUMPFILE '/tmp/x'"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("SELECT COUNT(*) INTO @n FROM users"),
+            "write"
+        );
+    }
+
+    #[test]
+    fn classify_locking_reads_are_write() {
+        assert_eq!(classify_query_kind("SELECT * FROM t FOR UPDATE"), "write");
+        assert_eq!(classify_query_kind("SELECT * FROM t FOR SHARE"), "write");
+        assert_eq!(
+            classify_query_kind("SELECT * FROM t FOR NO KEY UPDATE"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("SELECT * FROM t FOR KEY SHARE"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("SELECT * FROM t LOCK IN SHARE MODE"),
+            "write"
+        );
+        // FOR as part of other syntax is not a locking clause.
+        assert_eq!(
+            classify_query_kind("SELECT SUBSTRING(name FROM 1 FOR 3) FROM t"),
+            "select"
+        );
+    }
+
+    #[test]
+    fn classify_side_effect_functions_are_write() {
+        assert_eq!(
+            classify_query_kind("SELECT pg_terminate_backend(pid) FROM pg_stat_activity"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("SELECT setval('users_id_seq', 1)"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("SELECT nextval ('users_id_seq')"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("SELECT lo_export(16409, '/tmp/x')"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("SELECT dblink_exec('dbname=x', 'DROP TABLE t')"),
+            "write"
+        );
+        assert_eq!(classify_query_kind("SELECT pg_reload_conf()"), "write");
+    }
+
+    #[test]
+    fn classify_side_effect_function_via_quoted_name_is_not_a_read() {
+        // Quoting the function name hides it from the bare-name denylist. A
+        // read-only transaction does not stop `lo_export` (it writes a file on
+        // the host), so this must not be classified as a clean read.
+        for q in [
+            "SELECT \"lo_export\"(16409, '/tmp/x')",
+            "SELECT pg_catalog.\"lo_export\"(16409, '/tmp/x')",
+            "SELECT U&\"lo_export\"(16409, '/tmp/x')",
+            "SELECT \"pg_terminate_backend\"(pid) FROM pg_stat_activity",
+            "SELECT `lo_export`(16409, '/tmp/x')",
+        ] {
+            assert_ne!(classify_query_kind(q), "select", "query: {q}");
+        }
+    }
+
+    #[test]
+    fn classify_side_effect_function_hidden_by_string_desync_is_not_a_read() {
+        // Dollar-quoted and escape-string literals must be skipped whole, or a
+        // `'` inside them desynchronises the scanner and masks the call that
+        // follows.
+        for q in [
+            "SELECT $$'$$, lo_export(16409, '/tmp/x')",
+            "SELECT $tag$'$tag$, lo_export(16409, '/tmp/x')",
+            "SELECT E'\\'', lo_export(16409, '/tmp/x')",
+            // In U&'...' a backslash only starts a unicode escape and cannot
+            // escape a quote, so the standard reading already ends it right.
+            "SELECT U&'\\0041\\\\', lo_export(16409, '/tmp/x')",
+            "SELECT U&'d!0061t!+000061' UESCAPE '!', lo_export(16409, '/tmp/x')",
+        ] {
+            assert_ne!(classify_query_kind(q), "select", "query: {q}");
+        }
+    }
+
+    #[test]
+    fn classify_quoted_non_call_identifiers_stay_select() {
+        // A quoted identifier not used as a function call is still a read.
+        assert_eq!(classify_query_kind("SELECT \"lo_export\" FROM t"), "select");
+        assert_eq!(classify_query_kind("SELECT count(\"x\") FROM t"), "select");
+        assert_eq!(
+            classify_query_kind("SELECT \"a b\", \"c\" FROM t"),
+            "select"
+        );
+        // A dollar-quoted / escape-string body with no trailing call is a read.
+        assert_eq!(classify_query_kind("SELECT $$hello ; world$$"), "select");
+        assert_eq!(classify_query_kind("SELECT E'line\\n'"), "select");
+    }
+
+    #[test]
+    fn classify_side_effect_names_without_a_call_stay_select() {
+        // A column or table named like a function is not a call.
+        assert_eq!(classify_query_kind("SELECT setval FROM t"), "select");
+        assert_eq!(classify_query_kind("SELECT * FROM dblink_log"), "select");
+        // Names inside literals and quoted identifiers are ignored.
+        assert_eq!(classify_query_kind("SELECT 'setval(1)' AS s"), "select");
+        assert_eq!(classify_query_kind("SELECT \"into\" FROM t"), "select");
+        assert_eq!(
+            classify_query_kind("SELECT 'a' AS \"for update\""),
+            "select"
+        );
+    }
+
+    #[test]
+    fn classify_pragma_assignment_is_write() {
+        assert_eq!(classify_query_kind("PRAGMA user_version = 42"), "write");
+        assert_eq!(classify_query_kind("PRAGMA journal_mode = DELETE"), "write");
+        assert_eq!(classify_query_kind("PRAGMA query_only = 0"), "write");
+        assert_eq!(classify_query_kind("PRAGMA main.user_version=1;"), "write");
+        assert_eq!(classify_query_kind("PRAGMA journal_mode(DELETE)"), "write");
+        assert_eq!(classify_query_kind("PRAGMA optimize"), "write");
+        assert_eq!(
+            classify_query_kind("PRAGMA wal_checkpoint(TRUNCATE)"),
+            "write"
+        );
+    }
+
+    #[test]
+    fn classify_pragma_reads_stay_select() {
+        assert_eq!(classify_query_kind("PRAGMA user_version"), "select");
+        assert_eq!(classify_query_kind("PRAGMA journal_mode;"), "select");
+        assert_eq!(
+            classify_query_kind("PRAGMA main.table_info(users)"),
+            "select"
+        );
+        assert_eq!(
+            classify_query_kind("PRAGMA foreign_key_list('orders')"),
+            "select"
+        );
+        assert_eq!(classify_query_kind("PRAGMA index_list(t)"), "select");
+    }
+
+    // -----------------------------------------------------------------------
     // Session state / compute_or_rotate_session_id
     // -----------------------------------------------------------------------
 

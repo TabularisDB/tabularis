@@ -451,12 +451,14 @@ function PluginVersionActions({
 function PluginToggle({
   enabled,
   disabled,
+  loading = false,
   onToggle,
   label,
   title,
 }: {
   enabled: boolean;
   disabled?: boolean;
+  loading?: boolean;
   onToggle: () => void;
   label?: string;
   title?: string;
@@ -465,7 +467,8 @@ function PluginToggle({
     <button
       type="button"
       onClick={onToggle}
-      disabled={disabled}
+      disabled={disabled || loading}
+      aria-busy={loading}
       aria-label={label ?? (enabled ? "Disable plugin" : "Enable plugin")}
       aria-pressed={enabled}
       title={title}
@@ -477,13 +480,17 @@ function PluginToggle({
         disabled ? "cursor-not-allowed" : "cursor-pointer",
       )}
     >
-      <span
-        className={clsx(
-          "pointer-events-none inline-block h-4 w-4 rounded-full shadow",
-          "transition duration-200 ease-in-out",
-          enabled ? "translate-x-4 bg-inverse" : "translate-x-0 bg-primary",
-        )}
-      />
+      {loading ? (
+        <Loader2 size={14} className="mx-auto animate-spin text-inverse" aria-hidden="true" />
+      ) : (
+        <span
+          className={clsx(
+            "pointer-events-none inline-block h-4 w-4 rounded-full shadow",
+            "transition duration-200 ease-in-out",
+            enabled ? "translate-x-4 bg-inverse" : "translate-x-0 bg-primary",
+          )}
+        />
+      )}
     </button>
   );
 }
@@ -602,6 +609,7 @@ export function PluginsTab({
   const [uninstallingPluginId, setUninstallingPluginId] = useState<
     string | null
   >(null);
+  const [togglingPluginId, setTogglingPluginId] = useState<string | null>(null);
   const [pluginRemoveConfirm, setPluginRemoveConfirm] = useState<{
     pluginId: string;
     pluginName: string;
@@ -937,6 +945,8 @@ export function PluginsTab({
 
   const doToggle = useCallback(
     async (pluginId: string, pluginName: string, isEnabled: boolean) => {
+      if (togglingPluginId !== null) return;
+      setTogglingPluginId(pluginId);
       try {
         if (isEnabled) {
           await invoke("disable_plugin", { pluginId });
@@ -958,9 +968,11 @@ export function PluginsTab({
           pluginName,
           error: String(err),
         });
+      } finally {
+        setTogglingPluginId(null);
       }
     },
-    [activeExternalDrivers, updateSetting, refreshDrivers],
+    [activeExternalDrivers, updateSetting, refreshDrivers, togglingPluginId],
   );
 
   const doToggleTheme = useCallback(
@@ -1419,8 +1431,10 @@ export function PluginsTab({
                       ) : (
                         <PluginToggle
                           enabled={isEnabled}
+                          loading={togglingPluginId === driver.id}
+                          disabled={togglingPluginId !== null || uninstallingPluginId === driver.id}
                           onToggle={() =>
-                            doToggle(driver.id, driver.name, isEnabled)
+                            void doToggle(driver.id, driver.name, isEnabled)
                           }
                         />
                       );
@@ -1536,29 +1550,9 @@ export function PluginsTab({
                           control={
                             <PluginToggle
                               enabled={false}
-                              onToggle={async () => {
-                                try {
-                                  await invoke("enable_plugin", {
-                                    pluginId: plugin.id,
-                                  });
-                                  await updateSetting(
-                                    "activeExternalDrivers",
-                                    Array.from(
-                                      new Set([
-                                        ...activeExternalDrivers,
-                                        plugin.id,
-                                      ]),
-                                    ),
-                                  );
-                                  refreshDrivers();
-                                } catch (err) {
-                                  setPluginStartError({
-                                    pluginId: plugin.id,
-                                    pluginName: plugin.name,
-                                    error: String(err),
-                                  });
-                                }
-                              }}
+                              loading={togglingPluginId === plugin.id}
+                              disabled={togglingPluginId !== null || uninstallingPluginId === plugin.id}
+                              onToggle={() => void doToggle(plugin.id, plugin.name, false)}
                             />
                           }
                           upToDate={!!registryPlugin && registryPlugin.latest_version === plugin.version}

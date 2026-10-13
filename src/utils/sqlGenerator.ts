@@ -220,7 +220,9 @@ export function generateColumnDefinition(
 
 /**
  * Generates the PRIMARY KEY constraint clause.
- * When inline_pk is true (e.g. SQLite), returns null because the PK is in the column def.
+ * When inline_pk is true (e.g. SQLite), an auto-increment column already carries
+ * the key in its column def (INTEGER PRIMARY KEY AUTOINCREMENT), so this returns
+ * null; any other key (plain INTEGER PRIMARY KEY, TEXT, composite) still needs it.
  * Accepts either a DriverCapabilities object or a legacy string driver ID.
  * The identifier quote character is derived internally from the driver.
  */
@@ -233,7 +235,7 @@ export function generatePrimaryKeyConstraint(
   const pkColumns = columns.filter(c => c.is_pk).map(c => `${q}${c.name}${q}`);
 
   if (pkColumns.length === 0) return null;
-  if (caps.inline_pk) return null;
+  if (caps.inline_pk && columns.some(c => c.is_auto_increment)) return null;
 
   return `  PRIMARY KEY (${pkColumns.join(', ')})`;
 }

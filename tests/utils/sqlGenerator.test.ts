@@ -231,9 +231,16 @@ describe('sqlGenerator utils', () => {
       expect(generatePrimaryKeyConstraint(columns, 'mysql')).toBeNull();
     });
 
-    it('should return null for SQLite', () => {
+    it('should return a constraint for a SQLite key that is not auto-increment', () => {
       const columns: TableColumn[] = [
         { name: 'id', data_type: 'INT', is_pk: true, is_nullable: false, is_auto_increment: false, default_value: null },
+      ];
+      expect(generatePrimaryKeyConstraint(columns, 'sqlite')).toBe('  PRIMARY KEY ("id")');
+    });
+
+    it('should return null for SQLite when an auto-increment column carries the key inline', () => {
+      const columns: TableColumn[] = [
+        { name: 'id', data_type: 'INTEGER', is_pk: true, is_nullable: false, is_auto_increment: true, default_value: null },
       ];
       expect(generatePrimaryKeyConstraint(columns, 'sqlite')).toBeNull();
     });
@@ -592,6 +599,27 @@ describe('sqlGenerator utils', () => {
       expect(result).not.toContain('PRIMARY KEY ("id")'); // SQLite handles PK in column def
     });
 
+    it('should keep the primary key of a SQLite table without AUTOINCREMENT', () => {
+      // What the SQLite driver reports for `id INTEGER PRIMARY KEY, name TEXT`.
+      const sqliteColumns: TableColumn[] = [
+        { name: 'id', data_type: 'INTEGER', is_pk: true, is_nullable: true, is_auto_increment: false, default_value: null },
+        { name: 'name', data_type: 'TEXT', is_pk: false, is_nullable: true, is_auto_increment: false, default_value: null },
+      ];
+      const result = generateCreateTableSQL('users', sqliteColumns, [], [], 'sqlite');
+      expect(result).toBe(
+        'CREATE TABLE "users" (\n  "id" INTEGER,\n  "name" TEXT,\n  PRIMARY KEY ("id")\n);',
+      );
+    });
+
+    it('should keep a composite SQLite primary key', () => {
+      const pairColumns: TableColumn[] = [
+        { name: 'a', data_type: 'TEXT', is_pk: true, is_nullable: true, is_auto_increment: false, default_value: null },
+        { name: 'b', data_type: 'INTEGER', is_pk: true, is_nullable: true, is_auto_increment: false, default_value: null },
+      ];
+      const result = generateCreateTableSQL('pair', pairColumns, [], [], 'sqlite');
+      expect(result).toContain('  PRIMARY KEY ("a", "b")');
+    });
+
     it('should handle empty columns array', () => {
       const result = generateCreateTableSQL('empty', [], [], [], 'mysql');
       expect(result).toContain('CREATE TABLE `empty` (');
@@ -695,9 +723,15 @@ describe('sqlGenerator utils', () => {
       { name: 'id', data_type: 'INT', is_pk: true, is_nullable: false, is_auto_increment: false, default_value: null },
     ];
 
-    it('should return null when inline_pk is true', () => {
+    it('should return null when inline_pk is true and an auto-increment column carries the key', () => {
       const caps = makeCaps({ identifier_quote: '"', inline_pk: true });
-      expect(generatePrimaryKeyConstraint(pkColumns, caps)).toBeNull();
+      const autoIncrementPk = [{ ...pkColumns[0], is_auto_increment: true }];
+      expect(generatePrimaryKeyConstraint(autoIncrementPk, caps)).toBeNull();
+    });
+
+    it('should return constraint when inline_pk is true but no column is auto-increment', () => {
+      const caps = makeCaps({ identifier_quote: '"', inline_pk: true });
+      expect(generatePrimaryKeyConstraint(pkColumns, caps)).toBe('  PRIMARY KEY ("id")');
     });
 
     it('should return constraint when inline_pk is false', () => {

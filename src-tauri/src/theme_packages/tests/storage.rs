@@ -1,6 +1,6 @@
 use super::super::storage::install_with_rename;
 use super::super::{install_validated_theme, recover_theme_transactions, validate_theme_archive};
-use super::archive::{definition, manifest, package, valid_package};
+use super::archive::{definition, manifest, package, temp_dir, valid_package};
 use std::cell::Cell;
 use std::fs;
 use std::path::Path;
@@ -9,7 +9,7 @@ use uuid::Uuid;
 #[test]
 fn lock_contention_remains_cancellable_without_touching_the_installation() {
     use fs2::FileExt;
-    let temporary = tempfile::tempdir().unwrap();
+    let temporary = temp_dir();
     let key = "a".repeat(64);
     install_validated_theme(temporary.path(), &key, &validated("1.0.0"), &|| Ok(())).unwrap();
     let folder = temporary.path().join("themes");
@@ -34,7 +34,7 @@ fn lock_contention_remains_cancellable_without_touching_the_installation() {
 
 #[test]
 fn cancellation_after_commit_begins_cannot_misreport_a_committed_update() {
-    let temporary = tempfile::tempdir().unwrap();
+    let temporary = temp_dir();
     let key = "a".repeat(64);
     install_validated_theme(temporary.path(), &key, &validated("1.0.0"), &|| Ok(())).unwrap();
     let cancelled = Cell::new(false);
@@ -93,7 +93,7 @@ fn assert_clean(folder: &Path) {
 
 #[test]
 fn install_and_update_are_namespaced_and_do_not_touch_preferences_or_personal_files() {
-    let temporary = tempfile::tempdir().unwrap();
+    let temporary = temp_dir();
     let root = temporary.path().join("plugins");
     let key = "a".repeat(64);
     let other_key = "b".repeat(64);
@@ -133,7 +133,7 @@ fn install_and_update_are_namespaced_and_do_not_touch_preferences_or_personal_fi
 
 #[test]
 fn every_precommit_cancellation_point_preserves_the_previous_installation() {
-    let temporary = tempfile::tempdir().unwrap();
+    let temporary = temp_dir();
     let key = "a".repeat(64);
     let root = temporary.path();
     install_validated_theme(root, &key, &validated("1.0.0"), &|| Ok(())).unwrap();
@@ -163,7 +163,7 @@ fn every_precommit_cancellation_point_preserves_the_previous_installation() {
 
 #[test]
 fn replacement_failure_restores_old_data_and_cleans_staging() {
-    let temporary = tempfile::tempdir().unwrap();
+    let temporary = temp_dir();
     let key = "a".repeat(64);
     install_validated_theme(temporary.path(), &key, &validated("1.0.0"), &|| Ok(())).unwrap();
     let destination = temporary
@@ -196,7 +196,7 @@ fn replacement_failure_restores_old_data_and_cleans_staging() {
 
 #[test]
 fn failed_rollback_retains_recoverable_originals_and_explicit_recovery_is_idempotent() {
-    let temporary = tempfile::tempdir().unwrap();
+    let temporary = temp_dir();
     let key = "a".repeat(64);
     install_validated_theme(temporary.path(), &key, &validated("1.0.0"), &|| Ok(())).unwrap();
     let folder = temporary.path().join("themes");
@@ -228,7 +228,7 @@ fn failed_rollback_retains_recoverable_originals_and_explicit_recovery_is_idempo
 
 #[test]
 fn recovery_removes_precommit_staging_and_keeps_an_already_committed_destination() {
-    let temporary = tempfile::tempdir().unwrap();
+    let temporary = temp_dir();
     let key = "a".repeat(64);
     install_validated_theme(temporary.path(), &key, &validated("1.0.0"), &|| Ok(())).unwrap();
     let folder = temporary.path().join("themes");
@@ -252,7 +252,7 @@ fn recovery_removes_precommit_staging_and_keeps_an_already_committed_destination
 
 #[test]
 fn invalid_registry_identity_and_missing_recovery_do_not_create_directories() {
-    let temporary = tempfile::tempdir().unwrap();
+    let temporary = temp_dir();
     let root = temporary.path().join("absent");
     let parsed = validate_theme_archive(
         &valid_package(),
@@ -270,7 +270,7 @@ fn invalid_registry_identity_and_missing_recovery_do_not_create_directories() {
 
 #[test]
 fn untrusted_or_corrupt_recovery_records_cannot_escape_the_namespace() {
-    let temporary = tempfile::tempdir().unwrap();
+    let temporary = temp_dir();
     let key = "a".repeat(64);
     install_validated_theme(temporary.path(), &key, &validated("1.0.0"), &|| Ok(())).unwrap();
     let folder = temporary.path().join("themes");
@@ -289,8 +289,8 @@ fn untrusted_or_corrupt_recovery_records_cannot_escape_the_namespace() {
 fn symlinked_storage_roots_namespaces_and_destinations_are_rejected() {
     use std::os::unix::fs::symlink;
     for target in ["root", "namespace", "destination"] {
-        let temporary = tempfile::tempdir().unwrap();
-        let outside = tempfile::tempdir().unwrap();
+        let temporary = temp_dir();
+        let outside = temp_dir();
         fs::write(outside.path().join("sentinel"), b"unchanged").unwrap();
         let root = temporary.path().join("packages");
         let key = "a".repeat(64);

@@ -13,6 +13,7 @@ export interface CleanedTab {
   activeTable: string | null;
   pkColumns: string[] | null;
   connectionId: string;
+  database?: string;
   flowState?: Tab['flowState'];
   isEditorOpen?: boolean;
   filterClause?: string;
@@ -47,6 +48,7 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
     activeTable: tab.activeTable,
     pkColumns: tab.pkColumns,
     connectionId: tab.connectionId,
+    database: tab.database,
     flowState: tab.flowState,
     isEditorOpen: tab.isEditorOpen,
     filterClause: tab.filterClause,

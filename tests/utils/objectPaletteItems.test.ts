@@ -157,6 +157,62 @@ describe("createObjectPaletteItems", () => {
     });
   });
 
+  it("should thread a nested multi-db item's database into its group, keywords, and every action", async () => {
+    const runtime = createRuntime();
+    const navigatorItems: NavigatorItem[] = [
+      {
+        type: "table",
+        name: "orders",
+        schema: "public",
+        database: "analytics",
+        item: { name: "orders" },
+      },
+    ];
+
+    const [item] = createObjectPaletteItems({
+      navigatorItems,
+      connectionId: "connection-b",
+      driver: "postgresql",
+      hasGroups: true,
+      isMultiDatabase: false,
+      labels,
+      runtime,
+    });
+
+    expect(item.group).toBe("analytics.public");
+    expect(item.keywords).toEqual(["public", "analytics"]);
+
+    await item.primaryAction.execute();
+    await item.actions?.find((action) => action.id === "inspect")?.execute();
+    await item.actions?.find((action) => action.id === "new-console")?.execute();
+    await item.actions?.find((action) => action.id === "generate-sql")?.execute();
+
+    const target = {
+      connectionId: "connection-b",
+      tableName: "orders",
+      schema: "public",
+      database: "analytics",
+    };
+    expect(runtime.inspect).toHaveBeenCalledWith(target);
+    expect(runtime.generateSql).toHaveBeenCalledWith(target);
+    expect(runtime.navigateToEditor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "table",
+        schema: "public",
+        database: "analytics",
+        targetConnectionId: "connection-b",
+      }),
+    );
+    expect(runtime.navigateToEditor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "console",
+        schema: "public",
+        database: "analytics",
+        targetConnectionId: "connection-b",
+      }),
+    );
+  });
+
   it("should use the discriminated routine payload without casting", async () => {
     const runtime = createRuntime();
     vi.mocked(runtime.loadRoutineDefinition).mockResolvedValue(

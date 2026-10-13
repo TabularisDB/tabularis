@@ -563,6 +563,7 @@ pub async fn get_all_foreign_keys_batch(
         JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
         ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
         AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
+        AND kcu.TABLE_NAME = rc.TABLE_NAME
         WHERE kcu.TABLE_SCHEMA = ?
         AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
         ORDER BY kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION
@@ -620,13 +621,16 @@ pub async fn get_indexes(
         }
     };
 
+    // SEQ_IN_INDEX is INT UNSIGNED on MySQL 8 (a signed BIGINT on 5.7) and sqlx
+    // won't decode an unsigned column into a signed integer, so cast it to read
+    // the same way on both.
     let query = if has_expression {
         r#"
         SELECT
             INDEX_NAME,
             COLUMN_NAME,
             NON_UNIQUE,
-            SEQ_IN_INDEX,
+            CAST(SEQ_IN_INDEX AS SIGNED),
             EXPRESSION
         FROM information_schema.STATISTICS
         WHERE TABLE_SCHEMA = ?
@@ -639,7 +643,7 @@ pub async fn get_indexes(
             INDEX_NAME,
             COLUMN_NAME,
             NON_UNIQUE,
-            SEQ_IN_INDEX
+            CAST(SEQ_IN_INDEX AS SIGNED)
         FROM information_schema.STATISTICS
         WHERE TABLE_SCHEMA = ?
         AND TABLE_NAME = ?
@@ -670,7 +674,12 @@ pub async fn get_indexes(
                 },
                 is_unique: non_unique == 0,
                 is_primary: index_name == "PRIMARY",
-                seq_in_index: r.try_get::<i64, _>(3).unwrap_or(0) as i32,
+                seq_in_index: r.try_get::<i64, _>(3).unwrap_or_else(|e| {
+                    log::warn!(
+                        "MySQL: Could not read the column position in index `{index_name}`: {e}"
+                    );
+                    0
+                }) as i32,
                 is_expression,
             }
         })
@@ -1555,6 +1564,37 @@ pub async fn execute_query(
     exec_on_mysql_conn(&mut *conn, query, limit, page, text).await
 }
 
+/// Runs one statement inside `START TRANSACTION READ ONLY` and always rolls
+/// it back, so MySQL rejects any table write the statement attempts (for
+/// example a stored function that modifies data). File writes such as
+/// `INTO OUTFILE` are not table writes; the MCP classifier gates those.
+///
+/// If the rollback fails, or the run is dropped mid-flight, the connection is
+/// closed instead of returned to the pool.
+pub async fn execute_read_only_query(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+) -> Result<QueryResult, String> {
+    use sqlx::Executor as _;
+    let mut guard =
+        crate::drivers::common::DetachOnDrop::new(acquire_mysql_conn(params, schema).await?);
+    guard
+        .conn()
+        .execute(sqlx::raw_sql("START TRANSACTION READ ONLY"))
+        .await
+        .map_err(|e| e.to_string())?;
+    let text = TextProto::protocol_only(force_text_protocol(params));
+    let outcome = exec_on_mysql_conn(guard.conn(), query, limit, page, text).await;
+    match guard.conn().execute(sqlx::raw_sql("ROLLBACK")).await {
+        Ok(_) => guard.release(),
+        Err(e) => log::warn!("MySQL: ROLLBACK after a read-only query failed: {e}"),
+    }
+    outcome
+}
+
 /// Runs a sequence of statements on a single pooled connection so that
 /// session-local state (user variables, `LAST_INSERT_ID()`, transactions,
 /// `TEMPORARY TABLE`, `PREPARE`/`EXECUTE`) is preserved across statements.
@@ -2377,6 +2417,17 @@ impl DatabaseDriver for MysqlDriver {
         execute_query(params, query, limit, page, schema).await
     }
 
+    async fn execute_read_only_query(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<crate::models::QueryResult, String> {
+        execute_read_only_query(params, query, limit, page, schema).await
+    }
+
     async fn execute_batch(
         &self,
         params: &crate::models::ConnectionParams,
@@ -2606,6 +2657,15 @@ impl DatabaseDriver for MysqlDriver {
             sql.push_str(&format!(" ON UPDATE {}", action));
         }
         Ok(vec![sql])
+    }
+
+    async fn get_table_ddl(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_table_ddl(params, table).await
     }
 
     async fn drop_index(

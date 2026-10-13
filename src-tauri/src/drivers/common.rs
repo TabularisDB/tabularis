@@ -1,4 +1,5 @@
 mod blob;
+mod pooled;
 mod query;
 mod routines;
 mod safe_int;
@@ -10,6 +11,7 @@ pub use blob::{
     decode_blob_wire_format, encode_blob, encode_blob_full, resolve_blob_file_ref,
     DEFAULT_MAX_BLOB_SIZE, MAX_BLOB_PREVIEW_SIZE,
 };
+pub use pooled::DetachOnDrop;
 pub use query::{
     build_paginated_query, calculate_offset, extract_user_limit, extract_user_offset,
     is_explainable_query,

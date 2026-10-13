@@ -3,12 +3,16 @@ import { useTranslation } from "react-i18next";
 import { Check, Plus, Minus } from "lucide-react";
 import type { TableColumn } from "../../types/editor";
 import {
+  applyPickedValues,
   getOperatorsForType,
+  getPickedValues,
   isFilterComplete,
+  isValuePickerSupported,
   NO_VALUE_OPS,
 } from "../../utils/filterBar";
-import type { StructuredFilter, FilterOperator } from "../../utils/filterBar";
+import type { DistinctValue, StructuredFilter, FilterOperator } from "../../utils/filterBar";
 import { StyledSelect } from "./StyledSelect";
+import { FilterValuePicker } from "./FilterValuePicker";
 
 /** i18n keys for text-friendly operators (SQL tokens keep their raw labels). */
 const OPERATOR_LABEL_KEYS: Partial<Record<FilterOperator, string>> = {
@@ -29,6 +33,13 @@ export interface FilterRowProps {
   onEscape: () => void;
   isApplied: boolean;
   onTriggerApplied: () => void;
+  /**
+   * Loads the most frequent values of this row's column for the value picker.
+   * The picker is only offered when this is set (table tabs).
+   */
+  onLoadValues?: (filter: StructuredFilter) => Promise<DistinctValue[]>;
+  /** Identifies the connection and query whose values the picker displays. */
+  valuePickerContextKey?: string;
 }
 
 export const FilterRow = ({
@@ -41,6 +52,8 @@ export const FilterRow = ({
   onEscape,
   isApplied,
   onTriggerApplied,
+  onLoadValues,
+  valuePickerContextKey,
 }: FilterRowProps) => {
   const { t } = useTranslation();
   const selectedCol = columns.find((c) => c.name === filter.column);
@@ -49,6 +62,9 @@ export const FilterRow = ({
 
   const isBetween = filter.operator === "BETWEEN";
   const noValue = NO_VALUE_OPS.includes(filter.operator);
+  const dataType = selectedCol?.data_type ?? "";
+  const showValuePicker =
+    !!onLoadValues && !!filter.column && !noValue && !isBetween && isValuePickerSupported(dataType);
 
   const handleColumnChange = (col: string) => {
     const colMeta = columns.find((c) => c.name === col);
@@ -112,18 +128,28 @@ export const FilterRow = ({
 
       {/* Value */}
       {!noValue && !isBetween && (
-        <input
-          type="text"
-          spellCheck={false}
-          autoCorrect="off"
-          autoCapitalize="off"
-          value={filter.value}
-          onChange={(e) => onChange({ ...filter, value: e.target.value })}
-          onKeyDown={handleValueKeyDown}
-          className="flex-1 min-w-0 bg-base border border-default rounded px-2 py-1 text-xs text-secondary font-mono focus:outline-none focus:border-focus/60 transition-colors"
-          placeholder={t("toolbar.valuePlaceholder")}
-          autoComplete="off"
-        />
+        <div className="flex items-center gap-1 flex-1 min-w-0">
+          <input
+            type="text"
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            value={filter.value}
+            onChange={(e) => onChange({ ...filter, value: e.target.value })}
+            onKeyDown={handleValueKeyDown}
+            className="flex-1 min-w-0 bg-base border border-default rounded px-2 py-1 text-xs text-secondary font-mono focus:outline-none focus:border-focus/60 transition-colors"
+            placeholder={t("toolbar.valuePlaceholder")}
+            autoComplete="off"
+          />
+          {showValuePicker && (
+            <FilterValuePicker
+              key={JSON.stringify([valuePickerContextKey, filter, dataType])}
+              load={() => onLoadValues(filter)}
+              selected={getPickedValues(filter)}
+              onApply={(values) => onChange(applyPickedValues(filter, values, dataType))}
+            />
+          )}
+        </div>
       )}
       {noValue && <div className="flex-1" />}
       {isBetween && (

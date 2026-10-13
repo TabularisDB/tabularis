@@ -18,8 +18,10 @@ use crate::models::{
     TableColumn, TableInfo, TriggerInfo, ViewInfo,
 };
 use crate::pool_manager::get_postgres_pool;
-use binding::{PgValueOptions, bind_pg_value, build_pk_map_predicate};
-use client::{execute, execute_typed, format_pg_error, get_client, query_all, query_one, query_one_typed};
+use binding::{bind_pg_value, build_pk_map_predicate, PgValueOptions};
+use client::{
+    execute, execute_typed, format_pg_error, get_client, query_all, query_one, query_one_typed,
+};
 pub use explain::explain_query;
 use extract::extract_value;
 use helpers::{
@@ -207,10 +209,7 @@ pub async fn get_columns(
 
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: enum_data_type(
-                    r.try_get("data_type").unwrap_or_default(),
-                    enum_values,
-                ),
+                data_type: enum_data_type(r.try_get("data_type").unwrap_or_default(), enum_values),
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
@@ -872,8 +871,7 @@ pub async fn update_record(
     }
 
     let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
-    let (predicate, pk_params) =
-        build_pk_map_predicate(pk_map, &pk_types, bound_params.len() + 1)?;
+    let (predicate, pk_params) = build_pk_map_predicate(pk_map, &pk_types, bound_params.len() + 1)?;
     query.push_str(" WHERE ");
     query.push_str(&predicate);
     bound_params.extend(pk_params);
@@ -893,19 +891,21 @@ pub async fn update_record(
         .cloned()
         .unwrap_or(serde_json::Value::Null);
 
-    execute_typed(&pool, &query, &params_ref).await.map_err(|err| {
-        update_record_error_context(
-            err,
-            schema,
-            table,
-            first_pk_col,
-            &first_pk_val,
-            col_name,
-            &new_val_for_context,
-            column_data_type.as_deref(),
-            &query,
-        )
-    })
+    execute_typed(&pool, &query, &params_ref)
+        .await
+        .map_err(|err| {
+            update_record_error_context(
+                err,
+                schema,
+                table,
+                first_pk_col,
+                &first_pk_val,
+                col_name,
+                &new_val_for_context,
+                column_data_type.as_deref(),
+                &query,
+            )
+        })
 }
 
 pub async fn insert_record(
@@ -1107,12 +1107,10 @@ async fn exec_on_pg_client(
     };
 
     let pg_params: Vec<i32> = vec![];
-    let mut rows_stream = std::pin::pin!(
-        client
-            .query_raw(&final_query, &pg_params)
-            .await
-            .map_err(|e| format_pg_error(&e))?
-    );
+    let mut rows_stream = std::pin::pin!(client
+        .query_raw(&final_query, &pg_params)
+        .await
+        .map_err(|e| format_pg_error(&e))?);
 
     let mut columns: Vec<String> = Vec::new();
     let mut json_rows = Vec::new();
@@ -1180,6 +1178,35 @@ pub async fn execute_query(
     let (result, _) =
         execute_query_in_session(params, query, limit, page, schema, None).await?;
     Ok(result)
+}
+
+/// Runs one statement inside `BEGIN READ ONLY` and always rolls it back, so
+/// PostgreSQL rejects any write the statement attempts (`SELECT … INTO`,
+/// `setval`, a volatile function that modifies data).
+///
+/// If the rollback fails, or the run is dropped mid-flight, the connection is
+/// closed instead of returned to the pool, so the read-only transaction never
+/// leaks into another caller.
+pub async fn execute_read_only_query(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+) -> Result<QueryResult, String> {
+    let mut in_flight = InFlight(Some(acquire_pg_client(params, schema).await?));
+    let client = in_flight.0.as_ref().expect("set above");
+    client
+        .batch_execute("BEGIN READ ONLY")
+        .await
+        .map_err(|e| format_pg_error(&e))?;
+    let outcome = exec_on_pg_client(client, query, limit, page).await;
+    match client.batch_execute("ROLLBACK").await {
+        // Back to the pool only once the transaction is closed.
+        Ok(()) => drop(in_flight.0.take()),
+        Err(e) => log::warn!("PostgreSQL: ROLLBACK after a read-only query failed: {e}"),
+    }
+    outcome
 }
 
 /// `execute_query` with the tab's connection carried across calls.
@@ -1511,10 +1538,7 @@ pub async fn get_view_columns(
 
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: enum_data_type(
-                    r.try_get("data_type").unwrap_or_default(),
-                    enum_values,
-                ),
+                data_type: enum_data_type(r.try_get("data_type").unwrap_or_default(), enum_values),
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
@@ -1611,10 +1635,19 @@ pub async fn get_materialized_view_definition(
 
     let client = pool.get().await.map_err(|e| e.to_string())?;
 
+    // Resolve via pg_class/pg_namespace with a `relkind = 'm'` filter so only
+    // materialized views match — a regular view or table name returns no row
+    // (a clean "not found") instead of wrong DDL. `pg_get_viewdef` alone
+    // resolves any relation by name. Binding schema/name as separate text
+    // params also avoids the PG 16 "error serializing parameter 0" failure
+    // that a direct `regclass` bind triggers.
     let row = client
         .query_one(
-            "SELECT pg_get_viewdef($1::regclass, true) as definition",
-            &[&qualified],
+            "SELECT pg_get_viewdef(c.oid, true) AS definition \
+             FROM pg_class c \
+             JOIN pg_namespace n ON c.relnamespace = n.oid \
+             WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind = 'm'",
+            &[&schema, &view_name],
         )
         .await
         .map_err(|e| format!("Failed to get materialized view definition: {}", e))?;
@@ -2107,7 +2140,9 @@ impl PostgresDriver {
                     key: "poolMaxSize".to_string(),
                     label: "Pool Max Size".to_string(),
                     setting_type: "number".to_string(),
-                    default: Some(serde_json::json!(crate::pool_manager::DEFAULT_POSTGRES_POOL_MAX_SIZE)),
+                    default: Some(serde_json::json!(
+                        crate::pool_manager::DEFAULT_POSTGRES_POOL_MAX_SIZE
+                    )),
                     description: Some(
                         "Maximum number of PostgreSQL connections kept in the pool.".to_string(),
                     ),
@@ -2196,7 +2231,7 @@ impl DatabaseDriver for PostgresDriver {
         &self,
         params: &crate::models::ConnectionParams,
     ) -> Result<(), String> {
-        let cfg = crate::pool_manager::build_postgres_configurations(params);
+        let cfg = crate::pool_manager::build_postgres_configurations(params)?;
         let tls_connector = crate::pool_manager::build_postgres_tls_connector(params)?;
         let (client, connection) = cfg
             .connect(tls_connector)
@@ -2460,7 +2495,13 @@ impl DatabaseDriver for PostgresDriver {
         table_name: &str,
         schema: Option<&str>,
     ) -> Result<String, String> {
-        get_trigger_definition(params, trigger_name, table_name, self.resolve_schema(schema)).await
+        get_trigger_definition(
+            params,
+            trigger_name,
+            table_name,
+            self.resolve_schema(schema),
+        )
+        .await
     }
 
     async fn create_trigger(
@@ -2479,7 +2520,13 @@ impl DatabaseDriver for PostgresDriver {
         table_name: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        drop_trigger(params, trigger_name, table_name, self.resolve_schema(schema)).await
+        drop_trigger(
+            params,
+            trigger_name,
+            table_name,
+            self.resolve_schema(schema),
+        )
+        .await
     }
 
     async fn execute_query(
@@ -2503,6 +2550,17 @@ impl DatabaseDriver for PostgresDriver {
         session_id: Option<&str>,
     ) -> Result<(crate::models::QueryResult, bool), String> {
         execute_query_in_session(params, query, limit, page, schema, session_id).await
+    }
+
+    async fn execute_read_only_query(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<crate::models::QueryResult, String> {
+        execute_read_only_query(params, query, limit, page, schema).await
     }
 
     async fn execute_batch(
@@ -2627,14 +2685,8 @@ impl DatabaseDriver for PostgresDriver {
         pk_map: &std::collections::HashMap<String, serde_json::Value>,
         schema: Option<&str>,
     ) -> Result<String, String> {
-        fetch_blob_column_as_data_url(
-            params,
-            table,
-            col_name,
-            pk_map,
-            self.resolve_schema(schema),
-        )
-        .await
+        fetch_blob_column_as_data_url(params, table, col_name, pk_map, self.resolve_schema(schema))
+            .await
     }
 
     async fn get_create_table_sql(
@@ -2860,6 +2912,15 @@ impl DatabaseDriver for PostgresDriver {
             query.push_str(&format!(" ON UPDATE {}", action));
         }
         Ok(vec![query])
+    }
+
+    async fn get_table_ddl(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_table_ddl(params, table, &self.resolve_schema(schema)).await
     }
 
     async fn drop_index(

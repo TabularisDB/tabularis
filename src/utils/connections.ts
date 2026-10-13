@@ -107,6 +107,18 @@ export interface ConnectionParams {
   proxy?: ProxyOverride;
 }
 
+/** Drop blank `ssl_mode` so the backend applies the driver default. */
+export function withoutBlankSslMode<T extends { ssl_mode?: string }>(
+  params: T,
+): Omit<T, "ssl_mode"> | T {
+  if (params.ssl_mode === undefined || params.ssl_mode.trim() === "") {
+    const rest = { ...params };
+    delete rest.ssl_mode;
+    return rest;
+  }
+  return params;
+}
+
 /**
  * Update one entry of the opaque `extra` connection fields map.
  *

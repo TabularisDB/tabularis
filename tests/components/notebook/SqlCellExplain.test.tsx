@@ -105,7 +105,7 @@ describe("SqlCellExplain", () => {
     await settle();
     expect(database.getConnectionData).toHaveBeenCalledWith("cell-connection");
     expect(mockInvoke).toHaveBeenCalledExactlyOnceWith("explain_query_plan", {
-      connectionId: defaults.connectionId, query: defaults.query, schema: "analytics", analyze: false,
+      connectionId: defaults.connectionId, query: defaults.query, schema: "analytics", analyze: false, database: null,
     });
     expect(screen.getByTestId("plan")).toHaveTextContent("initial");
   });
@@ -123,7 +123,7 @@ describe("SqlCellExplain", () => {
     expect(mockInvoke).not.toHaveBeenCalled();
     await settle();
     expect(mockInvoke).toHaveBeenCalledExactlyOnceWith("explain_query_plan", {
-      connectionId: defaults.connectionId, query: defaults.query, schema: "analytics", analyze: false,
+      connectionId: defaults.connectionId, query: defaults.query, schema: "analytics", analyze: false, database: null,
     });
     expect(screen.getByTestId("selection")).toHaveTextContent("initial");
   });
@@ -150,7 +150,7 @@ describe("SqlCellExplain", () => {
     rerender(<SqlCellExplain {...defaults} query={query} />);
     await settle();
     expect(mockInvoke).toHaveBeenCalledExactlyOnceWith("explain_query_plan", {
-      connectionId: defaults.connectionId, query, schema: "analytics", analyze: false,
+      connectionId: defaults.connectionId, query, schema: "analytics", analyze: false, database: null,
     });
     expect(screen.getByRole("checkbox")).not.toBeChecked();
   });
@@ -189,7 +189,7 @@ describe("SqlCellExplain", () => {
     await rerun();
     expect(mockInvoke).toHaveBeenCalledTimes(2);
     expect(mockInvoke).toHaveBeenLastCalledWith("explain_query_plan", {
-      connectionId: defaults.connectionId, query: defaults.query, schema: "analytics", ...change, analyze: false,
+      connectionId: defaults.connectionId, query: defaults.query, schema: "analytics", ...change, analyze: false, database: null,
     });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -232,7 +232,7 @@ describe("SqlCellExplain", () => {
       await rerun();
       expect(mockInvoke).toHaveBeenCalledTimes(2);
       expect(mockInvoke).toHaveBeenLastCalledWith("explain_query_plan", {
-        connectionId: defaults.connectionId, query, schema: "analytics", analyze: true,
+        connectionId: defaults.connectionId, query, schema: "analytics", analyze: true, database: null,
       });
     },
   );

@@ -24,6 +24,8 @@ interface SelectProps {
   labels?: Record<string, string>;
   /** Per-option nesting depth; indents matching options to show a tree. */
   indents?: Record<string, number>;
+  /** Id of extra text that describes the control, such as a field hint. */
+  ariaDescribedBy?: string;
 }
 
 export const Select = ({
@@ -41,6 +43,7 @@ export const Select = ({
   searchable = true,
   labels,
   indents,
+  ariaDescribedBy,
 }: SelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -196,6 +199,7 @@ export const Select = ({
       <button
         id={id}
         aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
         ref={buttonRef}
         type="button"
         onClick={handleToggle}

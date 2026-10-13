@@ -1,5 +1,5 @@
 use super::super::*;
-use super::archive::valid_package;
+use super::archive::{temp_dir, valid_package};
 use serde_json::{json, Value};
 use std::fs;
 use std::path::Path;
@@ -34,7 +34,7 @@ fn install(root: &Path) -> String {
 
 #[test]
 fn empty_profile_reads_do_not_create_directories_and_keep_all_builtins() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     let absent = temp.path().join("absent");
     let catalog = read_theme_catalog(&absent, &absent, "0.99.0");
     assert_eq!(catalog.themes.len(), 12);
@@ -48,7 +48,7 @@ fn empty_profile_reads_do_not_create_directories_and_keep_all_builtins() {
 
 #[test]
 fn native_and_frontend_legacy_shapes_and_nulls_are_read_without_rewriting() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     for (index, source) in [
         include_str!("../../../../tests/fixtures/themes/legacy-native.json"),
         include_str!("../../../../tests/fixtures/themes/legacy-native-nullable.json"),
@@ -85,7 +85,7 @@ fn native_and_frontend_legacy_shapes_and_nulls_are_read_without_rewriting() {
 
 #[test]
 fn corrupt_and_colliding_personal_files_do_not_hide_builtins_or_get_renamed() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     let value = legacy();
     store(temp.path(), "a.json", &value);
     store(temp.path(), "b.json", &value);
@@ -98,7 +98,7 @@ fn corrupt_and_colliding_personal_files_do_not_hide_builtins_or_get_renamed() {
 
 #[test]
 fn immutable_ids_and_traversal_are_rejected_without_touching_outside_files() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     let outside = temp.path().join("sentinel.json");
     fs::write(&outside, b"unchanged").unwrap();
     let root = temp.path().join("profile");
@@ -121,7 +121,7 @@ fn immutable_ids_and_traversal_are_rejected_without_touching_outside_files() {
 
 #[test]
 fn editing_known_fields_preserves_opaque_legacy_metadata_and_integer_lexemes() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     let mut value = legacy();
     value["id"] = json!("custom-metadata");
     value["opaque"] = json!({"number":"replace-me", "nested":[null, true]});
@@ -145,7 +145,7 @@ fn editing_known_fields_preserves_opaque_legacy_metadata_and_integer_lexemes() {
 
 #[test]
 fn import_issues_distinct_native_ids_and_preserves_source_metadata() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     let mut value = legacy();
     value["isPreset"] = json!(true);
     value["extra"] = json!({"license":"fixture"});
@@ -160,7 +160,7 @@ fn import_issues_distinct_native_ids_and_preserves_source_metadata() {
 
 #[test]
 fn definitions_are_additive_and_stale_updates_do_not_replace_them() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     let created = create_personal_definition(
         temp.path(),
         "Personal",
@@ -201,7 +201,7 @@ fn definitions_are_additive_and_stale_updates_do_not_replace_them() {
 
 #[test]
 fn installed_catalog_uses_host_identity_and_never_activates_or_recovers() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     let key = install(temp.path());
     let namespace = temp.path().join("plugins/themes");
     fs::create_dir(namespace.join(".staging-00000000-0000-0000-0000-000000000000")).unwrap();
@@ -224,7 +224,7 @@ fn installed_catalog_uses_host_identity_and_never_activates_or_recovers() {
 
 #[test]
 fn package_tampering_isolated_and_disabled_variants_keep_identity() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     install(temp.path());
     let namespace = temp.path().join("plugins/themes");
     fs::write(namespace.join(".disabled-fixture-theme"), "1").unwrap();
@@ -239,7 +239,7 @@ fn package_tampering_isolated_and_disabled_variants_keep_identity() {
 
 #[test]
 fn duplication_is_independent_and_issued_by_native_context() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     let key = install(temp.path());
     let id = format!("theme:{key}:fixture-theme:dark");
     let copy = duplicate_personal_theme(temp.path(), temp.path(), "0.99.0", &id, "My copy", None).unwrap();
@@ -265,7 +265,7 @@ fn duplication_is_independent_and_issued_by_native_context() {
 #[cfg(unix)]
 fn symlinked_files_and_roots_never_read_or_modify_external_data() {
     use std::os::unix::fs::symlink;
-    let temp = tempfile::tempdir().unwrap();
+    let temp = temp_dir();
     let outside = temp.path().join("outside");
     store(&outside, "secret.json", &legacy());
     let root = temp.path().join("profile");

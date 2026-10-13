@@ -228,6 +228,16 @@ export function AppearanceTab() {
             </SettingRow>
 
             <SettingRow
+              label={t("settings.appearance_editorHighlightInvisibleCharacters")}
+              description={t("settings.appearance_editorHighlightInvisibleCharactersDesc")}
+            >
+              <SettingToggle
+                checked={settings.editorHighlightInvisibleCharacters ?? true}
+                onChange={(v) => updateSetting("editorHighlightInvisibleCharacters", v)}
+              />
+            </SettingRow>
+
+            <SettingRow
               label={t("settings.appearance_editorShowLineNumbers")}
               description={t(
                 "settings.appearance_editorShowLineNumbersDesc",

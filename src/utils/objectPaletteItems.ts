@@ -86,9 +86,15 @@ export function createObjectPaletteItems({
       id,
       title: item.name,
       description: item.detail,
-      group: hasGroups ? item.schema : undefined,
+      group: hasGroups
+        ? item.database && item.schema
+          ? `${item.database}.${item.schema}`
+          : item.schema
+        : undefined,
       badge: labels.type[item.type],
-      keywords: item.schema ? [item.schema] : undefined,
+      keywords: [item.schema, item.database].filter(
+        (value): value is string => !!value,
+      ),
       icon: item.type,
       relevance: OBJECT_TYPE_RELEVANCE[item.type],
       primaryAction: open,
@@ -142,6 +148,7 @@ function createActions(
     objectName: object.name,
     qualifySchema: object.qualifySchema,
     schema: object.schema,
+    database: object.database,
     title: object.title,
   });
   const open: PaletteAction = {
@@ -172,6 +179,7 @@ function createActions(
     connectionId: object.connectionId,
     tableName: object.name,
     ...(object.schema ? { schema: object.schema } : {}),
+    ...(object.database ? { database: object.database } : {}),
   };
 
   return {
@@ -194,6 +202,7 @@ function createActions(
                 connectionId: object.connectionId,
                 objectName: object.name,
                 schema: object.schema,
+                database: object.database,
               },
               object.driver,
             ),
