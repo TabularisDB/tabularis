@@ -27,14 +27,6 @@ use std::os::windows::process::CommandExt;
 
 /// The first operation waits for initialization of its own plugin only.
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
-/// Built-in drain window. Not read on the normal shutdown path: that uses
-/// [`crate::plugins::shutdown_grace::for_plugin`] (per-plugin override, then
-/// the global setting, then this default; `0` waits without a deadline). If
-/// the shutdown signal is dropped, the manager falls back to
-/// [`crate::plugins::shutdown_grace::dropped_signal_grace`].
-const PLUGIN_SHUTDOWN_GRACE: Duration =
-    crate::plugins::shutdown_grace::DEFAULT_PLUGIN_SHUTDOWN_GRACE;
-
 /// Flag to create the process without a console window on Windows.
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;

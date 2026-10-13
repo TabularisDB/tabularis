@@ -162,7 +162,10 @@ async fn shutdown_bounds_a_hung_plugin_and_reports_a_specific_error() {
     );
 
     shutdown.await.unwrap();
-    assert!(started.elapsed() < PLUGIN_SHUTDOWN_GRACE + Duration::from_secs(2));
+    assert!(
+        started.elapsed()
+            < crate::plugins::shutdown_grace::DEFAULT_PLUGIN_SHUTDOWN_GRACE + Duration::from_secs(2)
+    );
     let error = call.await.unwrap().unwrap_err().to_string();
     assert!(error.contains("shutdown grace period"), "got {error}");
 }
