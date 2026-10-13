@@ -272,9 +272,9 @@ describe("parseShutdownGraceSeconds", () => {
     expect(parseShutdownGraceSeconds("abc")).toBeUndefined();
   });
 
-  it("keeps 0 as wait-until-finished and clamps the range", () => {
-    expect(parseShutdownGraceSeconds("0")).toBe(0);
-    expect(parseShutdownGraceSeconds("-3")).toBe(0);
+  it("clamps to the minimum grace and the upper bound", () => {
+    expect(parseShutdownGraceSeconds("0")).toBe(1);
+    expect(parseShutdownGraceSeconds("-3")).toBe(1);
     expect(parseShutdownGraceSeconds("12.8")).toBe(12);
     expect(parseShutdownGraceSeconds("99999999")).toBe(MAX_PLUGIN_CALL_TIMEOUT_SECONDS);
   });
@@ -314,8 +314,9 @@ describe("resolveEffectiveShutdownGrace", () => {
     expect(resolveEffectiveShutdownGrace(30, { interpreter: "python3" })).toBe(30);
   });
 
-  it("prefers the plugin override, including 0", () => {
+  it("prefers the plugin override and clamps zero to the minimum", () => {
     expect(resolveEffectiveShutdownGrace(30, { shutdownGraceSeconds: 8 })).toBe(8);
-    expect(resolveEffectiveShutdownGrace(30, { shutdownGraceSeconds: 0 })).toBe(0);
+    expect(resolveEffectiveShutdownGrace(30, { shutdownGraceSeconds: 0 })).toBe(1);
+    expect(resolveEffectiveShutdownGrace(0, undefined)).toBe(1);
   });
 });

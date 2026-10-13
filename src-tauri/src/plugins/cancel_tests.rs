@@ -105,23 +105,34 @@ exec cat >/dev/null
 "#,
             log.display(),
         ),
-    ).unwrap();
+    )
+    .unwrap();
 
-    let process = Arc::new(PluginProcess::new(
-        "test-plugin".to_string(), script, Some("/bin/sh".into()),
-    ).await.expect("spawn responsive plugin"));
+    let process = Arc::new(
+        PluginProcess::new("test-plugin".to_string(), script, Some("/bin/sh".into()))
+            .await
+            .expect("spawn responsive plugin"),
+    );
 
     let call = tokio::spawn({
         let process = process.clone();
         async move { process.send_request("execute_query", json!({}), None).await }
     });
     let received = wait_for_lines(&log, 1, Duration::from_secs(5)).await;
-    assert_eq!(received.len(), 1, "plugin must receive the call before shutdown");
+    assert_eq!(
+        received.len(),
+        1,
+        "plugin must receive the call before shutdown"
+    );
 
     process.shutdown().await;
     assert_eq!(call.await.unwrap().unwrap(), json!({"ok": true}));
-    assert!(process.send_request("execute_query", json!({}), None).await
-        .unwrap_err().to_string().contains("shutting down"));
+    assert!(process
+        .send_request("execute_query", json!({}), None)
+        .await
+        .unwrap_err()
+        .to_string()
+        .contains("shutting down"));
 }
 
 #[cfg(unix)]
@@ -135,7 +146,11 @@ async fn shutdown_bounds_a_hung_plugin_and_reports_a_specific_error() {
         async move { process.send_request("execute_query", json!({}), None).await }
     });
     let received = wait_for_lines(&log, 1, Duration::from_secs(5)).await;
-    assert_eq!(received.len(), 1, "plugin must receive the call before shutdown");
+    assert_eq!(
+        received.len(),
+        1,
+        "plugin must receive the call before shutdown"
+    );
 
     let started = std::time::Instant::now();
     let shutdown = tokio::spawn({
@@ -164,8 +179,49 @@ async fn shutdown_bounds_a_hung_plugin_and_reports_a_specific_error() {
     shutdown.await.unwrap();
     assert!(
         started.elapsed()
-            < crate::plugins::shutdown_grace::DEFAULT_PLUGIN_SHUTDOWN_GRACE + Duration::from_secs(2)
+            < crate::plugins::shutdown_grace::DEFAULT_PLUGIN_SHUTDOWN_GRACE
+                + Duration::from_secs(2)
     );
     let error = call.await.unwrap().unwrap_err().to_string();
     assert!(error.contains("shutdown grace period"), "got {error}");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn configured_zero_grace_still_bounds_shutdown_and_reports_a_specific_error() {
+    crate::plugins::shutdown_grace::apply_config(&crate::config::AppConfig {
+        plugin_shutdown_grace_seconds: Some(0),
+        ..crate::config::AppConfig::default()
+    });
+
+    let dir = tempfile::tempdir().unwrap();
+    let (process, log) = silent_recording_plugin(dir.path()).await;
+    let process = Arc::new(process);
+    let call = tokio::spawn({
+        let process = process.clone();
+        async move { process.send_request("execute_query", json!({}), None).await }
+    });
+    let received = wait_for_lines(&log, 1, Duration::from_secs(5)).await;
+    assert_eq!(
+        received.len(),
+        1,
+        "plugin must receive the call before shutdown"
+    );
+
+    let started = std::time::Instant::now();
+    let shutdown = tokio::spawn({
+        let process = process.clone();
+        async move { process.shutdown().await }
+    });
+    shutdown.await.unwrap();
+    assert!(
+        started.elapsed()
+            < Duration::from_secs(
+                crate::plugins::shutdown_grace::MIN_PLUGIN_SHUTDOWN_GRACE_SECS as u64,
+            ) + Duration::from_secs(2)
+    );
+    let error = call.await.unwrap().unwrap_err().to_string();
+    assert!(error.contains("shutdown grace period"), "got {error}");
+
+    crate::plugins::shutdown_grace::apply_config(&crate::config::AppConfig::default());
 }

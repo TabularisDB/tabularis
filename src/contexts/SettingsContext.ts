@@ -27,7 +27,7 @@ export interface PluginConfig {
   settings?: Record<string, unknown>;
   /** Per-plugin override of `pluginCallTimeoutSeconds`. Unset inherits the global value; 0 disables the timeout. */
   callTimeoutSeconds?: number;
-  /** Per-plugin override of `pluginShutdownGraceSeconds`. Unset inherits the global value; 0 waits until in-flight calls finish. */
+  /** Per-plugin override of `pluginShutdownGraceSeconds`. Unset inherits the global value. */
   shutdownGraceSeconds?: number;
 }
 

@@ -389,8 +389,7 @@ impl PluginProcess {
         // reject their new calls immediately rather than silently enqueueing.
         self.accepting_calls.store(false, Ordering::Release);
         // Resolved once and handed to the manager so the drain deadline and
-        // this join bound cannot disagree. `None` waits until in-flight calls
-        // finish (configured 0). A finite grace keeps disable/uninstall bounded.
+        // this join bound cannot disagree.
         let grace = crate::plugins::shutdown_grace::for_plugin(&self.plugin_id);
         {
             let mut guard = self.shutdown_tx.lock().await;

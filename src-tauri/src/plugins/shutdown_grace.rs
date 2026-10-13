@@ -7,8 +7,8 @@
 //! 2. the global host setting (`pluginShutdownGraceSeconds`),
 //! 3. [`DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECS`].
 //!
-//! A value of `0` disables the limit, so a long-running call is allowed to
-//! finish instead of being cut off. Idle plugins still exit as soon as the
+//! Configured values below [`MIN_PLUGIN_SHUTDOWN_GRACE_SECS`] are clamped so
+//! shutdown always has a finite bound. Idle plugins still exit as soon as the
 //! command channel drains.
 //!
 //! The resolved values are kept in a small process-wide snapshot refreshed
@@ -23,6 +23,10 @@ use std::time::Duration;
 use once_cell::sync::Lazy;
 
 use crate::config::AppConfig;
+
+/// Minimum effective shutdown grace (seconds). Values of `0` in config are
+/// clamped to this so shutdown cannot wait without a bound.
+pub const MIN_PLUGIN_SHUTDOWN_GRACE_SECS: u32 = 1;
 
 /// Default time already-accepted plugin calls may run after shutdown starts.
 pub const DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECS: u32 = 2;
@@ -55,8 +59,8 @@ impl ShutdownGraceSettings {
         }
     }
 
-    /// Effective grace for `plugin_id`. `None` means "wait until in-flight
-    /// calls finish".
+    /// Effective grace for `plugin_id`, with a minimum of
+    /// [`MIN_PLUGIN_SHUTDOWN_GRACE_SECS`].
     pub(crate) fn resolve(&self, plugin_id: &str) -> Option<Duration> {
         let seconds = self
             .per_plugin
@@ -64,17 +68,18 @@ impl ShutdownGraceSettings {
             .copied()
             .or(self.global)
             .unwrap_or(DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECS);
-        (seconds > 0).then(|| Duration::from_secs(u64::from(seconds)))
+        let seconds = seconds.max(MIN_PLUGIN_SHUTDOWN_GRACE_SECS);
+        Some(Duration::from_secs(u64::from(seconds)))
     }
 
     /// Grace used when the shutdown signal is lost (sender dropped): the
-    /// global setting, or the default when it is unset or `0`. A lost signal
-    /// is not a configured "wait forever", so this is always bounded.
+    /// global setting (clamped), or the default when unset.
     pub(crate) fn dropped_signal_grace(&self) -> Duration {
-        match self.global {
-            Some(seconds) if seconds > 0 => Duration::from_secs(u64::from(seconds)),
-            _ => DEFAULT_PLUGIN_SHUTDOWN_GRACE,
-        }
+        self.global
+            .map(|seconds| {
+                Duration::from_secs(u64::from(seconds.max(MIN_PLUGIN_SHUTDOWN_GRACE_SECS)))
+            })
+            .unwrap_or(DEFAULT_PLUGIN_SHUTDOWN_GRACE)
     }
 }
 

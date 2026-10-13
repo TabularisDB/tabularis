@@ -20,7 +20,7 @@ pub struct PluginConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub call_timeout_seconds: Option<u32>,
     /// Per-plugin override of `AppConfig::plugin_shutdown_grace_seconds`.
-    /// `None` inherits the global value; `0` waits until in-flight calls finish.
+    /// `None` inherits the global value; values below 1 are clamped at runtime.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shutdown_grace_seconds: Option<u32>,
 }
@@ -115,7 +115,7 @@ pub struct AppConfig {
     /// `0` disables the timeout. Default: 120. Overridable per plugin.
     pub plugin_call_timeout_seconds: Option<u32>,
     /// Seconds in-flight plugin calls may run after shutdown is requested.
-    /// `0` waits until they finish. Default: 2. Overridable per plugin.
+    /// Values below 1 are clamped at runtime. Default: 2. Overridable per plugin.
     pub plugin_shutdown_grace_seconds: Option<u32>,
     pub editor_theme: Option<String>,
     /// Font for query result cells ("inherit" follows the interface font). Default: JetBrains Mono.

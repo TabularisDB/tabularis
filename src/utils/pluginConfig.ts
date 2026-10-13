@@ -27,6 +27,9 @@ export const MAX_PLUGIN_CALL_TIMEOUT_SECONDS = 86_400;
 /** Upper bound accepted by the shutdown-grace inputs (24 hours). */
 export const MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS = MAX_PLUGIN_CALL_TIMEOUT_SECONDS;
 
+/** Minimum effective shutdown grace; mirrors the Rust constant. */
+export const MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS = 1;
+
 /**
  * Parses a timeout typed by the user. Returns undefined for blank or invalid
  * input; otherwise a whole number of seconds clamped to
@@ -75,14 +78,19 @@ export function resolveEffectiveCallTimeout(
 }
 
 /**
- * Parses a shutdown grace typed by the user. Same bounds as the call timeout:
- * blank or invalid input is undefined; otherwise whole seconds clamped to
- * [0, MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS]. Unlike the call timeout, where 0
- * turns the per-call timeout off, a grace of 0 means shutdown waits for
- * in-flight calls to finish with no deadline.
+ * Parses a shutdown grace typed by the user. Blank or invalid input is
+ * undefined; otherwise whole seconds clamped to
+ * [MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS, MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS].
  */
 export function parseShutdownGraceSeconds(raw: string): number | undefined {
-  return parseCallTimeoutSeconds(raw);
+  const trimmed = raw.trim();
+  if (trimmed === "") return undefined;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value)) return undefined;
+  return Math.min(
+    Math.max(Math.floor(value), MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS),
+    MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS,
+  );
 }
 
 /**
@@ -106,17 +114,17 @@ export function withShutdownGraceOverride(
 
 /**
  * Grace period that applies to a plugin: its own override, else the global
- * setting, else the host default. 0 means wait until in-flight calls finish.
+ * setting, else the host default. Values below the minimum are clamped.
  */
 export function resolveEffectiveShutdownGrace(
   globalGrace: number | undefined,
   config: PluginConfig | undefined,
 ): number {
-  return (
+  const seconds =
     config?.shutdownGraceSeconds ??
     globalGrace ??
-    DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECONDS
-  );
+    DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECONDS;
+  return Math.max(seconds, MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS);
 }
 
 /**

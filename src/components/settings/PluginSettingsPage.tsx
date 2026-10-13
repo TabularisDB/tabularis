@@ -20,6 +20,7 @@ import {
   resolveEffectiveShutdownGrace,
   MAX_PLUGIN_CALL_TIMEOUT_SECONDS,
   MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS,
+  MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS,
   resolveSettingsWithDefaults,
   validateSettings,
 } from "../../utils/pluginConfig";
@@ -432,7 +433,7 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
           <div className="py-3 flex items-center gap-2">
             <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
               type="number"
-              min={0}
+              min={MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS}
               max={MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS}
               step={1}
               value={shutdownGrace}

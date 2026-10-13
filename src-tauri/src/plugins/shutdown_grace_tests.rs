@@ -53,25 +53,34 @@ fn plugin_override_wins_over_global() {
 }
 
 #[test]
-fn zero_waits_until_inflight_calls_finish() {
+fn zero_is_clamped_to_the_minimum_grace() {
     let settings = ShutdownGraceSettings::from_config(&config_with(Some(0), &[]));
-    assert_eq!(settings.resolve("postgresql"), None);
+    assert_eq!(
+        settings.resolve("postgresql"),
+        Some(Duration::from_secs(MIN_PLUGIN_SHUTDOWN_GRACE_SECS as u64))
+    );
 
     let settings =
         ShutdownGraceSettings::from_config(&config_with(Some(15), &[("postgresql", Some(0))]));
-    assert_eq!(settings.resolve("postgresql"), None);
+    assert_eq!(
+        settings.resolve("postgresql"),
+        Some(Duration::from_secs(MIN_PLUGIN_SHUTDOWN_GRACE_SECS as u64))
+    );
     assert_eq!(settings.resolve("duckdb"), Some(Duration::from_secs(15)));
 }
 
 #[test]
-fn plugin_override_can_restore_a_limit_when_global_is_disabled() {
+fn plugin_override_wins_when_global_is_clamped() {
     let settings =
         ShutdownGraceSettings::from_config(&config_with(Some(0), &[("postgresql", Some(12))]));
     assert_eq!(
         settings.resolve("postgresql"),
         Some(Duration::from_secs(12))
     );
-    assert_eq!(settings.resolve("duckdb"), None);
+    assert_eq!(
+        settings.resolve("duckdb"),
+        Some(Duration::from_secs(MIN_PLUGIN_SHUTDOWN_GRACE_SECS as u64))
+    );
 }
 
 #[test]
@@ -82,7 +91,10 @@ fn deserializes_camel_case_config_keys() {
     }))
     .unwrap();
     let settings = ShutdownGraceSettings::from_config(&config);
-    assert_eq!(settings.resolve("postgresql"), None);
+    assert_eq!(
+        settings.resolve("postgresql"),
+        Some(Duration::from_secs(MIN_PLUGIN_SHUTDOWN_GRACE_SECS as u64))
+    );
     assert_eq!(settings.resolve("duckdb"), Some(Duration::from_secs(45)));
 }
 
@@ -108,5 +120,8 @@ fn dropped_signal_stays_bounded_when_global_is_unset_or_zero() {
     let unset = ShutdownGraceSettings::from_config(&AppConfig::default());
     assert_eq!(unset.dropped_signal_grace(), DEFAULT_PLUGIN_SHUTDOWN_GRACE);
     let zero = ShutdownGraceSettings::from_config(&config_with(Some(0), &[]));
-    assert_eq!(zero.dropped_signal_grace(), DEFAULT_PLUGIN_SHUTDOWN_GRACE);
+    assert_eq!(
+        zero.dropped_signal_grace(),
+        Duration::from_secs(MIN_PLUGIN_SHUTDOWN_GRACE_SECS as u64)
+    );
 }

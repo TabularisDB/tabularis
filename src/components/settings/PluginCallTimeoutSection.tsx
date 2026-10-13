@@ -8,6 +8,7 @@ import {
   DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECONDS,
   MAX_PLUGIN_CALL_TIMEOUT_SECONDS,
   MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS,
+  MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS,
   parseCallTimeoutSeconds,
   parseShutdownGraceSeconds,
 } from "../../utils/pluginConfig";
@@ -87,7 +88,7 @@ export function PluginCallTimeoutSection() {
         <div className="flex items-center gap-2">
           <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
             type="number"
-            min={0}
+            min={MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS}
             max={MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS}
             step={1}
             value={graceDraft}

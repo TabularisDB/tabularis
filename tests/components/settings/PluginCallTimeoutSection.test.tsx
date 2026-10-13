@@ -31,7 +31,7 @@ describe("PluginCallTimeoutSection shutdown grace", () => {
     fireEvent.change(grace, { target: { value: "0" } });
     fireEvent.blur(grace);
 
-    expect(updateSetting).toHaveBeenCalledWith("pluginShutdownGraceSeconds", 0);
+    expect(updateSetting).toHaveBeenCalledWith("pluginShutdownGraceSeconds", 1);
   });
 
   it("shows a saved global grace and resets invalid input to the default", () => {
