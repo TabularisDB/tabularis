@@ -1287,7 +1287,7 @@ pub async fn execute_batch_in_session(
     };
     // A pinned connection belongs to one transaction, and a transaction is
     // scoped to one database. If the tab has switched databases since opening
-    // the transaction, keep running on the pinned connection would silently
+    // the transaction, keeping running on the pinned connection would silently
     // execute on the old database. Reject before taking the client so the
     // pinned session (and its open transaction) is left intact.
     let requested_db = params.database.primary();
