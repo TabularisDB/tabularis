@@ -213,7 +213,9 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
             params = crate::commands::params_for_pool_close(&expanded, connection_id).ok();
         }
     }
-    // Pinned connections outlive a closed pool, so their transactions are released first.
+    // Release pinned transaction sessions after closing the pool. A checked-out
+    // pinned client survives pool.close() (which only blocks new checkouts), so
+    // ROLLBACK still runs; the connection is discarded when the client drops.
     crate::commands::release_connection_sessions(app, connection_id, params.as_ref()).await;
 
     // Notify frontend.

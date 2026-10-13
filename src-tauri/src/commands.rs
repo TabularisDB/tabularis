@@ -3047,6 +3047,29 @@ mod tests {
     }
 
     #[test]
+    fn params_for_pool_close_disables_all_tunnel_types() {
+        // Pool keys depend on connection_id, not the tunnel's local port, so
+        // closing a pool must never respawn an SSH/SSM/K8s tunnel (#1065).
+        // Verify that all three are forced off regardless of the input.
+        let params = ConnectionParams {
+            k8s_enabled: Some(true),
+            ssh_enabled: Some(true),
+            ssm_enabled: Some(true),
+            ssh_host: Some("bastion".to_string()),
+            ssh_port: Some(22),
+            ssh_user: Some("user".to_string()),
+            ..base_params()
+        };
+
+        let resolved = params_for_pool_close(&params, "conn-1").expect("resolve");
+        assert_eq!(resolved.k8s_enabled, Some(false));
+        assert_eq!(resolved.ssh_enabled, Some(false));
+        assert_eq!(resolved.ssm_enabled, Some(false));
+        // connection_id is set for stable pool keying.
+        assert_eq!(resolved.connection_id.as_deref(), Some("conn-1"));
+    }
+
+    #[test]
     fn resolve_sanitizes_local_path_driver_databases() {
         let driver = "__test_resolve_local_path_driver__";
         crate::drivers::registry::set_local_path_driver(driver, true);
