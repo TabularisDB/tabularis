@@ -176,6 +176,18 @@ export function canDuplicateTab(type: Tab["type"] | undefined): boolean {
 }
 
 /**
+ * Notebooks and consoles that are not linked to a `.sql` file can be renamed.
+ * File-backed consoles keep the file name, and other tab types cannot.
+ */
+export function canRenameTab(
+  tab: Pick<Tab, "type" | "sourceFilePath"> | null | undefined,
+): boolean {
+  if (!tab) return false;
+  if (tab.type === "notebook") return true;
+  return tab.type === "console" && !tab.sourceFilePath;
+}
+
+/**
  * Fields copied into a new tab: SQL, parameters, table, schema/database,
  * and editability flags (`readOnly`, `materialized`).
  * Results, the source `.sql` path, and notebook ids are left behind.

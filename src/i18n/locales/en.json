@@ -1404,6 +1404,7 @@
       "detached": "Results detached to a separate window",
       "reattach": "Re-attach"
     },
+    "renameTab": "Rename",
     "duplicateTab": "Duplicate Tab",
     "closeTab": "Close Tab",
     "reopenClosedTab": "Reopen Closed Tab",

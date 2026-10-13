@@ -1349,6 +1349,7 @@
       "reattach": "重新附加"
     },
     "tableRunPrompt": "按运行（Ctrl/Command+F5）加载表数据",
+    "renameTab": "重命名",
     "duplicateTab": "复制标签",
     "closeTab": "关闭标签",
     "reopenClosedTab": "重新打开已关闭的标签",

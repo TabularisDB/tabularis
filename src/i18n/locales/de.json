@@ -1374,6 +1374,7 @@
       "reattach": "Wieder andocken"
     },
     "tableRunPrompt": "Drücke Ausführen (Ctrl/Command+F5), um Tabellendaten zu laden",
+    "renameTab": "Umbenennen",
     "duplicateTab": "Tab duplizieren",
     "closeTab": "Tab schließen",
     "reopenClosedTab": "Geschlossenen Tab wieder öffnen",

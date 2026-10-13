@@ -1402,6 +1402,7 @@
       "detached": "Resultados separados en una ventana aparte",
       "reattach": "Volver a acoplar"
     },
+    "renameTab": "Renombrar",
     "duplicateTab": "Duplicar Pestaña",
     "closeTab": "Cerrar Pestaña",
     "reopenClosedTab": "Reabrir Pestaña Cerrada",

@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import {
   buildDuplicatedTab,
   canDuplicateTab,
+  canRenameTab,
   getTabDisplayTitle,
   reconstructTableQuery,
   resolveTabPageSize,
@@ -382,7 +383,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const startTabRename = useCallback((tabId: string) => {
     const tab = tabsRef.current.find((t) => t.id === tabId);
-    if (!tab) return;
+    if (!tab || !canRenameTab(tab)) return;
     setEditingTabId(tabId);
     setEditingTabTitle(tab.title);
   }, []);
@@ -4427,6 +4428,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
                   onChange={(e) => setEditingTabTitle(e.target.value)}
+                  aria-label={t("editor.renameTab")}
                   onBlur={commitTabRename}
                   onKeyDown={(e) => {
                     e.stopPropagation();
@@ -4440,7 +4442,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 <span
                   className="truncate flex-1 flex items-center gap-1"
                   onDoubleClick={
-                    tab.type === "notebook"
+                    canRenameTab(tab)
                       ? (e) => {
                           e.stopPropagation();
                           startTabRename(tab.id);
@@ -5821,10 +5823,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   { separator: true },
                 ]
               : []),
-            ...(contextTab?.type === "notebook"
+            ...(canRenameTab(contextTab)
               ? [
                   {
-                    label: t("sidebar.notebooks.rename"),
+                    label: t("editor.renameTab"),
                     icon: Pencil,
                     action: () => startTabRename(tabContextMenu.tabId),
                   },

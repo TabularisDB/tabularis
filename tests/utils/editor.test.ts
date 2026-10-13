@@ -7,6 +7,7 @@ import {
   getTabDisplayTitle,
   findExistingTableTab,
   canDuplicateTab,
+  canRenameTab,
   buildDuplicatedTab,
   insertTabAfter,
   DUPLICATE_TAB_TITLE_SUFFIX,
@@ -1119,6 +1120,27 @@ describe("editor", () => {
     it("should return an empty string when there are no values", () => {
       expect(toSqlList("")).toBe("");
       expect(toSqlList(" \n\t, ,\n")).toBe("");
+    });
+  });
+
+  describe("canRenameTab", () => {
+    it("shows rename for notebooks and consoles that are not linked to a file", () => {
+      expect(canRenameTab({ type: "notebook" })).toBe(true);
+      expect(canRenameTab({ type: "console" })).toBe(true);
+      expect(canRenameTab({ type: "console", sourceFilePath: undefined })).toBe(
+        true,
+      );
+    });
+
+    it("hides rename for table tabs and file-backed consoles", () => {
+      expect(canRenameTab({ type: "table" })).toBe(false);
+      expect(canRenameTab({ type: "query_builder" })).toBe(false);
+      expect(canRenameTab({ type: "users" })).toBe(false);
+      expect(
+        canRenameTab({ type: "console", sourceFilePath: "/tmp/orders.sql" }),
+      ).toBe(false);
+      expect(canRenameTab(undefined)).toBe(false);
+      expect(canRenameTab(null)).toBe(false);
     });
   });
 
