@@ -72,7 +72,7 @@ import {
   createDataGridResultCommands,
   type RangeExtendKey,
 } from "../../utils/dataGrid";
-import { readText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeHtml } from "@tauri-apps/plugin-clipboard-manager";
 import { useSettings } from "../../hooks/useSettings";
 import { useJsonEditorActivity } from "../../hooks/useJsonEditorActivity";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
@@ -106,6 +106,7 @@ import {
   getSelectedRows,
   projectColumns,
   copyTextToClipboard,
+  rowsToHtmlTable,
 } from "../../utils/clipboard";
 import {
   DEFAULT_MASKING_PATTERNS,
@@ -1902,6 +1903,42 @@ export const DataGrid = React.memo(
       rowsCopiedToast,
     ]);
 
+    // Copies the selected rows (or the right-clicked row) as an HTML table, with
+    // the regular copy output as the plain-text flavor.
+    const copySelectedOrContextRowAsHtml = useCallback(async () => {
+      if (!contextMenu) return;
+
+      const rowsWithInsertions = mergedRows.map((row) => row.rowData);
+      const rows =
+        selectedRowIndices.size > 0
+          ? getSelectedRows(rowsWithInsertions, selectedRowIndices)
+          : [contextMenu.row];
+
+      try {
+        await writeHtml(
+          rowsToHtmlTable(rows, columns, "null"),
+          formatRows(rows, true),
+        );
+        showToast(rowsCopiedToast(rows.length), { kind: "success" });
+      } catch (e) {
+        console.error("Copy failed:", e);
+        showAlert(t("common.error") + ": " + e, {
+          title: t("common.error"),
+          kind: "error",
+        });
+      }
+    }, [
+      contextMenu,
+      selectedRowIndices,
+      mergedRows,
+      columns,
+      formatRows,
+      rowsCopiedToast,
+      showToast,
+      showAlert,
+      t,
+    ]);
+
     const copyHeaderName = useCallback(async () => {
       if (!headerContextMenu) return;
       await copyToClipboard(headerContextMenu.colName);
@@ -3133,6 +3170,12 @@ export const DataGrid = React.memo(
                 }),
                 icon: Copy,
                 action: copySelectedOrContextRow,
+              });
+
+              menuItems.push({
+                label: t("dataGrid.copyAsHtmlTable"),
+                icon: Copy,
+                action: copySelectedOrContextRowAsHtml,
               });
 
               // Direct one-click path to copy the entire result set when the

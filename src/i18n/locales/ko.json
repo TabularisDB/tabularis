@@ -1234,6 +1234,7 @@
     "selectAllN": "전체 선택 ({{count}})",
     "deselectAll": "전체 선택 해제",
     "copySelectedN": "선택 항목 복사 ({{count}})",
+    "copyAsHtmlTable": "HTML 표로 복사",
     "selectColumn": "열 선택",
     "deselectColumn": "열 선택 해제",
     "copySelectedColumns": "선택한 열 복사 ({{count}})",
