@@ -53,4 +53,29 @@ describe("PluginCallTimeoutSection shutdown grace", () => {
     expect(grace).toHaveValue(2);
     expect(updateSetting).toHaveBeenCalledWith("pluginShutdownGraceSeconds", 2);
   });
+
+  it("keeps an uncommitted grace edit when the call timeout setting changes", () => {
+    const mockSettings = (settings: Record<string, number>) =>
+      vi.mocked(useSettings).mockReturnValue({
+        settings,
+        updateSetting,
+        isLoading: false,
+        isLanguageReady: true,
+        isLanguageSettled: true,
+      } as ReturnType<typeof useSettings>);
+    mockSettings({});
+    const { rerender } = render(<PluginCallTimeoutSection />);
+    const grace = screen.getByRole("spinbutton", {
+      name: "settings.plugins.shutdownGrace",
+    });
+    fireEvent.change(grace, { target: { value: "45" } });
+
+    mockSettings({ pluginCallTimeoutSeconds: 90 });
+    rerender(<PluginCallTimeoutSection />);
+
+    expect(
+      screen.getByRole("spinbutton", { name: "settings.plugins.callTimeout" }),
+    ).toHaveValue(90);
+    expect(grace).toHaveValue(45);
+  });
 });

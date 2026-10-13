@@ -82,11 +82,11 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
   const [shutdownGrace, setShutdownGrace] = useState(
     currentConfig?.shutdownGraceSeconds?.toString() ?? "",
   );
-  const inheritedCallTimeout = resolveEffectiveCallTimeout(
+  const globalCallTimeout = resolveEffectiveCallTimeout(
     settings.pluginCallTimeoutSeconds,
     undefined,
   );
-  const inheritedShutdownGrace = resolveEffectiveShutdownGrace(
+  const globalShutdownGrace = resolveEffectiveShutdownGrace(
     settings.pluginShutdownGraceSeconds,
     undefined,
   );
@@ -397,7 +397,7 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
               aria-label={t("settings.plugins.pluginSettings.callTimeout")}
               placeholder={t(
                 "settings.plugins.pluginSettings.callTimeoutPlaceholder",
-                { seconds: inheritedCallTimeout },
+                { seconds: globalCallTimeout },
               )}
               onChange={(e) => {
                 setCallTimeout(e.target.value);
@@ -439,7 +439,7 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
               aria-label={t("settings.plugins.pluginSettings.shutdownGrace")}
               placeholder={t(
                 "settings.plugins.pluginSettings.shutdownGracePlaceholder",
-                { seconds: inheritedShutdownGrace },
+                { seconds: globalShutdownGrace },
               )}
               onChange={(e) => {
                 setShutdownGrace(e.target.value);

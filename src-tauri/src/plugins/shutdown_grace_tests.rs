@@ -96,3 +96,17 @@ fn missing_keys_keep_the_two_second_default() {
     let settings = ShutdownGraceSettings::from_config(&config);
     assert_eq!(settings.resolve("postgresql"), Some(Duration::from_secs(2)));
 }
+
+#[test]
+fn dropped_signal_uses_the_global_setting() {
+    let settings = ShutdownGraceSettings::from_config(&config_with(Some(30), &[("pg", Some(5))]));
+    assert_eq!(settings.dropped_signal_grace(), Duration::from_secs(30));
+}
+
+#[test]
+fn dropped_signal_stays_bounded_when_global_is_unset_or_zero() {
+    let unset = ShutdownGraceSettings::from_config(&AppConfig::default());
+    assert_eq!(unset.dropped_signal_grace(), DEFAULT_PLUGIN_SHUTDOWN_GRACE);
+    let zero = ShutdownGraceSettings::from_config(&config_with(Some(0), &[]));
+    assert_eq!(zero.dropped_signal_grace(), DEFAULT_PLUGIN_SHUTDOWN_GRACE);
+}

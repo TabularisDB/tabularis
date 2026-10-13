@@ -27,9 +27,11 @@ use std::os::windows::process::CommandExt;
 
 /// The first operation waits for initialization of its own plugin only.
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
-/// Default drain window. The value used at shutdown is
+/// Built-in drain window. Not read on the normal shutdown path: that uses
 /// [`crate::plugins::shutdown_grace::for_plugin`] (per-plugin override, then
-/// the global setting, then this default). `0` waits without a deadline.
+/// the global setting, then this default; `0` waits without a deadline). If
+/// the shutdown signal is dropped, the manager falls back to
+/// [`crate::plugins::shutdown_grace::dropped_signal_grace`].
 const PLUGIN_SHUTDOWN_GRACE: Duration =
     crate::plugins::shutdown_grace::DEFAULT_PLUGIN_SHUTDOWN_GRACE;
 
@@ -259,8 +261,11 @@ impl PluginProcess {
                         // fully drained. No fresh reservations are allowed.
                         rx.close();
                         shutting_down = true;
-                        // A dropped sender is not a configured "wait forever".
-                        let grace = resolved.unwrap_or(Some(PLUGIN_SHUTDOWN_GRACE));
+                        // A dropped sender is not a configured "wait forever",
+                        // so use the global grace, which is always bounded.
+                        let grace = resolved.unwrap_or_else(|_| {
+                            Some(crate::plugins::shutdown_grace::dropped_signal_grace())
+                        });
                         if let Some(grace) = grace {
                             shutdown_deadline = Some(tokio::time::Instant::now() + grace);
                             log::info!(

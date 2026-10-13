@@ -1651,9 +1651,7 @@ export function PluginsTab({
           </div>
         </div>
 
-        <PluginCallTimeoutSection
-          key={`${String(settings.pluginCallTimeoutSeconds)}:${String(settings.pluginShutdownGraceSeconds)}`}
-        />
+        <PluginCallTimeoutSection />
       </div>
 
       {/* Sticky attribution — pinned to the bottom of the Settings scroll

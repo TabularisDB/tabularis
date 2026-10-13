@@ -66,6 +66,16 @@ impl ShutdownGraceSettings {
             .unwrap_or(DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECS);
         (seconds > 0).then(|| Duration::from_secs(u64::from(seconds)))
     }
+
+    /// Grace used when the shutdown signal is lost (sender dropped): the
+    /// global setting, or the default when it is unset or `0`. A lost signal
+    /// is not a configured "wait forever", so this is always bounded.
+    pub(crate) fn dropped_signal_grace(&self) -> Duration {
+        match self.global {
+            Some(seconds) if seconds > 0 => Duration::from_secs(u64::from(seconds)),
+            _ => DEFAULT_PLUGIN_SHUTDOWN_GRACE,
+        }
+    }
 }
 
 static CURRENT: Lazy<RwLock<ShutdownGraceSettings>> =
@@ -85,6 +95,15 @@ pub fn for_plugin(plugin_id: &str) -> Option<Duration> {
         .read()
         .map(|current| current.resolve(plugin_id))
         .unwrap_or(Some(DEFAULT_PLUGIN_SHUTDOWN_GRACE))
+}
+
+/// Bounded grace for a plugin whose shutdown signal was dropped without a
+/// value. See [`ShutdownGraceSettings::dropped_signal_grace`].
+pub fn dropped_signal_grace() -> Duration {
+    CURRENT
+        .read()
+        .map(|current| current.dropped_signal_grace())
+        .unwrap_or(DEFAULT_PLUGIN_SHUTDOWN_GRACE)
 }
 
 #[cfg(test)]

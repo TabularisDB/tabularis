@@ -77,7 +77,9 @@ export function resolveEffectiveCallTimeout(
 /**
  * Parses a shutdown grace typed by the user. Same bounds as the call timeout:
  * blank or invalid input is undefined; otherwise whole seconds clamped to
- * [0, MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS] (0 waits until in-flight calls finish).
+ * [0, MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS]. Unlike the call timeout, where 0
+ * turns the per-call timeout off, a grace of 0 means shutdown waits for
+ * in-flight calls to finish with no deadline.
  */
 export function parseShutdownGraceSeconds(raw: string): number | undefined {
   return parseCallTimeoutSeconds(raw);

@@ -22,6 +22,18 @@ export function PluginCallTimeoutSection() {
     settings.pluginShutdownGraceSeconds ?? DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECONDS;
   const [draft, setDraft] = useState(String(current));
   const [graceDraft, setGraceDraft] = useState(String(currentGrace));
+  // Resync each draft only when its own setting changes, so committing one
+  // field does not throw away an uncommitted edit in the other.
+  const [syncedCurrent, setSyncedCurrent] = useState(current);
+  const [syncedGrace, setSyncedGrace] = useState(currentGrace);
+  if (current !== syncedCurrent) {
+    setSyncedCurrent(current);
+    setDraft(String(current));
+  }
+  if (currentGrace !== syncedGrace) {
+    setSyncedGrace(currentGrace);
+    setGraceDraft(String(currentGrace));
+  }
 
   const commit = () => {
     const seconds =
