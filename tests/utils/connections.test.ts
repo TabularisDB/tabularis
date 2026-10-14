@@ -46,6 +46,14 @@ describe('connections', () => {
       });
     });
 
+    it('omits a null ssl_mode loaded from disk', () => {
+      // Saving with a blank mode persists it as `null`; saving that
+      // connection again must not throw on `.trim()`.
+      expect(withoutBlankSslMode({ driver: 'mysql', ssl_mode: null })).toEqual({
+        driver: 'mysql',
+      });
+    });
+
     it('keeps a non-blank ssl_mode', () => {
       expect(
         withoutBlankSslMode({ driver: 'postgres', ssl_mode: 'require' }),
