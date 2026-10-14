@@ -1200,6 +1200,30 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    async fn execute_read_only_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<QueryResult, String> {
+        match self
+            .process
+            .call_detailed(
+                "execute_read_only_query",
+                json!({ "params": self.with_primary_database(params), "query": query, "limit": limit, "page": page, "schema": schema }),
+            )
+            .await
+        {
+            Ok(res) => serde_json::from_value(res).map_err(|e| e.to_string()),
+            Err(error) if is_method_not_found(&error) => {
+                self.execute_query(params, query, limit, page, schema).await
+            }
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
     async fn execute_batch(
         &self,
         params: &ConnectionParams,
