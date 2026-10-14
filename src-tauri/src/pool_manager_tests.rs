@@ -135,6 +135,54 @@ mod tests {
     }
 
     #[test]
+    fn postgres_pool_key_with_tls_suffix_starts_with_connection_prefix() {
+        // A Postgres key appends a `:ssl:...` TLS suffix after the database.
+        // The connection prefix (which ends at the connection id) must still
+        // match it, so `close_pools_for_connection_id` closes TLS-keyed pools.
+        let params = connection_params("postgres", Some("require"));
+        let prefix = connection_pool_prefix("postgres", "conn-1");
+        let primary_key = build_connection_key(&params, Some("conn-1"));
+
+        let mut overridden = params.clone();
+        overridden.database = DatabaseSelection::Single("other_db".to_string());
+        let override_key = build_connection_key(&overridden, Some("conn-1"));
+
+        assert!(
+            primary_key.starts_with(&prefix),
+            "primary key {primary_key} should start with prefix {prefix}"
+        );
+        assert!(
+            override_key.starts_with(&prefix),
+            "override key {override_key} should start with prefix {prefix}"
+        );
+    }
+
+    #[test]
+    fn postgres_pool_key_with_startup_script_starts_with_connection_prefix() {
+        // A startup script appends a `:startup:<hash>` suffix after the TLS
+        // suffix. The connection prefix must still match it, so
+        // `close_pools_for_connection_id` closes pools whose keys carry a
+        // startup-script digest.
+        let mut params = connection_params("postgres", Some("require"));
+        params.startup_script = Some("SET app.bypass_rls = 'on';".to_string());
+        let prefix = connection_pool_prefix("postgres", "conn-1");
+        let primary_key = build_connection_key(&params, Some("conn-1"));
+
+        let mut overridden = params.clone();
+        overridden.database = DatabaseSelection::Single("other_db".to_string());
+        let override_key = build_connection_key(&overridden, Some("conn-1"));
+
+        assert!(
+            primary_key.starts_with(&prefix),
+            "primary key {primary_key} should start with prefix {prefix}"
+        );
+        assert!(
+            override_key.starts_with(&prefix),
+            "override key {override_key} should start with prefix {prefix}"
+        );
+    }
+
+    #[test]
     fn remove_pools_with_prefix_collects_only_matching_keys() {
         let mut pools: HashMap<String, i32> = HashMap::new();
         pools.insert("mysql:conn:1:db_a".to_string(), 1);
