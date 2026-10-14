@@ -1348,11 +1348,15 @@ pub async fn get_ai_schema_context<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<String, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
     let driver = driver_for_params(&params).await?;
     let identifier_quote = driver.manifest().capabilities.identifier_quote.as_str();
     let context = driver

@@ -5855,6 +5855,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         onClose={() => setIsAiModalOpen(false)}
         connectionId={activeConnectionId ?? undefined}
         schema={activeTab?.schema ?? activeSchema ?? undefined}
+        database={activeTab?.database}
         onInsert={(q) => {
           updateActiveTab({ query: q });
           // AI-generated SQL uses the same production-first safety pipeline.
