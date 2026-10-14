@@ -30,3 +30,23 @@ export function onActivationKey<E extends ActivationKeyEvent>(activate: (event: 
     activate(event);
   };
 }
+
+export interface ShortcutFocusContext {
+  inMonaco: boolean;
+  inEditable: boolean;
+}
+
+export function getShortcutFocusContext(
+  element: Element | null,
+): ShortcutFocusContext {
+  const inMonaco = !!element?.closest(".monaco-editor");
+  const contentEditable = element?.closest("[contenteditable]")
+    ?.getAttribute("contenteditable")
+    ?.toLowerCase();
+  const inEditable =
+    inMonaco ||
+    !!element?.matches("input, textarea, select") ||
+    (element instanceof HTMLElement && element.isContentEditable === true) ||
+    ["", "true", "plaintext-only"].includes(contentEditable ?? "false");
+  return { inMonaco, inEditable };
+}

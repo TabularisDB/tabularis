@@ -24,6 +24,7 @@ import type {
   PaletteItem,
 } from "../../../types/palette";
 import { PALETTE_RESULTS_ID, paletteOptionId } from "./paletteIds";
+import { KEY_CAP } from "./paletteStyles";
 
 const ICONS: Record<PaletteIcon, ComponentType<LucideProps>> = {
   command: Command,
@@ -155,6 +156,11 @@ export const PaletteResults = ({
                     </span>
                   </div>
 
+                  {item.shortcut && (
+                    <kbd className={`${KEY_CAP} mr-4 shrink-0 whitespace-nowrap border border-strong`}>
+                      {item.shortcut}
+                    </kbd>
+                  )}
                   {item.badge && (
                     <span className="mr-4 shrink-0 rounded border border-default/50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">
                       {item.badge}
