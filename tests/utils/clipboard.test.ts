@@ -6,11 +6,14 @@ import {
   rowsToJSON,
   columnValuesForCopy,
   columnValuesToInClause,
+  formatRowsForCopy,
   getSelectedRows,
   copyTextToClipboard,
   columnNamesAsLines,
   columnNamesAsJson,
+  rowsToSqlInsert,
 } from '../../src/utils/clipboard';
+import type { DriverCapabilities } from '../../src/types/plugins';
 
 describe('clipboard utils', () => {
   describe('rowToCSV', () => {
@@ -414,5 +417,42 @@ describe('clipboard utils', () => {
 
       expect(mockWriteText).toHaveBeenCalledWith('');
     });
+  });
+});
+
+describe('SQL INSERT copy quoting', () => {
+  it("quotes identifiers with the driver's own quote character", () => {
+    expect(rowsToSqlInsert([[1, 'a']], ['id', 'name'], 'users', 'postgres')).toBe(
+      "INSERT INTO \"users\" (\"id\", \"name\") VALUES (1, 'a');",
+    );
+  });
+
+  it('keeps MySQL backticks for a MySQL driver', () => {
+    expect(rowsToSqlInsert([[1]], ['id'], 'users', 'mysql')).toBe('INSERT INTO `users` (`id`) VALUES (1);');
+  });
+
+  it('keeps backticks when no driver is given', () => {
+    expect(rowsToSqlInsert([[1]], ['id'], 'users')).toBe('INSERT INTO `users` (`id`) VALUES (1);');
+  });
+
+  it('quotes SQL Server identifiers with the double quote its driver uses', () => {
+    expect(rowsToSqlInsert([[1]], ['id'], 'users', 'mssql')).toBe('INSERT INTO "users" ("id") VALUES (1);');
+  });
+
+  it('escapes a quote character inside a name through quoteIdentifier', () => {
+    expect(rowsToSqlInsert([[1]], ['we"ird'], 'users', 'postgres')).toBe(
+      'INSERT INTO "users" ("we""ird") VALUES (1);',
+    );
+  });
+
+  it("uses the quote character a plugin declares in its capabilities", () => {
+    const plugin = { id: 'plugin-db', identifier_quote: '~' } as unknown as DriverCapabilities;
+    expect(rowsToSqlInsert([[1]], ['id'], 'users', plugin)).toBe('INSERT INTO ~users~ (~id~) VALUES (1);');
+  });
+
+  it('passes the driver through the sql-insert copy format', () => {
+    expect(formatRowsForCopy([[1]], ['id'], 'sql-insert', { tableName: 'users', driver: 'postgres' })).toBe(
+      'INSERT INTO "users" ("id") VALUES (1);',
+    );
   });
 });

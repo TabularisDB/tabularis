@@ -1,5 +1,9 @@
 import { formatCellValue } from './dataGrid';
 import { quoteIdentifier } from './identifiers';
+import type { DriverCapabilities, PluginManifest } from '../types/plugins';
+
+/** A driver id, or its manifest or capabilities; the capabilities carry the plugin's identifier quote. */
+type DriverRef = string | PluginManifest | DriverCapabilities | null;
 
 export function rowToCSV(row: unknown[], nullLabel: string = "null", delimiter: string = ","): string {
   return row
@@ -75,7 +79,7 @@ export function formatRowsForCopy(
     csvIncludeHeaders?: boolean;
     csvDelimiter?: string;
     tableName?: string | null;
-    driver?: string | null;
+    driver?: DriverRef;
   } = {},
 ): string {
   const {
@@ -182,7 +186,7 @@ function sqlValue(cell: unknown): string {
 }
 
 // Identifiers use the driver's own quote character; backticks when no driver is known.
-function sqlIdentifier(name: string, driver?: string | null): string {
+function sqlIdentifier(name: string, driver?: DriverRef): string {
   return driver ? quoteIdentifier(name, driver) : `\`${name}\``;
 }
 
@@ -190,7 +194,7 @@ function rowToSqlInsert(
   row: unknown[],
   columns: string[],
   tableName: string,
-  driver?: string | null,
+  driver?: DriverRef,
 ): string {
   const cols = columns.map((c) => sqlIdentifier(c, driver)).join(", ");
   const vals = row.map(sqlValue).join(", ");
@@ -201,7 +205,7 @@ export function rowsToSqlInsert(
   rows: unknown[][],
   columns: string[],
   tableName: string,
-  driver?: string | null,
+  driver?: DriverRef,
 ): string {
   return rows
     .map((row) => rowToSqlInsert(row, columns, tableName, driver))
