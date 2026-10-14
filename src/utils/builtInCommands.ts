@@ -20,6 +20,8 @@ interface BuiltInCommandLabels {
   editorCategory: string;
   tableCategory: string;
   resultCategory: string;
+  toggleWordWrapEnable: string;
+  toggleWordWrapDisable: string;
   copySelectedCells: (count: number) => string;
   copySelectedRows: (count: number) => string;
   copySelectedColumns: (count: number) => string;
@@ -33,10 +35,17 @@ interface BuiltInCommandModals {
   generateSql: (target: TableTarget) => void;
 }
 
+/** Editor-scoped commands that depend on live editor state. */
+interface BuiltInCommandEditorActions {
+  wordWrapEnabled: boolean;
+  toggleWordWrap: () => void;
+}
+
 export function createBuiltInCommandItems(
   scope: CommandScope,
   labels: BuiltInCommandLabels,
   modals: BuiltInCommandModals,
+  editorActions?: BuiltInCommandEditorActions,
 ): PaletteItem[] {
   const items: PaletteItem[] = [
     {
@@ -86,6 +95,24 @@ export function createBuiltInCommandItems(
               : {}),
             targetConnectionId: connectionId,
           }),
+      },
+    });
+  }
+
+  if (editorActions) {
+    const label = editorActions.wordWrapEnabled
+      ? labels.toggleWordWrapDisable
+      : labels.toggleWordWrapEnable;
+    items.push({
+      id: "editor.toggle-word-wrap",
+      title: label,
+      group: labels.editorCategory,
+      keywords: ["wrap", "line", "editor"],
+      icon: "command",
+      primaryAction: {
+        id: "editor.toggle-word-wrap",
+        label,
+        execute: editorActions.toggleWordWrap,
       },
     });
   }

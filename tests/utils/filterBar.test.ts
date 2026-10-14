@@ -732,6 +732,21 @@ describe("filterBar utils", () => {
     it("should return empty string for OR with no filters", () => {
       expect(buildStructuredFilterClause([], null, "OR")).toBe("");
     });
+
+    it("should compare MySQL FLOAT values at column precision", () => {
+      const columns = [makeColumn("price", "float"), makeColumn("qty", "int")];
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "price", operator: "=", value: "89.9" },
+        { id: "2", column: "price", operator: "NOT IN", value: "59.99, 29.5" },
+        { id: "3", column: "qty", operator: "=", value: "89.9" },
+      ];
+      expect(buildStructuredFilterClause(filters, "mysql", "AND", "auto", columns)).toBe(
+        "price = 89.9000015258789 AND price NOT IN (59.9900016784668, 29.5) AND qty = 89.9",
+      );
+      expect(buildStructuredFilterClause(filters, "postgres", "AND", "auto", columns)).toBe(
+        "price = 89.9 AND price NOT IN (59.99, 29.5) AND qty = 89.9",
+      );
+    });
   });
 
   describe("buildStructuredFilterClause with incomplete filters", () => {

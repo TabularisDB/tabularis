@@ -75,6 +75,17 @@ export function isPostgresDialect(
   return driver === "postgres" || driver === "postgresql";
 }
 
+/** True for MySQL SQL dialect capabilities or the builtin "mysql" driver id. */
+export function isMysqlDialect(
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+): boolean {
+  const caps = capabilitiesOf(driver);
+  if (caps) {
+    return caps.sql_dialect === "mysql";
+  }
+  return driver === "mysql";
+}
+
 // PostgreSQL folds unquoted identifiers to lowercase and only needs quotes for
 // reserved words, mixed case, or special characters — mirroring quote_ident().
 const PG_SAFE_IDENTIFIER = /^[a-z_][a-z0-9_$]*$/;

@@ -2,11 +2,12 @@
 mod tests {
     use crate::models::{ConnectionParams, DatabaseSelection};
     use crate::pool_manager::{
-        build_connection_key, build_mysql_options, format_error_chain,
+        build_connection_key, build_mysql_options, connection_pool_prefix, format_error_chain,
         is_pipes_as_concat_unsupported, postgres_pool_max_size_from_value,
-        DEFAULT_POSTGRES_POOL_MAX_SIZE,
+        remove_pools_with_prefix, DEFAULT_POSTGRES_POOL_MAX_SIZE,
     };
     use sqlx::mysql::MySqlSslMode;
+    use std::collections::HashMap;
 
     fn connection_params(driver: &str, ssl_mode: Option<&str>) -> ConnectionParams {
         ConnectionParams {
@@ -95,6 +96,64 @@ mod tests {
             build_connection_key(&required, Some("conn-1")),
             build_connection_key(&disabled, Some("conn-1"))
         );
+    }
+
+    #[test]
+    fn connection_pool_prefix_matches_every_database_for_a_connection() {
+        // The prefix matches both the primary pool key and per-database override
+        // keys, which embed a different database after the connection id.
+        let params = mysql_params("required");
+        let prefix = connection_pool_prefix("mysql", "conn-1");
+        let primary_key = build_connection_key(&params, Some("conn-1"));
+
+        let mut overridden = params.clone();
+        overridden.database = DatabaseSelection::Single("other_db".to_string());
+        let override_key = build_connection_key(&overridden, Some("conn-1"));
+
+        assert!(
+            primary_key.starts_with(&prefix),
+            "primary key {primary_key} should start with prefix {prefix}"
+        );
+        assert!(
+            override_key.starts_with(&prefix),
+            "override key {override_key} should start with prefix {prefix}"
+        );
+    }
+
+    #[test]
+    fn connection_pool_prefix_does_not_match_a_different_connection() {
+        // The trailing `:` prevents one connection id that is a prefix of another
+        // (`conn-1` vs `conn-10`) from matching the other's pools.
+        let prefix = connection_pool_prefix("mysql", "conn-1");
+        let other_prefix = connection_pool_prefix("mysql", "conn-10");
+
+        assert_ne!(prefix, other_prefix);
+        assert!(
+            !other_prefix.starts_with(&prefix),
+            "prefix {prefix} must not match a longer connection id"
+        );
+    }
+
+    #[test]
+    fn remove_pools_with_prefix_collects_only_matching_keys() {
+        let mut pools: HashMap<String, i32> = HashMap::new();
+        pools.insert("mysql:conn:1:db_a".to_string(), 1);
+        pools.insert("mysql:conn:1:db_b".to_string(), 2);
+        pools.insert("mysql:conn:2:db_a".to_string(), 3);
+        pools.insert("postgres:conn:1:db_a".to_string(), 4);
+
+        let prefix = connection_pool_prefix("mysql", "1");
+        let removed = remove_pools_with_prefix(&mut pools, &prefix);
+
+        // Only the two mysql:conn:1:* entries are removed; the conn:2 and
+        // postgres pools are left untouched.
+        assert_eq!(removed.len(), 2);
+        let removed_keys: Vec<&str> = removed.iter().map(|(k, _)| k.as_str()).collect();
+        assert!(removed_keys.contains(&"mysql:conn:1:db_a"));
+        assert!(removed_keys.contains(&"mysql:conn:1:db_b"));
+        assert_eq!(pools.len(), 2);
+        assert!(pools.contains_key("mysql:conn:2:db_a"));
+        assert!(pools.contains_key("postgres:conn:1:db_a"));
     }
 
     #[test]

@@ -6292,7 +6292,7 @@ pub async fn get_active_connections() -> Vec<String> {
     crate::health_check::active_connections().await
 }
 
-/// Disconnect from a database connection by closing its connection pool
+/// Disconnect from a database connection by closing all of its connection pools
 #[tauri::command]
 pub async fn disconnect_connection<R: Runtime>(
     app: AppHandle<R>,
@@ -6311,31 +6311,32 @@ pub async fn disconnect_connection<R: Runtime>(
     }
 
     // Close pools before resolving SSH/K8s params. Pool keys depend only on
-    // connection_id (plus driver/database/TLS), not the tunnel's local port,
-    // so `params_for_pool_close` disables tunnels to avoid respawning them.
-    // A dead bastion / unreachable cluster must not prevent pool cleanup (#1065).
-    // If even tunnel-free resolution fails, fall back to the saved params with
-    // just the connection_id set — the pool key still matches because
-    // `build_connection_key` doesn't use the host/port for saved connections.
-    let close_params = match params_for_pool_close(&saved_conn.params, &connection_id) {
-        Ok(p) => p,
-        Err(e) => {
-            log::warn!(
-                "Failed to resolve tunnel-free params for pool close on {connection_id}: {e}"
-            );
-            let mut fallback = saved_conn.params.clone();
-            fallback.connection_id = Some(connection_id.clone());
-            fallback
-        }
-    };
-    crate::pool_manager::close_pool_with_id(&close_params, Some(&connection_id)).await;
+    // connection_id (plus driver/database/TLS), not the tunnel's local port.
+    // `close_pools_for_connection_id` matches by connection_id prefix, so it
+    // subsumes the single-key close on single-database connections and closes
+    // per-database override pools too (#1063). A dead bastion / unreachable
+    // cluster must not prevent pool cleanup (#1065).
+    crate::pool_manager::close_pools_for_connection_id(&saved_conn.params.driver, &connection_id)
+        .await;
 
     // release_connection_sessions only needs params.driver to look up the
     // driver for rollback — the same driver regardless of tunnel expansion.
     // Since params_for_pool_close already disabled all tunnel types,
     // close_params has the right driver and connection_id, so re-expanding
     // SSH would only add a redundant keychain lookup that produces the same
-    // result.
+    // result. If even tunnel-free resolution fails, fall back to the saved
+    // params with just the connection_id set.
+    let close_params = match params_for_pool_close(&saved_conn.params, &connection_id) {
+        Ok(p) => p,
+        Err(e) => {
+            log::warn!(
+                "Failed to resolve tunnel-free params for session release on {connection_id}: {e}"
+            );
+            let mut fallback = saved_conn.params.clone();
+            fallback.connection_id = Some(connection_id.clone());
+            fallback
+        }
+    };
     release_connection_sessions(&app, &connection_id, Some(&close_params)).await;
 
     // Broadcast so every window learns this connection is now closed.

@@ -232,6 +232,16 @@
     "insertToEditor": "에디터에 삽입",
     "openInNewTab": "새 탭에서 열기",
     "copyQuery": "쿼리 복사",
+    "copyDetails": "세부 정보 복사",
+    "historyDetails": {
+      "database": "데이터베이스",
+      "executed": "실행 시각",
+      "duration": "소요 시간",
+      "rowsAffected": "영향받은 행",
+      "status": "상태",
+      "success": "성공",
+      "error": "오류"
+    },
     "runQuery": "쿼리 실행",
     "dateGroupToday": "오늘",
     "dateGroupYesterday": "어제",
@@ -741,6 +751,8 @@
       "runtimeTitle": "플러그인 런타임",
       "callTimeout": "호출 시간 제한",
       "callTimeoutDesc": "Tabularis가 플러그인의 단일 요청(쿼리 포함) 응답을 기다리는 최대 시간입니다. 0으로 설정하면 제한이 해제됩니다. 각 플러그인은 자체 설정에서 이 값을 재정의할 수 있습니다.",
+      "shutdownGrace": "종료 유예 시간",
+      "shutdownGraceDesc": "플러그인을 중지하기 전에 Tabularis가 진행 중인 요청이 끝날 때까지 기다리는 시간입니다(최소 1초). 각 플러그인은 자체 설정에서 이 값을 재정의할 수 있습니다.",
       "title": "플러그인",
       "overviewTitle": "플러그인 센터",
       "overviewDesc": "확장 프로그램을 설치하고, 플러그인 드라이버를 관리하고, 런타임 설정을 관리하세요.",
@@ -818,6 +830,10 @@
         "callTimeoutDesc": "이 플러그인에 대해서만 전역 호출 시간 제한을 재정의합니다. 0은 제한 해제, 비워 두면 전역 값을 상속합니다.",
         "callTimeoutPlaceholder": "전역 값 상속 ({{seconds}}초)",
         "callTimeoutInherit": "전역 값 상속",
+        "shutdownGrace": "종료 유예 시간",
+        "shutdownGraceDesc": "이 플러그인에 대해서만 전역 종료 유예 시간을 재정의합니다(최소 1초). 비워 두면 전역 값을 상속합니다.",
+        "shutdownGracePlaceholder": "전역 값 상속 ({{seconds}}초)",
+        "shutdownGraceInherit": "전역 값 상속",
         "title": "플러그인 설정",
         "interpreter": "인터프리터",
         "interpreterDesc": "선택 사항입니다. 이 플러그인을 실행할 실행 파일을 지정하세요 (예: macOS/Linux의 python3, Windows의 python 또는 전체 경로). 비워두면 기본값을 사용합니다.",
@@ -889,7 +905,7 @@
       "pressKeys": "단축키 조합 입력...",
       "notebookRunAll": "모든 셀 실행",
       "categories_notebook": "노트북",
-      "pasteImportClipboard": "클립보드에서 가져오기",
+      "pasteImportClipboard": "데이터 가져오기",
       "quickNavigator": "빠른 탐색기",
       "formatSql": "SQL 포맷",
       "extendCellRange": "셀 범위 확장",
@@ -899,7 +915,10 @@
       "selectRow": "행 선택",
       "selectColumn": "열 선택",
       "commandPalette": "명령 팔레트",
-      "commandPaletteActions": "작업 검색"
+      "commandPaletteActions": "작업 검색",
+      "editorZoomIn": "편집기: 글꼴 크기 늘리기",
+      "editorZoomOut": "편집기: 글꼴 크기 줄이기",
+      "editorZoomReset": "편집기: 글꼴 크기 초기화"
     },
     "aiActivity": "AI 활동",
     "storage": {
@@ -1250,6 +1269,11 @@
     "copyColumnName": "컬럼 이름 복사",
     "copyColumnNameQuoted": "`column` 형식으로 복사",
     "copyColumnNameTable": "table.column 형식으로 복사",
+    "copyColumnNames": "컬럼 이름 복사",
+    "copyColumnNamesLines": "한 줄에 하나씩",
+    "copyColumnNamesJson": "JSON 배열로",
+    "copiedColumnNames_one": "{{count}}개 컬럼 이름이 클립보드에 복사되었습니다",
+    "copiedColumnNames_other": "{{count}}개 컬럼 이름이 클립보드에 복사되었습니다",
     "copyColumnValuesIn": "열 값을 SQL IN으로 복사",
     "filterEquals": "필터: {{column}} = 이 값",
     "filterNotEquals": "필터: {{column}} <> 이 값",
@@ -1266,6 +1290,7 @@
     "setDefault": "DEFAULT로 설정",
     "setEmpty": "빈 값으로 설정",
     "setServerNow": "현재 타임스탬프 삽입",
+    "setRandomUuid": "무작위 UUID로 설정",
     "previewReferenced": "참조된 레코드 미리보기",
     "openReferenced": "{{table}}에서 참조된 행 열기",
     "revealCell": "셀 표시",
@@ -1315,6 +1340,11 @@
     "newRow": "새 행",
     "editing": "편집 중: {{table}}",
     "rowsRetrieved": "{{count}}개 행 조회됨",
+    "timing": {
+      "execution": "실행",
+      "fetch": "가져오기",
+      "total": "전체"
+    },
     "queryExecuted": "쿼리가 성공적으로 실행되었습니다",
     "rowsAffected": "{{count}}개 행 영향받음",
     "autoPaginated": "자동 페이지네이션됨",
@@ -1334,6 +1364,7 @@
       "detached": "결과가 별도 창으로 분리되었습니다",
       "reattach": "다시 붙이기"
     },
+    "renameTab": "이름 바꾸기",
     "duplicateTab": "탭 복제",
     "closeTab": "탭 닫기",
     "reopenClosedTab": "닫은 탭 다시 열기",
@@ -1403,7 +1434,10 @@
     "exportLoadedRowsWarning": "총 {{total}}개 행 중 로드된 {{loaded}}개 행만 내보냈습니다. 더 많은 행이 필요하면 결과 페이지를 넘기거나 더 좁은 쿼리를 실행한 뒤 내보내세요.",
     "queryParameters": "쿼리 매개변수",
     "formatSql": "SQL 포맷",
+    "selectCurrentStatement": "현재 문 선택",
     "convertSelectionToSqlList": "선택 영역을 SQL 목록으로 변환",
+    "transformToUppercase": "대문자로 변환",
+    "transformToLowercase": "소문자로 변환",
     "removeInvisibleCharacters": "붙여넣은 문자 정리",
     "convertToConsole": "콘솔로 변환",
     "parameters": "매개변수",
@@ -1981,7 +2015,9 @@
   },
   "contextMenu": {
     "openSidebar": "사이드바 에디터에서 열기",
-    "openJsonEditor": "JSON 에디터에서 열기"
+    "openJsonEditor": "JSON 에디터에서 열기",
+    "openLink": "링크 열기",
+    "openLinkFailed": "링크를 열 수 없습니다: {{error}}"
   },
   "blobInput": {
     "noData": "BLOB 데이터 없음",
@@ -2097,10 +2133,17 @@
     "noDatabase": "데이터베이스 없음"
   },
   "clipboardImport": {
-    "title": "클립보드에서 가져오기",
-    "subtitle": "구조화된 데이터를 붙여넣고 가져오기 전에 스키마를 미리 확인하세요",
+    "fileReadError": "파일을 읽을 수 없습니다",
+    "fileNotFile": "일반 파일을 선택하세요.",
+    "fileUnsupported": "CSV, TSV, JSON 또는 Markdown 파일을 선택하세요.",
+    "fileTooLarge": "파일이 20 MiB를 초과합니다. 더 작은 파일을 선택하세요.",
+    "fileHint": "CSV, TSV, JSON 배열 또는 Markdown 표. 최대 파일 크기: 20 MiB.",
+    "fileSource": "파일 선택...",
+    "clipboardSource": "클립보드",
+    "title": "데이터 가져오기",
+    "subtitle": "클립보드 또는 파일에서 구조화된 데이터를 불러와 가져오기 전에 검토합니다",
     "selectTablePlaceholder": "테이블 선택...",
-    "contextMenuLabel": "클립보드에서 가져오기...",
+    "contextMenuLabel": "데이터 가져오기...",
     "firstRowHeader": "첫 행을 헤더로 사용",
     "tableName": "테이블 이름",
     "tableNamePlaceholder": "예: sales_data",
@@ -2124,7 +2167,7 @@
     "success": "\"{{table}}\"에 {{count}}개 행을 가져왔습니다",
     "tableCreated": "새 테이블이 생성되었습니다",
     "openTable": "닫기",
-    "noData": "클립보드에서 데이터를 찾을 수 없습니다",
+    "noData": "선택한 소스에서 데이터를 찾을 수 없습니다",
     "retry": "다시 시도",
     "warningsCount": "파싱 경고 {{count}}개",
     "columnsLabel": "컬럼",
@@ -2313,7 +2356,9 @@
     "commands": {
       "openSettings": "설정 열기",
       "openConnections": "연결 관리자 열기",
-      "openTableInConsole": "현재 테이블을 SQL 콘솔에서 열기"
+      "openTableInConsole": "현재 테이블을 SQL 콘솔에서 열기",
+      "toggleWordWrapEnable": "줄 바꿈 활성화",
+      "toggleWordWrapDisable": "줄 바꿈 비활성화"
     }
   },
   "pagination": {

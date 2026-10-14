@@ -211,3 +211,62 @@ async fn test_fallback_to_postgres_maintenance_db() {
     // The maintenance DB can list all databases
     assert!(databases.contains(&"testdb".to_string()));
 }
+
+#[tokio::test]
+#[ignore]
+async fn test_export_rejects_database_mismatch_on_pinned_session() {
+    // An export on a tab with an open transaction on database A must not
+    // silently stream rows from A when the tab has switched to database B (#1067).
+    require_pg!();
+    let primary = pg_params();
+    let secondary = pg_params_secondary();
+    let session = "test-export-pinned-session-db-mismatch";
+
+    // Start a transaction on the primary database and leave it open.
+    let (_results, pinned) = postgres::execute_batch_in_session(
+        &primary,
+        &["BEGIN".into()],
+        None,
+        1,
+        None,
+        Some(session),
+        None,
+    )
+    .await
+    .expect("BEGIN should succeed");
+    assert!(pinned, "BEGIN should leave a pinned transaction");
+
+    // An export targeting the secondary database on the same session must be
+    // rejected rather than silently streaming from the primary connection.
+    let err = postgres::export::stream_query(
+        &secondary,
+        "SELECT 1",
+        Some(session),
+        |_headers, _values| Ok(()),
+    )
+    .await
+    .expect_err("database mismatch should be rejected");
+    assert!(
+        err.contains("open transaction on database") && err.contains("testdb"),
+        "error should name the pinned database, got: {err}"
+    );
+    assert!(
+        err.contains("tabularis_test_secondary"),
+        "error should name the requested database, got: {err}"
+    );
+
+    // Clean up: roll back the open transaction on the primary. This also
+    // confirms the pinned session survived the rejected export (the slot
+    // was only borrowed via slot.client(), never consumed).
+    postgres::execute_batch_in_session(
+        &primary,
+        &["ROLLBACK".into()],
+        None,
+        1,
+        None,
+        Some(session),
+        None,
+    )
+    .await
+    .expect("ROLLBACK should succeed");
+}

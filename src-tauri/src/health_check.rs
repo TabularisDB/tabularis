@@ -189,15 +189,27 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
     // Unregister first to prevent further pings.
     unregister_connection(connection_id).await;
 
-    // Close pools before resolving SSH params. Pool keys depend only on
-    // connection_id (plus driver/database/TLS), not the tunnel's local port,
-    // so `params_for_pool_close` disables tunnels to avoid respawning them.
-    // A dead bastion / unreachable cluster must not prevent pool cleanup (#1065).
+    // Close all pools for the connection before resolving SSH params. Pool
+    // keys depend only on connection_id (plus driver/database/TLS), not the
+    // tunnel's local port, so `close_pools_for_connection_id` matches by
+    // connection_id prefix — it subsumes the single-key close and closes
+    // per-database override pools too (#1063). A dead bastion / unreachable
+    // cluster must not prevent pool cleanup (#1065).
     let mut params = None;
     if let Ok(saved_conn) = crate::commands::find_connection_by_id(app, connection_id) {
-        // Close the pool, falling back to the saved params if tunnel-free
-        // resolution fails — the pool key matches because it doesn't use the
-        // host/port for saved connections (#1065).
+        crate::pool_manager::close_pools_for_connection_id(
+            &saved_conn.params.driver,
+            connection_id,
+        )
+        .await;
+
+        // release_connection_sessions only needs params.driver to look up the
+        // driver for rollback — the same driver regardless of tunnel expansion.
+        // Since params_for_pool_close already disabled all tunnel types,
+        // close_params has the right driver and connection_id, so re-expanding
+        // SSH would only add a redundant keychain lookup that produces the same
+        // result. If even tunnel-free resolution fails, fall back to the saved
+        // params with just the connection_id set.
         let close_params = match crate::commands::params_for_pool_close(
             &saved_conn.params,
             connection_id,
@@ -205,21 +217,13 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
             Ok(p) => p,
             Err(e) => {
                 log::warn!(
-                    "Health check: failed to resolve tunnel-free params for pool close on {connection_id}: {e}"
+                    "Health check: failed to resolve tunnel-free params for session release on {connection_id}: {e}"
                 );
                 let mut fallback = saved_conn.params.clone();
                 fallback.connection_id = Some(connection_id.to_string());
                 fallback
             }
         };
-        crate::pool_manager::close_pool_with_id(&close_params, Some(connection_id)).await;
-
-        // release_connection_sessions only needs params.driver to look up
-        // the driver for rollback — the same driver regardless of tunnel
-        // expansion. Since params_for_pool_close already disabled all tunnel
-        // types, close_params has the right driver and connection_id, so
-        // re-expanding SSH would only add a redundant keychain lookup that
-        // produces the same result.
         params = Some(close_params);
     }
     // Release pinned transaction sessions after closing the pool. A checked-out

@@ -21,6 +21,8 @@ const labels = {
   copySelectedColumns: (count: number) => `Copy ${count} columns`,
   copyColumnValuesAsSqlIn: "Copy column values as SQL IN",
   copyAllRows: (count?: number) => `Copy all ${count ?? "unknown"} rows`,
+  toggleWordWrapEnable: "Enable word wrap",
+  toggleWordWrapDisable: "Disable word wrap",
 };
 
 const findItem = (
@@ -241,5 +243,60 @@ describe("createBuiltInCommandItems", () => {
     expect(runAll).toHaveBeenCalledOnce();
     expect(saveSqlFile).toHaveBeenCalledOnce();
     expect(closeTab).toHaveBeenCalledOnce();
+  });
+
+  it("should expose a word wrap toggle in the editor group", () => {
+    const toggleWordWrap = vi.fn();
+    const scope = createScope();
+    const items = createBuiltInCommandItems(scope, labels, modals(), {
+      wordWrapEnabled: true,
+      toggleWordWrap,
+    });
+
+    const item = findItem(items, "editor.toggle-word-wrap");
+    expect(item.group).toBe("Editor");
+    expect(item.keywords).toEqual(
+      expect.arrayContaining(["wrap", "line", "editor"]),
+    );
+  });
+
+  it("should label the word wrap toggle with the opposite of the current state", async () => {
+    const toggleWordWrap = vi.fn();
+    const scope = createScope();
+
+    const enabled = createBuiltInCommandItems(scope, labels, modals(), {
+      wordWrapEnabled: true,
+      toggleWordWrap,
+    });
+    expect(findItem(enabled, "editor.toggle-word-wrap").title).toBe(
+      "Disable word wrap",
+    );
+
+    const disabled = createBuiltInCommandItems(scope, labels, modals(), {
+      wordWrapEnabled: false,
+      toggleWordWrap,
+    });
+    expect(findItem(disabled, "editor.toggle-word-wrap").title).toBe(
+      "Enable word wrap",
+    );
+  });
+
+  it("should run the word wrap toggle action", async () => {
+    const toggleWordWrap = vi.fn();
+    const scope = createScope();
+    const items = createBuiltInCommandItems(scope, labels, modals(), {
+      wordWrapEnabled: false,
+      toggleWordWrap,
+    });
+
+    await findItem(items, "editor.toggle-word-wrap").primaryAction.execute();
+    expect(toggleWordWrap).toHaveBeenCalledOnce();
+  });
+
+  it("should omit the word wrap toggle when editor actions are not provided", () => {
+    const scope = createScope();
+    const items = createBuiltInCommandItems(scope, labels, modals());
+
+    expect(items.find((item) => item.id === "editor.toggle-word-wrap")).toBeUndefined();
   });
 });

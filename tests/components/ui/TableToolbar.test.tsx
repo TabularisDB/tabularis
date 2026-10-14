@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { TableToolbar } from '../../../src/components/ui/TableToolbar';
 import { useDatabase } from '../../../src/hooks/useDatabase';
+import { renderWithSlotProbe } from '../../fixtures/pluginSlotProbe';
 
 vi.mock('../../../src/hooks/useDatabase', () => ({
   useDatabase: vi.fn(),
@@ -467,5 +468,42 @@ describe('TableToolbar', () => {
 
       expect(mockOnUpdate.mock.calls[0][0]).toBe('id = 5');
     });
+  });
+});
+
+
+describe('TableToolbar plugin context', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useDatabase).mockReturnValue({
+      activeDriver: 'postgres', activeCapabilities: null,
+      activeConnectionId: 'pg-pane', activeSchema: 'public',
+    } as ReturnType<typeof useDatabase>);
+  });
+
+  const props = {
+    placeholderColumn: 'id', placeholderSort: 'id', defaultLimit: 100,
+    onUpdate: vi.fn(), tableName: 'users',
+  };
+
+  it('passes the table schema through the real plugin driver filter', async () => {
+    await renderWithSlotProbe(<TableToolbar {...props} tableSchema="tenant" />, ['data-grid.toolbar.actions']);
+    const probe = await screen.findByTestId('postgres-slot');
+    expect(JSON.parse(probe.textContent ?? '{}')).toMatchObject({
+      driver: 'postgres', connectionId: 'pg-pane', tableName: 'users', schema: 'tenant',
+    });
+    expect(screen.queryByTestId('mysql-slot')).not.toBeInTheDocument();
+  });
+
+  it('preserves an explicit schema-less table rather than borrowing the active schema', async () => {
+    await renderWithSlotProbe(<TableToolbar {...props} tableSchema={null} />, ['data-grid.toolbar.actions']);
+    const probe = await screen.findByTestId('postgres-slot');
+    expect(JSON.parse(probe.textContent ?? '{}').schema).toBeNull();
+  });
+
+  it('falls back to the active schema when no table schema is supplied', async () => {
+    await renderWithSlotProbe(<TableToolbar {...props} />, ['data-grid.toolbar.actions']);
+    const probe = await screen.findByTestId('postgres-slot');
+    expect(JSON.parse(probe.textContent ?? '{}').schema).toBe('public');
   });
 });

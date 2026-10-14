@@ -12,6 +12,10 @@ import { useKeybindings } from "../../hooks/useKeybindings";
 import { CommandPaletteDispatchContext } from "../../contexts/CommandPaletteContext";
 import { getFontCSS } from "../../utils/settings";
 import {
+  EDITOR_FONT_SIZE_DEFAULT,
+  stepEditorFontSize,
+} from "../../utils/editorFontSize";
+import {
   splitBatches,
   findStatementAtOffset,
   type Dialect,
@@ -59,6 +63,37 @@ function isLinux(): boolean {
   return platform.toUpperCase().includes("LINUX");
 }
 
+type EditorZoomAction = "in" | "out" | "reset";
+
+/**
+ * Maps a key event to a font zoom action. Zoom in also accepts `+`, which is
+ * what layouts that need Shift for `=` report, by matching it as `=`.
+ */
+function getEditorZoomAction(
+  event: KeyboardEvent,
+  matches: (event: KeyboardEvent, id: string) => boolean,
+): EditorZoomAction | null {
+  if (matches(event, "editor_zoom_in")) return "in";
+  if (
+    event.key === "+" &&
+    matches(
+      new KeyboardEvent("keydown", {
+        key: "=",
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+      }),
+      "editor_zoom_in",
+    )
+  ) {
+    return "in";
+  }
+  if (matches(event, "editor_zoom_out")) return "out";
+  if (matches(event, "editor_zoom_reset")) return "reset";
+  return null;
+}
+
 /** Debounced onChange emissions remembered until the consumer echoes them back. */
 const MAX_PENDING_ECHOES = 50;
 
@@ -96,16 +131,22 @@ const SqlEditorInternal = ({
   const lastSplitRef = useRef<{
     model: Monaco.editor.ITextModel | null;
     versionId: number;
+    dialect: Dialect | string | undefined;
     statements: Statement[];
-  }>({ model: null, versionId: -1, statements: [] });
+  }>({ model: null, versionId: -1, dialect: undefined, statements: [] });
   const editorTheme = useEditorTheme();
-  const { settings } = useSettings();
+  const { settings, updateSetting } = useSettings();
   const { matchesShortcut } = useKeybindings();
   const commandPaletteDispatch = useContext(CommandPaletteDispatchContext);
   const matchesShortcutRef = useRef(matchesShortcut);
   matchesShortcutRef.current = matchesShortcut;
   const togglePaletteRef = useRef(commandPaletteDispatch?.togglePalette);
   togglePaletteRef.current = commandPaletteDispatch?.togglePalette;
+  // Read from the zoom shortcuts, so they always step from the saved size.
+  const editorFontSizeRef = useRef(settings.editorFontSize);
+  editorFontSizeRef.current = settings.editorFontSize;
+  const updateSettingRef = useRef(updateSetting);
+  updateSettingRef.current = updateSetting;
 
   // Dispose editor on unmount to prevent "domNode" errors from ResizeObserver
   // firing after the DOM container is removed (e.g., cell deletion/movement)
@@ -307,6 +348,56 @@ const SqlEditorInternal = ({
       if (typeof document !== "undefined" && document.fonts) {
         document.fonts.ready.then(() => monaco.editor.remeasureFonts());
       }
+
+      const getStatements = (model: Monaco.editor.ITextModel): Statement[] => {
+        const versionId = model.getVersionId();
+        const currentDialect = dialectRef.current;
+        if (
+          lastSplitRef.current.model !== model ||
+          lastSplitRef.current.versionId !== versionId ||
+          lastSplitRef.current.dialect !== currentDialect
+        ) {
+          lastSplitRef.current = {
+            model,
+            versionId,
+            dialect: currentDialect,
+            statements: splitBatches(model.getValue(), currentDialect),
+          };
+        }
+        return lastSplitRef.current.statements;
+      };
+
+      editor.addAction({
+        id: 'tabularis.selectCurrentStatement',
+        label: t('editor.selectCurrentStatement'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.4,
+        run: (ed) => {
+          const model = ed.getModel();
+          const position = ed.getPosition();
+          if (!model || !position) return;
+          const offset = model.getOffsetAt(position);
+          const statement = findStatementAtOffset(getStatements(model), offset);
+          if (!statement || offset < statement.range.start) return;
+          // The parser's range excludes the delimiter, matching Run.
+          const start = model.getPositionAt(statement.range.start);
+          const end = model.getPositionAt(statement.range.end);
+          if (offset > statement.range.end) {
+            // A caret after the delimiter or trailing spaces still belongs to
+            // this statement's line. Separate blank lines remain a no-op.
+            if (position.lineNumber !== end.lineNumber) return;
+            const gap = model.getValue().slice(statement.range.end, offset);
+            if (!/^[ \t]*;?[ \t]*$/.test(gap)) return;
+          }
+          ed.setSelection({
+            startLineNumber: start.lineNumber,
+            startColumn: start.column,
+            endLineNumber: end.lineNumber,
+            endColumn: end.column,
+          });
+          ed.focus();
+        },
+      });
 
       // Register custom Cut/Copy/Paste actions using the Tauri clipboard API.
       // Monaco's built-ins rely on document.execCommand, which silently fails
@@ -511,6 +602,30 @@ const SqlEditorInternal = ({
         },
       });
 
+      // Case transforms reuse Monaco's built-in commands, which already
+      // handle multi-cursor selections in a single undo step.
+      editor.addAction({
+        id: 'tabularis.transformToUppercase',
+        label: t('editor.transformToUppercase'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.7,
+        precondition: 'editorHasSelection',
+        run: (ed) => {
+          ed.trigger('contextmenu', 'editor.action.transformToUppercase', null);
+        },
+      });
+
+      editor.addAction({
+        id: 'tabularis.transformToLowercase',
+        label: t('editor.transformToLowercase'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.8,
+        precondition: 'editorHasSelection',
+        run: (ed) => {
+          ed.trigger('contextmenu', 'editor.action.transformToLowercase', null);
+        },
+      });
+
       // Ctrl+K starts Monaco chords, so leave the unified palette shortcut
       // untouched. Ctrl+Shift+A conflicts with Monaco and must be handled here.
       editor.onKeyDown((e) => {
@@ -531,6 +646,20 @@ const SqlEditorInternal = ({
           e.preventDefault();
           e.stopPropagation();
           editor.trigger("keyboard", "editor.action.triggerSuggest", {});
+          return;
+        }
+
+        const zoom = getEditorZoomAction(e.browserEvent, matchesShortcutRef.current);
+        if (zoom) {
+          e.preventDefault();
+          e.stopPropagation();
+          const next =
+            zoom === "reset"
+              ? EDITOR_FONT_SIZE_DEFAULT
+              : stepEditorFontSize(editorFontSizeRef.current, zoom === "in" ? 1 : -1);
+          if (next !== editorFontSizeRef.current) {
+            updateSettingRef.current("editorFontSize", next);
+          }
         }
       });
 
@@ -548,21 +677,6 @@ const SqlEditorInternal = ({
       // `dialect` prop so consumers that don't pass it are unaffected.
       if (dialectRef.current !== undefined) {
         const decorations = editor.createDecorationsCollection();
-
-        const getStatements = (model: Monaco.editor.ITextModel): Statement[] => {
-          const versionId = model.getVersionId();
-          if (
-            lastSplitRef.current.model !== model ||
-            lastSplitRef.current.versionId !== versionId
-          ) {
-            lastSplitRef.current = {
-              model,
-              versionId,
-              statements: splitBatches(model.getValue(), dialectRef.current),
-            };
-          }
-          return lastSplitRef.current.statements;
-        };
 
         // Only fires the callback when the answer actually changes — cursor
         // selection events arrive on every keystroke and arrow key.
@@ -643,7 +757,7 @@ const SqlEditorInternal = ({
         options={{
           accessibilitySupport: 'auto',
           minimap: { enabled: false },
-          fontSize: settings.editorFontSize ?? 14,
+          fontSize: settings.editorFontSize ?? EDITOR_FONT_SIZE_DEFAULT,
           fontFamily: getFontCSS(settings.editorFontFamily ?? "JetBrains Mono"),
           lineHeight: settings.editorLineHeight ?? 1.5,
           tabSize: settings.editorTabSize ?? 2,

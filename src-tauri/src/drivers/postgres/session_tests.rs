@@ -1,7 +1,7 @@
 //! Unit tests for `session.rs`'s per-session lock. Pinning itself needs a
 //! live connection and is covered by the postgres integration tests.
 
-use super::{lock, sweep_idle};
+use super::{lock, sweep_idle, Slot};
 use std::time::Duration;
 
 #[tokio::test]
@@ -62,4 +62,13 @@ async fn release_all_keeps_tracking_a_slot_a_run_holds() {
         .await
         .contains_key("session-tests-busy-shutdown"));
     drop(held);
+}
+
+#[test]
+fn an_empty_slot_reports_no_pinned_database() {
+    // A default slot holds no pinned connection, so `database()` returns
+    // `None` — the mismatch guard in `execute_batch_in_session` treats this
+    // as "no transaction open" and acquires a fresh client.
+    let slot = Slot::default();
+    assert!(slot.database().is_none());
 }
