@@ -268,6 +268,37 @@ describe('ContextMenu', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
+  it('opens a submenu on click so it works without hover', () => {
+    const childAction = vi.fn();
+    render(
+      <ContextMenu
+        x={100}
+        y={100}
+        items={[
+          {
+            label: 'Filter by this value',
+            submenu: [{ label: 'Equals', action: childAction }],
+          },
+        ]}
+        onClose={mockOnClose}
+      />
+    );
+
+    const trigger = screen.getByText('Filter by this value').closest('button')!;
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Equals')).toBeNull();
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    // Opening the submenu doesn't close the menu.
+    expect(mockOnClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Equals'));
+    expect(childAction).toHaveBeenCalled();
+    expect(mockOnClose).toHaveBeenCalled();
+  });
+
   it('opens a submenu when its button receives keyboard focus', () => {
     render(
       <ContextMenu

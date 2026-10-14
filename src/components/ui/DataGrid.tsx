@@ -240,6 +240,11 @@ const RANGE_EXTEND_KEYS = new Set([
 const CELL_VALUE_FILTER_LABEL_KEYS: Record<CellValueFilterOperator, string> = {
   "=": "dataGrid.filterEquals",
   "<>": "dataGrid.filterNotEquals",
+  ">": "dataGrid.filterGreaterThan",
+  ">=": "dataGrid.filterGreaterOrEqual",
+  "<": "dataGrid.filterLessThan",
+  "<=": "dataGrid.filterLessOrEqual",
+  contains: "dataGrid.filterContains",
   "IS NULL": "dataGrid.filterIsNull",
   "IS NOT NULL": "dataGrid.filterIsNotNull",
 };
@@ -3080,7 +3085,8 @@ export const DataGrid = React.memo(
               // formats don't survive a WHERE comparison) and for insertion
               // rows, which have no stored value to filter on yet. Masking is
               // display-only, so a masked cell only gets IS NULL / IS NOT NULL
-              // and its real value never reaches the WHERE input.
+              // and its real value never reaches the WHERE input. The
+              // operators are grouped in a submenu so the menu stays short.
               if (onFilterByValue && tableName && !isInsertion) {
                 const isContextCellMasked = isCellMasked(
                   contextMenu.rowIndex,
@@ -3093,11 +3099,13 @@ export const DataGrid = React.memo(
                   !isBlobCell &&
                   !isJsonCellTarget(colDataType, contextCellValue)
                 ) {
-                  for (const op of getCellValueFilterOperators(
-                    contextCellValue,
-                    { masked: isContextCellMasked },
-                  )) {
-                    menuItems.push({
+                  menuItems.push({
+                    label: t("dataGrid.filterByValue"),
+                    icon: Filter,
+                    submenu: getCellValueFilterOperators(contextCellValue, {
+                      masked: isContextCellMasked,
+                      columnType: colDataType,
+                    }).map((op) => ({
                       label: t(CELL_VALUE_FILTER_LABEL_KEYS[op], {
                         column: colName,
                       }),
@@ -3111,8 +3119,8 @@ export const DataGrid = React.memo(
                         );
                         setContextMenu(null);
                       },
-                    });
-                  }
+                    })),
+                  });
                 }
               }
 

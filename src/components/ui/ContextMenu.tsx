@@ -181,11 +181,18 @@ const SubmenuRow = ({
         if (!event.currentTarget.contains(event.relatedTarget as Node)) closeSubmenu();
       }}
     >
+      {/* A click also opens the flyout (focus and the arrow keys do too),
+          so its items are reachable without a pointer hover. */}
       <button
         ref={triggerRef}
         type="button"
         disabled={item.disabled}
+        aria-haspopup="menu"
         aria-expanded={open}
+        onClick={() => {
+          cancelClose();
+          setOpen(true);
+        }}
         onFocus={() => {
           if (suppressFocusOpen.current) {
             suppressFocusOpen.current = false;
