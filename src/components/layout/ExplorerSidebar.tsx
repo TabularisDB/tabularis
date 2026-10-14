@@ -1054,13 +1054,13 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           key={q.id}
                           aria-pressed={selectedFavoriteId === q.id}
                           onClick={() => setSelectedFavoriteId(q.id)}
-                          onDoubleClick={() => runQuery(q.sql, q.name, false, q.database ?? undefined)}
+                          onDoubleClick={() => runQuery(q.sql, q.name, false, undefined, q.database ?? undefined)}
                           onKeyDown={(e) => {
                             // Enter runs the query like a double click; Space keeps selecting it.
                             if (e.key === "Enter") {
                               e.preventDefault();
                               setSelectedFavoriteId(q.id);
-                              runQuery(q.sql, q.name, false, q.database ?? undefined);
+                              runQuery(q.sql, q.name, false, undefined, q.database ?? undefined);
                             }
                           }}
                           onContextMenu={(e) =>
