@@ -25,6 +25,10 @@ pub struct PendingApproval {
     pub session_id: String,
     pub connection_id: String,
     pub connection_name: String,
+    /// Database the query targets when the MCP caller picked one other than
+    /// the connection's default, so the approver sees where a write lands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database: Option<String>,
     pub query: String,
     pub query_kind: String,
     pub client_hint: Option<String>,
