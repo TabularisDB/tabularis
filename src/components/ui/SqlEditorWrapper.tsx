@@ -96,8 +96,9 @@ const SqlEditorInternal = ({
   const lastSplitRef = useRef<{
     model: Monaco.editor.ITextModel | null;
     versionId: number;
+    dialect: Dialect | string | undefined;
     statements: Statement[];
-  }>({ model: null, versionId: -1, statements: [] });
+  }>({ model: null, versionId: -1, dialect: undefined, statements: [] });
   const editorTheme = useEditorTheme();
   const { settings } = useSettings();
   const { matchesShortcut } = useKeybindings();
@@ -308,6 +309,56 @@ const SqlEditorInternal = ({
         document.fonts.ready.then(() => monaco.editor.remeasureFonts());
       }
 
+      const getStatements = (model: Monaco.editor.ITextModel): Statement[] => {
+        const versionId = model.getVersionId();
+        const currentDialect = dialectRef.current;
+        if (
+          lastSplitRef.current.model !== model ||
+          lastSplitRef.current.versionId !== versionId ||
+          lastSplitRef.current.dialect !== currentDialect
+        ) {
+          lastSplitRef.current = {
+            model,
+            versionId,
+            dialect: currentDialect,
+            statements: splitBatches(model.getValue(), currentDialect),
+          };
+        }
+        return lastSplitRef.current.statements;
+      };
+
+      editor.addAction({
+        id: 'tabularis.selectCurrentStatement',
+        label: t('editor.selectCurrentStatement'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.4,
+        run: (ed) => {
+          const model = ed.getModel();
+          const position = ed.getPosition();
+          if (!model || !position) return;
+          const offset = model.getOffsetAt(position);
+          const statement = findStatementAtOffset(getStatements(model), offset);
+          if (!statement || offset < statement.range.start) return;
+          // The parser's range excludes the delimiter, matching Run.
+          const start = model.getPositionAt(statement.range.start);
+          const end = model.getPositionAt(statement.range.end);
+          if (offset > statement.range.end) {
+            // A caret after the delimiter or trailing spaces still belongs to
+            // this statement's line. Separate blank lines remain a no-op.
+            if (position.lineNumber !== end.lineNumber) return;
+            const gap = model.getValue().slice(statement.range.end, offset);
+            if (!/^[ \t]*;?[ \t]*$/.test(gap)) return;
+          }
+          ed.setSelection({
+            startLineNumber: start.lineNumber,
+            startColumn: start.column,
+            endLineNumber: end.lineNumber,
+            endColumn: end.column,
+          });
+          ed.focus();
+        },
+      });
+
       // Register custom Cut/Copy/Paste actions using the Tauri clipboard API.
       // Monaco's built-ins rely on document.execCommand, which silently fails
       // inside the WebView on some Linux setups.
@@ -511,6 +562,30 @@ const SqlEditorInternal = ({
         },
       });
 
+      // Case transforms reuse Monaco's built-in commands, which already
+      // handle multi-cursor selections in a single undo step.
+      editor.addAction({
+        id: 'tabularis.transformToUppercase',
+        label: t('editor.transformToUppercase'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.7,
+        precondition: 'editorHasSelection',
+        run: (ed) => {
+          ed.trigger('contextmenu', 'editor.action.transformToUppercase', null);
+        },
+      });
+
+      editor.addAction({
+        id: 'tabularis.transformToLowercase',
+        label: t('editor.transformToLowercase'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.8,
+        precondition: 'editorHasSelection',
+        run: (ed) => {
+          ed.trigger('contextmenu', 'editor.action.transformToLowercase', null);
+        },
+      });
+
       // Ctrl+K starts Monaco chords, so leave the unified palette shortcut
       // untouched. Ctrl+Shift+A conflicts with Monaco and must be handled here.
       editor.onKeyDown((e) => {
@@ -548,21 +623,6 @@ const SqlEditorInternal = ({
       // `dialect` prop so consumers that don't pass it are unaffected.
       if (dialectRef.current !== undefined) {
         const decorations = editor.createDecorationsCollection();
-
-        const getStatements = (model: Monaco.editor.ITextModel): Statement[] => {
-          const versionId = model.getVersionId();
-          if (
-            lastSplitRef.current.model !== model ||
-            lastSplitRef.current.versionId !== versionId
-          ) {
-            lastSplitRef.current = {
-              model,
-              versionId,
-              statements: splitBatches(model.getValue(), dialectRef.current),
-            };
-          }
-          return lastSplitRef.current.statements;
-        };
 
         // Only fires the callback when the answer actually changes — cursor
         // selection events arrive on every keystroke and arrow key.
@@ -621,6 +681,12 @@ const SqlEditorInternal = ({
         refreshRunContextRef.current = updateCursorStatementHighlight;
         updateCursorStatementHighlight();
       }
+
+      // E2E: expose the Monaco editor instance for tauri-wd tests (setValue,
+      // getValue). Harmless in production — sets a global nobody reads.
+      const w = window as unknown as Record<string, unknown>;
+      w.__e2e_editor = editor;
+      w.__e2e_monaco = monaco;
 
       if (onMount) onMount(editor, monaco);
     };

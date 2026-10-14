@@ -563,6 +563,7 @@ pub async fn get_all_foreign_keys_batch(
         JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
         ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
         AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
+        AND kcu.TABLE_NAME = rc.TABLE_NAME
         WHERE kcu.TABLE_SCHEMA = ?
         AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
         ORDER BY kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION
@@ -1406,6 +1407,8 @@ async fn exec_on_mysql_conn(
             truncated: false,
             pagination: None,
             additional_results: None,
+            server_time_ms: None,
+            fetch_time_ms: None,
         });
     }
 
@@ -1427,6 +1430,8 @@ async fn exec_on_mysql_conn(
             truncated: false,
             pagination: None,
             additional_results: None,
+            server_time_ms: None,
+            fetch_time_ms: None,
         });
     }
 
@@ -1459,6 +1464,9 @@ async fn exec_on_mysql_conn(
     // terminator per result set, which the collector folds into discrete sets.
     let mut collector = multi_result::ResultSetCollector::new(manual_limit);
 
+    let start_instant = std::time::Instant::now();
+    let mut server_time_ms: Option<f64> = None;
+
     // Scope the stream so `conn` borrow is released before returning
     {
         use futures::stream::StreamExt;
@@ -1470,6 +1478,9 @@ async fn exec_on_mysql_conn(
         };
 
         while let Some(result) = event_stream.next().await {
+            if server_time_ms.is_none() {
+                server_time_ms = Some(start_instant.elapsed().as_secs_f64() * 1000.0);
+            }
             match result {
                 Ok(sqlx::Either::Left(_)) => collector.end_result_set(),
                 Ok(sqlx::Either::Right(row)) => {
@@ -1500,6 +1511,9 @@ async fn exec_on_mysql_conn(
         }
     } // event_stream dropped here — conn borrow released
 
+    let (server_time, fetch_time) =
+        crate::drivers::common::calculate_query_timing_from_start(start_instant, server_time_ms);
+
     let mut result_sets = collector.finish();
     let primary = if result_sets.is_empty() {
         multi_result::ResultSetData::default()
@@ -1524,6 +1538,8 @@ async fn exec_on_mysql_conn(
                     truncated: set.truncated,
                     pagination: None,
                     additional_results: None,
+                    server_time_ms: None,
+                    fetch_time_ms: None,
                 })
                 .collect(),
         )
@@ -1546,6 +1562,8 @@ async fn exec_on_mysql_conn(
         truncated,
         pagination,
         additional_results,
+        server_time_ms: server_time,
+        fetch_time_ms: fetch_time,
     })
 }
 
@@ -2656,6 +2674,15 @@ impl DatabaseDriver for MysqlDriver {
             sql.push_str(&format!(" ON UPDATE {}", action));
         }
         Ok(vec![sql])
+    }
+
+    async fn get_table_ddl(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_table_ddl(params, table).await
     }
 
     async fn drop_index(

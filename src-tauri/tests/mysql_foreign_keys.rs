@@ -18,7 +18,7 @@ use std::net::IpAddr;
 use std::panic::AssertUnwindSafe;
 use std::time::Duration;
 use tabularis_lib::drivers::mysql;
-use tabularis_lib::models::{ConnectionParams, DatabaseSelection};
+use tabularis_lib::models::{ConnectionParams, DatabaseSelection, ForeignKey};
 use tabularis_lib::pool_manager::{close_pool, has_pool_for_database};
 
 const SQL_MODES: [Option<&str>; 4] = [
@@ -61,6 +61,17 @@ async fn execute(connection: &mut MySqlConnection, sql: &str) {
 
 type ExpectedKey<'a> = (&'a str, &'a str, &'a str, &'a str, &'a str, &'a str);
 
+fn key_tuple(key: &ForeignKey) -> (&str, &str, &str, &str, Option<&str>, Option<&str>) {
+    (
+        key.name.as_str(),
+        key.column_name.as_str(),
+        key.ref_table.as_str(),
+        key.ref_column.as_str(),
+        key.on_update.as_deref(),
+        key.on_delete.as_deref(),
+    )
+}
+
 async fn assert_keys(
     params: &ConnectionParams,
     table_name: &str,
@@ -74,19 +85,7 @@ async fn assert_keys(
     .await
     .expect("foreign-key discovery timed out")
     .expect("foreign-key discovery failed");
-    let actual: Vec<_> = keys
-        .iter()
-        .map(|key| {
-            (
-                key.name.as_str(),
-                key.column_name.as_str(),
-                key.ref_table.as_str(),
-                key.ref_column.as_str(),
-                key.on_update.as_deref(),
-                key.on_delete.as_deref(),
-            )
-        })
-        .collect();
+    let actual: Vec<_> = keys.iter().map(key_tuple).collect();
     let expected: Vec<_> = expected
         .iter()
         .map(|&(name, column, parent, parent_column, update, delete)| {
@@ -103,6 +102,22 @@ async fn assert_keys(
     assert_eq!(
         actual, expected,
         "table={table_name:?}, schema={schema:?}, text_protocol={:?}",
+        params.enable_cleartext_plugin
+    );
+
+    // Also assert against get_all_foreign_keys_batch to verify both query paths
+    let batch = tokio::time::timeout(
+        Duration::from_secs(30),
+        mysql::get_all_foreign_keys_batch(params, schema),
+    )
+    .await
+    .expect("batch foreign-key discovery timed out")
+    .expect("batch foreign-key discovery failed");
+    let batch_keys = batch.get(table_name).map(Vec::as_slice).unwrap_or_default();
+    let actual_batch: Vec<_> = batch_keys.iter().map(key_tuple).collect();
+    assert_eq!(
+        actual_batch, expected,
+        "batch table={table_name:?}, schema={schema:?}, text_protocol={:?}",
         params.enable_cleartext_plugin
     );
 }

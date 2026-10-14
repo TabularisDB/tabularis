@@ -14,6 +14,12 @@ export const USE_DEFAULT_SENTINEL = "__USE_DEFAULT__";
 /** Fixed height of a grid row, shared by the row markup and the virtualizer. */
 export const DATA_GRID_ROW_HEIGHT = 35;
 
+/** Whether a database column stores UUID values supported by the grid. */
+export function isUuidColumnType(dataType: string): boolean {
+  const normalizedType = dataType.trim().toLowerCase();
+  return normalizedType === "uuid" || normalizedType === "uniqueidentifier";
+}
+
 /**
  * Whether the row at `rowIndex` gets the zebra-stripe background — only when
  * the setting is enabled, and then on every other row (odd indices) so the

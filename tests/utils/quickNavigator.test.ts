@@ -13,6 +13,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: null,
         hasSchemas: false,
         isMultiDb: false,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: [],
@@ -31,6 +33,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: false,
         isMultiDb: false,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: [],
@@ -164,6 +168,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: true,
         isMultiDb: false,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: ["public", "auth"],
         schemaDataMap: {
           public: mockSchemaData,
@@ -197,6 +203,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: false,
         isMultiDb: true,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: ["sales_db", "inventory_db"],
@@ -237,6 +245,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: false,
         isMultiDb: true,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: ["current_db"],
@@ -258,6 +268,84 @@ describe("quickNavigator utility", () => {
       ]);
     });
 
+    it("should extract items in nested multi-db mode, keyed by database then schema", () => {
+      const analyticsPublic: SchemaData = {
+        tables: [{ name: "orders" }],
+        views: [],
+        routines: [],
+        triggers: [],
+        isLoading: false,
+        isLoaded: true,
+      };
+
+      const params: NavigatorItemParams = {
+        activeConnectionId: "conn-1",
+        hasSchemas: true,
+        isMultiDb: false,
+        isNestedMultiDb: true,
+        schemas: [],
+        schemaDataMap: {},
+        selectedDatabases: ["analytics", "billing"],
+        databaseDataMap: {},
+        nestedDatabaseDataMap: {
+          analytics: {
+            schemas: ["public"],
+            schemasLoaded: true,
+            isLoadingSchemas: false,
+            selectedSchemas: ["public"],
+            activeSchema: "public",
+            needsSchemaSelection: false,
+            schemaDataMap: { public: analyticsPublic },
+          },
+        },
+        tables: [],
+        views: [],
+        routines: [],
+        triggers: [],
+        activeSchema: null,
+      };
+
+      const result = getNavigatorItems(params);
+
+      expect(result).toEqual([
+        { name: "orders", type: "table", schema: "public", database: "analytics", item: analyticsPublic.tables[0] },
+      ]);
+    });
+
+    it("does not read the top-level selectedSchemas/schemaDataMap fields for a nested multi-db connection", () => {
+      // Regression: hasSchemas is also true for a nested multi-db connection
+      // (capabilities.schemas === true), so a stale top-level schemas/
+      // schemaDataMap left over from before the multi-db opt-in must not
+      // leak into the nested result once isNestedMultiDb is set.
+      const stale: SchemaData = {
+        tables: [{ name: "stale_table" }],
+        views: [],
+        routines: [],
+        triggers: [],
+        isLoading: false,
+        isLoaded: true,
+      };
+
+      const params: NavigatorItemParams = {
+        activeConnectionId: "conn-1",
+        hasSchemas: true,
+        isMultiDb: false,
+        isNestedMultiDb: true,
+        schemas: ["public"],
+        schemaDataMap: { public: stale },
+        selectedDatabases: [],
+        databaseDataMap: {},
+        nestedDatabaseDataMap: {},
+        tables: [],
+        views: [],
+        routines: [],
+        triggers: [],
+        activeSchema: null,
+      };
+
+      expect(getNavigatorItems(params)).toEqual([]);
+    });
+
     it("should normalize every layout through the same object shape", () => {
       const data: SchemaData = {
         tables: [{ name: "users" }],
@@ -276,6 +364,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: false,
         isMultiDb: false,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: [],
@@ -305,6 +395,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: false,
         isMultiDb: true,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: ["main"],
@@ -341,5 +433,64 @@ describe("quickNavigator utility", () => {
         title: "users (main)",
       });
     });
+
+    it("carries both database and schema for a nested multi-db item, and qualifies the schema", () => {
+      const [item] = getNavigatorItems({
+        activeConnectionId: "conn-1",
+        hasSchemas: true,
+        isMultiDb: false,
+        isNestedMultiDb: true,
+        nestedDatabaseDataMap: {
+          analytics: {
+            schemas: ["public"],
+            schemasLoaded: true,
+            isLoadingSchemas: false,
+            selectedSchemas: ["public"],
+            activeSchema: "public",
+            needsSchemaSelection: false,
+            schemaDataMap: {
+              public: {
+                tables: [{ name: "orders" }],
+                views: [],
+                routines: [],
+                triggers: [],
+                isLoading: false,
+                isLoaded: true,
+              },
+            },
+          },
+        },
+        schemas: [],
+        schemaDataMap: {},
+        selectedDatabases: ["analytics"],
+        databaseDataMap: {},
+        tables: [],
+        views: [],
+        routines: [],
+        triggers: [],
+        activeSchema: null,
+      });
+
+      // Nested multi-db is not the flat "reuse schema field for the database
+      // name" layout, so isMultiDatabase stays false here — the real schema
+      // must still be SQL-qualified, unlike the flat multi-db case above.
+      expect(
+        toDatabaseObject(item, {
+          connectionId: "conn-1",
+          driver: "postgresql",
+          isMultiDatabase: false,
+        }),
+      ).toEqual({
+        type: "table",
+        connectionId: "conn-1",
+        driver: "postgresql",
+        name: "orders",
+        qualifySchema: true,
+        schema: "public",
+        database: "analytics",
+        title: "orders (analytics.public)",
+      });
+    });
+
   });
 });

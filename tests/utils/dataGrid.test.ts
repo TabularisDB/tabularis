@@ -23,6 +23,7 @@ import {
   createDataGridResultCommands,
   getColumnLayoutKey,
   resolveLockedColumnWidths,
+  isUuidColumnType,
 } from '../../src/utils/dataGrid';
 
 describe('createDataGridResultCommands', () => {
@@ -105,6 +106,22 @@ describe('createDataGridResultCommands', () => {
 });
 
 describe('dataGrid utils', () => {
+  describe('isUuidColumnType', () => {
+    it.each(['uuid', 'UUID', 'uniqueidentifier', 'UniqueIdentifier'])(
+      'recognizes %s as a UUID column type',
+      (dataType) => {
+        expect(isUuidColumnType(dataType)).toBe(true);
+      },
+    );
+
+    it.each(['varchar', 'uuid[]', 'binary(16)', ''])(
+      'rejects %s as a UUID column type',
+      (dataType) => {
+        expect(isUuidColumnType(dataType)).toBe(false);
+      },
+    );
+  });
+
   describe('formatCellValue', () => {
     it('should return nullLabel for null values', () => {
       expect(formatCellValue(null)).toBe('NULL');

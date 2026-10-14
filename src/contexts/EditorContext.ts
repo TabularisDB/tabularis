@@ -61,7 +61,7 @@ export interface EditorContextType {
   /** Preview switches do not change MRU history until the selection is committed. */
   setActiveTabId: (id: string, options?: { preview?: boolean }) => void;
   getRecentTabIds: () => string[];
-  getSchema: (connectionId: string, schemaVersion?: number, schema?: string) => Promise<TableSchema[]>;
+  getSchema: (connectionId: string, schemaVersion?: number, schema?: string, database?: string) => Promise<TableSchema[]>;
 }
 
 export const EditorContext = createContext<EditorContextType | undefined>(undefined);

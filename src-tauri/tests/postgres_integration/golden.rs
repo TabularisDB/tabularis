@@ -172,7 +172,7 @@ async fn golden_get_triggers() {
 async fn golden_execute_query_all_types() {
     require_pg!();
     let params = pg_params();
-    let result = postgres::execute_query(
+    let mut result = postgres::execute_query(
         &params,
         "SELECT * FROM test_schema.all_types WHERE id = 1",
         None,
@@ -181,6 +181,8 @@ async fn golden_execute_query_all_types() {
     )
     .await
     .expect("execute_query");
+    result.server_time_ms = None;
+    result.fetch_time_ms = None;
     write_golden("execute_query_all_types.json", &result);
     assert_golden("execute_query_all_types.json", &result);
 }
@@ -251,21 +253,11 @@ async fn golden_get_materialized_view_definition() {
     require_pg!();
     let params = pg_params();
     let result =
-        postgres::get_materialized_view_definition(&params, "user_stats", "test_schema").await;
-    // KNOWN BUG: Built-in driver errors with "error serializing parameter 0" on PG 16
-    // due to regclass cast issue. Capture the error as the golden expectation — the
-    // plugin must replicate this behavior until the driver is fixed.
-    match result {
-        Ok(def) => {
-            write_golden("get_mv_definition.json", &def);
-            assert_golden("get_mv_definition.json", &def);
-        }
-        Err(ref e) => {
-            // Expected failure — record it as the golden expectation
-            write_golden("get_mv_definition.json", e);
-            assert_golden("get_mv_definition.json", e);
-        }
-    }
+        postgres::get_materialized_view_definition(&params, "user_stats", "test_schema")
+            .await
+            .expect("get_materialized_view_definition");
+    write_golden("get_mv_definition.json", &result);
+    assert_golden("get_mv_definition.json", &result);
 }
 
 #[tokio::test]
@@ -322,7 +314,7 @@ async fn golden_get_trigger_definition() {
 async fn golden_execute_query_with_pagination() {
     require_pg!();
     let params = pg_params();
-    let result = postgres::execute_query(
+    let mut result = postgres::execute_query(
         &params,
         "SELECT id, col_text FROM test_schema.all_types ORDER BY id",
         Some(2),
@@ -331,6 +323,8 @@ async fn golden_execute_query_with_pagination() {
     )
     .await
     .expect("execute_query with pagination");
+    result.server_time_ms = None;
+    result.fetch_time_ms = None;
     write_golden("execute_query_with_pagination.json", &result);
     assert_golden("execute_query_with_pagination.json", &result);
 }
@@ -358,7 +352,7 @@ async fn golden_explain_analyze() {
 async fn golden_count_query() {
     require_pg!();
     let params = pg_params();
-    let result = postgres::execute_query(
+    let mut result = postgres::execute_query(
         &params,
         "SELECT COUNT(*) AS cnt FROM test_schema.all_types",
         None,
@@ -367,6 +361,8 @@ async fn golden_count_query() {
     )
     .await
     .expect("count query");
+    result.server_time_ms = None;
+    result.fetch_time_ms = None;
     write_golden("count_query.json", &result);
     assert_golden("count_query.json", &result);
 }

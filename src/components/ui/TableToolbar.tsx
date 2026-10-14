@@ -653,7 +653,7 @@ const TableToolbarInternal = ({
           context={{
             connectionId: activeConnectionId,
             tableName: tableName ?? null,
-            schema: activeSchema,
+            schema: tableSchema === undefined ? activeSchema : tableSchema,
             driver: activeDriver,
           }}
           className="flex items-center gap-1"

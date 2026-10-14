@@ -517,6 +517,10 @@ pub struct QueryResult {
     /// of multi-result statements keep working unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub additional_results: Option<Vec<QueryResult>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_time_ms: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fetch_time_ms: Option<f64>,
 }
 
 /// One statement's outcome within an `execute_batch` call. Exactly one of
@@ -764,5 +768,25 @@ mod appearance_tests {
         let a = ConnectionAppearance { icon: None, accent_color: Some("#ff0000".into()) };
         let s = serde_json::to_string(&a).unwrap();
         assert_eq!(s, r##"{"accentColor":"#ff0000"}"##);
+    }
+
+    #[test]
+    fn query_result_roundtrip_with_timing() {
+        let qr = QueryResult {
+            columns: vec!["id".into()],
+            rows: vec![vec![serde_json::json!(1)]],
+            affected_rows: 0,
+            truncated: false,
+            pagination: None,
+            additional_results: None,
+            server_time_ms: Some(12.5),
+            fetch_time_ms: Some(3.2),
+        };
+        let s = serde_json::to_string(&qr).unwrap();
+        assert!(s.contains("server_time_ms"));
+        assert!(s.contains("fetch_time_ms"));
+        let back: QueryResult = serde_json::from_str(&s).unwrap();
+        assert_eq!(back.server_time_ms, Some(12.5));
+        assert_eq!(back.fetch_time_ms, Some(3.2));
     }
 }
