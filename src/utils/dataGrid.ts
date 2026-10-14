@@ -627,7 +627,8 @@ function splitDelimitedLine(line: string, delimiter: string): string[] {
 /**
  * Splits one tab-separated line into cells. A cell that the CSV copy wrapped
  * in quotes is unquoted (its doubled quotes become one); any other cell,
- * including one that only starts with a quote, is kept as written.
+ * including one that only starts with a quote, is kept as written. A line
+ * with no tab is a single cell and is unquoted the same way.
  */
 function splitTabLine(line: string): string[] {
   const cells: string[] = [];
@@ -676,7 +677,7 @@ export function parsePasteMatrix(
   }
 
   if (lines.length === 1) {
-    return lines[0] === "" ? [] : [[lines[0]]];
+    return lines[0] === "" ? [] : [splitTabLine(lines[0])];
   }
 
   const first = lines[0];
@@ -694,7 +695,7 @@ export function parsePasteMatrix(
     }
   }
   if (!delimiter) {
-    return lines.map((line) => [line]);
+    return lines.map((line) => splitTabLine(line));
   }
   return lines.map((line) => splitDelimitedLine(line, delimiter!));
 }
