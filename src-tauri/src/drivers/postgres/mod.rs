@@ -1305,15 +1305,7 @@ pub async fn execute_batch_in_session(
     // pinned session (and its open transaction) is left intact.
     let requested_db = params.database.primary();
     if let Some(slot) = slot.as_ref() {
-        if let Some(pinned_db) = slot.database() {
-            if pinned_db != requested_db {
-                return Err(format!(
-                    "This tab has an open transaction on database \"{pinned_db}\" \
-                     and cannot run on database \"{requested_db}\". End the transaction \
-                     (ROLLBACK or COMMIT) or switch back to \"{pinned_db}\"."
-                ));
-            }
-        }
+        session::check_pinned_database(slot.database(), requested_db, "run")?;
     }
     let pinned = slot.as_mut().and_then(|s| s.take());
     // A pinned connection only exists because its transaction is still open.

@@ -88,6 +88,32 @@ impl Slot {
     }
 }
 
+/// Reject when a pinned session's database differs from the one a run or
+/// export targets, returning an error naming both databases and the action.
+/// `None` for `pinned` means no transaction is open and the caller may acquire
+/// a fresh connection.
+///
+/// `action` is the verb inserted into the message ("run" or "export") so the
+/// two call sites — [`super::execute_batch_in_session`] and
+/// [`super::export::stream_query`] — share one check without duplicating the
+/// formatting, while keeping their messages distinct.
+pub(crate) fn check_pinned_database(
+    pinned: Option<&str>,
+    requested: &str,
+    action: &str,
+) -> Result<(), String> {
+    if let Some(pinned_db) = pinned {
+        if pinned_db != requested {
+            return Err(format!(
+                "This tab has an open transaction on database \"{pinned_db}\" \
+                 and cannot {action} on database \"{requested}\". End the \
+                 transaction (ROLLBACK or COMMIT) or switch back to \"{pinned_db}\"."
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// A pinned connection holds its transaction's locks until the tab ends it.
 /// A tab abandoned mid-transaction would hold them indefinitely, so a
 /// session untouched for this long is rolled back and released by

@@ -1,7 +1,7 @@
 //! Unit tests for `session.rs`'s per-session lock. Pinning itself needs a
 //! live connection and is covered by the postgres integration tests.
 
-use super::{lock, sweep_idle, Slot};
+use super::{check_pinned_database, lock, sweep_idle, Slot};
 use std::time::Duration;
 
 #[tokio::test]
@@ -71,4 +71,49 @@ fn an_empty_slot_reports_no_pinned_database() {
     // as "no transaction open" and acquires a fresh client.
     let slot = Slot::default();
     assert!(slot.database().is_none());
+}
+
+#[test]
+fn check_pinned_database_allows_a_matching_database() {
+    // When the pinned and requested databases match, the run proceeds.
+    assert_eq!(
+        check_pinned_database(Some("orders"), "orders", "run"),
+        Ok(())
+    );
+}
+
+#[test]
+fn check_pinned_database_rejects_a_mismatch_with_the_action_in_the_message() {
+    // A mismatch names both databases and the action, so the user knows
+    // whether the rejected operation was a run or an export. Both verbs are
+    // exercised so a regression that hardcodes one verb is caught.
+    let run_err = check_pinned_database(Some("orders"), "inventory", "run").unwrap_err();
+    assert!(
+        run_err.contains("cannot run on"),
+        "error should use the 'run' action verb: {run_err}"
+    );
+    let export_err = check_pinned_database(Some("orders"), "inventory", "export").unwrap_err();
+    assert!(
+        export_err.contains("\"orders\""),
+        "error should name the pinned database: {export_err}"
+    );
+    assert!(
+        export_err.contains("\"inventory\""),
+        "error should name the requested database: {export_err}"
+    );
+    assert!(
+        export_err.contains("cannot export on"),
+        "error should use the 'export' action verb: {export_err}"
+    );
+    assert!(
+        export_err.contains("ROLLBACK or COMMIT"),
+        "error should tell the user how to resolve it: {export_err}"
+    );
+}
+
+#[test]
+fn check_pinned_database_allows_any_database_when_nothing_is_pinned() {
+    // `None` means no transaction is open, so the caller may acquire a fresh
+    // connection on whatever database it was asked for.
+    assert_eq!(check_pinned_database(None, "anything", "run"), Ok(()));
 }
