@@ -5,6 +5,7 @@
 
 import { formatSqlIdentifier, shouldQuoteIdentifiers } from "./identifiers";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
+import type { DefaultSortDirection } from "../contexts/SettingsContext";
 
 export interface TableToolbarState {
   filterInput: string;
@@ -144,7 +145,7 @@ export function formatSortClause(
 export function getNextSortClause(
   currentSort: string,
   colName: string,
-  defaultSortDirection: "asc" | "desc" = "asc",
+  defaultSortDirection: DefaultSortDirection = "asc",
   driver?: string | PluginManifest | DriverCapabilities | null,
 ): string {
   const parts = currentSort.trim().split(/\s+/);
