@@ -94,6 +94,9 @@ jobs:
           if [ -d assets ]; then
             cp -r assets "$STAGE/"
           fi
+          if [ -d locales ]; then
+            cp -r locales "$STAGE/"
+          fi
           if [ -f ui/dist/index.js ]; then
             mkdir -p "$STAGE/ui/dist"
             cp ui/dist/index.js "$STAGE/ui/dist/"
@@ -110,6 +113,9 @@ jobs:
           Copy-Item ".tabularium" $stage
           if (Test-Path "assets") {
             Copy-Item -Recurse "assets" "$stage\assets"
+          }
+          if (Test-Path "locales") {
+            Copy-Item -Recurse "locales" "$stage\locales"
           }
           if (Test-Path "ui\dist\index.js") {
             New-Item -ItemType Directory -Force -Path "$stage\ui\dist" | Out-Null
