@@ -111,7 +111,7 @@ export interface ConnectionParams {
 export function withoutBlankSslMode<T extends { ssl_mode?: string }>(
   params: T,
 ): Omit<T, "ssl_mode"> | T {
-  if (params.ssl_mode === undefined || params.ssl_mode.trim() === "") {
+  if (params.ssl_mode == null || params.ssl_mode.trim() === "") {
     const rest = { ...params };
     delete rest.ssl_mode;
     return rest;
