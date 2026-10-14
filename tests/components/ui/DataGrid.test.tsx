@@ -1,5 +1,6 @@
 import { act, render, fireEvent, screen, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { createRef, useState, type ComponentProps } from "react";
 import { vi } from "vitest";
 import {
@@ -1610,6 +1611,130 @@ describe("DataGrid JSON context menu", () => {
   });
 });
 
+describe("DataGrid UUID context menu", () => {
+  it("stages a new UUID v4 for editable UUID columns", async () => {
+    const onPendingChange = vi.fn();
+    const { container } = render(
+      <DataGrid
+        columns={["id", "token"]}
+        data={[[1, "old-token"]]}
+        tableName="users"
+        pkColumns={["id"]}
+        columnMetadata={[
+          {
+            name: "id",
+            data_type: "integer",
+            is_pk: true,
+            is_nullable: false,
+            is_auto_increment: false,
+          },
+          {
+            name: "token",
+            data_type: "UUID",
+            is_pk: false,
+            is_nullable: false,
+            is_auto_increment: false,
+          },
+        ]}
+        onPendingChange={onPendingChange}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelector('td[data-col-index="1"]')!);
+    fireEvent.click(await screen.findByText("dataGrid.setRandomUuid"));
+
+    expect(onPendingChange).toHaveBeenCalledOnce();
+    const [pkValue, columnName, value] = onPendingChange.mock.calls[0];
+    expect(pkValue).toEqual({ id: 1 });
+    expect(columnName).toBe("token");
+    expect(value).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+  });
+
+  it("stages a UUID on a pending insertion row", async () => {
+    const onPendingInsertionChange = vi.fn();
+    const { container } = render(
+      <DataGrid
+        columns={["id", "token"]}
+        data={[[1, "existing-token"]]}
+        tableName="users"
+        pkColumns={["id"]}
+        pendingInsertions={{
+          pending: {
+            tempId: "pending",
+            data: { id: 2, token: null },
+            displayIndex: 1,
+          },
+        }}
+        columnMetadata={[
+          {
+            name: "id",
+            data_type: "integer",
+            is_pk: true,
+            is_nullable: false,
+            is_auto_increment: false,
+          },
+          {
+            name: "token",
+            data_type: "uuid",
+            is_pk: false,
+            is_nullable: false,
+            is_auto_increment: false,
+          },
+        ]}
+        onPendingInsertionChange={onPendingInsertionChange}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(
+      container.querySelector(
+        'tr[data-row-index="1"] td[data-col-index="1"]',
+      )!,
+    );
+    fireEvent.click(await screen.findByText("dataGrid.setRandomUuid"));
+
+    expect(onPendingInsertionChange).toHaveBeenCalledOnce();
+    const [tempId, columnName, value] =
+      onPendingInsertionChange.mock.calls[0];
+    expect(tempId).toBe("pending");
+    expect(columnName).toBe("token");
+    expect(value).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+  });
+
+  it("does not offer the UUID action in a read-only grid", async () => {
+    const { container } = render(
+      <DataGrid
+        columns={["token"]}
+        data={[["old-token"]]}
+        tableName="users"
+        columnMetadata={[
+          {
+            name: "token",
+            data_type: "uniqueidentifier",
+            is_pk: false,
+            is_nullable: false,
+            is_auto_increment: false,
+          },
+        ]}
+        readonly
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelector('td[data-col-index="0"]')!);
+
+    expect(screen.queryByText("dataGrid.setRandomUuid")).toBeNull();
+  });
+});
+
 describe("DataGrid sensitive-column masking (#485)", () => {
   // The file-level useSettings mock returns `{}`, so masking defaults to ON
   // with DEFAULT_MASKING_PATTERNS — a column named "email" masks by default.
@@ -1905,6 +2030,102 @@ describe("DataGrid filter-by-value context menu", () => {
     fireEvent.contextMenu(cellAt(container, 0, 1));
     await screen.findByText("dataGrid.copyCell");
     expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+  });
+});
+
+describe("DataGrid open link context menu", () => {
+  const cellAt = (container: HTMLElement, rowIndex: number, colIndex: number) =>
+    container.querySelector(
+      `tr[data-row-index="${rowIndex}"] td[data-col-index="${colIndex}"]`,
+    )!;
+
+  // "email" is masked by DEFAULT_MASKING_PATTERNS (settings mock is `{}`).
+  const renderLinksGrid = () =>
+    render(
+      <DataGrid
+        columns={["id", "website", "contact", "email", "notes"]}
+        data={[
+          [
+            1,
+            "  https://example.com/profile  ",
+            "mailto:alice@example.com",
+            "mailto:alice@example.com",
+            "plain text",
+          ],
+          [2, "file:///etc/passwd", "javascript:alert(1)", null, "ftp://host/x"],
+        ]}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        readonly
+      />,
+    );
+
+  beforeEach(() => {
+    vi.mocked(openUrl).mockReset();
+    vi.mocked(openUrl).mockResolvedValue(undefined);
+    showToastMock.mockClear();
+  });
+
+  it("opens the trimmed URL of an http(s) cell", async () => {
+    const { container } = renderLinksGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 1));
+    fireEvent.click(await screen.findByText("contextMenu.openLink"));
+
+    expect(openUrl).toHaveBeenCalledExactlyOnceWith("https://example.com/profile");
+  });
+
+  it("opens a mailto address", async () => {
+    const { container } = renderLinksGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 2));
+    fireEvent.click(await screen.findByText("contextMenu.openLink"));
+
+    expect(openUrl).toHaveBeenCalledExactlyOnceWith("mailto:alice@example.com");
+  });
+
+  it("never offers the entry for other schemes or plain text", async () => {
+    const { container } = renderLinksGrid();
+
+    for (const [row, col] of [
+      [0, 4],
+      [1, 1],
+      [1, 2],
+      [1, 4],
+    ] as const) {
+      fireEvent.contextMenu(cellAt(container, row, col));
+      await screen.findByText("dataGrid.copyCell");
+      expect(screen.queryByText("contextMenu.openLink")).toBeNull();
+      fireEvent.keyDown(document, { key: "Escape" });
+    }
+  });
+
+  it("never offers the entry for a masked cell", async () => {
+    const { container } = renderLinksGrid();
+
+    expect(cellAt(container, 0, 3)).toHaveTextContent("••••••");
+    fireEvent.contextMenu(cellAt(container, 0, 3));
+    await screen.findByText("dataGrid.copyCell");
+    expect(screen.queryByText("contextMenu.openLink")).toBeNull();
+    expect(openUrl).not.toHaveBeenCalled();
+  });
+
+  it("logs a failure to open the link and reports it with an error toast", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(openUrl).mockRejectedValue("no handler");
+    const { container } = renderLinksGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 1));
+    fireEvent.click(await screen.findByText("contextMenu.openLink"));
+
+    await waitFor(() =>
+      expect(showToastMock).toHaveBeenCalledWith(
+        expect.stringContaining("contextMenu.openLinkFailed"),
+        { kind: "error" },
+      ),
+    );
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });
 

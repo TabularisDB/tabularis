@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import {
   buildDuplicatedTab,
   canDuplicateTab,
+  canRenameTab,
   getTabDisplayTitle,
   reconstructTableQuery,
   resolveTabPageSize,
@@ -132,7 +133,8 @@ import {
   extractQueryParams,
   interpolateQueryParams,
 } from "../utils/queryParameters";
-import { formatDuration } from "../utils/formatTime";
+import { formatDuration, formatTimingTooltip } from "../utils/formatTime";
+import { useTimingLabels } from "../hooks/useTimingLabels";
 import { notifyQueryFinished } from "../utils/queryNotification";
 import {
   buildSyncPayload,
@@ -205,6 +207,7 @@ import {
   isFocusedPane,
 } from "../utils/tabScroll";
 import { computeAutoScrollSpeed } from "../utils/notebookDnd";
+import { buildExportFileName } from "../utils/exportFileName";
 import clsx from "clsx";
 
 interface ExportProgress {
@@ -282,6 +285,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   } = useEditor();
   const location = useLocation();
   const { matchesShortcut, isMac } = useKeybindings();
+  const timingLabels = useTimingLabels();
   const { showAlert } = useAlert();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -383,7 +387,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const startTabRename = useCallback((tabId: string) => {
     const tab = tabsRef.current.find((t) => t.id === tabId);
-    if (!tab) return;
+    if (!tab || !canRenameTab(tab)) return;
     setEditingTabId(tabId);
     setEditingTabTitle(tab.title);
   }, []);
@@ -2719,6 +2723,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!focused) return;
 
+      const target = e.target as HTMLElement | null;
+      const isTypingTarget =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+
       if (matchesShortcut(e, "close_tab")) {
         e.preventDefault();
         const currentTabId = activeTabIdRef.current;
@@ -2739,6 +2750,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       }
 
       if (matchesShortcut(e, "next_page")) {
+        if (isTypingTarget) return;
         const tab = tabsRef.current.find(
           (t) => t.id === activeTabIdRef.current,
         );
@@ -2750,6 +2762,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       }
 
       if (matchesShortcut(e, "prev_page")) {
+        if (isTypingTarget) return;
         const tab = tabsRef.current.find(
           (t) => t.id === activeTabIdRef.current,
         );
@@ -2867,6 +2880,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           connectionId,
           query: sql,
           sessionId: currentTab.id,
+          ...(currentTab.database ? { database: currentTab.database } : {}),
           ...(schema ? { schema } : {}),
         });
       });
@@ -4163,7 +4177,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               extensions: [extension],
             },
           ],
-          defaultPath: `result_${Date.now()}.${extension}`,
+          defaultPath: buildExportFileName({
+            tableName: activeTab.type === "table" ? activeTab.activeTable : null,
+            extension,
+          }),
         });
 
         if (!filePath) return;
@@ -4215,7 +4232,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             extensions: [extension],
           },
         ],
-        defaultPath: `result_${Date.now()}.${extension}`,
+        defaultPath: buildExportFileName({
+          tableName: activeTab.type === "table" ? activeTab.activeTable : null,
+          extension,
+        }),
       });
 
       if (!filePath) return;
@@ -4477,6 +4497,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
                   onChange={(e) => setEditingTabTitle(e.target.value)}
+                  aria-label={t("editor.renameTab")}
                   onBlur={commitTabRename}
                   onKeyDown={(e) => {
                     e.stopPropagation();
@@ -4490,7 +4511,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 <span
                   className="truncate flex-1 flex items-center gap-1"
                   onDoubleClick={
-                    tab.type === "notebook"
+                    canRenameTab(tab)
                       ? (e) => {
                           e.stopPropagation();
                           startTabRename(tab.id);
@@ -5317,7 +5338,21 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                           count: activeTab.result.rows.length,
                         })}{" "}
                         {activeTab.executionTime !== null && (
-                          <span className="hidden @[400px]:inline text-muted ml-2 font-mono">
+                          <span
+                            className="hidden @[400px]:inline text-muted ml-2 font-mono"
+                            title={
+                              activeTab.result
+                                ? formatTimingTooltip(
+                                    {
+                                      serverTimeMs: activeTab.result.server_time_ms,
+                                      fetchTimeMs: activeTab.result.fetch_time_ms,
+                                      totalTimeMs: activeTab.executionTime,
+                                    },
+                                    timingLabels,
+                                  ) ?? undefined
+                                : undefined
+                            }
+                          >
                             ({formatDuration(activeTab.executionTime)})
                           </span>
                         )}
@@ -5875,10 +5910,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   { separator: true },
                 ]
               : []),
-            ...(contextTab?.type === "notebook"
+            ...(canRenameTab(contextTab)
               ? [
                   {
-                    label: t("sidebar.notebooks.rename"),
+                    label: t("editor.renameTab"),
                     icon: Pencil,
                     action: () => startTabRename(tabContextMenu.tabId),
                   },

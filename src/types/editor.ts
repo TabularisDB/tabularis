@@ -44,6 +44,8 @@ export interface QueryResult {
   /// `src-tauri/src/models.rs::QueryResult`; the first set stays in
   /// `columns` / `rows`.
   additional_results?: QueryResult[];
+  server_time_ms?: number;
+  fetch_time_ms?: number;
 }
 
 /// One statement's outcome inside an `execute_query_batch` invocation.

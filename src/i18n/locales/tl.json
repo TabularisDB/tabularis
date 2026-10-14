@@ -255,6 +255,16 @@
     "insertToEditor": "Ipasok sa Editor",
     "openInNewTab": "Buksan sa Bagong Tab",
     "copyQuery": "Kopyahin ang Query",
+    "copyDetails": "Kopyahin ang Detalye",
+    "historyDetails": {
+      "database": "Database",
+      "executed": "Pinatakbo",
+      "duration": "Tagal",
+      "rowsAffected": "Mga row na naapektuhan",
+      "status": "Status",
+      "success": "tagumpay",
+      "error": "error"
+    },
     "runQuery": "I-run ang Query",
     "dateGroupToday": "Ngayon",
     "dateGroupYesterday": "Kahapon",
@@ -796,6 +806,8 @@
       "runtimeTitle": "Runtime ng plugin",
       "callTimeout": "Timeout ng tawag",
       "callTimeoutDesc": "Pinakamahabang oras na hinihintay ng Tabularis ang sagot ng plugin sa isang request (kasama ang mga query). Ilagay ang 0 para alisin ang limitasyon. Maaaring i-override ng bawat plugin ang value na ito sa sarili nitong settings.",
+      "shutdownGrace": "Grace period sa paghinto",
+      "shutdownGraceDesc": "Gaano katagal hinihintay ng Tabularis na matapos ang mga kasalukuyang request bago ihinto ang plugin (minimum na 1 segundo). Maaaring i-override ng bawat plugin ang value na ito sa sarili nitong settings.",
       "title": "Plugins",
       "overviewTitle": "Plugin Center",
       "overviewDesc": "Mag-install ng extension, pamahalaan ang plugin driver, at kontrolin ang runtime settings.",
@@ -873,6 +885,10 @@
         "callTimeoutDesc": "Ino-override ang global na timeout ng tawag para sa plugin na ito lamang. Ilagay ang 0 para alisin ang limitasyon, iwanang blangko para gamitin ang global na value.",
         "callTimeoutPlaceholder": "Gamitin ang global ({{seconds}} s)",
         "callTimeoutInherit": "Gamitin ang global na value",
+        "shutdownGrace": "Grace period sa paghinto",
+        "shutdownGraceDesc": "Ino-override ang global na grace period sa paghinto para sa plugin na ito lamang (minimum na 1 segundo). Iwanang blangko para gamitin ang global na value.",
+        "shutdownGracePlaceholder": "Gamitin ang global ({{seconds}} s)",
+        "shutdownGraceInherit": "Gamitin ang global na value",
         "title": "Mga Setting ng Plugin",
         "interpreter": "Interpreter",
         "interpreterDesc": "Opsyonal. Tukuyin ang executable na ginagamit para patakbuhin ang plugin na ito (hal. python3 sa macOS/Linux, python o full path sa Windows). Iwanang blank para gamitin ang default.",
@@ -944,7 +960,7 @@
       "pressKeys": "Pindutin ang key combination...",
       "notebookRunAll": "Patakbuhin ang Lahat ng Cell",
       "categories_notebook": "Notebook",
-      "pasteImportClipboard": "I-import mula sa Clipboard",
+      "pasteImportClipboard": "Mag-import ng data",
       "quickNavigator": "Quick Navigator",
       "formatSql": "I-format ang SQL",
       "extendCellRange": "Palawakin ang cell range",
@@ -954,7 +970,10 @@
       "selectRow": "Piliin ang row",
       "selectColumn": "Piliin ang column",
       "commandPalette": "Command Palette",
-      "commandPaletteActions": "Maghanap ng mga aksyon"
+      "commandPaletteActions": "Maghanap ng mga aksyon",
+      "editorZoomIn": "Editor: palakihin ang font",
+      "editorZoomOut": "Editor: paliitin ang font",
+      "editorZoomReset": "Editor: i-reset ang laki ng font"
     },
     "aiActivity": "AI Activity",
     "storage": {
@@ -1307,6 +1326,11 @@
     "copyColumnName": "Kopyahin ang pangalan ng column",
     "copyColumnNameQuoted": "Kopyahin bilang `column`",
     "copyColumnNameTable": "Kopyahin bilang table.column",
+    "copyColumnNames": "Kopyahin ang mga pangalan ng column",
+    "copyColumnNamesLines": "Isa bawat linya",
+    "copyColumnNamesJson": "Bilang JSON array",
+    "copiedColumnNames_one": "Nakopya ang {{count}} pangalan ng column sa clipboard",
+    "copiedColumnNames_other": "Nakopya ang {{count}} na pangalan ng column sa clipboard",
     "copyColumnValuesIn": "Kopyahin ang mga value ng column bilang SQL IN",
     "filterEquals": "Filter: {{column}} = value na ito",
     "filterNotEquals": "Filter: {{column}} <> value na ito",
@@ -1323,6 +1347,7 @@
     "setDefault": "I-set ang DEFAULT",
     "setEmpty": "I-set ang EMPTY",
     "setServerNow": "Ipasok ang Kasalukuyang Timestamp",
+    "setRandomUuid": "I-set ang random na UUID",
     "previewReferenced": "I-preview ang kaugnay na record",
     "openReferenced": "Buksan ang naka-reference na row sa {{table}}",
     "revealCell": "Ipakita ang cell",
@@ -1372,6 +1397,11 @@
     "newRow": "Bagong Row",
     "editing": "Ine-edit: {{table}}",
     "rowsRetrieved": "{{count}} row ang nakuha",
+    "timing": {
+      "execution": "Pagpapatupad",
+      "fetch": "Pagkuha",
+      "total": "Kabuuan"
+    },
     "queryExecuted": "Matagumpay na naisakatuparan ang query",
     "rowsAffected": "{{count}} row ang naapektuhan",
     "autoPaginated": "Auto paginated",
@@ -1391,6 +1421,7 @@
       "detached": "Na-detach ang mga resulta sa hiwalay na window",
       "reattach": "I-attach muli"
     },
+    "renameTab": "Palitan ang Pangalan",
     "duplicateTab": "I-duplicate ang Tab",
     "closeTab": "Isara ang Tab",
     "reopenClosedTab": "Muling Buksan ang Saradong Tab",
@@ -1460,7 +1491,10 @@
     "exportLoadedRowsWarning": "{{loaded}} lang na na-load na row ang na-export mula sa kabuuang {{total}} row. Mag-page sa resulta o magpatakbo ng mas makitid na query bago mag-export kung kailangan mo ng mas maraming row.",
     "queryParameters": "Mga Parameter ng Query",
     "formatSql": "I-format ang SQL",
+    "selectCurrentStatement": "Piliin ang kasalukuyang statement",
     "convertSelectionToSqlList": "I-convert ang napili sa listahan ng SQL",
+    "transformToUppercase": "Gawing malalaking titik",
+    "transformToLowercase": "Gawing maliliit na titik",
     "removeInvisibleCharacters": "Linisin ang mga na-paste na character",
     "convertToConsole": "I-convert sa Console",
     "parameters": "Mga Parameter",
@@ -2038,7 +2072,9 @@
   },
   "contextMenu": {
     "openSidebar": "Buksan ang Sidebar Editor",
-    "openJsonEditor": "Buksan sa JSON Editor"
+    "openJsonEditor": "Buksan sa JSON Editor",
+    "openLink": "Buksan ang link",
+    "openLinkFailed": "Hindi mabuksan ang link: {{error}}"
   },
   "blobInput": {
     "noData": "Walang BLOB data",
@@ -2154,10 +2190,17 @@
     "noDatabase": "Walang database"
   },
   "clipboardImport": {
-    "title": "I-import mula sa Clipboard",
-    "subtitle": "I-paste ang structured data at i-preview ang schema bago mag-import",
+    "fileReadError": "Hindi mabasa ang file",
+    "fileNotFile": "Pumili ng regular na file.",
+    "fileUnsupported": "Pumili ng CSV, TSV, JSON, o Markdown file.",
+    "fileTooLarge": "Lampas sa 20 MiB ang file. Pumili ng mas maliit na file.",
+    "fileHint": "CSV, TSV, JSON array, o Markdown table. Maximum na laki ng file: 20 MiB.",
+    "fileSource": "Pumili ng file...",
+    "clipboardSource": "Clipboard",
+    "title": "Mag-import ng data",
+    "subtitle": "Mag-load ng structured data mula sa clipboard o file at suriin bago mag-import",
     "selectTablePlaceholder": "Pumili ng table...",
-    "contextMenuLabel": "I-import mula sa Clipboard...",
+    "contextMenuLabel": "Mag-import ng data...",
     "firstRowHeader": "Unang row bilang header",
     "tableName": "Pangalan ng table",
     "tableNamePlaceholder": "hal. sales_data",
@@ -2181,7 +2224,7 @@
     "success": "{{count}} row ang na-import sa \"{{table}}\"",
     "tableCreated": "Gumawa ng bagong table",
     "openTable": "Isara",
-    "noData": "Walang data sa clipboard",
+    "noData": "Walang data sa napiling pinagmulan",
     "retry": "Subukan ulit",
     "warningsCount": "{{count}} parsing warning",
     "columnsLabel": "mga column",
@@ -2380,7 +2423,9 @@
     "commands": {
       "openSettings": "Buksan ang settings",
       "openConnections": "Buksan ang connection manager",
-      "openTableInConsole": "Buksan ang kasalukuyang talahanayan sa SQL console"
+      "openTableInConsole": "Buksan ang kasalukuyang talahanayan sa SQL console",
+      "toggleWordWrapEnable": "Paganahin ang word wrap",
+      "toggleWordWrapDisable": "I-off ang word wrap"
     }
   },
   "pagination": {

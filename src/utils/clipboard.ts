@@ -38,6 +38,14 @@ export function rowsToJSON(rows: unknown[][], columns: string[]): string {
   );
 }
 
+export function columnNamesAsLines(columns: string[]): string {
+  return columns.join("\n");
+}
+
+export function columnNamesAsJson(columns: string[]): string {
+  return JSON.stringify(columns);
+}
+
 function markdownCell(cell: unknown, nullLabel: string = "null"): string {
   return formatCellValue(cell, nullLabel)
     .replace(/\|/g, "\\|")

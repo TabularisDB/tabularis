@@ -8,7 +8,9 @@ import {
   columnValuesToInClause,
   getSelectedRows,
   copyTextToClipboard,
-  rowsToHtmlTable
+  rowsToHtmlTable,
+  columnNamesAsLines,
+  columnNamesAsJson,
 } from '../../src/utils/clipboard';
 
 describe('clipboard utils', () => {
@@ -232,6 +234,57 @@ describe('clipboard utils', () => {
       expect(rowsToHtmlTable([], ['id'])).toBe(
         '<table><thead><tr><th>id</th></tr></thead><tbody></tbody></table>'
       );
+    });
+  });
+
+  describe('columnNamesAsLines', () => {
+    it('should format multiple column names in grid order', () => {
+      const columns = ['id', 'name', 'email'];
+      expect(columnNamesAsLines(columns)).toBe('id\nname\nemail');
+    });
+
+    it('should handle single column name', () => {
+      expect(columnNamesAsLines(['id'])).toBe('id');
+    });
+
+    it('should return empty string for empty array', () => {
+      expect(columnNamesAsLines([])).toBe('');
+    });
+
+    it('should handle columns with empty names', () => {
+      const columns = ['id', '', 'email'];
+      expect(columnNamesAsLines(columns)).toBe('id\n\nemail');
+    });
+  });
+
+  describe('columnNamesAsJson', () => {
+    it('should format multiple columns in grid order as JSON array', () => {
+      const columns = ['id', 'name', 'email'];
+      expect(columnNamesAsJson(columns)).toBe('["id","name","email"]');
+    });
+
+    it('should handle single column name', () => {
+      expect(columnNamesAsJson(['id'])).toBe('["id"]');
+    });
+
+    it('should return empty array string for empty columns array', () => {
+      expect(columnNamesAsJson([])).toBe('[]');
+    });
+
+    it('should handle columns with empty names', () => {
+      const columns = ['id', '', 'email'];
+      expect(columnNamesAsJson(columns)).toBe('["id","","email"]');
+    });
+
+    it('should escape quotes and backslashes in column names', () => {
+      const columns = ['col"name', 'col\\name'];
+      expect(columnNamesAsJson(columns)).toBe('["col\\"name","col\\\\name"]');
+    });
+
+    it('should produce valid JSON parseable back to the original array', () => {
+      const columns = ['id', 'user"name', 'path\\to\\field', '', 'email'];
+      const jsonStr = columnNamesAsJson(columns);
+      expect(JSON.parse(jsonStr)).toEqual(columns);
     });
   });
 

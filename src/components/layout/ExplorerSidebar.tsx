@@ -18,6 +18,7 @@ import {
   Hash,
   FileText,
   Copy,
+  ClipboardList,
   Loader2,
   Download,
   Upload,
@@ -71,6 +72,7 @@ import { MetadataErrorIndicator } from "./sidebar/MetadataErrorIndicator";
 import { SidebarTableItem } from "./sidebar/SidebarTableItem";
 import { buildTableItemSelector } from "../../utils/sidebarTableItem";
 import { fuzzyFilter } from "../../utils/fuzzy";
+import { formatHistoryEntryDetails } from "../../utils/queryHistoryDetails";
 import { SidebarViewItem } from "./sidebar/SidebarViewItem";
 import { SidebarRoutineItem } from "./sidebar/SidebarRoutineItem";
 import { SidebarRoutineGroupHeader } from "./sidebar/SidebarRoutineGroupHeader";
@@ -2880,6 +2882,26 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     label: t("sidebar.copyQuery"),
                                     icon: Copy,
                                     action: () => navigator.clipboard.writeText(historyEntry.sql),
+                                  },
+                                  {
+                                    label: t("sidebar.copyDetails"),
+                                    icon: ClipboardList,
+                                    action: () =>
+                                      navigator.clipboard.writeText(
+                                        formatHistoryEntryDetails(
+                                          historyEntry,
+                                          {
+                                            database: t("sidebar.historyDetails.database"),
+                                            executed: t("sidebar.historyDetails.executed"),
+                                            duration: t("sidebar.historyDetails.duration"),
+                                            rowsAffected: t("sidebar.historyDetails.rowsAffected"),
+                                            status: t("sidebar.historyDetails.status"),
+                                            success: t("sidebar.historyDetails.success"),
+                                            error: t("sidebar.historyDetails.error"),
+                                          },
+                                          settings.displayTimezone,
+                                        ),
+                                      ),
                                   },
                                   {
                                     label: t("sidebar.insertToEditor"),

@@ -1,6 +1,7 @@
 import type { TableColumn } from "../types/editor";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { formatSqlIdentifier, quoteIdentifier, quoteTableRef } from "./identifiers";
+import { formatSqlValueForColumnComparison, isMysqlFloatColumn } from "./foreignKeys";
 
 
 export type FilterOperator =
@@ -174,6 +175,7 @@ export function buildSingleFilterClause(
   filter: StructuredFilter,
   driver?: string | PluginManifest | DriverCapabilities | null,
   quoteMode: FilterQuoteMode = "auto",
+  columnType?: string,
 ): string {
   const col =
     quoteMode === "always"
@@ -233,6 +235,9 @@ export function buildSingleFilterClause(
   return `${col} ${op} ${val}`;
 
   function quoteValue(value: string, doubleQuotedValue = false): string {
+    if (isMysqlFloatColumn(driver, columnType) && /^-?\d+(\.\d+)?$/.test(value)) {
+      return formatSqlValueForColumnComparison(Number(value), driver, columnType);
+    }
     // Escape at clause construction, including values the picker already quoted.
     // Stored filter values stay dialect-independent when the picker reopens.
     return quoteIfNeeded(
@@ -375,10 +380,18 @@ export function buildStructuredFilterClause(
   driver?: string | PluginManifest | DriverCapabilities | null,
   combinator: FilterCombinator = "AND",
   quoteMode: FilterQuoteMode = "auto",
+  columns?: readonly TableColumn[],
 ): string {
   const clauses = filters
     .filter((f) => f.column && f.enabled !== false && isFilterComplete(f))
-    .map((f) => buildSingleFilterClause(f, driver, quoteMode));
+    .map((f) =>
+      buildSingleFilterClause(
+        f,
+        driver,
+        quoteMode,
+        columns?.find((c) => c.name === f.column)?.data_type,
+      ),
+    );
   const joined = clauses.join(` ${combinator} `);
   return combinator === "OR" && clauses.length > 1 ? `(${joined})` : joined;
 }
@@ -510,12 +523,13 @@ export function buildValuePickerWhere(
   excludeId: string,
   driver: string | PluginManifest | DriverCapabilities | null | undefined,
   combinator: FilterCombinator,
+  columns?: readonly TableColumn[],
 ): string {
   if (combinator === "OR") return "";
   const others = filters.filter((f) => f.id !== excludeId);
   // Always quote columns so the WHERE matches buildDistinctValuesQuery
   // (quoteIdentifier), including MySQL reserved words like `order` / `group`.
-  return buildStructuredFilterClause(others, driver, "AND", "always");
+  return buildStructuredFilterClause(others, driver, "AND", "always", columns);
 }
 
 function stringifyCell(value: unknown): string {

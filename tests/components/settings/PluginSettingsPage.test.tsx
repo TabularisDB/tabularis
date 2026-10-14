@@ -9,7 +9,15 @@ import { useConnectionCatalogue } from "../../../src/hooks/useConnectionCatalogu
 import type { PluginManifest } from "../../../src/types/plugins";
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => {
+      if (!options) return key;
+      return Object.entries(options).reduce(
+        (result, [name, value]) => result.replace(`{{${name}}}`, String(value)),
+        key,
+      );
+    },
+  }),
 }));
 vi.mock("../../../src/hooks/useDrivers", () => ({ useDrivers: vi.fn() }));
 vi.mock("../../../src/hooks/useSettings", () => ({ useSettings: vi.fn() }));
@@ -97,5 +105,42 @@ describe("PluginSettingsPage restart during save", () => {
     expect(save).toBeEnabled();
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(screen.getByText("settings.plugins.pluginSettings.saved")).toBeInTheDocument();
+  });
+
+  it("saves a per-plugin shutdown grace and clears it to inherit the global value", async () => {
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    render(<PluginSettingsPage pluginId="test-plugin" />);
+
+    const grace = screen.getByRole("spinbutton", {
+      name: "settings.plugins.pluginSettings.shutdownGrace",
+    });
+    expect(grace).toHaveValue(null);
+    expect(grace).toHaveAttribute(
+      "placeholder",
+      "settings.plugins.pluginSettings.shutdownGracePlaceholder",
+    );
+
+    fireEvent.change(grace, { target: { value: "15" } });
+    const save = screen.getByRole("button", { name: "common.save" });
+    fireEvent.click(save);
+    await waitFor(() =>
+      expect(updateSetting).toHaveBeenCalledWith("plugins", {
+        "test-plugin": expect.objectContaining({ shutdownGraceSeconds: 15 }),
+      }),
+    );
+    await waitFor(() => expect(save).toHaveAttribute("aria-busy", "false"));
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "settings.plugins.pluginSettings.shutdownGraceInherit",
+      }),
+    );
+    fireEvent.click(save);
+    await waitFor(() => {
+      const saved = updateSetting.mock.calls.at(-1)?.[1] as {
+        "test-plugin": { shutdownGraceSeconds?: number };
+      };
+      expect(saved["test-plugin"].shutdownGraceSeconds).toBeUndefined();
+    });
   });
 });

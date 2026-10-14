@@ -19,6 +19,10 @@ pub struct PluginConfig {
     /// `None` inherits the global value; `0` disables the timeout.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub call_timeout_seconds: Option<u32>,
+    /// Per-plugin override of `AppConfig::plugin_shutdown_grace_seconds`.
+    /// `None` inherits the global value; values below 1 are clamped at runtime.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shutdown_grace_seconds: Option<u32>,
 }
 
 /// Per-connection column masking overrides (`table.column` entries).
@@ -110,6 +114,9 @@ pub struct AppConfig {
     /// Maximum seconds the host waits for a plugin to answer a single call.
     /// `0` disables the timeout. Default: 120. Overridable per plugin.
     pub plugin_call_timeout_seconds: Option<u32>,
+    /// Seconds in-flight plugin calls may run after shutdown is requested.
+    /// Values below 1 are clamped at runtime. Default: 2. Overridable per plugin.
+    pub plugin_shutdown_grace_seconds: Option<u32>,
     pub editor_theme: Option<String>,
     /// Font for query result cells ("inherit" follows the interface font). Default: JetBrains Mono.
     pub result_font_family: Option<String>,
@@ -303,6 +310,7 @@ pub fn get_config_dir<R: tauri::Runtime>(_app: &AppHandle<R>) -> Option<PathBuf>
 
 fn cache_config(config: &AppConfig) {
     crate::plugins::call_timeout::apply_config(config);
+    crate::plugins::shutdown_grace::apply_config(config);
     if let Ok(mut cached) = CONFIG_CACHE.write() {
         *cached = config.clone();
     }
@@ -341,6 +349,7 @@ pub fn load_config_from_disk() -> AppConfig {
     // snapshot is kept in that case.
     if trusted {
         crate::plugins::call_timeout::apply_config(&config);
+        crate::plugins::shutdown_grace::apply_config(&config);
     }
     config
 }
@@ -525,6 +534,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.plugin_call_timeout_seconds.is_some() {
             existing_config.plugin_call_timeout_seconds = config.plugin_call_timeout_seconds;
+        }
+        if config.plugin_shutdown_grace_seconds.is_some() {
+            existing_config.plugin_shutdown_grace_seconds = config.plugin_shutdown_grace_seconds;
         }
         if config.editor_theme.is_some() {
             existing_config.editor_theme = config.editor_theme;

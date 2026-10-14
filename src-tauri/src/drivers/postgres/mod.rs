@@ -1090,6 +1090,8 @@ async fn exec_on_pg_client(
             truncated: false,
             pagination: None,
             additional_results: None,
+            server_time_ms: None,
+            fetch_time_ms: None,
         });
     }
 
@@ -1106,6 +1108,9 @@ async fn exec_on_pg_client(
         (query.to_string(), None)
     };
 
+    let start_instant = std::time::Instant::now();
+    let mut server_time_ms: Option<f64> = None;
+
     let pg_params: Vec<i32> = vec![];
     let mut rows_stream = std::pin::pin!(client
         .query_raw(&final_query, &pg_params)
@@ -1118,6 +1123,9 @@ async fn exec_on_pg_client(
     use futures::stream::StreamExt;
 
     while let Some(result) = rows_stream.next().await {
+        if server_time_ms.is_none() {
+            server_time_ms = Some(start_instant.elapsed().as_secs_f64() * 1000.0);
+        }
         match result {
             Ok(row) => {
                 if columns.is_empty() {
@@ -1142,6 +1150,9 @@ async fn exec_on_pg_client(
         }
     }
 
+    let (server_time, fetch_time) =
+        crate::drivers::common::calculate_query_timing_from_start(start_instant, server_time_ms);
+
     let pagination = if let Some((page_size, p)) = pagination_meta {
         let has_more = json_rows.len() > page_size as usize;
         if has_more {
@@ -1165,6 +1176,8 @@ async fn exec_on_pg_client(
         truncated,
         pagination,
         additional_results: None,
+        server_time_ms: server_time,
+        fetch_time_ms: fetch_time,
     })
 }
 
@@ -1285,6 +1298,23 @@ pub async fn execute_batch_in_session(
         Some(id) => Some(session::lock(id).await),
         None => None,
     };
+    // A pinned connection belongs to one transaction, and a transaction is
+    // scoped to one database. If the tab has switched databases since opening
+    // the transaction, keeping running on the pinned connection would silently
+    // execute on the old database. Reject before taking the client so the
+    // pinned session (and its open transaction) is left intact.
+    let requested_db = params.database.primary();
+    if let Some(slot) = slot.as_ref() {
+        if let Some(pinned_db) = slot.database() {
+            if pinned_db != requested_db {
+                return Err(format!(
+                    "This tab has an open transaction on database \"{pinned_db}\" \
+                     and cannot run on database \"{requested_db}\". End the transaction \
+                     (ROLLBACK or COMMIT) or switch back to \"{pinned_db}\"."
+                ));
+            }
+        }
+    }
     let pinned = slot.as_mut().and_then(|s| s.take());
     // A pinned connection only exists because its transaction is still open.
     let mut in_transaction = pinned.is_some();
@@ -1310,7 +1340,7 @@ pub async fn execute_batch_in_session(
     let client = in_flight.0.take().expect("set above");
     match slot.as_mut() {
         Some(slot) if in_transaction => {
-            slot.pin(client);
+            slot.pin(client, requested_db.to_string());
             Ok((results, true))
         }
         _ => {
