@@ -198,7 +198,10 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
         // Close the pool, falling back to the saved params if tunnel-free
         // resolution fails — the pool key matches because it doesn't use the
         // host/port for saved connections (#1065).
-        let close_params = match crate::commands::params_for_pool_close(&saved_conn.params, connection_id) {
+        let close_params = match crate::commands::params_for_pool_close(
+            &saved_conn.params,
+            connection_id,
+        ) {
             Ok(p) => p,
             Err(e) => {
                 log::warn!(
@@ -211,21 +214,13 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
         };
         crate::pool_manager::close_pool_with_id(&close_params, Some(connection_id)).await;
 
-        // SSH-expanded params are only needed for release_connection_sessions,
-        // which calls driver_for_params. If SSH is down, fall back to the
-        // tunnel-free close_params — the driver lookup only needs params.driver.
-        match crate::commands::expand_ssh_connection_params(app, &saved_conn.params).await {
-            Ok(expanded) => {
-                params = Some(
-                    crate::commands::params_for_pool_close(&expanded, connection_id)
-                        .unwrap_or(close_params),
-                );
-            }
-            Err(e) => {
-                log::warn!("Health check: failed to expand SSH params on {connection_id}: {e}");
-                params = Some(close_params);
-            }
-        }
+        // release_connection_sessions only needs params.driver to look up
+        // the driver for rollback — the same driver regardless of tunnel
+        // expansion. Since params_for_pool_close already disabled all tunnel
+        // types, close_params has the right driver and connection_id, so
+        // re-expanding SSH would only add a redundant keychain lookup that
+        // produces the same result.
+        params = Some(close_params);
     }
     // Release pinned transaction sessions after closing the pool. A checked-out
     // pinned client survives pool.close() (which only blocks new checkouts), so
