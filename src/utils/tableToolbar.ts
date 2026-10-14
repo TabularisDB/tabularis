@@ -180,3 +180,18 @@ export function getNextSortClause(
     ? `${formattedCol} DESC`
     : `${formattedCol} ASC`;
 }
+
+/**
+ * Returns the action a click on a column's sort button will perform, matching
+ * the cycle implemented by getNextSortClause. Used for the button's label.
+ */
+export function getSortButtonAction(
+  state: "none" | "asc" | "desc",
+  defaultSortDirection: DefaultSortDirection = "asc",
+): "asc" | "desc" | "clear" {
+  if (state === "none") return defaultSortDirection;
+  if (state === defaultSortDirection) {
+    return defaultSortDirection === "asc" ? "desc" : "asc";
+  }
+  return "clear";
+}

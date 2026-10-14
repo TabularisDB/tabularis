@@ -9,6 +9,7 @@ import {
   generateOrderByPlaceholder,
   formatSortClause,
   getNextSortClause,
+  getSortButtonAction,
 } from '../../src/utils/tableToolbar';
 import type { DriverCapabilities } from '../../src/types/plugins';
 
@@ -292,6 +293,20 @@ describe('tableToolbar utils', () => {
       expect(getNextSortClause('', 'select', 'asc', 'postgres')).toBe('"select" ASC');
       expect(getNextSortClause('', 'created_at', 'asc', 'postgres')).toBe('created_at ASC');
       expect(getNextSortClause('', 'created_at', 'asc', 'mysql')).toBe('created_at ASC');
+    });
+  });
+
+  describe('getSortButtonAction', () => {
+    it('follows the ascending cycle by default', () => {
+      expect(getSortButtonAction('none')).toBe('asc');
+      expect(getSortButtonAction('asc')).toBe('desc');
+      expect(getSortButtonAction('desc')).toBe('clear');
+    });
+
+    it('follows the descending cycle', () => {
+      expect(getSortButtonAction('none', 'desc')).toBe('desc');
+      expect(getSortButtonAction('desc', 'desc')).toBe('asc');
+      expect(getSortButtonAction('asc', 'desc')).toBe('clear');
     });
   });
 

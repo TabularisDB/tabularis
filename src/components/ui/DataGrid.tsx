@@ -73,6 +73,7 @@ import {
   type RangeExtendKey,
 } from "../../utils/dataGrid";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
+import { getSortButtonAction } from "../../utils/tableToolbar";
 import { useSettings } from "../../hooks/useSettings";
 import { useJsonEditorActivity } from "../../hooks/useJsonEditorActivity";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
@@ -289,6 +290,7 @@ export const DataGrid = React.memo(
     const colorByType = settings.resultColorByType ?? false;
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
     const zebraStripes = settings.resultZebraStripes ?? false;
+    const defaultSortDirection = settings.defaultSortDirection ?? "asc";
 
     // Sensitive-column masking (#485): display-only — copy/export keep the
     // real values; only the rendered grid masks them.
@@ -1341,6 +1343,16 @@ export const DataGrid = React.memo(
               const sortState = getColumnSortState(colName, sortClause);
               const displaySortState: "none" | "asc" | "desc" =
                 sortState ?? "none";
+              const sortAction = getSortButtonAction(
+                displaySortState,
+                defaultSortDirection,
+              );
+              const sortButtonLabel =
+                sortAction === "asc"
+                  ? t("dataGrid.sortByAsc", { col: colName })
+                  : sortAction === "desc"
+                    ? t("dataGrid.sortByDesc", { col: colName })
+                    : t("dataGrid.clearSort");
               // Column data type for the DataGrip-style header hover tooltip.
               // Only populated when column metadata is present (i.e. table
               // browse), not for arbitrary query results.
@@ -1379,23 +1391,13 @@ export const DataGrid = React.memo(
                     <button
                       type="button"
                       className="flex flex-col items-center justify-center cursor-pointer"
-                      aria-label={
-                        displaySortState === "none"
-                          ? t("dataGrid.sortByAsc", { col: colName })
-                          : displaySortState === "asc"
-                            ? t("dataGrid.sortByDesc", { col: colName })
-                            : t("dataGrid.clearSort")
-                      }
+                      aria-label={sortButtonLabel}
                       title={
                         // Suppress the native sort-hint title while the type
                         // tooltip is shown, to avoid two overlapping tooltips.
                         hasMetadataTooltip
                           ? undefined
-                          : displaySortState === "none"
-                            ? t("dataGrid.sortByAsc", { col: colName })
-                            : displaySortState === "asc"
-                              ? t("dataGrid.sortByDesc", { col: colName })
-                              : t("dataGrid.clearSort")
+                          : sortButtonLabel
                       }
                       onClick={(e) => {
                         e.preventDefault();
@@ -1444,6 +1446,7 @@ export const DataGrid = React.memo(
         columnHelper,
         t,
         sortClause,
+        defaultSortDirection,
         onSort,
         columnTypeMap,
         columnCommentMap,
