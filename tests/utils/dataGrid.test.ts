@@ -851,6 +851,19 @@ describe('dataGrid utils', () => {
       expect(parsePasteMatrix('a\t\n\nb')).toEqual([['a', ''], [''], ['b']]);
     });
 
+    it('unquotes a tab-delimited field that the CSV copy quoted', () => {
+      // A cell `say "hi"` copied as CSV and pasted back with a tab delimiter.
+      expect(parsePasteMatrix('"say ""hi"""\tplain')).toEqual([['say "hi"', 'plain']]);
+    });
+
+    it('keeps a tab inside a quoted field', () => {
+      expect(parsePasteMatrix('"a\tb"\tc')).toEqual([['a\tb', 'c']]);
+    });
+
+    it('leaves a field that only starts with a quote as written', () => {
+      expect(parsePasteMatrix('He said "x"\tb')).toEqual([['He said "x"', 'b']]);
+    });
+
     it('returns an empty matrix for empty or whitespace-only text', () => {
       expect(parsePasteMatrix('')).toEqual([]);
       expect(parsePasteMatrix('\n')).toEqual([]);

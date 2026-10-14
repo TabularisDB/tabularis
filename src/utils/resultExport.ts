@@ -1,5 +1,5 @@
 import type { QueryResult } from "../types/editor";
-import { rowsToMarkdown } from "./clipboard";
+import { csvField, rowsToMarkdown } from "./clipboard";
 
 export type ResultExportFormat = "csv" | "json" | "markdown";
 
@@ -24,11 +24,7 @@ function csvValue(value: unknown, delimiter: string): string {
         ? JSON.stringify(value)
         : String(value);
 
-  if (text.includes(delimiter) || text.includes('"') || /\r?\n/.test(text)) {
-    return `"${text.replace(/"/g, '""')}"`;
-  }
-
-  return text;
+  return csvField(text, delimiter);
 }
 
 function resultToCsv(result: QueryResult, delimiter: string): string {

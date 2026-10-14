@@ -39,6 +39,16 @@ describe("resultExport", () => {
     );
   });
 
+  it("quotes a CSV field with a lone carriage return, as the clipboard does", () => {
+    const carriageResult: QueryResult = {
+      columns: ["id", "note"],
+      rows: [[1, "hello\rworld"]],
+      affected_rows: 0,
+    };
+
+    expect(formatResultForExport(carriageResult, "csv")).toBe('id,note\n1,"hello\rworld"');
+  });
+
   it("formats loaded result rows as pretty JSON", () => {
     expect(formatResultForExport(result, "json")).toBe(
       JSON.stringify(

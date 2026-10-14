@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   rowToCSV,
   rowsToCSV,
+  rowsToCSVWithHeaders,
   rowToJSON,
   rowsToJSON,
   columnValuesForCopy,
@@ -42,7 +43,8 @@ describe('clipboard utils', () => {
 
     it('should handle objects by converting to JSON', () => {
       const row = [1, { name: 'test' }, 'value'];
-      expect(rowToCSV(row)).toBe('1,{"name":"test"},value');
+      // The JSON text has quotes, so the CSV field is quoted with them doubled.
+      expect(rowToCSV(row)).toBe('1,"{""name"":""test""}",value');
     });
 
     it('should handle boolean values', () => {
@@ -465,5 +467,31 @@ describe('clipboard utils', () => {
 
       expect(mockWriteText).toHaveBeenCalledWith('');
     });
+  });
+});
+
+describe('CSV clipboard quoting', () => {
+  it('quotes a value that contains the delimiter', () => {
+    expect(rowToCSV(['Rome, Italy', 3])).toBe('"Rome, Italy",3');
+  });
+
+  it('quotes a value with a double quote and doubles the quote', () => {
+    expect(rowToCSV(['say "hi"'])).toBe('"say ""hi"""');
+  });
+
+  it('quotes a value with a lone carriage return, as the file export does', () => {
+    expect(rowsToCSV([['hello\rworld', 'x']])).toBe('"hello\rworld",x');
+  });
+
+  it('quotes a value with a line break', () => {
+    expect(rowsToCSV([['line1\nline2', 'x']])).toBe('"line1\nline2",x');
+  });
+
+  it('leaves plain values unquoted', () => {
+    expect(rowsToCSV([['a', 1, null]])).toBe('a,1,null');
+  });
+
+  it('quotes header names the same way as the body', () => {
+    expect(rowsToCSVWithHeaders([['Rome, Italy']], ['city, name'])).toBe('"city, name"\n"Rome, Italy"');
   });
 });
