@@ -1310,6 +1310,53 @@ pub(crate) fn remove_pools_with_prefix<P>(
         .collect()
 }
 
+/// Close a pool, abstracting over the async `sqlx::Pool::close` and the
+/// sync `deadpool_postgres::Pool::close` so the remove/close/log loop can be
+/// shared across drivers.
+trait PoolClose {
+    async fn close_pool(&self);
+}
+
+impl PoolClose for Pool<MySql> {
+    async fn close_pool(&self) {
+        self.close().await;
+    }
+}
+
+impl PoolClose for PgPool {
+    async fn close_pool(&self) {
+        // `deadpool_postgres::Pool::close` is synchronous; wrap it so the
+        // trait signature matches the async `sqlx` pools.
+        self.close();
+    }
+}
+
+impl PoolClose for Pool<Sqlite> {
+    async fn close_pool(&self) {
+        self.close().await;
+    }
+}
+
+/// Remove every pool keyed under `prefix` from `pools`, then close each one
+/// after releasing the write lock — so closing N pools never blocks other
+/// pool access. Each close is wrapped in a matching log/close/log pair, like
+/// [`close_pool_with_id`].
+async fn close_pools_with_prefix<P: PoolClose>(
+    pools: &Arc<RwLock<HashMap<String, P>>>,
+    prefix: &str,
+    label: &str,
+) {
+    let removed = {
+        let mut pools = pools.write().await;
+        remove_pools_with_prefix(&mut pools, prefix)
+    };
+    for (key, pool) in removed {
+        log::info!("Closing {label} connection pool (key: {key})");
+        pool.close_pool().await;
+        log::info!("{label} connection pool closed (key: {key})");
+    }
+}
+
 /// Close every pool belonging to a saved connection, including the
 /// per-database override pools created while browsing multiple databases.
 ///
@@ -1323,39 +1370,9 @@ pub async fn close_pools_for_connection_id(driver: &str, connection_id: &str) {
     let prefix = connection_pool_prefix(driver, connection_id);
 
     match driver {
-        "mysql" => {
-            let removed = {
-                let mut pools = MYSQL_POOLS.write().await;
-                remove_pools_with_prefix(&mut pools, &prefix)
-            };
-            for (key, pool) in removed {
-                log::info!("Closing MySQL connection pool (key: {key})");
-                pool.close().await;
-                log::info!("MySQL connection pool closed (key: {key})");
-            }
-        }
-        "postgres" => {
-            let removed = {
-                let mut pools = POSTGRES_POOLS.write().await;
-                remove_pools_with_prefix(&mut pools, &prefix)
-            };
-            for (key, pool) in removed {
-                log::info!("Closing PostgreSQL connection pool (key: {key})");
-                pool.close();
-                log::info!("PostgreSQL connection pool closed (key: {key})");
-            }
-        }
-        "sqlite" => {
-            let removed = {
-                let mut pools = SQLITE_POOLS.write().await;
-                remove_pools_with_prefix(&mut pools, &prefix)
-            };
-            for (key, pool) in removed {
-                log::info!("Closing SQLite connection pool (key: {key})");
-                pool.close().await;
-                log::info!("SQLite connection pool closed (key: {key})");
-            }
-        }
+        "mysql" => close_pools_with_prefix(&MYSQL_POOLS, &prefix, "MySQL").await,
+        "postgres" => close_pools_with_prefix(&POSTGRES_POOLS, &prefix, "PostgreSQL").await,
+        "sqlite" => close_pools_with_prefix(&SQLITE_POOLS, &prefix, "SQLite").await,
         _ => {}
     }
 }
