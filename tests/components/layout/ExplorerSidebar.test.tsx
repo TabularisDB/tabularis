@@ -14,6 +14,7 @@ import { useDatabaseObjectNavigation } from "../../../src/hooks/useDatabaseObjec
 import { openEditor } from "../../../src/utils/editorNavigation";
 
 const translateMock = vi.hoisted(() => (key: string) => key);
+const toastSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: translateMock }),
@@ -23,6 +24,9 @@ vi.mock("../../../src/hooks/useDatabase", () => ({ useDatabase: vi.fn() }));
 vi.mock("../../../src/hooks/useSavedQueries", () => ({ useSavedQueries: vi.fn() }));
 vi.mock("../../../src/hooks/useQueryHistory", () => ({ useQueryHistory: vi.fn() }));
 vi.mock("../../../src/hooks/useAlert", () => ({ useAlert: vi.fn() }));
+vi.mock("../../../src/hooks/useToast", () => ({
+  useToast: () => ({ showToast: toastSpy }),
+}));
 vi.mock("../../../src/hooks/useConnectionLayoutContext", () => ({ useConnectionLayoutContext: vi.fn() }));
 vi.mock("../../../src/hooks/useDrivers", () => ({ useDrivers: vi.fn() }));
 vi.mock("../../../src/hooks/useEditor", () => ({ useEditor: vi.fn() }));
@@ -781,6 +785,169 @@ describe("ExplorerSidebar — capabilities threading (issue #614)", () => {
     expect(sidebarItemMocks.sidebarViewItemProps).toHaveLength(1);
     expect(sidebarItemMocks.sidebarViewItemProps[0].capabilities).toBe(
       databaseState.activeCapabilities,
+    );
+  });
+});
+
+describe("ExplorerSidebar — saved query actions", () => {
+  const sql = "DELETE FROM audit_log WHERE archived = true";
+  const savedQuery = {
+    id: "q1",
+    name: "Cleanup",
+    sql,
+    connection_id: "c1",
+    database: "analytics",
+    created_at: null,
+    updated_at: null,
+  };
+  const saveQuery = vi.fn();
+  const writeText = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    saveQuery.mockReset().mockResolvedValue(undefined);
+    writeText.mockReset().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    vi.mocked(useDatabase).mockReturnValue({
+      activeConnectionId: "c1",
+      activeDriver: "postgres",
+      activeCapabilities: { schemas: false },
+      activeTable: null,
+      tables: [],
+      views: [],
+      routines: [],
+      triggers: [],
+      schemas: [],
+      connectionDataMap: { c1: {} },
+      schemaDataMap: {},
+      databaseDataMap: {},
+      selectedSchemas: [],
+      selectedDatabases: [],
+      connections: [],
+      isLoadingTables: false,
+      isLoadingSchemas: false,
+    } as unknown as ReturnType<typeof useDatabase>);
+    vi.mocked(useSavedQueries).mockReturnValue({
+      queries: [savedQuery],
+      saveQuery,
+      deleteQuery: vi.fn(),
+      updateQuery: vi.fn(),
+    } as unknown as ReturnType<typeof useSavedQueries>);
+    vi.mocked(useQueryHistory).mockReturnValue({
+      entries: [],
+      isLoading: false,
+      deleteEntry: vi.fn(),
+      clearHistory: vi.fn(),
+      recoveryNotice: null,
+      dismissRecoveryNotice: vi.fn(),
+    } as unknown as ReturnType<typeof useQueryHistory>);
+    vi.mocked(useAlert).mockReturnValue({
+      showAlert: vi.fn(),
+    } as unknown as ReturnType<typeof useAlert>);
+    vi.mocked(useDrivers).mockReturnValue({
+      allDrivers: [],
+    } as unknown as ReturnType<typeof useDrivers>);
+    vi.mocked(useEditor).mockReturnValue({
+      tabs: [],
+      openNotebook: vi.fn(),
+      updateTab: vi.fn(),
+      closeTab: vi.fn(),
+      addTab: vi.fn(),
+      setActiveTabId: vi.fn(),
+    } as unknown as ReturnType<typeof useEditor>);
+    vi.mocked(useSettings).mockReturnValue({
+      settings: { displayTimezone: "auto" },
+    } as unknown as ReturnType<typeof useSettings>);
+    vi.mocked(useConnectionLayoutContext).mockReturnValue({
+      splitView: { connectionIds: [] },
+      isSplitVisible: false,
+      explorerConnectionId: null,
+      setExplorerConnectionId: vi.fn(),
+    } as unknown as ReturnType<typeof useConnectionLayoutContext>);
+    vi.mocked(useDatabaseObjectNavigation).mockReturnValue({
+      open: vi.fn(),
+      count: vi.fn(),
+      newConsole: vi.fn(),
+      openRoutineDefinition: vi.fn(),
+      openTriggerDefinition: vi.fn(),
+      openDefinition: vi.fn(),
+    } as unknown as ReturnType<typeof useDatabaseObjectNavigation>);
+  });
+
+  const openSavedQueryMenu = () => {
+    render(
+      <ExplorerSidebar
+        sidebarWidth={280}
+        startResize={vi.fn()}
+        onCollapse={vi.fn()}
+        sidebarTab="favorites"
+        onSidebarTabChange={vi.fn()}
+      />,
+    );
+    fireEvent.contextMenu(screen.getByText("Cleanup"));
+  };
+
+  it("opens saved SQL for editing without running it and keeps its database", () => {
+    openSavedQueryMenu();
+    fireEvent.click(screen.getByText("sidebar.openInEditor"));
+
+    expect(openEditor).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        kind: "console",
+        initialQuery: sql,
+        queryName: "Cleanup",
+        preventAutoRun: true,
+        database: "analytics",
+        targetConnectionId: "c1",
+      }),
+    );
+    expect(saveQuery).not.toHaveBeenCalled();
+  });
+
+  it("copies the exact SQL and shows a success toast", async () => {
+    openSavedQueryMenu();
+    fireEvent.click(screen.getByText("sidebar.copyQuery"));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(sql));
+    await waitFor(() => expect(toastSpy).toHaveBeenCalledWith("common.copied", { kind: "success" }));
+  });
+
+  it("shows a failure toast when clipboard write fails", async () => {
+    writeText.mockRejectedValueOnce(new Error("Clipboard blocked"));
+    openSavedQueryMenu();
+    fireEvent.click(screen.getByText("sidebar.copyQuery"));
+
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Clipboard blocked"),
+        { kind: "error" },
+      ),
+    );
+  });
+
+  it("duplicates saved SQL and its database without changing the original", async () => {
+    openSavedQueryMenu();
+    fireEvent.click(screen.getByText("connections.duplicate"));
+
+    await waitFor(() => expect(saveQuery).toHaveBeenCalledWith("Cleanup (copy)", sql, "analytics"));
+    expect(openEditor).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed duplicate without claiming success", async () => {
+    saveQuery.mockRejectedValueOnce(new Error("Save failed"));
+    openSavedQueryMenu();
+    fireEvent.click(screen.getByText("connections.duplicate"));
+
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Save failed"),
+        { kind: "error" },
+      ),
     );
   });
 });
