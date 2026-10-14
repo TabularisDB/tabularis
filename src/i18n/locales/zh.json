@@ -353,6 +353,7 @@
     "deleteTitle": "确认删除",
     "failConnect": "连接到 {{name}} 失败。请检查您的设置或确保数据库正在运行。",
     "failDisconnect": "断开数据库连接失败",
+    "failDelete": "删除连接失败",
     "failDuplicate": "复制连接失败",
     "connecting": "连接中...",
     "open": "打开",

@@ -344,6 +344,7 @@
     "deleteTitle": "삭제 확인",
     "failConnect": "{{name}}에 연결하지 못했습니다. 설정을 확인하거나 데이터베이스가 실행 중인지 확인하세요.",
     "failDisconnect": "데이터베이스 연결 해제에 실패했습니다",
+    "failDelete": "연결 삭제에 실패했습니다",
     "failDuplicate": "연결 복제에 실패했습니다",
     "connecting": "연결하는 중...",
     "open": "열기",

@@ -367,6 +367,7 @@
     "deleteTitle": "Kumpirmahin ang Pagbura",
     "failConnect": "Nabigo ang pagkonekta sa {{name}}. Pakisuri ang iyong mga setting o siguraduhing tumatakbo ang database.",
     "failDisconnect": "Nabigo ang pagdiskonekta sa database",
+    "failDelete": "Nabigo ang pagbura ng koneksyon",
     "failDuplicate": "Nabigo ang pag-duplicate ng koneksyon",
     "connecting": "Kumokonekta...",
     "open": "Buksan",

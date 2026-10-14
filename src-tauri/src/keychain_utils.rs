@@ -119,6 +119,18 @@ pub fn get_connection_uri(connection_id: &str) -> Result<String, String> {
     entry.get_password().map_err(keychain_error)
 }
 
+/// Like [`get_connection_uri`], but a missing entry is `Ok(None)` instead of
+/// an error. `Err` is reserved for genuine keychain failures.
+pub fn find_connection_uri(connection_id: &str) -> Result<Option<String>, String> {
+    let entry = Entry::new(SERVICE_NAME, &format!("{}:connection_uri", connection_id))
+        .map_err(|e| e.to_string())?;
+    match entry.get_password() {
+        Ok(uri) => Ok(Some(uri)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(keychain_error(e)),
+    }
+}
+
 pub fn delete_connection_uri(connection_id: &str) -> Result<(), String> {
     let entry = Entry::new(SERVICE_NAME, &format!("{}:connection_uri", connection_id))
         .map_err(|e| e.to_string())?;

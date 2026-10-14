@@ -367,6 +367,7 @@
     "deleteTitle": "Confirmer la suppression",
     "failConnect": "Échec de connexion à {{name}}. Vérifiez vos paramètres ou assurez-vous que la base de données est en cours d’exécution.",
     "failDisconnect": "Échec de la déconnexion de la base de données",
+    "failDelete": "Échec de la suppression de la connexion",
     "failDuplicate": "Échec de duplication de la connexion",
     "connecting": "Connexion...",
     "open": "Ouvrir",

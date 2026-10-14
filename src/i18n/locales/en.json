@@ -367,6 +367,7 @@
     "deleteTitle": "Confirm Delete",
     "failConnect": "Failed to connect to {{name}}. Please check your settings or ensuring the database is running.",
     "failDisconnect": "Failed to disconnect from database",
+    "failDelete": "Failed to delete connection",
     "failDuplicate": "Failed to duplicate connection",
     "connecting": "Connecting...",
     "open": "Open",

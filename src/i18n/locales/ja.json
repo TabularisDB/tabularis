@@ -367,6 +367,7 @@
     "deleteTitle": "削除の確認",
     "failConnect": "{{name}} への接続に失敗しました。設定を確認するか、データベースが稼働していることを確認してください。",
     "failDisconnect": "データベースからの切断に失敗しました",
+    "failDelete": "接続の削除に失敗しました",
     "failDuplicate": "接続の複製に失敗しました",
     "connecting": "接続中...",
     "open": "開く",

@@ -720,6 +720,20 @@ fn persist_secret_change(
     }
 }
 
+/// The keychain URI to put back if persisting a change fails. A connection can
+/// claim a keychain entry that was never written (duplicates used to copy the
+/// flag but not the URI), so a missing entry means there is nothing to
+/// restore. Only a genuine read failure aborts the change.
+fn previous_keychain_connection_uri(
+    stored_in_keychain: bool,
+    read: impl FnOnce() -> Result<Option<String>, String>,
+) -> Result<Option<String>, String> {
+    if !stored_in_keychain {
+        return Ok(None);
+    }
+    read().map_err(|_| "Failed to read the stored connection URI from the OS keychain".to_string())
+}
+
 /// `change` is `None` to leave the stored URI untouched, `Some(Some(uri))` to
 /// write it, and `Some(None)` to clear it.
 fn persist_connection_uri_change(
@@ -732,10 +746,9 @@ fn persist_connection_uri_change(
     let Some(value) = change else {
         return persist();
     };
-    let previous_keychain = stored_in_keychain
-        .then(|| keychain_utils::get_connection_uri(connection_id))
-        .transpose()
-        .map_err(|_| "Failed to read the stored connection URI from the OS keychain".to_string())?;
+    let previous_keychain = previous_keychain_connection_uri(stored_in_keychain, || {
+        keychain_utils::find_connection_uri(connection_id)
+    })?;
     let previous_cache = cache
         .connection_uris
         .lock()
@@ -1882,6 +1895,23 @@ pub async fn duplicate_connection<R: Runtime>(
         new_params.ssh_password = None;
         new_params.ssh_key_passphrase = None;
     }
+
+    // A connection URI only lives in the keychain, under the original's id.
+    // Give the duplicate its own entry, or drop the marker if there is nothing
+    // to copy: a marker without an entry leaves a copy that can neither
+    // connect nor be deleted.
+    let original_uri = if original.params.connection_uri_in_keychain.unwrap_or(false) {
+        credential_cache::get_connection_uri_cached(&cache, &original.id, true)
+            .ok()
+            .flatten()
+    } else {
+        None
+    };
+    if let Some(uri) = &original_uri {
+        keychain_utils::set_connection_uri(&new_id, uri)?;
+        credential_cache::set_connection_uri_cached(&cache, &new_id, uri);
+    }
+    new_params = params_for_persistence(&new_params, original_uri.is_some());
 
     // Copy the icon file so the duplicate owns its own copy.
     // If the original has an Image icon, the duplicate must not share the same file path —
@@ -3104,6 +3134,43 @@ mod tests {
 
         assert_eq!(runtime_connection_uri(&params), None);
         assert!(validate_connection_uri_persistence(&params).is_ok());
+    }
+
+    #[test]
+    fn previous_uri_skips_the_keychain_when_none_is_stored() {
+        let previous = previous_keychain_connection_uri(false, || {
+            panic!("the keychain must not be read without a stored marker")
+        });
+
+        assert_eq!(previous, Ok(None));
+    }
+
+    #[test]
+    fn previous_uri_returns_the_stored_value() {
+        let uri = "mongodb+srv://cluster.example.invalid/app";
+        let previous = previous_keychain_connection_uri(true, || Ok(Some(uri.to_string())));
+
+        assert_eq!(previous, Ok(Some(uri.to_string())));
+    }
+
+    #[test]
+    fn previous_uri_treats_a_missing_entry_as_nothing_to_restore() {
+        // A duplicate used to carry the marker without its own entry. Deleting
+        // it must not fail just because there is nothing to restore.
+        let previous = previous_keychain_connection_uri(true, || Ok(None));
+
+        assert_eq!(previous, Ok(None));
+    }
+
+    #[test]
+    fn previous_uri_fails_on_a_genuine_keychain_error() {
+        let previous =
+            previous_keychain_connection_uri(true, || Err("securityd is not running".to_string()));
+
+        assert_eq!(
+            previous,
+            Err("Failed to read the stored connection URI from the OS keychain".to_string())
+        );
     }
 
     #[test]

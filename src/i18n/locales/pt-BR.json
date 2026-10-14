@@ -338,6 +338,7 @@
     "deleteTitle": "Confirmar Exclusão",
     "failConnect": "Falha ao conectar a {{name}}. Verifique suas configurações ou se o banco de dados está em execução.",
     "failDisconnect": "Falha ao desconectar do banco de dados",
+    "failDelete": "Falha ao excluir a conexão",
     "failDuplicate": "Falha ao duplicar conexão",
     "connecting": "Conectando...",
     "open": "Abrir",

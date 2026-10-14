@@ -381,6 +381,7 @@
     "deleteTitle": "Conferma eliminazione",
     "failConnect": "Impossibile connettersi a {{name}}. Verifica le impostazioni o assicurati che il database sia in esecuzione.",
     "failDisconnect": "Impossibile disconnettersi dal database",
+    "failDelete": "Impossibile eliminare la connessione",
     "failDuplicate": "Impossibile duplicare la connessione",
     "connecting": "Connessione in corso...",
     "open": "Aperta",

@@ -354,6 +354,7 @@
     "deleteTitle": "Löschen bestätigen",
     "failConnect": "Verbindung zu {{name}} fehlgeschlagen. Bitte prüfe deine Einstellungen oder stelle sicher, dass die Datenbank läuft.",
     "failDisconnect": "Trennen von der Datenbank fehlgeschlagen",
+    "failDelete": "Verbindung konnte nicht gelöscht werden",
     "failDuplicate": "Duplizieren der Verbindung fehlgeschlagen",
     "connecting": "Verbinden...",
     "open": "Öffnen",

@@ -137,7 +137,8 @@ vi.mock("../../src/components/modals/NewConnectionModal", () => ({
 }));
 
 vi.mock("../../src/components/modals/ConfirmModal", () => ({
-  ConfirmModal: () => null,
+  ConfirmModal: ({ isOpen, onConfirm }: { isOpen: boolean; onConfirm: () => void }) =>
+    isOpen ? <button onClick={onConfirm}>confirm-modal-confirm</button> : null,
 }));
 
 vi.mock("../../src/components/modals/ExportConnectionsModal", () => ({
@@ -267,5 +268,29 @@ describe("Connections ordering", () => {
         ["a", 2],
       ]),
     );
+  });
+});
+
+describe("Connections delete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.settings.autoConnectLastConnection = false;
+    mocks.isSettingsLoading = false;
+    mocks.connections = [sqliteConnection as SavedConnection];
+  });
+
+  it("shows the backend error when a delete fails instead of failing silently", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "delete_connection") {
+        throw "Failed to read the stored connection URI from the OS keychain";
+      }
+      return undefined;
+    });
+    render(<Connections />);
+
+    fireEvent.click(screen.getAllByTitle("connections.delete")[0]);
+    fireEvent.click(screen.getByText("confirm-modal-confirm"));
+
+    expect(await screen.findByText(/connections\.failDelete/)).toBeInTheDocument();
   });
 });
