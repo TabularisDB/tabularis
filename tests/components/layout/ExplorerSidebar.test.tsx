@@ -878,7 +878,7 @@ describe("ExplorerSidebar — saved query actions", () => {
     } as unknown as ReturnType<typeof useDatabaseObjectNavigation>);
   });
 
-  const openSavedQueryMenu = () => {
+  const renderFavorites = () => {
     render(
       <ExplorerSidebar
         sidebarWidth={280}
@@ -888,6 +888,10 @@ describe("ExplorerSidebar — saved query actions", () => {
         onSidebarTabChange={vi.fn()}
       />,
     );
+  };
+
+  const openSavedQueryMenu = () => {
+    renderFavorites();
     fireEvent.contextMenu(screen.getByText("Cleanup"));
   };
 
@@ -949,5 +953,27 @@ describe("ExplorerSidebar — saved query actions", () => {
         { kind: "error" },
       ),
     );
+  });
+
+  it("runs favorites from the saved database on double-click and Enter", () => {
+    renderFavorites();
+    const favorite = screen.getByText("Cleanup").closest("button");
+    expect(favorite).not.toBeNull();
+
+    fireEvent.doubleClick(favorite!);
+    fireEvent.keyDown(favorite!, { key: "Enter" });
+
+    expect(openEditor).toHaveBeenCalledTimes(2);
+    for (const [, request] of vi.mocked(openEditor).mock.calls) {
+      expect(request).toMatchObject({
+        kind: "console",
+        initialQuery: sql,
+        queryName: "Cleanup",
+        preventAutoRun: false,
+        database: "analytics",
+        targetConnectionId: "c1",
+      });
+      expect(request.schema).toBeUndefined();
+    }
   });
 });
