@@ -24,6 +24,11 @@ vi.mock("react-i18next", () => ({
     t: (key: string) => key,
     i18n: mockI18n,
   }),
+  // SettingsProvider imports i18n/language, which loads i18n/config.
+  initReactI18next: {
+    type: "3rdParty",
+    init: vi.fn(),
+  },
 }));
 
 describe("SettingsProvider", () => {

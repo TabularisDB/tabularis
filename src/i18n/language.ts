@@ -4,6 +4,11 @@ type SupportedLanguageId = (typeof SUPPORTED_LANGUAGES)[number]["id"];
 
 const DEFAULT_LANGUAGE: SupportedLanguageId = "en";
 
+// Base locale codes served by another dictionary (config.ts falls back fil -> tl).
+const LANGUAGE_ALIASES: Readonly<Record<string, SupportedLanguageId>> = {
+  fil: "tl",
+};
+
 function findSupportedLanguageId(
   locale?: string,
 ): SupportedLanguageId | undefined {
@@ -14,6 +19,8 @@ function findSupportedLanguageId(
   );
   if (exact) return exact.id;
   const base = wanted.split("-")[0];
+  const alias = LANGUAGE_ALIASES[base];
+  if (alias) return alias;
   return SUPPORTED_LANGUAGES.find(({ id }) => {
     const supported = id.toLowerCase();
     return supported === base || supported.startsWith(`${base}-`);

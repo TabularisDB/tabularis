@@ -24,6 +24,11 @@ describe("language", () => {
       expect(resolveAutoLanguage("ZH-cn")).toBe("zh");
     });
 
+    it("maps a Filipino system locale to Tagalog", () => {
+      expect(resolveAutoLanguage("fil-PH")).toBe("tl");
+      expect(resolveAutoLanguage("fil")).toBe("tl");
+    });
+
     it("picks the first supported locale from a preference list", () => {
       expect(resolveAutoLanguage(["xx-YY", "de-DE", "it"])).toBe("de");
     });
@@ -39,6 +44,10 @@ describe("language", () => {
   describe("getAiExplanationLanguage", () => {
     it("uses the resolved language in auto mode", () => {
       expect(getAiExplanationLanguage("auto", "it")).toBe("Italiano");
+    });
+
+    it("names Tagalog for a Filipino locale in auto mode", () => {
+      expect(getAiExplanationLanguage("auto", "fil")).toBe("Tagalog");
     });
 
     it("maps supported regional locales in auto mode", () => {
