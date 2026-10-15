@@ -132,8 +132,8 @@ mod tests {
         assert!(json.get("pooler_mode").is_none());
 
         // A legacy JSON object without the key deserializes as None.
-        // `database` is the one required field (no #[serde(default)]), so a
-        // realistic old connections.json entry carries it; pooler_mode is absent.
+        // `driver` and `database` are the required fields (no #[serde(default)]);
+        // a realistic old connections.json entry carries them; pooler_mode is absent.
         let legacy = serde_json::json!({"driver": "postgresql", "database": "appdb"});
         let parsed: ConnectionParams = serde_json::from_value(legacy).unwrap();
         assert!(parsed.pooler_mode.is_none());

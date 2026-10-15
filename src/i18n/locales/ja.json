@@ -1212,6 +1212,13 @@
     "startupScript": "起動スクリプト",
     "startupScriptDescription": "このデータソースへの新規接続ごとに実行される SQL です。SET / set_config（例: RLS のバイパス）などのセッション設定に使用します。複数のステートメントはセミコロンで区切ってください。",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "poolerMode": "プーラーモード",
+    "poolerModeTransactionHint": "PgBouncer をトランザクションモードでカスタム型（enum、複合型、拡張型）と共に使用する場合、pgbouncer.ini で max_prepared_statements > 0 を設定してください。これによりサーバー側のプリペアドステートメントキャッシュが有効になり、名前付きステートメントが接続の再割り当てを保持します。",
+    "poolerModes": {
+      "none": "なし（直接接続）",
+      "transaction": "PgBouncer トランザクション",
+      "session": "PgBouncer セッション"
+    },
     "scrollTabsLeft": "タブを左にスクロール",
     "scrollTabsRight": "タブを右にスクロール",
     "useIamAuth": "AWS IAM 認証を使用する (RDS)",

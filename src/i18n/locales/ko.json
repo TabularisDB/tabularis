@@ -1173,6 +1173,13 @@
     "startupScript": "시작 스크립트",
     "startupScriptDescription": "이 데이터 소스에 새로 연결할 때마다 실행되는 SQL입니다. SET / set_config 같은 세션 설정(예: RLS 우회)에 사용하세요. 여러 구문은 세미콜론으로 구분하세요.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "poolerMode": "풀러 모드",
+    "poolerModeTransactionHint": "사용자 정의 타입(enum, composite, 확장 타입)과 함께 트랜잭션 모드에서 PgBouncer를 사용할 때, pgbouncer.ini에 max_prepared_statements > 0을 설정하세요. 이렇게 하면 서버 측 준비된 문 캐싱이 활성화되어 명명된 문이 연결 재할당을 견딜 수 있습니다.",
+    "poolerModes": {
+      "none": "없음 (직접 연결)",
+      "transaction": "PgBouncer 트랜잭션",
+      "session": "PgBouncer 세션"
+    },
     "scrollTabsLeft": "탭 왼쪽으로 스크롤",
     "scrollTabsRight": "탭 오른쪽으로 스크롤",
     "useIamAuth": "AWS IAM 인증 사용 (RDS)",

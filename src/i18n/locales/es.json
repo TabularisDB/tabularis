@@ -1226,6 +1226,13 @@
     "startupScript": "Script de inicio",
     "startupScriptDescription": "SQL que se ejecuta en cada nueva conexión a esta fuente de datos. Úsalo para ajustes de sesión como SET / set_config (p. ej., para omitir RLS). Separa las sentencias con punto y coma.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "poolerMode": "Modo de pooler",
+    "poolerModeTransactionHint": "Al usar PgBouncer en modo transacción con tipos personalizados (enums, compuestos, tipos de extensión), establece max_prepared_statements > 0 en pgbouncer.ini. Esto habilita el caché del lado del servidor de sentencias preparadas para que las sentencias con nombre sobrevivan a la reasignación de conexiones.",
+    "poolerModes": {
+      "none": "Ninguno (conexión directa)",
+      "transaction": "PgBouncer transacción",
+      "session": "PgBouncer sesión"
+    },
     "scrollTabsLeft": "Desplazar pestañas a la izquierda",
     "scrollTabsRight": "Desplazar pestañas a la derecha",
     "useIamAuth": "Usar autenticación AWS IAM (RDS)",

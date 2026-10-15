@@ -1174,6 +1174,13 @@
     "startupScript": "启动脚本",
     "startupScriptDescription": "每次新建到此数据源的连接时执行的 SQL。可用于会话设置，例如 SET / set_config（如绕过 RLS）。多条语句请用分号分隔。",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "poolerMode": "连接池模式",
+    "poolerModeTransactionHint": "在事务模式下使用 PgBouncer 且涉及自定义类型（枚举、复合类型、扩展类型）时，请在 pgbouncer.ini 中设置 max_prepared_statements > 0。这会启用服务端预处理语句缓存，使具名语句在连接重新分配后仍然有效。",
+    "poolerModes": {
+      "none": "无（直连）",
+      "transaction": "PgBouncer 事务",
+      "session": "PgBouncer 会话"
+    },
     "scrollTabsLeft": "向左滚动标签页",
     "scrollTabsRight": "向右滚动标签页",
     "useIamAuth": "使用 AWS IAM 身份验证 (RDS)",

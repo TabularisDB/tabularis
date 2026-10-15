@@ -3160,25 +3160,22 @@ export const NewConnectionModal = ({
       {isPostgresDialect && (
         <div className="flex flex-col gap-1">
           <label className="text-[10px] uppercase font-semibold tracking-wider text-muted block">
-            {t("newConnection.poolerMode", { defaultValue: "Pooler mode" })}
+            {t("newConnection.poolerMode")}
           </label>
           <Select
-            value={formData.pooler_mode ?? ""}
-            options={["", "transaction", "session"]}
+            value={formData.pooler_mode ?? "none"}
+            options={["none", "transaction", "session"]}
             labels={{
-              "": t("newConnection.poolerModes.none", { defaultValue: "None (direct connection)" }),
-              transaction: t("newConnection.poolerModes.transaction", { defaultValue: "PgBouncer transaction" }),
-              session: t("newConnection.poolerModes.session", { defaultValue: "PgBouncer session" }),
+              none: t("newConnection.poolerModes.none"),
+              transaction: t("newConnection.poolerModes.transaction"),
+              session: t("newConnection.poolerModes.session"),
             }}
-            onChange={(v) => updateField("pooler_mode", v || undefined)}
+            onChange={(v) => updateField("pooler_mode", v === "none" ? undefined : v)}
             searchable={false}
           />
           {formData.pooler_mode === "transaction" && (
             <p className="text-xs text-muted leading-snug">
-              {t("newConnection.poolerModeTransactionHint", {
-                defaultValue:
-                  "When using PgBouncer in transaction mode with custom types (enums, composites, extension types), set max_prepared_statements > 0 in pgbouncer.ini. This enables server-side prepared statement caching so named statements survive connection reassignment.",
-              })}
+              {t("newConnection.poolerModeTransactionHint")}
             </p>
           )}
         </div>

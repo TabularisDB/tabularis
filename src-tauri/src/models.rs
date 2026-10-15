@@ -278,11 +278,14 @@ pub struct ConnectionParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub startup_script: Option<String>,
     /// Connection pooler mode, set by the user when connecting through PgBouncer
-    /// or another transaction-mode pooler. Drives driver-side behavior:
-    /// the postgresql-plugin avoids its own named-statement `prepare()` calls
-    /// and surfaces actionable error messages for tokio-postgres's internal
-    /// `typeinfo_statement` (which requires `max_prepared_statements > 0` on
-    /// the pooler side for custom types). None for direct connections.
+    /// or another transaction-mode pooler. Forwarded verbatim to the driver
+    /// plugin as part of `params` (the host does not interpret it). The
+    /// postgresql-plugin is expected to use it to avoid its own named-statement
+    /// `prepare()` calls and to surface actionable error messages for
+    /// tokio-postgres's internal `typeinfo_statement` (which requires
+    /// `max_prepared_statements > 0` on the pooler side for custom types);
+    /// see companion issue tabularis-postgresql-plugin#157. None for direct
+    /// connections.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pooler_mode: Option<String>, // "transaction" | "session" | None
     /// Opaque, plugin-specific connection fields. The host does not interpret
