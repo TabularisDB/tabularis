@@ -552,13 +552,20 @@ fn resolve_connection_transport(params: &ConnectionParams) -> Result<ConnectionP
 
         // Check for existing tunnel
         {
-            let tunnels = get_tunnels().lock().unwrap();
+            let mut tunnels = get_tunnels().lock().unwrap();
             if let Some(tunnel) = tunnels.get(&map_key) {
-                log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
-                let mut new_params = params.clone();
-                new_params.host = Some("127.0.0.1".to_string());
-                new_params.port = Some(tunnel.local_port);
-                return Ok(new_params);
+                if tunnel.is_alive() {
+                    log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
+                    let mut new_params = params.clone();
+                    new_params.host = Some("127.0.0.1".to_string());
+                    new_params.port = Some(tunnel.local_port);
+                    return Ok(new_params);
+                }
+                log::info!(
+                    "Discarding dead SSH tunnel on port {}; the session ended",
+                    tunnel.local_port
+                );
+                tunnels.remove(&map_key);
             }
         }
 

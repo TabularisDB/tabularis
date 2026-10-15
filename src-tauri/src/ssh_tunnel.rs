@@ -443,6 +443,7 @@ impl SshTunnel {
 
         let running = Arc::new(AtomicBool::new(true));
         let running_clone = running.clone();
+        let running_thread = running.clone();
         let ssh_host = ssh_host.to_string();
         let ssh_user = ssh_user.to_string();
         let ssh_password = ssh_password.map(|p| p.to_string());
@@ -517,6 +518,14 @@ impl SshTunnel {
 
                 eprintln!("[SSH Tunnel] Starting tunnel forwarding loop");
                 while running_clone.load(Ordering::Relaxed) {
+                    // Once the SSH session is gone, every new channel fails, so
+                    // stop forwarding and let `is_alive` report the tunnel dead.
+                    // A channel being opened holds the lock; check next time.
+                    if handle.try_lock().is_ok_and(|h| h.is_closed()) {
+                        eprintln!("[SSH Tunnel] SSH session closed, stopping tunnel");
+                        break;
+                    }
+
                     let accept = tokio::time::timeout(
                         Duration::from_millis(SSH_ACCEPT_POLL_MS),
                         listener.accept(),
@@ -567,6 +576,9 @@ impl SshTunnel {
                 Ok(())
             });
 
+            // The forwarding loop has ended, whether stopped, closed or failed.
+            running_thread.store(false, Ordering::Relaxed);
+
             if let Err(err) = result {
                 let _ = ready_tx.send(Err(err));
             }
@@ -585,6 +597,18 @@ impl SshTunnel {
         }
     }
 
+    /// Whether the tunnel can still forward connections.
+    ///
+    /// A cached tunnel goes stale when its SSH session ends (the bastion went
+    /// away, the `ssh` process exited), so reuse has to check this rather than
+    /// trust the map.
+    pub fn is_alive(&self) -> bool {
+        match &self.backend {
+            TunnelBackend::Russh(running) => running.load(Ordering::Relaxed),
+            TunnelBackend::SystemSsh(child) => is_child_running(child),
+        }
+    }
+
     pub fn stop(&self) {
         match &self.backend {
             TunnelBackend::Russh(running) => {
@@ -596,6 +620,14 @@ impl SshTunnel {
                 }
             }
         }
+    }
+}
+
+/// Whether the `ssh` child process behind a system SSH tunnel is still running.
+fn is_child_running(child: &Mutex<Child>) -> bool {
+    match child.lock() {
+        Ok(mut c) => matches!(c.try_wait(), Ok(None)),
+        Err(_) => false,
     }
 }
 
@@ -1048,6 +1080,59 @@ pub fn should_use_system_ssh(ssh_password: Option<&str>, ssh_key_file: Option<&s
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod is_alive_tests {
+        use super::*;
+
+        fn russh_tunnel(running: bool) -> SshTunnel {
+            SshTunnel {
+                local_port: 0,
+                backend: TunnelBackend::Russh(Arc::new(AtomicBool::new(running))),
+            }
+        }
+
+        #[test]
+        fn test_running_russh_tunnel_is_alive() {
+            assert!(russh_tunnel(true).is_alive());
+        }
+
+        #[test]
+        fn test_russh_tunnel_whose_loop_ended_is_dead() {
+            assert!(!russh_tunnel(false).is_alive());
+        }
+
+        #[test]
+        fn test_stopped_russh_tunnel_is_dead() {
+            let tunnel = russh_tunnel(true);
+            tunnel.stop();
+            assert!(!tunnel.is_alive());
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn test_system_ssh_tunnel_follows_its_process() {
+            let child = Command::new("sleep").arg("30").spawn().unwrap();
+            let tunnel = SshTunnel {
+                local_port: 0,
+                backend: TunnelBackend::SystemSsh(Arc::new(Mutex::new(child))),
+            };
+            assert!(tunnel.is_alive());
+
+            tunnel.stop();
+            if let TunnelBackend::SystemSsh(child) = &tunnel.backend {
+                child.lock().unwrap().wait().unwrap();
+            }
+            assert!(!tunnel.is_alive());
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn test_exited_child_is_not_running() {
+            let mut child = Command::new("true").spawn().unwrap();
+            child.wait().unwrap();
+            assert!(!is_child_running(&Mutex::new(child)));
+        }
+    }
 
     mod build_tunnel_key_tests {
         use super::*;
