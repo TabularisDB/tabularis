@@ -1,8 +1,41 @@
 import { describe, it, expect } from "vitest";
-import { getAiExplanationLanguage } from "../../src/i18n/language";
+import {
+  getAiExplanationLanguage,
+  resolveAutoLanguage,
+} from "../../src/i18n/language";
 import { SUPPORTED_LANGUAGES } from "../../src/i18n/config";
 
 describe("language", () => {
+  describe("resolveAutoLanguage", () => {
+    it("resolves a regional locale to its base language", () => {
+      expect(resolveAutoLanguage("it-IT")).toBe("it");
+    });
+
+    it("keeps a supported regional locale", () => {
+      expect(resolveAutoLanguage("pt-BR")).toBe("pt-BR");
+    });
+
+    it("falls back to English for unsupported locales", () => {
+      expect(resolveAutoLanguage("xx-YY")).toBe("en");
+    });
+
+    it("is case- and separator-insensitive", () => {
+      expect(resolveAutoLanguage("PT_br")).toBe("pt-BR");
+      expect(resolveAutoLanguage("ZH-cn")).toBe("zh");
+    });
+
+    it("picks the first supported locale from a preference list", () => {
+      expect(resolveAutoLanguage(["xx-YY", "de-DE", "it"])).toBe("de");
+    });
+
+    it("falls back to English for an empty or missing input", () => {
+      expect(resolveAutoLanguage()).toBe("en");
+      expect(resolveAutoLanguage([])).toBe("en");
+      expect(resolveAutoLanguage(null)).toBe("en");
+      expect(resolveAutoLanguage("")).toBe("en");
+    });
+  });
+
   describe("getAiExplanationLanguage", () => {
     it("uses the resolved language in auto mode", () => {
       expect(getAiExplanationLanguage("auto", "it")).toBe("Italiano");

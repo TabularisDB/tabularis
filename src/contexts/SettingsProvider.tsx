@@ -10,6 +10,7 @@ import {
   type Settings,
 } from "./SettingsContext";
 import { applyResultFontToDocument, stripSessionFields, applyFontToDocument } from "../utils/settings";
+import { resolveAutoLanguage } from "../i18n/language";
 
 const LANGUAGE_APPLICATION_TIMEOUT_MS = 3000;
 
@@ -19,22 +20,28 @@ type LanguageState = {
   settled: boolean;
 };
 
+function systemLanguages(): readonly string[] {
+  if (typeof navigator === "undefined") return [];
+  return navigator.languages ?? (navigator.language ? [navigator.language] : []);
+}
+
 function matchesAppliedLanguage(
   activeLanguage: string | null | undefined,
   requestedLanguage: Settings["language"],
 ): boolean {
-  if (requestedLanguage === "auto") {
-    return true;
-  }
-
   if (!activeLanguage) {
     return false;
   }
 
+  const target =
+    requestedLanguage === "auto"
+      ? resolveAutoLanguage(systemLanguages())
+      : requestedLanguage;
+
   return (
-    activeLanguage === requestedLanguage ||
-    activeLanguage.startsWith(`${requestedLanguage}-`) ||
-    activeLanguage.startsWith(`${requestedLanguage}_`)
+    activeLanguage === target ||
+    activeLanguage.startsWith(`${target}-`) ||
+    activeLanguage.startsWith(`${target}_`)
   );
 }
 
@@ -75,7 +82,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
           return false;
         }
 
-        const nextLanguage = language === "auto" ? undefined : language;
+        const nextLanguage =
+          language === "auto" ? resolveAutoLanguage(systemLanguages()) : language;
 
         try {
           await new Promise<void>((resolve, reject) => {
