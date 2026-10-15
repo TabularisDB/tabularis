@@ -90,7 +90,11 @@ describe("AiQueryModal", () => {
     expect(onInsert).toHaveBeenCalledWith("SELECT 1");
   });
 
-  it("loads schema context for the connection and schema passed by the caller", async () => {
+  it("does not fall back to the active connection's database when passed a different connectionId", async () => {
+    // A caller passing an explicit connectionId for a non-active connection
+    // must not silently pull the active connection's database — leave the
+    // database unset so the backend uses the passed connection's saved
+    // database. See #1119.
     invokeMock.mockResolvedValue("");
 
     render(
@@ -107,8 +111,52 @@ describe("AiQueryModal", () => {
       expect(invokeMock).toHaveBeenCalledWith("get_ai_schema_context", {
         connectionId: "plugin-connection",
         schema: "warehouse",
-        // No explicit database prop → falls back to activeDatabaseName from context.
+        // No `database` field — the active connection's database is NOT used.
+      });
+    });
+  });
+
+  it("falls back to the active connection's database for the active connection but not a different one", async () => {
+    // Both arms of the guard in one test, so it stays non-vacuous against a
+    // full revert: reverting to `database ?? activeDatabaseName ?? undefined`
+    // keeps the active-connection assertion passing but makes the
+    // non-active-connection assertion fail (the old code would send the
+    // active database for "plugin-connection" too). See #1119.
+    invokeMock.mockResolvedValue("");
+
+    // Active connection → fallback fires.
+    const { unmount } = render(
+      <AiQueryModal
+        isOpen
+        onClose={vi.fn()}
+        onInsert={vi.fn()}
+        connectionId="active-connection"
+        schema="warehouse"
+      />,
+    );
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith("get_ai_schema_context", {
+        connectionId: "active-connection",
+        schema: "warehouse",
         database: "active-database",
+      });
+    });
+    unmount();
+
+    // Non-active connection → no fallback (active database NOT pulled in).
+    render(
+      <AiQueryModal
+        isOpen
+        onClose={vi.fn()}
+        onInsert={vi.fn()}
+        connectionId="plugin-connection"
+        schema="warehouse"
+      />,
+    );
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith("get_ai_schema_context", {
+        connectionId: "plugin-connection",
+        schema: "warehouse",
       });
     });
   });

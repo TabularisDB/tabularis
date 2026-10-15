@@ -32,7 +32,13 @@ export const AiQueryModal = ({
   const { settings } = useSettings();
   const resolvedConnectionId = connectionId ?? activeConnectionId;
   const resolvedSchema = schema ?? activeSchema ?? undefined;
-  const resolvedDatabase = database ?? activeDatabaseName ?? undefined;
+  // Only fall back to the active connection's database when this modal is
+  // actually serving that connection. If a caller passes an explicit
+  // connectionId for a different connection, leave database unset so the
+  // backend uses that connection's saved database rather than the active
+  // connection's — see #1119.
+  const resolvedDatabase =
+    database ?? (resolvedConnectionId === activeConnectionId ? activeDatabaseName : undefined) ?? undefined;
   const schemaKey = `${resolvedConnectionId ?? ""}:${resolvedDatabase ?? ""}:${resolvedSchema ?? ""}`;
   
   const [prompt, setPrompt] = useState("");
