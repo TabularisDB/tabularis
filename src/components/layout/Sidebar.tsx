@@ -31,6 +31,7 @@ import { NavItem } from "./sidebar/NavItem";
 import { RailIndicator } from "./sidebar/RailIndicator";
 import { OpenConnectionItem } from "./sidebar/OpenConnectionItem";
 import { ConnectionGroupItem } from "./sidebar/ConnectionGroupItem";
+import { ConnectionGroupFolder } from "./sidebar/ConnectionGroupFolder";
 import type { SidebarTab } from "./ExplorerSidebar";
 import { LoadingState } from "../ui/LoadingState";
 import { PanelDatabaseProvider } from "./PanelDatabaseProvider";
@@ -38,7 +39,10 @@ import { DiscordCommunityCallout } from "./sidebar/DiscordCommunityCallout";
 
 // Hooks & Utils
 import { useSidebarResize } from "../../hooks/useSidebarResize";
-import { useConnectionManager } from "../../hooks/useConnectionManager";
+import {
+  useConnectionManager,
+  type ConnectionStatus,
+} from "../../hooks/useConnectionManager";
 import { useOpenConnectionInNewWindow } from "../../hooks/useOpenConnectionInNewWindow";
 import { useConnectionLayoutContext } from "../../hooks/useConnectionLayoutContext";
 import {
@@ -48,6 +52,8 @@ import {
 import { rectContains, startPointerDrag } from "../../utils/pointerDrag";
 import { useDrivers } from "../../hooks/useDrivers";
 import { useKeybindings } from "../../hooks/useKeybindings";
+import { useSettings } from "../../hooks/useSettings";
+import { groupSidebarConnections } from "../../utils/connectionManager";
 import { useAvailableUpdates } from "../../hooks/useAvailableUpdates";
 import { UpdateBadge } from "../ui/UpdateBadge";
 
@@ -66,7 +72,9 @@ export const Sidebar = () => {
     activeConnectionId,
     activeDriver,
     connections,
+    connectionGroups,
   } = useDatabase();
+  const { settings } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -140,6 +148,48 @@ export const Sidebar = () => {
     });
   }, [openConnections, splitView, sidebarOrder]);
 
+  const sidebarFolders = useMemo(
+    () =>
+      settings.groupSidebarConnectionsByFolder === true
+        ? groupSidebarConnections(
+            sortedSidebarConnections,
+            connections,
+            connectionGroups,
+          )
+        : null,
+    [
+      settings.groupSidebarConnectionsByFolder,
+      sortedSidebarConnections,
+      connections,
+      connectionGroups,
+    ],
+  );
+  const folderOfConnection = useMemo(
+    () =>
+      new Map(
+        sidebarFolders?.folders.flatMap((f) =>
+          f.connections.map((c) => [c.id, f.group.id] as const),
+        ) ?? [],
+      ),
+    [sidebarFolders],
+  );
+  // Hints must match the Cmd/Ctrl+Shift+N shortcut, which switches by open order
+  const shortcutIndex = useMemo(
+    () => new Map(openConnections.map((c, i) => [c.id, i])),
+    [openConnections],
+  );
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const toggleFolder = useCallback((groupId: string) => {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }, []);
+
   // Pointer-based rail drag: reorder connections or drop one onto the split
   // group badge (HTML5 DnD can freeze the WebKitGTK compositor)
   const [dropTarget, setDropTarget] = useState<{
@@ -195,6 +245,9 @@ export const Sidebar = () => {
           let found: { id: string; position: "above" | "below" } | null = null;
           for (const [id, el] of itemRefs.current) {
             if (id === connId) continue;
+            if (folderOfConnection.get(id) !== folderOfConnection.get(connId)) {
+              continue;
+            }
             const rect = el.getBoundingClientRect();
             if (rectContains(rect, x, y)) {
               found = {
@@ -227,7 +280,7 @@ export const Sidebar = () => {
         },
       });
     },
-    [splitView, addConnectionToSplit, applySidebarReorder],
+    [splitView, addConnectionToSplit, applySidebarReorder, folderOfConnection],
   );
 
   const handleSwitchToConnection = (connectionId: string) => {
@@ -271,6 +324,45 @@ export const Sidebar = () => {
       (e) => {
         console.error(`[Sidebar] Failed to open connection in new window:`, e);
       },
+    );
+  };
+
+  const renderRailConnection = (conn: ConnectionStatus) => {
+    const idx = shortcutIndex.get(conn.id) ?? 0;
+    return (
+      <div
+        key={conn.id}
+        ref={(el) => {
+          if (el) itemRefs.current.set(conn.id, el);
+          else itemRefs.current.delete(conn.id);
+        }}
+        className="w-full flex flex-col items-center"
+      >
+        <OpenConnectionItem
+          connection={conn}
+          driverManifest={allDrivers.find(
+            (d) => d.id === conn.driver,
+          )}
+          isSelected={selectedConnectionIds.has(conn.id)}
+          onSwitch={() => handleSwitchOrSetExplorer(conn.id)}
+          onOpenInEditor={() => handleOpenInEditor(conn.id)}
+          onOpenInNewWindow={() => handleOpenInNewWindow(conn.id)}
+          onDisconnect={() => handleDisconnectConnection(conn.id)}
+          onToggleSelect={(isCtrlHeld) =>
+            toggleSelection(conn.id, isCtrlHeld)
+          }
+          selectedConnectionIds={selectedConnectionIds}
+          onActivateSplit={activateSplit}
+          shortcutIndex={idx + 1}
+          showShortcutHint={showShortcutHints && idx < 9}
+          onMoveMouseDown={(e) =>
+            handleConnectionMoveStart(conn.id, conn.name, e)
+          }
+          dropIndicator={
+            dropTarget?.id === conn.id ? dropTarget.position : null
+          }
+        />
+      </div>
     );
   };
 
@@ -323,42 +415,36 @@ export const Sidebar = () => {
                 </div>
               )}
 
-              {/* Sortable connection list */}
-              {sortedSidebarConnections.map((conn, idx) => (
-                <div
-                  key={conn.id}
-                  ref={(el) => {
-                    if (el) itemRefs.current.set(conn.id, el);
-                    else itemRefs.current.delete(conn.id);
-                  }}
-                  className="w-full flex flex-col items-center"
-                >
-                  <OpenConnectionItem
-                    connection={conn}
-                    driverManifest={allDrivers.find(
-                      (d) => d.id === conn.driver,
-                    )}
-                    isSelected={selectedConnectionIds.has(conn.id)}
-                    onSwitch={() => handleSwitchOrSetExplorer(conn.id)}
-                    onOpenInEditor={() => handleOpenInEditor(conn.id)}
-                    onOpenInNewWindow={() => handleOpenInNewWindow(conn.id)}
-                    onDisconnect={() => handleDisconnectConnection(conn.id)}
-                    onToggleSelect={(isCtrlHeld) =>
-                      toggleSelection(conn.id, isCtrlHeld)
-                    }
-                    selectedConnectionIds={selectedConnectionIds}
-                    onActivateSplit={activateSplit}
-                    shortcutIndex={idx + 1}
-                    showShortcutHint={showShortcutHints && idx < 9}
-                    onMoveMouseDown={(e) =>
-                      handleConnectionMoveStart(conn.id, conn.name, e)
-                    }
-                    dropIndicator={
-                      dropTarget?.id === conn.id ? dropTarget.position : null
-                    }
-                  />
-                </div>
-              ))}
+              {sidebarFolders ? (
+                <>
+                  {sidebarFolders.folders
+                    .filter(
+                      (folder) =>
+                        !folder.ancestorIds.some((id) =>
+                          collapsedFolders.has(id),
+                        ),
+                    )
+                    .map((folder) => (
+                      <ConnectionGroupFolder
+                        key={folder.group.id}
+                        name={folder.group.name}
+                        path={folder.path}
+                        count={folder.connections.length}
+                        isCollapsed={collapsedFolders.has(folder.group.id)}
+                        hasActiveConnection={
+                          location.pathname === "/editor" &&
+                          folder.connections.some((c) => c.isActive)
+                        }
+                        onToggle={() => toggleFolder(folder.group.id)}
+                      >
+                        {folder.connections.map(renderRailConnection)}
+                      </ConnectionGroupFolder>
+                    ))}
+                  {sidebarFolders.ungrouped.map(renderRailConnection)}
+                </>
+              ) : (
+                sortedSidebarConnections.map(renderRailConnection)
+              )}
             </div>
           )}
         </nav>

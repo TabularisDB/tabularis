@@ -74,6 +74,7 @@ pub struct AppConfig {
     pub default_sort_direction: Option<String>,
     /// Keep the row editor sidebar in sync with the selected grid row. Default: true.
     pub row_editor_follow_selection: Option<bool>,
+    pub group_sidebar_connections_by_folder: Option<bool>,
     /// What double-clicking a grid cell does: `"inline"` (default), `"sidebar"`
     /// or `"both"`.
     pub cell_double_click_action: Option<String>,
@@ -467,6 +468,10 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.row_editor_follow_selection.is_some() {
             existing_config.row_editor_follow_selection = config.row_editor_follow_selection;
+        }
+        if config.group_sidebar_connections_by_folder.is_some() {
+            existing_config.group_sidebar_connections_by_folder =
+                config.group_sidebar_connections_by_folder;
         }
         if config.cell_double_click_action.is_some() {
             existing_config.cell_double_click_action = config.cell_double_click_action;
@@ -1602,6 +1607,7 @@ mod tests {
         // Payload shape sent by the frontend's `save_config` call.
         let json = r#"{
             "rowEditorFollowSelection": false,
+            "groupSidebarConnectionsByFolder": true,
             "cellDoubleClickAction": "sidebar",
             "columnMaskingEnabled": false,
             "columnMaskingPatterns": ["password", "ssn"],
@@ -1617,6 +1623,7 @@ mod tests {
         let reloaded = parse_config_file(Ok(saved.clone())).0;
 
         assert_eq!(reloaded.row_editor_follow_selection, Some(false));
+        assert_eq!(reloaded.group_sidebar_connections_by_folder, Some(true));
         assert_eq!(
             reloaded.cell_double_click_action.as_deref(),
             Some("sidebar")
@@ -1645,6 +1652,7 @@ mod tests {
         // Keys are written in camelCase, matching `SettingsContext.ts`.
         for key in [
             "rowEditorFollowSelection",
+            "groupSidebarConnectionsByFolder",
             "cellDoubleClickAction",
             "columnMaskingEnabled",
             "columnMaskingPatterns",
@@ -1659,6 +1667,7 @@ mod tests {
         let (config, trusted) = parse_config_file(Ok(r#"{"theme":"dracula"}"#.to_string()));
         assert!(trusted);
         assert!(config.row_editor_follow_selection.is_none());
+        assert!(config.group_sidebar_connections_by_folder.is_none());
         assert!(config.cell_double_click_action.is_none());
         assert!(config.column_masking_enabled.is_none());
         assert!(config.column_masking_patterns.is_none());

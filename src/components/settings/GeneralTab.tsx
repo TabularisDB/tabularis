@@ -81,6 +81,18 @@ export function GeneralTab() {
         </SettingRow>
       </SettingSection>
 
+      <SettingSection title={t("settings.sidebarSection")}>
+        <SettingRow
+          label={t("settings.groupSidebarConnectionsByFolder")}
+          description={t("settings.groupSidebarConnectionsByFolderDesc")}
+        >
+          <SettingToggle
+            checked={settings.groupSidebarConnectionsByFolder === true}
+            onChange={(v) => updateSetting("groupSidebarConnectionsByFolder", v)}
+          />
+        </SettingRow>
+      </SettingSection>
+
       <SettingSection title={t("settings.dataEditor")}>
         <SettingRow
           label={t("settings.pageSize")}

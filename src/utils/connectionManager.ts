@@ -1,4 +1,4 @@
-import type { SavedConnection, ConnectionData } from '../contexts/DatabaseContext';
+import type { SavedConnection, ConnectionData, ConnectionGroup } from '../contexts/DatabaseContext';
 
 export interface ConnectionStatus {
   id: string;
@@ -79,4 +79,65 @@ export function findConnectionsForDrivers(
     const driver = connectionDataMap[id]?.driver;
     return driver !== undefined && driverIds.includes(driver);
   });
+}
+
+export interface SidebarFolder<T> {
+  group: ConnectionGroup;
+  path: string;
+  ancestorIds: string[];
+  connections: T[];
+}
+
+export function groupSidebarConnections<T extends { id: string }>(
+  ordered: T[],
+  savedConnections: SavedConnection[],
+  groups: ConnectionGroup[],
+): { folders: SidebarFolder<T>[]; ungrouped: T[] } {
+  const groupById = new Map(groups.map((g) => [g.id, g]));
+  const groupIdOf = new Map(savedConnections.map((c) => [c.id, c.group_id]));
+  const byGroup = new Map<string, T[]>();
+  const ungrouped: T[] = [];
+  for (const conn of ordered) {
+    const groupId = groupIdOf.get(conn.id);
+    if (groupId && groupById.has(groupId)) {
+      byGroup.set(groupId, [...(byGroup.get(groupId) ?? []), conn]);
+    } else {
+      ungrouped.push(conn);
+    }
+  }
+
+  const parentOf = (g: ConnectionGroup) =>
+    g.parent_id && groupById.has(g.parent_id) ? g.parent_id : null;
+  const folders: SidebarFolder<T>[] = [];
+  const visit = (
+    parentId: string | null,
+    parentPath: string,
+    ancestorIds: string[],
+  ) => {
+    const children = groups
+      .filter((g) => parentOf(g) === parentId)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    for (const group of children) {
+      const path = parentPath ? `${parentPath} / ${group.name}` : group.name;
+      const connections = byGroup.get(group.id);
+      if (connections) folders.push({ group, path, ancestorIds, connections });
+      visit(group.id, path, [...ancestorIds, group.id]);
+    }
+  };
+  visit(null, "", []);
+
+  // Groups in a parent cycle are unreachable from the root; keep their connections visible.
+  const shown = new Set(folders.map((f) => f.group.id));
+  const unreachable = groups
+    .filter((g) => byGroup.has(g.id) && !shown.has(g.id))
+    .sort((a, b) => a.sort_order - b.sort_order);
+  for (const group of unreachable) {
+    folders.push({
+      group,
+      path: group.name,
+      ancestorIds: [],
+      connections: byGroup.get(group.id)!,
+    });
+  }
+  return { folders, ungrouped };
 }

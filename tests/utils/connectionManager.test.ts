@@ -5,9 +5,10 @@ import {
   getConnectionItemClass,
   getStatusDotClass,
   findConnectionsForDrivers,
+  groupSidebarConnections,
   type ConnectionStatus,
 } from '../../src/utils/connectionManager';
-import type { SavedConnection, ConnectionData } from '../../src/contexts/DatabaseContext';
+import type { SavedConnection, ConnectionData, ConnectionGroup } from '../../src/contexts/DatabaseContext';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -287,6 +288,81 @@ describe('connectionManager', () => {
       const dataMap = makeDataMap({ a: 'postgres' });
 
       expect(findConnectionsForDrivers(openIds, dataMap, ['mysql', 'sqlite'])).toEqual([]);
+    });
+  });
+
+  describe('groupSidebarConnections', () => {
+    const open = (...ids: string[]) => ids.map((id) => ({ id }));
+    const saved = (id: string, group_id?: string) =>
+      ({ id, name: id, params: { driver: 'postgres' }, group_id }) as SavedConnection;
+    const group = (id: string, sort_order: number, parent_id?: string): ConnectionGroup => ({
+      id,
+      name: id.toUpperCase(),
+      collapsed: false,
+      sort_order,
+      parent_id,
+    });
+
+    it('puts each open connection in its folder and keeps the rail order inside it', () => {
+      const result = groupSidebarConnections(
+        open('pg-stage', 'ch-prod', 'pg-local', 'loose'),
+        [saved('pg-local', 'pg'), saved('pg-stage', 'pg'), saved('ch-prod', 'ch'), saved('loose')],
+        [group('ch', 1), group('pg', 0)],
+      );
+      expect(result.folders.map((f) => [f.group.id, f.connections.map((c) => c.id)])).toEqual([
+        ['pg', ['pg-stage', 'pg-local']],
+        ['ch', ['ch-prod']],
+      ]);
+      expect(result.ungrouped.map((c) => c.id)).toEqual(['loose']);
+    });
+
+    it('skips folders without open connections', () => {
+      const result = groupSidebarConnections(
+        open('a'),
+        [saved('a', 'pg'), saved('b', 'ch')],
+        [group('pg', 0), group('ch', 1)],
+      );
+      expect(result.folders.map((f) => f.group.id)).toEqual(['pg']);
+    });
+
+    it('orders nested folders depth-first and labels them with their path', () => {
+      const result = groupSidebarConnections(
+        open('top', 'nested', 'other'),
+        [saved('top', 'pg'), saved('nested', 'pg-prod'), saved('other', 'ch')],
+        [group('ch', 1), group('pg-prod', 0, 'pg'), group('pg', 0)],
+      );
+      expect(result.folders.map((f) => [f.group.id, f.path, f.ancestorIds])).toEqual([
+        ['pg', 'PG', []],
+        ['pg-prod', 'PG / PG-PROD', ['pg']],
+        ['ch', 'CH', []],
+      ]);
+    });
+
+    it('shows a folder whose parent no longer exists as top-level', () => {
+      const result = groupSidebarConnections(
+        open('a'),
+        [saved('a', 'orphan')],
+        [group('orphan', 0, 'deleted-parent')],
+      );
+      expect(result.folders.map((f) => [f.group.id, f.path])).toEqual([['orphan', 'ORPHAN']]);
+    });
+
+    it('still shows folders caught in a parent cycle', () => {
+      const result = groupSidebarConnections(
+        open('a', 'b'),
+        [saved('a', 'x'), saved('b', 'y')],
+        [group('x', 0, 'y'), group('y', 1, 'x')],
+      );
+      expect(result.folders.map((f) => [f.group.id, f.path, f.ancestorIds])).toEqual([
+        ['x', 'X', []],
+        ['y', 'Y', []],
+      ]);
+    });
+
+    it('treats a connection pointing at a missing group as ungrouped', () => {
+      const result = groupSidebarConnections(open('a'), [saved('a', 'gone')], []);
+      expect(result.folders).toEqual([]);
+      expect(result.ungrouped.map((c) => c.id)).toEqual(['a']);
     });
   });
 });
