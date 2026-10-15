@@ -4,7 +4,7 @@
  */
 
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import type { SavedConnection } from "../contexts/DatabaseContext";
+import type { ConnectionGroup, SavedConnection } from "../contexts/DatabaseContext";
 import type { ProxyOverride } from "../types/proxy";
 import { isLocalDriver } from "./driverCapabilities";
 import { isMultiDatabaseCapable } from "./database";
@@ -393,16 +393,79 @@ export function generateConnectionName(
   return `${params.database}@${host}`;
 }
 
+export type ConnectionDropPosition = "before" | "after";
+
 export function connectionOrderAfterMove(
   ids: string[],
   fromId: string,
   toId: string,
+  position: ConnectionDropPosition,
 ): Array<[string, number]> | null {
-  const fromIdx = ids.indexOf(fromId);
-  const toIdx = ids.indexOf(toId);
-  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return null;
-  const next = [...ids];
-  next.splice(fromIdx, 1);
-  next.splice(toIdx, 0, fromId);
+  if (fromId === toId) return null;
+  const next = ids.filter((id) => id !== fromId);
+  const toIdx = next.indexOf(toId);
+  if (toIdx === -1) return null;
+  next.splice(toIdx + (position === "after" ? 1 : 0), 0, fromId);
+  if (next.length === ids.length && next.every((id, i) => id === ids[i])) {
+    return null;
+  }
   return next.map((id, i) => [id, i]);
+}
+
+export type GroupDropPosition = "before" | "after" | "inside";
+
+export function planGroupDrop(
+  groups: ConnectionGroup[],
+  sourceId: string,
+  targetId: string,
+  position: GroupDropPosition,
+): { parentId: string | null; order: Array<[string, number]> } | "cycle" | null {
+  const target = groups.find((g) => g.id === targetId);
+  if (sourceId === targetId || !target) return null;
+  const parentId = position === "inside" ? targetId : (target.parent_id ?? null);
+
+  for (let cur: string | null = parentId; cur; ) {
+    if (cur === sourceId) return "cycle";
+    cur = groups.find((g) => g.id === cur)?.parent_id ?? null;
+  }
+
+  const current = groups
+    .filter((g) => (g.parent_id ?? null) === parentId)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((g) => g.id);
+  const siblings = current.filter((id) => id !== sourceId);
+  const at =
+    position === "inside"
+      ? siblings.length
+      : siblings.indexOf(targetId) + (position === "after" ? 1 : 0);
+  siblings.splice(at, 0, sourceId);
+  if (
+    siblings.length === current.length &&
+    siblings.every((id, i) => id === current[i])
+  ) {
+    return null;
+  }
+  return { parentId, order: siblings.map((id, i) => [id, i]) };
+}
+
+export function connectionDropZone(
+  rect: { top: number; left: number; width: number; height: number },
+  x: number,
+  y: number,
+  axis: "x" | "y",
+): ConnectionDropPosition {
+  const before =
+    axis === "x" ? x < rect.left + rect.width / 2 : y < rect.top + rect.height / 2;
+  return before ? "before" : "after";
+}
+
+export function groupDropZone(
+  rect: { top: number; height: number },
+  y: number,
+  allowAfter: boolean,
+): GroupDropPosition {
+  const edge = rect.height * 0.3;
+  if (y < rect.top + edge) return "before";
+  if (allowAfter && y > rect.top + rect.height - edge) return "after";
+  return "inside";
 }

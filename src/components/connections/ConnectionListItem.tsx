@@ -7,7 +7,12 @@ import type { ConnectionTag } from '../../types/tags';
 import { useDatabase } from '../../hooks/useDatabase';
 import { getConnectionAccent, getConnectionIcon } from '../../utils/driverUI';
 import { getCapabilitiesForDriver } from '../../utils/driverCapabilities';
-import { connectionSubtitle, getCardClass, migrationDirectionForDriver } from '../../utils/connections';
+import {
+  connectionSubtitle,
+  getCardClass,
+  migrationDirectionForDriver,
+  type ConnectionDropPosition,
+} from '../../utils/connections';
 import { StatusBadge } from './StatusBadge';
 import { ActionButtons } from './ActionButtons';
 import { ConnectionChips } from './ConnectionChips';
@@ -30,7 +35,7 @@ export interface ConnectionListItemProps {
   onMouseDown?: (e: MouseEvent<HTMLDivElement>) => void;
   /** Whether this connection is checked in multi-select mode. */
   selected?: boolean;
-  isDropTarget?: boolean;
+  dropPosition?: ConnectionDropPosition | null;
   /** Whether any connection is currently selected (keeps checkboxes visible). */
   selectionActive?: boolean;
   /** Toggles this connection's selection. Enables the checkbox when provided. */
@@ -53,7 +58,7 @@ export const ConnectionListItem = ({
   onContextMenu,
   onMouseDown,
   selected = false,
-  isDropTarget = false,
+  dropPosition = null,
   selectionActive = false,
   onToggleSelect,
   onMigrate,
@@ -90,14 +95,22 @@ export const ConnectionListItem = ({
       onMouseDown={onMouseDown}
       data-connection-id={conn.id}
       className={clsx(
-        'group flex items-center gap-3 px-3.5 py-2 rounded-xl border transition-all duration-150 cursor-pointer select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
+        'relative group flex items-center gap-3 px-3.5 py-2 rounded-xl border transition-all duration-150 cursor-pointer select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
         !isDriverEnabled && 'opacity-60 cursor-not-allowed',
         isConnecting && 'pointer-events-none',
         selected && 'ring-2 ring-accent-primary/70',
-        isDropTarget && 'outline outline-2 outline-dashed outline-offset-2 outline-accent-primary',
         getCardClass(conn.id, activeConnectionId, isConnectionOpenAnywhere),
       )}
     >
+      {dropPosition && (
+        <div
+          data-testid={`connection-drop-${dropPosition}`}
+          className={clsx(
+            'absolute z-20 left-2 right-2 h-1 rounded-full bg-accent-primary pointer-events-none',
+            dropPosition === 'before' ? 'top-0' : 'bottom-0',
+          )}
+        />
+      )}
       {onToggleSelect && (
         <SelectionCheckbox
           selected={selected}

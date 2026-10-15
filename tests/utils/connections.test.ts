@@ -11,11 +11,14 @@ import {
   withoutBlankSslMode,
   migrationDirectionForDriver,
   connectionOrderAfterMove,
+  planGroupDrop,
+  connectionDropZone,
+  groupDropZone,
   type ConnectionParams,
   type DatabaseDriver,
 } from '../../src/utils/connections';
 import type { DriverCapabilities, PluginManifest } from '../../src/types/plugins';
-import type { SavedConnection } from '../../src/contexts/DatabaseContext';
+import type { ConnectionGroup, SavedConnection } from '../../src/contexts/DatabaseContext';
 
 const makeFileCaps = (): DriverCapabilities => ({
   schemas: false, views: false, routines: false,
@@ -734,25 +737,112 @@ describe('connections', () => {
   describe('connectionOrderAfterMove', () => {
     const ids = ['a', 'b', 'c', 'd'];
 
-    it('moves a connection down into the target slot', () => {
-      expect(connectionOrderAfterMove(ids, 'a', 'c')).toEqual([
+    it('places a connection after the target', () => {
+      expect(connectionOrderAfterMove(ids, 'a', 'c', 'after')).toEqual([
         ['b', 0], ['c', 1], ['a', 2], ['d', 3],
       ]);
     });
 
-    it('moves a connection up into the target slot', () => {
-      expect(connectionOrderAfterMove(ids, 'd', 'b')).toEqual([
+    it('places a connection before the target', () => {
+      expect(connectionOrderAfterMove(ids, 'd', 'b', 'before')).toEqual([
         ['a', 0], ['d', 1], ['b', 2], ['c', 3],
       ]);
     });
 
-    it('returns null when dropped on itself', () => {
-      expect(connectionOrderAfterMove(ids, 'b', 'b')).toBeNull();
+    it('inserts a connection coming from another folder', () => {
+      expect(connectionOrderAfterMove(ids, 'x', 'b', 'after')).toEqual([
+        ['a', 0], ['b', 1], ['x', 2], ['c', 3], ['d', 4],
+      ]);
     });
 
-    it('returns null when either id is not in the list', () => {
-      expect(connectionOrderAfterMove(ids, 'x', 'b')).toBeNull();
-      expect(connectionOrderAfterMove(ids, 'a', 'x')).toBeNull();
+    it('returns null when the order would not change', () => {
+      expect(connectionOrderAfterMove(ids, 'b', 'b', 'before')).toBeNull();
+      expect(connectionOrderAfterMove(ids, 'b', 'c', 'before')).toBeNull();
+      expect(connectionOrderAfterMove(ids, 'b', 'a', 'after')).toBeNull();
+    });
+
+    it('returns null when the target is not in the list', () => {
+      expect(connectionOrderAfterMove(ids, 'a', 'x', 'after')).toBeNull();
+    });
+  });
+
+  describe('connectionDropZone', () => {
+    const rect = { top: 0, left: 0, width: 100, height: 40 };
+
+    it('splits side-by-side cards left and right', () => {
+      expect(connectionDropZone(rect, 10, 35, 'x')).toBe('before');
+      expect(connectionDropZone(rect, 90, 5, 'x')).toBe('after');
+    });
+
+    it('splits stacked cards top and bottom', () => {
+      expect(connectionDropZone(rect, 90, 5, 'y')).toBe('before');
+      expect(connectionDropZone(rect, 10, 35, 'y')).toBe('after');
+    });
+  });
+
+  describe('groupDropZone', () => {
+    const rect = { top: 100, height: 30 };
+
+    it('maps the top, middle and bottom of a header', () => {
+      expect(groupDropZone(rect, 102, true)).toBe('before');
+      expect(groupDropZone(rect, 115, true)).toBe('inside');
+      expect(groupDropZone(rect, 128, true)).toBe('after');
+    });
+
+    it('nests instead of placing after an expanded folder with content', () => {
+      expect(groupDropZone(rect, 128, false)).toBe('inside');
+    });
+  });
+
+  describe('planGroupDrop', () => {
+    const group = (id: string, sort_order: number, parent_id?: string): ConnectionGroup => ({
+      id,
+      name: id,
+      collapsed: false,
+      sort_order,
+      parent_id,
+    });
+    // pg (0) > [pg-prod (0), pg-dev (1)], ch (1)
+    const groups = [
+      group('pg', 0),
+      group('ch', 1),
+      group('pg-prod', 0, 'pg'),
+      group('pg-dev', 1, 'pg'),
+    ];
+
+    it('nests a folder at the end of the target', () => {
+      expect(planGroupDrop(groups, 'ch', 'pg', 'inside')).toEqual({
+        parentId: 'pg',
+        order: [['pg-prod', 0], ['pg-dev', 1], ['ch', 2]],
+      });
+    });
+
+    it('moves a nested folder back to the top level when dropped before a root folder', () => {
+      expect(planGroupDrop(groups, 'pg-dev', 'pg', 'before')).toEqual({
+        parentId: null,
+        order: [['pg-dev', 0], ['pg', 1], ['ch', 2]],
+      });
+    });
+
+    it('places a folder after its target among the same siblings', () => {
+      expect(planGroupDrop(groups, 'pg', 'ch', 'after')).toEqual({
+        parentId: null,
+        order: [['ch', 0], ['pg', 1]],
+      });
+    });
+
+    it('refuses to move a folder into its own subfolder', () => {
+      expect(planGroupDrop(groups, 'pg', 'pg-prod', 'inside')).toBe('cycle');
+      expect(planGroupDrop(groups, 'pg', 'pg-prod', 'after')).toBe('cycle');
+    });
+
+    it('does nothing when the folder order would not change', () => {
+      expect(planGroupDrop(groups, 'pg', 'ch', 'before')).toBeNull();
+      expect(planGroupDrop(groups, 'pg-dev', 'pg', 'inside')).toBeNull();
+    });
+
+    it('does nothing when dropped on itself', () => {
+      expect(planGroupDrop(groups, 'pg', 'pg', 'before')).toBeNull();
     });
   });
 });

@@ -2,6 +2,7 @@ import type { RefObject } from 'react';
 import { GripVertical, ChevronRight, Folder, FolderOpen, MoreVertical, Plus } from 'lucide-react';
 import clsx from 'clsx';
 import type { ConnectionGroup } from '../../contexts/DatabaseContext';
+import type { GroupDropPosition } from '../../utils/connections';
 import { onActivationKey } from '../../utils/keyboardEvents';
 
 export interface GroupHeaderProps {
@@ -18,6 +19,7 @@ export interface GroupHeaderProps {
   onRenameConfirm: (groupId: string) => void;
   onGripMouseDown?: (e: React.MouseEvent) => void;
   isDragOver?: boolean;
+  dropPosition?: GroupDropPosition | null;
   onCreateSubgroup?: (groupId: string) => void;
   depth?: number;
 }
@@ -36,6 +38,7 @@ export const GroupHeader = ({
   onRenameConfirm,
   onGripMouseDown,
   isDragOver,
+  dropPosition = null,
   onCreateSubgroup,
   depth = 0,
 }: GroupHeaderProps) => (
@@ -44,9 +47,11 @@ export const GroupHeader = ({
     tabIndex={0}
     aria-expanded={!isCollapsed}
     className={clsx(
-      "flex items-center gap-2 group cursor-pointer rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
-      isDragOver && "ring-1 ring-accent-primary bg-accent-primary/5"
+      "relative flex items-center gap-2 group cursor-pointer rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+      isDragOver && "ring-1 ring-accent-primary bg-accent-primary/5",
+      dropPosition === "inside" && "ring-2 ring-accent-primary bg-accent-primary/10"
     )}
+    data-group-header-id={group.id}
     style={{ paddingLeft: depth > 0 ? Math.min(depth, 6) * 20 : 0 }}
     onClick={(e) => {
       // Clicks on the drag grip start a drag, they must not toggle the group.
@@ -59,6 +64,15 @@ export const GroupHeader = ({
       onOpenContextMenu(e.clientX, e.clientY, group.id);
     }}
   >
+    {(dropPosition === "before" || dropPosition === "after") && (
+      <div
+        data-testid={`group-drop-${dropPosition}`}
+        className={clsx(
+          "absolute left-0 right-0 h-0.5 rounded-full bg-accent-primary pointer-events-none",
+          dropPosition === "before" ? "-top-1.5" : "-bottom-1.5"
+        )}
+      />
+    )}
     {onGripMouseDown && (
       <div
         data-group-grip

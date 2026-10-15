@@ -8,7 +8,12 @@ import { useDatabase } from '../../hooks/useDatabase';
 import { CompactCard, CompactCardHeader, CompactCardFooter } from '../ui/CompactCard';
 import { getConnectionAccent, getConnectionIcon } from '../../utils/driverUI';
 import { getCapabilitiesForDriver } from '../../utils/driverCapabilities';
-import { connectionSubtitle, getCardClass, migrationDirectionForDriver } from '../../utils/connections';
+import {
+  connectionSubtitle,
+  getCardClass,
+  migrationDirectionForDriver,
+  type ConnectionDropPosition,
+} from '../../utils/connections';
 import { StatusBadge } from './StatusBadge';
 import { ActionButtons } from './ActionButtons';
 import { ConnectionChips } from './ConnectionChips';
@@ -30,7 +35,8 @@ export interface ConnectionCardProps {
   onMouseDown?: (e: MouseEvent<HTMLDivElement>) => void;
   /** Whether this connection is checked in multi-select mode. */
   selected?: boolean;
-  isDropTarget?: boolean;
+  dropPosition?: ConnectionDropPosition | null;
+  dropAxis?: 'x' | 'y';
   /** Whether any connection is currently selected (keeps checkboxes visible). */
   selectionActive?: boolean;
   /** Toggles this connection's selection. Enables the checkbox when provided. */
@@ -53,7 +59,8 @@ export const ConnectionCard = ({
   onContextMenu,
   onMouseDown,
   selected = false,
-  isDropTarget = false,
+  dropPosition = null,
+  dropAxis = 'x',
   selectionActive = false,
   onToggleSelect,
   onMigrate,
@@ -86,10 +93,21 @@ export const ConnectionCard = ({
         !isDriverEnabled && 'opacity-60 cursor-not-allowed',
         isConnecting && 'pointer-events-none',
         selected && 'ring-2 ring-accent-primary/70',
-        isDropTarget && 'outline outline-2 outline-dashed outline-offset-2 outline-accent-primary',
         getCardClass(conn.id, activeConnectionId, isConnectionOpenAnywhere),
       )}
     >
+      {dropPosition && (
+        <div
+          data-testid={`connection-drop-${dropPosition}`}
+          className={clsx(
+            'absolute z-20 rounded-full bg-accent-primary pointer-events-none',
+            dropAxis === 'x' ? 'top-3 bottom-3 w-1' : 'left-3 right-3 h-1',
+            dropAxis === 'x'
+              ? dropPosition === 'before' ? 'left-0' : 'right-0'
+              : dropPosition === 'before' ? 'top-0' : 'bottom-0',
+          )}
+        />
+      )}
       {onToggleSelect && (
         <SelectionCheckbox
           selected={selected}

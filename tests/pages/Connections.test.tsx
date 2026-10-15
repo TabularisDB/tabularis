@@ -2,11 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Connections } from "../../src/pages/Connections";
 import { invoke } from "@tauri-apps/api/core";
-import type { SavedConnection } from "../../src/contexts/DatabaseContext";
+import type { ConnectionGroup, SavedConnection } from "../../src/contexts/DatabaseContext";
 
 const mocks = vi.hoisted(() => ({
   connect: vi.fn(),
-  connectionGroups: [],
+  connectionGroups: [] as ConnectionGroup[],
+  moveGroupToParent: vi.fn(),
+  reorderGroups: vi.fn(),
+  moveConnectionToGroup: vi.fn(),
   connections: [] as SavedConnection[],
   createSqliteDatabase: vi.fn(),
   drivers: [],
@@ -57,11 +60,11 @@ vi.mock("../../src/hooks/useDatabase", () => ({
     connectionGroups: mocks.connectionGroups,
     createGroupPath: vi.fn(),
     updateGroup: vi.fn(),
-    moveGroupToParent: vi.fn(),
+    moveGroupToParent: mocks.moveGroupToParent,
     deleteGroup: vi.fn(),
-    moveConnectionToGroup: vi.fn(),
+    moveConnectionToGroup: mocks.moveConnectionToGroup,
     reorderConnectionsInGroup: mocks.reorderConnectionsInGroup,
-    reorderGroups: vi.fn(),
+    reorderGroups: mocks.reorderGroups,
     toggleGroupCollapsed: vi.fn(),
     loadConnections: mocks.loadConnections,
     connections: mocks.connections,
@@ -252,13 +255,24 @@ describe("Connections ordering", () => {
     expect(renderedIds()).toEqual(["a", "b", "fresh"]);
   });
 
-  it("moves a connection into the slot of the sibling it is dropped on", async () => {
+  const atRect = (el: HTMLElement) => {
+    el.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 80, left: 0, right: 60, height: 80, width: 60 }) as DOMRect;
+    return el;
+  };
+
+  afterEach(() => {
+    mocks.connectionGroups = [];
+  });
+
+  it("places a connection after the card when dropped on its right half", async () => {
     mocks.connections = [conn("a", 0), conn("b", 1), conn("c", 2)];
     render(<Connections />);
-    document.elementFromPoint = vi.fn(() => card("c"));
+    document.elementFromPoint = vi.fn(() => atRect(card("c")));
 
     fireEvent.mouseDown(card("a"), { button: 0, clientX: 0, clientY: 0 });
     fireEvent.mouseMove(document, { clientX: 40, clientY: 40 });
+    expect(screen.getByTestId("connection-drop-after")).toBeInTheDocument();
     fireEvent.mouseUp(document, { clientX: 40, clientY: 40 });
 
     await waitFor(() =>
@@ -292,5 +306,93 @@ describe("Connections delete", () => {
     fireEvent.click(screen.getByText("confirm-modal-confirm"));
 
     expect(await screen.findByText(/connections\.failDelete/)).toBeInTheDocument();
+  });
+});
+
+describe("Connections drop next to a card in another folder", () => {
+  const originalElementFromPoint = document.elementFromPoint;
+
+  afterEach(() => {
+    document.elementFromPoint = originalElementFromPoint;
+    mocks.connectionGroups = [];
+  });
+
+  it("moves the connection into that folder at the marked position", async () => {
+    vi.clearAllMocks();
+    mocks.settings.autoConnectLastConnection = false;
+    mocks.isSettingsLoading = false;
+    mocks.connectionGroups = [{ id: "g", name: "G", collapsed: false, sort_order: 0 }];
+    mocks.connections = [
+      { id: "a", name: "a", params: { driver: "sqlite", database: "/tmp/a.db" } },
+      { id: "b", name: "b", params: { driver: "sqlite", database: "/tmp/b.db" }, group_id: "g", sort_order: 0 },
+    ] as SavedConnection[];
+    mocks.moveConnectionToGroup.mockResolvedValue(undefined);
+    mocks.reorderConnectionsInGroup.mockResolvedValue(undefined);
+    render(<Connections />);
+    const target = document.querySelector('[data-connection-id="b"]') as HTMLElement;
+    target.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 80, left: 0, right: 60, height: 80, width: 60 }) as DOMRect;
+    document.elementFromPoint = vi.fn(() => target);
+
+    const source = document.querySelector('[data-connection-id="a"]') as HTMLElement;
+    fireEvent.mouseDown(source, { button: 0, clientX: 0, clientY: 0 });
+    fireEvent.mouseMove(document, { clientX: 50, clientY: 40 });
+    fireEvent.mouseUp(document, { clientX: 50, clientY: 40 });
+
+    await waitFor(() => {
+      expect(mocks.moveConnectionToGroup).toHaveBeenCalledWith("a", "g", 1);
+      expect(mocks.reorderConnectionsInGroup).toHaveBeenCalledWith([
+        ["b", 0],
+        ["a", 1],
+      ]);
+    });
+  });
+});
+
+describe("Connections folder drag", () => {
+  const originalElementFromPoint = document.elementFromPoint;
+  const header = (id: string) =>
+    document.querySelector(`[data-group-header-id="${id}"]`) as HTMLElement;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.connections = [sqliteConnection as SavedConnection];
+    mocks.settings.autoConnectLastConnection = false;
+    mocks.isSettingsLoading = false;
+    mocks.connectionGroups = [
+      { id: "pg", name: "PG", collapsed: false, sort_order: 0 },
+      { id: "ch", name: "CH", collapsed: false, sort_order: 1 },
+      { id: "pg-in-ch", name: "PG2", collapsed: false, sort_order: 0, parent_id: "ch" },
+    ];
+    mocks.moveGroupToParent.mockResolvedValue(undefined);
+    mocks.reorderGroups.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    document.elementFromPoint = originalElementFromPoint;
+    mocks.connectionGroups = [];
+  });
+
+  it("moves a nested folder back to the top level when dropped above a root folder", async () => {
+    render(<Connections />);
+    const target = header("pg");
+    target.getBoundingClientRect = () =>
+      ({ top: 100, bottom: 130, left: 0, right: 500, height: 30, width: 500 }) as DOMRect;
+    document.elementFromPoint = vi.fn(() => target);
+
+    const grip = header("pg-in-ch").querySelector("[data-group-grip]") as HTMLElement;
+    fireEvent.mouseDown(grip, { clientX: 0, clientY: 0 });
+    fireEvent.mouseMove(document, { clientX: 50, clientY: 102 });
+    expect(screen.getByTestId("group-drop-before")).toBeInTheDocument();
+    fireEvent.mouseUp(document, { clientX: 50, clientY: 102 });
+
+    await waitFor(() => {
+      expect(mocks.moveGroupToParent).toHaveBeenCalledWith("pg-in-ch", null);
+      expect(mocks.reorderGroups).toHaveBeenCalledWith([
+        ["pg-in-ch", 0],
+        ["pg", 1],
+        ["ch", 2],
+      ]);
+    });
   });
 });

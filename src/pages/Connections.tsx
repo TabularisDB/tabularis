@@ -42,6 +42,11 @@ import { flattenGroupTree } from "../utils/groupTree";
 import { toErrorMessage } from "../utils/errors";
 import {
   connectionOrderAfterMove,
+  planGroupDrop,
+  connectionDropZone,
+  groupDropZone,
+  type ConnectionDropPosition,
+  type GroupDropPosition,
   migrationDirectionForDriver,
 } from "../utils/connections";
 import { fuzzyFilter } from "../utils/fuzzy";
@@ -160,9 +165,16 @@ export const Connections = () => {
   } | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportSelectionOnly, setExportSelectionOnly] = useState(false);
-  const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
-  const [dragOverConnectionId, setDragOverConnectionId] = useState<string | null>(null);
+  const [groupDrop, setGroupDrop] = useState<{
+    id: string;
+    position: GroupDropPosition;
+  } | null>(null);
+  const [connectionDrop, setConnectionDrop] = useState<{
+    id: string;
+    position: ConnectionDropPosition;
+    axis: "x" | "y";
+  } | null>(null);
   const isRenameCancelledRef = useRef(false);
   // Multi-select for bulk actions (delete / move to group)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -556,21 +568,29 @@ export const Connections = () => {
     }
   };
 
-  const handleReorderConnection = async (
-    fromId: string,
-    toId: string,
-    groupId: string | undefined,
+  const handleDropOnConnection = async (
+    connId: string,
+    drop: { id: string; position: ConnectionDropPosition },
   ) => {
-    const siblings = groupId
-      ? (groupedConnections[groupId] ?? [])
+    const source = connections.find((c) => c.id === connId);
+    const target = connections.find((c) => c.id === drop.id);
+    if (!source || !target) return;
+    const targetGroupId = target.group_id ?? null;
+    const siblings = targetGroupId
+      ? (groupedConnections[targetGroupId] ?? [])
       : ungroupedConnections;
     const orders = connectionOrderAfterMove(
       siblings.map((c) => c.id),
-      fromId,
-      toId,
+      connId,
+      drop.id,
+      drop.position,
     );
     if (!orders) return;
     try {
+      if ((source.group_id ?? null) !== targetGroupId) {
+        const slot = orders.find(([id]) => id === connId)?.[1];
+        await moveConnectionToGroup(connId, targetGroupId, slot);
+      }
       await reorderConnectionsInGroup(orders);
     } catch (e) {
       console.error("Failed to reorder connections:", e);
@@ -853,7 +873,8 @@ export const Connections = () => {
     onMouseDown: (e: React.MouseEvent<HTMLDivElement>) =>
       handleConnectionMouseDown(e, conn.id, conn.group_id),
     selected: selectedIds.has(conn.id),
-    isDropTarget: dragOverConnectionId === conn.id,
+    dropPosition: connectionDrop?.id === conn.id ? connectionDrop.position : null,
+    dropAxis: connectionDrop?.axis ?? "y",
     selectionActive: selectedIds.size > 0,
     onToggleSelect: () => toggleSelect(conn.id),
     onMigrate: () => {
@@ -868,14 +889,27 @@ export const Connections = () => {
     const startY = e.clientY;
     let isDragging = false;
 
-    const siblingConnectionAt = (el: Element | null): string | null => {
+    const connectionDropAt = (
+      el: Element | null,
+      x: number,
+      y: number,
+    ): { id: string; position: ConnectionDropPosition; axis: "x" | "y" } | null => {
       const connEl = (el as HTMLElement)?.closest("[data-connection-id]") as HTMLElement | null;
-      const targetId = connEl?.dataset.connectionId;
-      if (!targetId || targetId === connId) return null;
-      const target = connections.find((c) => c.id === targetId);
-      return target && (target.group_id ?? null) === (currentGroupId ?? null)
-        ? targetId
-        : null;
+      const id = connEl?.dataset.connectionId;
+      if (!connEl || !id || id === connId) return null;
+      // Side by side only when the grid really has several columns (it collapses to one on narrow windows)
+      const columns = connEl.parentElement
+        ? getComputedStyle(connEl.parentElement).gridTemplateColumns
+        : "";
+      const axis =
+        columns && columns !== "none" && columns.trim().split(/\s+/).length > 1
+          ? "x"
+          : "y";
+      return {
+        id,
+        position: connectionDropZone(connEl.getBoundingClientRect(), x, y, axis),
+        axis,
+      };
     };
 
     const onMouseMove = (ev: MouseEvent) => {
@@ -886,22 +920,28 @@ export const Connections = () => {
         isDragging = true;
       }
       const el = document.elementFromPoint(ev.clientX, ev.clientY);
-      const siblingId = siblingConnectionAt(el);
-      setDragOverConnectionId(siblingId);
+      const drop = connectionDropAt(el, ev.clientX, ev.clientY);
+      setConnectionDrop((prev) =>
+        prev?.id === drop?.id &&
+        prev?.position === drop?.position &&
+        prev?.axis === drop?.axis
+          ? prev
+          : drop,
+      );
       const groupEl = (el as HTMLElement)?.closest("[data-group-id]") as HTMLElement | null;
-      setDragOverGroupId(siblingId ? null : (groupEl?.dataset.groupId ?? null));
+      setDragOverGroupId(drop ? null : (groupEl?.dataset.groupId ?? null));
     };
 
     const onMouseUp = (ev: MouseEvent) => {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
       setDragOverGroupId(null);
-      setDragOverConnectionId(null);
+      setConnectionDrop(null);
       if (!isDragging) return;
       const el = document.elementFromPoint(ev.clientX, ev.clientY);
-      const siblingId = siblingConnectionAt(el);
-      if (siblingId) {
-        void handleReorderConnection(connId, siblingId, currentGroupId);
+      const drop = connectionDropAt(el, ev.clientX, ev.clientY);
+      if (drop) {
+        void handleDropOnConnection(connId, drop);
         return;
       }
       const groupEl = (el as HTMLElement)?.closest("[data-group-id]") as HTMLElement | null;
@@ -914,72 +954,64 @@ export const Connections = () => {
     document.addEventListener("mouseup", onMouseUp);
   };
 
+  const groupDropAt = (
+    x: number,
+    y: number,
+    sourceGroupId: string,
+  ): { id: string; position: GroupDropPosition } | null => {
+    const header = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest(
+      "[data-group-header-id]",
+    ) as HTMLElement | null;
+    const id = header?.dataset.groupHeaderId;
+    if (!header || !id || id === sourceGroupId) return null;
+    // "After" an expanded folder with content would land below its whole subtree, far from the marker
+    const hasVisibleContent =
+      !collapsedGroups.has(id) &&
+      ((groupsByParent.get(id)?.length ?? 0) > 0 ||
+        (groupedConnections[id]?.length ?? 0) > 0);
+    return {
+      id,
+      position: groupDropZone(header.getBoundingClientRect(), y, !hasVisibleContent),
+    };
+  };
+
   const handleGripMouseDown = (e: React.MouseEvent, sourceGroupId: string) => {
     e.preventDefault();
-    setDraggingGroupId(sourceGroupId);
 
     const onMouseMove = (ev: MouseEvent) => {
-      const el = document.elementFromPoint(ev.clientX, ev.clientY);
-      const groupEl = (el as HTMLElement)?.closest("[data-group-id]") as HTMLElement | null;
-      const targetId = groupEl?.dataset.groupId ?? null;
-      setDragOverGroupId(targetId !== sourceGroupId ? targetId : null);
+      const next = groupDropAt(ev.clientX, ev.clientY, sourceGroupId);
+      setGroupDrop((prev) =>
+        prev?.id === next?.id && prev?.position === next?.position ? prev : next,
+      );
     };
 
     const onMouseUp = (ev: MouseEvent) => {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
-      const el = document.elementFromPoint(ev.clientX, ev.clientY);
-      const groupEl = (el as HTMLElement)?.closest("[data-group-id]") as HTMLElement | null;
-      const targetGroupId = groupEl?.dataset.groupId ?? null;
-      setDraggingGroupId(null);
-      setDragOverGroupId(null);
-      if (!targetGroupId || targetGroupId === sourceGroupId) return;
+      const drop = groupDropAt(ev.clientX, ev.clientY, sourceGroupId);
+      setGroupDrop(null);
+      if (!drop) return;
 
-      // Drop right of target's left edge => re-parent as child; else reorder
-      const targetEl = document.querySelector(
-        `[data-group-id="${targetGroupId}"]`,
-      ) as HTMLElement | null;
-      let reparent = false;
-      if (targetEl) {
-        const rect = targetEl.getBoundingClientRect();
-        const indentStep = 16;
-        reparent = ev.clientX > rect.left + indentStep;
-      }
-
-      if (reparent) {
-        const isAncestor = (maybeAncestorId: string): boolean => {
-          let cur = connectionGroups.find((g) => g.id === maybeAncestorId);
-          while (cur) {
-            if (cur.id === sourceGroupId) return true;
-            cur = connectionGroups.find((g) => g.id === cur!.parent_id);
-          }
-          return false;
-        };
-        // Reject only genuine cycles: dropping a group into one of its own
-        // descendants. Re-parenting an already-nested group elsewhere is fine.
-        if (isAncestor(targetGroupId)) {
-          setError(
-            t("groups.cannotMoveIntoDescendant", {
-              defaultValue: "Cannot move a group into one of its own subfolders",
-            }),
-          );
-          return;
-        }
-        void moveGroupToParent(sourceGroupId, targetGroupId).catch((err) => {
-          console.error("Failed to move group:", err);
-          setError(String(err));
-        });
+      const plan = planGroupDrop(connectionGroups, sourceGroupId, drop.id, drop.position);
+      if (!plan) return;
+      if (plan === "cycle") {
+        setError(
+          t("groups.cannotMoveIntoDescendant", {
+            defaultValue: "Cannot move a group into one of its own subfolders",
+          }),
+        );
         return;
       }
-
-      // Same-depth reorder
-      const newOrder = [...sortedGroups];
-      const fromIdx = newOrder.findIndex((g) => g.id === sourceGroupId);
-      const toIdx = newOrder.findIndex((g) => g.id === targetGroupId);
-      if (fromIdx === -1 || toIdx === -1) return;
-      const [moved] = newOrder.splice(fromIdx, 1);
-      newOrder.splice(toIdx, 0, moved);
-      void reorderGroups(newOrder.map((g, i) => [g.id, i]));
+      const source = connectionGroups.find((g) => g.id === sourceGroupId);
+      void (async () => {
+        if ((source?.parent_id ?? null) !== plan.parentId) {
+          await moveGroupToParent(sourceGroupId, plan.parentId);
+        }
+        await reorderGroups(plan.order);
+      })().catch((err) => {
+        console.error("Failed to move group:", err);
+        setError(String(err));
+      });
     };
 
     document.addEventListener("mousemove", onMouseMove);
@@ -999,7 +1031,8 @@ export const Connections = () => {
     setEditingGroupId,
     onRenameConfirm: handleRenameGroup,
     onGripMouseDown: (e: React.MouseEvent) => handleGripMouseDown(e, group.id),
-    isDragOver: dragOverGroupId === group.id && draggingGroupId !== group.id,
+    isDragOver: dragOverGroupId === group.id,
+    dropPosition: groupDrop?.id === group.id ? groupDrop.position : null,
     onCreateSubgroup: startInlineSubgroupInput,
   });
 
