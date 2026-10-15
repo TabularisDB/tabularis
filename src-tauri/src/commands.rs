@@ -646,15 +646,17 @@ fn is_loopback_host(host: &str) -> bool {
 /// Resolve params for closing a pool without respawning tunnels.
 ///
 /// `build_connection_key` uses `connection_id` (plus driver/database/TLS), not
-/// the K8s local port, so closing never needs a live kubectl port-forward.
+/// the tunnel's local port, so closing never needs a live SSH tunnel, SSM
+/// session, or kubectl port-forward. Disabling all tunnel types here means a
+/// dead bastion / unreachable cluster cannot prevent pool cleanup (#1065).
 pub(crate) fn params_for_pool_close(
     params: &ConnectionParams,
     connection_id: &str,
 ) -> Result<ConnectionParams, String> {
     let mut for_close = params.clone();
-    if for_close.k8s_enabled.unwrap_or(false) {
-        for_close.k8s_enabled = Some(false);
-    }
+    for_close.k8s_enabled = Some(false);
+    for_close.ssh_enabled = Some(false);
+    for_close.ssm_enabled = Some(false);
     resolve_connection_params_with_id(&for_close, connection_id)
 }
 
@@ -720,6 +722,20 @@ fn persist_secret_change(
     }
 }
 
+/// The keychain URI to put back if persisting a change fails. A connection can
+/// claim a keychain entry that was never written (duplicates used to copy the
+/// flag but not the URI), so a missing entry means there is nothing to
+/// restore. Only a genuine read failure aborts the change.
+fn previous_keychain_connection_uri(
+    stored_in_keychain: bool,
+    read: impl FnOnce() -> Result<Option<String>, String>,
+) -> Result<Option<String>, String> {
+    if !stored_in_keychain {
+        return Ok(None);
+    }
+    read().map_err(|_| "Failed to read the stored connection URI from the OS keychain".to_string())
+}
+
 /// `change` is `None` to leave the stored URI untouched, `Some(Some(uri))` to
 /// write it, and `Some(None)` to clear it.
 fn persist_connection_uri_change(
@@ -732,10 +748,9 @@ fn persist_connection_uri_change(
     let Some(value) = change else {
         return persist();
     };
-    let previous_keychain = stored_in_keychain
-        .then(|| keychain_utils::get_connection_uri(connection_id))
-        .transpose()
-        .map_err(|_| "Failed to read the stored connection URI from the OS keychain".to_string())?;
+    let previous_keychain = previous_keychain_connection_uri(stored_in_keychain, || {
+        keychain_utils::find_connection_uri(connection_id)
+    })?;
     let previous_cache = cache
         .connection_uris
         .lock()
@@ -1348,11 +1363,15 @@ pub async fn get_ai_schema_context<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<String, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
     let driver = driver_for_params(&params).await?;
     let identifier_quote = driver.manifest().capabilities.identifier_quote.as_str();
     let context = driver
@@ -1882,6 +1901,23 @@ pub async fn duplicate_connection<R: Runtime>(
         new_params.ssh_password = None;
         new_params.ssh_key_passphrase = None;
     }
+
+    // A connection URI only lives in the keychain, under the original's id.
+    // Give the duplicate its own entry, or drop the marker if there is nothing
+    // to copy: a marker without an entry leaves a copy that can neither
+    // connect nor be deleted.
+    let original_uri = if original.params.connection_uri_in_keychain.unwrap_or(false) {
+        credential_cache::get_connection_uri_cached(&cache, &original.id, true)
+            .ok()
+            .flatten()
+    } else {
+        None
+    };
+    if let Some(uri) = &original_uri {
+        keychain_utils::set_connection_uri(&new_id, uri)?;
+        credential_cache::set_connection_uri_cached(&cache, &new_id, uri);
+    }
+    new_params = params_for_persistence(&new_params, original_uri.is_some());
 
     // Copy the icon file so the duplicate owns its own copy.
     // If the original has an Image icon, the duplicate must not share the same file path —
@@ -3045,6 +3081,29 @@ mod tests {
     }
 
     #[test]
+    fn params_for_pool_close_disables_all_tunnel_types() {
+        // Pool keys depend on connection_id, not the tunnel's local port, so
+        // closing a pool must never respawn an SSH/SSM/K8s tunnel (#1065).
+        // Verify that all three are forced off regardless of the input.
+        let params = ConnectionParams {
+            k8s_enabled: Some(true),
+            ssh_enabled: Some(true),
+            ssm_enabled: Some(true),
+            ssh_host: Some("bastion".to_string()),
+            ssh_port: Some(22),
+            ssh_user: Some("user".to_string()),
+            ..base_params()
+        };
+
+        let resolved = params_for_pool_close(&params, "conn-1").expect("resolve");
+        assert_eq!(resolved.k8s_enabled, Some(false));
+        assert_eq!(resolved.ssh_enabled, Some(false));
+        assert_eq!(resolved.ssm_enabled, Some(false));
+        // connection_id is set for stable pool keying.
+        assert_eq!(resolved.connection_id.as_deref(), Some("conn-1"));
+    }
+
+    #[test]
     fn resolve_sanitizes_local_path_driver_databases() {
         let driver = "__test_resolve_local_path_driver__";
         crate::drivers::registry::set_local_path_driver(driver, true);
@@ -3104,6 +3163,43 @@ mod tests {
 
         assert_eq!(runtime_connection_uri(&params), None);
         assert!(validate_connection_uri_persistence(&params).is_ok());
+    }
+
+    #[test]
+    fn previous_uri_skips_the_keychain_when_none_is_stored() {
+        let previous = previous_keychain_connection_uri(false, || {
+            panic!("the keychain must not be read without a stored marker")
+        });
+
+        assert_eq!(previous, Ok(None));
+    }
+
+    #[test]
+    fn previous_uri_returns_the_stored_value() {
+        let uri = "mongodb+srv://cluster.example.invalid/app";
+        let previous = previous_keychain_connection_uri(true, || Ok(Some(uri.to_string())));
+
+        assert_eq!(previous, Ok(Some(uri.to_string())));
+    }
+
+    #[test]
+    fn previous_uri_treats_a_missing_entry_as_nothing_to_restore() {
+        // A duplicate used to carry the marker without its own entry. Deleting
+        // it must not fail just because there is nothing to restore.
+        let previous = previous_keychain_connection_uri(true, || Ok(None));
+
+        assert_eq!(previous, Ok(None));
+    }
+
+    #[test]
+    fn previous_uri_fails_on_a_genuine_keychain_error() {
+        let previous =
+            previous_keychain_connection_uri(true, || Err("securityd is not running".to_string()));
+
+        assert_eq!(
+            previous,
+            Err("Failed to read the stored connection URI from the OS keychain".to_string())
+        );
     }
 
     #[test]
@@ -6284,19 +6380,35 @@ pub async fn disconnect_connection<R: Runtime>(
             .invalidate_connection_metadata(Some(&connection_id))
             .await;
     }
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    // Pool keys depend on connection_id (not the tunnel local port), so skip
-    // K8s expansion here. A dead kubectl / unreachable cluster must not block
-    // close_pools_for_connection_id or emit_active_changed via `?` on K8sTunnel::new.
-    let params = params_for_pool_close(&expanded_params, &connection_id)?;
 
-    release_connection_sessions(&app, &connection_id, Some(&params)).await;
-
-    // Close every pool for this connection, including per-database override
-    // pools created while browsing multiple databases (see #946).
+    // Close pools before resolving SSH/K8s params. Pool keys depend only on
+    // connection_id (plus driver/database/TLS), not the tunnel's local port.
     // `close_pools_for_connection_id` matches by connection_id prefix, so it
-    // subsumes the single-key close on single-database connections.
-    crate::pool_manager::close_pools_for_connection_id(&params.driver, &connection_id).await;
+    // subsumes the single-key close on single-database connections and closes
+    // per-database override pools too (#1063). A dead bastion / unreachable
+    // cluster must not prevent pool cleanup (#1065).
+    crate::pool_manager::close_pools_for_connection_id(&saved_conn.params.driver, &connection_id)
+        .await;
+
+    // release_connection_sessions only needs params.driver to look up the
+    // driver for rollback — the same driver regardless of tunnel expansion.
+    // Since params_for_pool_close already disabled all tunnel types,
+    // close_params has the right driver and connection_id, so re-expanding
+    // SSH would only add a redundant keychain lookup that produces the same
+    // result. If even tunnel-free resolution fails, fall back to the saved
+    // params with just the connection_id set.
+    let close_params = match params_for_pool_close(&saved_conn.params, &connection_id) {
+        Ok(p) => p,
+        Err(e) => {
+            log::warn!(
+                "Failed to resolve tunnel-free params for session release on {connection_id}: {e}"
+            );
+            let mut fallback = saved_conn.params.clone();
+            fallback.connection_id = Some(connection_id.clone());
+            fallback
+        }
+    };
+    release_connection_sessions(&app, &connection_id, Some(&close_params)).await;
 
     // Broadcast so every window learns this connection is now closed.
     crate::health_check::emit_active_changed(&app).await;

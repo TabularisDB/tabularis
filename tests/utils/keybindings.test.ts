@@ -9,6 +9,7 @@ import {
   mergeShortcuts,
   formatEvent,
   formatMatch,
+  formatShortcut,
   type ShortcutDef,
   type KeyMatch,
   type UserOverrides,
@@ -609,5 +610,27 @@ describe('formatMatch', () => {
     const match: KeyMatch = { metaKey: true, key: 'a', code: 'KeyQ' };
 
     expect(formatMatch(match, true)).toBe('⌘+A');
+  });
+});
+
+describe('formatShortcut', () => {
+  it.each([
+    [true, '⌘+B'],
+    [false, 'Ctrl+B'],
+  ])('returns the platform default (isMac=%s)', (isMac, expected) => {
+    expect(formatShortcut(makeDef(), {}, isMac)).toBe(expected);
+  });
+
+  it.each([
+    [true, '⌘+Shift+K'],
+    [false, 'Ctrl+Alt+L'],
+  ])('prefers the platform override (isMac=%s)', (isMac, expected) => {
+    const overrides: UserOverrides = {
+      toggle_sidebar: {
+        mac: { metaKey: true, shiftKey: true, key: 'k' },
+        win: { ctrlKey: true, altKey: true, key: 'l' },
+      },
+    };
+    expect(formatShortcut(makeDef(), overrides, isMac)).toBe(expected);
   });
 });

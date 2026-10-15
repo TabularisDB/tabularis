@@ -22,6 +22,10 @@ import type { Tab } from "../../src/types/editor";
 import { ROOT_COMMAND_SCOPE_ID } from "../../src/utils/commandScopeStore";
 import { createEditorNavigationIntent } from "../../src/utils/editorNavigation";
 
+vi.mock("../../src/hooks/useKeybindings", () => ({
+  useKeybindings: () => ({ shortcuts: [], overrides: {}, isMac: true }),
+}));
+
 const invokeMock = vi.fn();
 
 vi.mock("@tauri-apps/api/core", () => ({

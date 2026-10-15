@@ -30,16 +30,8 @@ where
         // before borrowing the client so the pinned session (and its open
         // transaction) is left intact — the user can switch back or end the
         // transaction and retry. Mirrors the guard in `execute_batch_in_session`.
-        if let Some(pinned_db) = slot.database() {
-            let requested_db = params.database.primary();
-            if pinned_db != requested_db {
-                return Err(format!(
-                    "This tab has an open transaction on database \"{pinned_db}\" \
-                     and cannot export from database \"{requested_db}\". End the \
-                     transaction (ROLLBACK or COMMIT) or switch back to \"{pinned_db}\"."
-                ));
-            }
-        }
+        let requested_db = params.database.primary();
+        super::session::check_pinned_database(slot.database(), requested_db, "export")?;
         if let Some(client) = slot.client() {
             // A savepoint keeps a failing export from aborting the user's transaction.
             client

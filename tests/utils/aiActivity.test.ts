@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  approvalConnectionLabel,
   buildVisualExplainDeepLink,
   defaultExportFilename,
   eventsToCsvLines,
@@ -372,6 +373,32 @@ describe("isDestructiveApproval", () => {
 
   it("does not flag select", () => {
     expect(isDestructiveApproval({ ...base, queryKind: "select" })).toBe(false);
+  });
+});
+
+describe("approvalConnectionLabel", () => {
+  const base: PendingApproval = {
+    id: "x",
+    createdAt: "2026-04-24T10:00:00Z",
+    sessionId: "s",
+    connectionId: "c",
+    connectionName: "dev",
+    query: "UPDATE t",
+    queryKind: "write",
+    clientHint: null,
+    explainPlan: null,
+    explainError: null,
+  };
+
+  it("shows the connection alone when no database was picked", () => {
+    expect(approvalConnectionLabel(base)).toBe("dev");
+    expect(approvalConnectionLabel({ ...base, database: null })).toBe("dev");
+  });
+
+  it("appends the database the MCP caller picked", () => {
+    expect(approvalConnectionLabel({ ...base, database: "analytics" })).toBe(
+      "dev / analytics",
+    );
   });
 });
 

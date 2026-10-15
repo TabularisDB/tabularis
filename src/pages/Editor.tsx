@@ -192,7 +192,7 @@ import {
   combineFilterClauses,
   type CellValueFilterOperator,
 } from "../utils/cellValueFilter";
-import { formatSqlIdentifier } from "../utils/identifiers";
+import { getNextSortClause } from "../utils/tableToolbar";
 import {
   createSqlFileTab,
   getSqlFileName,
@@ -3008,27 +3008,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       if (!activeTab) return;
 
       const currentSort = activeTab.sortClause || "";
-      const parts = currentSort.trim().split(/\s+/);
-
-      let newSort = "";
-
-      const sortCol = parts[0]?.replace(/^["`]|["`]$/g, "") ?? "";
-
-      // Check if we are currently sorting by this column
-      if (sortCol === colName && parts.length <= 2) {
-        const currentDir = parts[1]?.toUpperCase();
-
-        if (!currentDir || currentDir === "ASC") {
-          // ASC -> DESC
-          newSort = `${formatSqlIdentifier(colName, activeCapabilities ?? activeDriver)} DESC`;
-        } else {
-          // DESC -> None (Clear)
-          newSort = "";
-        }
-      } else {
-        // New column -> ASC
-        newSort = `${formatSqlIdentifier(colName, activeCapabilities ?? activeDriver)} ASC`;
-      }
+      const defaultDir = settings.defaultSortDirection ?? "asc";
+      const newSort = getNextSortClause(
+        currentSort,
+        colName,
+        defaultDir,
+        activeCapabilities ?? activeDriver,
+      );
 
       handleToolbarUpdate(
         activeTab.filterClause || "",
@@ -3036,7 +3022,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         activeTab.limitClause,
       );
     },
-    [activeTab, activeDriver, activeCapabilities, handleToolbarUpdate],
+    [
+      activeTab,
+      settings.defaultSortDirection,
+      activeDriver,
+      activeCapabilities,
+      handleToolbarUpdate,
+    ],
   );
 
   const handlePendingChange = useCallback(
@@ -5336,7 +5328,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       <span className="truncate whitespace-nowrap">
                         {t("editor.rowsRetrieved", {
                           count: activeTab.result.rows.length,
-                        })}{" "}
+                        })}
+                        {activeTab.result.columns.length > 0 && (
+                          <span className="hidden @[400px]:inline text-muted">
+                            {" · "}
+                            {t("editor.columnsCount", {
+                              count: activeTab.result.columns.length,
+                            })}
+                          </span>
+                        )}{" "}
                         {activeTab.executionTime !== null && (
                           <span
                             className="hidden @[400px]:inline text-muted ml-2 font-mono"
@@ -5855,6 +5855,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         onClose={() => setIsAiModalOpen(false)}
         connectionId={activeConnectionId ?? undefined}
         schema={activeTab?.schema ?? activeSchema ?? undefined}
+        database={activeTab?.database}
         onInsert={(q) => {
           updateActiveTab({ query: q });
           // AI-generated SQL uses the same production-first safety pipeline.

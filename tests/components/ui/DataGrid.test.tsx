@@ -1938,10 +1938,16 @@ describe("DataGrid filter-by-value context menu", () => {
     return { ...utils, onFilterByValue };
   };
 
+  // The operators live in a "Filter by this value" flyout opened on hover.
+  const openFilterSubmenu = async () => {
+    fireEvent.mouseEnter(await screen.findByText("dataGrid.filterByValue"));
+  };
+
   it("offers = / <> on a regular cell and passes the cell value", async () => {
     const { container, onFilterByValue } = renderUsersGrid();
 
     fireEvent.contextMenu(cellAt(container, 0, 1));
+    await openFilterSubmenu();
     fireEvent.click(await screen.findByText("dataGrid.filterEquals"));
 
     expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
@@ -1959,11 +1965,13 @@ describe("DataGrid filter-by-value context menu", () => {
     // "email" is masked by DEFAULT_MASKING_PATTERNS (settings mock is `{}`).
     expect(cellAt(container, 0, 2)).toHaveTextContent("••••••");
     fireEvent.contextMenu(cellAt(container, 0, 2));
+    await openFilterSubmenu();
 
     expect(await screen.findByText("dataGrid.filterIsNull")).toBeInTheDocument();
     expect(screen.getByText("dataGrid.filterIsNotNull")).toBeInTheDocument();
     expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
     expect(screen.queryByText("dataGrid.filterNotEquals")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterContains")).toBeNull();
 
     fireEvent.click(screen.getByText("dataGrid.filterIsNotNull"));
     expect(onFilterByValue).toHaveBeenCalledWith(
@@ -1986,9 +1994,47 @@ describe("DataGrid filter-by-value context menu", () => {
       )!,
     );
     fireEvent.contextMenu(cellAt(container, 0, 2));
+    await openFilterSubmenu();
 
     expect(await screen.findByText("dataGrid.filterEquals")).toBeInTheDocument();
     expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+  });
+
+  it("offers comparison operators on a numeric cell", async () => {
+    const { container, onFilterByValue } = renderUsersGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 0));
+    await openFilterSubmenu();
+
+    for (const key of [
+      "dataGrid.filterEquals",
+      "dataGrid.filterNotEquals",
+      "dataGrid.filterGreaterThan",
+      "dataGrid.filterGreaterOrEqual",
+      "dataGrid.filterLessThan",
+    ]) {
+      expect(await screen.findByText(key)).toBeInTheDocument();
+    }
+    expect(screen.queryByText("dataGrid.filterContains")).toBeNull();
+
+    fireEvent.click(screen.getByText("dataGrid.filterLessOrEqual"));
+    expect(onFilterByValue).toHaveBeenCalledWith("id", "<=", 1, "integer");
+  });
+
+  it("offers contains on a text cell", async () => {
+    const { container, onFilterByValue } = renderUsersGrid();
+
+    fireEvent.contextMenu(cellAt(container, 0, 1));
+    await openFilterSubmenu();
+
+    expect(screen.queryByText("dataGrid.filterGreaterThan")).toBeNull();
+    fireEvent.click(await screen.findByText("dataGrid.filterContains"));
+    expect(onFilterByValue).toHaveBeenCalledWith(
+      "name",
+      "contains",
+      "Alice",
+      "character varying(255)",
+    );
   });
 
   it("hides the items on BLOB and JSON cells", async () => {
@@ -1997,14 +2043,12 @@ describe("DataGrid filter-by-value context menu", () => {
     fireEvent.contextMenu(cellAt(container, 0, 3));
     // Wait for the menu itself, then check the filter items are absent.
     await screen.findByText("dataGrid.copyCell");
-    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
-    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterByValue")).toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
 
     fireEvent.contextMenu(cellAt(container, 0, 4));
     await screen.findByText("contextMenu.openJsonEditor");
-    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
-    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterByValue")).toBeNull();
   });
 
   it("hides the items on pending insertion rows", async () => {
@@ -2020,8 +2064,7 @@ describe("DataGrid filter-by-value context menu", () => {
 
     fireEvent.contextMenu(cellAt(container, 1, 1));
     await screen.findByText("dataGrid.copyCell");
-    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
-    expect(screen.queryByText("dataGrid.filterIsNull")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterByValue")).toBeNull();
   });
 
   it("hides the items when there is no table (query results)", async () => {
@@ -2029,7 +2072,7 @@ describe("DataGrid filter-by-value context menu", () => {
 
     fireEvent.contextMenu(cellAt(container, 0, 1));
     await screen.findByText("dataGrid.copyCell");
-    expect(screen.queryByText("dataGrid.filterEquals")).toBeNull();
+    expect(screen.queryByText("dataGrid.filterByValue")).toBeNull();
   });
 });
 

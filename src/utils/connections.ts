@@ -107,11 +107,15 @@ export interface ConnectionParams {
   proxy?: ProxyOverride;
 }
 
-/** Drop blank `ssl_mode` so the backend applies the driver default. */
-export function withoutBlankSslMode<T extends { ssl_mode?: string }>(
+/**
+ * Drop blank `ssl_mode` so the backend applies the driver default. The backend
+ * persists an omitted mode as `null`, so a connection loaded from disk can
+ * carry `null` here as well as `undefined`.
+ */
+export function withoutBlankSslMode<T extends { ssl_mode?: string | null }>(
   params: T,
 ): Omit<T, "ssl_mode"> | T {
-  if (params.ssl_mode === undefined || params.ssl_mode.trim() === "") {
+  if (params.ssl_mode == null || params.ssl_mode.trim() === "") {
     const rest = { ...params };
     delete rest.ssl_mode;
     return rest;

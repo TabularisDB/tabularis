@@ -605,6 +605,7 @@ export const Connections = () => {
           }
         } catch (e) {
           console.error(e);
+          setError(`${t("connections.failDelete")}\n\nError: ${toErrorMessage(e)}`);
         } finally {
           clearSelection();
           void loadConnections();
@@ -720,6 +721,7 @@ export const Connections = () => {
           void loadConnections();
         } catch (e) {
           console.error(e);
+          setError(`${t("connections.failDelete")}\n\nError: ${toErrorMessage(e)}`);
         }
       },
     });

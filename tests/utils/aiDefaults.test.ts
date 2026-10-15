@@ -19,6 +19,14 @@ describe("detectAiDefaults", () => {
     expect(invoke).toHaveBeenCalledExactlyOnceWith("get_ai_models", { forceRefresh: false });
   });
 
+  it("does not load either catalog while hydrating ChatGPT with an empty model", async () => {
+    for (const aiModel of [null, ""]) {
+      expect(await detectAiDefaults({ ...DEFAULT_SETTINGS, aiEnabled: true, aiProvider: "chatgpt", aiModel }))
+        .toEqual({});
+    }
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("preserves provider priority even if a key lookup fails", async () => {
     vi.mocked(invoke).mockImplementation(async (command, args) => {
       const provider = (args as { provider?: string } | undefined)?.provider;

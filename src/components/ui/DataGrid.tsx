@@ -77,6 +77,7 @@ import {
   type RangeExtendKey,
 } from "../../utils/dataGrid";
 import { readText, writeHtml } from "@tauri-apps/plugin-clipboard-manager";
+import { getSortButtonAction } from "../../utils/tableToolbar";
 import { useSettings } from "../../hooks/useSettings";
 import { useJsonEditorActivity } from "../../hooks/useJsonEditorActivity";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
@@ -237,10 +238,35 @@ const RANGE_EXTEND_KEYS = new Set([
   "ArrowRight",
 ]);
 
+// SQL tag shown in the chip next to each "Filter by this value" entry.
+const CELL_VALUE_FILTER_BADGES: Record<CellValueFilterOperator, string> = {
+  "=": "=",
+  "<>": "<>",
+  ">": ">",
+  ">=": ">=",
+  "<": "<",
+  "<=": "<=",
+  contains: "LIKE",
+  "IS NULL": "IS",
+  "IS NOT NULL": "IS NOT",
+};
+
+// Value shown next to the column name in the "Filter by this value" submenu.
+const formatCellValueFilterHint = (value: unknown): string => {
+  if (value === null || value === undefined) return "NULL";
+  const text = String(value).replace(/\s+/g, " ").trim();
+  return text === "" ? "''" : text.length > 80 ? `${text.slice(0, 80)}…` : text;
+};
+
 // i18n label per "Filter by this value" operator.
 const CELL_VALUE_FILTER_LABEL_KEYS: Record<CellValueFilterOperator, string> = {
   "=": "dataGrid.filterEquals",
   "<>": "dataGrid.filterNotEquals",
+  ">": "dataGrid.filterGreaterThan",
+  ">=": "dataGrid.filterGreaterOrEqual",
+  "<": "dataGrid.filterLessThan",
+  "<=": "dataGrid.filterLessOrEqual",
+  contains: "dataGrid.filterContains",
   "IS NULL": "dataGrid.filterIsNull",
   "IS NOT NULL": "dataGrid.filterIsNotNull",
 };
@@ -305,6 +331,7 @@ export const DataGrid = React.memo(
     const colorByType = settings.resultColorByType ?? false;
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
     const zebraStripes = settings.resultZebraStripes ?? false;
+    const defaultSortDirection = settings.defaultSortDirection ?? "asc";
 
     // Sensitive-column masking (#485): display-only — copy/export keep the
     // real values; only the rendered grid masks them.
@@ -1361,6 +1388,16 @@ export const DataGrid = React.memo(
               const sortState = getColumnSortState(colName, sortClause);
               const displaySortState: "none" | "asc" | "desc" =
                 sortState ?? "none";
+              const sortAction = getSortButtonAction(
+                displaySortState,
+                defaultSortDirection,
+              );
+              const sortButtonLabel =
+                sortAction === "asc"
+                  ? t("dataGrid.sortByAsc", { col: colName })
+                  : sortAction === "desc"
+                    ? t("dataGrid.sortByDesc", { col: colName })
+                    : t("dataGrid.clearSort");
               // Column data type for the DataGrip-style header hover tooltip.
               // Only populated when column metadata is present (i.e. table
               // browse), not for arbitrary query results.
@@ -1399,23 +1436,13 @@ export const DataGrid = React.memo(
                     <button
                       type="button"
                       className="flex flex-col items-center justify-center cursor-pointer"
-                      aria-label={
-                        displaySortState === "none"
-                          ? t("dataGrid.sortByAsc", { col: colName })
-                          : displaySortState === "asc"
-                            ? t("dataGrid.sortByDesc", { col: colName })
-                            : t("dataGrid.clearSort")
-                      }
+                      aria-label={sortButtonLabel}
                       title={
                         // Suppress the native sort-hint title while the type
                         // tooltip is shown, to avoid two overlapping tooltips.
                         hasMetadataTooltip
                           ? undefined
-                          : displaySortState === "none"
-                            ? t("dataGrid.sortByAsc", { col: colName })
-                            : displaySortState === "asc"
-                              ? t("dataGrid.sortByDesc", { col: colName })
-                              : t("dataGrid.clearSort")
+                          : sortButtonLabel
                       }
                       onClick={(e) => {
                         e.preventDefault();
@@ -1464,6 +1491,7 @@ export const DataGrid = React.memo(
         columnHelper,
         t,
         sortClause,
+        defaultSortDirection,
         onSort,
         columnTypeMap,
         columnCommentMap,
@@ -3101,7 +3129,8 @@ export const DataGrid = React.memo(
               // formats don't survive a WHERE comparison) and for insertion
               // rows, which have no stored value to filter on yet. Masking is
               // display-only, so a masked cell only gets IS NULL / IS NOT NULL
-              // and its real value never reaches the WHERE input.
+              // and its real value never reaches the WHERE input. The
+              // operators are grouped in a submenu so the menu stays short.
               if (onFilterByValue && tableName && !isInsertion) {
                 const isContextCellMasked = isCellMasked(
                   contextMenu.rowIndex,
@@ -3114,26 +3143,37 @@ export const DataGrid = React.memo(
                   !isBlobCell &&
                   !isJsonCellTarget(colDataType, contextCellValue)
                 ) {
-                  for (const op of getCellValueFilterOperators(
-                    contextCellValue,
-                    { masked: isContextCellMasked },
-                  )) {
-                    menuItems.push({
-                      label: t(CELL_VALUE_FILTER_LABEL_KEYS[op], {
-                        column: colName,
-                      }),
-                      icon: Filter,
-                      action: () => {
-                        onFilterByValue(
-                          colName,
-                          op,
-                          isContextCellMasked ? null : contextCellValue,
-                          colDataType || undefined,
-                        );
-                        setContextMenu(null);
+                  menuItems.push({
+                    label: t("dataGrid.filterByValue"),
+                    icon: Filter,
+                    submenu: [
+                      {
+                        label: colName,
+                        header: true,
+                        mono: true,
+                        // A masked cell never shows its real value here.
+                        hint: isContextCellMasked
+                          ? undefined
+                          : formatCellValueFilterHint(contextCellValue),
                       },
-                    });
-                  }
+                      ...getCellValueFilterOperators(contextCellValue, {
+                        masked: isContextCellMasked,
+                        columnType: colDataType,
+                      }).map((op) => ({
+                        label: t(CELL_VALUE_FILTER_LABEL_KEYS[op]),
+                        badge: CELL_VALUE_FILTER_BADGES[op],
+                        action: () => {
+                          onFilterByValue(
+                            colName,
+                            op,
+                            isContextCellMasked ? null : contextCellValue,
+                            colDataType || undefined,
+                          );
+                          setContextMenu(null);
+                        },
+                      })),
+                    ],
+                  });
                 }
               }
 

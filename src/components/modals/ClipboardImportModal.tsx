@@ -40,6 +40,9 @@ import {
 
 const FILE_FORMATS: Record<string, ClipboardFormat> = { csv: 'csv', tsv: 'tsv', json: 'json-array', md: 'markdown-table' };
 
+/** Readable input that yields no importable rows; shown as-is, without a read-error prefix. */
+class NoImportDataError extends Error {}
+
 type ImportMode = 'create' | 'append';
 type IfExistsStrategy = 'fail' | 'append' | 'replace';
 
@@ -80,6 +83,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess, schema }: Cli
   const sourceRequest = useRef(0);
   const invalidateSource = useCallback(() => { sourceRequest.current++; }, []);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [lastSource, setLastSource] = useState<'clipboard' | 'file'>('clipboard');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [isLoadingClipboard, setIsLoadingClipboard] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -120,9 +124,9 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess, schema }: Cli
 
   const applyText = useCallback(async (text: string, id: number, name: string | null) => {
     if (id !== sourceRequest.current) return;
-    if (!text.trim()) throw new Error(t('clipboardImport.noData'));
+    if (!text.trim()) throw new NoImportDataError(t('clipboardImport.noData'));
     const result = parseClipboardText(text, name ? FILE_FORMATS[name.split('.').pop()?.toLowerCase() ?? ''] : undefined);
-    if (result.rowCount === 0) throw new Error(t('clipboardImport.noData'));
+    if (result.rowCount === 0) throw new NoImportDataError(t('clipboardImport.noData'));
     const mapped = await toSchemaColumns(result.inferredColumns);
     if (id !== sourceRequest.current) return;
     setRawText(text);
@@ -135,6 +139,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess, schema }: Cli
 
   const readClipboard = useCallback(async () => {
     const id = ++sourceRequest.current;
+    setLastSource('clipboard');
     setIsLoadingClipboard(true);
     setIsLoadingFile(false);
     setError(null);
@@ -158,13 +163,16 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess, schema }: Cli
         filters: [{ name: t('clipboardImport.fileSource'), extensions: DATA_IMPORT_EXTENSIONS }],
       });
       if (id !== sourceRequest.current || typeof path !== 'string') return;
+      setLastSource('file');
       const text = await readDataImportFile(path);
       await applyText(text, id, path.split(/[\\/]/).pop() ?? path);
     } catch (err) {
       if (id !== sourceRequest.current) return;
       setError(err instanceof DataImportFileError
         ? t({ tooLarge: 'clipboardImport.fileTooLarge', unsupported: 'clipboardImport.fileUnsupported', notFile: 'clipboardImport.fileNotFile' }[err.code])
-        : `${t('clipboardImport.fileReadError')}: ${toErrorMessage(err)}`);
+        : err instanceof NoImportDataError
+          ? err.message
+          : `${t('clipboardImport.fileReadError')}: ${toErrorMessage(err)}`);
     } finally {
       if (id === sourceRequest.current) setIsLoadingFile(false);
     }
@@ -487,7 +495,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess, schema }: Cli
               <p className="text-sm text-secondary">{error}</p>
               <button
                 type="button"
-                onClick={fileName ? readFile : readClipboard}
+                onClick={lastSource === 'file' ? readFile : readClipboard}
                 className="text-xs text-accent hover:underline"
               >
                 {t('clipboardImport.retry')}
