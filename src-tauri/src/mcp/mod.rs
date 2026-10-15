@@ -41,6 +41,7 @@ struct CallAudit {
     tool: String,
     connection_id: Option<String>,
     connection_name: Option<String>,
+    database: Option<String>,
     query: Option<String>,
     query_kind: Option<String>,
     rows: Option<usize>,
@@ -55,6 +56,7 @@ impl CallAudit {
             tool: tool.to_string(),
             connection_id: None,
             connection_name: None,
+            database: None,
             query: None,
             query_kind: None,
             rows: None,
@@ -853,6 +855,7 @@ fn emit_audit(
         tool: audit.tool.clone(),
         connection_id: audit.connection_id.clone(),
         connection_name: audit.connection_name.clone(),
+        database: audit.database.clone(),
         query: audit.query.clone(),
         query_kind: audit.query_kind.clone(),
         duration_ms: start.elapsed().as_millis() as u64,
@@ -1023,7 +1026,9 @@ async fn tool_list_tables(
     let (conn, mut db_params, driver) =
         resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
     audit.connection_name = Some(conn.name.clone());
-    apply_database_override(&mut db_params, database_arg(args));
+    let database = database_arg(args);
+    audit.database = database.map(str::to_string);
+    apply_database_override(&mut db_params, database);
 
     let effective_schema = resolve_default_schema(&driver, schema);
     let tables = driver
@@ -1103,7 +1108,9 @@ async fn tool_describe_table(
     let (conn, mut db_params, driver) =
         resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
     audit.connection_name = Some(conn.name.clone());
-    apply_database_override(&mut db_params, database_arg(args));
+    let database = database_arg(args);
+    audit.database = database.map(str::to_string);
+    apply_database_override(&mut db_params, database);
 
     let effective_schema = resolve_default_schema(&driver, schema);
     // Run the three metadata fetches concurrently so a slow driver costs one
@@ -1163,6 +1170,7 @@ async fn tool_run_query(
         resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
     audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
+    audit.database = database.map(str::to_string);
     apply_database_override(&mut db_params, database);
 
     // Read-only enforcement (fail-closed: unknown counts as write).

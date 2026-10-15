@@ -30,6 +30,10 @@ pub struct AiActivityEvent {
     pub tool: String,
     pub connection_id: Option<String>,
     pub connection_name: Option<String>,
+    /// Database the call targeted, when the caller picked one on a connection
+    /// with several databases selected. Absent in events from older builds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database: Option<String>,
     pub query: Option<String>,
     pub query_kind: Option<String>,
     pub duration_ms: u64,

@@ -182,6 +182,7 @@ export function eventsToCsvLines(events: AiActivityEvent[]): string[] {
     "timestamp",
     "tool",
     "connection_name",
+    "database",
     "query_kind",
     "duration_ms",
     "status",
@@ -201,6 +202,7 @@ export function eventsToCsvLines(events: AiActivityEvent[]): string[] {
       escape(e.timestamp),
       escape(e.tool),
       escape(e.connectionName),
+      escape(e.database),
       escape(e.queryKind),
       escape(e.durationMs),
       escape(e.status),
@@ -323,6 +325,13 @@ export function isDestructiveApproval(p: PendingApproval): boolean {
 /// can't land somewhere the approver didn't expect.
 export function approvalConnectionLabel(p: PendingApproval): string {
   return p.database ? `${p.connectionName} / ${p.database}` : p.connectionName;
+}
+
+/// Connection an audit event ran against, as `connection / database` when the
+/// MCP caller picked a database, matching what the approval dialog showed.
+export function eventConnectionLabel(e: AiActivityEvent): string | null {
+  if (!e.connectionName) return null;
+  return e.database ? `${e.connectionName} / ${e.database}` : e.connectionName;
 }
 
 const QUERY_KIND_ORDER: Record<AiQueryKind, number> = {

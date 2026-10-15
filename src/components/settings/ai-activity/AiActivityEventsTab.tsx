@@ -21,6 +21,7 @@ import {
   useAiActivityEvents,
 } from "../../../hooks/useAiActivity";
 import {
+  eventConnectionLabel,
   formatDurationMs,
   formatLocalTimestamp,
   sortAiEvents,
@@ -435,7 +436,7 @@ function EventsTable({
                   {ev.tool}
                 </td>
                 <td className="truncate px-3 py-2.5 text-muted">
-                  {ev.connectionName ?? "—"}
+                  {eventConnectionLabel(ev) ?? "—"}
                 </td>
                 <td
                   className="truncate px-3 py-2.5 font-mono text-secondary"

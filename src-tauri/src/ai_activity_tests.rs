@@ -17,6 +17,7 @@ mod tests {
             tool: tool.to_string(),
             connection_id: Some("conn-1".to_string()),
             connection_name: Some("local".to_string()),
+            database: None,
             query: Some("SELECT 1".to_string()),
             query_kind: Some("select".to_string()),
             duration_ms: 5,
@@ -1070,5 +1071,41 @@ mod tests {
     #[test]
     fn to_local_rfc3339_returns_input_when_unparseable() {
         assert_eq!(to_local_rfc3339("not-a-date", Some("Asia/Tokyo")), "not-a-date");
+    }
+
+    // Target database -------------------------------------------------------
+
+    #[test]
+    fn event_without_database_omits_the_field() {
+        let json = serde_json::to_value(make_event("a", "s1", "run_query", "2026-04-24T10:00:00Z"))
+            .unwrap();
+        assert!(json.get("database").is_none());
+    }
+
+    #[test]
+    fn event_round_trips_a_target_database() {
+        let tmp = TempDir::new().unwrap();
+        append(
+            tmp.path(),
+            AiActivityEvent {
+                database: Some("analytics".to_string()),
+                ..make_event("a", "s1", "run_query", "2026-04-24T10:00:00Z")
+            },
+        );
+        let events = read_events_in(tmp.path(), &EventFilter::default()).unwrap();
+        assert_eq!(events[0].database.as_deref(), Some("analytics"));
+    }
+
+    #[test]
+    fn event_written_by_an_older_build_still_parses() {
+        let tmp = TempDir::new().unwrap();
+        let mut json =
+            serde_json::to_value(make_event("old", "s1", "run_query", "2026-04-24T10:00:00Z"))
+                .unwrap();
+        json.as_object_mut().unwrap().remove("database");
+        std::fs::write(tmp.path().join("ai_activity.jsonl"), format!("{}\n", json)).unwrap();
+        let events = read_events_in(tmp.path(), &EventFilter::default()).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].database, None);
     }
 }

@@ -1,7 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import type { AiActivityEvent } from "../../../types/ai";
-import { formatDurationMs, formatLocalTimestamp } from "../../../utils/aiActivity";
+import {
+  eventConnectionLabel,
+  formatDurationMs,
+  formatLocalTimestamp,
+} from "../../../utils/aiActivity";
 import { useSettings } from "../../../hooks/useSettings";
 import { StatusBadge } from "./StatusBadge";
 import { QueryKindBadge } from "./QueryKindBadge";
@@ -41,7 +45,7 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
             label={t("aiActivity.col.connection")}
             value={
               event.connectionName
-                ? `${event.connectionName} (${event.connectionId ?? "?"})`
+                ? `${eventConnectionLabel(event)} (${event.connectionId ?? "?"})`
                 : "—"
             }
           />

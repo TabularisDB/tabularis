@@ -20,6 +20,7 @@ mod tests {
             tool: tool.to_string(),
             connection_id: Some("c1".to_string()),
             connection_name: Some(conn_name.to_string()),
+            database: None,
             query: query.map(|s| s.to_string()),
             query_kind: query.map(|_| "select".to_string()),
             duration_ms: 1,
