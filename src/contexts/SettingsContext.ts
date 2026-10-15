@@ -11,6 +11,7 @@ export type { AppLanguage };
 export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
 export type DefaultSortDirection = "asc" | "desc";
 export type AiProvider =
+  | "chatgpt"
   | "openai"
   | "anthropic"
   | "openrouter"

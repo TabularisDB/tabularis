@@ -21,6 +21,7 @@ import { getProviderLabel } from "../../utils/settingsUI";
 import { Select } from "../ui/Select";
 import { SettingSection, SettingRow, SettingToggle } from "./SettingControls";
 import { ProxyOverrideEditor } from "./ProxyFields";
+import { ChatGptSettings } from "./ChatGptSettings";
 import {
   defaultProxyOverride,
   normalizeProxyOverride,
@@ -45,6 +46,11 @@ const PROVIDERS: Array<{
   label: string;
   icon: ReactNode;
 }> = [
+  {
+    id: "chatgpt",
+    label: "ChatGPT",
+    icon: <OpenAIIcon size={18} className="text-primary" />,
+  },
   {
     id: "openai",
     label: "OpenAI",
@@ -256,7 +262,12 @@ export function AiTab() {
               return (
                 <button
                   key={p.id}
+                  aria-pressed={isSelected}
                   onClick={() => {
+                    if (!isSelected && (p.id === "chatgpt" || settings.aiProvider === "chatgpt")) {
+                      // Empty strings clear persisted optional fields; null means no change.
+                      void updateSetting("aiModel", "");
+                    }
                     updateSetting("aiProvider", p.id);
                     setKeyInput("");
                     setEditingKey(false);
@@ -291,7 +302,7 @@ export function AiTab() {
             title={getProviderLabel(settings.aiProvider)}
           >
             {/* Status badge */}
-            <div className="flex items-center gap-2 py-3">
+            {settings.aiProvider !== "chatgpt" && <div className="flex items-center gap-2 py-3">
               {aiKeyStatus[settings.aiProvider]?.configured ? (
                 <>
                   <span className="text-accent-success flex items-center gap-1 text-xs bg-accent-success/5 px-2 py-0.5 rounded-full border border-accent-success/10">
@@ -314,10 +325,12 @@ export function AiTab() {
                   </span>
                 )
               )}
-            </div>
+            </div>}
+
+            {settings.aiProvider === "chatgpt" && <ChatGptSettings />}
 
             {/* API Key */}
-            {settings.aiProvider !== "ollama" && (
+            {settings.aiProvider !== "ollama" && settings.aiProvider !== "chatgpt" && (
               <div className="space-y-2 py-3">
                 <label className="block text-sm font-medium text-secondary">
                   {t("settings.ai.apiKey", {
@@ -560,7 +573,7 @@ export function AiTab() {
             )}
 
             {/* Model selection */}
-            <div className="border-t border-default pt-4 space-y-1 py-3">
+            {settings.aiProvider !== "chatgpt" && <div className="border-t border-default pt-4 space-y-1 py-3">
               <label className="block text-sm font-medium text-secondary">
                 {t("settings.ai.defaultModel")}
               </label>
@@ -634,7 +647,7 @@ export function AiTab() {
                   </>
                 );
               })()}
-            </div>
+            </div>}
           </SettingSection>
         )}
 

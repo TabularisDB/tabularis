@@ -687,6 +687,20 @@
     "version": "Version",
     "starOnGithub": "Star on GitHub",
     "ai": {
+      "chatgpt": {
+        "description": "Connect an eligible ChatGPT Plus or Pro account to use your plan for Tabularis AI features without an API key.",
+        "account": "ChatGPT account",
+        "continue": "Continue with ChatGPT",
+        "addAccount": "Add account",
+        "signOut": "Sign out",
+        "manageUsage": "Manage usage",
+        "usingPlan": "Using ChatGPT plan",
+        "permissionRequired": "Connected. Continue with ChatGPT and allow plan usage to enable AI requests.",
+        "disconnected": "Sign in again to use this saved account.",
+        "browserPending": "Complete sign-in and allow plan usage in your browser.",
+        "modelHelp": "Models are available for the selected account. Leave the model empty to use the first available model.",
+        "privacy": "Credentials are encrypted locally using a key in your system keychain. Existing AI features send their prompt and context to OpenAI; connecting does not grant access to your ChatGPT conversations."
+      },
       "tab": "AI",
       "title": "AI Configuration",
       "description": "Configure AI providers to enable natural language to SQL generation. Keys are stored securely in your system's keychain.",
