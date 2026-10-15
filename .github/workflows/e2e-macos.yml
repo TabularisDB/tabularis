@@ -31,7 +31,7 @@ jobs:
 
       - name: Install pnpm
         # version resolved from package.json's packageManager field
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
