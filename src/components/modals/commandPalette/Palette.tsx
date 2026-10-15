@@ -12,6 +12,7 @@ import {
   MAX_VISIBLE_PALETTE_RESULTS,
 } from "../../../utils/paletteItems";
 import { SpotlightPalette } from "../../ui/SpotlightPalette";
+import { KEY_CAP } from "./paletteStyles";
 import { PaletteResults } from "./PaletteResults";
 import { PALETTE_RESULTS_ID, paletteOptionId } from "./paletteIds";
 
@@ -33,9 +34,6 @@ interface PaletteProps {
   query?: string;
   onQueryChange?: (query: string) => void;
 }
-
-const KEY_CAP =
-  "px-1 py-0.5 rounded bg-surface-secondary text-muted text-[9px] font-mono";
 
 const PaletteHint = ({
   keys,

@@ -4,6 +4,9 @@ import { useTranslation } from "react-i18next";
 import type { TableTarget } from "../types/databaseObjects";
 import { createBuiltInCommandItems } from "../utils/builtInCommands";
 import { createConnectionCommandItems } from "../utils/connectionCommandItems";
+import { formatShortcut } from "../utils/keybindings";
+import { useCommandPaletteState } from "./useCommandPalette";
+import { useKeybindings } from "./useKeybindings";
 import { useActiveCommandPaletteScope } from "./useCommandPaletteScope";
 import { SettingsContext } from "../contexts/SettingsContext";
 
@@ -12,6 +15,8 @@ export function useCommandPaletteActionItems(
   onInspect: (target: TableTarget) => void,
 ) {
   const { t } = useTranslation();
+  const { shortcuts, overrides, isMac } = useKeybindings();
+  const { focusContext } = useCommandPaletteState();
   const scope = useActiveCommandPaletteScope();
   // Read the settings context directly so the palette also renders outside a
   // SettingsProvider (isolated hook usage); the app always provides it.
@@ -28,6 +33,16 @@ export function useCommandPaletteActionItems(
   return useMemo(() => {
     if (!scope) return [];
 
+    const shortcutAvailable: Record<string, boolean> = {
+      run_query_editor: !!focusContext?.inMonaco,
+      run_all_editor: !!focusContext?.inMonaco,
+      copy_selection: !focusContext?.inEditable,
+    };
+    const getShortcut = (shortcutId: string) => {
+      if (shortcutAvailable[shortcutId] === false) return undefined;
+      const def = shortcuts.find((shortcut) => shortcut.id === shortcutId);
+      return def ? formatShortcut(def, overrides, isMac) : undefined;
+    };
     const connectionCategory = t("commandPalette.categories.connection");
     const builtInItems = createBuiltInCommandItems(
       scope,
@@ -63,6 +78,7 @@ export function useCommandPaletteActionItems(
             : t("dataGrid.copyAllRows", { count }),
       },
       { generateSql: onGenerateSql, inspect: onInspect },
+      getShortcut,
       { wordWrapEnabled, toggleWordWrap },
     );
 
@@ -81,6 +97,10 @@ export function useCommandPaletteActionItems(
     onInspect,
     scope,
     t,
+    shortcuts,
+    overrides,
+    isMac,
+    focusContext,
     wordWrapEnabled,
     toggleWordWrap,
   ]);

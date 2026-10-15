@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createBuiltInCommandItems } from "../../src/utils/builtInCommands";
+import shortcutDefs from "../../src/config/shortcuts.json";
+import { formatShortcut, type ShortcutDef } from "../../src/utils/keybindings";
 import type { CommandScope } from "../../src/types/commands";
 
 const labels = {
@@ -24,6 +26,8 @@ const labels = {
   toggleWordWrapEnable: "Enable word wrap",
   toggleWordWrapDisable: "Disable word wrap",
 };
+
+const getShortcut = (id: string) => `Shortcut for ${id}`;
 
 const findItem = (
   items: ReturnType<typeof createBuiltInCommandItems>,
@@ -59,9 +63,21 @@ describe("createBuiltInCommandItems", () => {
 
   it("should return commands already bound to their scope", async () => {
     const scope = createScope();
-    const items = createBuiltInCommandItems(scope, labels, modals());
+    const items = createBuiltInCommandItems(
+      scope,
+      labels,
+      modals(),
+      getShortcut,
+    );
 
     const consoleCommand = findItem(items, "table.open-in-console");
+    expect(findItem(items, "app.open-settings").shortcut).toBe(
+      "Shortcut for open_settings",
+    );
+    expect(findItem(items, "app.open-connections").shortcut).toBe(
+      "Shortcut for open_connections",
+    );
+    expect(consoleCommand.shortcut).toBeUndefined();
     expect(consoleCommand.description).toBe("orders");
     await consoleCommand.primaryAction.execute();
     expect(scope.runtime.openEditor).toHaveBeenCalledWith({
@@ -76,7 +92,12 @@ describe("createBuiltInCommandItems", () => {
 
   it("should navigate to the connection manager", async () => {
     const scope = createScope();
-    const items = createBuiltInCommandItems(scope, labels, modals());
+    const items = createBuiltInCommandItems(
+      scope,
+      labels,
+      modals(),
+      getShortcut,
+    );
 
     await findItem(items, "app.open-connections").primaryAction.execute();
     expect(scope.runtime.navigate).toHaveBeenCalledWith("/connections");
@@ -84,9 +105,15 @@ describe("createBuiltInCommandItems", () => {
 
   it("should open an empty console on the schema the user is looking at", async () => {
     const scope = createScope();
-    const items = createBuiltInCommandItems(scope, labels, modals());
+    const items = createBuiltInCommandItems(
+      scope,
+      labels,
+      modals(),
+      getShortcut,
+    );
     const command = findItem(items, "connection.new-console");
 
+    expect(command.shortcut).toBeUndefined();
     expect(command.group).toBe("Editor");
     await command.primaryAction.execute();
     expect(scope.runtime.openEditor).toHaveBeenCalledWith({
@@ -100,7 +127,12 @@ describe("createBuiltInCommandItems", () => {
 
   it("should count the rows of the current table", async () => {
     const scope = createScope();
-    const items = createBuiltInCommandItems(scope, labels, modals());
+    const items = createBuiltInCommandItems(
+      scope,
+      labels,
+      modals(),
+      getShortcut,
+    );
 
     await findItem(items, "table.count-rows").primaryAction.execute();
     expect(scope.runtime.openEditor).toHaveBeenCalledWith({
@@ -118,6 +150,7 @@ describe("createBuiltInCommandItems", () => {
       scope,
       labels,
       paletteModals,
+      getShortcut,
     );
 
     await findItem(items, "table.inspect").primaryAction.execute();
@@ -132,6 +165,7 @@ describe("createBuiltInCommandItems", () => {
       createScope({ connectionId: null, driver: null, table: null }),
       labels,
       modals(),
+      getShortcut,
     );
 
     expect(items.map((item) => item.id)).toEqual([
@@ -145,6 +179,7 @@ describe("createBuiltInCommandItems", () => {
       createScope({ table: null }),
       labels,
       modals(),
+      getShortcut,
     );
 
     expect(items.map((item) => item.id)).toEqual([
@@ -174,7 +209,16 @@ describe("createBuiltInCommandItems", () => {
       }),
     });
 
-    const items = createBuiltInCommandItems(scope, labels, modals());
+    const items = createBuiltInCommandItems(
+      scope,
+      labels,
+      modals(),
+      getShortcut,
+    );
+    expect(findItem(items, "result.copy-selected-cells").shortcut).toBe(
+      "Shortcut for copy_selection",
+    );
+    expect(findItem(items, "result.copy-selected-rows").shortcut).toBeUndefined();
     const resultItems = items.filter((item) => item.group === "Results");
 
     expect(resultItems.map((item) => [item.id, item.title])).toEqual([
@@ -206,7 +250,7 @@ describe("createBuiltInCommandItems", () => {
     const getResultCommands = vi.fn(() => null);
     const scope = createScope({ getResultCommands });
 
-    createBuiltInCommandItems(scope, labels, modals());
+    createBuiltInCommandItems(scope, labels, modals(), getShortcut);
 
     expect(getResultCommands).toHaveBeenCalledOnce();
   });
@@ -225,7 +269,25 @@ describe("createBuiltInCommandItems", () => {
       }),
     });
 
-    const items = createBuiltInCommandItems(scope, labels, modals());
+    const items = createBuiltInCommandItems(
+      scope,
+      labels,
+      modals(),
+      getShortcut,
+    );
+    expect(findItem(items, "connection.new-console").shortcut).toBe(
+      "Shortcut for new_tab",
+    );
+    expect(findItem(items, "editor.run").shortcut).toBe(
+      "Shortcut for run_query_editor",
+    );
+    expect(findItem(items, "editor.run-all").shortcut).toBe(
+      "Shortcut for run_all_editor",
+    );
+    expect(findItem(items, "tab.close-active").shortcut).toBe(
+      "Shortcut for close_tab",
+    );
+    expect(findItem(items, "editor.save-sql-file").shortcut).toBeUndefined();
     const editorItems = items.filter((item) => item.group === "Editor");
 
     expect(editorItems.map((item) => [item.id, item.title])).toEqual([
@@ -248,7 +310,7 @@ describe("createBuiltInCommandItems", () => {
   it("should expose a word wrap toggle in the editor group", () => {
     const toggleWordWrap = vi.fn();
     const scope = createScope();
-    const items = createBuiltInCommandItems(scope, labels, modals(), {
+    const items = createBuiltInCommandItems(scope, labels, modals(), getShortcut, {
       wordWrapEnabled: true,
       toggleWordWrap,
     });
@@ -264,7 +326,7 @@ describe("createBuiltInCommandItems", () => {
     const toggleWordWrap = vi.fn();
     const scope = createScope();
 
-    const enabled = createBuiltInCommandItems(scope, labels, modals(), {
+    const enabled = createBuiltInCommandItems(scope, labels, modals(), getShortcut, {
       wordWrapEnabled: true,
       toggleWordWrap,
     });
@@ -272,7 +334,7 @@ describe("createBuiltInCommandItems", () => {
       "Disable word wrap",
     );
 
-    const disabled = createBuiltInCommandItems(scope, labels, modals(), {
+    const disabled = createBuiltInCommandItems(scope, labels, modals(), getShortcut, {
       wordWrapEnabled: false,
       toggleWordWrap,
     });
@@ -284,7 +346,7 @@ describe("createBuiltInCommandItems", () => {
   it("should run the word wrap toggle action", async () => {
     const toggleWordWrap = vi.fn();
     const scope = createScope();
-    const items = createBuiltInCommandItems(scope, labels, modals(), {
+    const items = createBuiltInCommandItems(scope, labels, modals(), getShortcut, {
       wordWrapEnabled: false,
       toggleWordWrap,
     });
@@ -295,8 +357,48 @@ describe("createBuiltInCommandItems", () => {
 
   it("should omit the word wrap toggle when editor actions are not provided", () => {
     const scope = createScope();
-    const items = createBuiltInCommandItems(scope, labels, modals());
+    const items = createBuiltInCommandItems(scope, labels, modals(), getShortcut);
 
     expect(items.find((item) => item.id === "editor.toggle-word-wrap")).toBeUndefined();
+  });
+
+  it("resolves all seven mapped shortcuts from the real definitions", () => {
+    const execute = vi.fn();
+    const scope = createScope({
+      getEditorCommands: () => ({
+        run: { label: "Run statement", execute },
+        runAll: { label: "Run all", execute },
+        closeTab: { label: "Close tab", execute },
+      }),
+      getResultCommands: () => ({
+        copySelectedCells: { count: 1, execute },
+      }),
+    });
+    const getConfiguredShortcut = (id: string) => {
+      const def = (shortcutDefs as ShortcutDef[]).find(
+        (shortcut) => shortcut.id === id,
+      );
+      return def ? formatShortcut(def, {}, true) : undefined;
+    };
+    const items = createBuiltInCommandItems(
+      scope,
+      labels,
+      modals(),
+      getConfiguredShortcut,
+    );
+
+    for (const id of [
+      "app.open-settings",
+      "app.open-connections",
+      "tab.close-active",
+      "connection.new-console",
+      "editor.run",
+      "editor.run-all",
+      "result.copy-selected-cells",
+    ]) {
+      expect(findItem(items, id).shortcut, id).toEqual(
+        expect.stringMatching(/\S/),
+      );
+    }
   });
 });
