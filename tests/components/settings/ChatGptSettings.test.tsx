@@ -14,6 +14,7 @@ const { invoke, updateSetting } = vi.hoisted(() => ({
   updateSetting: vi.fn(),
 }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
+vi.unmock("lucide-react");
 vi.mock("../../../src/hooks/useSettings", () => ({
   useSettings: () => ({ settings: { aiModel: null }, updateSetting }),
 }));
