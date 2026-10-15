@@ -117,6 +117,57 @@ export function resolveHistoryDatabase(
   return undefined;
 }
 
+interface TabDatabaseTarget {
+  schema?: string | null;
+  database?: string | null;
+}
+
+/**
+ * The database a tab runs on in the flat multi-database layout
+ * (`usesMultiDatabaseLayout`), for the tab title and the toolbar selector.
+ *
+ * That layout keeps the tab's database in `schema`, but a tab opened from a
+ * saved query or a history entry before #1114 (and restored from storage)
+ * may carry it in `database` only, which the backend still runs the query on.
+ * Reading both keeps what the tab shows on the database it runs on; only a
+ * tab with neither falls back to the first selected database.
+ */
+export function resolveFlatMultiDbTabDatabase(
+  tab: TabDatabaseTarget | null | undefined,
+  selectedDatabases: string[],
+): string | undefined {
+  return tab?.schema || tab?.database || selectedDatabases[0] || undefined;
+}
+
+/**
+ * The tab fields to set when the toolbar selector picks `database` in the flat
+ * multi-database layout. `database` is cleared so a leftover per-tab database
+ * override (from a saved query) cannot keep the next run on the old database.
+ */
+export function selectFlatMultiDbTabDatabase(database: string): {
+  schema: string;
+  database: undefined;
+} {
+  return { schema: database, database: undefined };
+}
+
+/**
+ * Moves a `database` target into `schema` for a tab opened in the flat
+ * multi-database layout, where `schema` is the field the tab title, the
+ * toolbar selector, autocomplete and query history read. Saved queries and
+ * history entries hand the database over as `database` (the field replay
+ * uses), so without this their tab showed the first selected database while
+ * running on the saved one (#1114). Other layouts are returned unchanged, so
+ * a schema-based multi-db tab keeps `database` and `schema` side by side.
+ */
+export function toFlatMultiDbTabTarget<T extends TabDatabaseTarget>(
+  input: T,
+  isMultiDb: boolean,
+): T {
+  if (!isMultiDb || !input.database || input.schema) return input;
+  return { ...input, schema: input.database, database: undefined };
+}
+
 export function getTableDataChangeScope(
   capabilities: DriverCapabilities | null | undefined,
   tabSchema: string | null | undefined,

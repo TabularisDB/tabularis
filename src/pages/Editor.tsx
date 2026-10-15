@@ -29,6 +29,9 @@ import {
   isMultiDatabaseCapable,
   usesMultiDatabaseLayout,
   resolveHistoryDatabase,
+  resolveFlatMultiDbTabDatabase,
+  selectFlatMultiDbTabDatabase,
+  toFlatMultiDbTabTarget,
 } from "../utils/database";
 import { isReadonly, supportsExplain } from "../utils/driverCapabilities";
 import { useClickOutside } from "../hooks/useClickOutside";
@@ -667,6 +670,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const canExportActiveResult =
     !!activeExportResult && activeExportResult.rows.length > 0;
 
+  const activeTabFlatDatabase = isMultiDb
+    ? resolveFlatMultiDbTabDatabase(activeTab, selectedDatabases)
+    : undefined;
+
   // Update window title when the active tab changes
   useEffect(() => {
     const updateTitle = async () => {
@@ -679,8 +686,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               : "";
           let dbDisplay: string;
           if (isMultiDb) {
-            dbDisplay =
-              activeTab?.schema ?? selectedDatabases[0] ?? activeDatabaseName;
+            dbDisplay = activeTabFlatDatabase ?? activeDatabaseName;
           } else {
             dbDisplay = activeDatabaseName;
           }
@@ -694,13 +700,12 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     updateTitle();
   }, [
     activeTabId,
-    activeTab?.schema,
+    activeTabFlatDatabase,
     activeConnectionName,
     activeDatabaseName,
     activeSchema,
     activeCapabilities,
     isMultiDb,
-    selectedDatabases,
   ]);
 
   // Define updateActiveTab first to be used in handleQueryChange
@@ -1875,7 +1880,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         return;
       }
 
-      const tabId = addTab(intent.addTabInput);
+      const tabId = addTab(
+        toFlatMultiDbTabTarget(intent.addTabInput, isMultiDb),
+      );
       if (!tabId) return;
 
       if (intent.execution.patchReadOnlyOnDuplicate) {
@@ -1891,7 +1898,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         delete pendingExecutionsRef.current[tabId];
       }
     },
-    [activeConnectionId, addTab, runAutoQuery, updateTab],
+    [activeConnectionId, addTab, isMultiDb, runAutoQuery, updateTab],
   );
 
   const openEditorInScope = useCallback(
@@ -4517,7 +4524,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   </span>
                   {tab.type === "console" && isMultiDb && (
                     <span className="text-muted shrink-0">
-                      ({tab.schema || selectedDatabases[0]})
+                      ({resolveFlatMultiDbTabDatabase(tab, selectedDatabases)})
                     </span>
                   )}
                   {transactionTabIds.has(tab.id) && (
@@ -4923,7 +4930,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             >
               <Database size={12} className="text-muted shrink-0" />
               <span className="max-w-[72px] @[640px]:max-w-[120px] truncate">
-                {activeTab.schema || selectedDatabases[0]}
+                {resolveFlatMultiDbTabDatabase(activeTab, selectedDatabases)}
               </span>
               <ChevronDown size={12} className="text-muted shrink-0" />
             </button>
@@ -4933,12 +4940,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                   <button
                     key={db}
                     onClick={() => {
-                      updateActiveTab({ schema: db });
+                      updateActiveTab(selectFlatMultiDbTabDatabase(db));
                       setIsDbDropdownOpen(false);
                     }}
                     className={clsx(
                       "text-left px-3 py-1.5 text-xs hover:bg-surface transition-colors flex items-center gap-2",
-                      (activeTab.schema || selectedDatabases[0]) === db
+                      resolveFlatMultiDbTabDatabase(
+                        activeTab,
+                        selectedDatabases,
+                      ) === db
                         ? "text-primary font-medium"
                         : "text-secondary",
                     )}
@@ -5844,9 +5854,24 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             setSaveQueryModal({ ...saveQueryModal, isOpen: false })
           }
           initialSql={saveQueryModal.sql}
-          initialDatabase={activeTab?.schema ?? activeSchema ?? activeDatabaseName}
+          initialDatabase={
+            activeTabFlatDatabase ??
+            activeTab?.schema ??
+            activeSchema ??
+            activeDatabaseName
+          }
           databases={isMultiDb ? selectedDatabases : undefined}
-          onSave={async (name, sql, database) => await saveQuery(name, sql, database ?? activeTab?.schema ?? activeSchema ?? activeDatabaseName)}
+          onSave={async (name, sql, database) =>
+            await saveQuery(
+              name,
+              sql,
+              database ??
+                activeTabFlatDatabase ??
+                activeTab?.schema ??
+                activeSchema ??
+                activeDatabaseName,
+            )
+          }
           title={t("editor.saveQuery")}
         />
       )}

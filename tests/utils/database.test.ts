@@ -11,7 +11,11 @@ import {
   getEffectiveDatabase,
   reconcileDatabaseSelection,
   resolveHistoryDatabase,
+  resolveFlatMultiDbTabDatabase,
+  selectFlatMultiDbTabDatabase,
+  toFlatMultiDbTabTarget,
 } from '../../src/utils/database';
+import { parseEditorNavigationIntent } from '../../src/utils/editorNavigation';
 import type { DriverCapabilities } from '../../src/types/plugins';
 
 const baseCapabilities: DriverCapabilities = {
@@ -404,5 +408,110 @@ describe('resolveHistoryDatabase', () => {
     expect(
       resolveHistoryDatabase({ database: 'explicit', schema: 'secondarydb' }, true, 'primary'),
     ).toBe('explicit');
+  });
+});
+
+describe('resolveFlatMultiDbTabDatabase', () => {
+  const selected = ['main_db', 'analytics_db'];
+
+  it('returns the tab schema, where the flat multi-db layout keeps the database', () => {
+    expect(resolveFlatMultiDbTabDatabase({ schema: 'analytics_db' }, selected)).toBe('analytics_db');
+  });
+
+  it('returns the tab database for a tab that only has `database` set (saved query, restored tab)', () => {
+    // Before #1114 this fell back to the first selected database ("main_db")
+    // while the query ran on "analytics_db".
+    expect(resolveFlatMultiDbTabDatabase({ database: 'analytics_db' }, selected)).toBe('analytics_db');
+  });
+
+  it('prefers the schema when both are set, matching where the run goes', () => {
+    expect(
+      resolveFlatMultiDbTabDatabase({ schema: 'main_db', database: 'analytics_db' }, selected),
+    ).toBe('main_db');
+  });
+
+  it('falls back to the first selected database for a tab with neither', () => {
+    expect(resolveFlatMultiDbTabDatabase({ schema: undefined, database: null }, selected)).toBe('main_db');
+    expect(resolveFlatMultiDbTabDatabase({ schema: '', database: '' }, selected)).toBe('main_db');
+  });
+
+  it('handles a missing tab and an empty selection', () => {
+    expect(resolveFlatMultiDbTabDatabase(undefined, selected)).toBe('main_db');
+    expect(resolveFlatMultiDbTabDatabase(null, [])).toBeUndefined();
+  });
+});
+
+describe('selectFlatMultiDbTabDatabase', () => {
+  it('sets the schema and clears a leftover database override', () => {
+    expect(selectFlatMultiDbTabDatabase('main_db')).toEqual({
+      schema: 'main_db',
+      database: undefined,
+    });
+  });
+
+  it('moves a saved-query tab to the picked database', () => {
+    const tab = { schema: undefined, database: 'analytics_db' };
+    const next = { ...tab, ...selectFlatMultiDbTabDatabase('main_db') };
+
+    expect(next.database).toBeUndefined();
+    expect(resolveFlatMultiDbTabDatabase(next, ['main_db', 'analytics_db'])).toBe('main_db');
+    // Query history (and so replay) follows the pick as well.
+    expect(resolveHistoryDatabase(next, true, 'main_db')).toBe('main_db');
+  });
+});
+
+describe('toFlatMultiDbTabTarget', () => {
+  it('moves `database` into `schema` in the flat multi-db layout', () => {
+    expect(toFlatMultiDbTabTarget({ database: 'analytics_db' }, true)).toEqual({
+      schema: 'analytics_db',
+      database: undefined,
+    });
+  });
+
+  it('keeps an explicit schema untouched', () => {
+    const input = { schema: 'main_db', database: 'analytics_db' };
+    expect(toFlatMultiDbTabTarget(input, true)).toBe(input);
+  });
+
+  it('leaves input without a database untouched', () => {
+    const input = { schema: undefined, database: undefined };
+    expect(toFlatMultiDbTabTarget(input, true)).toBe(input);
+  });
+
+  it('keeps `database` and `schema` side by side outside the flat multi-db layout', () => {
+    // Schema-based multi-db (PostgreSQL) tabs need both qualifiers at once.
+    const nested = { schema: 'public', database: 'analytics' };
+    expect(toFlatMultiDbTabTarget(nested, false)).toBe(nested);
+    const plain = { database: 'analytics' };
+    expect(toFlatMultiDbTabTarget(plain, false)).toBe(plain);
+  });
+
+  it('opens a saved query on its database in the tab title, selector and run (#1114)', () => {
+    const intent = parseEditorNavigationIntent(
+      {
+        kind: 'console',
+        initialQuery: 'SELECT DATABASE()',
+        queryName: 'Which database',
+        database: 'analytics_db',
+      },
+      'New console',
+    );
+    expect(intent).not.toBeNull();
+
+    const tabInput = toFlatMultiDbTabTarget(intent!.addTabInput, true);
+    const selected = ['main_db', 'analytics_db'];
+
+    expect(tabInput).toMatchObject({
+      type: 'console',
+      title: 'Which database',
+      query: 'SELECT DATABASE()',
+      schema: 'analytics_db',
+    });
+    expect(tabInput.database).toBeUndefined();
+    // Tab title suffix and toolbar selector.
+    expect(resolveFlatMultiDbTabDatabase(tabInput, selected)).toBe('analytics_db');
+    // The run uses `schema` as the per-database pool in this layout.
+    expect(tabInput.schema).toBe('analytics_db');
+    expect(resolveHistoryDatabase(tabInput, true, 'main_db')).toBe('analytics_db');
   });
 });
