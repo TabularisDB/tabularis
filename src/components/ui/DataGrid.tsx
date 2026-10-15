@@ -236,6 +236,26 @@ const RANGE_EXTEND_KEYS = new Set([
   "ArrowRight",
 ]);
 
+// SQL tag shown in the chip next to each "Filter by this value" entry.
+const CELL_VALUE_FILTER_BADGES: Record<CellValueFilterOperator, string> = {
+  "=": "=",
+  "<>": "<>",
+  ">": ">",
+  ">=": ">=",
+  "<": "<",
+  "<=": "<=",
+  contains: "LIKE",
+  "IS NULL": "IS",
+  "IS NOT NULL": "IS NOT",
+};
+
+// Value shown next to the column name in the "Filter by this value" submenu.
+const formatCellValueFilterHint = (value: unknown): string => {
+  if (value === null || value === undefined) return "NULL";
+  const text = String(value).replace(/\s+/g, " ").trim();
+  return text === "" ? "''" : text.length > 80 ? `${text.slice(0, 80)}…` : text;
+};
+
 // i18n label per "Filter by this value" operator.
 const CELL_VALUE_FILTER_LABEL_KEYS: Record<CellValueFilterOperator, string> = {
   "=": "dataGrid.filterEquals",
@@ -3102,24 +3122,33 @@ export const DataGrid = React.memo(
                   menuItems.push({
                     label: t("dataGrid.filterByValue"),
                     icon: Filter,
-                    submenu: getCellValueFilterOperators(contextCellValue, {
-                      masked: isContextCellMasked,
-                      columnType: colDataType,
-                    }).map((op) => ({
-                      label: t(CELL_VALUE_FILTER_LABEL_KEYS[op], {
-                        column: colName,
-                      }),
-                      icon: Filter,
-                      action: () => {
-                        onFilterByValue(
-                          colName,
-                          op,
-                          isContextCellMasked ? null : contextCellValue,
-                          colDataType || undefined,
-                        );
-                        setContextMenu(null);
+                    submenu: [
+                      {
+                        label: colName,
+                        header: true,
+                        mono: true,
+                        // A masked cell never shows its real value here.
+                        hint: isContextCellMasked
+                          ? undefined
+                          : formatCellValueFilterHint(contextCellValue),
                       },
-                    })),
+                      ...getCellValueFilterOperators(contextCellValue, {
+                        masked: isContextCellMasked,
+                        columnType: colDataType,
+                      }).map((op) => ({
+                        label: t(CELL_VALUE_FILTER_LABEL_KEYS[op]),
+                        badge: CELL_VALUE_FILTER_BADGES[op],
+                        action: () => {
+                          onFilterByValue(
+                            colName,
+                            op,
+                            isContextCellMasked ? null : contextCellValue,
+                            colDataType || undefined,
+                          );
+                          setContextMenu(null);
+                        },
+                      })),
+                    ],
                   });
                 }
               }

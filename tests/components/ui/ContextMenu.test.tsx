@@ -299,6 +299,30 @@ describe('ContextMenu', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
+  it('renders a badge chip in place of the icon and a mono header', () => {
+    render(
+      <ContextMenu
+        x={100}
+        y={100}
+        items={[
+          { label: 'created_at', header: true, mono: true, hint: '2026-01-10 03:00:00' },
+          { label: 'Greater than', badge: '>', action: mockAction1 },
+        ]}
+        onClose={mockOnClose}
+      />
+    );
+
+    const header = screen.getByText('created_at').parentElement!;
+    expect(header).toHaveClass('font-mono');
+    expect(header).not.toHaveClass('uppercase');
+    expect(screen.getByTitle('2026-01-10 03:00:00')).toHaveTextContent('2026-01-10 03:00:00');
+
+    const badge = screen.getByText('>');
+    expect(badge).toHaveClass('font-mono');
+    fireEvent.click(screen.getByText('Greater than'));
+    expect(mockAction1).toHaveBeenCalled();
+  });
+
   it('opens a submenu when its button receives keyboard focus', () => {
     render(
       <ContextMenu
