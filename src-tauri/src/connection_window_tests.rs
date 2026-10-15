@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::connection_window::window_label;
+    use crate::connection_window::{connection_route, window_label};
 
     #[test]
     fn uuid_like_id_is_preserved() {
@@ -19,14 +19,19 @@ mod tests {
     #[test]
     fn disallowed_characters_are_replaced_with_underscore() {
         // Slashes, spaces, dots and colons are not valid in window labels here.
-        assert_eq!(
-            window_label("a/b c.d:e"),
-            "connection-window-a_b_c_d_e"
-        );
+        assert_eq!(window_label("a/b c.d:e"), "connection-window-a_b_c_d_e");
     }
 
     #[test]
     fn empty_id_still_yields_prefix() {
         assert_eq!(window_label(""), "connection-window-");
+    }
+
+    #[test]
+    fn standalone_route_is_encoded_and_refresh_identifiable() {
+        assert_eq!(
+            connection_route("connection/id"),
+            "/connections?connect=connection%2Fid&standalone=connection"
+        );
     }
 }

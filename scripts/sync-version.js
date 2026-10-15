@@ -6,7 +6,7 @@ const paths = {
   package: resolve("package.json"),
   tauri: resolve("src-tauri/tauri.conf.json"),
   cargo: resolve("src-tauri/Cargo.toml"),
-  appVersion: resolve("src/version.ts"),
+  appVersion: resolve("packages/web-ui/src/version.ts"),
 };
 
 // All README files in the repo root, including translations (README.it.md, README.zh-CN.md, ...)
@@ -35,10 +35,10 @@ cargo = cargo.replace(/^version = ".*"/m, `version = "${newVersion}"`);
 writeFileSync(paths.cargo, cargo);
 console.log("✅ Updated Cargo.toml");
 
-// 4. Update src/version.ts
+// 4. Update packages/web-ui/src/version.ts
 const versionContent = `export const APP_VERSION = "${newVersion}";\n`;
 writeFileSync(paths.appVersion, versionContent);
-console.log("✅ Updated src/version.ts");
+console.log("✅ Updated packages/web-ui/src/version.ts");
 
 // 5. Update download links in every README (all languages)
 for (const readmePath of readmeFiles) {

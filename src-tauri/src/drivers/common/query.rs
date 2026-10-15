@@ -75,7 +75,7 @@ pub fn returns_result_set(query: &str) -> bool {
 /// Leading SQL comments are stripped before checking.
 ///
 /// Kept in sync with the TypeScript classifier in
-/// `src/utils/sqlSplitter/classify.ts` (EXPLAINABLE_KEYWORDS) so the
+/// `packages/web-ui/src/utils/sqlSplitter/classify.ts` (EXPLAINABLE_KEYWORDS) so the
 /// editor's Explain UI cannot offer a statement the backend will refuse.
 pub fn is_explainable_query(query: &str) -> bool {
     let upper = strip_leading_sql_comments(query).to_uppercase();

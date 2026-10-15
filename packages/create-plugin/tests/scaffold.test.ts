@@ -40,7 +40,7 @@ describe("scaffold", () => {
     it("declares the UI bundle when --with-ui is set", () => {
       const manifest = readManifest(scaffoldPlugin(true));
       expect(manifest.ui_extensions).toEqual([
-        { slot: "data-grid.toolbar.actions", module: "ui/dist/index.js" },
+        { slot: "data-grid.toolbar.actions", module: "ui/dist/index.js", api_version: "0.1.0" },
       ]);
     });
 

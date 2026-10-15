@@ -16,6 +16,7 @@ pnpm build
 - `src/index.tsx` uses `defineSlot("data-grid.toolbar.actions", …)` to contribute a button to the data-grid toolbar.
 - Types for the slot context, hooks, and the `defineSlot` helper come from [`@tabularis/plugin-api`](https://www.npmjs.com/package/@tabularis/plugin-api).
 - React, `react/jsx-runtime`, and `@tabularis/plugin-api` are Vite externals — the host injects them at load time, so nothing is double-bundled.
+- The parent manifest records this bundle's `api_version`; Tabularis skips it before execution if the host contract is incompatible.
 
 ## Adding more slots
 

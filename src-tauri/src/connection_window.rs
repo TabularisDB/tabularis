@@ -8,14 +8,27 @@ pub fn window_label(connection_id: &str) -> String {
     // Connection ids are UUID-like but sanitize defensively so any id is safe.
     let sanitized: String = connection_id
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '-' | '_') { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_') {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     format!("connection-window-{}", sanitized)
 }
 
+pub fn connection_route(connection_id: &str) -> String {
+    format!(
+        "/connections?connect={}&standalone=connection",
+        encode(connection_id)
+    )
+}
+
 /// Open (or focus) a standalone window bound to a specific connection. The new
-/// window loads the full app at `/` with a `?connect=<id>` query param, which the
-/// frontend reads on startup to auto-connect and jump to the editor.
+/// window loads the shared connections route with a `connect` query parameter,
+/// which the frontend reads on startup to auto-connect and jump to the editor.
 #[tauri::command]
 pub async fn open_connection_window(
     app: AppHandle,
@@ -36,7 +49,7 @@ pub async fn open_connection_window(
         None => "tabularis".to_string(),
     };
 
-    let url = format!("/?connect={}", encode(&connection_id));
+    let url = connection_route(&connection_id);
 
     let window = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
         .title(&window_title)

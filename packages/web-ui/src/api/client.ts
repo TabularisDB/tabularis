@@ -1,0 +1,156 @@
+import type {
+  CommandCallOptions,
+  CommandName,
+  CommandRequest,
+  CommandResponse,
+  TypedCommandCaller,
+  UnmigratedCommandTracking,
+} from "./contract";
+import type {
+  EventName,
+  EventPayload,
+  EventSubscriber,
+  Unsubscribe,
+} from "./events";
+import type { FileTransferMetadata, FileUploadRequest } from "./fileTransfers";
+
+export interface TabularisTransport
+  extends TypedCommandCaller,
+    EventSubscriber {
+  uploadFile?(request: FileUploadRequest): Promise<FileTransferMetadata>;
+  consumeDownload?(token: string): Promise<Blob>;
+  requestDownload?(token: string): Promise<void>;
+  uploadConnectionIcon?(file: Blob): Promise<string>;
+  uploadBlob?(file: Blob): Promise<string>;
+  uploadedBlobUrl?(token: string): string;
+  readUploadedBlob?(token: string): Promise<Blob>;
+  consumeBlobDownload?(token: string): Promise<Blob>;
+  readPluginAsset?(pluginId: string, assetPath: string): Promise<string>;
+  emit<K extends EventName>(
+    event: K,
+    payload: EventPayload<K>,
+  ): Promise<void>;
+}
+
+export class TabularisClient implements TabularisTransport {
+  private readonly transport: TabularisTransport;
+
+  constructor(transport: TabularisTransport) {
+    this.transport = transport;
+  }
+
+  call<K extends CommandName>(
+    command: K,
+    request: CommandRequest<K>,
+    options?: CommandCallOptions,
+  ): Promise<CommandResponse<K>> {
+    return this.transport.call(command, request, options);
+  }
+
+  callUnmigrated<K extends string>(
+    command: K extends CommandName ? never : K,
+    request: unknown,
+    tracking: UnmigratedCommandTracking,
+    options?: CommandCallOptions,
+  ): Promise<unknown> {
+    return this.transport.callUnmigrated(
+      command,
+      request,
+      tracking,
+      options,
+    );
+  }
+
+  uploadFile(request: FileUploadRequest): Promise<FileTransferMetadata> {
+    if (!this.transport.uploadFile) {
+      return Promise.reject(
+        new Error("The active transport does not support browser file uploads"),
+      );
+    }
+    return this.transport.uploadFile(request);
+  }
+
+  consumeDownload(token: string): Promise<Blob> {
+    if (!this.transport.consumeDownload) {
+      return Promise.reject(
+        new Error("The active transport does not support browser file downloads"),
+      );
+    }
+    return this.transport.consumeDownload(token);
+  }
+
+  requestDownload(token: string): Promise<void> {
+    if (!this.transport.requestDownload) {
+      return Promise.reject(
+        new Error("The active transport does not support streamed browser downloads"),
+      );
+    }
+    return this.transport.requestDownload(token);
+  }
+
+  uploadConnectionIcon(file: Blob): Promise<string> {
+    if (!this.transport.uploadConnectionIcon) {
+      return Promise.reject(
+        new Error("The active transport does not support connection icon uploads"),
+      );
+    }
+    return this.transport.uploadConnectionIcon(file);
+  }
+
+  uploadBlob(file: Blob): Promise<string> {
+    if (!this.transport.uploadBlob) {
+      return Promise.reject(
+        new Error("The active transport does not support browser BLOB uploads"),
+      );
+    }
+    return this.transport.uploadBlob(file);
+  }
+
+  uploadedBlobUrl(token: string): string {
+    if (!this.transport.uploadedBlobUrl) {
+      throw new Error("The active transport does not expose browser BLOB uploads");
+    }
+    return this.transport.uploadedBlobUrl(token);
+  }
+
+  readUploadedBlob(token: string): Promise<Blob> {
+    if (!this.transport.readUploadedBlob) {
+      return Promise.reject(
+        new Error("The active transport does not support browser BLOB uploads"),
+      );
+    }
+    return this.transport.readUploadedBlob(token);
+  }
+
+  consumeBlobDownload(token: string): Promise<Blob> {
+    if (!this.transport.consumeBlobDownload) {
+      return Promise.reject(
+        new Error("The active transport does not support browser BLOB downloads"),
+      );
+    }
+    return this.transport.consumeBlobDownload(token);
+  }
+
+  readPluginAsset(pluginId: string, assetPath: string): Promise<string> {
+    if (!this.transport.readPluginAsset) {
+      return Promise.reject(
+        new Error("The active transport does not support plugin UI assets"),
+      );
+    }
+    return this.transport.readPluginAsset(pluginId, assetPath);
+  }
+
+  subscribe<K extends EventName>(
+    event: K,
+    handler: (payload: EventPayload<K>) => void,
+  ): Promise<Unsubscribe> {
+    return this.transport.subscribe(event, handler);
+  }
+
+  emit<K extends EventName>(
+    event: K,
+    payload: EventPayload<K>,
+  ): Promise<void> {
+    return this.transport.emit(event, payload);
+  }
+}

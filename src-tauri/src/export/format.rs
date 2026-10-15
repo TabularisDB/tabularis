@@ -16,6 +16,22 @@ impl ExportFormat {
             other => Err(format!("Unsupported export format: {}", other)),
         }
     }
+
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Csv => "csv",
+            Self::Json => "json",
+            Self::Markdown => "md",
+        }
+    }
+
+    pub fn mime_type(self) -> &'static str {
+        match self {
+            Self::Csv => "text/csv",
+            Self::Json => "application/json",
+            Self::Markdown => "text/markdown",
+        }
+    }
 }
 
 pub const DEFAULT_CSV_DELIMITER: u8 = b',';

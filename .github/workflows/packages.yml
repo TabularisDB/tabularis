@@ -1,8 +1,8 @@
 name: Packages
 
-# Tests, builds and checks the workspace packages under packages/*. Each
-# package owns its vitest (node environment); the root vitest (jsdom) only
-# covers the host app. Runs only when a package, or a host file a package
+# Tests, builds and checks the library packages under packages/*. Each
+# package owns its vitest (node environment); the host app (packages/web-ui)
+# is not in the matrix: its jsdom vitest runs through the root `pnpm test`. Runs only when a package, or a host file a package
 # imports, changes, and only for the packages actually affected: a `changes`
 # job maps changed paths to packages and builds the matrix from that. The
 # lockfile and this workflow count as shared and re-run every package.
@@ -16,20 +16,20 @@ on:
     branches: [main]
     paths:
       - 'packages/**'
-      - 'src/pluginApi.ts' # plugin-api check:sync
-      - 'src/schemas/theme*' # imported by create-plugin
-      - 'src/types/theme*'
-      - 'src/utils/theme*'
+      - 'packages/web-ui/src/pluginApi.ts' # plugin-api check:sync
+      - 'packages/web-ui/src/schemas/theme*' # imported by create-plugin
+      - 'packages/web-ui/src/types/theme*'
+      - 'packages/web-ui/src/utils/theme*'
       - 'pnpm-lock.yaml'
       - '.github/workflows/packages.yml'
   pull_request:
     branches: [main]
     paths:
       - 'packages/**'
-      - 'src/pluginApi.ts'
-      - 'src/schemas/theme*'
-      - 'src/types/theme*'
-      - 'src/utils/theme*'
+      - 'packages/web-ui/src/pluginApi.ts'
+      - 'packages/web-ui/src/schemas/theme*'
+      - 'packages/web-ui/src/types/theme*'
+      - 'packages/web-ui/src/utils/theme*'
       - 'pnpm-lock.yaml'
       - '.github/workflows/packages.yml'
 
@@ -62,14 +62,14 @@ jobs:
               - '.github/workflows/packages.yml'
             plugin-api:
               - 'packages/plugin-api/**'
-              - 'src/pluginApi.ts'
+              - 'packages/web-ui/src/pluginApi.ts'
             explain:
               - 'packages/explain/**'
             create-plugin:
               - 'packages/create-plugin/**'
-              - 'src/schemas/theme*'
-              - 'src/types/theme*'
-              - 'src/utils/theme*'
+              - 'packages/web-ui/src/schemas/theme*'
+              - 'packages/web-ui/src/types/theme*'
+              - 'packages/web-ui/src/utils/theme*'
 
       - name: Build the package matrix
         id: matrix

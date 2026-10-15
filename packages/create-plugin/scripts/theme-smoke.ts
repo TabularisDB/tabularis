@@ -5,10 +5,10 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { strict as assert } from "node:assert";
-import { convertVsCodeTheme } from "../../../src/utils/vsCodeThemeImport";
-import { resolveCatalogEntry } from "../../../src/utils/themeCatalog";
-import { exportThemePackage } from "../../../src/utils/themePackageExport";
-import type { ThemePackageManifestV1 } from "../../../src/types/themePackage";
+import { convertVsCodeTheme } from "../../web-ui/src/utils/vsCodeThemeImport";
+import { resolveCatalogEntry } from "../../web-ui/src/utils/themeCatalog";
+import { exportThemePackage } from "../../web-ui/src/utils/themePackageExport";
+import type { ThemePackageManifestV1 } from "../../web-ui/src/types/themePackage";
 
 const root = mkdtempSync(join(process.env.THEME_SMOKE_PARENT ?? tmpdir(), "tabularis-theme-smoke-"));
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "../dist/theme.js");
