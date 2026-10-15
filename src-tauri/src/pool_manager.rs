@@ -1282,6 +1282,101 @@ pub async fn close_pool_with_id(params: &ConnectionParams, connection_id: Option
     }
 }
 
+/// Pool-key prefix matching every pool created for a saved connection, across
+/// every database it has browsed. `build_connection_key` embeds the database
+/// (and TLS/startup-script suffixes) after `{driver}:conn:{id}:`, so a plain
+/// `starts_with` against this prefix selects all of a connection's pools — the
+/// primary one and any per-database overrides. The trailing `:` separates the
+/// id from the database segment, so a connection whose id is a prefix of
+/// another (`conn-1` vs `conn-10`) never matches the other's pools.
+pub(crate) fn connection_pool_prefix(driver: &str, connection_id: &str) -> String {
+    format!("{driver}:conn:{connection_id}:")
+}
+
+/// Remove and return every map entry whose key starts with `prefix`. The pools
+/// are collected under a short-lived write lock and closed by the caller after
+/// the lock is released, so closing N pools never blocks other pool access.
+pub(crate) fn remove_pools_with_prefix<P>(
+    pools: &mut HashMap<String, P>,
+    prefix: &str,
+) -> Vec<(String, P)> {
+    let keys: Vec<String> = pools
+        .keys()
+        .filter(|k| k.starts_with(prefix))
+        .cloned()
+        .collect();
+    keys.into_iter()
+        .filter_map(|k| pools.remove(&k).map(|pool| (k, pool)))
+        .collect()
+}
+
+/// Close a pool, abstracting over the async `sqlx::Pool::close` and the
+/// sync `deadpool_postgres::Pool::close` so the remove/close/log loop can be
+/// shared across drivers.
+trait PoolClose {
+    async fn close_pool(&self);
+}
+
+impl PoolClose for Pool<MySql> {
+    async fn close_pool(&self) {
+        self.close().await;
+    }
+}
+
+impl PoolClose for PgPool {
+    async fn close_pool(&self) {
+        // `deadpool_postgres::Pool::close` is synchronous; wrap it so the
+        // trait signature matches the async `sqlx` pools.
+        self.close();
+    }
+}
+
+impl PoolClose for Pool<Sqlite> {
+    async fn close_pool(&self) {
+        self.close().await;
+    }
+}
+
+/// Remove every pool keyed under `prefix` from `pools`, then close each one
+/// after releasing the write lock — so closing N pools never blocks other
+/// pool access. Each close is wrapped in a matching log/close/log pair, like
+/// [`close_pool_with_id`].
+async fn close_pools_with_prefix<P: PoolClose>(
+    pools: &Arc<RwLock<HashMap<String, P>>>,
+    prefix: &str,
+    label: &str,
+) {
+    let removed = {
+        let mut pools = pools.write().await;
+        remove_pools_with_prefix(&mut pools, prefix)
+    };
+    for (key, pool) in removed {
+        log::info!("Closing {label} connection pool (key: {key})");
+        pool.close_pool().await;
+        log::info!("{label} connection pool closed (key: {key})");
+    }
+}
+
+/// Close every pool belonging to a saved connection, including the
+/// per-database override pools created while browsing multiple databases.
+///
+/// Only saved connections (with a `connection_id`) use the `conn:` key scheme,
+/// so this does not apply to ad-hoc connections — those have a single pool
+/// keyed by `host:port:user:database`, closed by `close_pool` /
+/// `close_pool_with_id`. On a single-database connection this closes exactly
+/// one pool (the primary), so it is a safe, backward-compatible replacement for
+/// `close_pool_with_id` at disconnect time.
+pub async fn close_pools_for_connection_id(driver: &str, connection_id: &str) {
+    let prefix = connection_pool_prefix(driver, connection_id);
+
+    match driver {
+        "mysql" => close_pools_with_prefix(&MYSQL_POOLS, &prefix, "MySQL").await,
+        "postgres" => close_pools_with_prefix(&POSTGRES_POOLS, &prefix, "PostgreSQL").await,
+        "sqlite" => close_pools_with_prefix(&SQLITE_POOLS, &prefix, "SQLite").await,
+        _ => {}
+    }
+}
+
 /// Close all connection pools (useful on app shutdown)
 pub async fn close_all_pools() {
     {

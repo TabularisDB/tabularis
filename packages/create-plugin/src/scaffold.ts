@@ -61,8 +61,10 @@ function buildVars(opts: ScaffoldOptions): Record<string, string> {
     YEAR: String(new Date().getUTCFullYear()),
     PLUGIN_API_VERSION: opts.pluginApiVersion,
     MIN_TABULARIS_VERSION: opts.minTabularisVersion,
+    // Holds the whole manifest field, leading comma included, so the
+    // manifest stays valid JSON when the flag is off and this is empty.
     UI_EXTENSIONS_ENTRY: opts.withUi
-      ? `    {\n      "slot": "data-grid.toolbar.actions",\n      "module": "ui/dist/index.js"\n    }\n  `
+      ? `,\n  "ui_extensions": [\n    {\n      "slot": "data-grid.toolbar.actions",\n      "module": "ui/dist/index.js"\n    }\n  ]`
       : "",
   };
 }

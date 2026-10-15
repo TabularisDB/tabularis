@@ -19,6 +19,10 @@ pub struct PluginConfig {
     /// `None` inherits the global value; `0` disables the timeout.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub call_timeout_seconds: Option<u32>,
+    /// Per-plugin override of `AppConfig::plugin_shutdown_grace_seconds`.
+    /// `None` inherits the global value; values below 1 are clamped at runtime.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shutdown_grace_seconds: Option<u32>,
 }
 
 /// Per-connection column masking overrides (`table.column` entries).
@@ -66,6 +70,8 @@ pub struct AppConfig {
     pub sticky_column_headers: Option<bool>,
     /// Alternate the background of data grid rows. Default: false.
     pub result_zebra_stripes: Option<bool>,
+    /// Default sort direction on data grid header click: `"asc"` or `"desc"`.
+    pub default_sort_direction: Option<String>,
     /// Keep the row editor sidebar in sync with the selected grid row. Default: true.
     pub row_editor_follow_selection: Option<bool>,
     /// What double-clicking a grid cell does: `"inline"` (default), `"sidebar"`
@@ -110,6 +116,9 @@ pub struct AppConfig {
     /// Maximum seconds the host waits for a plugin to answer a single call.
     /// `0` disables the timeout. Default: 120. Overridable per plugin.
     pub plugin_call_timeout_seconds: Option<u32>,
+    /// Seconds in-flight plugin calls may run after shutdown is requested.
+    /// Values below 1 are clamped at runtime. Default: 2. Overridable per plugin.
+    pub plugin_shutdown_grace_seconds: Option<u32>,
     pub editor_theme: Option<String>,
     /// Font for query result cells ("inherit" follows the interface font). Default: JetBrains Mono.
     pub result_font_family: Option<String>,
@@ -303,6 +312,7 @@ pub fn get_config_dir<R: tauri::Runtime>(_app: &AppHandle<R>) -> Option<PathBuf>
 
 fn cache_config(config: &AppConfig) {
     crate::plugins::call_timeout::apply_config(config);
+    crate::plugins::shutdown_grace::apply_config(config);
     if let Ok(mut cached) = CONFIG_CACHE.write() {
         *cached = config.clone();
     }
@@ -341,6 +351,7 @@ pub fn load_config_from_disk() -> AppConfig {
     // snapshot is kept in that case.
     if trusted {
         crate::plugins::call_timeout::apply_config(&config);
+        crate::plugins::shutdown_grace::apply_config(&config);
     }
     config
 }
@@ -451,6 +462,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         if config.result_zebra_stripes.is_some() {
             existing_config.result_zebra_stripes = config.result_zebra_stripes;
         }
+        if config.default_sort_direction.is_some() {
+            existing_config.default_sort_direction = config.default_sort_direction;
+        }
         if config.row_editor_follow_selection.is_some() {
             existing_config.row_editor_follow_selection = config.row_editor_follow_selection;
         }
@@ -525,6 +539,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.plugin_call_timeout_seconds.is_some() {
             existing_config.plugin_call_timeout_seconds = config.plugin_call_timeout_seconds;
+        }
+        if config.plugin_shutdown_grace_seconds.is_some() {
+            existing_config.plugin_shutdown_grace_seconds = config.plugin_shutdown_grace_seconds;
         }
         if config.editor_theme.is_some() {
             existing_config.editor_theme = config.editor_theme;
@@ -1506,6 +1523,17 @@ mod tests {
         assert!(json.contains("displayTimezone"));
         let parsed: AppConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.display_timezone.as_deref(), Some("Asia/Tokyo"));
+    }
+
+    #[test]
+    fn default_sort_direction_serializes_with_camel_case_and_round_trips() {
+        let mut config = AppConfig::default();
+        assert!(config.default_sort_direction.is_none());
+        config.default_sort_direction = Some("desc".into());
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("defaultSortDirection"));
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.default_sort_direction.as_deref(), Some("desc"));
     }
 
     #[test]

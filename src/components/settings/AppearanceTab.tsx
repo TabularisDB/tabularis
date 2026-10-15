@@ -3,6 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Monitor, Code2 } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
+import {
+  EDITOR_FONT_SIZE_DEFAULT,
+  EDITOR_FONT_SIZE_MAX,
+  EDITOR_FONT_SIZE_MIN,
+} from "../../utils/editorFontSize";
 import { useTheme } from "../../hooks/useTheme";
 import {
   DEFAULT_RESULT_FONT_FAMILY,
@@ -124,6 +129,25 @@ export function AppearanceTab() {
                 onChange={(v) => updateSetting("resultZebraStripes", v)}
               />
             </SettingRow>
+            <SettingRow
+              label={t("settings.dataGrid.defaultSortDirection")}
+              description={t("settings.dataGrid.defaultSortDirectionDesc")}
+            >
+              <SettingButtonGroup
+                value={settings.defaultSortDirection ?? "asc"}
+                onChange={(v) => updateSetting("defaultSortDirection", v)}
+                options={[
+                  {
+                    value: "asc",
+                    label: t("settings.dataGrid.sortAscending"),
+                  },
+                  {
+                    value: "desc",
+                    label: t("settings.dataGrid.sortDescending"),
+                  },
+                ]}
+              />
+            </SettingRow>
             <div className="py-3">
               <p className="text-sm text-primary">
                 {t("settings.dataGrid.fontFamily")}
@@ -180,10 +204,10 @@ export function AppearanceTab() {
           <SettingSection title={t("settings.appearance_editorFontSize")}>
             <SettingRow label={t("settings.appearance_editorFontSize")}>
               <SettingSlider
-                value={settings.editorFontSize ?? 14}
+                value={settings.editorFontSize ?? EDITOR_FONT_SIZE_DEFAULT}
                 onChange={(v) => updateSetting("editorFontSize", v)}
-                min={10}
-                max={20}
+                min={EDITOR_FONT_SIZE_MIN}
+                max={EDITOR_FONT_SIZE_MAX}
                 step={1}
                 formatValue={(v) => `${v}px`}
               />

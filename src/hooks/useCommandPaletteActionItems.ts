@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useCallback, useContext, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TableTarget } from "../types/databaseObjects";
 import { createBuiltInCommandItems } from "../utils/builtInCommands";
 import { createConnectionCommandItems } from "../utils/connectionCommandItems";
 import { useActiveCommandPaletteScope } from "./useCommandPaletteScope";
+import { SettingsContext } from "../contexts/SettingsContext";
 
 export function useCommandPaletteActionItems(
   onGenerateSql: (target: TableTarget) => void,
@@ -12,6 +13,17 @@ export function useCommandPaletteActionItems(
 ) {
   const { t } = useTranslation();
   const scope = useActiveCommandPaletteScope();
+  // Read the settings context directly so the palette also renders outside a
+  // SettingsProvider (isolated hook usage); the app always provides it.
+  const settingsContext = useContext(SettingsContext);
+  const wordWrapEnabled = settingsContext?.settings.editorWordWrap ?? true;
+  const toggleWordWrap = useCallback(() => {
+    if (!settingsContext) return;
+    // Functional updater: reading the current value at write time avoids a
+    // stale snapshot overwriting a newer one when toggles fire in quick
+    // succession (palette + settings toggle).
+    settingsContext.updateSetting("editorWordWrap", (prev) => !(prev ?? true));
+  }, [settingsContext]);
 
   return useMemo(() => {
     if (!scope) return [];
@@ -34,6 +46,12 @@ export function useCommandPaletteActionItems(
         editorCategory: t("settings.shortcuts.categories.editor"),
         tableCategory: t("commandPalette.categories.table"),
         resultCategory: t("editor.multiResult.results"),
+        toggleWordWrapEnable: t(
+          "commandPalette.commands.toggleWordWrapEnable",
+        ),
+        toggleWordWrapDisable: t(
+          "commandPalette.commands.toggleWordWrapDisable",
+        ),
         copySelectedCells: (count) => t("dataGrid.copyCells", { count }),
         copySelectedRows: (count) => t("dataGrid.copyRows", { count }),
         copySelectedColumns: (count) =>
@@ -45,6 +63,7 @@ export function useCommandPaletteActionItems(
             : t("dataGrid.copyAllRows", { count }),
       },
       { generateSql: onGenerateSql, inspect: onInspect },
+      { wordWrapEnabled, toggleWordWrap },
     );
 
     const connectionItems = scope.runtime.switchConnection
@@ -57,5 +76,12 @@ export function useCommandPaletteActionItems(
       : [];
 
     return [...builtInItems, ...connectionItems];
-  }, [onGenerateSql, onInspect, scope, t]);
+  }, [
+    onGenerateSql,
+    onInspect,
+    scope,
+    t,
+    wordWrapEnabled,
+    toggleWordWrap,
+  ]);
 }

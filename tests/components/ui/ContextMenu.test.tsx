@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import { ContextMenu } from '../../../src/components/ui/ContextMenu';
 import * as ContextMenuUtils from '../../../src/utils/contextMenu';
 
@@ -266,6 +266,83 @@ describe('ContextMenu', () => {
     fireEvent.click(child);
     expect(childAction).toHaveBeenCalled();
     expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  it('opens a submenu when its button receives keyboard focus', () => {
+    render(
+      <ContextMenu
+        x={100}
+        y={100}
+        items={[{ label: 'Copy name', submenu: [{ label: 'Quoted name', action: mockAction1 }] }]}
+        onClose={mockOnClose}
+      />
+    );
+
+    const parent = screen.getByRole('button', { name: 'Copy name' });
+    expect(parent).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.focus(parent);
+    expect(parent).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Quoted name' }));
+    expect(mockAction1).toHaveBeenCalledOnce();
+    expect(mockOnClose).toHaveBeenCalledOnce();
+  });
+
+  it('moves keyboard focus into and out of a submenu', () => {
+    render(
+      <ContextMenu
+        x={100}
+        y={100}
+        items={[{ label: 'Copy name', submenu: [{ label: 'Quoted name', action: mockAction1 }] }]}
+        onClose={mockOnClose}
+      />
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Copy name' });
+    act(() => trigger.focus());
+    fireEvent.keyDown(trigger, { key: 'ArrowRight' });
+    const child = screen.getByRole('button', { name: 'Quoted name' });
+    expect(child).toHaveFocus();
+
+    fireEvent.keyDown(child, { key: 'ArrowLeft' });
+    expect(trigger).toHaveFocus();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'Quoted name' })).toBeNull();
+    expect(mockOnClose).not.toHaveBeenCalled();
+  });
+
+  it('closes only the submenu on Escape, then closes it when focus leaves', () => {
+    render(
+      <ContextMenu
+        x={100}
+        y={100}
+        items={[
+          { label: 'Copy name', submenu: [{ label: 'Quoted name', action: mockAction1 }] },
+          { label: 'Delete', action: mockAction2 },
+        ]}
+        onClose={mockOnClose}
+      />
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Copy name' });
+    act(() => trigger.focus());
+    fireEvent.keyDown(trigger, { key: 'ArrowRight' });
+    const child = screen.getByRole('button', { name: 'Quoted name' });
+    fireEvent.keyDown(child, { key: 'Escape' });
+    expect(trigger).toHaveFocus();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(mockOnClose).not.toHaveBeenCalled();
+
+    act(() => screen.getByRole('button', { name: 'Delete' }).focus());
+    act(() => trigger.focus());
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(mockOnClose).not.toHaveBeenCalled();
+
+    act(() => screen.getByRole('button', { name: 'Delete' }).focus());
+    act(() => trigger.focus());
+    act(() => screen.getByRole('button', { name: 'Delete' }).focus());
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('handles many menu items', () => {

@@ -33,7 +33,15 @@ interface ContextMenuProps {
 }
 
 /** Renders a single interactive/label/separator row (no submenu handling). */
-const MenuRow = ({ item, onClose }: { item: ContextMenuItem; onClose: () => void }) => {
+const MenuRow = ({
+  item,
+  onClose,
+  onKeyDown,
+}: {
+  item: ContextMenuItem;
+  onClose: () => void;
+  onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
+}) => {
   if (item.separator) {
     return <div className="h-px bg-default my-1" />;
   }
@@ -51,6 +59,7 @@ const MenuRow = ({ item, onClose }: { item: ContextMenuItem; onClose: () => void
   const depth = item.indent ?? 0;
   return (
     <button
+      onKeyDown={onKeyDown}
       onClick={() => {
         if (!item.disabled && item.action) {
           item.action();
@@ -104,8 +113,12 @@ const SubmenuRow = ({
   // Vertical shift keeping the flyout inside the viewport when the row is
   // near the bottom edge (measured right after the flyout mounts).
   const [offsetY, setOffsetY] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusFirstOnOpen = useRef(false);
+  const suppressFocusOpen = useRef(false);
 
   const cancelClose = () => {
     if (closeTimer.current) {
@@ -116,9 +129,28 @@ const SubmenuRow = ({
   const scheduleClose = () => {
     cancelClose();
     closeTimer.current = setTimeout(() => {
-      setOpen(false);
-      setOffsetY(0);
+      if (!rootRef.current?.contains(document.activeElement)) {
+        setOpen(false);
+        setOffsetY(0);
+      }
     }, 120);
+  };
+  const closeSubmenu = () => {
+    cancelClose();
+    setOpen(false);
+    setOffsetY(0);
+  };
+  const focusFirstItem = () => {
+    submenuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+  };
+  const handleSubmenuKeyDown: React.KeyboardEventHandler<HTMLButtonElement> = (event) => {
+    if (event.key === 'ArrowLeft' || event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      suppressFocusOpen.current = true;
+      closeSubmenu();
+      triggerRef.current?.focus();
+    }
   };
 
   useEffect(() => () => cancelClose(), []);
@@ -129,22 +161,55 @@ const SubmenuRow = ({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     setOffsetY(calculateSubmenuOffsetY(rect.top, rect.height, window.innerHeight));
+    if (focusFirstOnOpen.current) {
+      focusFirstOnOpen.current = false;
+      focusFirstItem();
+    }
   }, [open]);
 
   const Icon = item.icon;
   return (
     <div
+      ref={rootRef}
       className="relative"
       onMouseEnter={() => {
         cancelClose();
         setOpen(true);
       }}
       onMouseLeave={scheduleClose}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) closeSubmenu();
+      }}
     >
       <button
+        ref={triggerRef}
+        type="button"
         disabled={item.disabled}
+        aria-expanded={open}
+        onFocus={() => {
+          if (suppressFocusOpen.current) {
+            suppressFocusOpen.current = false;
+            return;
+          }
+          cancelClose();
+          setOpen(true);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            if (open) focusFirstItem();
+            else {
+              focusFirstOnOpen.current = true;
+              setOpen(true);
+            }
+          } else if ((event.key === 'ArrowLeft' || event.key === 'Escape') && open) {
+            event.preventDefault();
+            event.stopPropagation();
+            closeSubmenu();
+          }
+        }}
         className={`
-          w-full text-left pl-3 pr-2 py-2 text-sm flex items-center gap-2
+          w-full text-left pl-3 pr-2 py-2 text-sm flex items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus
           ${item.disabled
             ? 'text-muted/50 cursor-not-allowed'
             : `text-primary ${open ? 'bg-surface-tertiary' : 'hover:bg-surface-tertiary'}`
@@ -169,7 +234,7 @@ const SubmenuRow = ({
         >
           {item.submenu.map((sub, i) => {
             const subKey = sub.separator ? `sub-sep-${i}` : (sub.label ? `${sub.label}-${i}` : `sub-${i}`);
-            return <MenuRow key={subKey} item={sub} onClose={onClose} />;
+            return <MenuRow key={subKey} item={sub} onClose={onClose} onKeyDown={handleSubmenuKeyDown} />;
           })}
         </div>
       )}

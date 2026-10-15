@@ -16,6 +16,7 @@ import {
   createColumnHelper,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { SlotAnchor } from "./SlotAnchor";
 import {
@@ -39,6 +40,7 @@ import {
   PanelBottomOpen,
   Eye,
   EyeOff,
+  Hash,
   ListChecks,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
@@ -68,11 +70,13 @@ import {
   moveCellPosition,
   getColumnLayoutKey,
   resolveLockedColumnWidths,
+  isUuidColumnType,
   type LockedColumnWidths,
   createDataGridResultCommands,
   type RangeExtendKey,
 } from "../../utils/dataGrid";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
+import { getSortButtonAction } from "../../utils/tableToolbar";
 import { useSettings } from "../../hooks/useSettings";
 import { useJsonEditorActivity } from "../../hooks/useJsonEditorActivity";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
@@ -91,6 +95,7 @@ import {
   getCellValueFilterOperators,
   type CellValueFilterOperator,
 } from "../../utils/cellValueFilter";
+import { isLinkString } from "../../utils/jsonValueDecorators";
 import {
   getDateInputMode,
   parseDateTime,
@@ -106,6 +111,8 @@ import {
   getSelectedRows,
   projectColumns,
   copyTextToClipboard,
+  columnNamesAsLines,
+  columnNamesAsJson,
 } from "../../utils/clipboard";
 import {
   DEFAULT_MASKING_PATTERNS,
@@ -297,6 +304,7 @@ export const DataGrid = React.memo(
     const colorByType = settings.resultColorByType ?? false;
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
     const zebraStripes = settings.resultZebraStripes ?? false;
+    const defaultSortDirection = settings.defaultSortDirection ?? "asc";
 
     // Sensitive-column masking (#485): display-only — copy/export keep the
     // real values; only the rendered grid masks them.
@@ -1353,6 +1361,16 @@ export const DataGrid = React.memo(
               const sortState = getColumnSortState(colName, sortClause);
               const displaySortState: "none" | "asc" | "desc" =
                 sortState ?? "none";
+              const sortAction = getSortButtonAction(
+                displaySortState,
+                defaultSortDirection,
+              );
+              const sortButtonLabel =
+                sortAction === "asc"
+                  ? t("dataGrid.sortByAsc", { col: colName })
+                  : sortAction === "desc"
+                    ? t("dataGrid.sortByDesc", { col: colName })
+                    : t("dataGrid.clearSort");
               // Column data type for the DataGrip-style header hover tooltip.
               // Only populated when column metadata is present (i.e. table
               // browse), not for arbitrary query results.
@@ -1391,23 +1409,13 @@ export const DataGrid = React.memo(
                     <button
                       type="button"
                       className="flex flex-col items-center justify-center cursor-pointer"
-                      aria-label={
-                        displaySortState === "none"
-                          ? t("dataGrid.sortByAsc", { col: colName })
-                          : displaySortState === "asc"
-                            ? t("dataGrid.sortByDesc", { col: colName })
-                            : t("dataGrid.clearSort")
-                      }
+                      aria-label={sortButtonLabel}
                       title={
                         // Suppress the native sort-hint title while the type
                         // tooltip is shown, to avoid two overlapping tooltips.
                         hasMetadataTooltip
                           ? undefined
-                          : displaySortState === "none"
-                            ? t("dataGrid.sortByAsc", { col: colName })
-                            : displaySortState === "asc"
-                              ? t("dataGrid.sortByDesc", { col: colName })
-                              : t("dataGrid.clearSort")
+                          : sortButtonLabel
                       }
                       onClick={(e) => {
                         e.preventDefault();
@@ -1456,6 +1464,7 @@ export const DataGrid = React.memo(
         columnHelper,
         t,
         sortClause,
+        defaultSortDirection,
         onSort,
         columnTypeMap,
         columnCommentMap,
@@ -1809,6 +1818,10 @@ export const DataGrid = React.memo(
       [setCellValue],
     );
     const setCellNull = useCallback(() => setCellValue(null), [setCellValue]);
+    const setCellRandomUuid = useCallback(
+      () => setCellValue(crypto.randomUUID()),
+      [setCellValue],
+    );
     const setCellDefault = useCallback(() => {
       if (!contextMenu) return;
       const isInsertion = contextMenu.mergedRow?.type === "insertion";
@@ -1920,6 +1933,22 @@ export const DataGrid = React.memo(
       await copyToClipboard(`${tName}${headerContextMenu.colName}`);
       setHeaderContextMenu(null);
     }, [headerContextMenu, tableName, copyToClipboard]);
+
+    const copyColumnNamesAsLines = useCallback(async () => {
+      await copyToClipboard(
+        columnNamesAsLines(columns),
+        t("dataGrid.copiedColumnNames", { count: columns.length }),
+      );
+      setHeaderContextMenu(null);
+    }, [columns, copyToClipboard, t]);
+
+    const copyColumnNamesAsJson = useCallback(async () => {
+      await copyToClipboard(
+        columnNamesAsJson(columns),
+        t("dataGrid.copiedColumnNames", { count: columns.length }),
+      );
+      setHeaderContextMenu(null);
+    }, [columns, copyToClipboard, t]);
 
     const copySelectedCells = useCallback(async () => {
       if (selectedRowIndices.size === 0) return;
@@ -3006,6 +3035,13 @@ export const DataGrid = React.memo(
                     action: setCellServerNow,
                   });
                 }
+                if (isUuidColumnType(colDataType)) {
+                  menuItems.push({
+                    label: t("dataGrid.setRandomUuid"),
+                    icon: Hash,
+                    action: setCellRandomUuid,
+                  });
+                }
               }
 
               if (isJsonCellTarget(colDataType, contextCellValue)) {
@@ -3013,6 +3049,30 @@ export const DataGrid = React.memo(
                   label: t("contextMenu.openJsonEditor"),
                   icon: Braces,
                   action: openJsonEditor,
+                });
+              }
+
+              // "Open link": only for a plain http(s) URL or mailto address, so
+              // other schemes (file:, javascript:, ...) never reach the opener.
+              // A masked cell shows dots, so it never offers its real value.
+              if (
+                isLinkString(contextCellValue) &&
+                !isCellMasked(contextMenu.rowIndex, contextMenu.colIndex)
+              ) {
+                const link = contextCellValue.trim();
+                menuItems.push({
+                  label: t("contextMenu.openLink"),
+                  icon: ExternalLink,
+                  action: () => {
+                    setContextMenu(null);
+                    openUrl(link).catch((e: unknown) => {
+                      console.error("Failed to open link:", e);
+                      showToast(
+                        t("contextMenu.openLinkFailed", { error: String(e) }),
+                        { kind: "error" },
+                      );
+                    });
+                  },
                 });
               }
 
@@ -3314,6 +3374,22 @@ export const DataGrid = React.memo(
                   label: t("dataGrid.copyColumnNameTable"),
                   icon: Copy,
                   action: copyHeaderNameTable,
+                },
+                {
+                  label: t("dataGrid.copyColumnNames"),
+                  icon: Copy,
+                  submenu: [
+                    {
+                      label: t("dataGrid.copyColumnNamesLines"),
+                      icon: Copy,
+                      action: copyColumnNamesAsLines,
+                    },
+                    {
+                      label: t("dataGrid.copyColumnNamesJson"),
+                      icon: Copy,
+                      action: copyColumnNamesAsJson,
+                    },
+                  ],
                 },
                 {
                   label: t("dataGrid.copyColumnValues"),

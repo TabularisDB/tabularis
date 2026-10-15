@@ -17,6 +17,7 @@ pub mod registry;
 mod registry_kind;
 pub mod rpc;
 pub mod runtime_version;
+pub mod shutdown_grace;
 pub mod tabularium;
 
 #[cfg(test)]

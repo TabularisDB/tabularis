@@ -184,6 +184,7 @@ describe("CommandPaletteProvider", () => {
       "app.open-settings",
       "app.open-connections",
       "connection.new-console",
+      "editor.toggle-word-wrap",
     ]);
   });
 

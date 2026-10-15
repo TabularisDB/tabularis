@@ -1,7 +1,8 @@
 use super::{
-    build_paginated_query, decode_blob_wire_format, encode_blob, encode_blob_full, i64_to_json,
-    is_explainable_query, is_select_query, parse_unsafe_bigint_string, strip_leading_sql_comments,
-    strip_limit_offset, transaction_effect, u64_to_json, TransactionEffect, DEFAULT_MAX_BLOB_SIZE,
+    build_paginated_query, calculate_query_timing, calculate_query_timing_from_start,
+    decode_blob_wire_format, encode_blob, encode_blob_full, i64_to_json, is_explainable_query,
+    is_select_query, parse_unsafe_bigint_string, strip_leading_sql_comments, strip_limit_offset,
+    transaction_effect, u64_to_json, TransactionEffect, DEFAULT_MAX_BLOB_SIZE,
     JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT, MAX_BLOB_PREVIEW_SIZE,
 };
 
@@ -865,6 +866,27 @@ fn transaction_effect_ignores_ordinary_statements() {
             "{query} should not change the transaction state"
         );
     }
+}
+
+#[test]
+fn test_calculate_query_timing_with_rows() {
+    let (server, fetch) = calculate_query_timing(50.0, Some(20.0));
+    assert_eq!(server, Some(20.0));
+    assert_eq!(fetch, Some(30.0));
+}
+
+#[test]
+fn test_calculate_query_timing_no_rows() {
+    let (server, fetch) = calculate_query_timing(50.0, None);
+    assert_eq!(server, Some(50.0));
+    assert_eq!(fetch, Some(0.0));
+}
+
+#[test]
+fn test_calculate_query_timing_fetch_non_negative() {
+    let (server, fetch) = calculate_query_timing(50.0, Some(55.0));
+    assert_eq!(server, Some(55.0));
+    assert_eq!(fetch, Some(0.0));
 }
 
 #[test]

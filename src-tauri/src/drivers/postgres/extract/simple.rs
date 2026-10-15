@@ -6,25 +6,13 @@ use serde_json::Value as JsonValue;
 use tokio_postgres::types::{FromSql, Type};
 use uuid::Uuid;
 
-use crate::drivers::common::{encode_blob, i64_to_json};
+use crate::drivers::common::{encode_blob, float4_to_json_f64, i64_to_json};
 
 use super::advanced_types;
 
 #[cfg(test)]
 #[path = "simple_tests.rs"]
 mod simple_tests;
-
-// Preserve the shortest f32 decimal instead of widening its binary approximation.
-fn float4_to_json_f64(v: f32) -> Option<f64> {
-    v.to_string().parse::<f64>().ok().map(|decimal| {
-        // Avoid double rounding when the decimal lands on an f32 midpoint.
-        if decimal as f32 == v {
-            decimal
-        } else {
-            f64::from(v)
-        }
-    })
-}
 
 #[inline]
 pub fn extract_or_null(ty: &Type, buf: &[u8]) -> JsonValue {

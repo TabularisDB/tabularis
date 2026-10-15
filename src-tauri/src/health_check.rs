@@ -189,10 +189,12 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
     // Unregister first to prevent further pings.
     unregister_connection(connection_id).await;
 
-    // Close the pool (best-effort — if params can't be resolved the pool stays orphaned
-    // but will be reclaimed on next connect or app shutdown).
+    // Close all pools for the connection, including per-database override pools
+    // created while browsing multiple databases (best-effort — if params can't
+    // be resolved the pools stay orphaned but will be reclaimed on next connect
+    // or app shutdown).
     // Skip K8s expansion: pool keys depend on connection_id, and a dead kubectl
-    // / unreachable cluster must not prevent closing the pool.
+    // / unreachable cluster must not prevent closing the pools.
     let mut params = None;
     if let Ok(saved_conn) = crate::commands::find_connection_by_id(app, connection_id) {
         if let Ok(expanded) =
@@ -204,7 +206,7 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
     // Pinned connections outlive a closed pool, so their transactions are released first.
     crate::commands::release_connection_sessions(app, connection_id, params.as_ref()).await;
     if let Some(params) = &params {
-        crate::pool_manager::close_pool_with_id(params, Some(connection_id)).await;
+        crate::pool_manager::close_pools_for_connection_id(&params.driver, connection_id).await;
     }
 
     // Notify frontend.

@@ -5,6 +5,7 @@
 
 import { formatSqlIdentifier, shouldQuoteIdentifiers } from "./identifiers";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
+import type { DefaultSortDirection } from "../contexts/SettingsContext";
 
 export interface TableToolbarState {
   filterInput: string;
@@ -130,4 +131,67 @@ export function formatSortClause(
       return dir ? `${col} ${dir}` : col;
     })
     .join(", ");
+}
+
+/**
+ * Calculates the next ORDER BY sort clause when clicking on a column header in the data grid.
+ *
+ * Cycles based on defaultSortDirection ("asc" | "desc"):
+ * - With "asc":  none -> ASC -> DESC -> none (clear)
+ * - With "desc": none -> DESC -> ASC -> none (clear)
+ *
+ * Missing direction on an existing sort (e.g. bare "col") is treated as ASC (standard SQL).
+ */
+export function getNextSortClause(
+  currentSort: string,
+  colName: string,
+  defaultSortDirection: DefaultSortDirection = "asc",
+  driver?: string | PluginManifest | DriverCapabilities | null,
+): string {
+  const parts = currentSort.trim().split(/\s+/);
+  const sortCol = parts[0]?.replace(/^["`]|["`]$/g, "") ?? "";
+  const isSameColumn = sortCol === colName && parts.length <= 2;
+
+  const formattedCol = formatSqlIdentifier(colName, driver);
+
+  if (isSameColumn) {
+    const currentDir = parts[1]?.toUpperCase();
+
+    if (defaultSortDirection === "desc") {
+      // DESC cycle: DESC -> ASC -> none (clear)
+      // When direction is omitted (e.g. bare "col"), SQL treats it as ASC,
+      // so in DESC cycle it is already ASC and cycles to none (clear).
+      if (currentDir === "DESC") {
+        return `${formattedCol} ASC`;
+      }
+      return "";
+    } else {
+      // ASC cycle: ASC -> DESC -> none (clear)
+      // Missing direction is treated as default ASC -> cycles to DESC.
+      if (!currentDir || currentDir === "ASC") {
+        return `${formattedCol} DESC`;
+      }
+      return "";
+    }
+  }
+
+  // New column clicked: first step of cycle
+  return defaultSortDirection === "desc"
+    ? `${formattedCol} DESC`
+    : `${formattedCol} ASC`;
+}
+
+/**
+ * Returns the action a click on a column's sort button will perform, matching
+ * the cycle implemented by getNextSortClause. Used for the button's label.
+ */
+export function getSortButtonAction(
+  state: "none" | "asc" | "desc",
+  defaultSortDirection: DefaultSortDirection = "asc",
+): "asc" | "desc" | "clear" {
+  if (state === "none") return defaultSortDirection;
+  if (state === defaultSortDirection) {
+    return defaultSortDirection === "asc" ? "desc" : "asc";
+  }
+  return "clear";
 }

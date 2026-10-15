@@ -9,6 +9,7 @@ import type {
 
 export type { AppLanguage };
 export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
+export type DefaultSortDirection = "asc" | "desc";
 export type AiProvider =
   | "openai"
   | "anthropic"
@@ -27,6 +28,8 @@ export interface PluginConfig {
   settings?: Record<string, unknown>;
   /** Per-plugin override of `pluginCallTimeoutSeconds`. Unset inherits the global value; 0 disables the timeout. */
   callTimeoutSeconds?: number;
+  /** Per-plugin override of `pluginShutdownGraceSeconds`. Unset inherits the global value. */
+  shutdownGraceSeconds?: number;
 }
 
 /** One entry in the append-only driver-migration history. Kept even after an
@@ -63,6 +66,8 @@ export interface Settings {
   stickyColumnHeaders?: boolean;
   /** Shade every other result grid row for easier scanning. Default: false. */
   resultZebraStripes?: boolean;
+  /** Default sort direction on the first column header click in the data grid: "asc" (default) or "desc". */
+  defaultSortDirection?: DefaultSortDirection;
   /** Font used for query result cells. A font name from AVAILABLE_FONTS, a custom family, or RESULT_FONT_INHERIT to follow the interface font. Default: "JetBrains Mono". */
   resultFontFamily?: string;
   aiEnabled: boolean;
@@ -93,6 +98,8 @@ export interface Settings {
   plugins?: Record<string, PluginConfig>;
   /** Seconds the host waits for a plugin to answer a single call. 0 disables the timeout. Default: 120. */
   pluginCallTimeoutSeconds?: number;
+  /** Seconds in-flight plugin calls may run after shutdown is requested. 0 waits until they finish. Default: 2. */
+  pluginShutdownGraceSeconds?: number;
   editorTheme?: string;
   editorFontFamily?: string;
   editorFontSize?: number;
@@ -232,6 +239,7 @@ export const DEFAULT_SETTINGS: Settings = {
   resultTypeColors: {},
   stickyColumnHeaders: true,
   resultZebraStripes: false,
+  defaultSortDirection: "asc",
   resultFontFamily: "JetBrains Mono",
   aiEnabled: false,
   aiProvider: null,

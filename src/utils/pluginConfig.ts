@@ -18,8 +18,17 @@ export function resolvePluginConfig(
 /** Host default for `pluginCallTimeoutSeconds`; mirrors the Rust constant. */
 export const DEFAULT_PLUGIN_CALL_TIMEOUT_SECONDS = 120;
 
+/** Host default for `pluginShutdownGraceSeconds`; mirrors the Rust constant. */
+export const DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECONDS = 2;
+
 /** Upper bound accepted by the timeout inputs (24 hours). */
 export const MAX_PLUGIN_CALL_TIMEOUT_SECONDS = 86_400;
+
+/** Upper bound accepted by the shutdown-grace inputs (24 hours). */
+export const MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS = MAX_PLUGIN_CALL_TIMEOUT_SECONDS;
+
+/** Minimum effective shutdown grace; mirrors the Rust constant. */
+export const MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS = 1;
 
 /**
  * Parses a timeout typed by the user. Returns undefined for blank or invalid
@@ -66,6 +75,56 @@ export function resolveEffectiveCallTimeout(
     globalTimeout ??
     DEFAULT_PLUGIN_CALL_TIMEOUT_SECONDS
   );
+}
+
+/**
+ * Parses a shutdown grace typed by the user. Blank or invalid input is
+ * undefined; otherwise whole seconds clamped to
+ * [MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS, MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS].
+ */
+export function parseShutdownGraceSeconds(raw: string): number | undefined {
+  const trimmed = raw.trim();
+  if (trimmed === "") return undefined;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value)) return undefined;
+  return Math.min(
+    Math.max(Math.floor(value), MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS),
+    MAX_PLUGIN_SHUTDOWN_GRACE_SECONDS,
+  );
+}
+
+/**
+ * Returns a copy of `config` with its shutdown grace override set from raw
+ * user input. Blank or invalid input removes the override so the plugin
+ * inherits the global value.
+ */
+export function withShutdownGraceOverride(
+  config: PluginConfig,
+  rawGrace: string,
+): PluginConfig {
+  const next = { ...config };
+  const seconds = parseShutdownGraceSeconds(rawGrace);
+  if (seconds === undefined) {
+    delete next.shutdownGraceSeconds;
+  } else {
+    next.shutdownGraceSeconds = seconds;
+  }
+  return next;
+}
+
+/**
+ * Grace period that applies to a plugin: its own override, else the global
+ * setting, else the host default. Values below the minimum are clamped.
+ */
+export function resolveEffectiveShutdownGrace(
+  globalGrace: number | undefined,
+  config: PluginConfig | undefined,
+): number {
+  const seconds =
+    config?.shutdownGraceSeconds ??
+    globalGrace ??
+    DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECONDS;
+  return Math.max(seconds, MIN_PLUGIN_SHUTDOWN_GRACE_SECONDS);
 }
 
 /**
