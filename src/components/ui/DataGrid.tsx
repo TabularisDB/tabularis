@@ -19,6 +19,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { SlotAnchor } from "./SlotAnchor";
+import { ColumnStatsPopover } from "./ColumnStatsPopover";
 import {
   ArrowUp,
   ArrowDown,
@@ -50,6 +51,7 @@ import {
   CaseLower,
   CaseSensitive,
   Table,
+  ChartColumn,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -112,6 +114,11 @@ import {
   getCellValueFilterOperators,
   type CellValueFilterOperator,
 } from "../../utils/cellValueFilter";
+import {
+  getColumnStatsSupport,
+  type ColumnStats,
+  type ColumnStatsSupport,
+} from "../../utils/columnStats";
 import { isLinkString } from "../../utils/jsonValueDecorators";
 import {
   getDateInputMode,
@@ -170,6 +177,16 @@ interface DataGridProps {
     value: unknown,
     columnType?: string,
   ) => void;
+  /**
+   * Loads a column's statistics for the header menu's "Column statistics"
+   * popover (issue #1001); the entry is hidden without it. Aborting `signal`
+   * cancels the query.
+   */
+  onLoadColumnStats?: (
+    column: string,
+    support: ColumnStatsSupport,
+    signal: AbortSignal,
+  ) => Promise<ColumnStats>;
   onForeignKeyShowPanel?: (fk: ForeignKey, value: unknown) => void;
   onForeignKeyHidePanel?: () => void;
   connectionId?: string | null;
@@ -302,6 +319,7 @@ export const DataGrid = React.memo(
     foreignKeys,
     onForeignKeyNavigate,
     onFilterByValue,
+    onLoadColumnStats,
     onForeignKeyShowPanel,
     onForeignKeyHidePanel,
     connectionId,
@@ -414,6 +432,14 @@ export const DataGrid = React.memo(
       y: number;
       colName: string;
       colIndex: number;
+    } | null>(null);
+    const [columnStatsTarget, setColumnStatsTarget] = useState<{
+      x: number;
+      y: number;
+      colName: string;
+      colType: string;
+      support: ColumnStatsSupport;
+      masked: boolean;
     } | null>(null);
     const [editingCell, setEditingCell] = useState<{
       rowIndex: number;
@@ -1983,6 +2009,63 @@ export const DataGrid = React.memo(
         rowsCopiedToast(rows.length),
       );
     }, [getContextRows, columns, formatRows, writeToClipboard, rowsCopiedToast]);
+
+    // "Column statistics" (issue #1001). Masked columns only get counts:
+    // min / max and top values would show the hidden values.
+    const openColumnStats = useCallback(() => {
+      if (!headerContextMenu) return;
+      const { x, y, colName, colIndex } = headerContextMenu;
+      const colType = columnTypeMap?.get(colName) ?? "";
+      const masked =
+        maskedColIndices.has(colIndex) && !revealedColIndices.has(colIndex);
+      setColumnStatsTarget({
+        x,
+        y,
+        colName,
+        colType,
+        masked,
+        support: getColumnStatsSupport(colType, {
+          characterMaximumLength: columnLengthMap?.get(colName),
+          masked,
+        }),
+      });
+      setHeaderContextMenu(null);
+    }, [
+      headerContextMenu,
+      columnTypeMap,
+      columnLengthMap,
+      maskedColIndices,
+      revealedColIndices,
+    ]);
+
+    const closeColumnStats = useCallback(() => setColumnStatsTarget(null), []);
+
+    const loadColumnStatsForTarget = useCallback(
+      (signal: AbortSignal) => {
+        if (!onLoadColumnStats || !columnStatsTarget) {
+          return Promise.reject(new Error("Column statistics are unavailable"));
+        }
+        return onLoadColumnStats(
+          columnStatsTarget.colName,
+          columnStatsTarget.support,
+          signal,
+        );
+      },
+      [onLoadColumnStats, columnStatsTarget],
+    );
+
+    const filterByTopValue = useCallback(
+      (value: string) => {
+        if (!onFilterByValue || !columnStatsTarget) return;
+        onFilterByValue(
+          columnStatsTarget.colName,
+          "=",
+          value,
+          columnStatsTarget.colType || undefined,
+        );
+      },
+      [onFilterByValue, columnStatsTarget],
+    );
 
     const copyHeaderName = useCallback(async () => {
       if (!headerContextMenu) return;
@@ -3672,7 +3755,31 @@ export const DataGrid = React.memo(
                     setHeaderContextMenu(null);
                   },
                 },
+                ...(onLoadColumnStats && tableName
+                  ? [
+                      { separator: true } as ContextMenuItem,
+                      {
+                        label: t("dataGrid.columnStatistics"),
+                        icon: ChartColumn,
+                        action: openColumnStats,
+                      },
+                    ]
+                  : []),
               ]}
+            />
+          )}
+
+          {columnStatsTarget && (
+            <ColumnStatsPopover
+              key={columnStatsTarget.colName}
+              x={columnStatsTarget.x}
+              y={columnStatsTarget.y}
+              column={columnStatsTarget.colName}
+              support={columnStatsTarget.support}
+              masked={columnStatsTarget.masked}
+              load={loadColumnStatsForTarget}
+              onFilterByValue={onFilterByValue ? filterByTopValue : undefined}
+              onClose={closeColumnStats}
             />
           )}
 

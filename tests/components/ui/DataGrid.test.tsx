@@ -2076,6 +2076,143 @@ describe("DataGrid filter-by-value context menu", () => {
   });
 });
 
+describe("DataGrid column statistics (#1001)", () => {
+  const metadata = [
+    { name: "id", data_type: "integer", is_pk: true, is_nullable: false, is_auto_increment: false },
+    { name: "status", data_type: "varchar(20)", is_pk: false, is_nullable: true, is_auto_increment: false },
+    // "email" matches the default masking patterns.
+    { name: "email", data_type: "varchar(255)", is_pk: false, is_nullable: true, is_auto_increment: false },
+    { name: "settings", data_type: "jsonb", is_pk: false, is_nullable: true, is_auto_increment: false },
+  ];
+
+  const stats = {
+    rowCount: 3,
+    nullCount: 0,
+    distinctCount: 2,
+    min: null,
+    max: null,
+    topValues: [
+      { value: "open", count: 2 },
+      { value: "closed", count: 1 },
+    ],
+    filtered: false,
+  };
+
+  const renderStatsGrid = (
+    overrides: Partial<ComponentProps<typeof DataGrid>> = {},
+  ) => {
+    const onFilterByValue = vi.fn();
+    const onLoadColumnStats = vi.fn().mockResolvedValue(stats);
+    const utils = render(
+      <DataGrid
+        columns={["id", "status", "email", "settings"]}
+        data={[[1, "open", "a@example.com", { a: 1 }]]}
+        tableName="orders"
+        columnMetadata={metadata}
+        onFilterByValue={onFilterByValue}
+        onLoadColumnStats={onLoadColumnStats}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        readonly
+        {...overrides}
+      />,
+    );
+    const header = (index: number) =>
+      utils.container.querySelectorAll("th")[index + 1];
+    return { ...utils, header, onFilterByValue, onLoadColumnStats };
+  };
+
+  it("opens the popover from the header menu and loads the stats only then", async () => {
+    const { header, onLoadColumnStats } = renderStatsGrid();
+    expect(onLoadColumnStats).not.toHaveBeenCalled();
+
+    fireEvent.contextMenu(header(1));
+    fireEvent.click(await screen.findByText("dataGrid.columnStatistics"));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("status");
+    expect(onLoadColumnStats).toHaveBeenCalledTimes(1);
+    expect(onLoadColumnStats).toHaveBeenCalledWith(
+      "status",
+      { distinct: true, minMax: false, topValues: true },
+      expect.any(AbortSignal),
+    );
+    expect(screen.queryByText("dataGrid.copyColumnName")).toBeNull();
+  });
+
+  it("computes min / max for numeric columns", async () => {
+    const { header, onLoadColumnStats } = renderStatsGrid();
+    fireEvent.contextMenu(header(0));
+    fireEvent.click(await screen.findByText("dataGrid.columnStatistics"));
+    await screen.findByRole("dialog");
+    expect(onLoadColumnStats).toHaveBeenCalledWith(
+      "id",
+      { distinct: true, minMax: true, topValues: true },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("only counts rows and NULLs for JSON columns", async () => {
+    const { header, onLoadColumnStats } = renderStatsGrid();
+    fireEvent.contextMenu(header(3));
+    fireEvent.click(await screen.findByText("dataGrid.columnStatistics"));
+    await screen.findByRole("dialog");
+    expect(onLoadColumnStats).toHaveBeenCalledWith(
+      "settings",
+      { distinct: false, minMax: false, topValues: false },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("never asks a masked column for its values", async () => {
+    const { header, onLoadColumnStats } = renderStatsGrid();
+    fireEvent.contextMenu(header(2));
+    fireEvent.click(await screen.findByText("dataGrid.columnStatistics"));
+    await screen.findByRole("dialog");
+    expect(onLoadColumnStats).toHaveBeenCalledWith(
+      "email",
+      { distinct: true, minMax: false, topValues: false },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("filters the table with = when a top value is clicked", async () => {
+    const { header, onFilterByValue } = renderStatsGrid();
+    fireEvent.contextMenu(header(1));
+    fireEvent.click(await screen.findByText("dataGrid.columnStatistics"));
+
+    const values = await screen.findAllByTitle("dataGrid.columnStats.filterBy");
+    fireEvent.click(values[1]);
+
+    expect(onFilterByValue).toHaveBeenCalledWith("status", "=", "closed", "varchar(20)");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("aborts the load when the popover closes", async () => {
+    let signal: AbortSignal | undefined;
+    const onLoadColumnStats = vi.fn((_c: string, _s: unknown, sig: AbortSignal) => {
+      signal = sig;
+      return new Promise<never>(() => {});
+    });
+    const { header } = renderStatsGrid({ onLoadColumnStats });
+    fireEvent.contextMenu(header(1));
+    fireEvent.click(await screen.findByText("dataGrid.columnStatistics"));
+    fireEvent.click(await screen.findByRole("button", { name: "common.cancel" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it.each([
+    ["without a loader", { onLoadColumnStats: undefined }],
+    ["for query results (no table)", { tableName: null }],
+  ])("hides the entry %s", async (_label, overrides) => {
+    const { header } = renderStatsGrid(overrides);
+    fireEvent.contextMenu(header(1));
+    await screen.findByText("dataGrid.copyColumnName");
+    expect(screen.queryByText("dataGrid.columnStatistics")).toBeNull();
+  });
+});
+
 describe("DataGrid open link context menu", () => {
   const cellAt = (container: HTMLElement, rowIndex: number, colIndex: number) =>
     container.querySelector(

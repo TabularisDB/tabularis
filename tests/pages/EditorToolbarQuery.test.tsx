@@ -6,12 +6,19 @@ import { Editor } from "../../src/pages/Editor";
 import { EditorContext, type EditorContextType } from "../../src/contexts/EditorContext";
 import { createAutoRefreshSchedule, type AutoRefreshSchedule } from "../../src/utils/autoRefresh";
 import type { Tab, QueryResult } from "../../src/types/editor";
-import type { DataGridCommandTarget } from "../../src/components/ui/DataGrid";
+import type {
+  DataGrid as DataGridType,
+  DataGridCommandTarget,
+} from "../../src/components/ui/DataGrid";
+import type { ComponentProps } from "react";
 
 // Captures the `onRunQuery` prop the Editor passes to TableToolbar so the test
 // can drive it directly, exercising the real `runToolbarQuery` callback
 // without rendering the filter-value picker UI.
 let capturedRunToolbarQuery: ((sql: string) => Promise<QueryResult>) | undefined;
+// Same for the DataGrid's column statistics loader (issue #1001).
+type LoadColumnStats = NonNullable<ComponentProps<typeof DataGridType>["onLoadColumnStats"]>;
+let capturedLoadColumnStats: LoadColumnStats | undefined;
 
 const mocks = vi.hoisted(() => ({
   connectionId: "connection-1",
@@ -120,12 +127,17 @@ vi.mock("../../src/components/ui/DataGrid", () => ({
     ref,
     data,
     onEditingChange,
+    onLoadColumnStats,
   }: {
     ref: Ref<DataGridCommandTarget>;
     data: unknown[][];
     onEditingChange?: (editing: boolean) => void;
+    onLoadColumnStats?: LoadColumnStats;
   }) {
     const [editing, setEditing] = useState(false);
+    useLayoutEffect(() => {
+      capturedLoadColumnStats = onLoadColumnStats;
+    });
     useImperativeHandle(
       ref,
       () => ({ isEditing: () => editing, getResultCommands: () => ({}) }),
@@ -278,5 +290,105 @@ describe("runToolbarQuery database field", () => {
     // The database key must not be present at all (the spread only adds it
     // when currentTab.database is truthy).
     expect(calls[0][1]).not.toHaveProperty("database");
+  });
+});
+
+describe("column statistics loader (#1001)", () => {
+  const ALL = { distinct: true, minMax: true, topValues: true };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    mocks.connectionId = "connection-1";
+    capturedLoadColumnStats = undefined;
+    vi.mocked(invoke).mockReset();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("counts the rows matching the tab's filter on the tab's session, then lists top values", async () => {
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command !== "execute_query") return Promise.resolve([]);
+      const query = (args as { query: string }).query;
+      return Promise.resolve({
+        ...initialResult,
+        rows: query.startsWith("SELECT COUNT(*)") ? [[4, 1, 3, 1, 9]] : [[7, 2], [9, 1]],
+      });
+    });
+    render(<Harness />);
+    expect(capturedLoadColumnStats).toBeDefined();
+
+    let stats: Awaited<ReturnType<LoadColumnStats>> | undefined;
+    await act(async () => {
+      stats = await capturedLoadColumnStats?.("id", ALL, new AbortController().signal);
+    });
+
+    const calls = executeQueryCalls();
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1]).toMatchObject({
+      connectionId: "connection-1",
+      sessionId: "table-1",
+      query:
+        'SELECT COUNT(*), COUNT(*) - COUNT("id"), COUNT(DISTINCT "id"), MIN("id"), MAX("id") ' +
+        'FROM "private"."jobs" WHERE (id > 0)',
+    });
+    expect((calls[1][1] as { query: string }).query).toBe(
+      'SELECT "id", COUNT(*) FROM "private"."jobs" WHERE "id" IS NOT NULL AND (id > 0) ' +
+        'GROUP BY "id" ORDER BY 2 DESC, 1 LIMIT 10',
+    );
+    expect(stats).toMatchObject({
+      rowCount: 4,
+      nullCount: 1,
+      distinctCount: 3,
+      min: 1,
+      max: 9,
+      topValues: [{ value: "7", count: 2 }, { value: "9", count: 1 }],
+      filtered: true,
+    });
+  });
+
+  it("leaves a running query to finish on abort, drops its result and starts no further one", async () => {
+    let finish: (value: QueryResult) => void = () => {};
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "execute_query") {
+        return new Promise((resolve) => { finish = resolve; });
+      }
+      return Promise.resolve();
+    });
+    render(<Harness />);
+    const controller = new AbortController();
+
+    let result: Promise<unknown> | undefined;
+    await act(async () => {
+      result = capturedLoadColumnStats?.("id", ALL, controller.signal);
+      result?.catch(() => {});
+    });
+    expect(executeQueryCalls()).toHaveLength(1);
+
+    controller.abort();
+    // cancel_query stops everything on the connection, so it is never sent.
+    expect(invoke).not.toHaveBeenCalledWith("cancel_query", expect.anything());
+
+    await act(async () => {
+      finish({ ...initialResult, rows: [[4, 0, 4, 1, 9]] });
+      await result?.catch(() => {});
+    });
+    await expect(result).rejects.toThrow();
+    expect(executeQueryCalls()).toHaveLength(1);
+  });
+
+  it("sends neither the query nor a cancel when aborted before it runs", async () => {
+    vi.mocked(invoke).mockResolvedValue([]);
+    render(<Harness />);
+    const controller = new AbortController();
+    controller.abort();
+
+    await act(async () => {
+      await capturedLoadColumnStats?.("id", ALL, controller.signal).catch(() => {});
+    });
+
+    expect(executeQueryCalls()).toHaveLength(0);
+    expect(invoke).not.toHaveBeenCalledWith("cancel_query", expect.anything());
   });
 });

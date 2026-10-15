@@ -9,6 +9,7 @@ import {
   canRenameTab,
   getTabDisplayTitle,
   getTabFullTitle,
+  normalizeSmartQuotes,
   reconstructTableQuery,
   resolveTabPageSize,
 } from "../utils/editor";
@@ -196,6 +197,11 @@ import {
   combineFilterClauses,
   type CellValueFilterOperator,
 } from "../utils/cellValueFilter";
+import {
+  loadColumnStats,
+  type ColumnStats,
+  type ColumnStatsSupport,
+} from "../utils/columnStats";
 import { getNextSortClause } from "../utils/tableToolbar";
 import {
   createSqlFileTab,
@@ -2869,10 +2875,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     [updateTab, runQuery],
   );
 
-  // Read-only helper for the filter value picker (issue #869): runs on the
-  // tab's own session so it sees the same rows as the grid.
+  // Read-only helper for the filter value picker (issue #869) and the column
+  // statistics popover (issue #1001): runs on the tab's own session so it sees
+  // the same rows as the grid. Aborting `signal` skips a query that is still
+  // queued behind the tab's other work. A query already running is left to
+  // finish and its result is dropped by the caller: `cancel_query` stops
+  // everything on the connection, which could include another tab's query.
   const runToolbarQuery = useCallback(
-    async (sql: string): Promise<QueryResult> => {
+    async (sql: string, signal?: AbortSignal): Promise<QueryResult> => {
       const tabId = activeTabIdRef.current;
       const currentTab = tabsRef.current.find((tb) => tb.id === tabId);
       if (!currentTab || currentTab.connectionId !== activeConnectionIdRef.current) {
@@ -2889,6 +2899,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           (targetTab.schema ?? activeSchema) !== schema) {
           throw new Error("The table changed before the values query could run");
         }
+        if (signal?.aborted) throw new Error("The values query was cancelled");
         return invoke<QueryResult>("execute_query", {
           connectionId,
           query: sql,
@@ -3014,6 +3025,38 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       );
     },
     [activeDriver, activeCapabilities, handleToolbarUpdate],
+  );
+
+  // Column statistics popover (issue #1001): counts the rows matching the
+  // tab's current filter, like the row count does (sort and LIMIT ignored).
+  const handleLoadColumnStats = useCallback(
+    (
+      column: string,
+      support: ColumnStatsSupport,
+      signal: AbortSignal,
+    ): Promise<ColumnStats> => {
+      const currentTab = tabsRef.current.find(
+        (tb) => tb.id === activeTabIdRef.current,
+      );
+      if (!currentTab?.activeTable) {
+        return Promise.reject(new Error("No active table"));
+      }
+      const filter = currentTab.filterClause?.trim();
+      return loadColumnStats(
+        runToolbarQuery,
+        {
+          table: currentTab.activeTable,
+          schema:
+            activeCapabilities?.schemas === true ? currentTab.schema : undefined,
+          column,
+          driver: activeCapabilities ?? activeDriver ?? null,
+          where: filter ? normalizeSmartQuotes(filter) : undefined,
+          support,
+        },
+        signal,
+      );
+    },
+    [activeCapabilities, activeDriver, runToolbarQuery],
   );
 
   const handleSort = useCallback(
@@ -5729,6 +5772,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       onFilterByValue={
                         activeTab.type === "table"
                           ? handleFilterByValue
+                          : undefined
+                      }
+                      onLoadColumnStats={
+                        activeTab.type === "table"
+                          ? handleLoadColumnStats
                           : undefined
                       }
                       connectionId={activeConnectionId}

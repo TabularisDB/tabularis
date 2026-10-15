@@ -437,7 +437,7 @@ export interface ReconstructQueryOptions {
  * as `status = 'x'` that the OS rewrote to `status = ‘x’` fails to parse
  * ("unterminated quoted string").
  */
-function normalizeSmartQuotes(s: string): string {
+export function normalizeSmartQuotes(s: string): string {
   return s.replace(/[‘’‚‛]/g, "'").replace(/[“”„‟]/g, '"');
 }
 

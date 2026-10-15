@@ -96,7 +96,7 @@ export function getCellValueFilterOperators(
  * excluded: names such as POINT or LINESTRING contain "int", which the
  * numeric check would otherwise match.
  */
-function isComparableColumnType(columnType: string): boolean {
+export function isComparableColumnType(columnType: string): boolean {
   if (!columnType || isGeometricType(columnType)) return false;
   // Drop precision such as `datetime(3)` / `timestamp(6) with time zone`:
   // getDateInputMode matches bare type names only.
