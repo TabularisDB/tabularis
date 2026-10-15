@@ -1,6 +1,7 @@
 use super::{auth, protocol, storage::LockedStore, RESOURCE, SESSION_LOCK};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::future::Future;
 
 #[derive(Deserialize)]
 struct ModelList {
@@ -17,20 +18,40 @@ pub struct ChatGptModel {
 }
 
 pub async fn list_models() -> Result<Vec<ChatGptModel>, String> {
-    let _guard = SESSION_LOCK.lock().await;
-    let disk = LockedStore::open()?;
-    let mut store = disk.load()?;
-    // An unconnected installation has no ChatGPT catalog, and no static fallback.
-    let active = store
-        .active_profile_id
-        .as_ref()
-        .and_then(|id| store.profiles.iter().find(|p| &p.id == id));
-    if !active.is_some_and(|p| p.tokens.as_ref().is_some_and(|t| t.sharing())) {
+    list_models_with_token(
+        &super::http_client()?,
+        &format!("{RESOURCE}/models"),
+        async {
+            let disk = LockedStore::open()?;
+            let mut store = disk.load()?;
+            // An unconnected installation has no ChatGPT catalog, and no static fallback.
+            let active = store
+                .active_profile_id
+                .as_ref()
+                .and_then(|id| store.profiles.iter().find(|p| &p.id == id));
+            if !active.is_some_and(|p| p.tokens.as_ref().is_some_and(|t| t.sharing())) {
+                return Ok(None);
+            }
+            auth::access_token(&disk, &mut store).await.map(Some)
+        },
+    )
+    .await
+}
+
+pub(super) async fn list_models_with_token(
+    client: &reqwest::Client,
+    url: &str,
+    authorize: impl Future<Output = Result<Option<String>, String>>,
+) -> Result<Vec<ChatGptModel>, String> {
+    let token = {
+        let _guard = SESSION_LOCK.lock().await;
+        authorize.await?
+    };
+    let Some(token) = token else {
         return Ok(vec![]);
-    }
-    let token = auth::access_token(&disk, &mut store).await?;
-    let response = super::http_client()?
-        .get(format!("{RESOURCE}/models"))
+    };
+    let response = client
+        .get(url)
         .bearer_auth(token)
         .timeout(std::time::Duration::from_secs(30))
         .send()
@@ -66,12 +87,35 @@ pub(super) fn request_body(model: &str, prompt: &str, instructions: &str) -> Val
 }
 
 pub async fn generate(model: &str, prompt: &str, instructions: &str) -> Result<String, String> {
-    let _guard = SESSION_LOCK.lock().await;
-    let disk = LockedStore::open()?;
-    let mut store = disk.load()?;
-    let token = auth::access_token(&disk, &mut store).await?;
-    let mut response = super::http_client()?
-        .post(format!("{RESOURCE}/responses"))
+    generate_with_token(
+        &super::http_client()?,
+        &format!("{RESOURCE}/responses"),
+        model,
+        prompt,
+        instructions,
+        async {
+            let disk = LockedStore::open()?;
+            let mut store = disk.load()?;
+            auth::access_token(&disk, &mut store).await
+        },
+    )
+    .await
+}
+
+pub(super) async fn generate_with_token(
+    client: &reqwest::Client,
+    url: &str,
+    model: &str,
+    prompt: &str,
+    instructions: &str,
+    authorize: impl Future<Output = Result<String, String>>,
+) -> Result<String, String> {
+    let token = {
+        let _guard = SESSION_LOCK.lock().await;
+        authorize.await?
+    };
+    let mut response = client
+        .post(url)
         .bearer_auth(token)
         .json(&request_body(model, prompt, instructions))
         .timeout(std::time::Duration::from_secs(180))

@@ -412,16 +412,8 @@ pub async fn get_ai_models(
                     }
                 }
 
-                // ChatGPT catalogs are account-specific and must never use the shared cache.
-                cached_models.insert(
-                    "chatgpt".into(),
-                    crate::chatgpt::list_models()
-                        .await
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|m| m.slug)
-                        .collect(),
-                );
+                // Account-specific ChatGPT models use the dedicated settings command.
+                cached_models.remove("chatgpt");
                 return Ok(cached_models);
             }
         }
@@ -512,15 +504,6 @@ pub async fn get_ai_models(
     // Save to Cache
     save_cache(&app, &models);
 
-    models.insert(
-        "chatgpt".into(),
-        crate::chatgpt::list_models()
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .map(|m| m.slug)
-            .collect(),
-    );
     Ok(models)
 }
 

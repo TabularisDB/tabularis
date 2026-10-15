@@ -160,10 +160,9 @@ async fn callback(
 
 pub(super) async fn sign_in(
     app: &tauri::AppHandle,
-    disk: &LockedStore,
-    store: &mut Store,
+    store: Store,
     profile_id: Option<&str>,
-) -> Result<(), String> {
+) -> Result<Store, String> {
     use tauri_plugin_opener::OpenerExt;
     let existing = profile_id
         .map(|id| {
@@ -232,25 +231,18 @@ pub(super) async fn sign_in(
         existing.as_ref().map(|p| p.client_id.as_str()),
     )
     .await?;
-    let index = if let Some(profile) = &existing {
-        store
-            .profiles
-            .iter()
-            .position(|p| p.id == profile.id)
-            .ok_or("ChatGPT account not found.")?
-    } else {
-        store.profiles.push(Profile {
-            id: uuid::Uuid::new_v4().to_string(),
-            label: format!("Connection {}", store.profiles.len() + 1),
-            client_id: callback.client_id.clone(),
-            subject: None,
-            email: None,
-            tokens: None,
-        });
-        store.profiles.len() - 1
+    let target_profile_id = {
+        let _guard = super::SESSION_LOCK.lock().await;
+        let disk = LockedStore::open()?;
+        let mut current = disk.load()?;
+        if current.host_id != store.host_id {
+            return Err("ChatGPT installation changed during sign-in. Please try again.".into());
+        }
+        let id = register_profile(&mut current, existing.as_ref(), &callback)?;
+        // Retain the issued registration even when code exchange fails or is cancelled.
+        disk.save(&current)?;
+        id
     };
-    // Retain the issued registration even when code exchange fails or is cancelled.
-    disk.save(store)?;
     let response = token_request(&[
         ("grant_type", "authorization_code"),
         ("client_id", &callback.client_id),
@@ -281,7 +273,66 @@ pub(super) async fn sign_in(
         &nonce,
         protocol::now(),
     )?;
-    let profile = &mut store.profiles[index];
+    let _guard = super::SESSION_LOCK.lock().await;
+    let disk = LockedStore::open()?;
+    let mut current = disk.load()?;
+    if current.host_id != store.host_id {
+        return Err("ChatGPT installation changed during sign-in. Please try again.".into());
+    }
+    complete_sign_in(
+        &mut current,
+        &target_profile_id,
+        &callback.client_id,
+        identity,
+        tokens,
+    )?;
+    disk.save(&current)?;
+    Ok(current)
+}
+
+fn register_profile(
+    store: &mut Store,
+    existing: Option<&Profile>,
+    callback: &Callback,
+) -> Result<String, String> {
+    if let Some(existing) = existing {
+        let profile = store
+            .profiles
+            .iter()
+            .find(|p| p.id == existing.id)
+            .ok_or("ChatGPT account not found.")?;
+        if profile.client_id != callback.client_id {
+            return Err("ChatGPT registration changed during sign-in. Please try again.".into());
+        }
+        return Ok(profile.id.clone());
+    }
+    let id = uuid::Uuid::new_v4().to_string();
+    store.profiles.push(Profile {
+        id: id.clone(),
+        label: format!("Connection {}", store.profiles.len() + 1),
+        client_id: callback.client_id.clone(),
+        subject: None,
+        email: None,
+        tokens: None,
+    });
+    Ok(id)
+}
+
+fn complete_sign_in(
+    store: &mut Store,
+    profile_id: &str,
+    client_id: &str,
+    identity: protocol::Identity,
+    tokens: Tokens,
+) -> Result<(), String> {
+    let profile = store
+        .profiles
+        .iter_mut()
+        .find(|p| p.id == profile_id)
+        .ok_or("ChatGPT account not found.")?;
+    if profile.client_id != client_id {
+        return Err("ChatGPT registration changed during sign-in. Please try again.".into());
+    }
     if profile
         .subject
         .as_ref()
@@ -295,7 +346,7 @@ pub(super) async fn sign_in(
     profile.email = identity.email;
     profile.tokens = Some(tokens);
     store.active_profile_id = Some(profile.id.clone());
-    disk.save(store)
+    Ok(())
 }
 
 pub(super) async fn access_token(disk: &LockedStore, store: &mut Store) -> Result<String, String> {

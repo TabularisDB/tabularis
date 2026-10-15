@@ -235,6 +235,113 @@ fn usage_errors_have_recovery_actions_without_server_secrets() {
     assert!(protocol::api_error(403).contains("allow plan usage"));
 }
 
+#[tokio::test]
+async fn model_requests_and_response_streams_release_session_lock_after_authorization() {
+    use std::time::Duration;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+        sync::oneshot,
+    };
+    for models in [true, false] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/fixture", listener.local_addr().unwrap());
+        let (started, received) = oneshot::channel();
+        let (resume, paused) = oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut data = vec![];
+            loop {
+                let mut buffer = [0; 2048];
+                let count = socket.read(&mut buffer).await.unwrap();
+                assert!(count > 0);
+                data.extend_from_slice(&buffer[..count]);
+                if data.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let headers = String::from_utf8_lossy(&data).to_ascii_lowercase();
+            assert!(headers.contains("authorization: bearer fixture-token"));
+            let body = if models {
+                json!({"models":[
+                    {"slug":"available", "display_name":"Available model", "visibility":"list"},
+                    {"slug":"hidden", "display_name":"Hidden model", "visibility":"hide"}
+                ]})
+                .to_string()
+            } else {
+                "data: {\"type\":\"response.output_text.delta\",\"delta\":\"OK\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}\n\n".into()
+            };
+            // Pause with response headers sent; models/body streaming must not hold the lock.
+            socket
+                .write_all(
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .unwrap();
+            started.send(()).unwrap();
+            paused.await.unwrap();
+            socket.write_all(body.as_bytes()).await.unwrap();
+        });
+        let request = tokio::spawn(async move {
+            let client = reqwest::Client::builder().no_proxy().build().unwrap();
+            if models {
+                let models = super::inference::list_models_with_token(&client, &url, async {
+                    assert!(super::SESSION_LOCK.try_lock().is_err());
+                    Ok(Some("fixture-token".into()))
+                })
+                .await
+                .unwrap();
+                assert_eq!(models.len(), 1);
+                assert_eq!(models[0].slug, "available");
+            } else {
+                let text = super::inference::generate_with_token(
+                    &client,
+                    &url,
+                    "model",
+                    "prompt",
+                    "instructions",
+                    async {
+                        assert!(super::SESSION_LOCK.try_lock().is_err());
+                        Ok("fixture-token".into())
+                    },
+                )
+                .await
+                .unwrap();
+                assert_eq!(text, "OK");
+            }
+        });
+        tokio::time::timeout(Duration::from_secs(5), received)
+            .await
+            .unwrap()
+            .unwrap();
+        let guard = tokio::time::timeout(Duration::from_secs(1), super::SESSION_LOCK.lock())
+            .await
+            .expect("Account operations must remain available while a response body is pending");
+        drop(guard);
+        resume.send(()).unwrap();
+        request.await.unwrap();
+        server.await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn disconnected_catalog_skips_http_without_waiting_for_the_browser_sign_in_gate() {
+    let _sign_in = super::SIGN_IN_LOCK.lock().await;
+    // An unreachable endpoint makes any accidental HTTP request fail the test.
+    let result = super::inference::list_models_with_token(
+        &reqwest::Client::new(),
+        "http://127.0.0.1:0/models",
+        async { Ok(None) },
+    )
+    .await
+    .unwrap();
+    assert!(result.is_empty());
+}
+
 /// Opt-in smoke test: uses the account already connected in desktop settings.
 /// Sends only a fixed diagnostic prompt, never database queries or schema data.
 #[tokio::test]
