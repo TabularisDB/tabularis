@@ -100,6 +100,8 @@ export interface ConnectionParams {
   ssm_region?: string;
   /** SQL run on every new connection to this data source (e.g. SET / set_config). */
   startup_script?: string;
+  /** Connection pooler mode for PgBouncer / transaction-mode poolers. */
+  pooler_mode?: string;
   /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB
    * plugin). Persisted as-is and forwarded verbatim to the driver/plugin. */
   extra?: Record<string, string>;

@@ -108,6 +108,37 @@ mod tests {
         assert_eq!(params.save_in_keychain, Some(true));
     }
 
+    #[test]
+    fn pooler_mode_round_trips_and_stays_absent_when_none() {
+        // "transaction" serializes and deserializes back.
+        let with_mode = ConnectionParams {
+            driver: "postgresql".to_string(),
+            pooler_mode: Some("transaction".to_string()),
+            ..ConnectionParams::default()
+        };
+        let json = serde_json::to_value(&with_mode).unwrap();
+        assert_eq!(json["pooler_mode"], "transaction");
+
+        let back: ConnectionParams = serde_json::from_value(json).unwrap();
+        assert_eq!(back.pooler_mode.as_deref(), Some("transaction"));
+
+        // None omits the key entirely (skip_serializing_if) — backward-compat:
+        // old connections.json entries have no pooler_mode key.
+        let without_mode = ConnectionParams {
+            driver: "postgresql".to_string(),
+            ..ConnectionParams::default()
+        };
+        let json = serde_json::to_value(&without_mode).unwrap();
+        assert!(json.get("pooler_mode").is_none());
+
+        // A legacy JSON object without the key deserializes as None.
+        // `database` is the one required field (no #[serde(default)]), so a
+        // realistic old connections.json entry carries it; pooler_mode is absent.
+        let legacy = serde_json::json!({"driver": "postgresql", "database": "appdb"});
+        let parsed: ConnectionParams = serde_json::from_value(legacy).unwrap();
+        assert!(parsed.pooler_mode.is_none());
+    }
+
     #[cfg(unix)]
     #[test]
     fn write_private_file_creates_mode_0600_with_the_given_content() {

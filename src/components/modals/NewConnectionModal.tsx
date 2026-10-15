@@ -168,6 +168,8 @@ interface ConnectionParams {
   ssm_region?: string;
   // SQL run on every new connection (e.g. SET / set_config)
   startup_script?: string;
+  /** Connection pooler mode for PgBouncer / transaction-mode poolers. */
+  pooler_mode?: string;
   // Opaque plugin-specific connection fields, forwarded verbatim to the
   // driver/plugin and persisted as-is in connections.json.
   extra?: Record<string, string>;
@@ -2030,6 +2032,7 @@ export const NewConnectionModal = ({
       ssm_target: undefined,
       ssm_profile: undefined,
       ssm_region: undefined,
+      pooler_mode: undefined,
     });
     invalidateK8sDiscovery();
     invalidateInlineK8sTest();
@@ -3152,6 +3155,34 @@ export const NewConnectionModal = ({
         />
         </div>
       </div>
+
+      {/* PostgreSQL: pooler mode (PgBouncer transaction/session) */}
+      {isPostgresDialect && (
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] uppercase font-semibold tracking-wider text-muted block">
+            {t("newConnection.poolerMode", { defaultValue: "Pooler mode" })}
+          </label>
+          <Select
+            value={formData.pooler_mode ?? ""}
+            options={["", "transaction", "session"]}
+            labels={{
+              "": t("newConnection.poolerModes.none", { defaultValue: "None (direct connection)" }),
+              transaction: t("newConnection.poolerModes.transaction", { defaultValue: "PgBouncer transaction" }),
+              session: t("newConnection.poolerModes.session", { defaultValue: "PgBouncer session" }),
+            }}
+            onChange={(v) => updateField("pooler_mode", v || undefined)}
+            searchable={false}
+          />
+          {formData.pooler_mode === "transaction" && (
+            <p className="text-xs text-muted leading-snug">
+              {t("newConnection.poolerModeTransactionHint", {
+                defaultValue:
+                  "When using PgBouncer in transaction mode with custom types (enums, composites, extension types), set max_prepared_statements > 0 in pgbouncer.ini. This enables server-side prepared statement caching so named statements survive connection reassignment.",
+              })}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="space-y-2 border-t border-default pt-4">
         <label className="text-[10px] uppercase font-semibold tracking-wider text-muted block">

@@ -2361,6 +2361,7 @@ mod tests {
             ssm_profile: None,
             ssm_region: None,
             startup_script: None,
+            pooler_mode: None,
             use_iam_auth: None,
             extra: HashMap::new(),
             connection_id: Some("conn-1".to_string()),
