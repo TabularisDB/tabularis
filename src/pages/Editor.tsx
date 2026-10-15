@@ -2976,7 +2976,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     (
       column: string,
       operator: CellValueFilterOperator,
-      value: unknown,
+      value: unknown | unknown[],
       columnType?: string,
     ) => {
       const currentTab = tabsRef.current.find(

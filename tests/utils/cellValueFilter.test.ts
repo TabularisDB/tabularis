@@ -3,6 +3,8 @@ import {
   buildCellValueFilterClause,
   combineFilterClauses,
   getCellValueFilterOperators,
+  parseClipboardInList,
+  MAX_CLIPBOARD_FILTER_VALUES,
 } from "../../src/utils/cellValueFilter";
 
 describe("cellValueFilter", () => {
@@ -118,6 +120,38 @@ describe("cellValueFilter", () => {
         '"my col" = 1',
       );
     });
+
+    it("builds an IN list and formats each value for the column", () => {
+      expect(
+        buildCellValueFilterClause("id", "IN", [1, 2, 3], "postgres"),
+      ).toBe('"id" IN (1, 2, 3)');
+      expect(
+        buildCellValueFilterClause(
+          "name",
+          "IN",
+          ["alice", "O'Brien"],
+          "mysql",
+        ),
+      ).toBe("`name` IN ('alice', 'O''Brien')");
+    });
+
+    it("emits numeric-looking IN values unquoted in numeric columns", () => {
+      expect(
+        buildCellValueFilterClause(
+          "age",
+          "IN",
+          ["19", "20"],
+          "postgres",
+          "integer",
+        ),
+      ).toBe('"age" IN (19, 20)');
+    });
+
+    it("wraps a single non-array IN value into a one-item list", () => {
+      expect(
+        buildCellValueFilterClause("id", "IN", 42, "postgres"),
+      ).toBe('"id" IN (42)');
+    });
   });
 
   describe("combineFilterClauses", () => {
@@ -143,6 +177,45 @@ describe("cellValueFilter", () => {
       expect(combineFilterClauses("  \"a\" = 1  ", added)).toBe(
         `("a" = 1) AND ${added}`,
       );
+    });
+  });
+
+  describe("parseClipboardInList", () => {
+    it("splits lines, ignores blank lines and a trailing newline, and trims", () => {
+      expect(
+        parseClipboardInList("  1 \n\n2\r\n3\n").values,
+      ).toEqual(["1", "2", "3"]);
+    });
+
+    it("deduplicates and keeps the first occurrence", () => {
+      const { values, truncated } = parseClipboardInList("a\nb\na\nb\n");
+      expect(values).toEqual(["a", "b"]);
+      expect(truncated).toBe(false);
+    });
+
+    it("returns an empty list for empty or whitespace-only text", () => {
+      expect(parseClipboardInList("").values).toEqual([]);
+      expect(parseClipboardInList("  \n \r\n").values).toEqual([]);
+    });
+
+    it("caps values at the limit and reports truncation", () => {
+      const text = Array.from(
+        { length: MAX_CLIPBOARD_FILTER_VALUES + 5 },
+        (_, i) => `v${i}`,
+      ).join("\n");
+      const { values, truncated } = parseClipboardInList(text);
+      expect(values).toHaveLength(MAX_CLIPBOARD_FILTER_VALUES);
+      expect(truncated).toBe(true);
+    });
+
+    it("does not count duplicates towards the cap", () => {
+      const text = Array.from(
+        { length: MAX_CLIPBOARD_FILTER_VALUES + 50 },
+        () => "same",
+      ).join("\n");
+      const { values, truncated } = parseClipboardInList(text);
+      expect(values).toEqual(["same"]);
+      expect(truncated).toBe(false);
     });
   });
 
