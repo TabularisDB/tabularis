@@ -7,6 +7,9 @@
 import type { DriverCapabilities } from "../types/plugins";
 import type { ForeignKey, Index } from "../types/schema";
 import type { DatabaseDriver } from "./connections";
+import { quoteIdentifier, quoteTableRef } from "./identifiers";
+import { toBindParamName } from "./queryParameters";
+import type { TableQueryTab } from "./tableQueryTemplates";
 
 export type { ForeignKey, Index, DatabaseDriver };
 
@@ -439,4 +442,43 @@ export function generateCreateTableSQL(
   }
 
   return lines.join('\n');
+}
+
+/**
+ * Generates the built-in SELECT / UPDATE / DELETE templates shown in the
+ * Generated SQL view (issue #1131). The table reference (schema-qualified when
+ * a schema is given) and every column name are quoted with the driver's
+ * identifier quote, like the CREATE TABLE output, so names containing `-`,
+ * spaces or reserved words produce valid SQL.
+ */
+export function generateTableQuerySQL(
+  kind: TableQueryTab,
+  tableName: string,
+  columnNames: string[],
+  driver: DriverCapabilities | DatabaseDriver,
+  schema?: string | null,
+): string {
+  const table = quoteTableRef(tableName, driver, schema);
+  switch (kind) {
+    case 'select-all':
+      return `SELECT *\nFROM ${table};`;
+    case 'select-fields': {
+      if (columnNames.length === 0) return `SELECT *\nFROM ${table}\nLIMIT 100;`;
+      const fields = columnNames
+        .map((name) => `  ${quoteIdentifier(name, driver)}`)
+        .join(',\n');
+      return `SELECT\n${fields}\nFROM ${table}\nLIMIT 100;`;
+    }
+    case 'update': {
+      if (columnNames.length === 0) {
+        return `UPDATE ${table}\nSET column = :column\nWHERE 1 = 0;`;
+      }
+      const setClauses = columnNames
+        .map((name) => `  ${quoteIdentifier(name, driver)} = :${toBindParamName(name)}`)
+        .join(',\n');
+      return `UPDATE ${table}\nSET\n${setClauses}\nWHERE 1 = 0;`;
+    }
+    case 'delete':
+      return `DELETE\nFROM ${table}\nWHERE 1 = 0;`;
+  }
 }

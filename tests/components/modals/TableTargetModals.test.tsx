@@ -196,6 +196,56 @@ describe("table target modals", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("should quote the schema-qualified table and columns in every generated tab", async () => {
+    invokeMock.mockImplementation(async (command) =>
+      command === "get_columns"
+        ? [
+            {
+              name: "item-id",
+              data_type: "INT",
+              is_pk: true,
+              is_nullable: false,
+              is_auto_increment: false,
+              default_value: null,
+            },
+          ]
+        : [],
+    );
+
+    render(
+      <MemoryRouter>
+        <GenerateSQLModal
+          isOpen
+          target={{
+            connectionId: "connection-b",
+            tableName: "order-items",
+            schema: "sales",
+          }}
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText(/CREATE TABLE "order-items"/)).toBeInTheDocument(),
+    );
+
+    const expected: Record<string, string> = {
+      "generateSQL.tabSelectAll": 'SELECT *\nFROM "sales"."order-items";',
+      "generateSQL.tabSelectFields":
+        'SELECT\n  "item-id"\nFROM "sales"."order-items"\nLIMIT 100;',
+      "generateSQL.tabUpdate":
+        'UPDATE "sales"."order-items"\nSET\n  "item-id" = :item_id\nWHERE 1 = 0;',
+      "generateSQL.tabDelete": 'DELETE\nFROM "sales"."order-items"\nWHERE 1 = 0;',
+    };
+    for (const [tabLabel, sql] of Object.entries(expected)) {
+      fireEvent.click(screen.getByRole("button", { name: tabLabel }));
+      expect(
+        screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent === sql),
+      ).toBeInTheDocument();
+    }
+  });
+
   it("should show an inline error when the connection dialect is unknown", () => {
     render(
       <MemoryRouter>

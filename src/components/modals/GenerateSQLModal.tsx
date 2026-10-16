@@ -11,11 +11,11 @@ import { SqlPreview } from "../ui/SqlPreview";
 import { useAlert } from "../../hooks/useAlert";
 import {
   generateCreateTableSQL,
+  generateTableQuerySQL,
   type TableColumn,
   type ForeignKey,
   type Index,
 } from "../../utils/sqlGenerator";
-import { toBindParamName } from "../../utils/queryParameters";
 import {
   loadTableQueryTemplates,
   type TableQueryTemplates,
@@ -163,28 +163,14 @@ export const GenerateSQLModal = ({
     if (currentTab !== "create" && templates[currentTab] != null) {
       return templates[currentTab];
     }
-    switch (currentTab) {
-      case "create":
-        return sql;
-      case "select-all":
-        return `SELECT *\nFROM ${tableName};`;
-      case "select-fields": {
-        if (columns.length === 0)
-          return `SELECT *\nFROM ${tableName}\nLIMIT 100;`;
-        const fields = columns.map((c) => `  ${c.name}`).join(",\n");
-        return `SELECT\n${fields}\nFROM ${tableName}\nLIMIT 100;`;
-      }
-      case "update": {
-        if (columns.length === 0)
-          return `UPDATE ${tableName}\nSET column = :column\nWHERE 1 = 0;`;
-        const setClauses = columns
-          .map((c) => `  ${c.name} = :${toBindParamName(c.name)}`)
-          .join(",\n");
-        return `UPDATE ${tableName}\nSET\n${setClauses}\nWHERE 1 = 0;`;
-      }
-      case "delete":
-        return `DELETE\nFROM ${tableName}\nWHERE 1 = 0;`;
-    }
+    if (currentTab === "create" || !dialect) return sql;
+    return generateTableQuerySQL(
+      currentTab,
+      tableName,
+      columns.map((c) => c.name),
+      dialect,
+      schema,
+    );
   };
 
   const displayedSql = getTabSql(tab);

@@ -6,6 +6,7 @@ import {
   generateForeignKeyConstraints,
   generateIndexStatements,
   generateCreateTableSQL,
+  generateTableQuerySQL,
   type TableColumn,
   type ForeignKey,
   type Index,
@@ -804,6 +805,131 @@ describe('sqlGenerator utils', () => {
       expect(result).not.toContain('AUTO_INCREMENT');
       expect(result).not.toContain('SERIAL');
       expect(result).not.toContain('AUTOINCREMENT');
+    });
+  });
+
+  describe('generateTableQuerySQL', () => {
+    const columns = ['id', 'user-name', 'order'];
+
+    describe('MySQL / MariaDB', () => {
+      it.each(['mysql', 'mariadb'] as DatabaseDriver[])(
+        'should quote the table and columns with backticks for %s',
+        (driver) => {
+          expect(generateTableQuerySQL('select-all', 'my-table', columns, driver)).toBe(
+            'SELECT *\nFROM `my-table`;',
+          );
+          expect(generateTableQuerySQL('select-fields', 'my-table', columns, driver)).toBe(
+            'SELECT\n  `id`,\n  `user-name`,\n  `order`\nFROM `my-table`\nLIMIT 100;',
+          );
+          expect(generateTableQuerySQL('update', 'my-table', columns, driver)).toBe(
+            'UPDATE `my-table`\nSET\n  `id` = :id,\n  `user-name` = :user_name,\n  `order` = :order\nWHERE 1 = 0;',
+          );
+          expect(generateTableQuerySQL('delete', 'my-table', columns, driver)).toBe(
+            'DELETE\nFROM `my-table`\nWHERE 1 = 0;',
+          );
+        },
+      );
+
+      it('should qualify the table with the schema (database) when one is given', () => {
+        expect(generateTableQuerySQL('select-all', 'my-table', [], 'mysql', 'shop-db')).toBe(
+          'SELECT *\nFROM `shop-db`.`my-table`;',
+        );
+      });
+
+      it('should use backticks from MySQL driver capabilities', () => {
+        const caps = makeCaps({ identifier_quote: '`', sql_dialect: 'mysql' });
+        expect(generateTableQuerySQL('delete', 'my-table', [], caps)).toBe(
+          'DELETE\nFROM `my-table`\nWHERE 1 = 0;',
+        );
+      });
+
+      it('should escape backticks inside identifiers', () => {
+        expect(generateTableQuerySQL('select-fields', 'a`b', ['c`d'], 'mysql')).toBe(
+          'SELECT\n  `c``d`\nFROM `a``b`\nLIMIT 100;',
+        );
+      });
+    });
+
+    describe('PostgreSQL', () => {
+      it('should quote a schema-qualified table and columns with double quotes', () => {
+        expect(generateTableQuerySQL('select-all', 'my-table', columns, 'postgres', 'public')).toBe(
+          'SELECT *\nFROM "public"."my-table";',
+        );
+        expect(generateTableQuerySQL('select-fields', 'my-table', columns, 'postgres', 'public')).toBe(
+          'SELECT\n  "id",\n  "user-name",\n  "order"\nFROM "public"."my-table"\nLIMIT 100;',
+        );
+        expect(generateTableQuerySQL('update', 'my-table', columns, 'postgres', 'public')).toBe(
+          'UPDATE "public"."my-table"\nSET\n  "id" = :id,\n  "user-name" = :user_name,\n  "order" = :order\nWHERE 1 = 0;',
+        );
+        expect(generateTableQuerySQL('delete', 'my-table', columns, 'postgres', 'public')).toBe(
+          'DELETE\nFROM "public"."my-table"\nWHERE 1 = 0;',
+        );
+      });
+
+      it('should quote a schema name that needs quoting', () => {
+        expect(generateTableQuerySQL('select-all', 'Orders', [], 'postgres', 'sales-2024')).toBe(
+          'SELECT *\nFROM "sales-2024"."Orders";',
+        );
+      });
+
+      it('should use double quotes from PostgreSQL driver capabilities', () => {
+        const caps = makeCaps({ identifier_quote: '"', sql_dialect: 'postgres', schemas: true });
+        expect(generateTableQuerySQL('select-fields', 'my-table', ['user-name'], caps, 'public')).toBe(
+          'SELECT\n  "user-name"\nFROM "public"."my-table"\nLIMIT 100;',
+        );
+      });
+
+      it('should escape double quotes inside identifiers', () => {
+        expect(generateTableQuerySQL('select-all', 'a"b', [], 'postgres', 's"x')).toBe(
+          'SELECT *\nFROM "s""x"."a""b";',
+        );
+      });
+    });
+
+    describe('SQLite', () => {
+      it('should quote the table and columns with double quotes and no schema', () => {
+        expect(generateTableQuerySQL('select-all', 'my-table', columns, 'sqlite')).toBe(
+          'SELECT *\nFROM "my-table";',
+        );
+        expect(generateTableQuerySQL('select-fields', 'my-table', columns, 'sqlite')).toBe(
+          'SELECT\n  "id",\n  "user-name",\n  "order"\nFROM "my-table"\nLIMIT 100;',
+        );
+        expect(generateTableQuerySQL('update', 'my-table', columns, 'sqlite')).toBe(
+          'UPDATE "my-table"\nSET\n  "id" = :id,\n  "user-name" = :user_name,\n  "order" = :order\nWHERE 1 = 0;',
+        );
+        expect(generateTableQuerySQL('delete', 'my-table', columns, 'sqlite')).toBe(
+          'DELETE\nFROM "my-table"\nWHERE 1 = 0;',
+        );
+      });
+
+      it('should ignore an empty schema', () => {
+        expect(generateTableQuerySQL('select-all', 'my-table', [], 'sqlite', '')).toBe(
+          'SELECT *\nFROM "my-table";',
+        );
+      });
+    });
+
+    it('should use the same table quoting as generateCreateTableSQL', () => {
+      const column: TableColumn = {
+        name: 'user-name', data_type: 'TEXT', is_pk: false, is_nullable: true,
+        is_auto_increment: false, default_value: null,
+      };
+      for (const driver of ['mysql', 'postgres', 'sqlite'] as DatabaseDriver[]) {
+        const create = generateCreateTableSQL('my-table', [column], [], [], driver);
+        const quotedTable = create.split('\n')[0].replace('CREATE TABLE ', '').replace(' (', '');
+        expect(generateTableQuerySQL('delete', 'my-table', [], driver)).toBe(
+          `DELETE\nFROM ${quotedTable}\nWHERE 1 = 0;`,
+        );
+      }
+    });
+
+    it('should keep the placeholder templates when no columns are known', () => {
+      expect(generateTableQuerySQL('select-fields', 'my-table', [], 'postgres')).toBe(
+        'SELECT *\nFROM "my-table"\nLIMIT 100;',
+      );
+      expect(generateTableQuerySQL('update', 'my-table', [], 'postgres')).toBe(
+        'UPDATE "my-table"\nSET column = :column\nWHERE 1 = 0;',
+      );
     });
   });
 });
