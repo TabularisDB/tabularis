@@ -314,6 +314,7 @@ Optionale Text-to-SQL- und Query-Erklärungsfunktionen mit:
 - Anthropic
 - MiniMax
 - OpenRouter
+- Requesty
 - Ollama
 - OpenAI-kompatiblen APIs
 

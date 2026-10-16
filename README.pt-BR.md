@@ -314,6 +314,7 @@ Text-to-SQL opcional e explicação de consultas com:
 - Anthropic
 - MiniMax
 - OpenRouter
+- Requesty
 - Ollama
 - APIs compatíveis com OpenAI
 

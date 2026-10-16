@@ -76,6 +76,7 @@ import {
   createDataGridResultCommands,
   type RangeExtendKey,
 } from "../../utils/dataGrid";
+import { isTypingTarget } from "../../utils/keyboardEvents";
 import { readText, writeHtml } from "@tauri-apps/plugin-clipboard-manager";
 import { getSortButtonAction } from "../../utils/tableToolbar";
 import { useSettings } from "../../hooks/useSettings";
@@ -2397,8 +2398,8 @@ export const DataGrid = React.memo(
         // sortable column headers) — Enter must still activate those.
         const target = e.target as HTMLElement;
         if (
-          target.isContentEditable ||
-          target.closest("input, textarea, select, button, [role='button']")
+          isTypingTarget(target) ||
+          Boolean(target.closest?.("button, [role='button']"))
         ) {
           return;
         }
@@ -2657,11 +2658,7 @@ export const DataGrid = React.memo(
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
         const keyTarget = e.target as HTMLElement | null;
-        const isEditableTarget =
-          keyTarget instanceof HTMLInputElement ||
-          keyTarget instanceof HTMLTextAreaElement ||
-          keyTarget instanceof HTMLSelectElement ||
-          keyTarget?.isContentEditable === true;
+        const isEditableTarget = isTypingTarget(keyTarget);
 
         // CMD/CTRL + C
         if ((e.metaKey || e.ctrlKey) && e.key === "c") {
