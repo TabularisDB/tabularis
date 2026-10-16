@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { useDangerousQueryGuard } from '../../src/hooks/useDangerousQueryGuard';
+import { splitQueries } from '../../src/utils/sqlSplitter';
 
 describe('useDangerousQueryGuard', () => {
   it('resolves immediately without opening a dialog for a safe query', async () => {
@@ -136,5 +137,17 @@ describe('useDangerousQueryGuard', () => {
       result.current.resolve(true);
     });
     expect(await firstPromise).toBe(true);
+  });
+
+  // Editor guards each statement of a T-SQL batch, not the batch as one string.
+  it.each([
+    'SELECT * FROM a; DELETE FROM users;',
+    'DELETE FROM users; SELECT * FROM a WHERE id = 1;',
+  ])('flags a DELETE without WHERE inside a T-SQL batch: %s', (sql) => {
+    const { result } = renderHook(() => useDangerousQueryGuard());
+    act(() => {
+      result.current.guardQuery(splitQueries(sql, 'mssql'));
+    });
+    expect(result.current.pending).toMatchObject({ kind: 'no-where', count: 1 });
   });
 });

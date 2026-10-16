@@ -26,7 +26,14 @@ fn escape_identifier(name: &str) -> String {
 fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<TableColumn> {
     let pk: i32 = row.try_get("pk").unwrap_or(0);
     let notnull: i32 = row.try_get("notnull").unwrap_or(0);
-    let dflt_value: Option<String> = row.try_get("dflt_value").ok();
+    // PRAGMA table_xinfo returns NULL for a column without a default, but it
+    // reaches us as an empty string. A real `DEFAULT ''` is reported quoted
+    // (`''`), so an empty value always means "no default".
+    let dflt_value: Option<String> = row
+        .try_get::<Option<String>, _>("dflt_value")
+        .ok()
+        .flatten()
+        .filter(|value| !value.is_empty());
     let hidden: i32 = row.try_get("hidden").unwrap_or(0);
     if hidden == 1 {
         return None;
@@ -41,6 +48,8 @@ fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<TableColumn> 
         is_generated: hidden == 2 || hidden == 3,
         default_value: dflt_value,
         character_maximum_length: None,
+        numeric_precision: None,
+        numeric_scale: None,
         comment: None,
     })
 }
@@ -95,9 +104,10 @@ pub async fn get_columns(
 ) -> Result<Vec<TableColumn>, String> {
     let pool = get_sqlite_pool(params).await?;
 
-    let query = format!("PRAGMA table_xinfo('{}')", table_name);
-
-    let rows = sqlx::query(&query)
+    // Table-valued PRAGMAs accept bound names, including quotes and semicolons,
+    // without allowing them to become additional SQL statements.
+    let rows = sqlx::query("SELECT * FROM pragma_table_xinfo(?1)")
+        .bind(table_name)
         .fetch_all(&pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -131,8 +141,8 @@ pub async fn get_foreign_keys(
 ) -> Result<Vec<ForeignKey>, String> {
     let pool = get_sqlite_pool(params).await?;
 
-    let query = format!("PRAGMA foreign_key_list('{}')", table_name);
-    let rows = sqlx::query(&query)
+    let rows = sqlx::query("SELECT * FROM pragma_foreign_key_list(?1)")
+        .bind(table_name)
         .fetch_all(&pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -142,6 +152,9 @@ pub async fn get_foreign_keys(
         .iter()
         .map(|r| {
             let id: i32 = r.try_get("id").unwrap_or(0);
+            // PRAGMA foreign_key_list "seq" is 0-based position within the FK;
+            // store it 1-based to match the postgres/mysql ordinal convention (#840).
+            let seq: i32 = r.try_get("seq").unwrap_or(0);
             ForeignKey {
                 name: format!(
                     "fk_{}_{}",
@@ -153,6 +166,7 @@ pub async fn get_foreign_keys(
                 ref_column: r.try_get("to").unwrap_or_default(),
                 on_update: r.try_get("on_update").ok(),
                 on_delete: r.try_get("on_delete").ok(),
+                seq_in_fk: Some(seq + 1),
             }
         })
         .collect())
@@ -168,8 +182,8 @@ pub async fn get_all_columns_batch(
     let mut result: HashMap<String, Vec<TableColumn>> = HashMap::new();
 
     for table_name in table_names {
-        let query = format!("PRAGMA table_xinfo('{}')", table_name);
-        let rows = sqlx::query(&query)
+        let rows = sqlx::query("SELECT * FROM pragma_table_xinfo(?1)")
+            .bind(table_name)
             .fetch_all(&pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -192,8 +206,8 @@ pub async fn get_all_foreign_keys_batch(
     let mut result: HashMap<String, Vec<ForeignKey>> = HashMap::new();
 
     for table_name in table_names {
-        let query = format!("PRAGMA foreign_key_list('{}')", table_name);
-        let rows = sqlx::query(&query)
+        let rows = sqlx::query("SELECT * FROM pragma_foreign_key_list(?1)")
+            .bind(table_name)
             .fetch_all(&pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -202,6 +216,7 @@ pub async fn get_all_foreign_keys_batch(
             .iter()
             .map(|r| {
                 let id: i32 = r.try_get("id").unwrap_or(0);
+                let seq: i32 = r.try_get("seq").unwrap_or(0);
                 ForeignKey {
                     name: format!(
                         "fk_{}_{}",
@@ -213,6 +228,7 @@ pub async fn get_all_foreign_keys_batch(
                     ref_column: r.try_get("to").unwrap_or_default(),
                     on_update: r.try_get("on_update").ok(),
                     on_delete: r.try_get("on_delete").ok(),
+                    seq_in_fk: Some(seq + 1),
                 }
             })
             .collect();
@@ -231,8 +247,8 @@ pub async fn get_indexes(
 
     use std::collections::HashMap;
 
-    let list_query = format!("PRAGMA index_list('{}')", table_name);
-    let indexes = sqlx::query(&list_query)
+    let indexes = sqlx::query("SELECT * FROM pragma_index_list(?1)")
+        .bind(table_name)
         .fetch_all(&pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -260,8 +276,8 @@ pub async fn get_indexes(
         let unique: i32 = idx_row.try_get("unique").unwrap_or(0);
         let origin: String = idx_row.try_get("origin").unwrap_or_default(); // pk for primary key
 
-        let info_query = format!("PRAGMA index_info('{}')", name);
-        let info_rows = sqlx::query(&info_query)
+        let info_rows = sqlx::query("SELECT * FROM pragma_index_info(?1)")
+            .bind(&name)
             .fetch_all(&pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -650,6 +666,8 @@ async fn exec_on_sqlite_conn(
             truncated: false,
             pagination: None,
             additional_results: None,
+            server_time_ms: None,
+            fetch_time_ms: None,
         });
     }
 
@@ -676,6 +694,8 @@ async fn exec_on_sqlite_conn(
     }
 
     // Streaming
+    let start_instant = std::time::Instant::now();
+    let mut server_time_ms: Option<f64> = None;
     let mut rows_stream = sqlx::query(&final_query).fetch(&mut *conn);
 
     let mut columns: Vec<String> = Vec::new();
@@ -685,6 +705,9 @@ async fn exec_on_sqlite_conn(
     use futures::stream::StreamExt;
 
     while let Some(result) = rows_stream.next().await {
+        if server_time_ms.is_none() {
+            server_time_ms = Some(start_instant.elapsed().as_secs_f64() * 1000.0);
+        }
         match result {
             Ok(row) => {
                 if columns.is_empty() {
@@ -709,6 +732,9 @@ async fn exec_on_sqlite_conn(
         }
     }
 
+    let (server_time, fetch_time) =
+        crate::drivers::common::calculate_query_timing_from_start(start_instant, server_time_ms);
+
     // Apply LIMIT +1 result: if we got page_size+1 rows, has_more=true
     if let Some(ref mut p) = pagination {
         let has_more = json_rows.len() > p.page_size as usize;
@@ -726,6 +752,8 @@ async fn exec_on_sqlite_conn(
         truncated,
         pagination,
         additional_results: None,
+        server_time_ms: server_time,
+        fetch_time_ms: fetch_time,
     })
 }
 
@@ -738,6 +766,38 @@ pub async fn execute_query(
     let pool = get_sqlite_pool(params).await?;
     let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
     exec_on_sqlite_conn(&mut *conn, query, limit, page).await
+}
+
+/// Runs one statement with `PRAGMA query_only` on, inside a transaction that
+/// is always rolled back, so SQLite rejects any write the statement attempts.
+///
+/// The connection goes back to the pool only once the transaction is closed
+/// and `query_only` is off again; otherwise it is closed.
+pub async fn execute_read_only_query(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+) -> Result<QueryResult, String> {
+    use sqlx::Executor as _;
+    let pool = get_sqlite_pool(params).await?;
+    let mut guard =
+        crate::drivers::common::DetachOnDrop::new(pool.acquire().await.map_err(|e| e.to_string())?);
+    guard
+        .conn()
+        .execute(sqlx::raw_sql("PRAGMA query_only = ON; BEGIN"))
+        .await
+        .map_err(|e| e.to_string())?;
+    let outcome = exec_on_sqlite_conn(guard.conn(), query, limit, page).await;
+    match guard
+        .conn()
+        .execute(sqlx::raw_sql("ROLLBACK; PRAGMA query_only = OFF"))
+        .await
+    {
+        Ok(_) => guard.release(),
+        Err(e) => log::warn!("SQLite: resetting after a read-only query failed: {e}"),
+    }
+    outcome
 }
 
 /// Runs a sequence of statements on a single pooled connection so
@@ -855,9 +915,8 @@ pub async fn get_view_columns(
 ) -> Result<Vec<TableColumn>, String> {
     let pool = get_sqlite_pool(params).await?;
 
-    let query = format!("PRAGMA table_xinfo('{}')", view_name);
-
-    let rows = sqlx::query(&query)
+    let rows = sqlx::query("SELECT * FROM pragma_table_xinfo(?1)")
+        .bind(view_name)
         .fetch_all(&pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -992,6 +1051,7 @@ impl SqliteDriver {
                     folder_based: false,
                     connection_string: false,
                     connection_string_example: String::new(),
+                    connection_string_examples: Vec::new(),
                     connection_uri: false,
                     connection_uri_schemes: Vec::new(),
                     identifier_quote: "\"".into(),
@@ -999,6 +1059,7 @@ impl SqliteDriver {
                     auto_increment_keyword: "AUTOINCREMENT".into(),
                     serial_type: String::new(),
                     inline_pk: true,
+                    table_query_templates: false,
                     alter_column: false,
                     create_foreign_keys: false,
                     no_connection_required: false,
@@ -1196,6 +1257,8 @@ impl DatabaseDriver for SqliteDriver {
         params: &crate::models::ConnectionParams,
         routine_name: &str,
         _schema: Option<&str>,
+        /* SQLite has no stored routines at all, let alone overloaded ones */
+        _identity_args: Option<&str>,
     ) -> Result<Vec<crate::models::RoutineParameter>, String> {
         get_routine_parameters(params, routine_name).await
     }
@@ -1206,6 +1269,7 @@ impl DatabaseDriver for SqliteDriver {
         routine_name: &str,
         routine_type: &str,
         _schema: Option<&str>,
+        _identity_args: Option<&str>,
     ) -> Result<String, String> {
         get_routine_definition(params, routine_name, routine_type).await
     }
@@ -1256,6 +1320,17 @@ impl DatabaseDriver for SqliteDriver {
         _schema: Option<&str>,
     ) -> Result<crate::models::QueryResult, String> {
         execute_query(params, query, limit, page).await
+    }
+
+    async fn execute_read_only_query(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        _schema: Option<&str>,
+    ) -> Result<crate::models::QueryResult, String> {
+        execute_read_only_query(params, query, limit, page).await
     }
 
     async fn execute_batch(
@@ -1449,6 +1524,15 @@ impl DatabaseDriver for SqliteDriver {
         _schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
         Err("SQLite does not support adding foreign keys to existing tables. Foreign keys must be defined at table creation time.".into())
+    }
+
+    async fn get_table_ddl(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_table_ddl(params, table).await
     }
 
     async fn drop_index(

@@ -1,3 +1,4 @@
+pub mod call_timeout;
 pub mod commands;
 pub mod compat; // COMPAT(registry-ga): remove with the BC layer
 pub mod connection_metadata;
@@ -16,6 +17,7 @@ pub mod registry;
 mod registry_kind;
 pub mod rpc;
 pub mod runtime_version;
+pub mod shutdown_grace;
 pub mod tabularium;
 
 #[cfg(test)]

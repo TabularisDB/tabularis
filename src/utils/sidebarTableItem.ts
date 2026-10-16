@@ -26,6 +26,12 @@ export interface TableItemComparableProps {
   canManage?: boolean;
   schemaVersion: number;
   schema?: string;
+  /** Scopes the column/foreign-key/index fetches to a non-primary database
+   * in a nested multi-db tree (see SidebarNestedDatabaseItem). Must be
+   * compared for the same reason as `capabilities` above — otherwise a
+   * database-only prop change would be silently skipped by memo and the
+   * item would keep fetching metadata for the wrong database. */
+  database?: string;
 }
 
 /**
@@ -52,7 +58,8 @@ export function areTableItemPropsEqual(
     prev.capabilities === next.capabilities &&
     prev.canManage === next.canManage &&
     prev.schemaVersion === next.schemaVersion &&
-    prev.schema === next.schema
+    prev.schema === next.schema &&
+    prev.database === next.database
   );
 }
 

@@ -1,1 +1,1 @@
-"Failed to get materialized view definition: error serializing parameter 0"
+"CREATE MATERIALIZED VIEW \"test_schema\".\"user_stats\" AS\n SELECT count(*) AS total,\n    max(id) AS max_id\n   FROM test_schema.all_types;"

@@ -22,7 +22,7 @@ mod tests;
 
 pub use client::maybe_run_askpass_client;
 pub use protocol::PromptKind;
-pub use server::{AskpassServer, AskpassUi};
+pub use server::{AskpassOptions, AskpassServer, AskpassUi};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -59,13 +59,20 @@ pub fn set_app_handle(app: AppHandle) {
 }
 
 /// Start an askpass server bridged to the frontend. Fails when the app is not
-/// fully initialised (e.g. in unit tests), letting callers fall back to the
-/// system askpass behaviour.
+/// fully initialised (e.g. in unit tests). Callers must not then force OpenSSH
+/// to run its compiled-in askpass path: on macOS that is
+/// `/usr/X11R6/bin/ssh-askpass`, which is not installed.
 pub fn start_frontend_server() -> Result<AskpassServer, String> {
+    start_frontend_server_with(AskpassOptions::interactive())
+}
+
+/// Like [`start_frontend_server`], with stored credentials that answer matching
+/// prompts without opening the modal.
+pub fn start_frontend_server_with(options: AskpassOptions) -> Result<AskpassServer, String> {
     let app = APP_HANDLE
         .get()
         .ok_or_else(|| "Askpass UI unavailable: application not initialised".to_string())?;
-    AskpassServer::start(Arc::new(FrontendUi { app: app.clone() }))
+    AskpassServer::start_with(Arc::new(FrontendUi { app: app.clone() }), options)
 }
 
 #[derive(Serialize, Clone)]

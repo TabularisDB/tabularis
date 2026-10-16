@@ -3,9 +3,13 @@ use super::*;
 fn process_with_settings() -> (Arc<PluginProcess>, mpsc::Receiver<PluginCommand>) {
     let (sender, receiver) = mpsc::channel(8);
     let process = PluginProcess {
+        plugin_id: "test-plugin".to_string(),
+        route_selected_database: false,
         sender,
         next_id: AtomicU64::new(1),
+        accepting_calls: std::sync::atomic::AtomicBool::new(true),
         shutdown_tx: tokio::sync::Mutex::new(None),
+        manager_task: tokio::sync::Mutex::new(None),
         pid: None,
         initialization_settings: Some(HashMap::from([("region".into(), json!("eu"))])),
         initialized: OnceCell::new(),

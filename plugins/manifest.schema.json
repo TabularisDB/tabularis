@@ -133,6 +133,24 @@
           "default": "",
           "description": "CamelCase alias of connection_string_example."
         },
+        "connection_string_examples": {
+          "type": "array",
+          "description": "Optional connection string presets shown in the connection form.",
+          "items": {
+            "type": "object",
+            "required": ["label", "value"],
+            "properties": {
+              "label": { "type": "string", "minLength": 1 },
+              "value": { "type": "string", "minLength": 1 },
+              "description": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "connectionStringExamples": {
+          "$ref": "#/properties/capabilities/properties/connection_string_examples",
+          "description": "CamelCase alias of connection_string_examples."
+        },
         "identifier_quote": {
           "type": "string",
           "enum": ["\"", "`"],
@@ -162,6 +180,11 @@
           "type": "boolean",
           "default": false,
           "description": "true if primary key is defined inline in the column definition (e.g. SQLite AUTOINCREMENT style)."
+        },
+        "table_query_templates": {
+          "type": "boolean",
+          "default": false,
+          "description": "Generate SQL SELECT/UPDATE/DELETE previews through the optional get_table_query_template RPC."
         },
         "alter_column": {
           "type": "boolean",

@@ -4,8 +4,11 @@ import type {
   CommandPaletteMode,
 } from "../types/commands";
 
+import type { ShortcutFocusContext } from "../utils/keyboardEvents";
+
 export interface CommandPaletteStateContextType {
   activePalette: CommandPaletteMode | null;
+  focusContext: ShortcutFocusContext | null;
 }
 
 export interface CommandPaletteDispatchContextType {

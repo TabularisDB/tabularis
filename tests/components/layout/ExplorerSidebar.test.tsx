@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
 import { ExplorerSidebar } from "../../../src/components/layout/ExplorerSidebar";
 import { useDatabase } from "../../../src/hooks/useDatabase";
 import { useSavedQueries } from "../../../src/hooks/useSavedQueries";
@@ -10,8 +11,10 @@ import { useDrivers } from "../../../src/hooks/useDrivers";
 import { useEditor } from "../../../src/hooks/useEditor";
 import { useSettings } from "../../../src/hooks/useSettings";
 import { useDatabaseObjectNavigation } from "../../../src/hooks/useDatabaseObjectNavigation";
+import { openEditor } from "../../../src/utils/editorNavigation";
 
 const translateMock = vi.hoisted(() => (key: string) => key);
+const toastSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: translateMock }),
@@ -21,6 +24,9 @@ vi.mock("../../../src/hooks/useDatabase", () => ({ useDatabase: vi.fn() }));
 vi.mock("../../../src/hooks/useSavedQueries", () => ({ useSavedQueries: vi.fn() }));
 vi.mock("../../../src/hooks/useQueryHistory", () => ({ useQueryHistory: vi.fn() }));
 vi.mock("../../../src/hooks/useAlert", () => ({ useAlert: vi.fn() }));
+vi.mock("../../../src/hooks/useToast", () => ({
+  useToast: () => ({ showToast: toastSpy }),
+}));
 vi.mock("../../../src/hooks/useConnectionLayoutContext", () => ({ useConnectionLayoutContext: vi.fn() }));
 vi.mock("../../../src/hooks/useDrivers", () => ({ useDrivers: vi.fn() }));
 vi.mock("../../../src/hooks/useEditor", () => ({ useEditor: vi.fn() }));
@@ -41,6 +47,40 @@ vi.mock("../../../src/utils/notebookStore", async (importOriginal) => {
     ),
   };
 });
+vi.mock("../../../src/utils/editorNavigation", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("../../../src/utils/editorNavigation")
+    >();
+  return { ...actual, openEditor: vi.fn() };
+});
+
+// Stand-in for the parameter dialog: submitting hands the generated SQL to the sidebar's onRun.
+vi.mock("../../../src/components/modals/RunRoutineModal", () => ({
+  RunRoutineModal: ({ onRun }: { onRun: (sql: string) => void }) => (
+    <button onClick={() => onRun("SELECT refresh_orders()")}>run-routine-modal</button>
+  ),
+}));
+
+// Stand-in for the import dialog: it shows the schema it targets, one button reports a
+// finished import and the other closes the dialog.
+vi.mock("../../../src/components/modals/ClipboardImportModal", () => ({
+  ClipboardImportModal: ({
+    schema,
+    onSuccess,
+    onClose,
+  }: {
+    schema?: string;
+    onSuccess: () => void;
+    onClose: () => void;
+  }) => (
+    <>
+      <span>{`clipboard-import-schema:${schema ?? "active"}`}</span>
+      <button onClick={onSuccess}>clipboard-import-success</button>
+      <button onClick={onClose}>clipboard-import-close</button>
+    </>
+  ),
+}));
 
 // ExplorerSidebar pulls in many lucide icons; use the real module so every icon resolves
 // (the global setup mock only stubs a fixed subset).
@@ -333,7 +373,7 @@ describe("ExplorerSidebar — database object navigation", () => {
   it("context menu — show data opens the table", () => {
     openContextMenuOn("orders");
     fireEvent.click(screen.getByText("sidebar.showData"));
-    expect(objectNavigation.open).toHaveBeenCalledWith("orders", undefined);
+    expect(objectNavigation.open).toHaveBeenCalledWith("orders", undefined, undefined, undefined);
   });
 
   it("context menu — new console opens a console for the table", () => {
@@ -342,13 +382,277 @@ describe("ExplorerSidebar — database object navigation", () => {
     expect(objectNavigation.newConsole).toHaveBeenCalledWith(
       "orders",
       undefined,
+      undefined,
     );
   });
 
   it("context menu — count rows counts the table", () => {
     openContextMenuOn("orders");
     fireEvent.click(screen.getByText("sidebar.countRows"));
-    expect(objectNavigation.count).toHaveBeenCalledWith("orders", undefined);
+    expect(objectNavigation.count).toHaveBeenCalledWith("orders", undefined, undefined, undefined);
+  });
+
+  it("context menu — show definition opens the view DDL in a read-only tab", async () => {
+    const ddl = "CREATE OR REPLACE VIEW active_orders AS SELECT 1";
+    vi.mocked(invoke).mockResolvedValue(ddl);
+    openContextMenuOn("active_orders");
+    fireEvent.click(screen.getByText("sidebar.showDefinition"));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("get_view_definition", {
+        connectionId: "c1",
+        viewName: "active_orders",
+      });
+    });
+    expect(objectNavigation.openDefinition).toHaveBeenCalledWith(
+      ddl,
+      "active_orders Definition",
+      undefined,
+      true,
+    );
+  });
+
+  it("context menu — copy DDL copies the view definition and shows feedback", async () => {
+    const showAlert = vi.fn();
+    vi.mocked(useAlert).mockReturnValue({
+      showAlert,
+    } as unknown as ReturnType<typeof useAlert>);
+    const ddl = "CREATE VIEW active_orders AS SELECT 1";
+    vi.mocked(invoke).mockResolvedValue(ddl);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    openContextMenuOn("active_orders");
+    await act(async () => {
+      fireEvent.click(screen.getByText("sidebar.copyDdl"));
+    });
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(ddl);
+    });
+    expect(showAlert).toHaveBeenCalledWith("common.copied", { kind: "info" });
+  });
+
+  it("does not list views when the driver does not support them", () => {
+    vi.mocked(useDatabase).mockReturnValue({
+      ...databaseState,
+      activeCapabilities: { views: false, routines: true, triggers: true },
+      views: [{ name: "active_orders" }],
+    } as unknown as ReturnType<typeof useDatabase>);
+    renderSidebar();
+    expect(screen.queryByText("active_orders")).not.toBeInTheDocument();
+  });
+
+  const renderMaterializedView = (capabilities: Record<string, unknown>) => {
+    vi.mocked(useDatabase).mockReturnValue({
+      ...databaseState,
+      activeCapabilities: { schemas: true, ...capabilities },
+      activeSchema: "public",
+      schemas: ["public", "sales"],
+      selectedSchemas: ["sales"],
+      schemaDataMap: {
+        sales: {
+          tables: [],
+          views: [],
+          materializedViews: [{ name: "daily_totals" }],
+          routines: [],
+          triggers: [],
+          isLoaded: true,
+          isLoading: false,
+        },
+      },
+    } as unknown as ReturnType<typeof useDatabase>);
+    renderSidebar();
+    fireEvent.click(screen.getByText("sales"));
+    fireEvent.click(screen.getByText("sidebar.materializedViews (1)"));
+    fireEvent.contextMenu(screen.getByText("daily_totals"));
+  };
+
+  it("context menu — materialized view hides definition items when materialized_views is unset", () => {
+    renderMaterializedView({});
+    expect(screen.getByText("sidebar.refreshMaterializedView")).toBeInTheDocument();
+    expect(screen.queryByText("sidebar.showDefinition")).not.toBeInTheDocument();
+    expect(screen.queryByText("sidebar.copyDdl")).not.toBeInTheDocument();
+  });
+
+  it("context menu — copy DDL on a materialized view fetches its definition with the schema", async () => {
+    const ddl = "CREATE MATERIALIZED VIEW sales.daily_totals AS SELECT 1";
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === "get_materialized_view_definition" ? ddl : [],
+    );
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    renderMaterializedView({ materialized_views: true });
+    await act(async () => {
+      fireEvent.click(screen.getByText("sidebar.copyDdl"));
+    });
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(ddl);
+    });
+    expect(invoke).toHaveBeenCalledWith("get_materialized_view_definition", {
+      connectionId: "c1",
+      viewName: "daily_totals",
+      schema: "sales",
+    });
+  });
+
+  it("context menu — run routine opens the call for review without executing it", () => {
+    vi.mocked(useDatabase).mockReturnValue({
+      ...databaseState,
+      activeCapabilities: { ...databaseState.activeCapabilities, routine_management: true },
+    } as unknown as ReturnType<typeof useDatabase>);
+    renderSidebar();
+    fireEvent.click(screen.getByText("sidebar.routines (1)"));
+    fireEvent.contextMenu(screen.getByText("refresh_orders"));
+    fireEvent.click(screen.getByText("routines.menuRun"));
+    fireEvent.click(screen.getByText("run-routine-modal"));
+
+    expect(openEditor).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        kind: "console",
+        initialQuery: "SELECT refresh_orders()",
+        preventAutoRun: true,
+      }),
+    );
+  });
+
+  it("schema layout — New routine targets the schema it was opened from, not the active one", async () => {
+    vi.mocked(useDatabase).mockReturnValue({
+      ...databaseState,
+      activeCapabilities: { schemas: true, routines: true, routine_management: true },
+      activeSchema: "public",
+      schemas: ["public", "sales"],
+      selectedSchemas: ["sales"],
+      schemaDataMap: {
+        sales: { tables: [], views: [], routines: [], triggers: [], isLoaded: true, isLoading: false },
+      },
+    } as unknown as ReturnType<typeof useDatabase>);
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === "get_routine_create_template" ? "CREATE PROCEDURE sales.my_procedure()" : undefined,
+    );
+    renderSidebar();
+
+    fireEvent.click(screen.getByText("sales"));
+    fireEvent.click(screen.getByTitle("routines.newRoutine"));
+    fireEvent.click(screen.getByText("routines.newProcedure"));
+
+    await waitFor(() =>
+      expect(openEditor).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          initialQuery: "CREATE PROCEDURE sales.my_procedure()",
+          schema: "sales",
+        }),
+      ),
+    );
+    expect(invoke).toHaveBeenCalledWith("get_routine_create_template", {
+      connectionId: "c1",
+      routineType: "PROCEDURE",
+      schema: "sales",
+    });
+  });
+
+  describe("Import from Clipboard", () => {
+    const refreshTables = vi.fn();
+    const refreshSchemaData = vi.fn();
+    const refreshDatabaseData = vi.fn();
+
+    const importFromClipboard = (state: Record<string, unknown>) => {
+      vi.mocked(useDatabase).mockReturnValue({
+        ...databaseState,
+        refreshTables,
+        refreshSchemaData,
+        refreshDatabaseData,
+        ...state,
+      } as unknown as ReturnType<typeof useDatabase>);
+      renderSidebar();
+      act(() => {
+        window.dispatchEvent(new Event("tabularis:paste-import"));
+      });
+      // Count only the refreshes the finished import triggers.
+      for (const refresh of [refreshTables, refreshSchemaData, refreshDatabaseData]) refresh.mockClear();
+      fireEvent.click(screen.getByText("clipboard-import-success"));
+    };
+
+    it("refreshes the active schema in the schema layout", async () => {
+      importFromClipboard({
+        activeCapabilities: { schemas: true },
+        activeSchema: "public",
+        schemas: ["public", "sales"],
+      });
+
+      expect(screen.getByText("clipboard-import-schema:active")).toBeInTheDocument();
+      await waitFor(() => expect(refreshSchemaData).toHaveBeenCalledWith("public"));
+      expect(refreshTables).not.toHaveBeenCalled();
+    });
+
+    it("imports into the schema of the table it was opened from", async () => {
+      vi.mocked(useDatabase).mockReturnValue({
+        ...databaseState,
+        refreshTables,
+        refreshSchemaData,
+        refreshDatabaseData,
+        activeCapabilities: { schemas: true },
+        activeSchema: "public",
+        schemas: ["public", "sales"],
+        selectedSchemas: ["sales"],
+        schemaDataMap: {
+          sales: {
+            tables: [{ name: "sales_orders" }],
+            views: [],
+            routines: [],
+            triggers: [],
+            isLoaded: true,
+            isLoading: false,
+          },
+        },
+      } as unknown as ReturnType<typeof useDatabase>);
+      renderSidebar();
+
+      fireEvent.click(screen.getByText("sales"));
+      fireEvent.contextMenu(screen.getByText("sales_orders"));
+      fireEvent.click(screen.getByText("clipboardImport.contextMenuLabel"));
+      expect(screen.getByText("clipboard-import-schema:sales")).toBeInTheDocument();
+
+      for (const refresh of [refreshTables, refreshSchemaData, refreshDatabaseData]) refresh.mockClear();
+      fireEvent.click(screen.getByText("clipboard-import-success"));
+      await waitFor(() => expect(refreshSchemaData).toHaveBeenCalledWith("sales"));
+      expect(refreshSchemaData).not.toHaveBeenCalledWith("public");
+    });
+
+    it("refreshes the active database in the multi-database layout", async () => {
+      importFromClipboard({
+        activeDriver: "mysql",
+        activeCapabilities: { schemas: false, file_based: false },
+        activeSchema: "tabularis_demo",
+        selectedDatabases: ["tabularis_demo", "analytics"],
+        loadDatabaseData: vi.fn(),
+      });
+
+      await waitFor(() => expect(refreshDatabaseData).toHaveBeenCalledWith("tabularis_demo"));
+      expect(refreshTables).not.toHaveBeenCalled();
+    });
+
+    it("refreshes the table list in the flat layout", async () => {
+      importFromClipboard({});
+
+      await waitFor(() => expect(refreshTables).toHaveBeenCalledTimes(1));
+    });
+
+    it("keeps the dialog on its success message until it is closed", () => {
+      importFromClipboard({});
+
+      expect(screen.getByText("clipboard-import-success")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("clipboard-import-close"));
+      expect(screen.queryByText("clipboard-import-success")).not.toBeInTheDocument();
+    });
   });
 
   it("disables table actions that require an active connection", () => {
@@ -482,5 +786,194 @@ describe("ExplorerSidebar — capabilities threading (issue #614)", () => {
     expect(sidebarItemMocks.sidebarViewItemProps[0].capabilities).toBe(
       databaseState.activeCapabilities,
     );
+  });
+});
+
+describe("ExplorerSidebar — saved query actions", () => {
+  const sql = "DELETE FROM audit_log WHERE archived = true";
+  const savedQuery = {
+    id: "q1",
+    name: "Cleanup",
+    sql,
+    connection_id: "c1",
+    database: "analytics",
+    created_at: null,
+    updated_at: null,
+  };
+  const saveQuery = vi.fn();
+  const writeText = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    saveQuery.mockReset().mockResolvedValue(undefined);
+    writeText.mockReset().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    vi.mocked(useDatabase).mockReturnValue({
+      activeConnectionId: "c1",
+      activeDriver: "postgres",
+      activeCapabilities: { schemas: false },
+      activeTable: null,
+      tables: [],
+      views: [],
+      routines: [],
+      triggers: [],
+      schemas: [],
+      connectionDataMap: { c1: {} },
+      schemaDataMap: {},
+      databaseDataMap: {},
+      selectedSchemas: [],
+      selectedDatabases: [],
+      connections: [],
+      isLoadingTables: false,
+      isLoadingSchemas: false,
+    } as unknown as ReturnType<typeof useDatabase>);
+    vi.mocked(useSavedQueries).mockReturnValue({
+      queries: [savedQuery],
+      saveQuery,
+      deleteQuery: vi.fn(),
+      updateQuery: vi.fn(),
+    } as unknown as ReturnType<typeof useSavedQueries>);
+    vi.mocked(useQueryHistory).mockReturnValue({
+      entries: [],
+      isLoading: false,
+      deleteEntry: vi.fn(),
+      clearHistory: vi.fn(),
+      recoveryNotice: null,
+      dismissRecoveryNotice: vi.fn(),
+    } as unknown as ReturnType<typeof useQueryHistory>);
+    vi.mocked(useAlert).mockReturnValue({
+      showAlert: vi.fn(),
+    } as unknown as ReturnType<typeof useAlert>);
+    vi.mocked(useDrivers).mockReturnValue({
+      allDrivers: [],
+    } as unknown as ReturnType<typeof useDrivers>);
+    vi.mocked(useEditor).mockReturnValue({
+      tabs: [],
+      openNotebook: vi.fn(),
+      updateTab: vi.fn(),
+      closeTab: vi.fn(),
+      addTab: vi.fn(),
+      setActiveTabId: vi.fn(),
+    } as unknown as ReturnType<typeof useEditor>);
+    vi.mocked(useSettings).mockReturnValue({
+      settings: { displayTimezone: "auto" },
+    } as unknown as ReturnType<typeof useSettings>);
+    vi.mocked(useConnectionLayoutContext).mockReturnValue({
+      splitView: { connectionIds: [] },
+      isSplitVisible: false,
+      explorerConnectionId: null,
+      setExplorerConnectionId: vi.fn(),
+    } as unknown as ReturnType<typeof useConnectionLayoutContext>);
+    vi.mocked(useDatabaseObjectNavigation).mockReturnValue({
+      open: vi.fn(),
+      count: vi.fn(),
+      newConsole: vi.fn(),
+      openRoutineDefinition: vi.fn(),
+      openTriggerDefinition: vi.fn(),
+      openDefinition: vi.fn(),
+    } as unknown as ReturnType<typeof useDatabaseObjectNavigation>);
+  });
+
+  const renderFavorites = () => {
+    render(
+      <ExplorerSidebar
+        sidebarWidth={280}
+        startResize={vi.fn()}
+        onCollapse={vi.fn()}
+        sidebarTab="favorites"
+        onSidebarTabChange={vi.fn()}
+      />,
+    );
+  };
+
+  const openSavedQueryMenu = () => {
+    renderFavorites();
+    fireEvent.contextMenu(screen.getByText("Cleanup"));
+  };
+
+  it("opens saved SQL for editing without running it and keeps its database", () => {
+    openSavedQueryMenu();
+    fireEvent.click(screen.getByText("sidebar.openInEditor"));
+
+    expect(openEditor).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        kind: "console",
+        initialQuery: sql,
+        queryName: "Cleanup",
+        preventAutoRun: true,
+        database: "analytics",
+        targetConnectionId: "c1",
+      }),
+    );
+    expect(saveQuery).not.toHaveBeenCalled();
+  });
+
+  it("copies the exact SQL and shows a success toast", async () => {
+    openSavedQueryMenu();
+    fireEvent.click(screen.getByText("sidebar.copyQuery"));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(sql));
+    await waitFor(() => expect(toastSpy).toHaveBeenCalledWith("common.copied", { kind: "success" }));
+  });
+
+  it("shows a failure toast when clipboard write fails", async () => {
+    writeText.mockRejectedValueOnce(new Error("Clipboard blocked"));
+    openSavedQueryMenu();
+    fireEvent.click(screen.getByText("sidebar.copyQuery"));
+
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Clipboard blocked"),
+        { kind: "error" },
+      ),
+    );
+  });
+
+  it("duplicates saved SQL and its database without changing the original", async () => {
+    openSavedQueryMenu();
+    fireEvent.click(screen.getByText("connections.duplicate"));
+
+    await waitFor(() => expect(saveQuery).toHaveBeenCalledWith("Cleanup (copy)", sql, "analytics"));
+    expect(openEditor).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed duplicate without claiming success", async () => {
+    saveQuery.mockRejectedValueOnce(new Error("Save failed"));
+    openSavedQueryMenu();
+    fireEvent.click(screen.getByText("connections.duplicate"));
+
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Save failed"),
+        { kind: "error" },
+      ),
+    );
+  });
+
+  it("runs favorites from the saved database on double-click and Enter", () => {
+    renderFavorites();
+    const favorite = screen.getByText("Cleanup").closest("button");
+    expect(favorite).not.toBeNull();
+
+    fireEvent.doubleClick(favorite!);
+    fireEvent.keyDown(favorite!, { key: "Enter" });
+
+    expect(openEditor).toHaveBeenCalledTimes(2);
+    for (const [, request] of vi.mocked(openEditor).mock.calls) {
+      expect(request).toMatchObject({
+        kind: "console",
+        initialQuery: sql,
+        queryName: "Cleanup",
+        preventAutoRun: false,
+        database: "analytics",
+        targetConnectionId: "c1",
+      });
+      expect(request.schema).toBeUndefined();
+    }
   });
 });

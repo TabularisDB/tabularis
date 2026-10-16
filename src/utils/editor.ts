@@ -135,11 +135,28 @@ export function generateTabTitle(
   return consoleCount === 0 ? "Console" : `Console ${consoleCount + 1}`;
 }
 
+export function getTabDisplayTitle(tab: Tab, tabs: Tab[]): string {
+  if (tab.type !== "table" || !tab.schema || tab.title !== tab.activeTable) {
+    return tab.title;
+  }
+  const sameTableOtherSchema = tabs.some(
+    (t) =>
+      t.id !== tab.id &&
+      t.connectionId === tab.connectionId &&
+      t.type === "table" &&
+      t.title === t.activeTable &&
+      t.activeTable === tab.activeTable &&
+      t.schema !== tab.schema,
+  );
+  return sameTableOtherSchema ? `${tab.schema}.${tab.title}` : tab.title;
+}
+
 export function findExistingTableTab(
   tabs: Tab[],
   connectionId: string,
   tableName: string | undefined,
   schema?: string,
+  database?: string,
 ): Tab | undefined {
   if (!tableName) return undefined;
   return tabs.find(
@@ -147,8 +164,80 @@ export function findExistingTableTab(
       t.connectionId === connectionId &&
       t.type === "table" &&
       t.activeTable === tableName &&
-      (t.schema || undefined) === (schema || undefined),
+      (t.schema || undefined) === (schema || undefined) &&
+      (t.database || undefined) === (database || undefined),
   );
+}
+
+/** Literal suffix so a duplicated tab stays recognizable in every locale. */
+export const DUPLICATE_TAB_TITLE_SUFFIX = " (copy)";
+
+/** Console and table tabs can be duplicated. Notebooks cannot. */
+export function canDuplicateTab(type: Tab["type"] | undefined): boolean {
+  return type === "console" || type === "table";
+}
+
+/**
+ * Notebooks and consoles that are not linked to a `.sql` file can be renamed.
+ * File-backed consoles keep the file name, and other tab types cannot.
+ */
+export function canRenameTab(
+  tab: Pick<Tab, "type" | "sourceFilePath"> | null | undefined,
+): boolean {
+  if (!tab) return false;
+  if (tab.type === "notebook") return true;
+  return tab.type === "console" && !tab.sourceFilePath;
+}
+
+/**
+ * Fields copied into a new tab: SQL, parameters, table, schema/database,
+ * and editability flags (`readOnly`, `materialized`).
+ * Results, the source `.sql` path, and notebook ids are left behind.
+ */
+export function buildDuplicatedTab(source: Tab): Partial<Tab> | null {
+  if (!canDuplicateTab(source.type)) return null;
+
+  const duplicate: Partial<Tab> = {
+    type: source.type,
+    title: `${source.title}${DUPLICATE_TAB_TITLE_SUFFIX}`,
+    query: source.query,
+    activeTable: source.activeTable,
+  };
+
+  if (source.queryParams) {
+    duplicate.queryParams = { ...source.queryParams };
+  }
+
+  if (source.schema !== undefined) {
+    duplicate.schema = source.schema;
+  }
+
+  if (source.materialized) {
+    duplicate.materialized = true;
+  }
+
+  if (source.readOnly) {
+    duplicate.readOnly = true;
+  }
+
+  return duplicate;
+}
+
+/**
+ * Insert `tab` immediately after `afterTabId`, preserving every other tab's
+ * relative order (including tabs from other connections). Appends when the
+ * id is missing. Does not mutate `tabs`.
+ */
+export function insertTabAfter(
+  tabs: Tab[],
+  afterTabId: string,
+  tab: Tab,
+): Tab[] {
+  const index = tabs.findIndex((candidate) => candidate.id === afterTabId);
+  if (index === -1) return [...tabs, tab];
+  const next = tabs.slice();
+  next.splice(index + 1, 0, tab);
+  return next;
 }
 
 export function getConnectionTabs(
@@ -435,4 +524,42 @@ export function resolveTabPageSize(
   if (tabPageSize === 0) return undefined;
   if (tabPageSize && tabPageSize > 0) return tabPageSize;
   return globalPageSize && globalPageSize > 0 ? globalPageSize : 100;
+}
+
+export interface SqlListOptions {
+  /** Character wrapped around each non-numeric value. Defaults to `'`. */
+  quote?: string;
+  /** Text placed between values. Defaults to `", "`. */
+  separator?: string;
+  /** Drop repeated values, keeping the first occurrence. Defaults to false. */
+  dedupe?: boolean;
+}
+
+// Plain decimal numbers only: a leading zero ("007") or a leading "+" usually
+// marks an identifier or phone number that has to stay a quoted string.
+const SQL_LIST_NUMBER = /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/;
+
+/**
+ * Turns pasted values (one per line, or separated by tabs or commas) into a
+ * list ready for `IN (...)`. Values are trimmed and blanks skipped. When every
+ * value is a number the list is left unquoted; otherwise every value is quoted
+ * and embedded quotes are escaped by doubling them (`O'Brien` → `'O''Brien'`).
+ *
+ * @param text - Raw text, e.g. a column copied from a spreadsheet
+ * @param options - Quote character, separator, and whether to drop duplicates
+ * @returns The formatted list, or an empty string when there are no values
+ */
+export function toSqlList(text: string, options: SqlListOptions = {}): string {
+  const { quote = "'", separator = ", ", dedupe = false } = options;
+  let values = text
+    .split(/[\r\n\t,]+/)
+    .map((value) => value.trim())
+    .filter((value) => value !== "");
+  if (dedupe) values = [...new Set(values)];
+  if (values.length > 0 && values.every((value) => SQL_LIST_NUMBER.test(value))) {
+    return values.join(separator);
+  }
+  return values
+    .map((value) => `${quote}${value.split(quote).join(quote + quote)}${quote}`)
+    .join(separator);
 }

@@ -120,7 +120,7 @@ jobs:
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: "pnpm"
@@ -193,6 +193,28 @@ jobs:
           EOF
           chmod +x ~/.cache/tauri/linuxdeploy-plugin-gtk.sh
 
+      # The stable linuxdeploy bundler starts with Tauri's cached AppRun
+      # binary and the GTK integration subsequently moves it to AppRun.wrapped.
+      # Tauri's downloaded executable may have restrictive mode 0770; fix the
+      # original before copying it into the AppDir so the final squashfs has
+      # the correct world-executable bit, without repacking/signature drift.
+      - name: Normalize AppRun source permissions (Linux stable AppImage)
+        if: matrix.platform == 'ubuntu-24.04' && !inputs.experimental_appimage
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.cache/tauri
+          curl -fsSL https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64 \
+            -o ~/.cache/tauri/AppRun-x86_64
+          # Verified against GitHub's SHA-256 asset digest (release asset
+          # 274691722). The tag is mutable, so reject any different bytes
+          # before an executable is introduced into the build.
+          printf '%s  %s\n' \
+            'f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f' \
+            "$HOME/.cache/tauri/AppRun-x86_64" | sha256sum --check --status
+          chmod 0755 ~/.cache/tauri/AppRun-x86_64
+          test "$(stat -c '%a' ~/.cache/tauri/AppRun-x86_64)" = "755"
+
       # Signing/notarization needs the whole set; a partial set would make
       # tauri fail half-way, and a set-but-empty APPLE_SIGNING_IDENTITY is
       # taken by tauri as an identity to sign with. Hence the two build steps
@@ -234,20 +256,11 @@ jobs:
       - name: Override app version (nightly channel)
         if: inputs.updater_version != ''
         shell: bash
-        run: |
-          set -euo pipefail
-          v='${{ inputs.updater_version }}'
-          node -e "const f='src-tauri/tauri.conf.json';const c=require('./'+f);const fs=require('fs');c.version=process.argv[1];fs.writeFileSync(f, JSON.stringify(c, null, 2)+'\n');" "$v"
-          # First version key in Cargo.toml is the [package] version.
-          # sed -i.bak keeps it portable across GNU and macOS BSD sed.
-          sed -i.bak "0,/^version = \".*\"/s//version = \"$v\"/" src-tauri/Cargo.toml && rm -f src-tauri/Cargo.toml.bak
-          # The frontend does not read tauri.conf.json: the About page, the
-          # Updates card and plugin compatibility checks all use the constant
-          # in src/version.ts (kept in sync by scripts/sync-version.js on
-          # release). Patch it too, or a nightly shows the stable version it
-          # was branched from instead of its own.
-          printf 'export const APP_VERSION = "%s";\n' "$v" > src/version.ts
-          echo "Patched version to $v"
+        env:
+          NIGHTLY_VERSION: ${{ inputs.updater_version }}
+        # One portable implementation keeps the bundle, Rust runtime floor
+        # checks and frontend aligned. BSD sed does not support GNU's 0,/.../.
+        run: node scripts/set-nightly-version.mjs "$NIGHTLY_VERSION"
 
       - name: Build signed bundles (+ upload to GitHub Release unless preview)
         if: env.CAN_SIGN == 'true'
@@ -290,6 +303,43 @@ jobs:
           tauriScript: ${{ inputs.experimental_appimage && matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
           args: ${{ matrix.args }}
 
+      # Extract the real finished AppImage: inspecting the staging AppDir is
+      # insufficient, as linuxdeploy wraps AppRun after the GTK hook executes.
+      - name: Verify final stable AppImage executable permissions (Linux)
+        if: matrix.platform == 'ubuntu-24.04' && !inputs.experimental_appimage
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          if [ "${#images[@]}" -eq 0 ]; then
+            echo "::error::Stable Linux build produced no AppImage"
+            exit 1
+          fi
+          for image in "${images[@]}"; do
+            image="$(realpath "$image")"
+            chmod u+x "$image"
+            extract_dir="$(mktemp -d)"
+            (
+              cd "$extract_dir"
+              "$image" --appimage-extract >/dev/null
+              if [ ! -f squashfs-root/AppRun.wrapped ]; then
+                echo "::error::Stable AppImage is missing AppRun.wrapped"
+                exit 1
+              fi
+              # Any file executable by its owner must also be executable by
+              # other users; test the packaged modes, not the outer AppImage.
+              broken="$(find squashfs-root -type f -perm /100 ! -perm /001 -print)"
+              if [ -n "$broken" ]; then
+                printf "::error::AppImage contains non-world-executable files:\\n%s\\n" "$broken"
+                exit 1
+              fi
+              mode="$(stat -c '%a' squashfs-root/AppRun.wrapped)"
+              echo "Verified AppRun.wrapped mode $mode in $(basename "$image")"
+            )
+            rm -rf "$extract_dir"
+          done
+
       - name: Upload portable executable (Windows only)
         if: matrix.platform == 'windows-latest' && !inputs.preview
         shell: pwsh
@@ -301,6 +351,25 @@ jobs:
           $portable = "tabularis_${version}_x64-portable.exe"
           Copy-Item $src $portable
           gh release upload "${{ inputs.tag }}" $portable --clobber
+
+      # WinGet uses an NSIS installer, not the portable executable layout.
+      # Embed the channel in this build so only WinGet-managed installations
+      # disable the in-app updater. Keep latest.json pointing at direct builds.
+      - name: Build WinGet-managed installer (stable Windows release only)
+        if: matrix.platform == 'windows-latest' && !inputs.preview && !inputs.prerelease
+        shell: pwsh
+        env:
+          PACKAGE_MANAGER_SRC: winget
+          PACKAGE_MANAGER_NAME: winget
+        run: pnpm tauri build --bundles nsis --config src-tauri/tauri.winget.conf.json
+
+      - name: Upload WinGet-managed installer
+        if: matrix.platform == 'windows-latest' && !inputs.preview && !inputs.prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node scripts/stage-winget-installer.mjs "$env:RELEASE_TAG"
 
       - name: Stage portable executable (Windows only, preview mode)
         if: matrix.platform == 'windows-latest' && inputs.preview

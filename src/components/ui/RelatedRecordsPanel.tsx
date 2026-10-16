@@ -26,6 +26,7 @@ interface RelatedRecordsPanelProps {
    * plugin) is quoted the same as the builtin "postgres" driver. */
   capabilities?: DriverCapabilities | null;
   schema?: string | null;
+  database?: string;
   onClose: () => void;
   onNavigateToTab: (fk: ForeignKey, value: unknown) => void;
 }
@@ -36,6 +37,7 @@ export function RelatedRecordsPanel({
   driver,
   capabilities,
   schema,
+  database,
   onClose,
   onNavigateToTab,
 }: RelatedRecordsPanelProps) {
@@ -48,6 +50,7 @@ export function RelatedRecordsPanel({
     value,
     driver: capabilities ?? driver,
     schema,
+    database,
     sourceColumnType,
   });
 

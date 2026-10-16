@@ -4,15 +4,22 @@ import type { QueryResult, QueryResultEntry, Tab } from "../types/editor";
  * Protocol for syncing query results between the main editor window and a
  * detached results window. The main window owns all query/DB logic and is the
  * single source of truth: it pushes result state to the detached window via
- * {@link RESULTS_SYNC_EVENT} and receives user actions back via
+ * {@link resultsSyncEvent} and receives user actions back via
  * {@link RESULTS_ACTION_EVENT}. Keeping the shape and dispatch in one tested
  * module avoids event-name / payload drift between the two windows.
  */
 
-export const RESULTS_SYNC_EVENT = "results-window:sync";
 export const RESULTS_ACTION_EVENT = "results-window:action";
 export const RESULTS_READY_EVENT = "results-window:ready";
 export const RESULTS_CLOSED_EVENT = "results-window:closed";
+
+// Per-tab event names: Tauri inlines an event's payload into every webview
+// listening on that name, so a shared name would ship each tab's results to
+// every detached window.
+export const resultsSyncEvent = (tabId: string) =>
+  `results-window:sync:${tabId}`;
+export const resultsCopyEvent = (tabId: string) =>
+  `results-window:copy:${tabId}`;
 
 /** Synthetic entry id used to render a legacy single `Tab.result` through the
  * entry-based detached view. */
@@ -56,6 +63,17 @@ export interface ResultsClosedPayload {
   tabId: string;
 }
 
+/** Full result set formatted for the clipboard. */
+export interface CopiedRows {
+  text: string;
+  count: number;
+}
+
+/** Copy-all result the main window sends back to the detached window that
+ * asked for it. The detached window writes the clipboard itself, so the write
+ * and its toast happen in the focused window. */
+export type ResultsCopyPayload = CopiedRows | { error: string };
+
 /** Actions the detached window forwards to the main window. */
 export type ResultsWindowAction =
   | { type: "run-query-page"; query: string; page: number }
@@ -68,7 +86,9 @@ export type ResultsWindowAction =
   | { type: "close-entries-to-left"; entryId: string }
   | { type: "close-all-entries" }
   | { type: "rename-entry"; entryId: string; label: string }
-  | { type: "load-count" };
+  | { type: "load-count" }
+  | { type: "copy-all-rows" }
+  | { type: "copy-entry-all-rows"; entryId: string };
 
 /** Action envelope tagging which tab's window forwarded the action, so the main
  * window applies it to the correct tab. */
@@ -90,6 +110,8 @@ export interface ResultsWindowActionHandlers {
   onCloseAllEntries: () => void;
   onRenameEntry: (entryId: string, label: string) => void;
   onLoadCount: () => void;
+  onCopyAllRows: () => void;
+  onCopyEntryAllRows: (entryId: string) => void;
 }
 
 /** Build the snapshot pushed to the detached window from the active tab. */
@@ -140,6 +162,21 @@ export function singleResultToEntry(
   };
 }
 
+/** Route a copy-all result to the copied or error handler. */
+export function applyCopyResult(
+  payload: ResultsCopyPayload,
+  handlers: {
+    onCopied: (rows: CopiedRows) => void;
+    onError: (error: string) => void;
+  },
+): void {
+  if ("error" in payload) {
+    handlers.onError(payload.error);
+  } else {
+    handlers.onCopied({ text: payload.text, count: payload.count });
+  }
+}
+
 /** Dispatch a forwarded action to the main window's handlers. */
 export function applyAction(
   action: ResultsWindowAction,
@@ -178,6 +215,12 @@ export function applyAction(
       break;
     case "load-count":
       handlers.onLoadCount();
+      break;
+    case "copy-all-rows":
+      handlers.onCopyAllRows();
+      break;
+    case "copy-entry-all-rows":
+      handlers.onCopyEntryAllRows(action.entryId);
       break;
   }
 }

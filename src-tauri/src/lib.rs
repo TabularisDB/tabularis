@@ -1,4 +1,5 @@
 pub mod ai;
+pub mod chatgpt;
 pub mod ai_activity;
 #[cfg(test)]
 pub mod ai_activity_tests;
@@ -46,6 +47,9 @@ pub mod export;
 pub mod export_crypto;
 #[cfg(test)]
 pub mod export_import_tests;
+pub mod fs_path;
+#[cfg(test)]
+pub mod fs_path_tests;
 pub mod health_check;
 #[cfg(test)]
 pub mod group_tree_tests;
@@ -106,6 +110,11 @@ pub mod theme_models;
 pub mod theme_packages;
 pub mod updater;
 pub mod window_decorations;
+// E2E-only mock of the `dialog` plugin (auto-accepts ask/confirm, stubs
+// open/save via env vars). Only compiled with --features e2e-testing.
+#[cfg(feature = "e2e-testing")]
+pub mod e2e_dialog_mock;
+mod window_placement;
 pub mod drivers {
     pub mod common;
     pub mod driver_trait;
@@ -191,15 +200,16 @@ pub fn run() {
         // Initialize the logger so plugin-loading and driver RPC errors (which
         // use the `log` crate) are visible. The custom logger writes to stderr
         // only, leaving the stdout JSON-RPC stream clean.
-        init_logger(create_log_buffer(1000), log::LevelFilter::Info);
+        init_logger(create_log_buffer(1000), args.log_level());
         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
         rt.block_on(mcp::run_mcp_server());
         return;
     }
 
-    // Configure log level based on debug flag
-    // Default to Info level so users can see application logs
-    let log_level = log::LevelFilter::Info;
+    // Info by default so users can see application logs; --debug raises it
+    // to Debug, which includes sqlx queries, and RUST_LOG is honoured when the
+    // flag is absent.
+    let log_level = args.log_level();
 
     // Store debug flag in global state
     DEBUG_MODE.store(args.debug, Ordering::Relaxed);
@@ -224,7 +234,8 @@ pub fn run() {
     // Install default drivers for sqlx::Any
     sqlx::any::install_default_drivers();
 
-    tauri::Builder::default()
+    #[cfg_attr(not(feature = "e2e-testing"), allow(unused_mut))]
+    let mut builder = tauri::Builder::default()
         // Singleton: a second launch (typically a `tabularis://...` URL
         // clicked while the app is already running) hands its argv to the
         // first instance and exits. With `features = ["deep-link"]` the plugin
@@ -247,11 +258,29 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_deep_link::init());
+
+    // Dialog plugin: real in production, mocked under e2e-testing (the mock
+    // auto-accepts ask()/confirm() so native Tauri confirm dialogs — which
+    // WebDriverIO can't click — don't block the trigger-save flow). Registered
+    // as a same-named "dialog" plugin so it replaces the real one at Tauri's
+    // IPC dispatch layer (PluginStore::register retains only the last).
+    #[cfg(not(feature = "e2e-testing"))]
+    {
+        builder = builder.plugin(tauri_plugin_dialog::init());
+    }
+    #[cfg(feature = "e2e-testing")]
+    {
+        builder = builder.plugin(crate::e2e_dialog_mock::init());
+        // In-app WebDriver server. tauri-wd connects to drive the real WKWebView
+        // via the W3C WebDriver protocol on macOS, exercising real Tauri IPC.
+        builder = builder.plugin(tauri_plugin_webdriver_automation::init());
+    }
+
+    builder
         .manage(crate::plugins::deep_link::PendingInstall::default())
         .manage(commands::QueryCancellationState::default())
         .manage(export::ExportCancellationState::default())
@@ -267,6 +296,7 @@ pub fn run() {
         .manage(explain_import::PendingExplainFile::default())
         .manage(json_viewer::JsonViewerStore::default())
         .manage(results_window::ResultsWindowStore::default())
+        .manage(window_placement::WindowPlacementCache::default())
         .manage(query_history::QueryHistoryState::default())
         .setup(move |app| {
             #[cfg(target_os = "linux")]
@@ -293,6 +323,11 @@ pub fn run() {
                 &app.handle(),
                 startup_config.window_decorations.as_ref(),
             );
+            // Restore the main window's last normal size and position.
+            // The explicit start_maximized preference below still takes precedence.
+            if let Some(window) = app.get_webview_window("main") {
+                window_placement::restore(&window);
+            }
 
             // Allow the SSH tunnel code (which runs without a Tauri context)
             // to bridge askpass prompts to the frontend.
@@ -450,6 +485,20 @@ pub fn run() {
             }
             Ok(())
         })
+        // Only the main window is persisted; utility windows retain their
+        // existing per-feature sizing and placement behavior.
+        .on_window_event(|window, event| {
+            if window.label() != "main" { return; }
+            match event {
+                tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
+                    window_placement::remember(window);
+                }
+                tauri::WindowEvent::CloseRequested { .. } => {
+                    window_placement::persist(window);
+                }
+                _ => {}
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             system_theme::get_linux_system_theme,
             is_debug_mode,
@@ -543,6 +592,7 @@ pub fn run() {
             commands::read_file_as_data_url,
             commands::execute_query,
             commands::execute_query_batch,
+            commands::release_query_session,
             commands::get_server_now,
             commands::explain_query_plan,
             commands::count_query,
@@ -624,11 +674,19 @@ pub fn run() {
             ai::generate_tab_rename,
             ai::suggest_table_name,
             ai::get_ai_models,
+            chatgpt::get_chatgpt_session,
+            chatgpt::sign_in_chatgpt,
+            chatgpt::cancel_chatgpt_sign_in,
+            chatgpt::select_chatgpt_profile,
+            chatgpt::sign_out_chatgpt,
+            chatgpt::get_chatgpt_models,
+            chatgpt::open_chatgpt_usage,
             // Clipboard Import
             clipboard_import::execute_clipboard_import,
             commands::get_ai_schema_context,
             commands::get_schema_snapshot,
             // DDL generation
+            commands::get_table_query_template,
             commands::get_create_table_sql,
             commands::get_add_column_sql,
             commands::get_alter_column_sql,
@@ -765,14 +823,30 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
+            // Cmd+Q and relaunch paths can exit without CloseRequested.
+            if matches!(&event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
+                window_placement::persist_cached(app_handle);
+            }
             if let tauri::RunEvent::Exit = event {
                 // Back up the freshest state before the process ends (no-op
                 // unless backups are enabled and due).
                 backup::run_exit_backup(app_handle);
+                // Roll back pinned transactions while the tunnels they run through are still up.
+                // Only the built-in PostgreSQL driver pins; plugins release in their own shutdown.
+                tauri::async_runtime::block_on(async {
+                    let release = crate::drivers::postgres::session::release_all();
+                    if tokio::time::timeout(std::time::Duration::from_secs(3), release)
+                        .await
+                        .is_err()
+                    {
+                        log::warn!("Releasing pinned PostgreSQL sessions timed out on exit");
+                    }
+                });
                 log::info!("Application exiting, stopping all active tunnels...");
                 crate::ssh_tunnel::stop_all_tunnels();
                 crate::proxy::stop_all_forwards();
                 crate::ssm_tunnel::stop_all_tunnels();
+                crate::k8s_tunnel::stop_all_tunnels();
             }
         });
 }

@@ -88,6 +88,18 @@ struct OpenRouterModel {
     id: String,
 }
 
+#[derive(Deserialize, Debug)]
+struct RequestyModelList {
+    data: Vec<RequestyModel>,
+}
+
+#[derive(Deserialize, Debug)]
+struct RequestyModel {
+    id: String,
+    #[serde(default)]
+    api: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct AiModelsCache {
     last_updated: u64,
@@ -292,6 +304,34 @@ async fn fetch_openrouter_models() -> Vec<String> {
     }
 }
 
+/// Fetches Requesty managed policies first (curated, stable ids), then the
+/// full public catalog, keeping only chat models and dropping duplicates.
+async fn fetch_requesty_models() -> Vec<String> {
+    let client = ai_client_for("requesty");
+    let mut seen = HashSet::new();
+    let mut models = Vec::new();
+
+    for url in [
+        "https://router.requesty.ai/v1/models/managed",
+        "https://router.requesty.ai/v1/models",
+    ] {
+        if let Ok(res) = client.get(url).send().await {
+            if res.status().is_success() {
+                if let Ok(json) = res.json::<RequestyModelList>().await {
+                    for m in json.data {
+                        let is_chat = m.api.as_deref().unwrap_or("chat") == "chat";
+                        if is_chat && seen.insert(m.id.clone()) {
+                            models.push(m.id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    models
+}
+
 /// Build an API endpoint URL from a user-provided base_url.
 ///
 /// Handles various formats the user might input:
@@ -412,6 +452,8 @@ pub async fn get_ai_models(
                     }
                 }
 
+                // Account-specific ChatGPT models use the dedicated settings command.
+                cached_models.remove("chatgpt");
                 return Ok(cached_models);
             }
         }
@@ -480,7 +522,23 @@ pub async fn get_ai_models(
         }
     }
 
-    // 6. Custom OpenAI (Dynamic if configured)
+    // 6. Requesty (Dynamic public)
+    let requesty_models = fetch_requesty_models().await;
+    if !requesty_models.is_empty() {
+        if let Some(static_list) = models.get_mut("requesty") {
+            let favorites: HashSet<String> = static_list.iter().cloned().collect();
+            let mut new_list = static_list.clone();
+
+            for m in requesty_models {
+                if !favorites.contains(&m) {
+                    new_list.push(m);
+                }
+            }
+            *static_list = new_list;
+        }
+    }
+
+    // 7. Custom OpenAI (Dynamic if configured)
     if let (Some(base_url), Ok(api_key)) = (
         app_config.ai_custom_openai_url,
         config::get_ai_api_key(&app, "custom-openai"),
@@ -540,6 +598,14 @@ async fn resolve_model(
         return Ok(model.to_string());
     }
     match provider {
+        "chatgpt" => crate::chatgpt::list_models()
+            .await?
+            .into_iter()
+            .next()
+            .map(|m| m.slug)
+            .ok_or_else(|| {
+                "No ChatGPT models available. Continue with ChatGPT in AI settings.".into()
+            }),
         "ollama" => {
             let models = fetch_ollama_models(ollama_port).await;
             models
@@ -571,6 +637,9 @@ async fn dispatch_provider(
     system_prompt: &str,
     ollama_port: u16,
 ) -> Result<String, String> {
+    if gen_req.provider == "chatgpt" {
+        return crate::chatgpt::generate(&gen_req.model, &gen_req.prompt, system_prompt).await;
+    }
     let api_key = if gen_req.provider != "ollama" {
         config::get_ai_api_key(app, &gen_req.provider)?
     } else {
@@ -586,6 +655,7 @@ async fn dispatch_provider(
         "openai" => generate_openai(&client, &api_key, gen_req, system_prompt).await,
         "anthropic" => generate_anthropic(&client, &api_key, gen_req, system_prompt).await,
         "openrouter" => generate_openrouter(&client, &api_key, gen_req, system_prompt).await,
+        "requesty" => generate_requesty(&client, &api_key, gen_req, system_prompt).await,
         "ollama" => generate_ollama(&client, gen_req, system_prompt, ollama_port).await,
         "custom-openai" => {
             let base_url = app_config
@@ -918,7 +988,7 @@ async fn generate_openrouter(
     Ok(clean_response(content))
 }
 
-async fn generate_anthropic(
+async fn generate_requesty(
     client: &Client,
     api_key: &str,
     req: &AiGenerateRequest,
@@ -926,13 +996,57 @@ async fn generate_anthropic(
 ) -> Result<String, String> {
     let body = json!({
         "model": req.model,
-        "system": system_prompt,
         "messages": [
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": req.prompt}
         ],
-        "max_tokens": 1024,
         "temperature": 0.0
     });
+
+    let res = client
+        .post("https://router.requesty.ai/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("HTTP-Referer", "https://github.com/TabularisDB/tabularis")
+        .header("X-Title", "Tabularis")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        let error_text = res.text().await.unwrap_or_default();
+        return Err(format!("Requesty Error: {}", error_text));
+    }
+
+    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    let content = json["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or("Invalid response format from Requesty")?;
+
+    Ok(clean_response(content))
+}
+
+/// Builds the Messages API body. No `temperature` is sent: newer Claude
+/// models (e.g. the 5.5 family) reject the parameter, and older ones work
+/// fine without it.
+fn anthropic_request_body(model: &str, system_prompt: &str, prompt: &str) -> serde_json::Value {
+    json!({
+        "model": model,
+        "system": system_prompt,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 1024
+    })
+}
+
+async fn generate_anthropic(
+    client: &Client,
+    api_key: &str,
+    req: &AiGenerateRequest,
+    system_prompt: &str,
+) -> Result<String, String> {
+    let body = anthropic_request_body(&req.model, system_prompt, &req.prompt);
 
     let res = client
         .post("https://api.anthropic.com/v1/messages")
@@ -1064,6 +1178,10 @@ fn clean_response(text: &str) -> String {
 }
 
 #[cfg(test)]
+#[path = "ai_provider_tests.rs"]
+mod provider_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1073,6 +1191,7 @@ mod tests {
         assert!(models.contains_key("openai"));
         assert!(models.contains_key("anthropic"));
         assert!(models.contains_key("openrouter"));
+        assert!(models.contains_key("requesty"));
         assert!(models.contains_key("minimax"));
 
         // Check for new futuristic models from yaml
@@ -1109,6 +1228,16 @@ mod tests {
         assert_eq!(MINIMAX_ENDPOINTS[cn_first[1]].region, "global");
 
         assert_eq!(minimax_endpoint_order(usize::MAX), [0, 1]);
+    }
+
+    #[test]
+    fn test_anthropic_request_body_omits_temperature() {
+        let body = anthropic_request_body("claude-sonnet-5-5", "system", "count users");
+        assert!(body.get("temperature").is_none());
+        assert_eq!(body["model"], "claude-sonnet-5-5");
+        assert_eq!(body["system"], "system");
+        assert_eq!(body["messages"][0]["content"], "count users");
+        assert_eq!(body["max_tokens"], 1024);
     }
 
     #[test]

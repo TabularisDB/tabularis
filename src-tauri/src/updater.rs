@@ -378,6 +378,7 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), String> {
             .await
             .map_err(|e| e.to_string())?;
 
+        crate::window_placement::persist_cached(&app);
         app.restart();
     } else {
         Err("No update available".to_string())

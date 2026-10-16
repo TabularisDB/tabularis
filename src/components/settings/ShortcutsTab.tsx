@@ -4,7 +4,7 @@ import { Keyboard, Lock, RotateCcw } from "lucide-react";
 import { useKeybindings } from "../../hooks/useKeybindings";
 import { useAlert } from "../../hooks/useAlert";
 import {
-  formatMatch,
+  formatShortcut,
   keyMatchesOverlap,
   matchesReservedShortcut,
 } from "../../utils/keybindings";
@@ -36,17 +36,10 @@ export function ShortcutsTab() {
 
   const openEdit = useCallback(
     (s: (typeof shortcuts)[number]) => {
-      const hasOverride = !!overrides[s.id];
       setEditingShortcut({
         id: s.id,
         label: t(s.i18nKey as Parameters<typeof t>[0]),
-        current: isMac
-          ? hasOverride
-            ? formatMatch(overrides[s.id].mac, true)
-            : s.defaultMac
-          : hasOverride
-            ? formatMatch(overrides[s.id].win, false)
-            : s.defaultWin,
+        current: formatShortcut(s, overrides, isMac),
       });
     },
     [t, overrides, isMac],
@@ -177,13 +170,7 @@ export function ShortcutsTab() {
               <div className="divide-y divide-default">
                 {items.map((s) => {
                   const hasOverride = !!overrides[s.id];
-                  const label = isMac
-                    ? hasOverride
-                      ? formatMatch(overrides[s.id].mac, true)
-                      : s.defaultMac
-                    : hasOverride
-                      ? formatMatch(overrides[s.id].win, false)
-                      : s.defaultWin;
+                  const label = formatShortcut(s, overrides, isMac);
                   return (
                     <div
                       key={s.id}

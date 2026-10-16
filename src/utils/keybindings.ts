@@ -186,9 +186,7 @@ export function matchesReservedShortcut(
   }
 
   const isArrow = ARROW_KEYS.has(match.key);
-  const hasPrimaryModifier = isMac
-    ? !!match.metaKey !== !!match.ctrlKey
-    : !!match.ctrlKey && !match.metaKey;
+  const hasPrimaryModifier = !!match.metaKey || !!match.ctrlKey;
   const hasNoPrimaryModifier = !match.ctrlKey && !match.metaKey;
   const hasNoAltModifier = !match.altKey;
 
@@ -338,7 +336,7 @@ export function formatMatch(match: KeyMatch, isMac: boolean): string {
 }
 
 function formatKey(key: string | undefined, isMac: boolean): string {
-  if (typeof key !== 'string') return '';
+  if (typeof key !== "string") return "";
   if (isMac && MAC_SYMBOL_MAP[key]) return MAC_SYMBOL_MAP[key];
   // Common display names for all platforms
   const COMMON_DISPLAY: Record<string, string> = {
@@ -357,4 +355,17 @@ function formatKey(key: string | undefined, isMac: boolean): string {
   // Uppercase single letter keys for display
   if (key.length === 1) return key.toUpperCase();
   return key;
+}
+
+export function formatShortcut(
+  def: ShortcutDef,
+  overrides: UserOverrides,
+  isMac: boolean,
+): string {
+  const override = overrides[def.id];
+  return override
+    ? formatMatch(isMac ? override.mac : override.win, isMac)
+    : isMac
+      ? def.defaultMac
+      : def.defaultWin;
 }

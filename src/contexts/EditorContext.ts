@@ -1,11 +1,23 @@
 import { createContext } from 'react';
 import type { Tab, TableSchema, QueryResultEntry } from '../types/editor';
+import type { AutoRefreshSchedule } from '../utils/autoRefresh';
+
+export interface AddTabOptions {
+  /** Insert the new tab immediately after this id instead of appending it. */
+  insertAfterId?: string;
+  /**
+   * Create a new tab even when a table tab for the same table is already open.
+   * Ordinary opens still focus that existing tab.
+   */
+  forceNew?: boolean;
+}
 
 export interface EditorContextType {
+  getAutoRefreshSchedule: (tabId: string) => AutoRefreshSchedule;
   tabs: Tab[];
   activeTabId: string | null;
   activeTab: Tab | null;
-  addTab: (tab?: Partial<Tab>) => string;
+  addTab: (tab?: Partial<Tab>, options?: AddTabOptions) => string;
   /**
    * Open (or focus) a saved notebook tab, possibly on another connection.
    * Switch the active connection first (the resolution is deferred until that
@@ -17,6 +29,14 @@ export interface EditorContextType {
   closeOtherTabs: (id: string) => void;
   closeTabsToLeft: (id: string) => void;
   closeTabsToRight: (id: string) => void;
+  /**
+   * Reopen the most recently closed tab of the active connection: re-insert
+   * it at its previous position among that connection's tabs and activate it.
+   * Returns the restored tab's id, or null when nothing was closed.
+   */
+  reopenClosedTab: () => string | null;
+  /** True when the active connection has at least one closed tab to reopen. */
+  canReopenClosedTab: boolean;
   updateTab: (
     id: string,
     partial: Partial<Tab> | ((tab: Tab) => Partial<Tab>),
@@ -38,8 +58,10 @@ export interface EditorContextType {
     entryId: string,
     partial: Partial<QueryResultEntry>,
   ) => void;
-  setActiveTabId: (id: string) => void;
-  getSchema: (connectionId: string, schemaVersion?: number, schema?: string) => Promise<TableSchema[]>;
+  /** Preview switches do not change MRU history until the selection is committed. */
+  setActiveTabId: (id: string, options?: { preview?: boolean }) => void;
+  getRecentTabIds: () => string[];
+  getSchema: (connectionId: string, schemaVersion?: number, schema?: string, database?: string) => Promise<TableSchema[]>;
 }
 
 export const EditorContext = createContext<EditorContextType | undefined>(undefined);

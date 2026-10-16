@@ -15,6 +15,7 @@ vi.mock("../../../src/hooks/useDatabase", () => ({
   useDatabase: () => ({
     activeConnectionId: "active-connection",
     activeSchema: "public",
+    activeDatabaseName: "active-database",
   }),
 }));
 
@@ -106,6 +107,31 @@ describe("AiQueryModal", () => {
       expect(invokeMock).toHaveBeenCalledWith("get_ai_schema_context", {
         connectionId: "plugin-connection",
         schema: "warehouse",
+        // No explicit database prop → falls back to activeDatabaseName from context.
+        database: "active-database",
+      });
+    });
+  });
+
+  it("scopes schema context to the database passed by the caller, overriding the context fallback", async () => {
+    invokeMock.mockResolvedValue("");
+
+    render(
+      <AiQueryModal
+        isOpen
+        onClose={vi.fn()}
+        onInsert={vi.fn()}
+        connectionId="plugin-connection"
+        schema="warehouse"
+        database="orders_db"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith("get_ai_schema_context", {
+        connectionId: "plugin-connection",
+        schema: "warehouse",
+        database: "orders_db",
       });
     });
   });

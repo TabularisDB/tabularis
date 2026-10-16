@@ -160,6 +160,37 @@ async fn datagrip_parses_xml() {
 }
 
 #[tokio::test]
+async fn datagrip_normalizes_raw_ssl_mode() {
+    let tmp = tempfile::tempdir().unwrap();
+    let ds = tmp
+        .path()
+        .join("DataGrip2024.3/options/dataSources.xml");
+    write(
+        &ds,
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourceManagerImpl">
+    <data-source name="Secure" uuid="u-2">
+      <driver-ref>postgresql</driver-ref>
+      <jdbc-url>jdbc:postgresql://secure.db:5432/app</jdbc-url>
+      <ssl-config>
+        <enabled>true</enabled>
+        <mode>VERIFY_CA</mode>
+        <ca-cert>/certs/ca.pem</ca-cert>
+      </ssl-config>
+    </data-source>
+  </component>
+</project>"#,
+    );
+
+    let importer = DataGripImporter::with_root(tmp.path().to_path_buf());
+    let env = importer.import(false, None).await.unwrap();
+    let ssl = env.connections[0].ssl.as_ref().expect("ssl parsed");
+    assert_eq!(ssl.mode, "verify-ca");
+    assert_eq!(ssl.ca_certificate_path.as_deref(), Some("/certs/ca.pem"));
+}
+
+#[tokio::test]
 async fn sequelace_parses_favorites_plist() {
     let tmp = tempfile::tempdir().unwrap();
     let plist = tmp.path().join("Favorites.plist");

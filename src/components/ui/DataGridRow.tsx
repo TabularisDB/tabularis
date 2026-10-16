@@ -9,6 +9,7 @@ import {
   getResultValueType,
   buildPkMap,
   serializePkKey,
+  isZebraStripedRow,
   DATA_GRID_ROW_HEIGHT,
   type ColumnDisplayInfo,
   type MergedRow,
@@ -20,7 +21,12 @@ import {
   isSetType,
   parseSetValues,
 } from "../../utils/columnTypes";
-import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
+import {
+  isBlobColumn,
+  isBlobWireFormat,
+  hasCellImagePreview,
+  extractCellImagePreviewUrl,
+} from "../../utils/blob";
 import { isLongTextCellTarget, truncateCellPreview } from "../../utils/text";
 import { getForeignKeyForPreview } from "../../utils/foreignKeys";
 import { getDateInputMode } from "../../utils/dateInput";
@@ -33,6 +39,7 @@ import { JsonExpansionEditor } from "./JsonExpansionEditor";
 import { TextCell } from "./TextCell";
 import { TextExpansionEditor } from "./TextExpansionEditor";
 import { EnumSetInput } from "./EnumSetInput";
+import { ImagePreviewHover } from "./ImagePreviewHover";
 import type { ForeignKey } from "../../types/editor";
 
 /**
@@ -65,6 +72,8 @@ export interface RowCtx {
   pkIndexMaps: number[];
   parentViewportWidth: number;
   readonly: boolean | undefined;
+  /** Optional alternating row background (Settings > Appearance > Data Grid). */
+  zebraStripes: boolean;
   updateSelection: (s: Set<number>) => void;
   /** Sensitive-column masking (#485): columns rendered masked until revealed. */
   maskedColIndices: Set<number>;
@@ -195,6 +204,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
     pkIndexMaps,
     parentViewportWidth,
     readonly: readonlyProp,
+    zebraStripes,
     maskedColIndices,
     revealedColIndices,
     revealedCells,
@@ -260,7 +270,9 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
               ? "bg-semantic-new/8 border-l-4 border-semantic-new"
               : isPendingDelete
                 ? "bg-semantic-deleted/10 opacity-60"
-                : "hover:bg-surface-secondary/50"
+                : isZebraStripedRow(rowIndex, zebraStripes)
+                  ? "bg-surface-secondary/40 hover:bg-surface-secondary/90"
+                  : "hover:bg-surface-secondary/50"
         }`}
       >
         <td
@@ -283,7 +295,9 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                 ? "bg-semantic-deleted/25 text-semantic-deleted line-through"
                 : isSelected
                   ? "bg-accent-primary/20 text-accent font-bold"
-                  : "bg-base text-muted hover:bg-surface-secondary"
+                  : isZebraStripedRow(rowIndex, zebraStripes)
+                    ? "bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-base))] text-muted hover:bg-surface-tertiary"
+                    : "bg-base text-muted hover:bg-surface-secondary"
           }`}
         >
           {isInsertion ? "NEW" : rowIndex + 1}
@@ -503,6 +517,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                           }
                           onBlur={handleEditCommit}
                           onKeyDown={handleKeyDown}
+                          onCommitValue={commitEditWithValue}
                           inputRef={editInputRef}
                         />
                       );
@@ -687,7 +702,8 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                         isBlobWireFormat(displayValue)) &&
                       !isPendingDelete
                     ) {
-                      return (
+                      const hasImagePreview = hasCellImagePreview(displayValue);
+                      const blobContent = (
                         <span className="inline-flex items-center gap-1 group/blobcell w-full min-w-0">
                           <span className="truncate flex-1 min-w-0">
                             {renderDefaultCellContent(
@@ -707,6 +723,18 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                           </button>
                         </span>
                       );
+
+                      if (hasImagePreview) {
+                        return (
+                          <ImagePreviewHover
+                            getSrc={() => extractCellImagePreviewUrl(displayValue)}
+                          >
+                            {blobContent}
+                          </ImagePreviewHover>
+                        );
+                      }
+
+                      return blobContent;
                     }
 
                     if (fkForPreview && onForeignKeyNavigate) {

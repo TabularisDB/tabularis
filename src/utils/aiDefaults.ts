@@ -3,7 +3,8 @@ import type { Settings } from "../contexts/SettingsContext";
 
 /** Optional AI discovery must not hold up settings hydration or reconnection. */
 export async function detectAiDefaults(settings: Settings): Promise<Partial<Settings>> {
-  if (!settings.aiEnabled || (settings.aiProvider && settings.aiModel)) return {};
+  // ChatGPT discovers account models on demand and resolves an empty model natively.
+  if (!settings.aiEnabled || settings.aiProvider === "chatgpt" || (settings.aiProvider && settings.aiModel)) return {};
   let provider = settings.aiProvider;
   if (!provider) {
     const providers = ["openai", "anthropic", "openrouter", "minimax"] as const;

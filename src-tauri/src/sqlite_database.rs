@@ -42,6 +42,7 @@ pub(crate) fn expand_sqlite_filename(value: &str) -> PathBuf {
 }
 
 pub(crate) fn expand_sqlite_filename_with_home(value: &str, home: Option<&Path>) -> PathBuf {
+    let value = crate::fs_path::sanitize_local_file_path(value);
     let home_relative = value
         .strip_prefix("~/")
         .or_else(|| value.strip_prefix("~\\"));

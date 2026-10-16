@@ -5,6 +5,7 @@ import { Table as TableIcon } from "lucide-react";
 import type { Tab } from "../../types/editor";
 import { getTabSwitcherRowClassName } from "../../utils/tabScroll";
 import { onActivationKey } from "../../utils/keyboardEvents";
+import { getTabDisplayTitle } from "../../utils/editor";
 
 interface TabSwitcherModalProps {
   isOpen: boolean;
@@ -86,7 +87,7 @@ export const TabSwitcherModal = ({
                 ) : (
                   <FileCode size={14} className="text-accent-success shrink-0" />
                 )}
-                <span className="flex-1 text-sm truncate">{tab.title}</span>
+                <span className="flex-1 text-sm truncate">{getTabDisplayTitle(tab, tabs)}</span>
                 <button
                   type="button"
                   onClick={(e) => {

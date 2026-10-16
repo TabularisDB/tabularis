@@ -69,6 +69,9 @@ describe("theme author tooling", () => {
     expect(workflow).toContain('validate . --tag "$THEME_TAG"'); expect(workflow).toContain("--draft");
     expect(workflow).toContain("persist-credentials: false"); expect(workflow).toContain("GH_TOKEN: ${{ github.token }}");
   });
+  it("uploads the manifest with the release, where the registry reads it", () => {
+    expect(themeReleaseWorkflow()).toContain('gh release create "$THEME_TAG" theme-universal.zip .tabularium ');
+  });
   it("requires an explicit runtime floor and rejects unknown commands", () => {
     const { bundle } = fixture();
     expect(() => runThemeAuthor(["scaffold", "test-theme"], bundle)).toThrow("explicit");

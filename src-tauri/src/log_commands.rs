@@ -11,14 +11,23 @@ pub struct GetLogsRequest {
 
 #[tauri::command]
 pub fn get_logs(log_buffer: State<SharedLogBuffer>, request: GetLogsRequest) -> Vec<LogEntry> {
-    log::debug!(
+    read_logs(&log_buffer, request)
+}
+
+fn read_logs(log_buffer: &SharedLogBuffer, request: GetLogsRequest) -> Vec<LogEntry> {
+    // The Logs tab polls this every few seconds, so keep it out of Debug.
+    log::trace!(
         "Getting logs with limit: {:?}, filter: {:?}",
         request.limit,
         request.level_filter
     );
-    let buffer = log_buffer.lock().unwrap();
-    let entries = buffer.get_entries(request.limit, request.level_filter);
-    log::debug!("Returning {} log entries", entries.len());
+    // Release the lock before logging: the capturing logger locks the same
+    // buffer, so logging while holding it would deadlock.
+    let entries = {
+        let buffer = log_buffer.lock().unwrap();
+        buffer.get_entries(request.limit, request.level_filter)
+    };
+    log::trace!("Returning {} log entries", entries.len());
     entries
 }
 
@@ -120,3 +129,7 @@ pub fn test_log() -> Result<(), String> {
     log::warn!("Warning test message");
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "log_commands_tests.rs"]
+mod tests;

@@ -231,3 +231,72 @@ async fn resolve_driver_for_params_does_not_retry_on_a_registered_drivers_own_fa
         "a registered driver's own for_connection failure should not be retried"
     );
 }
+
+/// Issue #1082: on a connection with several databases selected, every tool
+/// ran against the first one. The tools that touch data take an optional
+/// `database` to pick another.
+#[test]
+fn data_tools_advertise_an_optional_database() {
+    let result =
+        handle_list_tools(&AppConfig::default()).expect("tool discovery should succeed");
+    let tools = result["tools"].as_array().expect("tools must be an array");
+
+    for name in ["list_tables", "describe_table", "run_query"] {
+        let tool = tools
+            .iter()
+            .find(|tool| tool["name"] == name)
+            .unwrap_or_else(|| panic!("{name} must be advertised"));
+        assert_eq!(
+            tool["inputSchema"]["properties"]["database"]["type"],
+            "string"
+        );
+        assert!(!tool["inputSchema"]["required"]
+            .as_array()
+            .expect("required must be an array")
+            .iter()
+            .any(|field| field == "database"));
+    }
+}
+
+#[test]
+fn database_arg_reads_a_named_database() {
+    let args = json!({ "database": "analytics" });
+    assert_eq!(database_arg(args.as_object().unwrap()), Some("analytics"));
+}
+
+#[test]
+fn database_arg_ignores_a_missing_blank_or_non_string_value() {
+    for args in [
+        json!({}),
+        json!({ "database": "" }),
+        json!({ "database": 3 }),
+    ] {
+        assert_eq!(database_arg(args.as_object().unwrap()), None);
+    }
+}
+
+#[test]
+fn database_override_replaces_a_multi_database_selection() {
+    let mut params = ConnectionParams {
+        driver: "postgres".to_string(),
+        database: DatabaseSelection::Multiple(vec!["main".to_string(), "analytics".to_string()]),
+        ..Default::default()
+    };
+
+    apply_database_override(&mut params, Some("analytics"));
+
+    assert!(matches!(params.database, DatabaseSelection::Single(ref db) if db == "analytics"));
+}
+
+#[test]
+fn database_override_keeps_the_saved_selection_without_a_database() {
+    let mut params = ConnectionParams {
+        driver: "postgres".to_string(),
+        database: DatabaseSelection::Multiple(vec!["main".to_string(), "analytics".to_string()]),
+        ..Default::default()
+    };
+
+    apply_database_override(&mut params, None);
+
+    assert_eq!(params.database.as_vec(), vec!["main", "analytics"]);
+}
