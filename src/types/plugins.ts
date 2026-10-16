@@ -1,5 +1,11 @@
 import type { Dialect } from "../utils/sqlSplitter";
 
+export interface ConnectionStringExample {
+  label: string;
+  value: string;
+  description?: string;
+}
+
 export interface DriverCapabilities {
   schemas: boolean;
   views: boolean;
@@ -15,8 +21,12 @@ export interface DriverCapabilities {
   connectionString?: boolean;
   /** Optional placeholder example shown in the connection string input. */
   connection_string_example?: string;
+  /** Optional presets shown beside the connection string field. */
+  connection_string_examples?: ConnectionStringExample[];
   /** CamelCase alias accepted for plugin compatibility. */
   connectionStringExample?: string;
+  /** CamelCase alias accepted for plugin compatibility. */
+  connectionStringExamples?: ConnectionStringExample[];
   /** The driver consumes the raw connection URI verbatim instead of the decomposed
    * host/port/database fields. Set by drivers whose scheme carries semantics the
    * decomposition would destroy (e.g. the DNS seedlist lookup implied by
@@ -35,6 +45,8 @@ export interface DriverCapabilities {
   auto_increment_keyword?: string;
   serial_type?: string;
   inline_pk?: boolean;
+  /** Opts Generate SQL into the optional get_table_query_template RPC. Defaults to false. */
+  table_query_templates?: boolean;
   // DDL capabilities (optional, default to false when not present)
   alter_column?: boolean;
   create_foreign_keys?: boolean;

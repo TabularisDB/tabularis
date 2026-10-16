@@ -12,6 +12,7 @@ import {
   MAX_VISIBLE_PALETTE_RESULTS,
 } from "../../../utils/paletteItems";
 import { SpotlightPalette } from "../../ui/SpotlightPalette";
+import { KEY_CAP } from "./paletteStyles";
 import { PaletteResults } from "./PaletteResults";
 import { PALETTE_RESULTS_ID, paletteOptionId } from "./paletteIds";
 
@@ -30,10 +31,9 @@ interface PaletteProps {
   items: PaletteItem[];
   /** Surfaced when the item list itself is incomplete, e.g. a schema failed to load. */
   error?: string | null;
+  query?: string;
+  onQueryChange?: (query: string) => void;
 }
-
-const KEY_CAP =
-  "px-1 py-0.5 rounded bg-surface-secondary text-muted text-[9px] font-mono";
 
 const PaletteHint = ({
   keys,
@@ -52,16 +52,23 @@ const PaletteHint = ({
   </span>
 );
 
-export const Palette = ({ labels, items, error }: PaletteProps) => {
+export const Palette = ({
+  labels,
+  items,
+  error,
+  query: controlledQuery,
+  onQueryChange,
+}: PaletteProps) => {
   const { t } = useTranslation();
   const { closePalette } = useCommandPaletteDispatch();
-  const [query, setQuery] = useState("");
+  const [internalQuery, setInternalQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionError, setExecutionError] = useState<string | null>(
     null,
   );
 
+  const query = controlledQuery ?? internalQuery;
   const search = useMemo(() => createPaletteSearch(items), [items]);
   const matches = useMemo(() => search(query), [search, query]);
   const results = useMemo(
@@ -100,7 +107,10 @@ export const Palette = ({ labels, items, error }: PaletteProps) => {
       selectedIndex={activeIndex}
       onClose={closePalette}
       onQueryChange={(nextQuery) => {
-        setQuery(nextQuery);
+        if (controlledQuery === undefined) {
+          setInternalQuery(nextQuery);
+        }
+        onQueryChange?.(nextQuery);
         // A new query means a new ranking, so the best match is the first
         // row again rather than wherever the selection sat in the old list.
         setSelectedIndex(0);

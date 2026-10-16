@@ -8,6 +8,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  FileCode,
   X,
 } from "lucide-react";
 import { Accordion } from "./Accordion";
@@ -20,7 +21,7 @@ import { SidebarTriggerItem } from "./SidebarTriggerItem";
 import type { SchemaData, RoutineInfo, TriggerInfo } from "../../../contexts/DatabaseContext";
 import type { TableColumn } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
-import { groupRoutinesByType } from "../../../utils/routines";
+import { groupRoutinesByType, routineLabel } from "../../../utils/routines";
 import { formatObjectCount } from "../../../utils/schema";
 import { fuzzyFilter } from "../../../utils/fuzzy";
 import { onActivationKey } from "../../../utils/keyboardEvents";
@@ -33,8 +34,22 @@ interface SidebarSchemaItemProps {
   connectionId: string;
   driver: string;
   schemaVersion: number;
+  /** Database name for a schema-based multi-db driver (PostgreSQL browsing
+   * several databases on one connection) — distinct from `schemaName`,
+   * forwarded to every child action alongside it so table/view/routine/
+   * trigger operations route to the right connection pool. Undefined for
+   * a plain single-database connection. */
+  database?: string;
   onLoadSchema: (schema: string) => void;
   onRefreshSchema: (schema: string) => void;
+  /** Opens a new, empty console scoped to this schema (and its database,
+   * for the nested multi-db tree). The nested tree has no other way to
+   * open an ad-hoc console against a database with no existing table/
+   * routine to anchor a context-menu action on (#822 follow-up) — the
+   * flat schema-less multi-db path already has this via the console's own
+   * database-selector dropdown, which is deliberately hidden for a
+   * schema-based driver like PostgreSQL. */
+  onNewConsole: (schema: string, database?: string) => void;
   onTableClick: (name: string, schema: string) => void;
   onTableDoubleClick: (name: string, schema: string) => void;
   onViewClick: (name: string) => void;
@@ -61,6 +76,8 @@ interface SidebarSchemaItemProps {
   onCreateTable: () => void;
   onCreateView: () => void;
   onCreateTrigger: (schema: string) => void;
+  /** Omitted when the driver cannot manage routines. */
+  onCreateRoutine?: (e: React.MouseEvent, schema: string) => void;
   showTriggers?: boolean;
   refreshingMatView?: string | null;
 }
@@ -73,8 +90,10 @@ export const SidebarSchemaItem = ({
   connectionId,
   driver,
   schemaVersion,
+  database,
   onLoadSchema,
   onRefreshSchema,
+  onNewConsole,
   onTableClick,
   onTableDoubleClick,
   onViewClick,
@@ -91,6 +110,7 @@ export const SidebarSchemaItem = ({
   onCreateTable,
   onCreateView,
   onCreateTrigger,
+  onCreateRoutine,
   showTriggers = false,
   refreshingMatView = null,
 }: SidebarSchemaItemProps) => {
@@ -124,6 +144,9 @@ export const SidebarSchemaItem = ({
   const materializedViews = schemaData?.materializedViews ?? [];
   const routines = schemaData?.routines ?? [];
   const routineError = schemaData?.routineError;
+  const routineErrorIndicator = routineError ? (
+    <MetadataErrorIndicator error={routineError} title={t("sidebar.routineMetadataErrorTitle")} />
+  ) : undefined;
   const triggers = schemaData?.triggers ?? [];
   const filteredTriggers = fuzzyFilter(triggers, triggerFilter, (tr) => tr.name);
   const isLoading = schemaData?.isLoading ?? false;
@@ -178,17 +201,30 @@ export const SidebarSchemaItem = ({
           )}
         </div>
         {isExpanded && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRefreshSchema(schemaName);
-            }}
-            className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors opacity-0
-                group-hover/schema:opacity-100 ml-1 mr-3"
-            title={t("sidebar.refreshTables") || "Refresh"}
-          >
-            <RefreshCw size={12} />
-          </button>
+          <div className="flex items-center opacity-0 group-hover/schema:opacity-100 ml-1 mr-3">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onNewConsole(schemaName, database);
+              }}
+              className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors mr-0.5"
+              title={t("sidebar.newConsole")}
+              aria-label={t("sidebar.newConsole")}
+            >
+              <FileCode size={12} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRefreshSchema(schemaName);
+              }}
+              className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+              title={t("sidebar.refreshTables") || "Refresh"}
+              aria-label={t("sidebar.refreshTables") || "Refresh"}
+            >
+              <RefreshCw size={12} />
+            </button>
+          </div>
         )}
       </div>
 
@@ -270,6 +306,7 @@ export const SidebarSchemaItem = ({
                         onDropForeignKey={onDropForeignKey}
                         schemaVersion={schemaVersion}
                         schema={schemaName}
+                        database={database}
                       />
                     ))}
                   </div>
@@ -313,6 +350,7 @@ export const SidebarSchemaItem = ({
                         connectionId={connectionId}
                         driver={driver}
                         schema={schemaName}
+                        database={database}
                       />
                     ))}
                   </div>
@@ -339,6 +377,7 @@ export const SidebarSchemaItem = ({
                         connectionId={connectionId}
                         driver={driver}
                         schema={schemaName}
+                        database={database}
                         materialized
                         isRefreshing={refreshingMatView === view.name}
                       />
@@ -405,6 +444,7 @@ export const SidebarSchemaItem = ({
                           onContextMenu={onContextMenu}
                           onDoubleClick={(tr) => onTriggerDoubleClick(tr, schemaName)}
                           schema={schemaName}
+                          database={database}
                         />
                       ))}
                     </div>
@@ -417,12 +457,25 @@ export const SidebarSchemaItem = ({
                 title={`${t("sidebar.routines")} (${routines.length})`}
                 isOpen={routinesOpen}
                 onToggle={() => setRoutinesOpen(!routinesOpen)}
-                actions={routineError ? (
-                  <MetadataErrorIndicator
-                    error={routineError}
-                    title={t("sidebar.routineMetadataErrorTitle")}
-                  />
-                ) : undefined}
+                actions={
+                  onCreateRoutine ? (
+                    <div className="flex items-center gap-1 mr-2.5">
+                      {routineErrorIndicator}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCreateRoutine(e, schemaName);
+                        }}
+                        className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                        title={t("routines.newRoutine")}
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    routineErrorIndicator
+                  )
+                }
               >
                 {routines.length === 0 ? (
                   <div className="text-center p-2 text-xs text-muted italic">
@@ -441,12 +494,13 @@ export const SidebarSchemaItem = ({
                         />
                         {functionsOpen && groupedRoutines.functions.map((routine) => (
                           <SidebarRoutineItem
-                            key={routine.name}
+                            key={routineLabel(routine.name, routine.identity_args)}
                             routine={routine}
                             connectionId={connectionId}
                             onContextMenu={onContextMenu}
                             onDoubleClick={(r) => onRoutineDoubleClick(r, schemaName)}
                             schema={schemaName}
+                            database={database}
                           />
                         ))}
                       </div>
@@ -463,12 +517,13 @@ export const SidebarSchemaItem = ({
                         />
                         {proceduresOpen && groupedRoutines.procedures.map((routine) => (
                           <SidebarRoutineItem
-                            key={routine.name}
+                            key={routineLabel(routine.name, routine.identity_args)}
                             routine={routine}
                             connectionId={connectionId}
                             onContextMenu={onContextMenu}
                             onDoubleClick={(r) => onRoutineDoubleClick(r, schemaName)}
                             schema={schemaName}
+                            database={database}
                           />
                         ))}
                       </div>

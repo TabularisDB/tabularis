@@ -68,6 +68,26 @@ describe('JSON parsing', () => {
 });
 
 describe('CSV parsing', () => {
+  it.each([',', ';'])('keeps multiline quoted fields with separator %s', (separator) => {
+    const text = `id${separator}note\n1${separator}"first\nsecond"\n2${separator}plain`;
+    const result = parseClipboardText(text);
+    expect(result.rows).toEqual([['1','first\nsecond'],['2','plain']]);
+    expect(result.rowCount).toBe(2);
+    expect(reParseWithHeaderOption(text, false, result).rows).toEqual([
+      ['id','note'],['1','first\nsecond'],['2','plain'],
+    ]);
+  });
+
+  it('keeps escaped quotes and CRLF inside quoted cells', () => {
+    const result = parseClipboardText('id,note\r\n1,"first ""quoted""\r\nsecond"\r\n2,end\r\n');
+    expect(result.rows).toEqual([['1','first "quoted"\r\nsecond'],['2','end']]);
+  });
+
+  it('retains empty trailing cells after multiline fields', () => {
+    const result = parseClipboardText('id,note,extra\n1,"first\nsecond",');
+    expect(result.rows).toEqual([['1','first\nsecond','']]);
+  });
+
   it('parses comma-separated values', () => {
     const result = parseClipboardText('name,age\nAlice,30\nBob,25');
     expect(result.headers).toEqual(['name', 'age']);
@@ -190,5 +210,21 @@ describe('edge cases', () => {
     const result = parseClipboardText('a\tb\tc\n1\t2');
     expect(result.rows[0]).toHaveLength(3);
     expect(result.rows[0][2]).toBe('');
+  });
+});
+
+
+describe('file format hints', () => {
+  it('keeps a quoted tab in a CSV cell', () => {
+    expect(parseClipboardText('id,note\n1,"left\tright"', 'csv').rows).toEqual([['1','left\tright']]);
+  });
+  it('ignores separators inside quoted headers when choosing CSV delimiter', () => {
+    const result = parseClipboardText('"comma,header";note\n1;value', 'csv');
+    expect(result.rows).toEqual([['1','value']]);
+  });
+  it('normalizes a large row count without exceeding the argument limit', () => {
+    const result = parseClipboardText('id,value\n'+'1,a\n'.repeat(150000), 'csv');
+    expect(result.rowCount).toBe(150000);
+    expect(result.rows[149999]).toEqual(['1','a']);
   });
 });

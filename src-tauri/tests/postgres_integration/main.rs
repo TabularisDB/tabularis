@@ -68,6 +68,7 @@ mod parity_triggers_extra;
 mod parity_views_extra;
 mod parity_views_full;
 mod query_execution;
+mod read_only;
 mod routines;
 mod schema_discovery;
 mod triggers;

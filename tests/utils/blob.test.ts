@@ -3,6 +3,10 @@ import {
   isBlobType,
   extractBlobMetadata,
   extractImageDataUrl,
+  isSvgText,
+  svgTextToDataUrl,
+  hasCellImagePreview,
+  extractCellImagePreviewUrl,
   formatBlobValue,
   mimeToExtension,
   parseBlobFileRef,
@@ -346,6 +350,84 @@ describe("blob utilities", () => {
         const dataUrl = extractImageDataUrl(wire);
         expect(dataUrl).toBe(`data:${mime};base64,${b64}`);
       }
+    });
+  });
+
+  describe("isSvgText", () => {
+    it("should return true for SVG strings starting with <svg", () => {
+      expect(isSvgText('<svg width="100" height="100"><circle cx="50" cy="50" r="40" /></svg>')).toBe(true);
+      expect(isSvgText('  <svg xmlns="http://www.w3.org/2000/svg"></svg>  ')).toBe(true);
+    });
+
+    it("should return true for SVG strings with XML declaration", () => {
+      expect(
+        isSvgText('<?xml version="1.0" encoding="UTF-8"?><svg viewBox="0 0 10 10"></svg>'),
+      ).toBe(true);
+      expect(
+        isSvgText('  <?xml version="1.0" standalone="no"?>\n<svg viewBox="0 0 10 10"></svg>'),
+      ).toBe(true);
+    });
+
+    it("should return false for non-SVG strings", () => {
+      expect(isSvgText("<svgfoo>not svg</svgfoo>")).toBe(false);
+      expect(isSvgText("<svg-ish>not svg</svg-ish>")).toBe(false);
+      expect(isSvgText("<div>not svg</div>")).toBe(false);
+      expect(isSvgText("hello world")).toBe(false);
+      expect(isSvgText("<?xml version=\"1.0\"?><root></root>")).toBe(false);
+      expect(isSvgText("")).toBe(false);
+      expect(isSvgText(123)).toBe(false);
+      expect(isSvgText(null)).toBe(false);
+      expect(isSvgText(undefined)).toBe(false);
+    });
+  });
+
+  describe("svgTextToDataUrl", () => {
+    it("should format valid data:image/svg+xml;utf8 URL", () => {
+      const svg = '<svg width="10" height="10"></svg>';
+      const dataUrl = svgTextToDataUrl(svg);
+      expect(dataUrl).toBe(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
+    });
+  });
+
+  describe("hasCellImagePreview", () => {
+    it("should return true for SVG text and complete image BLOBs without full base64 extraction", () => {
+      const svg = '<svg width="20" height="20"></svg>';
+      expect(hasCellImagePreview(svg)).toBe(true);
+
+      const raw = "png";
+      const b64 = btoa(raw);
+      const wire = `BLOB:${raw.length}:image/png:${b64}`;
+      expect(hasCellImagePreview(wire)).toBe(true);
+    });
+
+    it("should return false for truncated BLOBs or non-images", () => {
+      expect(hasCellImagePreview("plain text")).toBe(false);
+      expect(hasCellImagePreview("<svgfoo>")).toBe(false);
+      expect(hasCellImagePreview(null)).toBe(false);
+
+      const previewB64 = btoa("partial");
+      const truncated = `BLOB:5242880:image/png:${previewB64}`;
+      expect(hasCellImagePreview(truncated)).toBe(false);
+    });
+  });
+
+  describe("extractCellImagePreviewUrl", () => {
+    it("should extract data URL for SVG text", () => {
+      const svg = '<svg width="20" height="20"></svg>';
+      const url = extractCellImagePreviewUrl(svg);
+      expect(url).toBe(svgTextToDataUrl(svg));
+    });
+
+    it("should extract data URL for image BLOB wire format", () => {
+      const raw = "png";
+      const b64 = btoa(raw);
+      const wire = `BLOB:${raw.length}:image/png:${b64}`;
+      expect(extractCellImagePreviewUrl(wire)).toBe(`data:image/png;base64,${b64}`);
+    });
+
+    it("should return null for non-image values", () => {
+      expect(extractCellImagePreviewUrl("regular text")).toBeNull();
+      expect(extractCellImagePreviewUrl(null)).toBeNull();
     });
   });
 

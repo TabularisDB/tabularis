@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { EditorProvider } from "../../src/contexts/EditorProvider";
 import { useEditor } from "../../src/hooks/useEditor";
+import { buildDuplicatedTab } from "../../src/utils/editor";
 import { DatabaseContext } from "../../src/contexts/DatabaseContext";
 import { invoke } from "@tauri-apps/api/core";
 import React from "react";
@@ -169,6 +170,145 @@ describe("EditorProvider", () => {
     expect(result.current.activeTabId).toBe(firstTabId); // Should focus existing
   });
 
+  it("should insert a forced duplicate immediately after the source tab", () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    act(() => {
+      result.current.addTab({ type: "console", title: "First" });
+    });
+    act(() => {
+      result.current.addTab({
+        type: "table",
+        title: "users",
+        activeTable: "users",
+        query: "SELECT * FROM users WHERE id = :id",
+        queryParams: { id: "7" },
+        schema: "public",
+        sourceFilePath: "/tmp/users.sql",
+        result: {
+          columns: ["id"],
+          rows: [[1]],
+          affected_rows: 1,
+        },
+      });
+    });
+    act(() => {
+      result.current.addTab({ type: "console", title: "Last" });
+    });
+
+    const sourceId = result.current.tabs[1].id;
+
+    act(() => {
+      result.current.addTab(
+        {
+          type: "table",
+          title: "users (copy)",
+          activeTable: "users",
+          query: "SELECT * FROM users WHERE id = :id",
+          queryParams: { id: "7" },
+          schema: "public",
+        },
+        { insertAfterId: sourceId, forceNew: true },
+      );
+    });
+
+    expect(result.current.tabs.map((tab) => tab.title)).toEqual([
+      "First",
+      "users",
+      "users (copy)",
+      "Last",
+    ]);
+    const copy = result.current.tabs[2];
+    expect(result.current.activeTabId).toBe(copy.id);
+    expect(copy.type).toBe("table");
+    expect(copy.query).toBe("SELECT * FROM users WHERE id = :id");
+    expect(copy.queryParams).toEqual({ id: "7" });
+    expect(copy.activeTable).toBe("users");
+    expect(copy.schema).toBe("public");
+    expect(copy.result).toBeNull();
+    expect(copy.sourceFilePath).toBeUndefined();
+    expect(copy.notebookId).toBeUndefined();
+  });
+
+  it("should keep materialized and readOnly flags on a forced duplicate", () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    act(() => {
+      result.current.addTab({
+        type: "table",
+        title: "mv_orders",
+        activeTable: "mv_orders",
+        query: "SELECT * FROM mv_orders",
+        schema: "public",
+        materialized: true,
+        result: {
+          columns: ["id"],
+          rows: [[1]],
+          affected_rows: 1,
+        },
+        error: "boom",
+        isLoading: true,
+      });
+    });
+
+    const source = result.current.tabs[0];
+    const duplicate = buildDuplicatedTab(source);
+
+    act(() => {
+      result.current.addTab(duplicate ?? undefined, {
+        insertAfterId: source.id,
+        forceNew: true,
+      });
+    });
+
+    const copy = result.current.tabs[1];
+    expect(copy.id).not.toBe(source.id);
+    expect(copy.title).toBe("mv_orders (copy)");
+    expect(copy.type).toBe("table");
+    expect(copy.materialized).toBe(true);
+    expect(copy.readOnly).toBeUndefined();
+    expect(copy.query).toBe("SELECT * FROM mv_orders");
+    expect(copy.activeTable).toBe("mv_orders");
+    expect(copy.schema).toBe("public");
+    expect(copy.result).toBeNull();
+    expect(copy.error).toBe("");
+    expect(copy.isLoading).toBe(false);
+
+    act(() => {
+      result.current.addTab({
+        type: "console",
+        title: "trg_audit Definition",
+        query: "CREATE TRIGGER trg_audit",
+        activeTable: null,
+        readOnly: true,
+        error: "boom",
+        isLoading: true,
+      });
+    });
+
+    const definition = result.current.tabs[2];
+    const definitionCopy = buildDuplicatedTab(definition);
+
+    act(() => {
+      result.current.addTab(definitionCopy ?? undefined, {
+        insertAfterId: definition.id,
+        forceNew: true,
+      });
+    });
+
+    const readOnlyCopy = result.current.tabs[3];
+    expect(readOnlyCopy.id).not.toBe(definition.id);
+    expect(readOnlyCopy.title).toBe("trg_audit Definition (copy)");
+    expect(readOnlyCopy.type).toBe("console");
+    expect(readOnlyCopy.readOnly).toBe(true);
+    expect(readOnlyCopy.materialized).toBeUndefined();
+    expect(readOnlyCopy.result).toBeNull();
+    expect(readOnlyCopy.error).toBe("");
+    expect(readOnlyCopy.isLoading).toBe(false);
+  });
+
   it("should add a query builder tab", () => {
     const wrapper = createWrapper("conn-1");
     const { result } = renderHook(() => useEditor(), { wrapper });
@@ -201,6 +341,34 @@ describe("EditorProvider", () => {
 
     expect(result.current.tabs).toHaveLength(1);
     expect(result.current.activeTabId).not.toBe(tabId);
+  });
+
+  it("releases a closed tab's query session on its connection", async () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    act(() => {
+      result.current.addTab({ type: "console" });
+    });
+    act(() => {
+      result.current.addTab({ type: "console" });
+    });
+    const tabId = result.current.tabs[0].id;
+
+    act(() => {
+      result.current.closeTab(tabId);
+    });
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("release_query_session", {
+        connectionId: "conn-1",
+        sessionId: tabId,
+      }),
+    );
+    expect(invoke).not.toHaveBeenCalledWith(
+      "release_query_session",
+      expect.objectContaining({ sessionId: result.current.tabs[0].id }),
+    );
   });
 
   it("should return empty tabs when closing last tab", () => {
@@ -505,6 +673,120 @@ describe("EditorProvider", () => {
     // Should show no tabs for conn-2
     expect(resultConn2.current.tabs).toHaveLength(0);
   });
+
+  it("reopens the last closed tab at its previous position and activates it (#866)", () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    act(() => {
+      result.current.addTab({ type: "console" });
+    });
+    act(() => {
+      result.current.addTab({ type: "table", activeTable: "users" });
+    });
+    act(() => {
+      result.current.addTab({ type: "console" });
+    });
+
+    const tableTabId = result.current.tabs[1].id;
+    act(() => {
+      result.current.updateTab(tableTabId, { query: "SELECT * FROM users" });
+    });
+
+    act(() => {
+      result.current.closeTab(tableTabId);
+    });
+
+    expect(result.current.tabs).toHaveLength(2);
+    expect(result.current.canReopenClosedTab).toBe(true);
+
+    let restoredId: string | null = null;
+    act(() => {
+      restoredId = result.current.reopenClosedTab();
+    });
+
+    expect(restoredId).toBe(tableTabId);
+    expect(result.current.tabs).toHaveLength(3);
+    expect(result.current.tabs[1].id).toBe(tableTabId);
+    expect(result.current.tabs[1].activeTable).toBe("users");
+    expect(result.current.tabs[1].query).toBe("SELECT * FROM users");
+    expect(result.current.activeTabId).toBe(tableTabId);
+  });
+
+  it("restores two quick closes in LIFO order and then reports nothing to reopen", () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    for (let i = 0; i < 3; i++) {
+      act(() => {
+        result.current.addTab({ type: "console" });
+      });
+    }
+    const [firstId, secondId, thirdId] = result.current.tabs.map((t) => t.id);
+
+    act(() => {
+      result.current.closeTab(firstId);
+    });
+    act(() => {
+      result.current.closeTab(secondId);
+    });
+
+    expect(result.current.tabs).toHaveLength(1);
+
+    let firstReopen: string | null = null;
+    let secondReopen: string | null = null;
+    act(() => {
+      firstReopen = result.current.reopenClosedTab();
+    });
+    act(() => {
+      secondReopen = result.current.reopenClosedTab();
+    });
+
+    // Newest close comes back first. Each close records the index relative to
+    // the list as it stood, so LIFO reopens rebuild the original order.
+    expect(firstReopen).toBe(secondId);
+    expect(secondReopen).toBe(firstId);
+    expect(result.current.tabs.map((t) => t.id)).toEqual([
+      firstId,
+      secondId,
+      thirdId,
+    ]);
+    expect(result.current.canReopenClosedTab).toBe(false);
+    act(() => {
+      expect(result.current.reopenClosedTab()).toBeNull();
+    });
+  });
+
+  it("pushes closeOtherTabs victims so the right-most reopens first", () => {
+    const wrapper = createWrapper("conn-1");
+    const { result } = renderHook(() => useEditor(), { wrapper });
+
+    for (let i = 0; i < 3; i++) {
+      act(() => {
+        result.current.addTab({ type: "console" });
+      });
+    }
+    const [keepId, secondId, thirdId] = result.current.tabs.map((t) => t.id);
+
+    act(() => {
+      result.current.closeOtherTabs(keepId);
+    });
+
+    expect(result.current.tabs).toHaveLength(1);
+
+    act(() => {
+      result.current.reopenClosedTab();
+    });
+    act(() => {
+      result.current.reopenClosedTab();
+    });
+
+    expect(result.current.tabs.map((t) => t.id)).toEqual([
+      keepId,
+      secondId,
+      thirdId,
+    ]);
+  });
 });
 
 describe("EditorProvider connection switching (#292)", () => {
@@ -575,6 +857,10 @@ describe("EditorProvider connection switching (#292)", () => {
     // Storage load brings in conn-1's tab (result-stripped, as persisted).
     await waitFor(() => expect(result.current.tabs).toHaveLength(1));
     expect(result.current.tabs[0].id).toBe("tab-1");
+    const schedule = result.current.getAutoRefreshSchedule("tab-1");
+    schedule.configure(30000);
+    schedule.complete();
+    const deadline = schedule.getSnapshot().nextDueAt;
 
     // Running the query fills in the live result.
     const liveResult = {
@@ -603,6 +889,10 @@ describe("EditorProvider connection switching (#292)", () => {
     const tab1 = result.current.tabs.find((t) => t.id === "tab-1");
     expect(tab1?.query).toBe("select * from users");
     expect(tab1?.result).toBe(liveResult);
+    expect(result.current.getAutoRefreshSchedule("tab-1")).toBe(schedule);
+    expect(schedule.getSnapshot().nextDueAt).toBe(deadline);
+    act(() => { result.current.closeTab("tab-1"); });
+    expect(result.current.getAutoRefreshSchedule("tab-1")).not.toBe(schedule);
 
     // The storage loader never ran for conn-1 a second time.
     const conn1Loads = vi
@@ -613,5 +903,75 @@ describe("EditorProvider connection switching (#292)", () => {
           (args as { connectionId?: string })?.connectionId === "conn-1",
       );
     expect(conn1Loads).toHaveLength(1);
+  });
+});
+
+describe("EditorProvider reopen closed tab across connections (#866)", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === "save_editor_preferences") {
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(null);
+    });
+  });
+
+  it("keeps the closed-tab stack per connection", async () => {
+    const conn = { current: "conn-1" };
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(
+        DatabaseContext.Provider,
+        {
+          value: {
+            activeConnectionId: conn.current,
+            activeDriver: "mysql",
+            activeTable: null,
+            activeConnectionName: "Test Connection",
+            activeDatabaseName: "testdb",
+            tables: [],
+            isLoadingTables: false,
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+            setActiveTable: vi.fn(),
+            refreshTables: vi.fn(),
+          },
+        },
+        React.createElement(EditorProvider, null, children),
+      );
+
+    const { result, rerender } = renderHook(() => useEditor(), { wrapper });
+
+    await waitFor(() => expect(result.current.tabs).toHaveLength(1));
+    const closedId = result.current.tabs[0].id;
+
+    act(() => {
+      result.current.closeTab(closedId);
+    });
+    expect(result.current.canReopenClosedTab).toBe(true);
+
+    // On another connection there is nothing to reopen.
+    conn.current = "conn-2";
+    rerender();
+    await waitFor(() =>
+      expect(result.current.tabs.some((t) => t.connectionId === "conn-2")).toBe(
+        true,
+      ),
+    );
+    expect(result.current.canReopenClosedTab).toBe(false);
+    act(() => {
+      expect(result.current.reopenClosedTab()).toBeNull();
+    });
+
+    // Back on conn-1 the closed tab is still restorable.
+    conn.current = "conn-1";
+    rerender();
+    expect(result.current.canReopenClosedTab).toBe(true);
+    let restoredId: string | null = null;
+    act(() => {
+      restoredId = result.current.reopenClosedTab();
+    });
+    expect(restoredId).toBe(closedId);
+    expect(result.current.activeTabId).toBe(closedId);
   });
 });

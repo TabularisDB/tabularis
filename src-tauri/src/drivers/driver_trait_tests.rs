@@ -1,4 +1,40 @@
-use crate::drivers::driver_trait::deprecation_for_builtin;
+use crate::drivers::driver_trait::{deprecation_for_builtin, DriverCapabilities, PluginManifest};
+
+#[test]
+fn manifest_accepts_both_connection_string_example_spellings() {
+    for field in ["connection_string_examples", "connectionStringExamples"] {
+        let mut capabilities = serde_json::to_value(DriverCapabilities::default()).unwrap();
+        capabilities
+            .as_object_mut()
+            .unwrap()
+            .remove("connection_string_examples");
+        capabilities[field] = serde_json::json!([{
+            "label": "Local",
+            "value": "jdbc:h2:mem:test",
+            "description": "In-memory database"
+        }]);
+
+        let manifest: PluginManifest = serde_json::from_value(serde_json::json!({
+            "id": "jdbc",
+            "name": "JDBC",
+            "version": "1.0.0",
+            "description": "JDBC driver",
+            "default_port": null,
+            "capabilities": capabilities
+        }))
+        .unwrap();
+
+        assert_eq!(manifest.capabilities.connection_string_examples.len(), 1);
+        assert_eq!(
+            manifest.capabilities.connection_string_examples[0].label,
+            "Local"
+        );
+        assert_eq!(
+            manifest.capabilities.connection_string_examples[0].value,
+            "jdbc:h2:mem:test"
+        );
+    }
+}
 
 #[test]
 fn postgres_is_deprecated_in_favour_of_the_postgresql_plugin() {

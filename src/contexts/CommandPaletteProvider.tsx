@@ -18,6 +18,10 @@ import {
   getActiveCommandScopeId,
 } from "../utils/commandScopeStore";
 import { resolveRenderedSplitLayout } from "../utils/connectionLayout";
+import {
+  getShortcutFocusContext,
+  type ShortcutFocusContext,
+} from "../utils/keyboardEvents";
 import type { CommandPaletteMode } from "../types/commands";
 
 interface CommandPaletteProviderProps {
@@ -37,6 +41,8 @@ export const CommandPaletteProvider = ({
 
   const [activePalette, setActivePalette] =
     useState<CommandPaletteMode | null>(null);
+  const [focusContext, setFocusContext] =
+    useState<ShortcutFocusContext | null>(null);
   const activePaletteRef = useRef<CommandPaletteMode | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -62,6 +68,7 @@ export const CommandPaletteProvider = ({
       document.activeElement instanceof HTMLElement
     ) {
       previousFocusRef.current = document.activeElement;
+      setFocusContext(getShortcutFocusContext(document.activeElement));
     }
     activePaletteRef.current = nextMode;
     setActivePalette(nextMode);
@@ -72,6 +79,7 @@ export const CommandPaletteProvider = ({
     activePaletteRef.current = null;
     previousFocusRef.current = null;
     setActivePalette(null);
+    setFocusContext(null);
     window.requestAnimationFrame(() => previousFocus?.focus());
   }, []);
 
@@ -89,8 +97,9 @@ export const CommandPaletteProvider = ({
   const stateValue = useMemo(
     () => ({
       activePalette,
+      focusContext,
     }),
-    [activePalette],
+    [activePalette, focusContext],
   );
 
   const dispatchValue = useMemo(

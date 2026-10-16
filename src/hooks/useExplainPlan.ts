@@ -13,6 +13,7 @@ interface RunExplainArgs {
   query: string;
   analyze?: boolean;
   schema?: string | null;
+  database?: string | null;
 }
 
 /**
@@ -63,7 +64,7 @@ export function useExplainPlan(initialPlan: ExplainPlan | null = null) {
   );
 
   const runExplain = useCallback(
-    async ({ connectionId, query, analyze = false, schema = null }: RunExplainArgs) => {
+    async ({ connectionId, query, analyze = false, schema = null, database = null }: RunExplainArgs) => {
       if (!query?.trim() || !connectionId?.trim()) {
         invalidate();
         reset();
@@ -78,6 +79,7 @@ export function useExplainPlan(initialPlan: ExplainPlan | null = null) {
           query,
           analyze,
           schema: schema || null,
+          database: database || null,
         });
         return resolveExplainOutput(result);
       });

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { TableToolbar } from '../../../src/components/ui/TableToolbar';
 import { useDatabase } from '../../../src/hooks/useDatabase';
+import { renderWithSlotProbe } from '../../fixtures/pluginSlotProbe';
 
 vi.mock('../../../src/hooks/useDatabase', () => ({
   useDatabase: vi.fn(),
@@ -29,6 +30,63 @@ describe('TableToolbar', () => {
     expect(screen.getByText('WHERE')).toBeInTheDocument();
     expect(screen.getByText('ORDER BY')).toBeInTheDocument();
     expect(screen.getByText('LIMIT')).toBeInTheDocument();
+  });
+
+  it('exposes a controlled, labeled refresh interval beside manual refresh', () => {
+    const onChange = vi.fn();
+    const onRefresh = vi.fn();
+    const { rerender } = render(<TableToolbar {...defaultProps} autoRefreshIntervalMs={10000}
+      onAutoRefreshChange={onChange} onRefresh={onRefresh} />);
+    const select = screen.getByRole('combobox', { name: 'toolbar.autoRefresh.label' });
+    expect(select).toHaveValue('10000');
+    expect(select.querySelectorAll('option')).toHaveLength(5);
+    fireEvent.change(select, { target: { value: '5000' } });
+    expect(onChange).toHaveBeenCalledWith(5000);
+    expect(select).toHaveValue('10000');
+    fireEvent.click(screen.getByRole('button', { name: 'toolbar.autoRefresh.refresh' }));
+    expect(onRefresh).toHaveBeenCalledOnce();
+    rerender(<TableToolbar {...defaultProps} autoRefreshIntervalMs={5000}
+      onAutoRefreshChange={onChange} onRefresh={onRefresh} autoRefreshPaused refreshDisabled />);
+    expect(select).toHaveValue('5000');
+    expect(screen.getByRole('status')).toHaveTextContent('toolbar.autoRefresh.paused');
+    expect(screen.getByRole('button', { name: 'toolbar.autoRefresh.refresh' })).toBeDisabled();
+  });
+
+  it('keeps the auto-refresh live region mounted and names the pause reason', () => {
+    const props = { ...defaultProps, onAutoRefreshChange: vi.fn(), onRefresh: vi.fn(), autoRefreshIntervalMs: 5000 as const };
+    const { rerender } = render(<TableToolbar {...props} />);
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('');
+    rerender(<TableToolbar {...props} autoRefreshPaused autoRefreshPausedReason="selection" />);
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status).toHaveTextContent('toolbar.autoRefresh.pausedSelection');
+    rerender(<TableToolbar {...props} autoRefreshPaused autoRefreshPausedReason="editing" />);
+    expect(status).toHaveTextContent('toolbar.autoRefresh.paused');
+  });
+
+  it('renders a single refresh button and marks a non-Off interval as active', () => {
+    const props = { ...defaultProps, onAutoRefreshChange: vi.fn(), onRefresh: vi.fn() };
+    const { rerender } = render(<TableToolbar {...props} autoRefreshIntervalMs={0} />);
+    expect(screen.getAllByRole('button', { name: 'toolbar.autoRefresh.refresh' })).toHaveLength(1);
+    const select = screen.getByRole('combobox', { name: 'toolbar.autoRefresh.label' });
+    expect(select).not.toHaveAttribute('data-active');
+    expect(select).toHaveClass('border-default', 'text-secondary');
+
+    rerender(<TableToolbar {...props} autoRefreshIntervalMs={30000} />);
+    expect(select).toHaveAttribute('data-active', 'true');
+    expect(select).toHaveClass('border-accent-primary/50', 'text-accent');
+    expect(select).not.toHaveClass('border-default');
+    expect(screen.getByRole('button', { name: 'toolbar.autoRefresh.refresh' })).toHaveClass('text-accent');
+
+    rerender(<TableToolbar {...props} autoRefreshIntervalMs={0} />);
+    expect(select).not.toHaveAttribute('data-active');
+    expect(screen.getByRole('button', { name: 'toolbar.autoRefresh.refresh' })).toHaveClass('text-muted');
+  });
+
+  it('omits the refresh controls when auto-refresh is not wired', () => {
+    render(<TableToolbar {...defaultProps} />);
+    expect(screen.queryByRole('button', { name: 'toolbar.autoRefresh.refresh' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'toolbar.autoRefresh.label' })).toBeNull();
   });
 
   it('renders with initial values', () => {
@@ -266,5 +324,186 @@ describe('TableToolbar', () => {
     fireEvent.keyDown(filterInput, { key: 'Enter' });
 
     expect(mockOnUpdate).toHaveBeenCalledWith('id = 1', 'id ASC', 10);
+  });
+
+  describe('filter panel', () => {
+    const panelProps = {
+      ...defaultProps,
+      columnMetadata: [
+        { name: 'id', data_type: 'int', is_pk: true, is_nullable: false, is_auto_increment: true },
+      ],
+    };
+    const openPanel = () => {
+      fireEvent.click(screen.getByTitle('toolbar.toggleFilterPanel'));
+      // the WHERE input is hidden while the panel is open
+      expect(screen.queryByText('WHERE')).not.toBeInTheDocument();
+    };
+
+    it('stays open when clicking outside of it', () => {
+      render(
+        <div>
+          <TableToolbar {...panelProps} />
+          <div data-testid="grid">grid</div>
+        </div>
+      );
+      openPanel();
+
+      fireEvent.mouseDown(screen.getByTestId('grid'));
+      fireEvent.click(screen.getByTestId('grid'));
+
+      expect(screen.queryByText('WHERE')).not.toBeInTheDocument();
+    });
+
+    describe('value picker', () => {
+      const pickerProps = {
+        ...defaultProps,
+        columnMetadata: [
+          { name: 'status', data_type: 'varchar(20)', is_pk: false, is_nullable: true, is_auto_increment: false },
+          { name: 'qty', data_type: 'integer', is_pk: false, is_nullable: true, is_auto_increment: false },
+        ],
+        tableName: 'orders',
+        tableSchema: 'public',
+      };
+
+      beforeEach(() => {
+        vi.mocked(useDatabase).mockReturnValue({
+          activeDriver: 'postgres',
+          activeCapabilities: null,
+        } as unknown as ReturnType<typeof useDatabase>);
+      });
+
+      it('is not offered without a query runner', () => {
+        render(<TableToolbar {...pickerProps} />);
+        openPanel();
+        expect(screen.queryByRole('button', { name: 'toolbar.valuePicker.open' })).not.toBeInTheDocument();
+      });
+
+      it('counts values for the row column, narrowed by the other rows when matching all', async () => {
+        const onRunQuery = vi.fn().mockResolvedValue({ columns: ['status', 'count'], rows: [['open', 3]] });
+        render(<TableToolbar {...pickerProps} onRunQuery={onRunQuery} />);
+        openPanel();
+        // second row: qty > 5
+        fireEvent.click(screen.getByText('toolbar.addFilter'));
+        const selects = screen.getAllByRole('combobox');
+        fireEvent.change(selects[selects.length - 2], { target: { value: 'qty' } });
+        fireEvent.change(selects[selects.length - 1], { target: { value: '>' } });
+        const valueInputs = screen.getAllByPlaceholderText('toolbar.valuePlaceholder');
+        fireEvent.change(valueInputs[1], { target: { value: '5' } });
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'toolbar.valuePicker.open' })[0]);
+        expect(await screen.findByRole('checkbox', { name: /open/ })).toBeInTheDocument();
+        expect(onRunQuery).toHaveBeenCalledWith(
+          'SELECT "status", COUNT(*) FROM "public"."orders" WHERE "status" IS NOT NULL AND ("qty" > 5) ' +
+            'GROUP BY "status" ORDER BY 2 DESC, 1 LIMIT 100'
+        );
+
+        fireEvent.click(screen.getByRole('checkbox', { name: /open/ }));
+        fireEvent.click(screen.getByRole('button', { name: /toolbar.valuePicker.use/ }));
+        expect(valueInputs[0]).toHaveValue('open');
+        // Picking fills the row but does not run the table query by itself.
+        expect(mockOnUpdate).not.toHaveBeenCalled();
+      });
+    });
+
+    it('is closed when remounted with another key (table tab switch)', () => {
+      const { rerender } = render(<TableToolbar key="customers" {...panelProps} />);
+      openPanel();
+
+      rerender(<TableToolbar key="orders" {...panelProps} />);
+
+      expect(screen.getByText('WHERE')).toBeInTheDocument();
+    });
+
+    it('does not apply an incomplete filter from its own Apply button', () => {
+      render(<TableToolbar {...panelProps} />);
+      openPanel();
+      mockOnUpdate.mockClear();
+
+      fireEvent.click(screen.getByText('toolbar.apply'));
+
+      expect(mockOnUpdate).toHaveBeenCalledTimes(1);
+      expect(mockOnUpdate.mock.calls[0][0]).toBe('');
+    });
+
+    it('does not show the applied feedback for an incomplete row', () => {
+      render(<TableToolbar {...panelProps} />);
+      openPanel();
+
+      fireEvent.click(screen.getByText('toolbar.apply'));
+
+      expect(screen.queryByText('toolbar.applied')).not.toBeInTheDocument();
+      expect(screen.getByText('toolbar.apply')).toBeInTheDocument();
+    });
+
+    it('shows the applied feedback for a complete row', () => {
+      render(<TableToolbar {...panelProps} />);
+      openPanel();
+      fireEvent.change(screen.getByPlaceholderText('toolbar.valuePlaceholder'), {
+        target: { value: '5' },
+      });
+
+      fireEvent.click(screen.getByText('toolbar.apply'));
+
+      expect(screen.getByText('toolbar.applied')).toBeInTheDocument();
+    });
+
+    it('does not show the applied feedback after Apply All on an incomplete row', () => {
+      render(<TableToolbar {...panelProps} />);
+      openPanel();
+
+      fireEvent.click(screen.getByText('toolbar.applyAll'));
+
+      expect(screen.queryByText('toolbar.applied')).not.toBeInTheDocument();
+    });
+
+    it('applies a complete filter from its own Apply button', () => {
+      render(<TableToolbar {...panelProps} />);
+      openPanel();
+      fireEvent.change(screen.getByPlaceholderText('toolbar.valuePlaceholder'), {
+        target: { value: '5' },
+      });
+      mockOnUpdate.mockClear();
+
+      fireEvent.click(screen.getByText('toolbar.apply'));
+
+      expect(mockOnUpdate.mock.calls[0][0]).toBe('id = 5');
+    });
+  });
+});
+
+
+describe('TableToolbar plugin context', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useDatabase).mockReturnValue({
+      activeDriver: 'postgres', activeCapabilities: null,
+      activeConnectionId: 'pg-pane', activeSchema: 'public',
+    } as ReturnType<typeof useDatabase>);
+  });
+
+  const props = {
+    placeholderColumn: 'id', placeholderSort: 'id', defaultLimit: 100,
+    onUpdate: vi.fn(), tableName: 'users',
+  };
+
+  it('passes the table schema through the real plugin driver filter', async () => {
+    await renderWithSlotProbe(<TableToolbar {...props} tableSchema="tenant" />, ['data-grid.toolbar.actions']);
+    const probe = await screen.findByTestId('postgres-slot');
+    expect(JSON.parse(probe.textContent ?? '{}')).toMatchObject({
+      driver: 'postgres', connectionId: 'pg-pane', tableName: 'users', schema: 'tenant',
+    });
+    expect(screen.queryByTestId('mysql-slot')).not.toBeInTheDocument();
+  });
+
+  it('preserves an explicit schema-less table rather than borrowing the active schema', async () => {
+    await renderWithSlotProbe(<TableToolbar {...props} tableSchema={null} />, ['data-grid.toolbar.actions']);
+    const probe = await screen.findByTestId('postgres-slot');
+    expect(JSON.parse(probe.textContent ?? '{}').schema).toBeNull();
+  });
+
+  it('falls back to the active schema when no table schema is supplied', async () => {
+    await renderWithSlotProbe(<TableToolbar {...props} />, ['data-grid.toolbar.actions']);
+    const probe = await screen.findByTestId('postgres-slot');
+    expect(JSON.parse(probe.textContent ?? '{}').schema).toBe('public');
   });
 });

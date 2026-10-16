@@ -1,0 +1,23 @@
+{
+  "name": "tabularis-e2e",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Native macOS E2E tests for tabularis via tauri-webdriver (real WKWebView + real Tauri IPC)",
+  "scripts": {
+    "wdio": "wdio run wdio.conf.ts"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/pg": "^8.23.1",
+    "@wdio/cli": "^10.0.0",
+    "@wdio/globals": "^10.0.0",
+    "@wdio/local-runner": "^10.0.0",
+    "@wdio/mocha-framework": "^10.0.0",
+    "@wdio/spec-reporter": "^10.0.0",
+    "@wdio/types": "^10.0.0",
+    "pg": "^8.23.1",
+    "typescript": "^5.6.0",
+    "webdriverio": "^10.0.0"
+  }
+}

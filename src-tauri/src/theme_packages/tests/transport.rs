@@ -47,7 +47,7 @@ async fn discovery_and_detail_classify_registered_tags_without_downloads() {
 #[tokio::test]
 async fn latest_and_explicit_updates_follow_one_tracked_redirect_and_preserve_preferences() {
     let server = RegistryServer::new(archive_version("1.0.0"));
-    let root = tempfile::tempdir().unwrap();
+    let root = archive::temp_dir();
     let preferences = br#"{"theme":"missing-installed-choice","editorTheme":"nord"}"#;
     std::fs::write(root.path().join("config.json"), preferences).unwrap();
     let key = registry_key(&server.base).unwrap();
@@ -106,7 +106,7 @@ async fn latest_and_explicit_updates_follow_one_tracked_redirect_and_preserve_pr
 #[tokio::test]
 async fn registry_change_wrong_kind_and_multiple_assets_fail_before_tracked_downloads() {
     let server = RegistryServer::new(archive_version("1.0.0"));
-    let root = tempfile::tempdir().unwrap();
+    let root = archive::temp_dir();
     let key = registry_key(&server.base).unwrap();
     assert!(install_registry_package(
         root.path(),
@@ -154,7 +154,7 @@ async fn registry_change_wrong_kind_and_multiple_assets_fail_before_tracked_down
 #[tokio::test]
 async fn integrity_and_download_limits_leave_the_previous_installation_unchanged() {
     let server = RegistryServer::new(archive_version("1.0.0"));
-    let root = tempfile::tempdir().unwrap();
+    let root = archive::temp_dir();
     let key = registry_key(&server.base).unwrap();
     install_registry_package(
         root.path(),
@@ -204,7 +204,7 @@ async fn integrity_and_download_limits_leave_the_previous_installation_unchanged
 async fn cancellation_during_redirected_download_has_no_commit_or_profile_write() {
     let server = RegistryServer::new(archive_version("1.0.0"));
     server.state.lock().unwrap().delay_download = true;
-    let root = tempfile::tempdir().unwrap();
+    let root = archive::temp_dir();
     let key = registry_key(&server.base).unwrap();
     let operation = install_registry_package(
         root.path(),

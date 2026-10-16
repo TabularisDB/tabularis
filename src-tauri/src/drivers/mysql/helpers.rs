@@ -120,6 +120,21 @@ pub(super) fn mysql_row_str_opt(row: &sqlx::mysql::MySqlRow, idx: usize) -> Opti
     }
 }
 
+/// Read CHARACTER_MAXIMUM_LENGTH, which the column queries cast to UNSIGNED:
+/// MySQL 8 reports it as a signed BIGINT and 5.7 as BIGINT UNSIGNED, and sqlx
+/// won't decode a signed column into `u64`. NULL means the column has no
+/// character length; a value that still fails to decode is logged.
+pub(super) fn mysql_row_max_length(
+    row: &sqlx::mysql::MySqlRow,
+    idx: usize,
+    column: &str,
+) -> Option<u64> {
+    row.try_get::<Option<u64>, _>(idx).unwrap_or_else(|e| {
+        log::warn!("MySQL: Could not read the maximum length of column `{column}`: {e}");
+        None
+    })
+}
+
 /// Checks if a string value looks like WKT (Well-Known Text) geometry format
 pub(super) fn is_wkt_geometry(s: &str) -> bool {
     let s_upper = s.trim().to_uppercase();

@@ -25,7 +25,7 @@ import type { SchemaData, RoutineInfo, TriggerInfo } from "../../../contexts/Dat
 import type { TableColumn } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 import type { DriverCapabilities } from "../../../types/plugins";
-import { groupRoutinesByType } from "../../../utils/routines";
+import { groupRoutinesByType, routineLabel } from "../../../utils/routines";
 import { formatObjectCount } from "../../../utils/schema";
 import { fuzzyFilter } from "../../../utils/fuzzy";
 import { onActivationKey } from "../../../utils/keyboardEvents";
@@ -62,6 +62,8 @@ interface SidebarDatabaseItemProps {
   onCreateTable: () => void;
   onCreateView: () => void;
   onCreateTrigger: (schema: string) => void;
+  /** Omitted when the driver cannot manage routines. */
+  onCreateRoutine?: (e: React.MouseEvent, database: string) => void;
   onDump?: (database: string) => void;
   onImport?: (database: string) => void;
   onViewDiagram?: (database: string) => void;
@@ -94,6 +96,7 @@ export const SidebarDatabaseItem = ({
   onCreateTable,
   onCreateView,
   onCreateTrigger,
+  onCreateRoutine,
   onDump,
   onImport,
   onViewDiagram,
@@ -117,6 +120,9 @@ export const SidebarDatabaseItem = ({
   const views = databaseData?.views ?? [];
   const routines = databaseData?.routines ?? [];
   const routineError = databaseData?.routineError;
+  const routineErrorIndicator = routineError ? (
+    <MetadataErrorIndicator error={routineError} title={t("sidebar.routineMetadataErrorTitle")} />
+  ) : undefined;
   const triggers = databaseData?.triggers ?? [];
   const filteredTriggers = fuzzyFilter(triggers, triggerFilter, (tr) => tr.name);
   const isLoading = databaseData?.isLoading ?? false;
@@ -196,6 +202,7 @@ export const SidebarDatabaseItem = ({
               onClick={(e) => { e.stopPropagation(); onImport(databaseName); }}
               className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-accent-success transition-colors"
               title={t("dump.importDatabase")}
+              aria-label={t("dump.importDatabase")}
             >
               <Upload size={13} />
             </button>
@@ -205,6 +212,7 @@ export const SidebarDatabaseItem = ({
               onClick={(e) => { e.stopPropagation(); onDump(databaseName); }}
               className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-accent transition-colors"
               title={t("dump.dumpDatabase")}
+              aria-label={t("dump.dumpDatabase")}
             >
               <Download size={13} />
             </button>
@@ -214,6 +222,7 @@ export const SidebarDatabaseItem = ({
               onClick={(e) => { e.stopPropagation(); onViewDiagram(databaseName); }}
               className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-accent-warning transition-colors"
               title={t("sidebar.viewERDiagram")}
+              aria-label={t("sidebar.viewERDiagram")}
             >
               <Network size={13} className="rotate-90" />
             </button>
@@ -222,6 +231,7 @@ export const SidebarDatabaseItem = ({
             onClick={(e) => { e.stopPropagation(); onRefreshDatabase(databaseName); }}
             className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
             title={t("sidebar.refreshTables")}
+            aria-label={t("sidebar.refreshTables")}
           >
             <RefreshCw size={13} />
           </button>
@@ -431,12 +441,25 @@ export const SidebarDatabaseItem = ({
                 title={`${t("sidebar.routines")} (${routines.length})`}
                 isOpen={routinesOpen}
                 onToggle={() => setRoutinesOpen(!routinesOpen)}
-                actions={routineError ? (
-                  <MetadataErrorIndicator
-                    error={routineError}
-                    title={t("sidebar.routineMetadataErrorTitle")}
-                  />
-                ) : undefined}
+                actions={
+                  onCreateRoutine ? (
+                    <div className="flex items-center gap-1 mr-2.5">
+                      {routineErrorIndicator}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCreateRoutine(e, databaseName);
+                        }}
+                        className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                        title={t("routines.newRoutine")}
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    routineErrorIndicator
+                  )
+                }
               >
                 {routines.length === 0 ? (
                   <div className="text-center p-2 text-xs text-muted italic">
@@ -454,7 +477,7 @@ export const SidebarDatabaseItem = ({
                         />
                         {functionsOpen && groupedRoutines.functions.map((routine) => (
                           <SidebarRoutineItem
-                            key={routine.name}
+                            key={routineLabel(routine.name, routine.identity_args)}
                             routine={routine}
                             connectionId={connectionId}
                             onContextMenu={onContextMenu}
@@ -475,7 +498,7 @@ export const SidebarDatabaseItem = ({
                         />
                         {proceduresOpen && groupedRoutines.procedures.map((routine) => (
                           <SidebarRoutineItem
-                            key={routine.name}
+                            key={routineLabel(routine.name, routine.identity_args)}
                             routine={routine}
                             connectionId={connectionId}
                             onContextMenu={onContextMenu}

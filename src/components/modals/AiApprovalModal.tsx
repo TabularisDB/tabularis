@@ -29,7 +29,7 @@ import type { PendingApproval } from "../../types/ai";
 import { QueryKindBadge } from "../settings/ai-activity/QueryKindBadge";
 import { VisualExplainView } from "../explain/VisualExplainView";
 import type { ExplainViewMode } from "@tabularis/explain/react";
-import { isDestructiveApproval } from "../../utils/aiActivity";
+import { approvalConnectionLabel, isDestructiveApproval } from "../../utils/aiActivity";
 import { parseApprovalExplainPlan } from "../../utils/approvalExplain";
 
 interface AiApprovalModalProps {
@@ -146,10 +146,10 @@ export function AiApprovalModal({
                 {approval.clientHint
                   ? t("aiApproval.subtitleWithClient", {
                       client: approval.clientHint,
-                      connection: approval.connectionName,
+                      connection: approvalConnectionLabel(approval),
                     })
                   : t("aiApproval.subtitle", {
-                      connection: approval.connectionName,
+                      connection: approvalConnectionLabel(approval),
                     })}
               </p>
             </div>

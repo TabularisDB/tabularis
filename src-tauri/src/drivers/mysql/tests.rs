@@ -254,7 +254,7 @@ mod build_mysql_pk_where_tests {
     fn single_column_returns_correct_pair() {
         let mut pk_map = HashMap::new();
         pk_map.insert("id".to_string(), serde_json::json!(42));
-        let pairs = build_mysql_pk_where(&pk_map).unwrap();
+        let pairs = build_mysql_pk_where(&pk_map, &Default::default()).unwrap();
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].0, "id");
         assert_eq!(pairs[0].1, serde_json::json!(42));
@@ -265,15 +265,52 @@ mod build_mysql_pk_where_tests {
         let mut pk_map = HashMap::new();
         pk_map.insert("z_col".to_string(), serde_json::json!(1));
         pk_map.insert("a_col".to_string(), serde_json::json!(2));
-        let pairs = build_mysql_pk_where(&pk_map).unwrap();
+        let pairs = build_mysql_pk_where(&pk_map, &Default::default()).unwrap();
         assert_eq!(pairs[0].0, "a_col");
         assert_eq!(pairs[1].0, "z_col");
     }
 
     #[test]
+    fn float_identities_widen_without_changing_other_column_values() {
+        let float_columns = std::collections::HashSet::from(["price".to_string()]);
+        for (shown, widened) in [
+            (89.9, 89.9000015258789),
+            (59.99, 59.9900016784668),
+            (29.5, 29.5),
+        ] {
+            let pk_map = HashMap::from([
+                ("price".to_string(), serde_json::json!(shown)),
+                ("double_price".to_string(), serde_json::json!(shown)),
+                ("id".to_string(), serde_json::json!(9007199254740993u64)),
+            ]);
+            let pairs = build_mysql_pk_where(&pk_map, &float_columns).unwrap();
+            assert_eq!(
+                pairs,
+                vec![
+                    ("double_price".to_string(), serde_json::json!(shown)),
+                    ("id".to_string(), serde_json::json!(9007199254740993u64)),
+                    ("price".to_string(), serde_json::json!(widened)),
+                ]
+            );
+        }
+        for value in [
+            serde_json::Value::Null,
+            serde_json::json!("89.9"),
+            serde_json::json!(true),
+            serde_json::json!(1e100),
+        ] {
+            let pk_map = HashMap::from([("price".to_string(), value.clone())]);
+            assert_eq!(
+                build_mysql_pk_where(&pk_map, &float_columns).unwrap()[0].1,
+                value
+            );
+        }
+    }
+
+    #[test]
     fn empty_pk_map_is_rejected() {
         let pk_map: HashMap<String, serde_json::Value> = HashMap::new();
-        assert!(build_mysql_pk_where(&pk_map).is_err());
+        assert!(build_mysql_pk_where(&pk_map, &Default::default()).is_err());
     }
 }
 

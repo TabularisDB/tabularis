@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getTabScrollState, getAdjacentTabIndex, resolveNextTabId, getTabSwitcherRowClassName, isFocusedPane } from '../../src/utils/tabScroll';
+import { getTabScrollState, getAdjacentTabIndex, resolveNextTabId, getRecentTabIds, resolveRecentTabId, getTabSwitcherRowClassName, isFocusedPane } from '../../src/utils/tabScroll';
 
 describe('tabScroll', () => {
   describe('getTabScrollState', () => {
@@ -187,5 +187,26 @@ describe('tabScroll', () => {
     it('should return false when activeConnectionId is null and split mode is active', () => {
       expect(isFocusedPane('conn-1', null)).toBe(false);
     });
+  });
+});
+
+describe("MRU tab order", () => {
+  it("prunes closed ids, removes duplicates, and appends unvisited tabs", () => {
+    expect(getRecentTabIds([{ id: "a" }, { id: "b" }, { id: "c" }], ["c", "closed", "a", "c"]))
+      .toEqual(["c", "a", "b"]);
+    expect(getRecentTabIds([], ["a"])).toEqual([]);
+  });
+  it("wraps in both directions without mutating the snapshot", () => {
+    const order = Object.freeze(["c", "a", "b"]);
+    expect(resolveRecentTabId(order, "c")).toBe("a");
+    expect(resolveRecentTabId(order, "b")).toBe("c");
+    expect(resolveRecentTabId(order, "c", true)).toBe("b");
+    expect(resolveRecentTabId(order, "a", true)).toBe("c");
+  });
+  it("handles missing active tabs, one tab, and no tabs", () => {
+    expect(resolveRecentTabId(["a", "b"], null)).toBe("a");
+    expect(resolveRecentTabId(["a", "b"], "closed", true)).toBe("b");
+    expect(resolveRecentTabId(["a"], "a", true)).toBe("a");
+    expect(resolveRecentTabId([], null)).toBeNull();
   });
 });

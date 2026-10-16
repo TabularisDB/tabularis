@@ -349,11 +349,21 @@ fn parse_ssl_properties(el: Node) -> Option<ImportedSsl> {
     }
     let cert = |name: &str| child_text(ssl, name).filter(|s| !s.is_empty()).map(|s| expand_macros(&s));
     Some(ImportedSsl {
-        mode: child_text(ssl, "mode").unwrap_or_else(|| "prefer".to_string()),
+        mode: child_text(ssl, "mode")
+            .map(|m| normalize_ssl_mode(&m))
+            .filter(|m| !m.is_empty())
+            .unwrap_or_else(|| "prefer".to_string()),
         ca_certificate_path: cert("ca-cert"),
         client_certificate_path: cert("client-cert"),
         client_key_path: cert("client-key"),
     })
+}
+
+/// DataGrip stores modes as enum names (`REQUIRE`, `VERIFY_CA`, `VERIFY_FULL`).
+/// Map them onto the lowercase, hyphenated values Tabularis uses so the
+/// backend's strict SSL mode parsing accepts them.
+fn normalize_ssl_mode(raw: &str) -> String {
+    raw.trim().to_ascii_lowercase().replace('_', "-")
 }
 
 fn load_ssh_configs(config_dir: &Path) -> HashMap<String, SshConfig> {

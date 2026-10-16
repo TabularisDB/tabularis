@@ -16,6 +16,10 @@ import {
   type Index,
 } from "../../utils/sqlGenerator";
 import { toBindParamName } from "../../utils/queryParameters";
+import {
+  loadTableQueryTemplates,
+  type TableQueryTemplates,
+} from "../../utils/tableQueryTemplates";
 import type { TableTarget } from "../../types/databaseObjects";
 import type { TableInfo } from "../../contexts/DatabaseContext";
 import type { CommandRuntime } from "../../types/commands";
@@ -42,7 +46,7 @@ export const GenerateSQLModal = ({
   const navigate = useNavigate();
   const { connectionDataMap } = useDatabase();
   const { showAlert } = useAlert();
-  const { connectionId, tableName, schema } = target;
+  const { connectionId, tableName, schema, database } = target;
   const connectionData = connectionDataMap[connectionId];
   const dialect =
     connectionData?.capabilities ?? connectionData?.driver;
@@ -55,6 +59,12 @@ export const GenerateSQLModal = ({
   const [sql, setSql] = useState<string>("");
   const [columns, setColumns] = useState<TableColumn[]>([]);
   const [loading, setLoading] = useState(false);
+  const [templates, setTemplates] = useState<TableQueryTemplates>({});
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const requestKey = JSON.stringify([connectionId, tableName, schema, database, dialect]);
+  const busy = loading || loadedKey !== requestKey;
+  const displayedError = dialectError ?? (loadedKey === requestKey ? loadError : null);
   const { copied, copy: copyText } = useCopyFeedback();
 
   useEffect(() => {
@@ -65,33 +75,49 @@ export const GenerateSQLModal = ({
       return;
     }
 
+    let cancelled = false;
     const generateSQL = async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         const schemaParam = schema ? { schema } : {};
+        const databaseParam = database ? { database } : {};
         const [fetchedColumns, foreignKeys, indexes, tables] = await Promise.all([
           invoke<TableColumn[]>("get_columns", {
             connectionId,
             tableName,
             ...schemaParam,
+            ...databaseParam,
           }),
           invoke<ForeignKey[]>("get_foreign_keys", {
             connectionId,
             tableName,
             ...schemaParam,
+            ...databaseParam,
           }),
           invoke<Index[]>("get_indexes", {
             connectionId,
             tableName,
             ...schemaParam,
+            ...databaseParam,
           }),
           invoke<TableInfo[]>("get_tables", {
             connectionId,
             ...schemaParam,
+            ...databaseParam,
           }),
         ]);
 
-        setColumns(fetchedColumns);
+        const generatedTemplates =
+          typeof dialect === "object" && dialect.table_query_templates
+            ? await loadTableQueryTemplates(
+                connectionId,
+                tableName,
+                schema,
+                fetchedColumns.map((column) => column.name),
+                database,
+              )
+            : {};
         const generatedSQL = generateCreateTableSQL(
           tableName,
           fetchedColumns,
@@ -100,16 +126,27 @@ export const GenerateSQLModal = ({
           dialect,
           tables.find((table) => table.name === tableName)?.comment,
         );
+        if (cancelled) return;
+        setColumns(fetchedColumns);
+        setTemplates(generatedTemplates);
         setSql(generatedSQL);
       } catch (err) {
+        if (cancelled) return;
         console.error(err);
+        setLoadError(String(err));
         showAlert(String(err), { title: t("common.error"), kind: "error" });
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoadedKey(requestKey);
+          setLoading(false);
+        }
       }
     };
 
     void generateSQL();
+    return () => {
+      cancelled = true;
+    };
   }, [
     isOpen,
     connectionId,
@@ -117,10 +154,15 @@ export const GenerateSQLModal = ({
     dialect,
     t,
     schema,
+    database,
     showAlert,
+    requestKey,
   ]);
 
   const getTabSql = (currentTab: SqlTab): string => {
+    if (currentTab !== "create" && templates[currentTab] != null) {
+      return templates[currentTab];
+    }
     switch (currentTab) {
       case "create":
         return sql;
@@ -239,14 +281,14 @@ export const GenerateSQLModal = ({
 
         {/* Content */}
         <div className="flex-1 p-6 overflow-hidden flex flex-col">
-          {dialectError ? (
+          {displayedError ? (
             <div
               role="alert"
               className="rounded-lg border border-accent-error/40 bg-accent-error/10 px-4 py-3 text-sm text-accent-error"
             >
-              {dialectError}
+              {displayedError}
             </div>
-          ) : loading ? (
+          ) : busy ? (
             <div className="text-center py-8 text-muted">
               <Loader2 size={24} className="animate-spin mx-auto mb-2" />
               <span>{t("generateSQL.loading")}</span>
@@ -266,7 +308,7 @@ export const GenerateSQLModal = ({
         </div>
 
         {/* Footer */}
-        {!loading && !dialectError && (
+        {!busy && !displayedError && (
           <div className="p-4 border-t border-default bg-base/50 flex justify-end gap-3">
             <button
               onClick={handleRunInConsole}

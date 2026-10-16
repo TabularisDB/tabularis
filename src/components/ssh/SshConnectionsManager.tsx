@@ -546,6 +546,11 @@ export function SshConnectionsManager({
               type="checkbox"
               id="ssh-keychain-toggle"
               checked={!!formData.save_in_keychain}
+              aria-describedby={
+                formData.save_in_keychain
+                  ? undefined
+                  : "ssh-secrets-plaintext-warning"
+              }
               onChange={(e) => {
                 setPasswordDirty(true);
                 setPassphraseDirty(true);
@@ -567,6 +572,14 @@ export function SshConnectionsManager({
               {t("newConnection.saveKeychain")}
             </label>
           </div>
+          {!formData.save_in_keychain && (
+            <p
+              id="ssh-secrets-plaintext-warning"
+              className="text-xs text-accent-warning"
+            >
+              {t("newConnection.secretsStoredInPlainText")}
+            </p>
+          )}
 
           <div className="flex items-center gap-2">
             <input

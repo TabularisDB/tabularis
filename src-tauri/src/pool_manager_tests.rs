@@ -2,11 +2,12 @@
 mod tests {
     use crate::models::{ConnectionParams, DatabaseSelection};
     use crate::pool_manager::{
-        build_connection_key, build_mysql_options, format_error_chain,
+        build_connection_key, build_mysql_options, connection_pool_prefix, format_error_chain,
         is_pipes_as_concat_unsupported, postgres_pool_max_size_from_value,
-        DEFAULT_POSTGRES_POOL_MAX_SIZE,
+        remove_pools_with_prefix, DEFAULT_POSTGRES_POOL_MAX_SIZE,
     };
     use sqlx::mysql::MySqlSslMode;
+    use std::collections::HashMap;
 
     fn connection_params(driver: &str, ssl_mode: Option<&str>) -> ConnectionParams {
         ConnectionParams {
@@ -95,6 +96,112 @@ mod tests {
             build_connection_key(&required, Some("conn-1")),
             build_connection_key(&disabled, Some("conn-1"))
         );
+    }
+
+    #[test]
+    fn connection_pool_prefix_matches_every_database_for_a_connection() {
+        // The prefix matches both the primary pool key and per-database override
+        // keys, which embed a different database after the connection id.
+        let params = mysql_params("required");
+        let prefix = connection_pool_prefix("mysql", "conn-1");
+        let primary_key = build_connection_key(&params, Some("conn-1"));
+
+        let mut overridden = params.clone();
+        overridden.database = DatabaseSelection::Single("other_db".to_string());
+        let override_key = build_connection_key(&overridden, Some("conn-1"));
+
+        assert!(
+            primary_key.starts_with(&prefix),
+            "primary key {primary_key} should start with prefix {prefix}"
+        );
+        assert!(
+            override_key.starts_with(&prefix),
+            "override key {override_key} should start with prefix {prefix}"
+        );
+    }
+
+    #[test]
+    fn connection_pool_prefix_does_not_match_a_different_connection() {
+        // The trailing `:` prevents one connection id that is a prefix of another
+        // (`conn-1` vs `conn-10`) from matching the other's pools.
+        let prefix = connection_pool_prefix("mysql", "conn-1");
+        let other_prefix = connection_pool_prefix("mysql", "conn-10");
+
+        assert_ne!(prefix, other_prefix);
+        assert!(
+            !other_prefix.starts_with(&prefix),
+            "prefix {prefix} must not match a longer connection id"
+        );
+    }
+
+    #[test]
+    fn postgres_pool_key_with_tls_suffix_starts_with_connection_prefix() {
+        // A Postgres key appends a `:ssl:...` TLS suffix after the database.
+        // The connection prefix (which ends at the connection id) must still
+        // match it, so `close_pools_for_connection_id` closes TLS-keyed pools.
+        let params = connection_params("postgres", Some("require"));
+        let prefix = connection_pool_prefix("postgres", "conn-1");
+        let primary_key = build_connection_key(&params, Some("conn-1"));
+
+        let mut overridden = params.clone();
+        overridden.database = DatabaseSelection::Single("other_db".to_string());
+        let override_key = build_connection_key(&overridden, Some("conn-1"));
+
+        assert!(
+            primary_key.starts_with(&prefix),
+            "primary key {primary_key} should start with prefix {prefix}"
+        );
+        assert!(
+            override_key.starts_with(&prefix),
+            "override key {override_key} should start with prefix {prefix}"
+        );
+    }
+
+    #[test]
+    fn postgres_pool_key_with_startup_script_starts_with_connection_prefix() {
+        // A startup script appends a `:startup:<hash>` suffix after the TLS
+        // suffix. The connection prefix must still match it, so
+        // `close_pools_for_connection_id` closes pools whose keys carry a
+        // startup-script digest.
+        let mut params = connection_params("postgres", Some("require"));
+        params.startup_script = Some("SET app.bypass_rls = 'on';".to_string());
+        let prefix = connection_pool_prefix("postgres", "conn-1");
+        let primary_key = build_connection_key(&params, Some("conn-1"));
+
+        let mut overridden = params.clone();
+        overridden.database = DatabaseSelection::Single("other_db".to_string());
+        let override_key = build_connection_key(&overridden, Some("conn-1"));
+
+        assert!(
+            primary_key.starts_with(&prefix),
+            "primary key {primary_key} should start with prefix {prefix}"
+        );
+        assert!(
+            override_key.starts_with(&prefix),
+            "override key {override_key} should start with prefix {prefix}"
+        );
+    }
+
+    #[test]
+    fn remove_pools_with_prefix_collects_only_matching_keys() {
+        let mut pools: HashMap<String, i32> = HashMap::new();
+        pools.insert("mysql:conn:1:db_a".to_string(), 1);
+        pools.insert("mysql:conn:1:db_b".to_string(), 2);
+        pools.insert("mysql:conn:2:db_a".to_string(), 3);
+        pools.insert("postgres:conn:1:db_a".to_string(), 4);
+
+        let prefix = connection_pool_prefix("mysql", "1");
+        let removed = remove_pools_with_prefix(&mut pools, &prefix);
+
+        // Only the two mysql:conn:1:* entries are removed; the conn:2 and
+        // postgres pools are left untouched.
+        assert_eq!(removed.len(), 2);
+        let removed_keys: Vec<&str> = removed.iter().map(|(k, _)| k.as_str()).collect();
+        assert!(removed_keys.contains(&"mysql:conn:1:db_a"));
+        assert!(removed_keys.contains(&"mysql:conn:1:db_b"));
+        assert_eq!(pools.len(), 2);
+        assert!(pools.contains_key("mysql:conn:2:db_a"));
+        assert!(pools.contains_key("postgres:conn:1:db_a"));
     }
 
     #[test]
@@ -250,6 +357,103 @@ mod tests {
                 .get_ssl_mode(),
             MySqlSslMode::VerifyIdentity
         ));
+    }
+
+    #[test]
+    fn mysql_options_default_ssl_mode_is_required() {
+        let params = connection_params("mysql", None);
+        let opts = build_mysql_options(&params, None).expect("unset ssl_mode");
+        assert!(matches!(opts.get_ssl_mode(), MySqlSslMode::Required));
+    }
+
+    #[test]
+    fn mysql_options_blank_ssl_mode_equals_default() {
+        let blank = mysql_params("   ");
+        let unset = connection_params("mysql", None);
+        let blank_opts = build_mysql_options(&blank, None).expect("blank ssl_mode");
+        let unset_opts = build_mysql_options(&unset, None).expect("unset ssl_mode");
+        assert!(matches!(blank_opts.get_ssl_mode(), MySqlSslMode::Required));
+        assert_eq!(
+            std::mem::discriminant(&blank_opts.get_ssl_mode()),
+            std::mem::discriminant(&unset_opts.get_ssl_mode())
+        );
+        assert_eq!(
+            build_connection_key(&blank, Some("conn-1")),
+            build_connection_key(&unset, Some("conn-1"))
+        );
+    }
+
+    fn mysql_ssl_mode_name(mode: MySqlSslMode) -> &'static str {
+        match mode {
+            MySqlSslMode::Disabled => "Disabled",
+            MySqlSslMode::Preferred => "Preferred",
+            MySqlSslMode::Required => "Required",
+            MySqlSslMode::VerifyCa => "VerifyCa",
+            MySqlSslMode::VerifyIdentity => "VerifyIdentity",
+        }
+    }
+
+    fn assert_mysql_ssl_mode(mode: &str, expected: MySqlSslMode) {
+        let opts = build_mysql_options(&mysql_params(mode), None)
+            .unwrap_or_else(|err| panic!("{mode} should be accepted, got: {err}"));
+        let actual = opts.get_ssl_mode();
+        assert!(
+            std::mem::discriminant(&actual) == std::mem::discriminant(&expected),
+            "{mode}: expected {}, got {}",
+            mysql_ssl_mode_name(expected),
+            mysql_ssl_mode_name(actual),
+        );
+    }
+
+    #[test]
+    fn mysql_options_accept_every_produced_ssl_mode() {
+        // UI values, JDBC URL import aliases, and libpq spellings stored by
+        // the connection importers (DBeaver, TablePlus, Beekeeper, Sequel Ace,
+        // DataGrip) and left in place by the #614 migration.
+        let cases = [
+            ("disabled", MySqlSslMode::Disabled),
+            ("disable", MySqlSslMode::Disabled),
+            ("preferred", MySqlSslMode::Preferred),
+            ("prefer", MySqlSslMode::Preferred),
+            ("required", MySqlSslMode::Required),
+            ("require", MySqlSslMode::Required),
+            ("verify_ca", MySqlSslMode::VerifyCa),
+            ("verify-ca", MySqlSslMode::VerifyCa),
+            ("verify_identity", MySqlSslMode::VerifyIdentity),
+            ("verify-identity", MySqlSslMode::VerifyIdentity),
+            ("verify-full", MySqlSslMode::VerifyIdentity),
+            ("VERIFY_IDENTITY", MySqlSslMode::VerifyIdentity),
+        ];
+        for (mode, expected) in cases {
+            assert_mysql_ssl_mode(mode, expected);
+        }
+    }
+
+    #[test]
+    fn mysql_options_reject_unknown_ssl_mode() {
+        let err = build_mysql_options(&mysql_params("verfy-full"), None).unwrap_err();
+        assert!(err.contains("verfy-full"), "{err}");
+        for accepted in [
+            "disabled",
+            "preferred",
+            "required",
+            "verify_ca",
+            "verify_identity",
+            "verify-ca",
+            "verify-full",
+        ] {
+            assert!(err.contains(accepted), "{err} missing {accepted}");
+        }
+    }
+
+    #[test]
+    fn mysql_pool_key_keeps_unknown_ssl_mode_distinct_from_default() {
+        let unknown = mysql_params("verfy-full");
+        let unset = connection_params("mysql", None);
+        assert_ne!(
+            build_connection_key(&unknown, Some("conn-1")),
+            build_connection_key(&unset, Some("conn-1"))
+        );
     }
 
     #[test]
@@ -855,14 +1059,14 @@ mod postgres_ssl_config_tests {
     #[test]
     fn test_ssl_mode_disable() {
         let params = params_with_ssl("disable");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Disable);
     }
 
     #[test]
     fn test_ssl_mode_allow() {
         let params = params_with_ssl("allow");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         // tokio_postgres does not have SslMode::Allow.
         // "allow" is mapped to Prefer since the client library doesn't support
         // "try non-SSL first, fallback to SSL" natively.
@@ -872,21 +1076,21 @@ mod postgres_ssl_config_tests {
     #[test]
     fn test_ssl_mode_prefer() {
         let params = params_with_ssl("prefer");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Prefer);
     }
 
     #[test]
     fn test_ssl_mode_require() {
         let params = params_with_ssl("require");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Require);
     }
 
     #[test]
     fn test_ssl_mode_verify_ca() {
         let params = params_with_ssl("verify-ca");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         // verify-ca maps to Require at the protocol level (cert validation is in TLS connector)
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Require);
     }
@@ -894,7 +1098,7 @@ mod postgres_ssl_config_tests {
     #[test]
     fn test_ssl_mode_verify_full() {
         let params = params_with_ssl("verify-full");
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         // verify-full maps to Require at the protocol level
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Require);
     }
@@ -903,7 +1107,7 @@ mod postgres_ssl_config_tests {
     fn test_ssl_mode_default_is_prefer() {
         // No ssl_mode set -> tokio_postgres defaults to Prefer
         let params = params_no_ssl();
-        let cfg = build_postgres_configurations(&params);
+        let cfg = build_postgres_configurations(&params).expect("accepted ssl mode");
         assert_eq!(cfg.get_ssl_mode(), PgSslMode::Prefer);
     }
 
@@ -916,12 +1120,52 @@ mod postgres_ssl_config_tests {
         let allow_params = params_with_ssl("allow");
         let prefer_params = params_with_ssl("prefer");
 
-        let allow_cfg = build_postgres_configurations(&allow_params);
-        let prefer_cfg = build_postgres_configurations(&prefer_params);
+        let allow_cfg = build_postgres_configurations(&allow_params).expect("accepted ssl mode");
+        let prefer_cfg = build_postgres_configurations(&prefer_params).expect("accepted ssl mode");
 
         // Both map to Prefer in tokio_postgres
         assert_eq!(allow_cfg.get_ssl_mode(), PgSslMode::Prefer);
         assert_eq!(prefer_cfg.get_ssl_mode(), PgSslMode::Prefer);
+    }
+
+    #[test]
+    fn test_ssl_mode_unknown_is_rejected() {
+        let err = match build_postgres_configurations(&params_with_ssl("verfy-full")) {
+            Err(err) => err,
+            Ok(_) => panic!("unknown ssl mode should fail"),
+        };
+        assert!(err.contains("verfy-full"), "{err}");
+        for accepted in [
+            "disable",
+            "allow",
+            "prefer",
+            "require",
+            "verify-ca",
+            "verify-full",
+        ] {
+            assert!(err.contains(accepted), "{err} missing {accepted}");
+        }
+    }
+
+    #[test]
+    fn test_ssl_mode_blank_equals_default() {
+        let blank_cfg =
+            build_postgres_configurations(&params_with_ssl("   ")).expect("blank ssl_mode");
+        let unset_params = ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some("localhost".to_string()),
+            port: Some(5432),
+            username: Some("test".to_string()),
+            password: Some("test".to_string()),
+            database: DatabaseSelection::Single("testdb".to_string()),
+            ssl_mode: None,
+            ..Default::default()
+        };
+        let unset_cfg =
+            build_postgres_configurations(&unset_params).expect("unset ssl_mode");
+        assert_eq!(blank_cfg.get_ssl_mode(), PgSslMode::Prefer);
+        assert_eq!(unset_cfg.get_ssl_mode(), PgSslMode::Prefer);
+        assert_eq!(blank_cfg.get_ssl_mode(), unset_cfg.get_ssl_mode());
     }
 }
 
@@ -1023,6 +1267,64 @@ mod postgres_tls_connector_tests {
         let result = build_postgres_tls_connector(&params);
         // Should succeed with platform verifier
         assert!(result.is_ok());
+    }
+
+    fn tls_connector_error(mode: &str) -> String {
+        match build_postgres_tls_connector(&params_with_ssl(mode)) {
+            Err(err) => err,
+            Ok(_) => panic!("{mode} should have failed"),
+        }
+    }
+
+    #[test]
+    fn test_tls_connector_accepts_every_produced_ssl_mode() {
+        for mode in ["disable", "allow", "prefer", "require", "verify-full"] {
+            if let Err(err) = build_postgres_tls_connector(&params_with_ssl(mode)) {
+                panic!("{mode} should be accepted, got: {err}");
+            }
+        }
+        // verify-ca is accepted, but still requires a CA file.
+        let err = tls_connector_error("verify-ca");
+        assert!(err.contains("verify-ca mode requires"), "{err}");
+        assert!(!err.contains("Unknown SSL mode"), "{err}");
+    }
+
+    #[test]
+    fn test_tls_connector_verify_ca_is_case_insensitive() {
+        let err = tls_connector_error("VERIFY-CA");
+        assert!(err.contains("verify-ca mode requires"), "{err}");
+    }
+
+    #[test]
+    fn test_tls_connector_rejects_unknown_ssl_mode() {
+        let err = tls_connector_error("verfy-full");
+        assert!(err.contains("verfy-full"), "{err}");
+        for accepted in [
+            "disable",
+            "allow",
+            "prefer",
+            "require",
+            "verify-ca",
+            "verify-full",
+        ] {
+            assert!(err.contains(accepted), "{err} missing {accepted}");
+        }
+    }
+
+    #[test]
+    fn test_tls_connector_default_ssl_mode_is_prefer() {
+        let mut params = params_with_ssl("prefer");
+        params.ssl_mode = None;
+        assert!(build_postgres_tls_connector(&params).is_ok());
+    }
+
+    #[test]
+    fn test_tls_connector_blank_ssl_mode_equals_default() {
+        let blank = params_with_ssl("  ");
+        let mut unset = params_with_ssl("prefer");
+        unset.ssl_mode = None;
+        assert!(build_postgres_tls_connector(&blank).is_ok());
+        assert!(build_postgres_tls_connector(&unset).is_ok());
     }
 
     #[test]

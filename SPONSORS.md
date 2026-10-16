@@ -1,4 +1,4 @@
-# Sponsors
+# Sponsors and supporters
 
 Tabularis is made possible thanks to the support of our sponsors.
 Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
@@ -7,7 +7,7 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ## turboSMTP
 
-<a href="https://www.serversmtp.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/turbosmtp.png" height="40" alt="turboSMTP" style="background:#ffffff;padding:6px;" /></a>
+<a href="https://www.serversmtp.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/turbosmtp.png" height="40" alt="turboSMTP" style="background:#ffffff;padding:6px;" /></a>
 
 **Professional SMTP relay — your emails delivered straight to the inbox, never to spam**
 
@@ -26,7 +26,7 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ## Kilo Code
 
-<a href="https://www.kilo.ai/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/kilocode.png" height="40" alt="Kilo Code" /></a>
+<a href="https://www.kilo.ai/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/kilocode.png" height="40" alt="Kilo Code" /></a>
 
 **Open source AI coding agent — build, ship, and iterate faster with 500+ models**
 
@@ -43,9 +43,23 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ---
 
+## OpenAI
+
+<a href="https://openai.com/codex/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/openai.png" height="40" alt="OpenAI" style="background:#ffffff;padding:6px;" /></a>
+
+**Supporting Tabularis through the Codex for Open Source program.**
+
+🔗 [https://openai.com/codex/](https://openai.com/codex/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)
+
+- ⌨️ Codex access for open-source maintenance
+- 🔍 Support for issue investigation, implementation, and review
+- ❤️ Helping keep Tabularis free and open source
+
+---
+
 ## DigitalOcean
 
-<a href="https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/digitalocean.png" height="40" alt="DigitalOcean" /></a>
+<a href="https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/digitalocean.png" height="40" alt="DigitalOcean" /></a>
 
 **Simple, predictable cloud infrastructure for developers and growing teams.**
 
@@ -64,7 +78,7 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ## Vercel
 
-<a href="https://vercel.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/vercel.svg" height="40" alt="Vercel" /></a>
+<a href="https://vercel.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/vercel.svg" height="40" alt="Vercel" /></a>
 
 **The platform for the modern web — ship, preview, and scale frontend apps with zero config.**
 
@@ -83,7 +97,7 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ## Usero
 
-<a href="https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/usero.png" height="40" alt="Usero" /></a>
+<a href="https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/usero.png" height="40" alt="Usero" /></a>
 
 **Feedback becomes code. Automatically.**
 
@@ -102,7 +116,7 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ## DevGlobe
 
-<a href="https://devglobe.app/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/devglobe.png" height="40" alt="DevGlobe" /></a>
+<a href="https://devglobe.app/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/devglobe.png" height="40" alt="DevGlobe" /></a>
 
 **Connect your IDE, show up on the globe, and showcase your projects to a community of builders.**
 
@@ -121,7 +135,7 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ## Tolgee
 
-<a href="https://tolgee.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/tolgee.svg" height="40" alt="Tolgee" /></a>
+<a href="https://tolgee.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/tolgee.svg" height="40" alt="Tolgee" /></a>
 
 **Open-source localization platform — translate your app in context, without the spreadsheet chaos.**
 
@@ -140,7 +154,7 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ## 1Password
 
-<a href="https://1password.com/developers?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/1password.png" height="40" alt="1Password" style="background:#ffffff;padding:6px;" /></a>
+<a href="https://1password.com/developers?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/1password.png" height="40" alt="1Password" style="background:#ffffff;padding:6px;" /></a>
 
 **The password and secrets manager developers trust — free for open-source projects.**
 
@@ -159,7 +173,7 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ## JetBrains
 
-<a href="https://www.jetbrains.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/jetbrains.png" height="40" alt="JetBrains" /></a>
+<a href="https://www.jetbrains.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/jetbrains.png" height="40" alt="JetBrains" /></a>
 
 **Professional developer tools — IntelliJ IDEA, WebStorm, DataGrip and the rest of the All Products Pack.**
 
@@ -178,7 +192,7 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ## SignPath
 
-<a href="https://signpath.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/signpath.png" height="40" alt="SignPath" style="background:#ffffff;padding:6px;" /></a>
+<a href="https://signpath.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/logos/sponsors/signpath.png" height="40" alt="SignPath" style="background:#ffffff;padding:6px;" /></a>
 
 **Code signing for open source — signed Windows releases without the certificate bill.**
 

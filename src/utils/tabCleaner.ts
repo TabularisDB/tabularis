@@ -1,4 +1,5 @@
 import type { Tab } from '../types/editor';
+import { normalizeAutoRefreshInterval } from './autoRefresh';
 
 /**
  * Interface representing a cleaned tab with only persistent data
@@ -12,12 +13,14 @@ export interface CleanedTab {
   activeTable: string | null;
   pkColumns: string[] | null;
   connectionId: string;
+  database?: string;
   flowState?: Tab['flowState'];
   isEditorOpen?: boolean;
   filterClause?: string;
   sortClause?: string;
   limitClause?: number;
   pageSize?: number;
+  autoRefreshIntervalMs?: Tab['autoRefreshIntervalMs'];
   queryParams?: Record<string, string>;
   notebookId?: string;
   schema?: string;
@@ -45,12 +48,14 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
     activeTable: tab.activeTable,
     pkColumns: tab.pkColumns,
     connectionId: tab.connectionId,
+    database: tab.database,
     flowState: tab.flowState,
     isEditorOpen: tab.isEditorOpen,
     filterClause: tab.filterClause,
     sortClause: tab.sortClause,
     limitClause: tab.limitClause,
     pageSize: tab.pageSize,
+    autoRefreshIntervalMs: normalizeAutoRefreshInterval(tab.autoRefreshIntervalMs),
     queryParams: tab.queryParams,
     notebookId: tab.notebookId,
     schema: tab.schema,
@@ -82,7 +87,11 @@ export function restoreTabFromStorage(cleanedTab: Partial<Tab>): Tab {
     error: '',
     executionTime: null,
     isLoading: false,
+    autoRefreshIntervalMs: normalizeAutoRefreshInterval(cleanedTab.autoRefreshIntervalMs),
+    isAutoRefreshing: false,
+    autoRefreshError: '',
     pendingChanges: undefined,
+    pendingInsertions: undefined,
     pendingDeletions: undefined,
     selectedRows: undefined,
     notebookId: cleanedTab.notebookId,

@@ -23,3 +23,33 @@ describe("useConnectionCatalogue", () => {
     expect(invoke).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("useConnectionCatalogue kind filter", () => {
+  it("lists only driver plugins in the connection catalogue", async () => {
+    const entry = (id: string, kind?: string) => ({
+      id,
+      name: id,
+      description: "",
+      author: "",
+      homepage: "",
+      latest_version: "1.0.0",
+      releases: [],
+      installed_version: null,
+      update_available: false,
+      platform_supported: true,
+      kind,
+    });
+    vi.mocked(invoke).mockResolvedValue([
+      entry("oracle", "driver"),
+      entry("legacy-driver"),
+      entry("nord-theme", "theme"),
+    ]);
+    const { result } = renderHook(() => useConnectionCatalogue());
+    await act(async () => { await result.current.refresh(); });
+    await waitFor(() => expect(result.current.groups.length).toBe(2));
+    const slugs = result.current.groups.flatMap((g) => g.drivers.map((d) => d.slug));
+    expect(slugs).toEqual(expect.arrayContaining(["oracle", "legacy-driver"]));
+    expect(slugs).not.toContain("nord-theme");
+    expect(result.current.registry).toHaveLength(3);
+  });
+});

@@ -1,0 +1,30 @@
+name: Publish to FlatPark
+
+# Pings FlatPark (https://flatpark.org) when a stable release is published,
+# so the Flatpak update opens right away instead of waiting for FlatPark's
+# daily poll. No secrets: FlatPark looks the repo up in its own catalog and
+# checks the tag is a real release here. continue-on-error keeps a problem
+# on FlatPark's side from ever failing a release; if a ping is lost, re-send
+# it with workflow_dispatch (the daily poll catches it up either way).
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to re-send (e.g. v0.26.0)."
+        required: true
+
+jobs:
+  flatpark-publish:
+    # Prereleases never reach FlatPark (same gate as Snap/Winget/AUR).
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions: {}
+    steps:
+      - uses: flatpark/publish-action@b67fca1b80b095541bc011967e0a35292bed14d8 # v1.0.2
+        with:
+          app-id: dev.tabularis.Tabularis
+          # Empty on release events; the action then uses the release's tag.
+          tag: ${{ inputs.tag }}

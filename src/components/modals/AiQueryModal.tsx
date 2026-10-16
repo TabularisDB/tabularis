@@ -11,6 +11,7 @@ interface AiQueryModalProps {
   onInsert: (sql: string) => void;
   connectionId?: string;
   schema?: string;
+  database?: string;
 }
 
 interface SchemaLoadState {
@@ -25,12 +26,14 @@ export const AiQueryModal = ({
   onInsert,
   connectionId,
   schema,
+  database,
 }: AiQueryModalProps) => {
-  const { activeConnectionId, activeSchema } = useDatabase();
+  const { activeConnectionId, activeSchema, activeDatabaseName } = useDatabase();
   const { settings } = useSettings();
   const resolvedConnectionId = connectionId ?? activeConnectionId;
   const resolvedSchema = schema ?? activeSchema ?? undefined;
-  const schemaKey = `${resolvedConnectionId ?? ""}:${resolvedSchema ?? ""}`;
+  const resolvedDatabase = database ?? activeDatabaseName ?? undefined;
+  const schemaKey = `${resolvedConnectionId ?? ""}:${resolvedDatabase ?? ""}:${resolvedSchema ?? ""}`;
   
   const [prompt, setPrompt] = useState("");
   const promptId = useId();
@@ -61,6 +64,7 @@ export const AiQueryModal = ({
     const promise = invoke<string>("get_ai_schema_context", {
       connectionId: resolvedConnectionId,
       ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+      ...(resolvedDatabase ? { database: resolvedDatabase } : {}),
     });
     inFlightSchemaLoad.current = { key: schemaKey, promise };
     const clearInFlight = () => {
@@ -70,7 +74,7 @@ export const AiQueryModal = ({
     };
     void promise.then(clearInFlight, clearInFlight);
     return promise;
-  }, [resolvedConnectionId, resolvedSchema, schemaKey]);
+  }, [resolvedConnectionId, resolvedSchema, resolvedDatabase, schemaKey]);
 
   useEffect(() => {
     if (!isOpen || !resolvedConnectionId) {
