@@ -133,19 +133,18 @@ pub struct SshConnection {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_passphrase_prompt: Option<bool>,
     pub save_in_keychain: Option<bool>,
-    /// `Some(true)` when this profile travels in the team share, because a
-    /// shared connection tunnels through it. Its secrets then live in the
-    /// shared vault instead of this machine's keychain. Managed by
-    /// [`crate::team_share`] as a consequence of sharing a connection — never
-    /// toggled on its own.
+    /// Id of the source that owns this profile (see [`crate::managed`]), e.g.
+    /// `"team-share"` when a shared connection tunnels through it. Its secrets
+    /// then come from that source instead of this machine's keychain, and
+    /// never reach this file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub shared: Option<bool>,
+    pub managed_by: Option<String>,
 }
 
 impl SshConnection {
-    /// True when the credentials of this profile come from the team share.
-    pub fn is_shared(&self) -> bool {
-        self.shared.unwrap_or(false)
+    /// True when the credentials of this profile come from a managed source.
+    pub fn is_managed(&self) -> bool {
+        self.managed_by.is_some()
     }
 }
 
@@ -350,18 +349,18 @@ pub struct SavedConnection {
     /// write-confirmation warning and the visual identity in the UI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
-    /// `Some(true)` when this connection comes from the team share
-    /// ([`crate::team_share`]). Its credentials are not in this file and not
-    /// in the OS keychain: they live in the shared vault and are only
-    /// available while that vault is unlocked.
+    /// Id of the source that owns this connection (see [`crate::managed`]),
+    /// e.g. `"team-share"`. Its credentials are not in this file and not in
+    /// the OS keychain: core asks that source for them, and they are only
+    /// available while it can provide them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub shared: Option<bool>,
+    pub managed_by: Option<String>,
 }
 
 impl SavedConnection {
-    /// True when the credentials of this connection come from the team share.
-    pub fn is_shared(&self) -> bool {
-        self.shared.unwrap_or(false)
+    /// True when the credentials of this connection come from a managed source.
+    pub fn is_managed(&self) -> bool {
+        self.managed_by.is_some()
     }
 }
 
@@ -412,18 +411,17 @@ pub struct K8sConnection {
     pub kubectl_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kubeconfig_path: Option<String>,
-    /// `Some(true)` when this tunnel travels in the team share, because a
-    /// shared connection routes through it. Unlike an SSH profile it carries
-    /// no secrets, only reachability settings. Managed by
-    /// [`crate::team_share`] as a consequence of sharing a connection.
+    /// Id of the source that owns this tunnel (see [`crate::managed`]), e.g.
+    /// `"team-share"` when a shared connection routes through it. Unlike an
+    /// SSH profile it carries no secrets, only reachability settings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub shared: Option<bool>,
+    pub managed_by: Option<String>,
 }
 
 impl K8sConnection {
-    /// True when this tunnel comes from the team share.
-    pub fn is_shared(&self) -> bool {
-        self.shared.unwrap_or(false)
+    /// True when this tunnel comes from a managed source.
+    pub fn is_managed(&self) -> bool {
+        self.managed_by.is_some()
     }
 }
 

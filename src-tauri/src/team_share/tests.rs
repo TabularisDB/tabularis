@@ -24,7 +24,7 @@ fn ssh_profile(id: &str, host: &str, password: Option<&str>) -> SshConnection {
         key_passphrase: None,
         allow_passphrase_prompt: None,
         save_in_keychain: Some(true),
-        shared: Some(true),
+        managed_by: None,
     }
 }
 
@@ -283,7 +283,12 @@ mod merge {
         // The point of sharing profiles at all: a teammate receiving the
         // connection must also receive a usable tunnel.
         let base = VaultPayload::default();
-        let remote = ssh_payload(vec![vault_ssh("s1", "bastion.internal", Some("tunnel-pw"), "T1")]);
+        let remote = ssh_payload(vec![vault_ssh(
+            "s1",
+            "bastion.internal",
+            Some("tunnel-pw"),
+            "T1",
+        )]);
         let local = VaultPayload::default();
 
         let (merged, notes) = merge_payload(&base, &remote, &local, &ctx());
@@ -351,7 +356,7 @@ mod merge {
                 port: 5432,
                 kubectl_path: None,
                 kubeconfig_path: None,
-                shared: Some(true),
+                managed_by: None,
             },
             updated_at: updated_at.to_string(),
             updated_by: "alice@box".to_string(),
@@ -503,7 +508,10 @@ mod vault_file {
             .map(|e| e.file_name().to_string_lossy().into_owned())
             .filter(|name| name.ends_with(".tmp"))
             .collect();
-        assert!(leftovers.is_empty(), "temp files left behind: {leftovers:?}");
+        assert!(
+            leftovers.is_empty(),
+            "temp files left behind: {leftovers:?}"
+        );
     }
 
     #[test]
@@ -525,7 +533,9 @@ mod vault_file {
     #[test]
     fn a_missing_vault_reads_as_none() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(vault::read(&dir.path().join("nothing.json")).unwrap().is_none());
+        assert!(vault::read(&dir.path().join("nothing.json"))
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -703,25 +713,6 @@ mod secrets {
     use super::*;
 
     #[test]
-    fn stripping_removes_every_secret_and_the_keychain_marker() {
-        let mut p = params("db", Some("pw"));
-        p.ssh_password = Some("ssh-pw".to_string());
-        p.ssh_key_passphrase = Some("phrase".to_string());
-        p.connection_uri = Some("mysql://user:pw@db/shop".to_string());
-        p.connection_uri_in_keychain = Some(true);
-
-        EntrySecrets::strip(&mut p);
-
-        assert!(p.password.is_none());
-        assert!(p.ssh_password.is_none());
-        assert!(p.ssh_key_passphrase.is_none());
-        assert!(p.connection_uri.is_none());
-        assert!(p.connection_uri_in_keychain.is_none());
-        // Non-secret parameters survive: they are what the team shares.
-        assert_eq!(p.host.as_deref(), Some("db"));
-    }
-
-    #[test]
     fn blank_secrets_are_read_as_absent() {
         let mut p = params("db", Some("   "));
         p.ssh_password = Some(String::new());
@@ -796,21 +787,6 @@ mod secrets {
     }
 
     #[test]
-    fn stripping_an_ssh_profile_leaves_its_reachability_intact() {
-        let mut profile = ssh_profile("s1", "bastion.internal", Some("pw"));
-        profile.key_passphrase = Some("phrase".to_string());
-
-        SshSecrets::strip(&mut profile);
-
-        assert!(profile.password.is_none());
-        assert!(profile.key_passphrase.is_none());
-        // Host, port and user are what the team needs to share.
-        assert_eq!(profile.host, "bastion.internal");
-        assert_eq!(profile.port, 22);
-        assert_eq!(profile.user, "deploy");
-    }
-
-    #[test]
     fn secrets_round_trip_through_params() {
         let mut source = params("db", Some("pw"));
         source.ssh_password = Some("ssh-pw".to_string());
@@ -821,5 +797,350 @@ mod secrets {
 
         assert_eq!(target.password.as_deref(), Some("pw"));
         assert_eq!(target.ssh_password.as_deref(), Some("ssh-pw"));
+    }
+}
+
+mod local_side {
+    use super::*;
+    use crate::models::{ConnectionsFile, SavedConnection};
+    use crate::team_share::local::{
+        apply_payload, build_payload, is_team, leave_share, reconcile_k8s_flags, wanted_profiles,
+        LocalFiles, SecretMaps,
+    };
+    use crate::team_share::SOURCE_ID;
+
+    fn saved(id: &str, managed_by: Option<&str>) -> SavedConnection {
+        SavedConnection {
+            id: id.to_string(),
+            name: format!("conn-{id}"),
+            params: params("db", None),
+            group_id: None,
+            sort_order: None,
+            detect_json_in_text_columns: None,
+            appearance: None,
+            tag_ids: None,
+            environment: None,
+            managed_by: managed_by.map(str::to_string),
+        }
+    }
+
+    fn group(id: &str, parent_id: Option<&str>) -> ConnectionGroup {
+        ConnectionGroup {
+            id: id.to_string(),
+            name: format!("group-{id}"),
+            collapsed: false,
+            sort_order: 0,
+            parent_id: parent_id.map(str::to_string),
+        }
+    }
+
+    fn tag(id: &str) -> ConnectionTag {
+        ConnectionTag {
+            id: id.to_string(),
+            name: format!("tag-{id}"),
+            color: "#f97316".to_string(),
+        }
+    }
+
+    fn k8s(id: &str, managed_by: Option<&str>) -> K8sConnection {
+        K8sConnection {
+            id: id.to_string(),
+            name: format!("tunnel-{id}"),
+            context: "prod".to_string(),
+            namespace: "default".to_string(),
+            resource_type: "service".to_string(),
+            resource_name: "db".to_string(),
+            port: 5432,
+            kubectl_path: None,
+            kubeconfig_path: None,
+            managed_by: managed_by.map(str::to_string),
+        }
+    }
+
+    fn files(connections: Vec<SavedConnection>) -> LocalFiles {
+        LocalFiles {
+            connections: ConnectionsFile {
+                connections,
+                ..ConnectionsFile::default()
+            },
+            ..LocalFiles::default()
+        }
+    }
+
+    fn group_tombstone(id: &str) -> VaultGroup {
+        VaultGroup {
+            group: group(id, None),
+            updated_at: "T2".to_string(),
+            deleted: true,
+        }
+    }
+
+    fn tag_tombstone(id: &str) -> VaultTag {
+        VaultTag {
+            tag: tag(id),
+            updated_at: "T2".to_string(),
+            deleted: true,
+        }
+    }
+
+    #[test]
+    fn only_the_team_share_owns_what_it_flags() {
+        assert!(is_team(&Some(SOURCE_ID.to_string())));
+        assert!(!is_team(&None));
+        assert!(!is_team(&Some("another-source".to_string())));
+    }
+
+    #[test]
+    fn the_local_payload_carries_only_shared_connections_with_their_secrets() {
+        let local = files(vec![
+            saved("shared", Some(SOURCE_ID)),
+            saved("local", None),
+            saved("plugin", Some("another-source")),
+        ]);
+        let mut secrets = SecretMaps::default();
+        secrets.connections.insert(
+            "shared".to_string(),
+            EntrySecrets::from_params(&params("db", Some("team-pw"))),
+        );
+
+        let payload = build_payload(&local, &secrets, &VaultPayload::default());
+
+        assert_eq!(payload.entries.len(), 1);
+        assert_eq!(payload.entries[0].id, "shared");
+        assert_eq!(
+            payload.entries[0].params.password.as_deref(),
+            Some("team-pw")
+        );
+    }
+
+    #[test]
+    fn a_shared_ssh_profile_travels_without_this_machines_flag() {
+        let mut shared = saved("c1", Some(SOURCE_ID));
+        shared.params.ssh_enabled = Some(true);
+        shared.params.ssh_connection_id = Some("s1".to_string());
+        let mut local = files(vec![shared]);
+        let mut profile = ssh_profile("s1", "bastion", None);
+        profile.managed_by = Some(SOURCE_ID.to_string());
+        local.ssh = vec![profile];
+
+        let payload = build_payload(&local, &SecretMaps::default(), &VaultPayload::default());
+
+        assert_eq!(payload.ssh_profiles.len(), 1);
+        assert_eq!(payload.ssh_profiles[0].profile.managed_by, None);
+    }
+
+    #[test]
+    fn a_pulled_connection_lands_flagged_and_without_secrets() {
+        let mut local = files(vec![]);
+        let remote = payload(vec![entry("c1", "db", Some("team-pw"), "T1")]);
+
+        let secrets = apply_payload(&mut local, &remote);
+
+        let landed = &local.connections.connections[0];
+        assert!(is_team(&landed.managed_by));
+        assert!(landed.params.password.is_none());
+        assert_eq!(
+            secrets.connections["c1"].password.as_deref(),
+            Some("team-pw")
+        );
+    }
+
+    #[test]
+    fn a_teammates_deletion_leaves_a_local_connection_with_the_same_id_alone() {
+        let mut local = files(vec![saved("c1", None)]);
+        let mut tombstone = entry("c1", "db", None, "T2");
+        tombstone.deleted = true;
+
+        apply_payload(&mut local, &payload(vec![tombstone]));
+
+        assert_eq!(local.connections.connections.len(), 1);
+    }
+
+    #[test]
+    fn a_dropped_group_stays_while_a_local_connection_still_uses_it() {
+        let mut shared = saved("shared", Some(SOURCE_ID));
+        shared.group_id = Some("g1".to_string());
+        let mut mine = saved("mine", None);
+        mine.group_id = Some("g1".to_string());
+        let mut local = files(vec![shared, mine]);
+        local.connections.groups = vec![group("g1", None)];
+
+        let remote = VaultPayload {
+            groups: vec![group_tombstone("g1")],
+            ..Default::default()
+        };
+        apply_payload(&mut local, &remote);
+
+        let connections = &local.connections.connections;
+        // The shared connection follows the team out of the group…
+        assert_eq!(connections[0].group_id, None);
+        // …the local one keeps its organisation, and so does the group.
+        assert_eq!(connections[1].group_id.as_deref(), Some("g1"));
+        assert_eq!(local.connections.groups.len(), 1);
+    }
+
+    #[test]
+    fn a_dropped_group_used_by_a_local_subgroup_stays_too() {
+        let mut mine = saved("mine", None);
+        mine.group_id = Some("child".to_string());
+        let mut local = files(vec![mine]);
+        local.connections.groups = vec![group("parent", None), group("child", Some("parent"))];
+
+        let remote = VaultPayload {
+            groups: vec![group_tombstone("parent")],
+            ..Default::default()
+        };
+        apply_payload(&mut local, &remote);
+
+        assert_eq!(local.connections.groups.len(), 2);
+    }
+
+    #[test]
+    fn a_dropped_group_nobody_here_uses_goes_and_its_subgroups_become_roots() {
+        let mut shared = saved("shared", Some(SOURCE_ID));
+        shared.group_id = Some("parent".to_string());
+        let mut local = files(vec![shared]);
+        local.connections.groups = vec![group("parent", None), group("child", Some("parent"))];
+
+        let remote = VaultPayload {
+            groups: vec![group_tombstone("parent")],
+            ..Default::default()
+        };
+        apply_payload(&mut local, &remote);
+
+        let groups = &local.connections.groups;
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].id, "child");
+        assert_eq!(groups[0].parent_id, None);
+    }
+
+    #[test]
+    fn a_dropped_tag_leaves_the_shared_connections_only() {
+        let mut shared = saved("shared", Some(SOURCE_ID));
+        shared.tag_ids = Some(vec!["t1".to_string()]);
+        let mut mine = saved("mine", None);
+        mine.tag_ids = Some(vec!["t1".to_string()]);
+        let mut local = files(vec![shared, mine]);
+        local.connections.tags = vec![tag("t1")];
+
+        let remote = VaultPayload {
+            tags: vec![tag_tombstone("t1")],
+            ..Default::default()
+        };
+        apply_payload(&mut local, &remote);
+
+        let connections = &local.connections.connections;
+        assert_eq!(connections[0].tag_ids, Some(vec![]));
+        assert_eq!(connections[1].tag_ids, Some(vec!["t1".to_string()]));
+        assert_eq!(local.connections.tags.len(), 1);
+    }
+
+    #[test]
+    fn a_dropped_tag_nobody_here_wears_goes() {
+        let mut shared = saved("shared", Some(SOURCE_ID));
+        shared.tag_ids = Some(vec!["t1".to_string()]);
+        let mut local = files(vec![shared]);
+        local.connections.tags = vec![tag("t1")];
+
+        let remote = VaultPayload {
+            tags: vec![tag_tombstone("t1")],
+            ..Default::default()
+        };
+        apply_payload(&mut local, &remote);
+
+        assert!(local.connections.tags.is_empty());
+    }
+
+    #[test]
+    fn leaving_an_open_share_gives_the_credentials_back() {
+        let mut local = files(vec![saved("shared", Some(SOURCE_ID)), saved("mine", None)]);
+        let mut profile = ssh_profile("s1", "bastion", None);
+        profile.managed_by = Some(SOURCE_ID.to_string());
+        local.ssh = vec![profile];
+        let mut secrets = SecretMaps::default();
+        secrets.connections.insert(
+            "shared".to_string(),
+            EntrySecrets::from_params(&params("db", Some("team-pw"))),
+        );
+        secrets.ssh.insert(
+            "s1".to_string(),
+            SshSecrets {
+                password: Some("tunnel-pw".to_string()),
+                key_passphrase: None,
+            },
+        );
+
+        let outcome = leave_share(&mut local, true, Some(&secrets));
+
+        let kept = &local.connections.connections[0];
+        assert_eq!(kept.managed_by, None);
+        assert_eq!(kept.params.password.as_deref(), Some("team-pw"));
+        assert_eq!(local.ssh[0].managed_by, None);
+        assert_eq!(local.ssh[0].password.as_deref(), Some("tunnel-pw"));
+        assert_eq!(outcome.restored_connections, vec!["shared".to_string()]);
+        assert_eq!(outcome.restored_ssh_profiles, vec!["s1".to_string()]);
+        assert_eq!(outcome.kept_without_credentials, 0);
+    }
+
+    #[test]
+    fn leaving_a_locked_share_keeps_the_connections_without_credentials() {
+        let mut local = files(vec![saved("shared", Some(SOURCE_ID))]);
+
+        let outcome = leave_share(&mut local, true, None);
+
+        assert_eq!(local.connections.connections[0].managed_by, None);
+        assert!(local.connections.connections[0].params.password.is_none());
+        assert_eq!(outcome.kept_without_credentials, 1);
+    }
+
+    #[test]
+    fn leaving_without_keeping_drops_only_the_team_share_records() {
+        let mut local = files(vec![
+            saved("shared", Some(SOURCE_ID)),
+            saved("mine", None),
+            saved("plugin", Some("another-source")),
+        ]);
+        local.k8s = vec![k8s("k1", Some(SOURCE_ID)), k8s("k2", None)];
+
+        leave_share(&mut local, false, None);
+
+        let ids: Vec<&str> = local
+            .connections
+            .connections
+            .iter()
+            .map(|c| c.id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["mine", "plugin"]);
+        assert_eq!(local.k8s.len(), 1);
+        assert_eq!(local.k8s[0].id, "k2");
+    }
+
+    #[test]
+    fn tunnels_follow_the_shared_connections_that_use_them() {
+        let mut shared = saved("shared", Some(SOURCE_ID));
+        shared.params.k8s_enabled = Some(true);
+        shared.params.k8s_connection_id = Some("k1".to_string());
+        shared.params.ssh_enabled = Some(true);
+        shared.params.ssh_connection_id = Some("s1".to_string());
+        let mut mine = saved("mine", None);
+        mine.params.k8s_enabled = Some(true);
+        mine.params.k8s_connection_id = Some("k2".to_string());
+        let local = files(vec![shared, mine]);
+
+        let (wanted_ssh, wanted_k8s) = wanted_profiles(&local.connections);
+        assert!(wanted_ssh.contains("s1"));
+        assert!(wanted_k8s.contains("k1"));
+        assert!(!wanted_k8s.contains("k2"));
+
+        let mut tunnels = vec![
+            k8s("k1", None),
+            k8s("k2", Some(SOURCE_ID)),
+            k8s("k3", Some("another-source")),
+        ];
+        assert!(reconcile_k8s_flags(&mut tunnels, &wanted_k8s));
+        assert!(is_team(&tunnels[0].managed_by));
+        assert_eq!(tunnels[1].managed_by, None);
+        assert_eq!(tunnels[2].managed_by.as_deref(), Some("another-source"));
+        assert!(!reconcile_k8s_flags(&mut tunnels, &wanted_k8s));
     }
 }

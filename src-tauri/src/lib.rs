@@ -67,6 +67,7 @@ pub mod sandbox_tests;
 pub mod k8s_tunnel;
 pub mod log_commands;
 pub mod logger;
+pub mod managed;
 pub mod mcp;
 pub mod models;
 #[cfg(test)]
@@ -299,6 +300,14 @@ pub fn run() {
         .manage(window_placement::WindowPlacementCache::default())
         .manage(query_history::QueryHistoryState::default())
         .manage(team_share::TeamShareState::default())
+        // The sources that own managed connections (see `managed`). Core only
+        // ever reaches the team share through this registry.
+        .manage(
+            managed::ManagedRegistry::<tauri::Wry>::default().with(
+                team_share::SOURCE_ID,
+                std::sync::Arc::new(team_share::TeamShareSource),
+            ),
+        )
         .setup(move |app| {
             #[cfg(target_os = "linux")]
             system_theme::watch(app.handle().clone());

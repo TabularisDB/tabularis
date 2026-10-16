@@ -184,11 +184,11 @@ async fn get_ssh_connection_by_id<R: Runtime>(
         );
     }
 
-    // A shared profile keeps its secrets in the team vault, never in this
-    // machine's keychain. While the vault is locked this fails on purpose, the
-    // same way a shared connection does.
-    if ssh.is_shared() {
-        crate::team_share::attach_ssh_secrets(app, &mut ssh)?;
+    // A managed profile gets its secrets from its source, never from this
+    // machine's keychain. While the source is unavailable (a locked team
+    // share) this fails on purpose, the same way a managed connection does.
+    if ssh.is_managed() {
+        crate::managed::resolve_ssh_secrets(app, &mut ssh)?;
         return Ok(ssh);
     }
 
@@ -934,15 +934,15 @@ pub fn find_connection_by_id<R: Runtime>(
         }
     };
 
-    // A shared connection keeps its credentials in the team vault, never in
-    // this file and never in the keychain. While the vault is locked this
-    // fails on purpose: falling back to anything else would defeat the master
-    // password.
-    if conn.is_shared() {
-        crate::team_share::attach_secrets(app, &mut conn)?;
+    // A managed connection gets its credentials from its source, never from
+    // this file and never from the keychain. While the source is unavailable
+    // (a locked team share) this fails on purpose: falling back to anything
+    // else would defeat it.
+    if conn.is_managed() {
+        crate::managed::resolve_connection_secrets(app, &mut conn)?;
         // Same exception the keychain path makes below: an IAM-auth
         // connection's password is a 15-minute RDS token, so whatever the
-        // vault happens to hold is stale by the time it is read. Drop it and
+        // source happens to hold is stale by the time it is read. Drop it and
         // let the caller supply a fresh one.
         if conn.params.use_iam_auth.unwrap_or(false) {
             conn.params.password = None;
@@ -1510,7 +1510,7 @@ pub async fn save_connection<R: Runtime>(
         appearance: None,
         tag_ids: None,
         environment: validate_environment(environment)?,
-        shared: None,
+        managed_by: None,
     };
     conn_file.connections.push(new_conn.clone());
     if let Err(err) = persist_connection_uri_change(
@@ -1566,10 +1566,7 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
         .find(|c| c.id == id)
         .and_then(|c| c.appearance.clone());
 
-    let was_shared = conn_file
-        .connections
-        .iter()
-        .any(|c| c.id == id && c.is_shared());
+    let managed_by = crate::managed::connection_manager(&conn_file, &id);
 
     let initial_count = conn_file.connections.len();
     conn_file.connections.retain(|c| c.id != id);
@@ -1585,11 +1582,15 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
     // Invalidate the in-memory cache for this connection
     credential_cache::invalidate_all_for_connection(&cache, &id);
 
-    // Propagate the removal to the team share, so it disappears for everyone
-    // instead of coming back on the next sync.
-    if was_shared {
-        crate::team_share::push_local_change(&app, &id, None);
-    }
+    // Propagate the removal to the connection's source (the team share), so it
+    // disappears there too instead of coming back on the next sync.
+    crate::managed::notify_managed_change(
+        &app,
+        managed_by.as_deref(),
+        crate::managed::ManagedKind::Connection,
+        &id,
+        crate::managed::ManagedChange::Deleted,
+    );
 
     // Cascade-delete the custom icon file if the connection used one.
     {
@@ -1637,10 +1638,10 @@ pub async fn update_connection<R: Runtime>(
         .position(|c| c.id == id)
         .ok_or("Connection not found")?;
 
-    // A shared connection has no keychain entries to reconcile: its
-    // credentials go to the team vault instead.
-    if conn_file.connections[conn_idx].is_shared() {
-        return update_shared_connection(
+    // A managed connection has no keychain entries to reconcile: its
+    // credentials go to its source instead.
+    if conn_file.connections[conn_idx].is_managed() {
+        return update_managed_connection(
             &app,
             conn_file,
             conn_idx,
@@ -1789,7 +1790,7 @@ pub async fn update_connection<R: Runtime>(
         appearance: original_appearance,
         tag_ids: original_tag_ids,
         environment: validate_environment(environment)?,
-        shared: None,
+        managed_by: None,
     };
 
     conn_file.connections[conn_idx] = updated.clone();
@@ -1855,14 +1856,14 @@ pub async fn update_connection<R: Runtime>(
     Ok(returned_conn)
 }
 
-/// `update_connection` for a connection that belongs to the team share.
+/// `update_connection` for a connection owned by a managed source.
 ///
 /// Kept apart from the main path because none of the keychain reconciliation
-/// applies: the file gets the connection without any secret, the secrets go to
-/// the shared vault, and the push is best effort so an unreachable share does
-/// not fail the edit.
+/// applies: the file gets the connection without any secret and the secrets go
+/// to the source. Refused while the source is unavailable — saving then would
+/// drop the credentials the user just typed.
 #[allow(clippy::too_many_arguments)]
-fn update_shared_connection<R: Runtime>(
+fn update_managed_connection<R: Runtime>(
     app: &AppHandle<R>,
     mut conn_file: ConnectionsFile,
     conn_idx: usize,
@@ -1874,6 +1875,12 @@ fn update_shared_connection<R: Runtime>(
     environment: Option<String>,
 ) -> Result<SavedConnection, String> {
     let existing = &conn_file.connections[conn_idx];
+    let managed_by = existing.managed_by.clone();
+    crate::managed::require_available(
+        app,
+        managed_by.as_deref(),
+        crate::managed::ManagedKind::Connection,
+    )?;
     let updated = SavedConnection {
         id: id.clone(),
         name,
@@ -1884,12 +1891,20 @@ fn update_shared_connection<R: Runtime>(
         appearance: existing.appearance.clone(),
         tag_ids: existing.tag_ids.clone(),
         environment: validate_environment(environment)?,
-        shared: Some(true),
+        managed_by: managed_by.clone(),
     };
     conn_file.connections[conn_idx] = updated.clone();
-    // `save_connections_file` strips the secrets of a shared connection.
+    // `save_connections_file` strips the secrets of a managed connection.
     save_connections_and_invalidate(app, path, &conn_file)?;
-    crate::team_share::push_local_change(app, &id, Some(&params));
+    crate::managed::notify_managed_change(
+        app,
+        managed_by.as_deref(),
+        crate::managed::ManagedKind::Connection,
+        &id,
+        crate::managed::ManagedChange::Saved {
+            secrets: Some(crate::managed::TypedSecrets::Connection(&params)),
+        },
+    );
 
     let mut returned_conn = updated;
     returned_conn.params = params;
@@ -1922,9 +1937,15 @@ pub async fn set_connection_appearance<R: Runtime>(
     let mut conn_file = persistence::load_connections_file(&path)?;
     set_appearance_impl(&mut conn_file, &id, appearance)?;
     save_connections_and_invalidate(&app, &path, &conn_file)?;
-    // The team shares the look of a connection, so this reaches the share as
-    // soon as it is saved rather than at the next sync.
-    crate::team_share::push_metadata_change(&app, &id);
+    // A source may share the look of a connection (the team share does), so
+    // it hears about this as soon as it is saved.
+    crate::managed::notify_managed_change(
+        &app,
+        crate::managed::connection_manager(&conn_file, &id).as_deref(),
+        crate::managed::ManagedKind::Connection,
+        &id,
+        crate::managed::ManagedChange::Saved { secrets: None },
+    );
     Ok(())
 }
 
@@ -1945,9 +1966,27 @@ pub async fn duplicate_connection<R: Runtime>(
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
 
+    // A managed connection's credentials come from its source. The copy is an
+    // ordinary local connection, so it gets them in the keychain (or the file)
+    // like any other; while the source is locked the duplicate is refused
+    // rather than produced without credentials.
+    let original_managed = original.is_managed();
+    if original_managed {
+        crate::managed::require_available(
+            &app,
+            original.managed_by.as_deref(),
+            crate::managed::ManagedKind::Connection,
+        )?;
+        crate::managed::resolve_connection_secrets(&app, &mut original)?;
+        if original.params.use_iam_auth.unwrap_or(false) {
+            original.params.password = None;
+        }
+    }
+
     // Same IAM-auth guard as `find_connection_by_id`: never copy a stale RDS
     // auth token into a duplicated connection.
-    if original.params.save_in_keychain.unwrap_or(false)
+    if !original_managed
+        && original.params.save_in_keychain.unwrap_or(false)
         && !original.params.use_iam_auth.unwrap_or(false)
     {
         if let Ok(pwd) = credential_cache::get_db_password_cached(&cache, &original.id) {
@@ -2003,7 +2042,9 @@ pub async fn duplicate_connection<R: Runtime>(
     // Give the duplicate its own entry, or drop the marker if there is nothing
     // to copy: a marker without an entry leaves a copy that can neither
     // connect nor be deleted.
-    let original_uri = if original.params.connection_uri_in_keychain.unwrap_or(false) {
+    let original_uri = if original_managed {
+        original.params.connection_uri.clone()
+    } else if original.params.connection_uri_in_keychain.unwrap_or(false) {
         credential_cache::get_connection_uri_cached(&cache, &original.id, true)
             .ok()
             .flatten()
@@ -2057,7 +2098,7 @@ pub async fn duplicate_connection<R: Runtime>(
         // Normalize rather than fail: an invalid on-disk value must not
         // block duplication, the copy just becomes "unclassified".
         environment: validate_environment(original.environment.clone()).unwrap_or(None),
-        shared: None,
+        managed_by: None,
     };
 
     conn_file.connections.push(new_conn.clone());
@@ -2180,7 +2221,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
                         key_passphrase: None,
                         allow_passphrase_prompt: None,
                         save_in_keychain: conn.params.save_in_keychain,
-                        shared: None,
+                        managed_by: None,
                     };
 
                     ssh_connections.push(new_ssh_conn);
@@ -2379,7 +2420,7 @@ pub async fn save_ssh_connection<R: Runtime>(
         save_in_keychain: ssh.save_in_keychain,
         // A brand-new profile is local; it joins the share only when a shared
         // connection starts tunnelling through it.
-        shared: None,
+        managed_by: None,
     };
 
     ssh_connections.push(ssh_to_save.clone());
@@ -2408,17 +2449,20 @@ pub async fn update_ssh_connection<R: Runtime>(
         .position(|s| s.id == id)
         .ok_or("SSH connection not found")?;
 
-    // A shared profile keeps its secrets in the team vault, so none of the
-    // keychain reconciliation below applies to it. The secrets are read out of
-    // the form now, before the struct literal below moves its fields.
-    let was_shared = ssh_connections[ssh_idx].is_shared();
-    let staged_secrets =
-        was_shared.then(|| crate::team_share::SshSecrets::from_input(&ssh));
+    // A managed profile keeps its secrets with its source, so none of the
+    // keychain reconciliation below applies to it. Refused while the source is
+    // unavailable: saving then would drop the credentials just typed.
+    let managed_by = ssh_connections[ssh_idx].managed_by.clone();
+    crate::managed::require_available(
+        &app,
+        managed_by.as_deref(),
+        crate::managed::ManagedKind::SshProfile,
+    )?;
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    if was_shared {
-        // Nothing to do here: the push to the vault happens after the file is
-        // written, so an unreachable share cannot fail the edit.
+    if managed_by.is_some() {
+        // Nothing to do here: the source hears about the secrets once the
+        // file is written.
     } else if ssh.save_in_keychain.unwrap_or(false) {
         if let Some(pwd) = &ssh.password {
             keychain_utils::set_ssh_password(&id, pwd)?;
@@ -2457,17 +2501,26 @@ pub async fn update_ssh_connection<R: Runtime>(
         },
         allow_passphrase_prompt: ssh.allow_passphrase_prompt,
         save_in_keychain: ssh.save_in_keychain,
-        shared: was_shared.then_some(true),
+        managed_by: managed_by.clone(),
     };
 
     ssh_connections[ssh_idx] = ssh_to_save.clone();
 
-    // Writes through the shared-aware helper, so a shared profile's secrets
+    // Writes through the managed-aware helper, so a managed profile's secrets
     // never reach the file.
     persistence::save_ssh_connections_file(&path, &ssh_connections)?;
-    if let Some(secrets) = &staged_secrets {
-        crate::team_share::push_local_ssh_change(&app, &id, Some(secrets));
-    }
+    crate::managed::notify_managed_change(
+        &app,
+        managed_by.as_deref(),
+        crate::managed::ManagedKind::SshProfile,
+        &id,
+        crate::managed::ManagedChange::Saved {
+            secrets: Some(crate::managed::TypedSecrets::SshProfile {
+                password: ssh.password.as_deref(),
+                key_passphrase: ssh.key_passphrase.as_deref(),
+            }),
+        },
+    );
 
     let mut returned_ssh = ssh_to_save;
     returned_ssh.password = ssh.password;
@@ -2489,7 +2542,10 @@ pub async fn delete_ssh_connection<R: Runtime>(
     let mut ssh_connections: Vec<SshConnection> =
         serde_json::from_str(&content).unwrap_or_default();
 
-    let was_shared = ssh_connections.iter().any(|s| s.id == id && s.is_shared());
+    let managed_by = ssh_connections
+        .iter()
+        .find(|s| s.id == id)
+        .and_then(|s| s.managed_by.clone());
     ssh_connections.retain(|s| s.id != id);
 
     // Remove credentials from keychain and invalidate cache
@@ -2500,11 +2556,15 @@ pub async fn delete_ssh_connection<R: Runtime>(
     credential_cache::invalidate_ssh_key_passphrase(&cache, &id);
 
     persistence::save_ssh_connections_file(&path, &ssh_connections)?;
-    // Propagate the removal so the profile disappears for the team too,
-    // instead of coming back on the next sync.
-    if was_shared {
-        crate::team_share::push_local_ssh_change(&app, &id, None);
-    }
+    // Propagate the removal to the profile's source, so it does not come back
+    // on the next sync.
+    crate::managed::notify_managed_change(
+        &app,
+        managed_by.as_deref(),
+        crate::managed::ManagedKind::SshProfile,
+        &id,
+        crate::managed::ManagedChange::Deleted,
+    );
     Ok(())
 }
 
@@ -2614,30 +2674,7 @@ fn validate_k8s_connection_paths(k8s: &K8sConnectionInput) -> Result<(), String>
 
 /// Load K8s connections synchronously from the config file.
 fn load_k8s_connections_sync<R: Runtime>(app: &AppHandle<R>) -> Result<Vec<K8sConnection>, String> {
-    let path = get_k8s_config_path(app)?;
-    if !path.exists() {
-        return Ok(vec![]);
-    }
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    Ok(serde_json::from_str(&content).unwrap_or_default())
-}
-
-/// Load `k8s_connections.json`. Shared with [`crate::team_share`], which
-/// mirrors the team's tunnels into it.
-pub(crate) fn load_k8s_connections<R: Runtime>(
-    app: &AppHandle<R>,
-) -> Result<Vec<K8sConnection>, String> {
-    load_k8s_connections_sync(app)
-}
-
-/// Write `k8s_connections.json`.
-pub(crate) fn save_k8s_connections<R: Runtime>(
-    app: &AppHandle<R>,
-    connections: &[K8sConnection],
-) -> Result<(), String> {
-    let path = get_k8s_config_path(app)?;
-    let json = serde_json::to_string_pretty(connections).map_err(|e| e.to_string())?;
-    fs::write(&path, json).map_err(|e| e.to_string())
+    persistence::load_k8s_connections_file(&get_k8s_config_path(app)?)
 }
 
 /// Get the path to the k8s_connections.json file.
@@ -2692,13 +2729,11 @@ pub async fn save_k8s_connection<R: Runtime>(
         kubeconfig_path: k8s.kubeconfig_path,
         // A new tunnel is local; it joins the share only when a shared
         // connection starts routing through it.
-        shared: None,
+        managed_by: None,
     };
 
     connections.push(connection.clone());
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    persistence::write_private_file(&path, json)?;
+    persistence::save_k8s_connections_file(&path, &connections)?;
 
     Ok(connection)
 }
@@ -2723,9 +2758,10 @@ pub async fn update_k8s_connection<R: Runtime>(
         .position(|c| c.id == id)
         .ok_or_else(|| format!("K8s connection with ID {} not found", id))?;
 
-    // A shared tunnel stays shared across an edit; the change reaches the team
-    // on the next sync.
-    let was_shared = connections[idx].is_shared();
+    // A managed tunnel stays managed across an edit, and its source hears
+    // about the change. It holds no secrets, so a locked source is no reason
+    // to refuse the edit.
+    let managed_by = connections[idx].managed_by.clone();
 
     let connection = K8sConnection {
         id: id.clone(),
@@ -2737,13 +2773,18 @@ pub async fn update_k8s_connection<R: Runtime>(
         port: k8s.port,
         kubectl_path: k8s.kubectl_path,
         kubeconfig_path: k8s.kubeconfig_path,
-        shared: was_shared.then_some(true),
+        managed_by: managed_by.clone(),
     };
 
     connections[idx] = connection.clone();
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    persistence::write_private_file(&path, json)?;
+    persistence::save_k8s_connections_file(&path, &connections)?;
+    crate::managed::notify_managed_change(
+        &app,
+        managed_by.as_deref(),
+        crate::managed::ManagedKind::K8sTunnel,
+        &id,
+        crate::managed::ManagedChange::Saved { secrets: None },
+    );
 
     Ok(connection)
 }
@@ -2761,10 +2802,19 @@ pub async fn delete_k8s_connection<R: Runtime>(
         return Ok(());
     };
 
+    let managed_by = connections
+        .iter()
+        .find(|c| c.id == id)
+        .and_then(|c| c.managed_by.clone());
     connections.retain(|c| c.id != id);
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    persistence::write_private_file(&path, json)?;
+    persistence::save_k8s_connections_file(&path, &connections)?;
+    crate::managed::notify_managed_change(
+        &app,
+        managed_by.as_deref(),
+        crate::managed::ManagedKind::K8sTunnel,
+        &id,
+        crate::managed::ManagedChange::Deleted,
+    );
 
     Ok(())
 }
@@ -3425,7 +3475,7 @@ mod tests {
             appearance: None,
             tag_ids: None,
             environment: None,
-            shared: None,
+            managed_by: None,
         }
     }
 
@@ -3459,7 +3509,7 @@ mod tests {
             }),
             tag_ids: None,
             environment: None,
-            shared: None,
+            managed_by: None,
         };
 
         // Simulate the pattern used in update_connection after the fix.
@@ -3475,7 +3525,7 @@ mod tests {
             appearance: original_appearance,
             tag_ids: None,
             environment: None,
-            shared: None,
+            managed_by: None,
         };
 
         let app = updated
@@ -3501,7 +3551,7 @@ mod tests {
             appearance,
             tag_ids: None,
             environment: None,
-            shared: None,
+            managed_by: None,
         };
         ConnectionsFile {
             groups: vec![],
@@ -3731,7 +3781,7 @@ mod tests {
                 key_passphrase: None,
                 allow_passphrase_prompt: None,
                 save_in_keychain: Some(save_in_keychain),
-                shared: None,
+                managed_by: None,
             }
         }
 
@@ -7089,9 +7139,15 @@ pub async fn move_connection_to_group<R: Runtime>(
 
     let updated = conn.clone();
     save_connections_and_invalidate(&app, &path, &file)?;
-    // Moving a shared connection can also pull its new group into the share,
-    // or leave the old one empty and drop it.
-    crate::team_share::push_metadata_change(&app, &connection_id);
+    // Moving a managed connection can also change what its source holds — the
+    // team share pulls the new group in and drops the old one once empty.
+    crate::managed::notify_managed_change(
+        &app,
+        updated.managed_by.as_deref(),
+        crate::managed::ManagedKind::Connection,
+        &connection_id,
+        crate::managed::ManagedChange::Saved { secrets: None },
+    );
 
     Ok(updated)
 }
@@ -7216,12 +7272,29 @@ pub async fn export_connections_payload<R: Runtime>(
 
     // Resolve passwords for database connections
     for conn in &mut conn_file.connections {
+        // Which source owns a record is this machine's bookkeeping: an export
+        // restored elsewhere yields ordinary local connections.
+        let managed_by = conn.managed_by.take();
         if !include_secrets {
             // Strip any secrets that may already live in the connections file
             conn.params.password = None;
             conn.params.ssh_password = None;
             conn.params.ssh_key_passphrase = None;
             conn.params.connection_uri = None;
+            continue;
+        }
+        if let Some(managed_by) = managed_by {
+            // A managed connection's credentials come from its source. While
+            // it is locked the export is refused rather than written without
+            // them, which the user would only find out after restoring it.
+            crate::managed::require_available(
+                &app,
+                Some(&managed_by),
+                crate::managed::ManagedKind::Connection,
+            )?;
+            conn.managed_by = Some(managed_by);
+            crate::managed::resolve_connection_secrets(&app, conn)?;
+            conn.managed_by = None;
             continue;
         }
         if conn.params.save_in_keychain.unwrap_or(false) {
@@ -7250,9 +7323,21 @@ pub async fn export_connections_payload<R: Runtime>(
 
     // Resolve passwords for SSH connections
     for ssh in &mut ssh_connections {
+        let managed_by = ssh.managed_by.take();
         if !include_secrets {
             ssh.password = None;
             ssh.key_passphrase = None;
+            continue;
+        }
+        if let Some(managed_by) = managed_by {
+            crate::managed::require_available(
+                &app,
+                Some(&managed_by),
+                crate::managed::ManagedKind::SshProfile,
+            )?;
+            ssh.managed_by = Some(managed_by);
+            crate::managed::resolve_ssh_secrets(&app, ssh)?;
+            ssh.managed_by = None;
             continue;
         }
         if ssh.save_in_keychain.unwrap_or(false) {
@@ -7264,6 +7349,10 @@ pub async fn export_connections_payload<R: Runtime>(
                 ssh.key_passphrase = Some(passphrase);
             }
         }
+    }
+
+    for k8s in &mut k8s_connections {
+        k8s.managed_by = None;
     }
 
     Ok(ExportPayload {
@@ -7360,6 +7449,23 @@ pub async fn apply_export_payload<R: Runtime>(
 
     // Merge connections and handle passwords
     for mut new_conn in payload_connections {
+        // An imported record is always local. One that collides with a
+        // managed connection is that same connection exported earlier: its
+        // source keeps owning it, rather than an import quietly turning it
+        // into a local copy the source would read as deleted.
+        new_conn.managed_by = None;
+        if current_file
+            .connections
+            .iter()
+            .any(|c| c.id == new_conn.id && c.is_managed())
+        {
+            log::info!(
+                "Import: connection {} is managed by another source here; kept as is",
+                new_conn.id
+            );
+            continue;
+        }
+
         // An imported payload is untrusted input and may carry an inline URI.
         // Hold it to the same rule as a save: keychain or nothing.
         validate_connection_uri_persistence(&new_conn.params)?;
@@ -7413,6 +7519,14 @@ pub async fn apply_export_payload<R: Runtime>(
 
     // Merge SSH connections and handle passwords
     for mut new_ssh in payload.ssh_connections {
+        // Same rule as for connections.
+        new_ssh.managed_by = None;
+        if current_ssh
+            .iter()
+            .any(|s| s.id == new_ssh.id && s.is_managed())
+        {
+            continue;
+        }
         if new_ssh.save_in_keychain.unwrap_or(false) {
             if let Some(pwd) = &new_ssh.password {
                 keychain_utils::set_ssh_password(&new_ssh.id, pwd)?;
@@ -7436,21 +7550,23 @@ pub async fn apply_export_payload<R: Runtime>(
 
     // Save files
     save_connections_and_invalidate(&app, &conn_path, &current_file)?;
-    let ssh_json = serde_json::to_string_pretty(&current_ssh).map_err(|e| e.to_string())?;
-    persistence::write_private_file(&ssh_path, ssh_json)?;
+    persistence::save_ssh_connections_file(&ssh_path, &current_ssh)?;
 
     // Merge K8s connections
     let k8s_path = get_k8s_config_path(&app)?;
     let mut current_k8s = load_k8s_connections_sync(&app)?;
-    for new_k8s in payload.k8s_connections {
+    for mut new_k8s in payload.k8s_connections {
+        new_k8s.managed_by = None;
         if let Some(existing) = current_k8s.iter_mut().find(|k| k.id == new_k8s.id) {
+            if existing.is_managed() {
+                continue;
+            }
             *existing = new_k8s;
         } else {
             current_k8s.push(new_k8s);
         }
     }
-    let k8s_json = serde_json::to_string_pretty(&current_k8s).map_err(|e| e.to_string())?;
-    persistence::write_private_file(&k8s_path, k8s_json)?;
+    persistence::save_k8s_connections_file(&k8s_path, &current_k8s)?;
 
     Ok(())
 }

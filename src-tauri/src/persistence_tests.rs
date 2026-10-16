@@ -52,8 +52,68 @@ mod tests {
             appearance: None,
             tag_ids: None,
             environment: None,
-            shared: None,
+            managed_by: None,
         }
+    }
+
+    #[test]
+    fn every_save_counts_on_the_files_gate() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("connections.json");
+        // Other tests save in parallel, so only "it moved" is checked.
+        let before = *crate::persistence::CONNECTIONS_FILE_GATE.hold();
+
+        save_connections_file(&path, &ConnectionsFile::default()).unwrap();
+
+        assert!(*crate::persistence::CONNECTIONS_FILE_GATE.hold() > before);
+    }
+
+    #[test]
+    fn a_managed_connection_reaches_the_file_without_any_secret() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("connections.json");
+        // Not keychain-backed: without the managed flag the password would
+        // stay in the file.
+        let mut managed = connection_with_secret(false);
+        managed.managed_by = Some("team-share".to_string());
+        let file = ConnectionsFile {
+            connections: vec![managed],
+            ..ConnectionsFile::default()
+        };
+
+        save_connections_file(&path, &file).unwrap();
+
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(!saved.contains("db-secret"));
+        assert!(!saved.contains("ssh-secret"));
+        assert!(saved.contains("\"managed_by\": \"team-share\""));
+    }
+
+    #[test]
+    fn a_managed_ssh_profile_reaches_the_file_without_its_secrets() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ssh_connections.json");
+        let profile = crate::models::SshConnection {
+            id: "s1".to_string(),
+            name: "bastion".to_string(),
+            host: "bastion.internal".to_string(),
+            port: 22,
+            user: "deploy".to_string(),
+            auth_type: Some("password".to_string()),
+            password: Some("tunnel-secret".to_string()),
+            key_file: None,
+            key_passphrase: Some("phrase-secret".to_string()),
+            allow_passphrase_prompt: None,
+            save_in_keychain: Some(false),
+            managed_by: Some("team-share".to_string()),
+        };
+
+        crate::persistence::save_ssh_connections_file(&path, &[profile]).unwrap();
+
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(!saved.contains("tunnel-secret"));
+        assert!(!saved.contains("phrase-secret"));
+        assert!(saved.contains("bastion.internal"));
     }
 
     #[test]

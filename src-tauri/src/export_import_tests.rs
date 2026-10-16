@@ -33,7 +33,7 @@ mod tests {
                 appearance: None,
                 tag_ids: None,
                 environment: None,
-                shared: None,
+                managed_by: None,
             }],
             ssh_connections: vec![SshConnection {
                 id: "ssh1".to_string(),
@@ -47,7 +47,7 @@ mod tests {
                 key_passphrase: None,
                 allow_passphrase_prompt: None,
                 save_in_keychain: Some(true),
-                shared: None,
+                managed_by: None,
             }],
             k8s_connections: vec![],
             tags: vec![],
