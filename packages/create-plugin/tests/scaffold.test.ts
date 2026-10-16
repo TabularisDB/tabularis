@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -58,6 +58,26 @@ describe("scaffold", () => {
       ) as Record<string, string>;
       expect(locale["toolbar.greeting"]).toContain("{{table}}");
       expect(locale["toolbar.greeting"]).not.toMatch(/(^|[^{])\{table\}/);
+    });
+  });
+
+  describe("dev-install recipes", () => {
+    it("configures justfile to copy locales in Linux, macOS, and Windows recipes", () => {
+      const dir = scaffoldPlugin(true);
+      const justfile = readFileSync(join(dir, "justfile"), "utf8");
+      expect(justfile).toContain("@if [ -d locales ]; then");
+      expect(justfile).toContain("cp -r locales/* ~/.local/share/tabularis/plugins/drivers/demo/locales/");
+      expect(justfile).toContain('cp -r locales/* "$HOME/Library/Application Support/tabularis/plugins/drivers/demo/locales/"');
+      expect(justfile).toContain('if (Test-Path "locales")');
+      expect(justfile).toContain('Copy-Item -Recurse -Force "locales\\*" (Join-Path $dest "locales")');
+    });
+
+    it("scaffolds locales/en.json when --with-ui is set and omits locales folder without --with-ui", () => {
+      const withUiDir = scaffoldPlugin(true);
+      expect(existsSync(join(withUiDir, "locales", "en.json"))).toBe(true);
+
+      const withoutUiDir = scaffoldPlugin(false);
+      expect(existsSync(join(withoutUiDir, "locales"))).toBe(false);
     });
   });
 });

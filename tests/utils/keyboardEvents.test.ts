@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { getShortcutFocusContext, isTextCompositionKeyEvent, onActivationKey } from "../../src/utils/keyboardEvents";
+import {
+  getShortcutFocusContext,
+  isTextCompositionKeyEvent,
+  isTypingTarget,
+  onActivationKey,
+} from "../../src/utils/keyboardEvents";
 
 describe("keyboardEvents", () => {
   describe("isTextCompositionKeyEvent", () => {
@@ -72,6 +77,73 @@ describe("keyboardEvents", () => {
       onActivationKey(activate)(event);
       expect(activate).not.toHaveBeenCalled();
       expect(event.preventDefault).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("isTypingTarget", () => {
+    it("returns false for null and undefined", () => {
+      expect(isTypingTarget(null)).toBe(false);
+      expect(isTypingTarget(undefined)).toBe(false);
+    });
+
+    it("returns false for non-HTMLElement targets", () => {
+      expect(isTypingTarget(window as unknown as EventTarget)).toBe(false);
+      expect(isTypingTarget(document as unknown as EventTarget)).toBe(false);
+    });
+
+    it("returns false for plain elements", () => {
+      const div = document.createElement("div");
+      const span = document.createElement("span");
+      const button = document.createElement("button");
+      expect(isTypingTarget(div)).toBe(false);
+      expect(isTypingTarget(span)).toBe(false);
+      expect(isTypingTarget(button)).toBe(false);
+    });
+
+    it("returns true for textarea elements", () => {
+      const textarea = document.createElement("textarea");
+      expect(isTypingTarget(textarea)).toBe(true);
+    });
+
+    it("returns true for select elements", () => {
+      const select = document.createElement("select");
+      expect(isTypingTarget(select)).toBe(true);
+    });
+
+    it.each([
+      ["text (default)", document.createElement("input")],
+      ["text", Object.assign(document.createElement("input"), { type: "text" })],
+      ["password", Object.assign(document.createElement("input"), { type: "password" })],
+      ["search", Object.assign(document.createElement("input"), { type: "search" })],
+      ["number", Object.assign(document.createElement("input"), { type: "number" })],
+      ["email", Object.assign(document.createElement("input"), { type: "email" })],
+      ["url", Object.assign(document.createElement("input"), { type: "url" })],
+      ["tel", Object.assign(document.createElement("input"), { type: "tel" })],
+    ])("returns true for text-like input type: %s", (_, input) => {
+      expect(isTypingTarget(input)).toBe(true);
+    });
+
+    it.each([
+      ["checkbox", "checkbox"],
+      ["radio", "radio"],
+      ["button", "button"],
+      ["range", "range"],
+      ["color", "color"],
+      ["file", "file"],
+      ["hidden", "hidden"],
+      ["image", "image"],
+      ["reset", "reset"],
+      ["submit", "submit"],
+    ])("returns false for non-text input type: %s", (_, type) => {
+      const input = document.createElement("input");
+      input.type = type;
+      expect(isTypingTarget(input)).toBe(false);
+    });
+
+    it("returns true for contenteditable elements", () => {
+      const div = document.createElement("div");
+      div.contentEditable = "true";
+      expect(isTypingTarget(div)).toBe(true);
     });
   });
 });

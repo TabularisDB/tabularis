@@ -1294,6 +1294,7 @@
     "selectAllN": "Выбрать все ({{count}})",
     "deselectAll": "Снять выбор",
     "copySelectedN": "Скопировать выбранные ({{count}})",
+    "copyAsHtmlTable": "Скопировать как HTML-таблицу",
     "selectColumn": "Выбрать столбец",
     "deselectColumn": "Снять выбор столбца",
     "copySelectedColumns": "Копировать выбранные столбцы ({{count}})",

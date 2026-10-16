@@ -62,6 +62,28 @@ export function rowsToMarkdown(rows: unknown[][], columns: string[], nullLabel: 
   return [header, separator, ...body].join("\n");
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function htmlCell(cell: unknown, nullLabel: string): string {
+  return escapeHtml(formatCellValue(cell, nullLabel)).replace(/\r?\n/g, "<br>");
+}
+
+/** Format rows as an HTML table (with a header row) for pasting into spreadsheets and documents. */
+export function rowsToHtmlTable(rows: unknown[][], columns: string[], nullLabel: string = "null"): string {
+  const header = columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("");
+  const body = rows
+    .map((row) => `<tr>${row.map((cell) => `<td>${htmlCell(cell, nullLabel)}</td>`).join("")}</tr>`)
+    .join("");
+  return `<table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
 export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
 
 /** Format result rows for clipboard copy in the user's chosen copy format. */

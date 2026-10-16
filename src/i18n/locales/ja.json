@@ -1305,6 +1305,7 @@
     "selectAllN": "すべて選択（{{count}}）",
     "deselectAll": "すべて解除",
     "copySelectedN": "選択をコピー（{{count}}）",
+    "copyAsHtmlTable": "HTMLテーブルとしてコピー",
     "selectColumn": "列を選択",
     "deselectColumn": "列の選択を解除",
     "copySelectedColumns": "選択した列をコピー（{{count}}）",
