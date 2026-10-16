@@ -1536,6 +1536,7 @@
     "saveOptions": "Параметры сохранения",
     "addToSavedQueries": "Добавить в сохранённые запросы…",
     "sqlFileNotSaved": "Ещё не сохранено в файл",
+    "sqlFileUnsavedChanges": "Несохранённые изменения",
     "visualExplain": {
       "title": "Визуальный Explain",
       "buttonShort": "План выполнения",

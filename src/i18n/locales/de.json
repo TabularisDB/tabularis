@@ -1530,6 +1530,7 @@
     "saveOptions": "Speicheroptionen",
     "addToSavedQueries": "Zu gespeicherten Abfragen hinzufügen…",
     "sqlFileNotSaved": "Noch nicht als Datei gespeichert",
+    "sqlFileUnsavedChanges": "Ungespeicherte Änderungen",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Plan erklären",

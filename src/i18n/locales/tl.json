@@ -1561,6 +1561,7 @@
     "saveOptions": "Mga opsyon sa pag-save",
     "addToSavedQueries": "Idagdag sa mga naka-save na query…",
     "sqlFileNotSaved": "Hindi pa naka-save sa file",
+    "sqlFileUnsavedChanges": "Mga hindi na-save na pagbabago",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Explain Plan",

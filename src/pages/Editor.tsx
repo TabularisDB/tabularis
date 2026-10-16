@@ -4431,9 +4431,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               title={tabFullTitle(tab)}
               aria-label={tabFullTitle(tab)}
               aria-describedby={
-                transactionTabIds.has(tab.id)
-                  ? `${tabStripId}-transaction-${tab.id}`
-                  : undefined
+                [
+                  tab.sourceFileDirty ? `${tabStripId}-dirty-${tab.id}` : null,
+                  transactionTabIds.has(tab.id)
+                    ? `${tabStripId}-transaction-${tab.id}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined
               }
               aria-current={activeTabId === tab.id ? "true" : undefined}
               onClick={() => setActiveTabId(tab.id)}
@@ -4533,7 +4538,19 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 >
                   <span className="truncate" title={tab.sourceFilePath}>
                     {getTabDisplayTitle(tab, tabs)}
-                    {tab.sourceFileDirty ? " •" : ""}
+                    {tab.sourceFileDirty && (
+                      // The tab's aria-label replaces its text, so the marker
+                      // reaches screen readers as a description instead.
+                      <>
+                        <span aria-hidden="true"> •</span>
+                        <span
+                          id={`${tabStripId}-dirty-${tab.id}`}
+                          className="sr-only"
+                        >
+                          {t("editor.sqlFileUnsavedChanges")}
+                        </span>
+                      </>
+                    )}
                   </span>
                   {tab.type === "console" && isMultiDb && (
                     <span className="text-muted shrink-0">

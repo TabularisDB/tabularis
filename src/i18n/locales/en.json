@@ -1601,6 +1601,7 @@
     "saveOptions": "Save options",
     "addToSavedQueries": "Add to Saved Queries…",
     "sqlFileNotSaved": "Not saved to a file yet",
+    "sqlFileUnsavedChanges": "Unsaved changes",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Explain Plan",

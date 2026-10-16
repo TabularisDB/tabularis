@@ -1541,6 +1541,7 @@
     "saveOptions": "保存オプション",
     "addToSavedQueries": "保存済みクエリに追加…",
     "sqlFileNotSaved": "まだファイルに保存されていません",
+    "sqlFileUnsavedChanges": "未保存の変更",
     "visualExplain": {
       "title": "ビジュアル Explain",
       "buttonShort": "実行計画",

@@ -1570,6 +1570,7 @@
     "saveOptions": "Options d'enregistrement",
     "addToSavedQueries": "Ajouter aux requêtes enregistrées…",
     "sqlFileNotSaved": "Pas encore enregistré dans un fichier",
+    "sqlFileUnsavedChanges": "Modifications non enregistrées",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Expliquer le plan",

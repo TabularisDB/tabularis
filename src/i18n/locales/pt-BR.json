@@ -1548,6 +1548,7 @@
     "saveOptions": "Opções de salvamento",
     "addToSavedQueries": "Adicionar às consultas salvas…",
     "sqlFileNotSaved": "Ainda não salvo em um arquivo",
+    "sqlFileUnsavedChanges": "Alterações não salvas",
     "visualExplain": {
       "title": "Explicação Visual",
       "buttonShort": "Plano de Explicação",

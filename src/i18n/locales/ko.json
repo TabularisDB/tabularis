@@ -1505,6 +1505,7 @@
     "saveOptions": "저장 옵션",
     "addToSavedQueries": "저장된 쿼리에 추가…",
     "sqlFileNotSaved": "아직 파일로 저장되지 않음",
+    "sqlFileUnsavedChanges": "저장되지 않은 변경 사항",
     "visualExplain": {
       "title": "비주얼 익스플레인",
       "buttonShort": "실행 계획",

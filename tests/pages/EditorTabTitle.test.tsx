@@ -194,4 +194,27 @@ describe("Editor tab strip full titles (#1132)", () => {
     const tab = screen.getByRole("button", { name: "Console (hr)" });
     expect(tab).toHaveAttribute("title", "Console (hr)");
   });
+
+  it("still announces a SQL file's unsaved marker, as the tab's description", () => {
+    render(
+      <Harness
+        initialTabs={[
+          baseTab({
+            id: "file-1",
+            title: "report.sql",
+            sourceFilePath: "/tmp/report.sql",
+            sourceFileDirty: true,
+          }),
+          baseTab({ id: "file-2", title: "clean.sql", sourceFilePath: "/tmp/clean.sql" }),
+        ]}
+      />,
+    );
+
+    const dirty = screen.getByRole("button", { name: "report.sql" });
+    expect(dirty).toHaveAccessibleDescription("editor.sqlFileUnsavedChanges");
+    // The visible dot stays, but is not read out as "bullet".
+    expect(dirty).toHaveTextContent("report.sql •");
+    const clean = screen.getByRole("button", { name: "clean.sql" });
+    expect(clean).not.toHaveAttribute("aria-describedby");
+  });
 });

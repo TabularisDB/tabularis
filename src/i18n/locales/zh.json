@@ -1504,6 +1504,7 @@
     "saveOptions": "保存选项",
     "addToSavedQueries": "添加到已保存查询…",
     "sqlFileNotSaved": "尚未保存到文件",
+    "sqlFileUnsavedChanges": "未保存的更改",
     "visualExplain": {
       "title": "可视化执行计划",
       "buttonShort": "执行计划",

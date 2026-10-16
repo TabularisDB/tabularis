@@ -1555,6 +1555,7 @@
     "saveOptions": "Opciones de guardado",
     "addToSavedQueries": "Añadir a consultas guardadas…",
     "sqlFileNotSaved": "Aún no guardado en un archivo",
+    "sqlFileUnsavedChanges": "Cambios sin guardar",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Plan de Query",
