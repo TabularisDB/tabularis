@@ -1320,6 +1320,7 @@
     "selectAllN": "Piliin Lahat ({{count}})",
     "deselectAll": "Alisin ang Lahat sa Pagpili",
     "copySelectedN": "Kopyahin ang Napili ({{count}})",
+    "copyAsHtmlTable": "Kopyahin bilang HTML table",
     "selectColumn": "Piliin ang Column",
     "deselectColumn": "Alisin ang Pagpili ng Column",
     "copySelectedColumns": "Kopyahin ang Napiling Columns ({{count}})",

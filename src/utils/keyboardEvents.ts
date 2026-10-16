@@ -9,6 +9,57 @@ export function isTextCompositionKeyEvent(event: KeyboardEvent): boolean {
   );
 }
 
+const NON_TEXT_INPUT_TYPES = new Set([
+  "button",
+  "checkbox",
+  "color",
+  "file",
+  "hidden",
+  "image",
+  "radio",
+  "range",
+  "reset",
+  "submit",
+]);
+
+/**
+ * Returns true if the event target is an interactive text-editing control where
+ * typing keys (letters, digits, whitespace, editing shortcuts) should be received
+ * by the element rather than triggering global or pane-level keyboard shortcuts.
+ *
+ * Targets include:
+ * - `<textarea>` elements (including Monaco's hidden textarea)
+ * - `<select>` elements (where typing selects/filters options)
+ * - `<input>` elements (excluding non-text types like checkbox, radio, button, range)
+ * - Any element with `isContentEditable` enabled
+ */
+export function isTypingTarget(target: EventTarget | null | undefined): boolean {
+  if (!target || !(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (
+    target.isContentEditable ||
+    target.contentEditable === "true" ||
+    target.contentEditable === "" ||
+    Boolean(target.closest?.("[contenteditable='true'], [contenteditable='']"))
+  ) {
+    return true;
+  }
+
+  const tagName = target.tagName;
+  if (tagName === "TEXTAREA" || tagName === "SELECT") {
+    return true;
+  }
+
+  if (tagName === "INPUT") {
+    const type = (target as HTMLInputElement).type?.toLowerCase();
+    return !NON_TEXT_INPUT_TYPES.has(type);
+  }
+
+  return false;
+}
+
 interface ActivationKeyEvent {
   key: string;
   target: EventTarget;

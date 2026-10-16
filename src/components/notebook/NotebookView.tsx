@@ -28,6 +28,7 @@ import {
   serializeNotebook,
   deserializeNotebook,
 } from "../../utils/notebookFile";
+import { isTypingTarget } from "../../utils/keyboardEvents";
 import {
   getExecutableCells,
   createRunAllResult,
@@ -759,13 +760,7 @@ export function NotebookView({
 
       // Defer to a focused cell editor / input so their own undo keeps working.
       const el = document.activeElement as HTMLElement | null;
-      if (
-        el &&
-        (el.closest(".monaco-editor") ||
-          el.tagName === "INPUT" ||
-          el.tagName === "TEXTAREA" ||
-          el.isContentEditable)
-      ) {
+      if (el && (el.closest(".monaco-editor") || isTypingTarget(el))) {
         return;
       }
 
