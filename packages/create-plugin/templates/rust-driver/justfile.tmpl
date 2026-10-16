@@ -57,10 +57,13 @@ build-ui:
     }
 
 # Build + copy binary, manifest and (if present) UI bundle into Tabularis's plugin folder.
+# The binary is looked up in Cargo's real target directory (from `cargo metadata`),
+# so CARGO_TARGET_DIR and `build.target-dir` in Cargo config both work.
 [linux]
 dev-install: build
     mkdir -p ~/.local/share/tabularis/plugins/drivers/${ID}
-    cp target/debug/${BIN_NAME} ~/.local/share/tabularis/plugins/drivers/${ID}/
+    target_dir="$(cargo metadata --format-version 1 --no-deps | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')"; \
+    cp "$target_dir/debug/${BIN_NAME}" ~/.local/share/tabularis/plugins/drivers/${ID}/
     cp .tabularium ~/.local/share/tabularis/plugins/drivers/${ID}/
     @if [ -f ui/dist/index.js ]; then \
         mkdir -p ~/.local/share/tabularis/plugins/drivers/${ID}/ui/dist; \
@@ -72,7 +75,8 @@ dev-install: build
 [macos]
 dev-install: build
     mkdir -p "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}"
-    cp target/debug/${BIN_NAME} "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}/"
+    target_dir="$(cargo metadata --format-version 1 --no-deps | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')"; \
+    cp "$target_dir/debug/${BIN_NAME}" "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}/"
     cp .tabularium "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}/"
     @if [ -f ui/dist/index.js ]; then \
         mkdir -p "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}/ui/dist"; \
@@ -85,7 +89,7 @@ dev-install: build
 dev-install: build
     $dest = Join-Path $env:APPDATA "tabularis\plugins\drivers\${ID}"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
-    Copy-Item "target\debug\${BIN_NAME}.exe" $dest
+    Copy-Item (Join-Path (cargo metadata --format-version 1 --no-deps | ConvertFrom-Json).target_directory "debug\${BIN_NAME}.exe") (Join-Path $env:APPDATA "tabularis\plugins\drivers\${ID}")
     Copy-Item ".tabularium" $dest
     if (Test-Path "ui\dist\index.js") {
         New-Item -ItemType Directory -Force -Path (Join-Path $dest "ui\dist") | Out-Null

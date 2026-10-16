@@ -1,4 +1,5 @@
 import React, { useRef, useCallback, useContext, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import type { OnMount, BeforeMount } from "@monaco-editor/react";
 import { MonacoEditor } from "./LazyMonaco";
 import type * as Monaco from "monaco-editor";
@@ -11,12 +12,18 @@ import { useKeybindings } from "../../hooks/useKeybindings";
 import { CommandPaletteDispatchContext } from "../../contexts/CommandPaletteContext";
 import { getFontCSS } from "../../utils/settings";
 import {
-  splitStatements,
+  EDITOR_FONT_SIZE_DEFAULT,
+  stepEditorFontSize,
+} from "../../utils/editorFontSize";
+import {
+  splitBatches,
   findStatementAtOffset,
   type Dialect,
   type Statement,
 } from "../../utils/sqlSplitter";
 import { formatSql } from "../../utils/sqlFormat";
+import { toSqlList } from "../../utils/editor";
+import { getSqlInvisibleCharacterEdits } from "../../utils/sqlInvisibleCharacters";
 import { isTextCompositionKeyEvent } from "../../utils/keyboardEvents";
 import type { SqlDialect } from "../../utils/sql";
 import type { RunContext } from "../../utils/runTarget";
@@ -56,6 +63,37 @@ function isLinux(): boolean {
   return platform.toUpperCase().includes("LINUX");
 }
 
+type EditorZoomAction = "in" | "out" | "reset";
+
+/**
+ * Maps a key event to a font zoom action. Zoom in also accepts `+`, which is
+ * what layouts that need Shift for `=` report, by matching it as `=`.
+ */
+function getEditorZoomAction(
+  event: KeyboardEvent,
+  matches: (event: KeyboardEvent, id: string) => boolean,
+): EditorZoomAction | null {
+  if (matches(event, "editor_zoom_in")) return "in";
+  if (
+    event.key === "+" &&
+    matches(
+      new KeyboardEvent("keydown", {
+        key: "=",
+        code: event.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+      }),
+      "editor_zoom_in",
+    )
+  ) {
+    return "in";
+  }
+  if (matches(event, "editor_zoom_out")) return "out";
+  if (matches(event, "editor_zoom_reset")) return "reset";
+  return null;
+}
+
 /** Debounced onChange emissions remembered until the consumer echoes them back. */
 const MAX_PENDING_ECHOES = 50;
 
@@ -73,6 +111,7 @@ const SqlEditorInternal = ({
   foldPreview = false,
 }: SqlEditorWrapperProps & { editorKey: string }) => {
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { t } = useTranslation();
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
   const foldPreviewRef = useRef<Monaco.IDisposable | null>(null);
@@ -92,16 +131,22 @@ const SqlEditorInternal = ({
   const lastSplitRef = useRef<{
     model: Monaco.editor.ITextModel | null;
     versionId: number;
+    dialect: Dialect | string | undefined;
     statements: Statement[];
-  }>({ model: null, versionId: -1, statements: [] });
+  }>({ model: null, versionId: -1, dialect: undefined, statements: [] });
   const editorTheme = useEditorTheme();
-  const { settings } = useSettings();
+  const { settings, updateSetting } = useSettings();
   const { matchesShortcut } = useKeybindings();
   const commandPaletteDispatch = useContext(CommandPaletteDispatchContext);
   const matchesShortcutRef = useRef(matchesShortcut);
   matchesShortcutRef.current = matchesShortcut;
   const togglePaletteRef = useRef(commandPaletteDispatch?.togglePalette);
   togglePaletteRef.current = commandPaletteDispatch?.togglePalette;
+  // Read from the zoom shortcuts, so they always step from the saved size.
+  const editorFontSizeRef = useRef(settings.editorFontSize);
+  editorFontSizeRef.current = settings.editorFontSize;
+  const updateSettingRef = useRef(updateSetting);
+  updateSettingRef.current = updateSetting;
 
   // Dispose editor on unmount to prevent "domNode" errors from ResizeObserver
   // firing after the DOM container is removed (e.g., cell deletion/movement)
@@ -119,8 +164,8 @@ const SqlEditorInternal = ({
   }, []);
 
   // Values handed to onChange that the consumer has not echoed back through
-  // initialValue yet. Bounded because a consumer may drop updates (Editor.tsx
-  // ignores onChange from inactive tabs).
+  // initialValue yet. Bounded because other consumers may drop updates or
+  // defer echoing them back.
   const pendingEchoesRef = useRef<string[]>([]);
 
   // Sync editor value only when initialValue changes externally (e.g., a saved
@@ -304,6 +349,56 @@ const SqlEditorInternal = ({
         document.fonts.ready.then(() => monaco.editor.remeasureFonts());
       }
 
+      const getStatements = (model: Monaco.editor.ITextModel): Statement[] => {
+        const versionId = model.getVersionId();
+        const currentDialect = dialectRef.current;
+        if (
+          lastSplitRef.current.model !== model ||
+          lastSplitRef.current.versionId !== versionId ||
+          lastSplitRef.current.dialect !== currentDialect
+        ) {
+          lastSplitRef.current = {
+            model,
+            versionId,
+            dialect: currentDialect,
+            statements: splitBatches(model.getValue(), currentDialect),
+          };
+        }
+        return lastSplitRef.current.statements;
+      };
+
+      editor.addAction({
+        id: 'tabularis.selectCurrentStatement',
+        label: t('editor.selectCurrentStatement'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.4,
+        run: (ed) => {
+          const model = ed.getModel();
+          const position = ed.getPosition();
+          if (!model || !position) return;
+          const offset = model.getOffsetAt(position);
+          const statement = findStatementAtOffset(getStatements(model), offset);
+          if (!statement || offset < statement.range.start) return;
+          // The parser's range excludes the delimiter, matching Run.
+          const start = model.getPositionAt(statement.range.start);
+          const end = model.getPositionAt(statement.range.end);
+          if (offset > statement.range.end) {
+            // A caret after the delimiter or trailing spaces still belongs to
+            // this statement's line. Separate blank lines remain a no-op.
+            if (position.lineNumber !== end.lineNumber) return;
+            const gap = model.getValue().slice(statement.range.end, offset);
+            if (!/^[ \t]*;?[ \t]*$/.test(gap)) return;
+          }
+          ed.setSelection({
+            startLineNumber: start.lineNumber,
+            startColumn: start.column,
+            endLineNumber: end.lineNumber,
+            endColumn: end.column,
+          });
+          ed.focus();
+        },
+      });
+
       // Register custom Cut/Copy/Paste actions using the Tauri clipboard API.
       // Monaco's built-ins rely on document.execCommand, which silently fails
       // inside the WebView on some Linux setups.
@@ -433,8 +528,106 @@ const SqlEditorInternal = ({
         },
       });
 
-      // Monaco binds Ctrl+Shift+A to block comments on Linux. Handle the
-      // user-configurable palette shortcut before Monaco consumes it.
+      // An explicit, undoable repair for hidden characters pasted from rich text.
+      editor.addAction({
+        id: 'tabularis.removeInvisibleSqlCharacters',
+        label: t('editor.removeInvisibleCharacters'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.6,
+        run: (ed) => {
+          const model = ed.getModel();
+          if (!model) return;
+          const selections = ed.getSelections() ?? [];
+          const selected = selections.filter((range) => !range.isEmpty());
+          const selectionOffsets = selected.map((range) => ({
+            start: model.getOffsetAt(range.getStartPosition()),
+            end: model.getOffsetAt(range.getEndPosition()),
+          }));
+          // Scan the full document so a partial selection cannot hide the
+          // quote that starts a string or a quoted identifier.
+          const changes = getSqlInvisibleCharacterEdits(
+            model.getValue(),
+            dialectRef.current,
+          );
+          const edits = changes
+            .filter(({ start, end }) =>
+              selectionOffsets.length === 0 ||
+              selectionOffsets.some((range) => start >= range.start && end <= range.end))
+            .map(({ start, end, text }) => {
+              const from = model.getPositionAt(start);
+              const to = model.getPositionAt(end);
+              return {
+                range: {
+                  startLineNumber: from.lineNumber,
+                  startColumn: from.column,
+                  endLineNumber: to.lineNumber,
+                  endColumn: to.column,
+                },
+                text,
+                forceMoveMarkers: false,
+              };
+            });
+          if (edits.length === 0) return;
+          // Small edits keep the cursor near its original position.
+          ed.pushUndoStop();
+          ed.executeEdits('removeInvisibleSqlCharacters', edits);
+          ed.pushUndoStop();
+        },
+      });
+
+      // Convert selected values (e.g. a column pasted from a spreadsheet) into
+      // a quoted list for IN (...). Shown only when text is selected; every
+      // selection is replaced in one edit, so a single undo restores it.
+      editor.addAction({
+        id: 'tabularis.convertSelectionToSqlList',
+        label: t('editor.convertSelectionToSqlList'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.6,
+        precondition: 'editorHasSelection',
+        run: (ed) => {
+          const model = ed.getModel();
+          if (!model) return;
+          const edits = (ed.getSelections() ?? [])
+            .filter((selection) => !selection.isEmpty())
+            .map((selection) => ({
+              range: selection,
+              text: toSqlList(model.getValueInRange(selection)),
+              forceMoveMarkers: true,
+            }))
+            .filter((edit) => edit.text !== '');
+          if (edits.length === 0) return;
+          ed.pushUndoStop();
+          ed.executeEdits('convertSelectionToSqlList', edits);
+          ed.pushUndoStop();
+        },
+      });
+
+      // Case transforms reuse Monaco's built-in commands, which already
+      // handle multi-cursor selections in a single undo step.
+      editor.addAction({
+        id: 'tabularis.transformToUppercase',
+        label: t('editor.transformToUppercase'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.7,
+        precondition: 'editorHasSelection',
+        run: (ed) => {
+          ed.trigger('contextmenu', 'editor.action.transformToUppercase', null);
+        },
+      });
+
+      editor.addAction({
+        id: 'tabularis.transformToLowercase',
+        label: t('editor.transformToLowercase'),
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.8,
+        precondition: 'editorHasSelection',
+        run: (ed) => {
+          ed.trigger('contextmenu', 'editor.action.transformToLowercase', null);
+        },
+      });
+
+      // Ctrl+K starts Monaco chords, so leave the unified palette shortcut
+      // untouched. Ctrl+Shift+A conflicts with Monaco and must be handled here.
       editor.onKeyDown((e) => {
         if (isTextCompositionKeyEvent(e.browserEvent)) return;
 
@@ -453,6 +646,20 @@ const SqlEditorInternal = ({
           e.preventDefault();
           e.stopPropagation();
           editor.trigger("keyboard", "editor.action.triggerSuggest", {});
+          return;
+        }
+
+        const zoom = getEditorZoomAction(e.browserEvent, matchesShortcutRef.current);
+        if (zoom) {
+          e.preventDefault();
+          e.stopPropagation();
+          const next =
+            zoom === "reset"
+              ? EDITOR_FONT_SIZE_DEFAULT
+              : stepEditorFontSize(editorFontSizeRef.current, zoom === "in" ? 1 : -1);
+          if (next !== editorFontSizeRef.current) {
+            updateSettingRef.current("editorFontSize", next);
+          }
         }
       });
 
@@ -470,21 +677,6 @@ const SqlEditorInternal = ({
       // `dialect` prop so consumers that don't pass it are unaffected.
       if (dialectRef.current !== undefined) {
         const decorations = editor.createDecorationsCollection();
-
-        const getStatements = (model: Monaco.editor.ITextModel): Statement[] => {
-          const versionId = model.getVersionId();
-          if (
-            lastSplitRef.current.model !== model ||
-            lastSplitRef.current.versionId !== versionId
-          ) {
-            lastSplitRef.current = {
-              model,
-              versionId,
-              statements: splitStatements(model.getValue(), dialectRef.current),
-            };
-          }
-          return lastSplitRef.current.statements;
-        };
 
         // Only fires the callback when the answer actually changes — cursor
         // selection events arrive on every keystroke and arrow key.
@@ -544,6 +736,12 @@ const SqlEditorInternal = ({
         updateCursorStatementHighlight();
       }
 
+      // E2E: expose the Monaco editor instance for tauri-wd tests (setValue,
+      // getValue). Harmless in production — sets a global nobody reads.
+      const w = window as unknown as Record<string, unknown>;
+      w.__e2e_editor = editor;
+      w.__e2e_monaco = monaco;
+
       if (onMount) onMount(editor, monaco);
     };
 
@@ -559,11 +757,17 @@ const SqlEditorInternal = ({
         options={{
           accessibilitySupport: 'auto',
           minimap: { enabled: false },
-          fontSize: settings.editorFontSize ?? 14,
+          fontSize: settings.editorFontSize ?? EDITOR_FONT_SIZE_DEFAULT,
           fontFamily: getFontCSS(settings.editorFontFamily ?? "JetBrains Mono"),
           lineHeight: settings.editorLineHeight ?? 1.5,
           tabSize: settings.editorTabSize ?? 2,
           wordWrap: (settings.editorWordWrap ?? true) ? 'on' : 'off',
+          unicodeHighlight: {
+            invisibleCharacters: settings.editorHighlightInvisibleCharacters ?? true,
+            ambiguousCharacters: settings.editorHighlightInvisibleCharacters ?? true,
+            nonBasicASCII: false,
+          },
+          renderControlCharacters: settings.editorHighlightInvisibleCharacters ?? true,
           lineNumbers: (settings.editorShowLineNumbers ?? true) ? 'on' : 'off',
           folding: true,
           showFoldingControls: 'always',

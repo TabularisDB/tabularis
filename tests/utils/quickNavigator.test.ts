@@ -13,6 +13,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: null,
         hasSchemas: false,
         isMultiDb: false,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: [],
@@ -31,6 +33,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: false,
         isMultiDb: false,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: [],
@@ -50,6 +54,106 @@ describe("quickNavigator utility", () => {
       expect(result[3]).toEqual({ name: "on_users_insert", type: "trigger", schema: "default_db", detail: "on users", item: params.triggers[0] });
     });
 
+    it('labels overloaded routines by signature so the palette entries differ (#893)', () => {
+      // Four overloads of one name were four identical palette entries, and
+      // picking one of them opened whichever the catalog returned first.
+      const params: NavigatorItemParams = {
+        activeConnectionId: 'conn-1',
+        hasSchemas: false,
+        isMultiDb: false,
+        schemas: [],
+        schemaDataMap: {},
+        selectedDatabases: [],
+        databaseDataMap: {},
+        tables: [],
+        views: [],
+        routines: [
+          { name: 'f', routine_type: 'FUNCTION', identity_args: '' },
+          { name: 'f', routine_type: 'FUNCTION', identity_args: 'a integer' },
+          { name: 'f', routine_type: 'FUNCTION', identity_args: 'a text' },
+        ],
+        triggers: [],
+        activeSchema: 'default_db',
+      };
+
+      const names = getNavigatorItems(params).map((i) => i.name);
+      expect(names).toEqual(['f()', 'f(a integer)', 'f(a text)']);
+      expect(new Set(names).size).toBe(3);
+    });
+
+    it('carries the signature into the object descriptor the palette opens (#893)', () => {
+      // Without this the palette kept opening an arbitrary overload while the
+      // sidebar opened the right one, which is worse than both being wrong.
+      const item = {
+        name: 'f(a text)',
+        type: 'routine' as const,
+        schema: 'default_db',
+        detail: 'FUNCTION',
+        item: { name: 'f', routine_type: 'FUNCTION', identity_args: 'a text' },
+      };
+
+      const descriptor = toDatabaseObject(item, {
+        connectionId: 'conn-1',
+        driver: 'postgres',
+        isMultiDatabase: false,
+      });
+
+      expect(descriptor).toMatchObject({
+        type: 'routine',
+        routineType: 'FUNCTION',
+        identityArgs: 'a text',
+      });
+    });
+
+    it('keeps the BARE name on the descriptor, not the display label (#893)', () => {
+      // DatabaseObject.name is an identifier, not a label: it reaches
+      // get_routine_definition as routineName and the catalog filters
+      // p.proname on it, and Copy name puts it on the clipboard. Carrying the
+      // label through broke every PostgreSQL routine opened from the palette,
+      // overloaded or not, because `f()` is a label too.
+      const item = {
+        name: 'f(a text)',
+        type: 'routine' as const,
+        schema: 'default_db',
+        detail: 'FUNCTION',
+        item: { name: 'f', routine_type: 'FUNCTION', identity_args: 'a text' },
+      };
+
+      const descriptor = toDatabaseObject(item, {
+        connectionId: 'conn-1',
+        driver: 'postgres',
+        isMultiDatabase: false,
+      });
+
+      expect(descriptor.name).toBe('f');
+      expect(descriptor.name).not.toContain('(');
+    });
+
+    it('labels a routine with no signature by its bare name (#893)', () => {
+      // A dialect that cannot overload reports no signature. The host skips the
+      // field when it is None, so it arrives absent; `null` is covered too,
+      // because the type still admits it and the label must not read (null).
+      const params: NavigatorItemParams = {
+        activeConnectionId: 'conn-1',
+        hasSchemas: false,
+        isMultiDb: false,
+        schemas: [],
+        schemaDataMap: {},
+        selectedDatabases: [],
+        databaseDataMap: {},
+        tables: [],
+        views: [],
+        routines: [
+          { name: 'do_thing', routine_type: 'PROCEDURE', identity_args: null },
+          { name: 'do_other', routine_type: 'PROCEDURE' },
+        ],
+        triggers: [],
+        activeSchema: 'default_db',
+      };
+
+      expect(getNavigatorItems(params).map((i) => i.name)).toEqual(['do_thing', 'do_other']);
+    });
+
     it("should extract items in schema mode", () => {
       const mockSchemaData: SchemaData = {
         tables: [{ name: "orders" }],
@@ -64,6 +168,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: true,
         isMultiDb: false,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: ["public", "auth"],
         schemaDataMap: {
           public: mockSchemaData,
@@ -97,6 +203,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: false,
         isMultiDb: true,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: ["sales_db", "inventory_db"],
@@ -137,6 +245,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: false,
         isMultiDb: true,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: ["current_db"],
@@ -158,6 +268,84 @@ describe("quickNavigator utility", () => {
       ]);
     });
 
+    it("should extract items in nested multi-db mode, keyed by database then schema", () => {
+      const analyticsPublic: SchemaData = {
+        tables: [{ name: "orders" }],
+        views: [],
+        routines: [],
+        triggers: [],
+        isLoading: false,
+        isLoaded: true,
+      };
+
+      const params: NavigatorItemParams = {
+        activeConnectionId: "conn-1",
+        hasSchemas: true,
+        isMultiDb: false,
+        isNestedMultiDb: true,
+        schemas: [],
+        schemaDataMap: {},
+        selectedDatabases: ["analytics", "billing"],
+        databaseDataMap: {},
+        nestedDatabaseDataMap: {
+          analytics: {
+            schemas: ["public"],
+            schemasLoaded: true,
+            isLoadingSchemas: false,
+            selectedSchemas: ["public"],
+            activeSchema: "public",
+            needsSchemaSelection: false,
+            schemaDataMap: { public: analyticsPublic },
+          },
+        },
+        tables: [],
+        views: [],
+        routines: [],
+        triggers: [],
+        activeSchema: null,
+      };
+
+      const result = getNavigatorItems(params);
+
+      expect(result).toEqual([
+        { name: "orders", type: "table", schema: "public", database: "analytics", item: analyticsPublic.tables[0] },
+      ]);
+    });
+
+    it("does not read the top-level selectedSchemas/schemaDataMap fields for a nested multi-db connection", () => {
+      // Regression: hasSchemas is also true for a nested multi-db connection
+      // (capabilities.schemas === true), so a stale top-level schemas/
+      // schemaDataMap left over from before the multi-db opt-in must not
+      // leak into the nested result once isNestedMultiDb is set.
+      const stale: SchemaData = {
+        tables: [{ name: "stale_table" }],
+        views: [],
+        routines: [],
+        triggers: [],
+        isLoading: false,
+        isLoaded: true,
+      };
+
+      const params: NavigatorItemParams = {
+        activeConnectionId: "conn-1",
+        hasSchemas: true,
+        isMultiDb: false,
+        isNestedMultiDb: true,
+        schemas: ["public"],
+        schemaDataMap: { public: stale },
+        selectedDatabases: [],
+        databaseDataMap: {},
+        nestedDatabaseDataMap: {},
+        tables: [],
+        views: [],
+        routines: [],
+        triggers: [],
+        activeSchema: null,
+      };
+
+      expect(getNavigatorItems(params)).toEqual([]);
+    });
+
     it("should normalize every layout through the same object shape", () => {
       const data: SchemaData = {
         tables: [{ name: "users" }],
@@ -176,6 +364,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: false,
         isMultiDb: false,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: [],
@@ -205,6 +395,8 @@ describe("quickNavigator utility", () => {
         activeConnectionId: "conn-1",
         hasSchemas: false,
         isMultiDb: true,
+        isNestedMultiDb: false,
+        nestedDatabaseDataMap: {},
         schemas: [],
         schemaDataMap: {},
         selectedDatabases: ["main"],
@@ -241,5 +433,64 @@ describe("quickNavigator utility", () => {
         title: "users (main)",
       });
     });
+
+    it("carries both database and schema for a nested multi-db item, and qualifies the schema", () => {
+      const [item] = getNavigatorItems({
+        activeConnectionId: "conn-1",
+        hasSchemas: true,
+        isMultiDb: false,
+        isNestedMultiDb: true,
+        nestedDatabaseDataMap: {
+          analytics: {
+            schemas: ["public"],
+            schemasLoaded: true,
+            isLoadingSchemas: false,
+            selectedSchemas: ["public"],
+            activeSchema: "public",
+            needsSchemaSelection: false,
+            schemaDataMap: {
+              public: {
+                tables: [{ name: "orders" }],
+                views: [],
+                routines: [],
+                triggers: [],
+                isLoading: false,
+                isLoaded: true,
+              },
+            },
+          },
+        },
+        schemas: [],
+        schemaDataMap: {},
+        selectedDatabases: ["analytics"],
+        databaseDataMap: {},
+        tables: [],
+        views: [],
+        routines: [],
+        triggers: [],
+        activeSchema: null,
+      });
+
+      // Nested multi-db is not the flat "reuse schema field for the database
+      // name" layout, so isMultiDatabase stays false here — the real schema
+      // must still be SQL-qualified, unlike the flat multi-db case above.
+      expect(
+        toDatabaseObject(item, {
+          connectionId: "conn-1",
+          driver: "postgresql",
+          isMultiDatabase: false,
+        }),
+      ).toEqual({
+        type: "table",
+        connectionId: "conn-1",
+        driver: "postgresql",
+        name: "orders",
+        qualifySchema: true,
+        schema: "public",
+        database: "analytics",
+        title: "orders (analytics.public)",
+      });
+    });
+
   });
 });

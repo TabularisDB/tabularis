@@ -18,6 +18,7 @@ mod tests {
             session_id: "sess-1".to_string(),
             connection_id: "conn-1".to_string(),
             connection_name: "local".to_string(),
+            database: None,
             query: "UPDATE orders SET status = 'x'".to_string(),
             query_kind: "write".to_string(),
             client_hint: Some("claude-desktop".to_string()),
@@ -201,6 +202,26 @@ mod tests {
         write_pending_in(tmp.path(), &make_pending(&id2)).unwrap();
         let list = list_pending_in(tmp.path()).unwrap();
         assert_eq!(list.len(), 2);
+    }
+
+    // Target database -------------------------------------------------------
+
+    #[test]
+    fn pending_without_database_omits_the_field() {
+        let json = serde_json::to_value(make_pending("a")).unwrap();
+        assert!(json.get("database").is_none());
+    }
+
+    #[test]
+    fn pending_round_trips_a_target_database() {
+        let tmp = TempDir::new().unwrap();
+        let pending = PendingApproval {
+            database: Some("analytics".to_string()),
+            ..make_pending("db")
+        };
+        write_pending_in(tmp.path(), &pending).unwrap();
+        let read = read_pending_in(tmp.path(), "db").unwrap().unwrap();
+        assert_eq!(read.database.as_deref(), Some("analytics"));
     }
 
     // Cleanup --------------------------------------------------------------

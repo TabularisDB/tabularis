@@ -39,6 +39,15 @@ pub enum SqlDialect {
     Generic,
 }
 
+/// A labeled connection URI preset displayed in the connection modal.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ConnectionStringExample {
+    pub label: String,
+    pub value: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
 /// Capabilities advertised by a driver.
 /// The frontend uses these flags to decide which UI sections to show.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -72,6 +81,9 @@ pub struct DriverCapabilities {
     /// Optional placeholder example shown for connection string input.
     #[serde(default, alias = "connectionStringExample")]
     pub connection_string_example: String,
+    /// Optional connection URI presets shown in the connection modal.
+    #[serde(default, alias = "connectionStringExamples")]
+    pub connection_string_examples: Vec<ConnectionStringExample>,
     /// The driver consumes the raw connection URI verbatim instead of the
     /// decomposed host/port/database fields. Set by drivers whose scheme
     /// carries semantics the decomposition would destroy (e.g. the DNS
@@ -100,6 +112,10 @@ pub struct DriverCapabilities {
     /// Whether primary key is defined inline in the column definition (e.g. SQLite AUTOINCREMENT).
     #[serde(default)]
     pub inline_pk: bool,
+    /// Opts Generate SQL into the optional get_table_query_template RPC.
+    /// Omitted/false preserves the host's existing template generation.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub table_query_templates: bool,
     // DDL capabilities
     /// Supports ALTER TABLE MODIFY/ALTER COLUMN on existing tables.
     #[serde(default)]
@@ -532,11 +548,18 @@ pub trait DatabaseDriver: Send + Sync {
         schema: Option<&str>,
     ) -> Result<Vec<RoutineInfo>, String>;
 
+    /// `identity_args` narrows the lookup to ONE routine where a name is not
+    /// enough to name one. PostgreSQL overloads, so a schema and a name there
+    /// identify a set, and every read below used to take `LIMIT 1` out of it
+    /// and answer about whichever row came back (#893). Carries the signature
+    /// `get_routines` reported for the row the user clicked; `None` asks for
+    /// the old behaviour, still right on the dialects that cannot overload.
     async fn get_routine_parameters(
         &self,
         params: &ConnectionParams,
         routine_name: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<Vec<RoutineParameter>, String>;
 
     async fn get_routine_definition(
@@ -545,6 +568,7 @@ pub trait DatabaseDriver: Send + Sync {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<String, String>;
 
     // --- Routine management (gated by `DriverCapabilities::routine_management`)
@@ -602,8 +626,9 @@ pub trait DatabaseDriver: Send + Sync {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        identity_args: Option<&str>,
     ) -> Result<String, String> {
-        self.get_routine_definition(params, routine_name, routine_type, schema)
+        self.get_routine_definition(params, routine_name, routine_type, schema, identity_args)
             .await
     }
 
@@ -616,6 +641,9 @@ pub trait DatabaseDriver: Send + Sync {
         routine_name: &str,
         routine_type: &str,
         schema: Option<&str>,
+        /* Unused by the generic statement: a dialect that needs a signature to
+           name one routine overrides this, as the PostgreSQL driver does */
+        _identity_args: Option<&str>,
     ) -> Result<(), String> {
         let sql = crate::drivers::common::generic_drop_routine_sql(
             routine_name,
@@ -674,6 +702,99 @@ pub trait DatabaseDriver: Send + Sync {
             results.push(res);
         }
         Ok(results)
+    }
+
+    /// `execute_query` with the caller's connection carried across calls.
+    ///
+    /// One statement at a time is how a transaction is actually driven, so
+    /// the single-statement path needs the same pinning as a batch: without
+    /// it `BEGIN`, the changes and `COMMIT` each land on a different pooled
+    /// connection. See [`Self::execute_batch_in_session`].
+    ///
+    /// The default implementation delegates to [`Self::execute_query`] and
+    /// always reports `false`, so a driver that does not pin is unchanged.
+    async fn execute_query_in_session(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        _session_id: Option<&str>,
+    ) -> Result<(QueryResult, bool), String> {
+        let result = self
+            .execute_query(params, query, limit, page, schema)
+            .await?;
+        Ok((result, false))
+    }
+
+    /// `execute_query` with the database itself refusing writes.
+    ///
+    /// Used for MCP queries that run without the user's approval because
+    /// they were classified as reads. Keyword classification cannot see what
+    /// a function call does, so built-in drivers run the statement in a
+    /// read-only transaction that is always rolled back, and the database
+    /// rejects any write the classifier missed.
+    ///
+    /// The default implementation delegates to [`Self::execute_query`]:
+    /// plugin drivers have no read-only mode, so for them classification is
+    /// the only safeguard.
+    async fn execute_read_only_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<QueryResult, String> {
+        self.execute_query(params, query, limit, page, schema).await
+    }
+
+    /// `execute_batch` with the caller's connection carried across calls.
+    ///
+    /// `session_id` identifies a long-lived caller — an editor tab. When a
+    /// batch leaves an explicit transaction open, a driver that implements
+    /// this keeps the physical connection reserved for that session instead
+    /// of returning it to the pool, so the next batch from the same tab
+    /// continues the same transaction: `BEGIN`, changes, verify, `COMMIT`,
+    /// each as its own run.
+    ///
+    /// The returned flag reports whether the session is still inside a
+    /// transaction after the batch, so the UI can show it and release the
+    /// connection on close.
+    ///
+    /// The default implementation delegates to [`Self::execute_batch`] and
+    /// always reports `false`: statements within one batch still share a
+    /// connection, but nothing is held afterwards.
+    async fn execute_batch_in_session(
+        &self,
+        params: &ConnectionParams,
+        queries: &[String],
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        _session_id: Option<&str>,
+        on_progress: Option<&BatchProgressFn>,
+    ) -> Result<(Vec<BatchStatementResult>, bool), String> {
+        let results = self
+            .execute_batch(params, queries, limit, page, schema, on_progress)
+            .await?;
+        Ok((results, false))
+    }
+
+    /// Roll back and release any connection pinned to `session_id`.
+    ///
+    /// Called when the owning tab closes. Drivers that do not pin
+    /// connections have nothing to do.
+    async fn release_session(&self, _session_id: &str) {}
+
+    /// Whether `session_id` is still inside a transaction, asked after a
+    /// failed or cancelled run, which returns no flag. A driver that pins only
+    /// while a transaction is open can answer with whether it holds a pinned
+    /// connection. `None` means it cannot tell, and the caller leaves the
+    /// reported state as it was.
+    async fn session_in_transaction(&self, _session_id: &str) -> Option<bool> {
+        None
     }
 
     /// Runs EXPLAIN (or EXPLAIN ANALYZE) on the given query and returns a
@@ -744,6 +865,16 @@ pub trait DatabaseDriver: Send + Sync {
         Err("BLOB preview not supported by this driver".into())
     }
 
+    /// Optional SQL preview generation. None asks the host to use its legacy
+    /// templates. Built-in and older drivers need no implementation changes.
+    async fn get_table_query_template(
+        &self,
+        _params: &ConnectionParams,
+        _request: &crate::models::TableQueryTemplateRequest,
+    ) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+
     // --- DDL generation (SQL preview) ----------------------------------------
 
     async fn get_create_table_sql(
@@ -798,6 +929,20 @@ pub trait DatabaseDriver: Send + Sync {
         _schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
         Err("DDL generation not supported".into())
+    }
+
+    /// Returns the DDL (e.g. `CREATE TABLE ...`) for an *existing* table, as
+    /// used by `dump_database` to write a schema-preserving dump. Distinct
+    /// from `get_create_table_sql`, which generates a brand-new statement
+    /// from a column list the caller is proposing (used by the Create Table
+    /// UI) rather than reflecting a table that already exists.
+    async fn get_table_ddl(
+        &self,
+        _params: &ConnectionParams,
+        _table: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        Err("Fetching existing table DDL is not supported by this driver".into())
     }
 
     async fn drop_index(
@@ -866,9 +1011,7 @@ pub trait DatabaseDriver: Send + Sync {
 
     /// Returns the privilege keywords accepted by `apply_db_user_privileges`,
     /// split by scope, so the frontend renders the dialect's own catalog.
-    async fn get_db_privilege_catalog(
-        &self,
-    ) -> Result<crate::models::DbPrivilegeCatalog, String> {
+    async fn get_db_privilege_catalog(&self) -> Result<crate::models::DbPrivilegeCatalog, String> {
         Err("User management is not supported by this driver".into())
     }
 

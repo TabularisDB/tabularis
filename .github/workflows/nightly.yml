@@ -9,8 +9,9 @@ name: Nightly
 #   * that green commit hasn't already been shipped as a nightly.
 # We build the last GREEN commit (not necessarily main's tip), so a failing or
 # still-running CI never produces a nightly, and a day with no new tested code
-# produces no release. The prerelease flag keeps nightlies out of
-# AUR/Snap/Winget (those gate on !prerelease).
+# produces no release. The prerelease flag keeps nightlies out of Snap/Winget
+# and out of the stable tabularis-bin AUR package (those gate on !prerelease);
+# the `aur` job below publishes them to tabularis-nightly-bin instead.
 on:
   schedule:
     - cron: "0 3 * * *" # 03:00 UTC daily
@@ -18,7 +19,10 @@ on:
 
 concurrency:
   group: nightly
-  cancel-in-progress: true
+  # Each platform publishes independently. Finish the current matrix before
+  # the next gate checks its tag, or a scheduled run can cancel the remaining
+  # platforms and then skip because the partially published tag already exists.
+  cancel-in-progress: false
 
 jobs:
   gate:
@@ -158,3 +162,12 @@ jobs:
       # Nightlies double as the daily canary for the sharun-based AppImage
       # format (tauri PR #12491); releases stay on the official bundler.
       experimental_appimage: true
+
+  aur:
+    needs: [gate, build]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/aur.yml
+    secrets: inherit
+    with:
+      tag: ${{ needs.gate.outputs.tag }}

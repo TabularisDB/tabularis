@@ -1,4 +1,5 @@
 use super::super::*;
+use super::archive::temp_dir;
 use super::http_fixture::RegistryServer;
 use crate::plugins::tabularium;
 use serde_json::json;
@@ -17,7 +18,7 @@ fn author_generated_original_and_imported_archives_complete_local_lifecycle_with
 ) {
     for (first, second, variants) in [(ORIGINAL_V1, ORIGINAL_V2, 2), (IMPORTED_V1, IMPORTED_V2, 1)]
     {
-        let root = tempfile::tempdir().unwrap();
+        let root = temp_dir();
         let preview = lifecycle::local_preview(first, "0.24.0").unwrap();
         assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
         assert!(!preview.variants.is_empty());
@@ -105,7 +106,7 @@ async fn author_generated_archives_use_read_only_discovery_and_exact_tracked_reg
             .await
             .unwrap();
         assert!(server.tracked().is_empty());
-        let root = tempfile::tempdir().unwrap();
+        let root = temp_dir();
         let key = registry_key(&server.base).unwrap();
         transport::install_registry_package(
             root.path(),

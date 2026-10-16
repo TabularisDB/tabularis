@@ -39,12 +39,14 @@ export function useDatabaseObjectNavigation(
       objectName: string,
       schema?: string,
       options?: QueryableObjectNavigationOptions,
+      database?: string,
     ) =>
       createQueryableObjectRequests({
         connectionId,
         driver,
         objectName,
         schema,
+        database,
         ...options,
       });
 
@@ -53,26 +55,28 @@ export function useDatabaseObjectNavigation(
         objectName: string,
         schema?: string,
         options?: QueryableObjectNavigationOptions,
+        database?: string,
       ) =>
         runtime.navigateToEditor(
-          requests(objectName, schema, options).open,
+          requests(objectName, schema, options, database).open,
         ),
       count: (
         objectName: string,
         schema?: string,
         options?: QueryableObjectNavigationOptions,
+        database?: string,
       ) =>
         runtime.navigateToEditor(
-          requests(objectName, schema, options).count,
+          requests(objectName, schema, options, database).count,
         ),
-      newConsole: (objectName: string, schema?: string) =>
+      newConsole: (objectName: string, schema?: string, database?: string) =>
         runtime.navigateToEditor(
           createTableConsoleRequest(
-            { connectionId, objectName, schema },
+            { connectionId, objectName, schema, database },
             driver,
           ),
         ),
-      openRoutineDefinition: (routine: RoutineInfo, schema?: string) =>
+      openRoutineDefinition: (routine: RoutineInfo, schema?: string, database?: string) =>
         void openObjectDefinition(
           {
             type: "routine",
@@ -80,10 +84,15 @@ export function useDatabaseObjectNavigation(
             name: routine.name,
             routineType: routine.routine_type,
             schema,
+            database,
+            // Carries whatever the listing reported for this row, so View
+            // Definition reaches the overload that was clicked rather than
+            // whichever one a LIMIT 1 happened to return (#893).
+            identityArgs: routine.identity_args,
           },
           runtime,
         ),
-      openTriggerDefinition: (trigger: TriggerInfo, schema?: string) =>
+      openTriggerDefinition: (trigger: TriggerInfo, schema?: string, database?: string) =>
         void openObjectDefinition(
           {
             type: "trigger",
@@ -91,6 +100,7 @@ export function useDatabaseObjectNavigation(
             name: trigger.name,
             tableName: trigger.table_name,
             schema,
+            database,
           },
           runtime,
         ),

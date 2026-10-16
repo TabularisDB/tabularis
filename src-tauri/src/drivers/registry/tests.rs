@@ -144,3 +144,15 @@ async fn reconcile_active_drivers_never_removes_a_builtin_manifest() {
 
     unregister_manifest(id).await;
 }
+
+#[test]
+fn local_path_driver_flag_tracks_set_and_clear() {
+    let id = "__test_local_path_driver__";
+    assert!(!is_local_path_driver(id));
+
+    set_local_path_driver(id, true);
+    assert!(is_local_path_driver(id));
+
+    set_local_path_driver(id, false);
+    assert!(!is_local_path_driver(id));
+}

@@ -1,16 +1,22 @@
 export type CreateTableTarget =
   | { kind: "connection"; schema: null }
   | { kind: "schema"; schema: string }
-  | { kind: "database"; schema: string };
+  | { kind: "database"; schema: string }
+  | { kind: "nested"; schema: string; database: string };
 
 export type CreateTableRefreshPlan =
   | { scope: "connection"; schema: null }
   | { scope: "schema"; schema: string }
-  | { scope: "database"; schema: string };
+  | { scope: "database"; schema: string }
+  | { scope: "nested"; schema: string; database: string };
 
 export const DEFAULT_CREATE_TABLE_TARGET: CreateTableTarget = { kind: "connection", schema: null };
 
 export function getCreateTableRefreshPlan(target: CreateTableTarget): CreateTableRefreshPlan {
+  if (target.kind === "nested") {
+    return { scope: "nested", schema: target.schema, database: target.database };
+  }
+
   if (target.kind === "schema") {
     return { scope: "schema", schema: target.schema };
   }
@@ -20,6 +26,25 @@ export function getCreateTableRefreshPlan(target: CreateTableTarget): CreateTabl
   }
 
   return { scope: "connection", schema: null };
+}
+
+/**
+ * Import from Clipboard writes into its target schema (a database in the
+ * multi-database layout), so it refreshes the same tree Create Table would there.
+ */
+export function getClipboardImportTarget(
+  schema: string | null,
+  layout: { schemaLayout: boolean; multiDatabaseLayout: boolean },
+): CreateTableTarget {
+  if (schema && layout.schemaLayout) {
+    return { kind: "schema", schema };
+  }
+
+  if (schema && layout.multiDatabaseLayout) {
+    return { kind: "database", schema };
+  }
+
+  return DEFAULT_CREATE_TABLE_TARGET;
 }
 
 export function resolveCreateTableSchema(

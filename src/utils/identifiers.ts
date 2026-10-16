@@ -45,8 +45,15 @@ export function getQuoteChar(
  * quoteIdentifier("my table", "mysql") // returns: `my table`
  * quoteIdentifier("my_table", "postgres") // returns: "my_table"
  */
+/** Quotes identifiers for PostgreSQL dialects; see `isPostgresDialect`. */
+export function shouldQuoteIdentifiers(
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+): boolean {
+  return isPostgresDialect(driver);
+}
+
 /**
- * True when identifiers in generated SQL fragments should be double-quoted.
+ * True when the driver uses the PostgreSQL SQL dialect.
  * Capability-driven when a manifest/capabilities object is available (issue
  * #614): checks `sql_dialect`, not the driver id string, so a postgres-
  * compatible driver registered under a different id (e.g. a standalone
@@ -58,7 +65,7 @@ export function getQuoteChar(
  * (builtin) and "postgresql" (the shipped plugin's id, per PR #588) so
  * bare-string callers keep working without a manifest in scope.
  */
-export function shouldQuoteIdentifiers(
+export function isPostgresDialect(
   driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): boolean {
   const caps = capabilitiesOf(driver);
@@ -66,6 +73,17 @@ export function shouldQuoteIdentifiers(
     return (caps.sql_dialect ?? "postgres") === "postgres";
   }
   return driver === "postgres" || driver === "postgresql";
+}
+
+/** True for MySQL SQL dialect capabilities or the builtin "mysql" driver id. */
+export function isMysqlDialect(
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+): boolean {
+  const caps = capabilitiesOf(driver);
+  if (caps) {
+    return caps.sql_dialect === "mysql";
+  }
+  return driver === "mysql";
 }
 
 // PostgreSQL folds unquoted identifiers to lowercase and only needs quotes for

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Connections } from "../../src/pages/Connections";
 import { invoke } from "@tauri-apps/api/core";
 import type { SavedConnection } from "../../src/contexts/DatabaseContext";
@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   loadConnections: vi.fn(),
   navigate: vi.fn(),
   openConnectionInNewWindow: vi.fn(),
+  reorderConnectionsInGroup: vi.fn(),
   settings: { autoConnectLastConnection: false },
   isSettingsLoading: false,
 }));
@@ -61,6 +62,7 @@ vi.mock("../../src/hooks/useDatabase", () => ({
     moveGroupToParent: vi.fn(),
     deleteGroup: vi.fn(),
     moveConnectionToGroup: vi.fn(),
+    reorderConnectionsInGroup: mocks.reorderConnectionsInGroup,
     reorderGroups: vi.fn(),
     toggleGroupCollapsed: vi.fn(),
     loadConnections: mocks.loadConnections,
@@ -147,7 +149,8 @@ vi.mock("../../src/components/modals/NewConnectionModal", () => ({
 }));
 
 vi.mock("../../src/components/modals/ConfirmModal", () => ({
-  ConfirmModal: () => null,
+  ConfirmModal: ({ isOpen, onConfirm }: { isOpen: boolean; onConfirm: () => void }) =>
+    isOpen ? <button onClick={onConfirm}>confirm-modal-confirm</button> : null,
 }));
 
 vi.mock("../../src/components/modals/ExportConnectionsModal", () => ({
@@ -225,5 +228,81 @@ describe("Connections SQLite database action", () => {
     rerender(<Connections />);
     expect(invoke).not.toHaveBeenCalledWith("get_last_open_connections");
     expect(mocks.connect).not.toHaveBeenCalled();
+  });
+});
+
+describe("Connections ordering", () => {
+  const conn = (id: string, sort_order?: number) =>
+    ({
+      id,
+      name: id,
+      params: { driver: "sqlite", database: `/tmp/${id}.db` },
+      sort_order,
+    }) as SavedConnection;
+  const card = (id: string) =>
+    document.querySelector(`[data-connection-id="${id}"]`) as HTMLElement;
+  const renderedIds = () =>
+    [...document.querySelectorAll("[data-connection-id]")].map((el) =>
+      el.getAttribute("data-connection-id"),
+    );
+  const originalElementFromPoint = document.elementFromPoint;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.settings.autoConnectLastConnection = false;
+    mocks.isSettingsLoading = false;
+    mocks.reorderConnectionsInGroup.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    document.elementFromPoint = originalElementFromPoint;
+  });
+
+  it("lists connections without a sort order after ordered ones", () => {
+    mocks.connections = [conn("fresh"), conn("b", 1), conn("a", 0)];
+    render(<Connections />);
+    expect(renderedIds()).toEqual(["a", "b", "fresh"]);
+  });
+
+  it("moves a connection into the slot of the sibling it is dropped on", async () => {
+    mocks.connections = [conn("a", 0), conn("b", 1), conn("c", 2)];
+    render(<Connections />);
+    document.elementFromPoint = vi.fn(() => card("c"));
+
+    fireEvent.mouseDown(card("a"), { button: 0, clientX: 0, clientY: 0 });
+    fireEvent.mouseMove(document, { clientX: 40, clientY: 40 });
+    fireEvent.mouseUp(document, { clientX: 40, clientY: 40 });
+
+    await waitFor(() =>
+      expect(mocks.reorderConnectionsInGroup).toHaveBeenCalledWith([
+        ["b", 0],
+        ["c", 1],
+        ["a", 2],
+      ]),
+    );
+  });
+});
+
+describe("Connections delete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.settings.autoConnectLastConnection = false;
+    mocks.isSettingsLoading = false;
+    mocks.connections = [sqliteConnection as SavedConnection];
+  });
+
+  it("shows the backend error when a delete fails instead of failing silently", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "delete_connection") {
+        throw "Failed to read the stored connection URI from the OS keychain";
+      }
+      return undefined;
+    });
+    render(<Connections />);
+
+    fireEvent.click(screen.getAllByTitle("connections.delete")[0]);
+    fireEvent.click(screen.getByText("confirm-modal-confirm"));
+
+    expect(await screen.findByText(/connections\.failDelete/)).toBeInTheDocument();
   });
 });

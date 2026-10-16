@@ -17,6 +17,19 @@ export interface RoutineInfo {
   name: string;
   routine_type: string;
   definition?: string;
+  /**
+   * The routine's argument signature, where the dialect needs one to tell two
+   * routines of the same name apart. PostgreSQL overloads, so a name there is a
+   * set rather than a routine and every read that followed a click had to pick
+   * one of them arbitrarily (#893). Absent on the dialects where a name is
+   * enough; an EMPTY string is the real signature of a no-argument routine.
+   *
+   * The Rust field is an `Option<String>` that the host skips when it is
+   * `None`, so the wire sends absent; the type admits `null` so that a change
+   * on that side is a type error here rather than a `(null)` suffix in the
+   * sidebar.
+   */
+  identity_args?: string | null;
 }
 
 export interface TriggerInfo {
@@ -108,6 +121,23 @@ export interface SchemaData {
   isLoaded: boolean;
 }
 
+/**
+ * Per-database state for a schema-based multi-db driver (e.g. PostgreSQL
+ * browsing several databases on one connection). Mirrors `ConnectionData`'s
+ * own `schemas`/`selectedSchemas`/`activeSchema`/`needsSchemaSelection`/
+ * `schemaDataMap` quintet, scoped to one database instead of the whole
+ * connection, since each database has its own independent set of schemas.
+ */
+export interface NestedDatabaseData {
+  schemas: string[];
+  schemasLoaded: boolean;
+  isLoadingSchemas: boolean;
+  selectedSchemas: string[];
+  activeSchema: string | null;
+  needsSchemaSelection: boolean;
+  schemaDataMap: Record<string, SchemaData>;
+}
+
 export interface ConnectionData {
   driver: string;
   capabilities: DriverCapabilities | null;
@@ -132,6 +162,11 @@ export interface ConnectionData {
   needsSchemaSelection: boolean;
   selectedDatabases: string[];
   databaseDataMap: Record<string, SchemaData>;
+  /** Nested per-database schema state for schema-based multi-db drivers
+   * (see `isSchemaBasedMultiDb` in `src/utils/database.ts`). Keyed by
+   * database name; empty/unused for flat multi-db drivers like MySQL, which
+   * keep using `databaseDataMap` above. */
+  nestedDatabaseDataMap: Record<string, NestedDatabaseData>;
   /** Multi-db drivers with no explicit selection: the database list is
    * fetched from the server on every connect/refresh instead of being
    * persisted. */
@@ -168,6 +203,7 @@ export interface DatabaseContextType {
   needsSchemaSelection: boolean;
   selectedDatabases: string[];
   databaseDataMap: Record<string, SchemaData>;
+  nestedDatabaseDataMap: Record<string, NestedDatabaseData>;
   connections: SavedConnection[];
   connectionGroups: ConnectionGroup[];
   loadConnections: (options?: { ifNeeded?: boolean }) => Promise<void>;
@@ -192,6 +228,21 @@ export interface DatabaseContextType {
   loadDatabaseData: (database: string, connectionId?: string) => Promise<void>;
   refreshDatabaseData: (database: string, connectionId?: string) => Promise<void>;
   setSelectedDatabases: (databases: string[], connectionId?: string) => void;
+  /** Fetches the schema list for one database of a schema-based multi-db
+   * connection and its saved schema selection/preference (scoped to that
+   * database — see `schema_storage_key` on the backend). No-op if already
+   * loaded/loading. */
+  loadNestedSchemas: (database: string, connectionId?: string, force?: boolean) => Promise<void>;
+  /** Sets which schemas are selected for one database of a schema-based
+   * multi-db connection, persists the selection, and loads any newly
+   * selected schema's table/view/routine/trigger data. */
+  setSelectedSchemasForDatabase: (
+    database: string,
+    schemas: string[],
+    connectionId?: string,
+  ) => Promise<void>;
+  loadNestedSchemaData: (database: string, schema: string, connectionId?: string) => Promise<void>;
+  refreshNestedSchemaData: (database: string, schema: string, connectionId?: string) => Promise<void>;
   refreshDatabaseSelection: (
     connectionId: string,
     options?: { notifyWhenUnchanged?: boolean },
@@ -216,7 +267,7 @@ export interface DatabaseContextType {
    * Tauri command's `Option<String>` parameter). */
   moveGroupToParent: (id: string, parentId: string | null) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
-  moveConnectionToGroup: (connectionId: string, groupId: string | null) => Promise<void>;
+  moveConnectionToGroup: (connectionId: string, groupId: string | null, sortOrder?: number) => Promise<void>;
   reorderGroups: (groupOrders: Array<[string, number]>) => Promise<void>;
   reorderConnectionsInGroup: (connectionOrders: Array<[string, number]>) => Promise<void>;
   toggleGroupCollapsed: (groupId: string) => Promise<void>;

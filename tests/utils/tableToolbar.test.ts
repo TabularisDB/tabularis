@@ -8,6 +8,8 @@ import {
   generateWherePlaceholder,
   generateOrderByPlaceholder,
   formatSortClause,
+  getNextSortClause,
+  getSortButtonAction,
 } from '../../src/utils/tableToolbar';
 import type { DriverCapabilities } from '../../src/types/plugins';
 
@@ -242,6 +244,69 @@ describe('tableToolbar utils', () => {
     it('should return empty clause unchanged', () => {
       expect(formatSortClause('', 'postgres')).toBe('');
       expect(formatSortClause('   ', 'postgres')).toBe('   ');
+    });
+  });
+
+  describe('getNextSortClause', () => {
+    describe('with defaultSortDirection="asc" (default)', () => {
+      it('cycles new column -> ASC', () => {
+        expect(getNextSortClause('', 'created_at', 'asc')).toBe('created_at ASC');
+        expect(getNextSortClause('other_col DESC', 'created_at', 'asc')).toBe('created_at ASC');
+      });
+
+      it('cycles same column: ASC -> DESC', () => {
+        expect(getNextSortClause('created_at ASC', 'created_at', 'asc')).toBe('created_at DESC');
+        expect(getNextSortClause('created_at', 'created_at', 'asc')).toBe('created_at DESC');
+      });
+
+      it('cycles same column: DESC -> clear (empty)', () => {
+        expect(getNextSortClause('created_at DESC', 'created_at', 'asc')).toBe('');
+      });
+
+      it('handles quoted column identifiers', () => {
+        expect(getNextSortClause('`created_at` ASC', 'created_at', 'asc')).toBe('created_at DESC');
+        expect(getNextSortClause('"created_at" DESC', 'created_at', 'asc')).toBe('');
+      });
+    });
+
+    describe('with defaultSortDirection="desc"', () => {
+      it('cycles new column -> DESC', () => {
+        expect(getNextSortClause('', 'created_at', 'desc')).toBe('created_at DESC');
+        expect(getNextSortClause('other_col ASC', 'created_at', 'desc')).toBe('created_at DESC');
+      });
+
+      it('cycles same column: DESC -> ASC', () => {
+        expect(getNextSortClause('created_at DESC', 'created_at', 'desc')).toBe('created_at ASC');
+      });
+
+      it('cycles same column: bare col (implicit ASC in SQL) -> clear (empty)', () => {
+        expect(getNextSortClause('created_at', 'created_at', 'desc')).toBe('');
+      });
+
+      it('cycles same column: ASC -> clear (empty)', () => {
+        expect(getNextSortClause('created_at ASC', 'created_at', 'desc')).toBe('');
+      });
+    });
+
+    it('formats identifier according to driver capabilities', () => {
+      expect(getNextSortClause('', 'Created At', 'desc', 'postgres')).toBe('"Created At" DESC');
+      expect(getNextSortClause('', 'select', 'asc', 'postgres')).toBe('"select" ASC');
+      expect(getNextSortClause('', 'created_at', 'asc', 'postgres')).toBe('created_at ASC');
+      expect(getNextSortClause('', 'created_at', 'asc', 'mysql')).toBe('created_at ASC');
+    });
+  });
+
+  describe('getSortButtonAction', () => {
+    it('follows the ascending cycle by default', () => {
+      expect(getSortButtonAction('none')).toBe('asc');
+      expect(getSortButtonAction('asc')).toBe('desc');
+      expect(getSortButtonAction('desc')).toBe('clear');
+    });
+
+    it('follows the descending cycle', () => {
+      expect(getSortButtonAction('none', 'desc')).toBe('desc');
+      expect(getSortButtonAction('desc', 'desc')).toBe('asc');
+      expect(getSortButtonAction('asc', 'desc')).toBe('clear');
     });
   });
 

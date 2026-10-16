@@ -67,6 +67,8 @@ export interface ConnectionParams {
   port?: number;
   username?: string;
   password?: string;
+  /** TLS mode selected for the server connection. */
+  ssl_mode?: string;
   /** Raw driver-specific connection URI, forwarded verbatim to the driver.
    * Never persisted in connections.json: it embeds credentials and is stored
    * in the OS keychain instead. */
@@ -103,6 +105,22 @@ export interface ConnectionParams {
   extra?: Record<string, string>;
   /** Optional proxy override for this connection. */
   proxy?: ProxyOverride;
+}
+
+/**
+ * Drop blank `ssl_mode` so the backend applies the driver default. The backend
+ * persists an omitted mode as `null`, so a connection loaded from disk can
+ * carry `null` here as well as `undefined`.
+ */
+export function withoutBlankSslMode<T extends { ssl_mode?: string | null }>(
+  params: T,
+): Omit<T, "ssl_mode"> | T {
+  if (params.ssl_mode == null || params.ssl_mode.trim() === "") {
+    const rest = { ...params };
+    delete rest.ssl_mode;
+    return rest;
+  }
+  return params;
 }
 
 /**
@@ -373,4 +391,18 @@ export function generateConnectionName(
 
   const host = params.host || "localhost";
   return `${params.database}@${host}`;
+}
+
+export function connectionOrderAfterMove(
+  ids: string[],
+  fromId: string,
+  toId: string,
+): Array<[string, number]> | null {
+  const fromIdx = ids.indexOf(fromId);
+  const toIdx = ids.indexOf(toId);
+  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return null;
+  const next = [...ids];
+  next.splice(fromIdx, 1);
+  next.splice(toIdx, 0, fromId);
+  return next.map((id, i) => [id, i]);
 }

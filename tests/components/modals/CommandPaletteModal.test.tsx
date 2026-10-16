@@ -17,13 +17,31 @@ import type {
   CommandPaletteStateContextType,
 } from "../../../src/contexts/CommandPaletteContext";
 import { CommandPaletteModal } from "../../../src/components/modals/CommandPaletteModal";
+import type { CommandScope } from "../../../src/types/commands";
+import { getShortcutFocusContext } from "../../../src/utils/keyboardEvents";
 import { MAX_VISIBLE_PALETTE_RESULTS } from "../../../src/utils/paletteItems";
+import shortcutDefs from "../../../src/config/shortcuts.json";
+import {
+  mergeShortcuts,
+  type ShortcutDef,
+  type UserOverrides,
+} from "../../../src/utils/keybindings";
+
+const keybindingsState = {
+  shortcuts: mergeShortcuts(shortcutDefs as ShortcutDef[], {}, true),
+  overrides: {} as UserOverrides,
+  isMac: true,
+};
+vi.mock("../../../src/hooks/useKeybindings", () => ({
+  useKeybindings: () => keybindingsState,
+}));
 
 const navigateMock = vi.fn();
 const openEditorMock = vi.fn();
 const invokeMock = vi.fn();
 const showAlertMock = vi.fn();
 const setActiveTableMock = vi.fn();
+const loadSchemaDataMock = vi.fn();
 const databaseState = { activeConnectionId: "connection-1" };
 const connectionData = {
   driver: "postgres",
@@ -52,20 +70,21 @@ vi.mock("../../../src/hooks/useAlert", () => ({
   useAlert: () => ({ showAlert: showAlertMock }),
 }));
 
-vi.mock("../../../src/hooks/useCommandPaletteScope", () => ({
-  useActiveCommandPaletteScope: () => ({
+const commandScopeState: CommandScope = {
+  connectionId: "connection-1",
+  driver: "postgres",
+  table: {
     connectionId: "connection-1",
-    driver: "postgres",
-    table: {
-      connectionId: "connection-1",
-      tableName: "users",
-      schema: "public",
-    },
-    runtime: {
-      navigate: navigateMock,
-      openEditor: openEditorMock,
-    },
-  }),
+    tableName: "users",
+    schema: "public",
+  },
+  runtime: {
+    navigate: navigateMock,
+    openEditor: openEditorMock,
+  },
+};
+vi.mock("../../../src/hooks/useCommandPaletteScope", () => ({
+  useActiveCommandPaletteScope: () => commandScopeState,
 }));
 
 vi.mock("../../../src/hooks/useDatabase", () => ({
@@ -81,7 +100,7 @@ vi.mock("../../../src/hooks/useDatabase", () => ({
       },
     ],
     loadDatabaseData: vi.fn(),
-    loadSchemaData: vi.fn(),
+    loadSchemaData: loadSchemaDataMock,
     setActiveTable: setActiveTableMock,
   }),
 }));
@@ -142,6 +161,7 @@ function renderPalette(
   const closePalette = vi.fn();
   const stateValue: CommandPaletteStateContextType = {
     activePalette: "actions",
+    focusContext: null,
     ...overrides.state,
   };
   const dispatchValue: CommandPaletteDispatchContextType = {
@@ -150,26 +170,36 @@ function renderPalette(
     ...overrides.dispatch,
   };
 
-  render(
+  const content = () => (
     <MemoryRouter>
       <CommandPaletteDispatchContext.Provider value={dispatchValue}>
         <CommandPaletteStateContext.Provider value={stateValue}>
           <CommandPaletteModal />
         </CommandPaletteStateContext.Provider>
       </CommandPaletteDispatchContext.Provider>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 
-  return { closePalette };
+  const view = render(content());
+  return { closePalette, rerender: () => view.rerender(content()) };
 }
 
 describe("CommandPaletteModal", () => {
   beforeEach(() => {
+    commandScopeState.getEditorCommands = undefined;
+    commandScopeState.getResultCommands = undefined;
+    keybindingsState.overrides = {};
+    keybindingsState.shortcuts = mergeShortcuts(
+      shortcutDefs as ShortcutDef[],
+      {},
+      true,
+    );
     navigateMock.mockReset();
     openEditorMock.mockReset();
     invokeMock.mockReset();
     showAlertMock.mockReset();
     setActiveTableMock.mockReset();
+    loadSchemaDataMock.mockReset();
     databaseState.activeConnectionId = "connection-1";
     connectionData.capabilities = {};
     connectionData.tables = [{ name: "users" }];
@@ -179,6 +209,88 @@ describe("CommandPaletteModal", () => {
     connectionData.schemas = [];
     connectionData.selectedSchemas = [];
     connectionData.schemaDataMap = {};
+  });
+
+  it.each([true, false])("shows Run hints only for Monaco focus (inMonaco=%s)", (inMonaco) => {
+    commandScopeState.getEditorCommands = () => ({
+      run: { label: "Run statement", execute: vi.fn() },
+      runAll: { label: "Run all statements", execute: vi.fn() },
+    });
+    const editor = document.createElement("div");
+    editor.className = "monaco-editor";
+    const focusedElement = document.createElement(inMonaco ? "textarea" : "button");
+    if (inMonaco) editor.append(focusedElement);
+    renderPalette({
+      state: { focusContext: getShortcutFocusContext(focusedElement) },
+    });
+
+    for (const title of ["Run statement", "Run all statements"]) {
+      const row = screen.getByRole("option", { name: title });
+      if (inMonaco) {
+        expect(row.querySelector("kbd")).toHaveTextContent(/Enter/);
+      } else {
+        expect(row.querySelector("kbd")).toBeNull();
+      }
+    }
+  });
+
+  it.each(["input", "button"])("shows Copy cells hints only for non-editable focus (%s)", (tag) => {
+    commandScopeState.getResultCommands = () => ({
+      copySelectedCells: { count: 1, execute: vi.fn() },
+    });
+    renderPalette({
+      state: { focusContext: getShortcutFocusContext(document.createElement(tag)) },
+    });
+    const row = screen.getByRole("option", { name: "dataGrid.copyCells" });
+    if (tag === "button") {
+      expect(row.querySelector("kbd")).toHaveTextContent("⌘+C");
+    } else {
+      expect(row.querySelector("kbd")).toBeNull();
+    }
+  });
+
+  it("shows the user override in the command row", () => {
+    keybindingsState.overrides = {
+      open_settings: {
+        mac: { metaKey: true, shiftKey: true, key: "s" },
+        win: { ctrlKey: true, shiftKey: true, key: "s" },
+      },
+    };
+    renderPalette();
+    const row = screen.getByRole("option", {
+      name: "commandPalette.commands.openSettings",
+    });
+    expect(within(row).getByText("⌘+Shift+S").tagName).toBe("KBD");
+  });
+
+  it("omits the keycap when the shortcut definition is missing", () => {
+    keybindingsState.shortcuts = keybindingsState.shortcuts.filter(
+      (shortcut) => shortcut.id !== "open_settings",
+    );
+    renderPalette();
+    const row = screen.getByRole("option", {
+      name: "commandPalette.commands.openSettings",
+    });
+    expect(row.querySelector("kbd")).toBeNull();
+  });
+
+  it("updates the keycap when overrides change on rerender", () => {
+    const { rerender } = renderPalette();
+    const row = screen.getByRole("option", {
+      name: "commandPalette.commands.openSettings",
+    });
+    expect(within(row).getByText("⌘+,").tagName).toBe("KBD");
+
+    keybindingsState.overrides = {
+      open_settings: {
+        mac: { metaKey: true, key: "k" },
+        win: { ctrlKey: true, key: "k" },
+      },
+    };
+    rerender();
+
+    expect(within(row).getByText("⌘+K").tagName).toBe("KBD");
+    expect(within(row).queryByText("⌘+,")).not.toBeInTheDocument();
   });
 
   it("should use the shared palette to filter action items", () => {
@@ -205,6 +317,60 @@ describe("CommandPaletteModal", () => {
         "commandPalette.commands.openTableInConsole",
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it("should combine commands and objects only after the unified query starts", () => {
+    renderPalette({ state: { activePalette: "all" } });
+
+    const input = screen.getByRole("combobox", {
+      name: "commandPalette.searchLabel",
+    });
+    expect(
+      screen.getByText("commandPalette.commands.openSettings"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "users" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "users" } });
+
+    expect(
+      screen.getByRole("option", { name: "users" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("commandPalette.commands.openSettings"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should defer unified object loading until the user types", async () => {
+    connectionData.capabilities = { schemas: true };
+    connectionData.tables = [];
+    connectionData.schemas = ["public"];
+    connectionData.selectedSchemas = ["public"];
+    connectionData.schemaDataMap = {
+      public: {
+        tables: [],
+        views: [],
+        routines: [],
+        triggers: [],
+        isLoading: false,
+        isLoaded: false,
+      },
+    };
+    renderPalette({ state: { activePalette: "all" } });
+
+    expect(loadSchemaDataMock).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "users" },
+    });
+
+    await waitFor(() =>
+      expect(loadSchemaDataMock).toHaveBeenCalledWith(
+        "public",
+        "connection-1",
+      ),
+    );
   });
 
   it("should execute action items through the shared pipeline", async () => {

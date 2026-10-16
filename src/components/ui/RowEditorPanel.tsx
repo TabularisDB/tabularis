@@ -2,6 +2,7 @@ import { Pin, PinOff, X } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useRowEditor } from "../../hooks/useRowEditor";
+import { useDatabase } from "../../hooks/useDatabase";
 import { FieldEditor } from "./FieldEditor";
 import { SlotAnchor } from "./SlotAnchor";
 
@@ -29,6 +30,7 @@ interface RowEditorPanelProps {
 	tableName?: string | null;
 	pkColumns?: string[] | null;
 	schema?: string | null;
+	database?: string | null;
 	isPinned?: boolean;
 	onTogglePin?: () => void;
 }
@@ -51,10 +53,15 @@ export const RowEditorPanel = ({
 	tableName,
 	pkColumns,
 	schema,
+	database,
 	isPinned = false,
 	onTogglePin,
 }: RowEditorPanelProps) => {
 	const { t } = useTranslation();
+	const { connectionDataMap } = useDatabase();
+	// The sidebar is outside the pane provider. Its row can belong to a
+	// different connection than the globally active one.
+	const rowDriver = connectionId ? connectionDataMap[connectionId]?.driver ?? null : null;
 	const { editedData, updateField } = useRowEditor({
 		initialData: rowData,
 		onChange: (fieldName, value) => onChange(fieldName, value),
@@ -109,9 +116,11 @@ export const RowEditorPanel = ({
 					<SlotAnchor
 						name="row-editor-sidebar.header.actions"
 						context={{
-							connectionId,
-							tableName,
-							schema,
+							connectionId: connectionId ?? null,
+							tableName: tableName ?? null,
+							schema: schema ?? null,
+							database: database ?? null,
+							driver: rowDriver,
 							rowData,
 							rowIndex,
 							isInsertion,
@@ -182,13 +191,16 @@ export const RowEditorPanel = ({
 								tableName={tableName}
 								pkMap={pkMap}
 								schema={schema}
+								database={database}
 							/>
 							<SlotAnchor
 								name="row-editor-sidebar.field.after"
 								context={{
-									connectionId,
-									tableName,
-									schema,
+									connectionId: connectionId ?? null,
+									tableName: tableName ?? null,
+									schema: schema ?? null,
+									database: database ?? null,
+									driver: rowDriver,
 									columnName: column.name,
 									rowData: editedData,
 									rowIndex,

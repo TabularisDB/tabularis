@@ -1,6 +1,19 @@
 import type { QueryResult, QueryResultEntry } from "../types/editor";
 
 /**
+ * Uses the first leading SQL comment as a single-line result label.
+ * Empty, absent or unterminated comments leave the numbered fallback intact.
+ * Labels are capped at 80 Unicode code points.
+ */
+export function extractResultLabel(query: string): string | undefined {
+  const leading = query.trimStart();
+  const comment = leading.match(/^--([^\r\n]*)/)
+    ?? leading.match(/^\/\*([\s\S]*?)\*\//);
+  const label = comment?.[1].replace(/\s+/g, " ").trim();
+  return label ? Array.from(label).slice(0, 80).join("") : undefined;
+}
+
+/**
  * Creates initial QueryResultEntry array from a list of queries.
  * All entries start in loading state.
  */
@@ -12,6 +25,7 @@ export function createResultEntries(
     id: `${tabId}-result-${index}`,
     queryIndex: index,
     query,
+    label: extractResultLabel(query),
     result: null,
     error: "",
     executionTime: null,
@@ -201,4 +215,17 @@ export function removeEntriesToLeft(
     results: kept,
     nextActiveId: activeStillExists ? activeResultId : entryId,
   };
+}
+
+/**
+ * Removes the saved scroll offsets of every result entry of a tab.
+ * Keys are `${tabId}:${entryId}`.
+ */
+export function clearEntryScrollTops(
+  offsets: Map<string, number>,
+  tabId: string,
+): void {
+  for (const key of offsets.keys()) {
+    if (key.startsWith(`${tabId}:`)) offsets.delete(key);
+  }
 }

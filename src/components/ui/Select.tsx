@@ -10,6 +10,7 @@ import {
 
 interface SelectProps {
   id?: string;
+  ariaLabel?: string;
   value: string | null;
   options: string[];
   onChange: (value: string) => void;
@@ -23,10 +24,13 @@ interface SelectProps {
   labels?: Record<string, string>;
   /** Per-option nesting depth; indents matching options to show a tree. */
   indents?: Record<string, number>;
+  /** Id of extra text that describes the control, such as a field hint. */
+  ariaDescribedBy?: string;
 }
 
 export const Select = ({
   id,
+  ariaLabel,
   value,
   options,
   onChange,
@@ -39,6 +43,7 @@ export const Select = ({
   searchable = true,
   labels,
   indents,
+  ariaDescribedBy,
 }: SelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -156,7 +161,7 @@ export const Select = ({
                 key={option}
                 onClick={() => handleSelect(option)}
                 className={clsx(
-                  "w-full text-left py-2 pr-3 text-sm rounded transition-colors flex items-center gap-1",
+                  "w-full text-left py-2 pr-3 text-sm rounded transition-colors flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
                   depth === 0 ? "px-3" : "pl-0",
                   value === option
                     ? "bg-accent-primary/10 text-accent font-medium"
@@ -193,12 +198,14 @@ export const Select = ({
     <div className={clsx("relative", className)} ref={containerRef}>
       <button
         id={id}
+        aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
         ref={buttonRef}
         type="button"
         onClick={handleToggle}
         disabled={disabled}
         className={clsx(
-          "w-full bg-base border rounded px-3 py-2 text-sm text-primary flex items-center justify-between transition-colors",
+          "w-full bg-base border rounded px-3 py-2 text-sm text-primary flex items-center justify-between transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
           disabled
             ? "opacity-50 cursor-not-allowed border-default"
             : hasError

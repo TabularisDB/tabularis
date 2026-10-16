@@ -8,20 +8,63 @@ use super::extract::extract_value;
 
 /// Streams the rows produced by `query` against a PostgreSQL connection. See
 /// the MySQL counterpart for the contract of `on_row`.
+///
+/// With the `session_id` of a tab inside a transaction, the query runs as one
+/// cursor on that tab's pinned connection, so the export sees its uncommitted
+/// changes. The connection stays pinned throughout, so cancelling the export
+/// leaves the transaction open.
 pub async fn stream_query<F>(
     params: &ConnectionParams,
     query: &str,
+    session_id: Option<&str>,
     mut on_row: F,
 ) -> Result<(), String>
 where
     F: FnMut(&[String], &[Value]) -> Result<(), String> + Send,
 {
+    if let Some(id) = session_id {
+        let mut slot = super::session::lock(id).await;
+        // A pinned connection belongs to one transaction on one database. If the
+        // tab has switched databases since opening it, exporting on the pinned
+        // connection would silently stream rows from the old database. Reject
+        // before borrowing the client so the pinned session (and its open
+        // transaction) is left intact — the user can switch back or end the
+        // transaction and retry. Mirrors the guard in `execute_batch_in_session`.
+        let requested_db = params.database.primary();
+        super::session::check_pinned_database(slot.database(), requested_db, "export")?;
+        if let Some(client) = slot.client() {
+            // A savepoint keeps a failing export from aborting the user's transaction.
+            client
+                .batch_execute("SAVEPOINT tabularis_read")
+                .await
+                .map_err(|e| e.to_string())?;
+            let streamed = stream_rows(client, query, &mut on_row).await;
+            let end = match streamed {
+                Ok(()) => "RELEASE SAVEPOINT tabularis_read",
+                Err(_) => "ROLLBACK TO SAVEPOINT tabularis_read; RELEASE SAVEPOINT tabularis_read",
+            };
+            let ended = client.batch_execute(end).await.map_err(|e| e.to_string());
+            slot.touch();
+            return streamed.and(ended);
+        }
+    }
+
     let pool = get_postgres_pool(params).await?;
     let client = pool
         .get()
         .await
         .map_err(|e| format!("failed to get postgres client: {:?}", e))?;
+    stream_rows(&client, query, &mut on_row).await
+}
 
+async fn stream_rows<F>(
+    client: &tokio_postgres::Client,
+    query: &str,
+    on_row: &mut F,
+) -> Result<(), String>
+where
+    F: FnMut(&[String], &[Value]) -> Result<(), String> + Send,
+{
     let bind_params: Vec<i32> = vec![];
     let mut rows = std::pin::pin!(client
         .query_raw(query, &bind_params)

@@ -460,3 +460,150 @@ fn trailing_comment_start(sql: &str) -> Option<usize> {
         State::SingleQuote | State::DoubleQuote | State::Backtick => None,
     }
 }
+
+/// What a statement does to the surrounding transaction.
+///
+/// Drivers use this to decide whether the physical connection a batch ran
+/// on must be held for the next batch (an explicit transaction is still
+/// open) or may go back to the pool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransactionEffect {
+    /// Opens an explicit transaction (`BEGIN`, `START TRANSACTION`).
+    Opens,
+    /// Closes the current transaction (`COMMIT`, `ROLLBACK`, `END`).
+    ///
+    /// `ROLLBACK TO SAVEPOINT` does NOT close the transaction and is
+    /// classified as [`TransactionEffect::None`].
+    Closes,
+    /// Ends the current transaction and opens a new one (`COMMIT AND CHAIN`).
+    Chains,
+    /// Leaves the transaction state as it was.
+    None,
+}
+
+impl TransactionEffect {
+    /// Whether a transaction is open after a statement with this effect ran.
+    pub fn in_transaction_after(self, succeeded: bool, before: bool) -> bool {
+        match (self, succeeded) {
+            (TransactionEffect::Opens | TransactionEffect::Chains, true) => true,
+            // PostgreSQL ends the transaction even when COMMIT itself fails, e.g. on a deferred constraint.
+            (TransactionEffect::Closes, _) | (TransactionEffect::Chains, false) => false,
+            _ => before,
+        }
+    }
+}
+
+/// Classify a statement's effect on the transaction state.
+///
+/// Only the leading keywords are inspected, on the statement the driver is
+/// about to run, so a `BEGIN` inside a string literal or a later clause
+/// cannot be mistaken for transaction control. PL/pgSQL `BEGIN ... END`
+/// blocks are not a concern here: they arrive as part of a `DO` or
+/// `CREATE FUNCTION` statement, whose leading keyword is not `BEGIN`.
+pub fn transaction_effect(query: &str) -> TransactionEffect {
+    // Six cover the longest form, `ROLLBACK TRANSACTION AND NO CHAIN`.
+    let mut words = leading_keywords(query, 6).into_iter();
+    let Some(first) = words.next() else {
+        return TransactionEffect::None;
+    };
+    let mut rest: Vec<String> = words.collect();
+    // `WORK` / `TRANSACTION` after a transaction-control verb is optional noise.
+    if matches!(first.as_str(), "COMMIT" | "END" | "ROLLBACK" | "ABORT")
+        && matches!(rest.first().map(String::as_str), Some("WORK" | "TRANSACTION"))
+    {
+        rest.remove(0);
+    }
+    let second = rest.first().map(String::as_str);
+    let chains = rest.windows(2).any(|p| p[0] == "AND" && p[1] == "CHAIN");
+
+    match first.as_str() {
+        // `BEGIN` alone, `BEGIN TRANSACTION`, `BEGIN ISOLATION LEVEL …`.
+        "BEGIN" => TransactionEffect::Opens,
+        "START" if second == Some("TRANSACTION") => TransactionEffect::Opens,
+        // Two-phase commit acts on a prepared transaction, not this session's.
+        "COMMIT" | "ROLLBACK" if second == Some("PREPARED") => TransactionEffect::None,
+        // `ROLLBACK [WORK] TO [SAVEPOINT] x` unwinds to a savepoint and leaves the transaction open.
+        "ROLLBACK" if second == Some("TO") => TransactionEffect::None,
+        "COMMIT" | "END" | "ROLLBACK" | "ABORT" if chains => TransactionEffect::Chains,
+        "COMMIT" | "END" | "ROLLBACK" | "ABORT" => TransactionEffect::Closes,
+        // `PREPARE TRANSACTION` dissociates the transaction from the session.
+        "PREPARE" if second == Some("TRANSACTION") => TransactionEffect::Closes,
+        _ => TransactionEffect::None,
+    }
+}
+
+/// The first `n` keywords of `query`, uppercased. Every `--` and (nested)
+/// `/* */` comment is skipped, wherever it appears, and reading stops at a
+/// string literal, dollar quote or `;`, so no data is read as a keyword.
+fn leading_keywords(query: &str, n: usize) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let mut chars = query.chars().peekable();
+    let mut comment_depth = 0usize;
+    while let Some(c) = chars.next() {
+        if comment_depth > 0 {
+            if c == '*' && chars.peek() == Some(&'/') {
+                chars.next();
+                comment_depth -= 1;
+            } else if c == '/' && chars.peek() == Some(&'*') {
+                chars.next();
+                comment_depth += 1;
+            }
+            continue;
+        }
+        if c.is_ascii_alphanumeric() || c == '_' {
+            word.push(c.to_ascii_uppercase());
+            continue;
+        }
+        if !word.is_empty() {
+            words.push(std::mem::take(&mut word));
+            if words.len() == n {
+                return words;
+            }
+        }
+        match (c, chars.peek()) {
+            ('-', Some('-')) => {
+                for c in chars.by_ref() {
+                    if c == '\n' {
+                        break;
+                    }
+                }
+            }
+            ('/', Some('*')) => {
+                chars.next();
+                comment_depth = 1;
+            }
+            ('\'' | '"' | '$' | ';', _) => return words,
+            _ => {}
+        }
+    }
+    if !word.is_empty() && words.len() < n {
+        words.push(word);
+    }
+    words
+}
+
+/// Calculates `(server_time_ms, fetch_time_ms)` from the total elapsed time and
+/// the optional elapsed time until the first row was received.
+///
+/// If no rows were received (`first_row_elapsed_ms` is `None`), server execution
+/// time equals the total elapsed time, and fetch time is 0.0.
+pub fn calculate_query_timing(
+    total_elapsed_ms: f64,
+    first_row_elapsed_ms: Option<f64>,
+) -> (Option<f64>, Option<f64>) {
+    match first_row_elapsed_ms {
+        Some(s_ms) => (Some(s_ms), Some((total_elapsed_ms - s_ms).max(0.0))),
+        None => (Some(total_elapsed_ms), Some(0.0)),
+    }
+}
+
+/// Computes query timing given a `start_instant` and the optional
+/// first-row arrival time.
+pub fn calculate_query_timing_from_start(
+    start_instant: std::time::Instant,
+    first_row_elapsed_ms: Option<f64>,
+) -> (Option<f64>, Option<f64>) {
+    let total_elapsed_ms = start_instant.elapsed().as_secs_f64() * 1000.0;
+    calculate_query_timing(total_elapsed_ms, first_row_elapsed_ms)
+}

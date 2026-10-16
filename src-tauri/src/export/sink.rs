@@ -39,9 +39,7 @@ impl<W: Write> RowSink for CsvSink<W> {
             self.headers_written = true;
         }
         let record: Vec<String> = values.iter().map(value_to_csv_string).collect();
-        self.writer
-            .write_record(&record)
-            .map_err(|e| e.to_string())
+        self.writer.write_record(&record).map_err(|e| e.to_string())
     }
 
     fn finish(&mut self) -> Result<(), String> {
@@ -80,8 +78,7 @@ impl<W: Write> MarkdownSink<W> {
 impl<W: Write> RowSink for MarkdownSink<W> {
     fn write_row(&mut self, headers: &[String], values: &[Value]) -> Result<(), String> {
         if !self.headers_written {
-            let header_cells: Vec<String> =
-                headers.iter().map(|h| Self::escape_cell(h)).collect();
+            let header_cells: Vec<String> = headers.iter().map(|h| Self::escape_cell(h)).collect();
             self.write_line(&header_cells)?;
             let separator: Vec<String> = headers.iter().map(|_| "---".to_string()).collect();
             self.write_line(&separator)?;

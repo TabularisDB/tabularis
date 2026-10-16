@@ -28,7 +28,7 @@ const PARAM_RE = /(?<!:):([a-zA-Z_][a-zA-Z0-9_]*)(?!\w)/g;
  * scanNonCodeSpans) and detection behaves exactly as it did before
  * dialects were threaded through.
  */
-const maskNonCode = (sql: string, dialect?: string): string => {
+export const maskNonCode = (sql: string, dialect?: string): string => {
   const spans = scanNonCodeSpans(sql, dialect);
   if (spans.length === 0) return sql;
   let masked = "";

@@ -17,7 +17,16 @@ interface BuiltInCommandLabels {
   countRows: string;
   navigationCategory: string;
   connectionCategory: string;
+  editorCategory: string;
   tableCategory: string;
+  resultCategory: string;
+  toggleWordWrapEnable: string;
+  toggleWordWrapDisable: string;
+  copySelectedCells: (count: number) => string;
+  copySelectedRows: (count: number) => string;
+  copySelectedColumns: (count: number) => string;
+  copyColumnValuesAsSqlIn: string;
+  copyAllRows: (count?: number) => string;
 }
 
 /** Commands that open a modal the palette itself owns, rather than navigating. */
@@ -26,14 +35,23 @@ interface BuiltInCommandModals {
   generateSql: (target: TableTarget) => void;
 }
 
+/** Editor-scoped commands that depend on live editor state. */
+interface BuiltInCommandEditorActions {
+  wordWrapEnabled: boolean;
+  toggleWordWrap: () => void;
+}
+
 export function createBuiltInCommandItems(
   scope: CommandScope,
   labels: BuiltInCommandLabels,
   modals: BuiltInCommandModals,
+  getShortcut: (shortcutId: string) => string | undefined,
+  editorActions?: BuiltInCommandEditorActions,
 ): PaletteItem[] {
   const items: PaletteItem[] = [
     {
       id: "app.open-settings",
+      shortcut: getShortcut("open_settings"),
       title: labels.openSettings,
       group: labels.navigationCategory,
       keywords: ["preferences", "configuration"],
@@ -46,6 +64,7 @@ export function createBuiltInCommandItems(
     },
     {
       id: "app.open-connections",
+      shortcut: getShortcut("open_connections"),
       title: labels.openConnections,
       group: labels.navigationCategory,
       keywords: ["connection", "manager", "database"],
@@ -62,8 +81,9 @@ export function createBuiltInCommandItems(
     const connectionId = scope.connectionId;
     items.push({
       id: "connection.new-console",
+      shortcut: scope.getEditorCommands ? getShortcut("new_tab") : undefined,
       title: labels.newConsole,
-      group: labels.connectionCategory,
+      group: labels.editorCategory,
       keywords: ["sql", "query", "console", "editor"],
       icon: "new-console",
       primaryAction: {
@@ -79,6 +99,24 @@ export function createBuiltInCommandItems(
               : {}),
             targetConnectionId: connectionId,
           }),
+      },
+    });
+  }
+
+  if (editorActions) {
+    const label = editorActions.wordWrapEnabled
+      ? labels.toggleWordWrapDisable
+      : labels.toggleWordWrapEnable;
+    items.push({
+      id: "editor.toggle-word-wrap",
+      title: label,
+      group: labels.editorCategory,
+      keywords: ["wrap", "line", "editor"],
+      icon: "command",
+      primaryAction: {
+        id: "editor.toggle-word-wrap",
+        label,
+        execute: editorActions.toggleWordWrap,
       },
     });
   }
@@ -163,6 +201,126 @@ export function createBuiltInCommandItems(
             ),
         },
       },
+    );
+  }
+
+  const editorCommands = scope.getEditorCommands?.();
+  const addEditorCommand = (
+    id: string,
+    command: { label: string; execute: () => void | Promise<void> },
+    keywords: string[],
+    shortcutId?: string,
+  ) => {
+    items.push({
+      id,
+      title: command.label,
+      shortcut: shortcutId ? getShortcut(shortcutId) : undefined,
+      group: labels.editorCategory,
+      keywords,
+      icon: "command",
+      relevance: PINNED_PALETTE_RELEVANCE,
+      primaryAction: {
+        id,
+        label: command.label,
+        execute: command.execute,
+      },
+    });
+  };
+
+  if (editorCommands?.run) {
+    addEditorCommand(
+      "editor.run",
+      editorCommands.run,
+      ["run", "execute", "query", "selection", "statement"],
+      "run_query_editor",
+    );
+  }
+  if (editorCommands?.runAll) {
+    addEditorCommand(
+      "editor.run-all",
+      editorCommands.runAll,
+      ["run", "execute", "query", "all", "statements"],
+      "run_all_editor",
+    );
+  }
+  if (editorCommands?.saveSqlFile) {
+    addEditorCommand(
+      "editor.save-sql-file",
+      editorCommands.saveSqlFile,
+      ["save", "sql", "file"],
+    );
+  }
+  if (editorCommands?.closeTab) {
+    addEditorCommand(
+      "tab.close-active",
+      editorCommands.closeTab,
+      ["close", "tab", "editor"],
+      "close_tab",
+    );
+  }
+
+  const resultCommands = scope.getResultCommands?.();
+  const addResultCommand = (
+    id: string,
+    title: string,
+    execute: () => void | Promise<void>,
+    description?: string,
+    shortcutId?: string,
+  ) => {
+    items.push({
+      id,
+      title,
+      description,
+      shortcut: shortcutId ? getShortcut(shortcutId) : undefined,
+      group: labels.resultCategory,
+      keywords: ["copy", "clipboard", "result", "selection"],
+      icon: "copy",
+      relevance: PINNED_PALETTE_RELEVANCE,
+      primaryAction: { id, label: title, execute },
+    });
+  };
+
+  if (resultCommands?.copySelectedCells) {
+    const command = resultCommands.copySelectedCells;
+    addResultCommand(
+      "result.copy-selected-cells",
+      labels.copySelectedCells(command.count),
+      command.execute,
+      undefined,
+      "copy_selection",
+    );
+  }
+  if (resultCommands?.copySelectedRows) {
+    const command = resultCommands.copySelectedRows;
+    addResultCommand(
+      "result.copy-selected-rows",
+      labels.copySelectedRows(command.count),
+      command.execute,
+    );
+  }
+  if (resultCommands?.copySelectedColumns) {
+    const command = resultCommands.copySelectedColumns;
+    addResultCommand(
+      "result.copy-selected-columns",
+      labels.copySelectedColumns(command.count),
+      command.execute,
+    );
+  }
+  if (resultCommands?.copyColumnValuesAsSqlIn) {
+    const command = resultCommands.copyColumnValuesAsSqlIn;
+    addResultCommand(
+      "result.copy-column-values-as-sql-in",
+      labels.copyColumnValuesAsSqlIn,
+      command.execute,
+      command.columnName,
+    );
+  }
+  if (resultCommands?.copyAllRows) {
+    const command = resultCommands.copyAllRows;
+    addResultCommand(
+      "result.copy-all-rows",
+      labels.copyAllRows(command.count),
+      command.execute,
     );
   }
 

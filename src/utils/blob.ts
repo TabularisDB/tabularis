@@ -272,6 +272,59 @@ export function mimeToExtension(mimeType: string): string {
 }
 
 /**
+ * Checks if a string value is SVG markup (starts with `<svg` or `<?xml ... <svg`).
+ */
+export function isSvgText(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (/^<svg[\s>]/.test(trimmed)) return true;
+  if (trimmed.startsWith("<?xml")) {
+    const withoutXml = trimmed.replace(/^<\?xml[^>]*\?>/i, "").trimStart();
+    return /^<svg[\s>]/.test(withoutXml);
+  }
+  return false;
+}
+
+/**
+ * Creates an image data URL for SVG text markup (`data:image/svg+xml;utf8,...`).
+ * Encodes the string using encodeURIComponent so it can be safely rendered in an `<img src="...">`.
+ */
+export function svgTextToDataUrl(svg: string): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
+}
+
+/**
+ * Checks if a value is an image (either SVG text or a non-truncated image BLOB)
+ * without allocating or copying large base64 payload data URLs.
+ */
+export function hasCellImagePreview(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (isSvgText(value)) return true;
+  const metadata = extractBlobMetadata(value);
+  return Boolean(
+    metadata &&
+      metadata.isBase64 &&
+      metadata.mimeType.startsWith("image/") &&
+      !metadata.isTruncated,
+  );
+}
+
+/**
+ * Extracts a data URL for image preview from either:
+ * - A BLOB wire format value containing an image (`image/*`), or
+ * - SVG markup stored as plain text.
+ *
+ * Returns null if the value is not an image.
+ */
+export function extractCellImagePreviewUrl(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (isSvgText(value)) {
+    return svgTextToDataUrl(value);
+  }
+  return extractImageDataUrl(value);
+}
+
+/**
  * Extracts a data URL for image preview from a BLOB wire format value.
  * Returns null if the value is not an image or not in base64 wire format.
  */
