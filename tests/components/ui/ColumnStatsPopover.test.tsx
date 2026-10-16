@@ -226,6 +226,15 @@ describe("ColumnStatsPopover", () => {
     expect(onParentKeyDown).not.toHaveBeenCalled();
   });
 
+  it("closes on Escape right after it opens, while focus is on the dialog", () => {
+    const { onClose, onParentKeyDown } = setup();
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onParentKeyDown).not.toHaveBeenCalled();
+  });
+
   it("closes on a click outside", async () => {
     const { onClose } = setup();
     await screen.findByText("dataGrid.columnStats.rows");

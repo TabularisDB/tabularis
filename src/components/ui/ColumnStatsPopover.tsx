@@ -111,24 +111,27 @@ export const ColumnStatsPopover = ({
         onClose();
       }
     };
+    // On the dialog itself, so Escape closes it whether focus is on the
+    // dialog (as right after it opens) or on a control inside it. Stopped
+    // here so the grid doesn't also handle it (e.g. clearing the selection).
+    const dialog = popover.current;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+    };
+    dialog?.addEventListener("keydown", escape);
     document.addEventListener("mousedown", outside);
     window.addEventListener("resize", onClose);
     window.addEventListener("scroll", scroll, true);
     return () => {
+      dialog?.removeEventListener("keydown", escape);
       document.removeEventListener("mousedown", outside);
       window.removeEventListener("resize", onClose);
       window.removeEventListener("scroll", scroll, true);
     };
   }, [onClose]);
-
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === "Escape") {
-      // Keep the grid from also handling Escape (e.g. clearing the selection).
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
-    }
-  };
 
   const retry = () => {
     setState({ status: "loading" });
@@ -291,12 +294,7 @@ export const ColumnStatsPopover = ({
       style={position}
       className="fixed z-[200] flex flex-col w-80 max-w-[calc(100vw-16px)] max-h-[440px] rounded-lg border border-strong bg-elevated shadow-xl focus:outline-none"
     >
-      {/* Layout wrapper: catches Escape bubbling from the controls inside. */}
-      <div
-        role="presentation"
-        onKeyDown={handleKeyDown}
-        className="flex flex-col flex-1 min-h-0"
-      >
+      <div className="flex flex-col flex-1 min-h-0">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-default/60">
           <ChartColumn size={14} className="shrink-0 text-accent" />
           <div className="flex-1 min-w-0">
