@@ -260,6 +260,14 @@ export function StackedResultItem({
             )}
             <span className="text-muted text-[11px] truncate whitespace-nowrap">
               {t("editor.rowsRetrieved", { count: entry.result!.rows.length })}
+              {entry.result!.columns.length > 0 && (
+                <span className="hidden @[400px]:inline">
+                  {" · "}
+                  {t("editor.columnsCount", {
+                    count: entry.result!.columns.length,
+                  })}
+                </span>
+              )}
               {entry.executionTime !== null && (
                 <span
                   className="hidden @[400px]:inline font-mono ml-1"

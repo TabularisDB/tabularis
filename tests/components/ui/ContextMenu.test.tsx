@@ -268,6 +268,61 @@ describe('ContextMenu', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
+  it('opens a submenu on click so it works without hover', () => {
+    const childAction = vi.fn();
+    render(
+      <ContextMenu
+        x={100}
+        y={100}
+        items={[
+          {
+            label: 'Filter by this value',
+            submenu: [{ label: 'Equals', action: childAction }],
+          },
+        ]}
+        onClose={mockOnClose}
+      />
+    );
+
+    const trigger = screen.getByText('Filter by this value').closest('button')!;
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Equals')).toBeNull();
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    // Opening the submenu doesn't close the menu.
+    expect(mockOnClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Equals'));
+    expect(childAction).toHaveBeenCalled();
+    expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  it('renders a badge chip in place of the icon and a mono header', () => {
+    render(
+      <ContextMenu
+        x={100}
+        y={100}
+        items={[
+          { label: 'created_at', header: true, mono: true, hint: '2026-01-10 03:00:00' },
+          { label: 'Greater than', badge: '>', action: mockAction1 },
+        ]}
+        onClose={mockOnClose}
+      />
+    );
+
+    const header = screen.getByText('created_at').parentElement!;
+    expect(header).toHaveClass('font-mono');
+    expect(header).not.toHaveClass('uppercase');
+    expect(screen.getByTitle('2026-01-10 03:00:00')).toHaveTextContent('2026-01-10 03:00:00');
+
+    const badge = screen.getByText('>');
+    expect(badge).toHaveClass('font-mono');
+    fireEvent.click(screen.getByText('Greater than'));
+    expect(mockAction1).toHaveBeenCalled();
+  });
+
   it('opens a submenu when its button receives keyboard focus', () => {
     render(
       <ContextMenu

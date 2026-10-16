@@ -27,6 +27,8 @@ export function validateFontSize(size: number): boolean {
  */
 export function getProviderLabel(id: AiProvider): string {
   switch (id) {
+    case 'chatgpt':
+      return 'ChatGPT';
     case 'openai':
       return 'OpenAI';
     case 'anthropic':

@@ -146,6 +146,41 @@ describe("ClipboardImportModal target schema", () => {
     await screen.findByText('clipboardImport.fileReadError: Permission denied');
   });
 
+  it('shows the plain noData message for a readable file without rows', async () => {
+    vi.mocked(readTextFile).mockResolvedValue('  \n');
+    renderModal();
+    await screen.findAllByText('Mechanical Keyboard');
+    fireEvent.click(screen.getByRole('button', {name:'clipboardImport.fileSource'}));
+    await screen.findByText('clipboardImport.noData');
+    expect(screen.queryByText(/clipboardImport\.fileReadError/)).not.toBeInTheDocument();
+  });
+
+  it('retries the file picker after a failed first file pick', async () => {
+    vi.mocked(readText).mockResolvedValue('');
+    vi.mocked(stat).mockResolvedValueOnce({size:DATA_IMPORT_FILE_LIMIT+1,isFile:true} as Awaited<ReturnType<typeof stat>>);
+    renderModal();
+    await screen.findByText('clipboardImport.noData');
+    fireEvent.click(screen.getByRole('button', {name:'clipboardImport.fileSource'}));
+    await screen.findByText('clipboardImport.fileTooLarge');
+    fireEvent.click(screen.getByRole('button', {name:'clipboardImport.retry'}));
+    await screen.findByText('items.csv');
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(readText).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries the clipboard when the file picker was cancelled', async () => {
+    vi.mocked(readText).mockResolvedValue('');
+    vi.mocked(open).mockResolvedValue(null);
+    renderModal();
+    await screen.findByText('clipboardImport.noData');
+    fireEvent.click(screen.getByRole('button', {name:'clipboardImport.fileSource'}));
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', {name:'clipboardImport.retry'}));
+    await waitFor(() => expect(readText).toHaveBeenCalledTimes(2));
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
   it('discards an older file read after the clipboard is selected', async () => {
     let finish!: (text:string) => void;
     vi.mocked(readTextFile).mockReturnValue(new Promise(resolve => {finish=resolve;}));

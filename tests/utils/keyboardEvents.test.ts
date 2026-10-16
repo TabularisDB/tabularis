@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { isTextCompositionKeyEvent, onActivationKey } from "../../src/utils/keyboardEvents";
+import { getShortcutFocusContext, isTextCompositionKeyEvent, onActivationKey } from "../../src/utils/keyboardEvents";
 
 describe("keyboardEvents", () => {
   describe("isTextCompositionKeyEvent", () => {
@@ -72,6 +72,50 @@ describe("keyboardEvents", () => {
       onActivationKey(activate)(event);
       expect(activate).not.toHaveBeenCalled();
       expect(event.preventDefault).not.toHaveBeenCalled();
+    });
+  });
+});
+
+
+describe("getShortcutFocusContext", () => {
+  it("treats a Monaco descendant as editable even without a text input", () => {
+    const editor = document.createElement("div");
+    editor.className = "monaco-editor";
+    const child = document.createElement("span");
+    editor.append(child);
+    expect(getShortcutFocusContext(child)).toEqual({
+      inMonaco: true, inEditable: true,
+    });
+  });
+
+  it.each(["input", "textarea", "select"])("recognizes a plain %s", (tag) => {
+    expect(getShortcutFocusContext(document.createElement(tag))).toEqual({
+      inMonaco: false, inEditable: true,
+    });
+  });
+
+  it("recognizes contentEditable and its descendants", () => {
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    const child = document.createElement("span");
+    editable.append(child);
+    expect(getShortcutFocusContext(editable)).toEqual({
+      inMonaco: false, inEditable: true,
+    });
+    expect(getShortcutFocusContext(child)).toEqual({
+      inMonaco: false, inEditable: true,
+    });
+  });
+
+  it.each(["button", "body"])("recognizes a non-editable %s", (tag) => {
+    expect(getShortcutFocusContext(document.createElement(tag))).toEqual({
+      inMonaco: false, inEditable: false,
+    });
+  });
+
+  it("accepts a missing focus element", () => {
+    expect(getShortcutFocusContext(null)).toEqual({
+      inMonaco: false, inEditable: false,
     });
   });
 });

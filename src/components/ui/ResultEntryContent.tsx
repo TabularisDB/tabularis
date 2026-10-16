@@ -163,7 +163,15 @@ export function ResultEntryContent({
           <span className="truncate whitespace-nowrap">
             {t("editor.rowsRetrieved", {
               count: entry.result.rows.length,
-            })}{" "}
+            })}
+            {entry.result.columns.length > 0 && (
+              <span className="hidden @[400px]:inline text-muted">
+                {" · "}
+                {t("editor.columnsCount", {
+                  count: entry.result.columns.length,
+                })}
+              </span>
+            )}{" "}
             {entry.executionTime !== null && (
               <span
                 className="hidden @[400px]:inline text-muted ml-2 font-mono"

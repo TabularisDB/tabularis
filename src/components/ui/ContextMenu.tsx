@@ -15,6 +15,12 @@ export interface ContextMenuItem {
   separator?: boolean;
   /** Renders a non-interactive section label instead of a clickable item. */
   header?: boolean;
+  /** Header only: keep the label's case and use the mono font (identifiers). */
+  mono?: boolean;
+  /** Header only: secondary text shown after the label, truncated (full text on hover). */
+  hint?: string;
+  /** Short monospace tag (e.g. a SQL operator) shown in a chip before the label. */
+  badge?: string;
   /** Nesting depth for tree-style menus; adds left indentation per level. */
   indent?: number;
   /** When set, the item opens a flyout submenu to the side on hover. */
@@ -48,9 +54,23 @@ const MenuRow = ({
 
   if (item.header) {
     return (
-      <div className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted flex items-center gap-1.5 select-none">
-        {item.icon && <item.icon size={11} className="text-muted" />}
-        {item.label}
+      <div
+        className={`px-3 pt-1.5 pb-1 text-muted flex items-center gap-1.5 select-none ${
+          item.mono
+            ? 'text-xs font-mono'
+            : 'text-[10px] font-semibold uppercase tracking-wider'
+        }`}
+      >
+        {item.icon && <item.icon size={11} className="shrink-0 text-muted" />}
+        <span className={item.hint !== undefined ? 'shrink-0 max-w-[50%] truncate' : 'truncate'}>{item.label}</span>
+        {item.hint !== undefined && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span title={item.hint} className="min-w-0 max-w-[16rem] truncate text-primary">
+              {item.hint}
+            </span>
+          </>
+        )}
       </div>
     );
   }
@@ -93,7 +113,13 @@ const MenuRow = ({
           ))}
         </span>
       )}
-      {Icon && <Icon size={14} className={`shrink-0 ${item.disabled ? 'text-muted/50' : item.danger ? 'text-accent-error' : 'text-secondary'}`} />}
+      {item.badge !== undefined ? (
+        <span className="shrink-0 min-w-[3.25rem] px-1 py-px rounded border border-default bg-surface-tertiary text-center font-mono text-[11px] font-semibold leading-4 text-accent [font-variant-ligatures:none]">
+          {item.badge}
+        </span>
+      ) : (
+        Icon && <Icon size={14} className={`shrink-0 ${item.disabled ? 'text-muted/50' : item.danger ? 'text-accent-error' : 'text-secondary'}`} />
+      )}
       <span className="truncate">{item.label}</span>
     </button>
   );
@@ -181,11 +207,18 @@ const SubmenuRow = ({
         if (!event.currentTarget.contains(event.relatedTarget as Node)) closeSubmenu();
       }}
     >
+      {/* A click also opens the flyout (focus and the arrow keys do too),
+          so its items are reachable without a pointer hover. */}
       <button
         ref={triggerRef}
         type="button"
         disabled={item.disabled}
+        aria-haspopup="menu"
         aria-expanded={open}
+        onClick={() => {
+          cancelClose();
+          setOpen(true);
+        }}
         onFocus={() => {
           if (suppressFocusOpen.current) {
             suppressFocusOpen.current = false;

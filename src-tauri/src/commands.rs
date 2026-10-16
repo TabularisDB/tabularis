@@ -646,15 +646,17 @@ fn is_loopback_host(host: &str) -> bool {
 /// Resolve params for closing a pool without respawning tunnels.
 ///
 /// `build_connection_key` uses `connection_id` (plus driver/database/TLS), not
-/// the K8s local port, so closing never needs a live kubectl port-forward.
+/// the tunnel's local port, so closing never needs a live SSH tunnel, SSM
+/// session, or kubectl port-forward. Disabling all tunnel types here means a
+/// dead bastion / unreachable cluster cannot prevent pool cleanup (#1065).
 pub(crate) fn params_for_pool_close(
     params: &ConnectionParams,
     connection_id: &str,
 ) -> Result<ConnectionParams, String> {
     let mut for_close = params.clone();
-    if for_close.k8s_enabled.unwrap_or(false) {
-        for_close.k8s_enabled = Some(false);
-    }
+    for_close.k8s_enabled = Some(false);
+    for_close.ssh_enabled = Some(false);
+    for_close.ssm_enabled = Some(false);
     resolve_connection_params_with_id(&for_close, connection_id)
 }
 
@@ -1361,11 +1363,15 @@ pub async fn get_ai_schema_context<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<String, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
     let driver = driver_for_params(&params).await?;
     let identifier_quote = driver.manifest().capabilities.identifier_quote.as_str();
     let context = driver
@@ -3072,6 +3078,29 @@ mod tests {
 
         let resolved = resolve_connection_params(&params).expect("resolve");
         assert_eq!(resolved.database.primary(), "'quoted_schema'");
+    }
+
+    #[test]
+    fn params_for_pool_close_disables_all_tunnel_types() {
+        // Pool keys depend on connection_id, not the tunnel's local port, so
+        // closing a pool must never respawn an SSH/SSM/K8s tunnel (#1065).
+        // Verify that all three are forced off regardless of the input.
+        let params = ConnectionParams {
+            k8s_enabled: Some(true),
+            ssh_enabled: Some(true),
+            ssm_enabled: Some(true),
+            ssh_host: Some("bastion".to_string()),
+            ssh_port: Some(22),
+            ssh_user: Some("user".to_string()),
+            ..base_params()
+        };
+
+        let resolved = params_for_pool_close(&params, "conn-1").expect("resolve");
+        assert_eq!(resolved.k8s_enabled, Some(false));
+        assert_eq!(resolved.ssh_enabled, Some(false));
+        assert_eq!(resolved.ssm_enabled, Some(false));
+        // connection_id is set for stable pool keying.
+        assert_eq!(resolved.connection_id.as_deref(), Some("conn-1"));
     }
 
     #[test]
@@ -6351,19 +6380,35 @@ pub async fn disconnect_connection<R: Runtime>(
             .invalidate_connection_metadata(Some(&connection_id))
             .await;
     }
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    // Pool keys depend on connection_id (not the tunnel local port), so skip
-    // K8s expansion here. A dead kubectl / unreachable cluster must not block
-    // close_pools_for_connection_id or emit_active_changed via `?` on K8sTunnel::new.
-    let params = params_for_pool_close(&expanded_params, &connection_id)?;
 
-    release_connection_sessions(&app, &connection_id, Some(&params)).await;
-
-    // Close every pool for this connection, including per-database override
-    // pools created while browsing multiple databases (see #946).
+    // Close pools before resolving SSH/K8s params. Pool keys depend only on
+    // connection_id (plus driver/database/TLS), not the tunnel's local port.
     // `close_pools_for_connection_id` matches by connection_id prefix, so it
-    // subsumes the single-key close on single-database connections.
-    crate::pool_manager::close_pools_for_connection_id(&params.driver, &connection_id).await;
+    // subsumes the single-key close on single-database connections and closes
+    // per-database override pools too (#1063). A dead bastion / unreachable
+    // cluster must not prevent pool cleanup (#1065).
+    crate::pool_manager::close_pools_for_connection_id(&saved_conn.params.driver, &connection_id)
+        .await;
+
+    // release_connection_sessions only needs params.driver to look up the
+    // driver for rollback — the same driver regardless of tunnel expansion.
+    // Since params_for_pool_close already disabled all tunnel types,
+    // close_params has the right driver and connection_id, so re-expanding
+    // SSH would only add a redundant keychain lookup that produces the same
+    // result. If even tunnel-free resolution fails, fall back to the saved
+    // params with just the connection_id set.
+    let close_params = match params_for_pool_close(&saved_conn.params, &connection_id) {
+        Ok(p) => p,
+        Err(e) => {
+            log::warn!(
+                "Failed to resolve tunnel-free params for session release on {connection_id}: {e}"
+            );
+            let mut fallback = saved_conn.params.clone();
+            fallback.connection_id = Some(connection_id.clone());
+            fallback
+        }
+    };
+    release_connection_sessions(&app, &connection_id, Some(&close_params)).await;
 
     // Broadcast so every window learns this connection is now closed.
     crate::health_check::emit_active_changed(&app).await;

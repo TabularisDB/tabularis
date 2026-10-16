@@ -17,6 +17,10 @@ import type { PaletteItem } from "../../src/types/palette";
 import { ROOT_COMMAND_SCOPE_ID } from "../../src/utils/commandScopeStore";
 import { createPaletteSearch } from "../../src/utils/paletteItems";
 
+vi.mock("../../src/hooks/useKeybindings", () => ({
+  useKeybindings: () => ({ shortcuts: [], overrides: {}, isMac: true }),
+}));
+
 const navigateMock = vi.fn();
 const addTabMock = vi.fn(() => "console-tab");
 const connectMock = vi
@@ -155,6 +159,36 @@ describe("CommandPaletteProvider", () => {
     databaseState.activeConnectionId = "connection-1";
     databaseState.connections = [];
     databaseState.openConnectionIds = [];
+  });
+
+  it("captures focus at open, keeps it across palette switches, and clears it on close", async () => {
+    let palette: PaletteContexts | undefined;
+    const { getByRole } = render(
+      <CommandPaletteProvider>
+        <div className="monaco-editor"><textarea aria-label="SQL editor" /></div>
+        <button type="button">Outside editor</button>
+        <PaletteTestHarness onContexts={(contexts) => { palette = contexts; }} />
+      </CommandPaletteProvider>,
+    );
+    expect(palette!.state.focusContext).toBeNull();
+    const editorInput = getByRole("textbox", { name: "SQL editor" });
+    editorInput.focus();
+    act(() => palette!.dispatch.openPalette("actions"));
+    expect(palette!.state.focusContext).toEqual({ inMonaco: true, inEditable: true });
+
+    const button = getByRole("button", { name: "Outside editor" });
+    button.focus();
+    act(() => palette!.dispatch.openPalette("objects"));
+    expect(palette!.state.focusContext).toEqual({ inMonaco: true, inEditable: true });
+    act(() => palette!.dispatch.closePalette());
+    expect(palette!.state.focusContext).toBeNull();
+    await waitFor(() => expect(editorInput).toHaveFocus());
+
+    button.focus();
+    act(() => palette!.dispatch.openPalette("actions"));
+    expect(palette!.state.focusContext).toEqual({ inMonaco: false, inEditable: false });
+    act(() => palette!.dispatch.closePalette());
+    await waitFor(() => expect(button).toHaveFocus());
   });
 
   it("should expose global and contextual built-in commands", () => {

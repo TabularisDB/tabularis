@@ -44,6 +44,8 @@ import {
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { toErrorMessage } from "../../utils/errors";
 import { useAlert } from "../../hooks/useAlert";
+import { useToast } from "../../hooks/useToast";
+import { getSavedQueryCopyName } from "../../utils/savedQueryNames";
 import { useEscapeKey } from "../../hooks/useEscapeKey";
 import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
@@ -207,6 +209,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     dismissRecoveryNotice: dismissHistoryRecoveryNotice,
   } = useQueryHistory();
   const { showAlert } = useAlert();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const objectNavigation = useDatabaseObjectNavigation(
     activeConnectionId,
@@ -1076,13 +1079,13 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           key={q.id}
                           aria-pressed={selectedFavoriteId === q.id}
                           onClick={() => setSelectedFavoriteId(q.id)}
-                          onDoubleClick={() => runQuery(q.sql, q.name, false, q.database ?? undefined)}
+                          onDoubleClick={() => runQuery(q.sql, q.name, false, undefined, q.database ?? undefined)}
                           onKeyDown={(e) => {
                             // Enter runs the query like a double click; Space keeps selecting it.
                             if (e.key === "Enter") {
                               e.preventDefault();
                               setSelectedFavoriteId(q.id);
-                              runQuery(q.sql, q.name, false, q.database ?? undefined);
+                              runQuery(q.sql, q.name, false, undefined, q.database ?? undefined);
                             }
                           }}
                           onContextMenu={(e) =>
@@ -2972,6 +2975,43 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     // run against the default database instead of the
                                     // saved one.
                                     runQuery(sq.sql, sq.name, false, undefined, sq.database ?? undefined);
+                                  }
+                                },
+                              },
+                              {
+                                label: t("sidebar.openInEditor"),
+                                icon: FileInput,
+                                action: () => {
+                                  if (contextMenu.data && "sql" in contextMenu.data) {
+                                    const sq = contextMenu.data as SavedQuery;
+                                    runQuery(sq.sql, sq.name, true, undefined, sq.database ?? undefined);
+                                  }
+                                },
+                              },
+                              {
+                                label: t("sidebar.copyQuery"),
+                                icon: Copy,
+                                action: async () => {
+                                  if (!contextMenu.data || !("sql" in contextMenu.data)) return;
+                                  try {
+                                    await copyTextToClipboard((contextMenu.data as SavedQuery).sql);
+                                    showToast(t("common.copied"), { kind: "success" });
+                                  } catch (error) {
+                                    showToast(`${t("common.error")}: ${toErrorMessage(error)}`, { kind: "error" });
+                                  }
+                                },
+                              },
+                              {
+                                label: t("connections.duplicate"),
+                                icon: Copy,
+                                action: async () => {
+                                  if (!contextMenu.data || !("sql" in contextMenu.data)) return;
+                                  const sq = contextMenu.data as SavedQuery;
+                                  const copyName = getSavedQueryCopyName(sq.name, queries.map((query) => query.name));
+                                  try {
+                                    await saveQuery(copyName, sq.sql, sq.database);
+                                  } catch (error) {
+                                    showToast(`${t("common.error")}: ${toErrorMessage(error)}`, { kind: "error" });
                                   }
                                 },
                               },

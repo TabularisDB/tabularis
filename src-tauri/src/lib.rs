@@ -1,4 +1,5 @@
 pub mod ai;
+pub mod chatgpt;
 pub mod ai_activity;
 #[cfg(test)]
 pub mod ai_activity_tests;
@@ -672,6 +673,13 @@ pub fn run() {
             ai::generate_tab_rename,
             ai::suggest_table_name,
             ai::get_ai_models,
+            chatgpt::get_chatgpt_session,
+            chatgpt::sign_in_chatgpt,
+            chatgpt::cancel_chatgpt_sign_in,
+            chatgpt::select_chatgpt_profile,
+            chatgpt::sign_out_chatgpt,
+            chatgpt::get_chatgpt_models,
+            chatgpt::open_chatgpt_usage,
             // Clipboard Import
             clipboard_import::execute_clipboard_import,
             commands::get_ai_schema_context,

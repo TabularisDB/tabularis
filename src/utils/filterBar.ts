@@ -200,21 +200,7 @@ export function buildSingleFilterClause(
   }
 
   if (op === "contains" || op === "starts with" || op === "ends with") {
-    const escaped = escapeLikePattern(filter.value);
-    let pattern: string;
-    if (op === "contains") {
-      pattern = `%${escaped}%`;
-    } else if (op === "starts with") {
-      pattern = `${escaped}%`;
-    } else {
-      pattern = `%${escaped}`;
-    }
-    // MySQL/MariaDB (default sql_mode) treat backslash as an escape inside
-    // string literals, so a literal backslash must be doubled to survive.
-    const literal = usesBackslashStringEscapes(driver)
-      ? pattern.replace(/\\/g, "\\\\")
-      : pattern;
-    return `${col} LIKE ${quoteLiteral(literal)} ESCAPE '${LIKE_ESCAPE}'`;
+    return buildLiteralLikeClause(col, filter.value, op, driver);
   }
 
   if (op === "BETWEEN") {
@@ -245,6 +231,38 @@ export function buildSingleFilterClause(
       doubleQuotedValue,
     );
   }
+}
+
+/** Where a literal LIKE match may sit inside the column value. */
+export type LikeMatchMode = "contains" | "starts with" | "ends with";
+
+/**
+ * Builds `col LIKE '<pattern>' ESCAPE '!'` that matches `value` literally:
+ * `%`, `_` and the escape character in the value are escaped, so they don't
+ * act as wildcards, and the pattern is wrapped with `%` according to `mode`.
+ * `col` must already be a quoted/formatted identifier.
+ */
+export function buildLiteralLikeClause(
+  col: string,
+  value: string,
+  mode: LikeMatchMode,
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+): string {
+  const escaped = escapeLikePattern(value);
+  let pattern: string;
+  if (mode === "contains") {
+    pattern = `%${escaped}%`;
+  } else if (mode === "starts with") {
+    pattern = `${escaped}%`;
+  } else {
+    pattern = `%${escaped}`;
+  }
+  // MySQL/MariaDB (default sql_mode) treat backslash as an escape inside
+  // string literals, so a literal backslash must be doubled to survive.
+  const literal = usesBackslashStringEscapes(driver)
+    ? pattern.replace(/\\/g, "\\\\")
+    : pattern;
+  return `${col} LIKE ${quoteLiteral(literal)} ESCAPE '${LIKE_ESCAPE}'`;
 }
 
 /**

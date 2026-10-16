@@ -356,3 +356,16 @@ function formatKey(key: string | undefined, isMac: boolean): string {
   if (key.length === 1) return key.toUpperCase();
   return key;
 }
+
+export function formatShortcut(
+  def: ShortcutDef,
+  overrides: UserOverrides,
+  isMac: boolean,
+): string {
+  const override = overrides[def.id];
+  return override
+    ? formatMatch(isMac ? override.mac : override.win, isMac)
+    : isMac
+      ? def.defaultMac
+      : def.defaultWin;
+}

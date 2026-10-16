@@ -14,6 +14,10 @@ const TYPING_SAFE_SHORTCUTS = [
   "focus_table_filter",
   "open_settings",
   "close_tab",
+  "toggle_sidebar",
+  "toggle_right_sidebar",
+  "open_connections",
+  "new_connection",
 ];
 
 /**
@@ -55,7 +59,8 @@ export function useGlobalShortcuts() {
         e.ctrlKey !== e.metaKey;
       if (
         isTypingTarget &&
-        !TYPING_SAFE_SHORTCUTS.some((id) => matchesShortcut(e, id))
+        !TYPING_SAFE_SHORTCUTS.some((id) => matchesShortcut(e, id)) &&
+        connectionIndexFromShortcut(e, isMac) === null
       ) {
         return;
       }

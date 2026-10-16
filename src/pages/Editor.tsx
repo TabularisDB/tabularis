@@ -5328,7 +5328,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       <span className="truncate whitespace-nowrap">
                         {t("editor.rowsRetrieved", {
                           count: activeTab.result.rows.length,
-                        })}{" "}
+                        })}
+                        {activeTab.result.columns.length > 0 && (
+                          <span className="hidden @[400px]:inline text-muted">
+                            {" · "}
+                            {t("editor.columnsCount", {
+                              count: activeTab.result.columns.length,
+                            })}
+                          </span>
+                        )}{" "}
                         {activeTab.executionTime !== null && (
                           <span
                             className="hidden @[400px]:inline text-muted ml-2 font-mono"
@@ -5847,6 +5855,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         onClose={() => setIsAiModalOpen(false)}
         connectionId={activeConnectionId ?? undefined}
         schema={activeTab?.schema ?? activeSchema ?? undefined}
+        database={activeTab?.database}
         onInsert={(q) => {
           updateActiveTab({ query: q });
           // AI-generated SQL uses the same production-first safety pipeline.

@@ -24,6 +24,7 @@ export interface PaletteItem {
   description?: string;
   group?: string;
   badge?: string;
+  shortcut?: string;
   keywords?: string[];
   icon?: PaletteIcon;
   relevance?: number;
