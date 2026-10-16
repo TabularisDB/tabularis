@@ -2203,9 +2203,9 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
         migrated_connections.push(conn);
     }
 
-    // Save migrated SSH connections
-    let ssh_json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
-    persistence::write_private_file(&ssh_path, ssh_json)?;
+    // Save migrated SSH connections through the shared-aware helper, so a
+    // shared profile already in the file keeps its secrets out of it.
+    persistence::save_ssh_connections_file(&ssh_path, &ssh_connections)?;
 
     // Save migrated connections using new format (preserving groups)
     conn_file.connections = migrated_connections;
