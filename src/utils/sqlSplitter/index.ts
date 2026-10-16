@@ -290,6 +290,15 @@ export function splitQueries(
   return splitStatements(sql, dialect).map((s) => s.text);
 }
 
+/** Like `splitStatements`, but T-SQL splits on `GO` only so `DECLARE @var` scope survives. */
+export function splitBatches(
+  sql: string,
+  dialect?: Dialect | string,
+): Statement[] {
+  const options = dialectOptions(normalizeDialect(dialect));
+  return splitInto(sql, options, options.goDelimiter);
+}
+
 /**
  * Spans of every string literal and comment in `sql` — the regions
  * where a `:name` is data, not a potential bind parameter.

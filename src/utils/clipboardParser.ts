@@ -58,34 +58,49 @@ function parseTsv(text: string): string[][] {
 }
 
 function parseCsv(text: string): string[][] {
-  const firstLine = text.split('\n')[0] ?? '';
-  const separator =
-    (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0)
-      ? ';'
-      : ',';
+  let commas = 0;
+  let semicolons = 0;
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') {
+      if (quoted && text[i + 1] === '"') i++;
+      else quoted = !quoted;
+    } else if (!quoted) {
+      if (ch === '\r' || ch === '\n') break;
+      if (ch === ',') commas++;
+      if (ch === ';') semicolons++;
+    }
+  }
+  const separator = semicolons > commas ? ';' : ',';
 
-  return text
-    .trim()
-    .split('\n')
-    .map((line) => {
-      const cells: string[] = [];
-      let current = '';
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"') {
-          if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
-          else inQuotes = !inQuotes;
-        } else if (ch === separator && !inQuotes) {
-          cells.push(current.trim());
-          current = '';
-        } else {
-          current += ch;
-        }
-      }
+  const rows: string[][] = [];
+  let cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  // Keep quote state across physical lines: a quoted newline is cell data.
+  const input = text.trim();
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === '"') {
+      if (inQuotes && input[i + 1] === '"') { current += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (ch === separator && !inQuotes) {
       cells.push(current.trim());
-      return cells;
-    });
+      current = '';
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      if (ch === '\r' && input[i + 1] === '\n') i++;
+      cells.push(current.trim());
+      rows.push(cells);
+      cells = [];
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  cells.push(current.trim());
+  rows.push(cells);
+  return rows;
 }
 
 function parseJsonArray(text: string): { headers: string[]; rows: string[][] } | null {
@@ -190,7 +205,8 @@ function isLikelyHeader(firstRow: string[], dataRows: string[][]): boolean {
 
 function normalizeRows(rows: string[][]): string[][] {
   if (rows.length === 0) return rows;
-  const maxCols = Math.max(...rows.map((r) => r.length));
+  let maxCols = 0;
+  for (const row of rows) maxCols = Math.max(maxCols, row.length);
   return rows.map((r) => {
     const padded = [...r];
     while (padded.length < maxCols) padded.push('');
@@ -198,9 +214,9 @@ function normalizeRows(rows: string[][]): string[][] {
   });
 }
 
-export function parseClipboardText(text: string): ParsedClipboardData {
+export function parseClipboardText(text: string, formatHint?: ClipboardFormat): ParsedClipboardData {
   const warnings: string[] = [];
-  const format = detectFormat(text);
+  const format = formatHint ?? detectFormat(text);
 
   let rawRows: string[][] = [];
   let hasHeaderRow = true;

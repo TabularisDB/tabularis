@@ -15,6 +15,12 @@ export interface ContextMenuItem {
   separator?: boolean;
   /** Renders a non-interactive section label instead of a clickable item. */
   header?: boolean;
+  /** Header only: keep the label's case and use the mono font (identifiers). */
+  mono?: boolean;
+  /** Header only: secondary text shown after the label, truncated (full text on hover). */
+  hint?: string;
+  /** Short monospace tag (e.g. a SQL operator) shown in a chip before the label. */
+  badge?: string;
   /** Nesting depth for tree-style menus; adds left indentation per level. */
   indent?: number;
   /** When set, the item opens a flyout submenu to the side on hover. */
@@ -33,16 +39,38 @@ interface ContextMenuProps {
 }
 
 /** Renders a single interactive/label/separator row (no submenu handling). */
-const MenuRow = ({ item, onClose }: { item: ContextMenuItem; onClose: () => void }) => {
+const MenuRow = ({
+  item,
+  onClose,
+  onKeyDown,
+}: {
+  item: ContextMenuItem;
+  onClose: () => void;
+  onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
+}) => {
   if (item.separator) {
     return <div className="h-px bg-default my-1" />;
   }
 
   if (item.header) {
     return (
-      <div className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted flex items-center gap-1.5 select-none">
-        {item.icon && <item.icon size={11} className="text-muted" />}
-        {item.label}
+      <div
+        className={`px-3 pt-1.5 pb-1 text-muted flex items-center gap-1.5 select-none ${
+          item.mono
+            ? 'text-xs font-mono'
+            : 'text-[10px] font-semibold uppercase tracking-wider'
+        }`}
+      >
+        {item.icon && <item.icon size={11} className="shrink-0 text-muted" />}
+        <span className={item.hint !== undefined ? 'shrink-0 max-w-[50%] truncate' : 'truncate'}>{item.label}</span>
+        {item.hint !== undefined && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span title={item.hint} className="min-w-0 max-w-[16rem] truncate text-primary">
+              {item.hint}
+            </span>
+          </>
+        )}
       </div>
     );
   }
@@ -51,6 +79,7 @@ const MenuRow = ({ item, onClose }: { item: ContextMenuItem; onClose: () => void
   const depth = item.indent ?? 0;
   return (
     <button
+      onKeyDown={onKeyDown}
       onClick={() => {
         if (!item.disabled && item.action) {
           item.action();
@@ -84,7 +113,13 @@ const MenuRow = ({ item, onClose }: { item: ContextMenuItem; onClose: () => void
           ))}
         </span>
       )}
-      {Icon && <Icon size={14} className={`shrink-0 ${item.disabled ? 'text-muted/50' : item.danger ? 'text-accent-error' : 'text-secondary'}`} />}
+      {item.badge !== undefined ? (
+        <span className="shrink-0 min-w-[3.25rem] px-1 py-px rounded border border-default bg-surface-tertiary text-center font-mono text-[11px] font-semibold leading-4 text-accent [font-variant-ligatures:none]">
+          {item.badge}
+        </span>
+      ) : (
+        Icon && <Icon size={14} className={`shrink-0 ${item.disabled ? 'text-muted/50' : item.danger ? 'text-accent-error' : 'text-secondary'}`} />
+      )}
       <span className="truncate">{item.label}</span>
     </button>
   );
@@ -104,8 +139,12 @@ const SubmenuRow = ({
   // Vertical shift keeping the flyout inside the viewport when the row is
   // near the bottom edge (measured right after the flyout mounts).
   const [offsetY, setOffsetY] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusFirstOnOpen = useRef(false);
+  const suppressFocusOpen = useRef(false);
 
   const cancelClose = () => {
     if (closeTimer.current) {
@@ -116,9 +155,28 @@ const SubmenuRow = ({
   const scheduleClose = () => {
     cancelClose();
     closeTimer.current = setTimeout(() => {
-      setOpen(false);
-      setOffsetY(0);
+      if (!rootRef.current?.contains(document.activeElement)) {
+        setOpen(false);
+        setOffsetY(0);
+      }
     }, 120);
+  };
+  const closeSubmenu = () => {
+    cancelClose();
+    setOpen(false);
+    setOffsetY(0);
+  };
+  const focusFirstItem = () => {
+    submenuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+  };
+  const handleSubmenuKeyDown: React.KeyboardEventHandler<HTMLButtonElement> = (event) => {
+    if (event.key === 'ArrowLeft' || event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      suppressFocusOpen.current = true;
+      closeSubmenu();
+      triggerRef.current?.focus();
+    }
   };
 
   useEffect(() => () => cancelClose(), []);
@@ -129,22 +187,62 @@ const SubmenuRow = ({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     setOffsetY(calculateSubmenuOffsetY(rect.top, rect.height, window.innerHeight));
+    if (focusFirstOnOpen.current) {
+      focusFirstOnOpen.current = false;
+      focusFirstItem();
+    }
   }, [open]);
 
   const Icon = item.icon;
   return (
     <div
+      ref={rootRef}
       className="relative"
       onMouseEnter={() => {
         cancelClose();
         setOpen(true);
       }}
       onMouseLeave={scheduleClose}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) closeSubmenu();
+      }}
     >
+      {/* A click also opens the flyout (focus and the arrow keys do too),
+          so its items are reachable without a pointer hover. */}
       <button
+        ref={triggerRef}
+        type="button"
         disabled={item.disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => {
+          cancelClose();
+          setOpen(true);
+        }}
+        onFocus={() => {
+          if (suppressFocusOpen.current) {
+            suppressFocusOpen.current = false;
+            return;
+          }
+          cancelClose();
+          setOpen(true);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            if (open) focusFirstItem();
+            else {
+              focusFirstOnOpen.current = true;
+              setOpen(true);
+            }
+          } else if ((event.key === 'ArrowLeft' || event.key === 'Escape') && open) {
+            event.preventDefault();
+            event.stopPropagation();
+            closeSubmenu();
+          }
+        }}
         className={`
-          w-full text-left pl-3 pr-2 py-2 text-sm flex items-center gap-2
+          w-full text-left pl-3 pr-2 py-2 text-sm flex items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus
           ${item.disabled
             ? 'text-muted/50 cursor-not-allowed'
             : `text-primary ${open ? 'bg-surface-tertiary' : 'hover:bg-surface-tertiary'}`
@@ -169,7 +267,7 @@ const SubmenuRow = ({
         >
           {item.submenu.map((sub, i) => {
             const subKey = sub.separator ? `sub-sep-${i}` : (sub.label ? `${sub.label}-${i}` : `sub-${i}`);
-            return <MenuRow key={subKey} item={sub} onClose={onClose} />;
+            return <MenuRow key={subKey} item={sub} onClose={onClose} onKeyDown={handleSubmenuKeyDown} />;
           })}
         </div>
       )}

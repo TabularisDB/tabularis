@@ -318,6 +318,13 @@ export function isDestructiveApproval(p: PendingApproval): boolean {
   return p.queryKind === "write" || p.queryKind === "ddl" || p.queryKind === "unknown";
 }
 
+/// Connection shown to the approver: `connection / database` when the MCP
+/// caller picked a database other than the connection's default, so a write
+/// can't land somewhere the approver didn't expect.
+export function approvalConnectionLabel(p: PendingApproval): string {
+  return p.database ? `${p.connectionName} / ${p.database}` : p.connectionName;
+}
+
 const QUERY_KIND_ORDER: Record<AiQueryKind, number> = {
   select: 0,
   write: 1,

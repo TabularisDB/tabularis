@@ -44,6 +44,8 @@ export interface QueryResult {
   /// `src-tauri/src/models.rs::QueryResult`; the first set stays in
   /// `columns` / `rows`.
   additional_results?: QueryResult[];
+  server_time_ms?: number;
+  fetch_time_ms?: number;
 }
 
 /// One statement's outcome inside an `execute_query_batch` invocation.
@@ -85,6 +87,8 @@ export interface PendingInsertion {
   displayIndex: number;
 }
 
+export type AutoRefreshInterval = 0 | 5000 | 10000 | 30000 | 60000;
+
 export interface Tab {
   id: string;
   title: string;
@@ -102,6 +106,9 @@ export interface Tab {
   columnMetadata?: TableColumn[]; // Full column metadata (includes data_type for geometric types, etc.)
   foreignKeys?: ForeignKey[]; // FK definitions for the active table (used for click-to-navigate)
   isLoading?: boolean;
+  autoRefreshIntervalMs?: AutoRefreshInterval;
+  isAutoRefreshing?: boolean;
+  autoRefreshError?: string;
   connectionId: string;
   flowState?: FlowState;
   pendingChanges?: Record<
@@ -118,6 +125,11 @@ export interface Tab {
   pageSize?: number; // Per-tab rows-per-page override; 0 = fetch all rows (no pagination); unset = follow the global setting
   queryParams?: Record<string, string>; // Saved values for query parameters
   schema?: string; // Schema name (PostgreSQL) for query reconstruction
+  /** Database name for a schema-based multi-db driver browsing several
+   * databases on one connection (see isSchemaBasedMultiDb). Distinct from
+   * `schema` — unlike MySQL's flat multi-db mode, which reuses `schema` to
+   * hold the database name, this driver needs both at once. */
+  database?: string;
   readOnly?: boolean; // Hides the Run button (e.g. for definition views)
   materialized?: boolean; // Grid data is read-only (e.g. materialized views: only REFRESH writes)
   results?: QueryResultEntry[];
@@ -138,6 +150,8 @@ export interface EditorPreferences {
 interface EditorNavigationBase {
   initialQuery: string;
   schema?: string;
+  /** See `Tab.database`. */
+  database?: string;
   targetConnectionId?: string;
 }
 
@@ -174,6 +188,8 @@ export interface AddTabInput {
   query: string;
   activeTable: string | null;
   schema?: string;
+  /** See `Tab.database`. */
+  database?: string;
   readOnly?: boolean;
   materialized?: boolean;
 }

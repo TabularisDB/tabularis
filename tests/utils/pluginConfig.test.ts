@@ -1,10 +1,19 @@
 import { describe, it, expect } from "vitest";
 import {
+  DEFAULT_PLUGIN_CALL_TIMEOUT_SECONDS,
+  DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECONDS,
+  MAX_PLUGIN_CALL_TIMEOUT_SECONDS,
   getDisplayInterpreter,
+  parseCallTimeoutSeconds,
+  parseShutdownGraceSeconds,
   removePluginConfig,
+  resolveEffectiveCallTimeout,
+  resolveEffectiveShutdownGrace,
   resolvePluginConfig,
   resolveSettingsWithDefaults,
   validateSettings,
+  withCallTimeoutOverride,
+  withShutdownGraceOverride,
 } from "../../src/utils/pluginConfig";
 import type { PluginConfig } from "../../src/contexts/SettingsContext";
 import type { PluginSettingDefinition } from "../../src/types/plugins";
@@ -190,5 +199,124 @@ describe("validateSettings", () => {
     const errors = validateSettings(defs, {});
     expect(errors["api_key"]).toBe("API Key");
     expect(errors["region"]).toBe("Region");
+  });
+});
+
+describe("parseCallTimeoutSeconds", () => {
+  it("returns undefined for blank input", () => {
+    expect(parseCallTimeoutSeconds("")).toBeUndefined();
+    expect(parseCallTimeoutSeconds("   ")).toBeUndefined();
+  });
+
+  it("returns undefined for non-numeric input", () => {
+    expect(parseCallTimeoutSeconds("abc")).toBeUndefined();
+  });
+
+  it("parses whole seconds and floors fractions", () => {
+    expect(parseCallTimeoutSeconds("300")).toBe(300);
+    expect(parseCallTimeoutSeconds(" 45.9 ")).toBe(45);
+  });
+
+  it("keeps 0 as the 'no timeout' value", () => {
+    expect(parseCallTimeoutSeconds("0")).toBe(0);
+  });
+
+  it("clamps negative and oversized values", () => {
+    expect(parseCallTimeoutSeconds("-5")).toBe(0);
+    expect(parseCallTimeoutSeconds("99999999")).toBe(MAX_PLUGIN_CALL_TIMEOUT_SECONDS);
+  });
+});
+
+describe("withCallTimeoutOverride", () => {
+  it("sets the override and preserves other fields", () => {
+    const config: PluginConfig = { interpreter: "python3", settings: { a: 1 } };
+    expect(withCallTimeoutOverride(config, "600")).toEqual({
+      interpreter: "python3",
+      settings: { a: 1 },
+      callTimeoutSeconds: 600,
+    });
+  });
+
+  it("removes the override on blank input", () => {
+    const result = withCallTimeoutOverride({ callTimeoutSeconds: 30 }, "");
+    expect(Object.prototype.hasOwnProperty.call(result, "callTimeoutSeconds")).toBe(false);
+  });
+
+  it("does not mutate the input config", () => {
+    const config: PluginConfig = { callTimeoutSeconds: 30 };
+    withCallTimeoutOverride(config, "90");
+    expect(config.callTimeoutSeconds).toBe(30);
+  });
+});
+
+describe("resolveEffectiveCallTimeout", () => {
+  it("falls back to the host default", () => {
+    expect(resolveEffectiveCallTimeout(undefined, undefined)).toBe(
+      DEFAULT_PLUGIN_CALL_TIMEOUT_SECONDS,
+    );
+  });
+
+  it("uses the global value when the plugin has no override", () => {
+    expect(resolveEffectiveCallTimeout(300, { interpreter: "python3" })).toBe(300);
+  });
+
+  it("prefers the plugin override, including 0", () => {
+    expect(resolveEffectiveCallTimeout(300, { callTimeoutSeconds: 30 })).toBe(30);
+    expect(resolveEffectiveCallTimeout(300, { callTimeoutSeconds: 0 })).toBe(0);
+  });
+});
+
+describe("parseShutdownGraceSeconds", () => {
+  it("returns undefined for blank or invalid input", () => {
+    expect(parseShutdownGraceSeconds("")).toBeUndefined();
+    expect(parseShutdownGraceSeconds("abc")).toBeUndefined();
+  });
+
+  it("clamps to the minimum grace and the upper bound", () => {
+    expect(parseShutdownGraceSeconds("0")).toBe(1);
+    expect(parseShutdownGraceSeconds("-3")).toBe(1);
+    expect(parseShutdownGraceSeconds("12.8")).toBe(12);
+    expect(parseShutdownGraceSeconds("99999999")).toBe(MAX_PLUGIN_CALL_TIMEOUT_SECONDS);
+  });
+});
+
+describe("withShutdownGraceOverride", () => {
+  it("sets the override and preserves other fields", () => {
+    const config: PluginConfig = { interpreter: "python3", callTimeoutSeconds: 30 };
+    expect(withShutdownGraceOverride(config, "8")).toEqual({
+      interpreter: "python3",
+      callTimeoutSeconds: 30,
+      shutdownGraceSeconds: 8,
+    });
+  });
+
+  it("removes the override on blank input", () => {
+    const result = withShutdownGraceOverride({ shutdownGraceSeconds: 8 }, "");
+    expect(Object.prototype.hasOwnProperty.call(result, "shutdownGraceSeconds")).toBe(false);
+  });
+
+  it("does not mutate the input config", () => {
+    const config: PluginConfig = { shutdownGraceSeconds: 8 };
+    withShutdownGraceOverride(config, "3");
+    expect(config.shutdownGraceSeconds).toBe(8);
+  });
+});
+
+describe("resolveEffectiveShutdownGrace", () => {
+  it("falls back to the two second host default", () => {
+    expect(resolveEffectiveShutdownGrace(undefined, undefined)).toBe(
+      DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECONDS,
+    );
+    expect(DEFAULT_PLUGIN_SHUTDOWN_GRACE_SECONDS).toBe(2);
+  });
+
+  it("uses the global value when the plugin has no override", () => {
+    expect(resolveEffectiveShutdownGrace(30, { interpreter: "python3" })).toBe(30);
+  });
+
+  it("prefers the plugin override and clamps zero to the minimum", () => {
+    expect(resolveEffectiveShutdownGrace(30, { shutdownGraceSeconds: 8 })).toBe(8);
+    expect(resolveEffectiveShutdownGrace(30, { shutdownGraceSeconds: 0 })).toBe(1);
+    expect(resolveEffectiveShutdownGrace(0, undefined)).toBe(1);
   });
 });

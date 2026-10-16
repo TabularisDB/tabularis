@@ -53,7 +53,7 @@ pub fn extract_value(
         return value;
     }
 
-    if let Some(value) = scalar::extract_fallback_value(row, index) {
+    if let Some(value) = scalar::extract_fallback_value(row, index, &effective_type) {
         return value;
     }
 

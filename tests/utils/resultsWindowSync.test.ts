@@ -4,11 +4,15 @@ import {
   hasMultiResults,
   singleResultToEntry,
   applyAction,
+  applyCopyResult,
+  resultsCopyEvent,
+  resultsSyncEvent,
   SINGLE_RESULT_ENTRY_ID,
   type ResultsDisplaySettings,
   type ResultsWindowActionHandlers,
   type ResultsSyncPayload,
 } from "../../src/utils/resultsWindowSync";
+import { generateTabId } from "../../src/utils/editor";
 import type { Tab, QueryResult, QueryResultEntry } from "../../src/types/editor";
 
 const settings: ResultsDisplaySettings = {
@@ -157,6 +161,8 @@ describe("applyAction", () => {
       onCloseAllEntries: vi.fn(),
       onRenameEntry: vi.fn(),
       onLoadCount: vi.fn(),
+      onCopyAllRows: vi.fn(),
+      onCopyEntryAllRows: vi.fn(),
     };
   }
 
@@ -195,10 +201,55 @@ describe("applyAction", () => {
     expect(h.onLoadCount).toHaveBeenCalledTimes(1);
   });
 
+  it("dispatches copy-all actions", () => {
+    const h = makeHandlers();
+    applyAction({ type: "copy-all-rows" }, h);
+    applyAction({ type: "copy-entry-all-rows", entryId: "e3" }, h);
+    expect(h.onCopyAllRows).toHaveBeenCalledTimes(1);
+    expect(h.onCopyEntryAllRows).toHaveBeenCalledWith("e3");
+  });
+
   it("only calls the handler matching the action type", () => {
     const h = makeHandlers();
     applyAction({ type: "load-count" }, h);
     expect(h.onRunQueryPage).not.toHaveBeenCalled();
     expect(h.onPageChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("applyCopyResult", () => {
+  function makeHandlers() {
+    return { onCopied: vi.fn(), onError: vi.fn() };
+  }
+
+  it("passes copied rows", () => {
+    const h = makeHandlers();
+    applyCopyResult({ text: "id\n1", count: 1 }, h);
+    expect(h.onCopied).toHaveBeenCalledWith({ text: "id\n1", count: 1 });
+    expect(h.onError).not.toHaveBeenCalled();
+  });
+
+  it("passes the error", () => {
+    const h = makeHandlers();
+    applyCopyResult({ error: "boom" }, h);
+    expect(h.onError).toHaveBeenCalledWith("boom");
+    expect(h.onCopied).not.toHaveBeenCalled();
+  });
+});
+
+describe("per-tab event names", () => {
+  it("gives each tab its own sync and copy event", () => {
+    expect(resultsSyncEvent("a")).not.toBe(resultsSyncEvent("b"));
+    expect(resultsCopyEvent("a")).not.toBe(resultsCopyEvent("b"));
+    expect(resultsSyncEvent("a")).not.toBe(resultsCopyEvent("a"));
+  });
+
+  it("builds names Tauri accepts from generated tab ids", () => {
+    const tauriEventName = /^[a-zA-Z0-9\-/:_]+$/;
+    for (let i = 0; i < 100; i++) {
+      const id = generateTabId();
+      expect(resultsSyncEvent(id)).toMatch(tauriEventName);
+      expect(resultsCopyEvent(id)).toMatch(tauriEventName);
+    }
   });
 });

@@ -188,6 +188,21 @@ describe("ShortcutsTab", () => {
     overridesMock = {};
   });
 
+  it("shows the override label in the shortcut list", () => {
+    overridesMock = {
+      open_settings: {
+        mac: { metaKey: true, shiftKey: true, key: "k" },
+        win: { ctrlKey: true, shiftKey: true, key: "k" },
+      },
+    };
+    render(<ShortcutsTab />);
+    const row = screen.getByText("settings.shortcuts.openSettings")
+      .parentElement?.parentElement;
+    if (!row) throw new Error("Missing settings shortcut row");
+    expect(within(row).getByText("⌘+Shift+K").tagName).toBe("KBD");
+    expect(within(row).queryByText("⌘+,")).not.toBeInTheDocument();
+  });
+
   it("should expose the shortcut editor as a labelled dialog", () => {
     openShortcutEditor();
 

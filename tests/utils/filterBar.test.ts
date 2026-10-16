@@ -6,10 +6,23 @@ import {
   getOperatorsForType,
   buildSingleFilterClause,
   buildStructuredFilterClause,
+  isFilterComplete,
+  NO_VALUE_OPS,
   createEmptyFilter,
+  isValuePickerSupported,
+  buildDistinctValuesQuery,
+  buildValuePickerWhere,
+  parseDistinctValues,
+  filterDistinctValues,
+  formatPickedValue,
+  applyPickedValues,
+  getPickedValues,
+  splitInList,
+  VALUE_PICKER_LIMIT,
 } from "../../src/utils/filterBar";
 import type { TableColumn } from "../../src/types/editor";
 import type { StructuredFilter } from "../../src/utils/filterBar";
+import type { DriverCapabilities } from "../../src/types/plugins";
 
 const makeColumn = (name: string, data_type: string): TableColumn => ({
   name,
@@ -17,6 +30,64 @@ const makeColumn = (name: string, data_type: string): TableColumn => ({
   is_pk: false,
   is_nullable: true,
   is_auto_increment: false,
+});
+
+describe("filter string literals with backslashes", () => {
+  const filter = (value: string): StructuredFilter => ({
+    id: "path", column: "name", operator: "=", value,
+  });
+
+  it.each(["mysql", "mariadb"])("escapes typed and picked values for %s", (driver) => {
+    for (const value of ["a\\", "C:\\new", "x\\'quoted", 'a\\"b', "\\0\\r\\t\\Z"]) {
+      const literal = `'${value.replace(/\\/g, "\\\\").replace(/'/g, "''")}'`;
+      expect(buildSingleFilterClause(filter(value), driver)).toBe(`name = ${literal}`);
+      expect(buildSingleFilterClause(filter(formatPickedValue(value, "text")), driver))
+        .toBe(`name = ${literal}`);
+    }
+  });
+
+  it.each(["mysql", "mariadb"])("keeps picked IN values inside their literals for %s", (driver) => {
+    const values = ["x\\", ") OR 1=1 #", "O'Hare\\, TX"];
+    const picked = applyPickedValues(filter(""), values, "text");
+    expect(buildSingleFilterClause(picked, driver)).toBe(
+      "name IN ('x\\\\', ') OR 1=1 #', 'O''Hare\\\\, TX')",
+    );
+    expect(buildSingleFilterClause({ ...picked, operator: "NOT IN" }, driver)).toBe(
+      "name NOT IN ('x\\\\', ') OR 1=1 #', 'O''Hare\\\\, TX')",
+    );
+  });
+
+  it.each(["postgres", "sqlite", "mssql"])("preserves literal backslashes for %s", (driver) => {
+    const value = "C:\\new\\";
+    expect(buildSingleFilterClause(filter(value), driver)).toBe("name = 'C:\\new\\'");
+    expect(buildSingleFilterClause(filter(formatPickedValue(value, "text")), driver))
+      .toBe("name = 'C:\\new\\'");
+  });
+
+  it.each(["mysql", "mariadb", "postgres", "sqlite", "mssql"])(
+    "combines double-quoted IN text with literal backslashes for %s",
+    (driver) => {
+      const value = '"C:\\new", "a\\", "O""Brien, TX", "", " padded", "007"';
+      const slash = driver === "mysql" || driver === "mariadb" ? "\\\\" : "\\";
+      for (const operator of ["IN", "NOT IN"] as const) {
+        expect(buildSingleFilterClause({ ...filter(value), operator }, driver)).toBe(
+          `name ${operator} ('C:${slash}new', 'a${slash}', 'O"Brien, TX', '', ' padded', '007')`,
+        );
+      }
+      expect(getPickedValues({ ...filter(value), operator: "IN" })).toEqual([
+        "C:\\new", "a\\", 'O"Brien, TX', "", " padded", "007",
+      ]);
+    },
+  );
+
+  it("uses the declared plugin dialect and covers BETWEEN and quoted inputs", () => {
+    const driver = { sql_dialect: "mysql" } as DriverCapabilities;
+    expect(buildSingleFilterClause(filter("'a\\'"), driver)).toBe("name = 'a\\\\'");
+    expect(buildSingleFilterClause(filter('"a\\"'), driver)).toBe('name = "a\\\\"');
+    expect(buildSingleFilterClause({ ...filter("a\\"), operator: "BETWEEN", value2: "C:\\new" }, driver))
+      .toBe("name BETWEEN 'a\\\\' AND 'C:\\\\new'");
+    expect(buildSingleFilterClause(filter("123"), driver)).toBe("name = 123");
+  });
 });
 
 describe("filterBar utils", () => {
@@ -152,6 +223,33 @@ describe("filterBar utils", () => {
       expect(ops).toContain("IS NULL");
     });
 
+    it("should return text-friendly operators for varchar types", () => {
+      const ops = getOperatorsForType("VARCHAR");
+      expect(ops).toContain("contains");
+      expect(ops).toContain("starts with");
+      expect(ops).toContain("ends with");
+      expect(ops).toContain("is empty");
+      expect(ops).toContain("is not empty");
+    });
+
+    it("should return text-friendly operators for TEXT types", () => {
+      const ops = getOperatorsForType("TEXT");
+      expect(ops).toContain("contains");
+      expect(ops).toContain("starts with");
+      expect(ops).toContain("ends with");
+      expect(ops).toContain("is empty");
+      expect(ops).toContain("is not empty");
+    });
+
+    it("should NOT return text-friendly operators for numeric types", () => {
+      const ops = getOperatorsForType("INTEGER");
+      expect(ops).not.toContain("contains");
+      expect(ops).not.toContain("starts with");
+      expect(ops).not.toContain("ends with");
+      expect(ops).not.toContain("is empty");
+      expect(ops).not.toContain("is not empty");
+    });
+
     it("should NOT return BETWEEN for varchar types", () => {
       const ops = getOperatorsForType("VARCHAR");
       expect(ops).not.toContain("BETWEEN");
@@ -247,6 +345,82 @@ describe("filterBar utils", () => {
       );
     });
 
+    it("should keep commas inside quoted IN values", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "city",
+        operator: "IN",
+        value: "'Paris, TX', Rome, 'O''Hare'",
+      };
+      expect(buildSingleFilterClause(filter)).toBe(
+        "city IN ('Paris, TX', 'Rome', 'O''Hare')"
+      );
+    });
+
+    it("should still quote an unquoted IN value with an apostrophe", () => {
+      const filter: StructuredFilter = { id: "1", column: "city", operator: "IN", value: "O'Hare, Rome" };
+      expect(buildSingleFilterClause(filter)).toBe("city IN ('O''Hare', 'Rome')");
+    });
+
+    it("should keep an explicitly quoted empty string in IN but drop empty items", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "code",
+        operator: "IN",
+        value: "a,, '', b,",
+      };
+      expect(buildSingleFilterClause(filter)).toBe("code IN ('a', '', 'b')");
+    });
+
+    it("does not split quoted commas or doubled single quotes in IN values", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "city",
+        operator: "IN",
+        value: "'New York, NY', 'O''Brien', west",
+      };
+      expect(buildSingleFilterClause(filter))
+        .toBe("city IN ('New York, NY', 'O''Brien', 'west')");
+    });
+
+    it("splits unquoted apostrophes and inch marks without merging later items", () => {
+      const filter: StructuredFilter = {
+        id: "1", column: "name", operator: "IN", value: "O'Brien, Smith",
+      };
+      expect(buildSingleFilterClause(filter))
+        .toBe("name IN ('O''Brien', 'Smith')");
+      expect(buildSingleFilterClause({ ...filter, value: "it's, ok" }))
+        .toBe("name IN ('it''s', 'ok')");
+      expect(buildSingleFilterClause({ ...filter, value: '5" screen, 7" screen' }))
+        .toBe('name IN (\'5" screen\', \'7" screen\')');
+    });
+
+    it("preserves explicitly quoted empty strings but drops blank IN entries", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "status",
+        operator: "NOT IN",
+        value: " , '', ,active, ",
+      };
+      expect(buildSingleFilterClause(filter)).toBe("status NOT IN ('', 'active')");
+      expect(isFilterComplete({ ...filter, value: " , '' " })).toBe(true);
+      expect(isFilterComplete({ ...filter, value: " , , " })).toBe(false);
+    });
+
+    it("treats double-quoted text values as strings, not SQL identifiers", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "city",
+        operator: "IN",
+        value: '"New York, NY", "O""Brien"',
+      };
+      expect(buildSingleFilterClause(filter))
+        .toBe("city IN ('New York, NY', 'O\"Brien')");
+      expect(buildSingleFilterClause({
+        ...filter, operator: "=", value: '"New York"',
+      })).toBe('city = "New York"');
+    });
+
     it("should build NOT IN clause", () => {
       const filter: StructuredFilter = {
         id: "1",
@@ -326,6 +500,154 @@ describe("filterBar utils", () => {
       };
       expect(buildSingleFilterClause(filter, "mysql")).toBe("user_status = 'active'");
     });
+
+    it("should build contains as LIKE with surrounding wildcards and ESCAPE", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "name",
+        operator: "contains",
+        value: "john",
+      };
+      expect(buildSingleFilterClause(filter)).toBe(
+        "name LIKE '%john%' ESCAPE '!'"
+      );
+    });
+
+    it("should build starts with as LIKE with trailing wildcard and ESCAPE", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "email",
+        operator: "starts with",
+        value: "admin",
+      };
+      expect(buildSingleFilterClause(filter)).toBe(
+        "email LIKE 'admin%' ESCAPE '!'"
+      );
+    });
+
+    it("should build ends with as LIKE with leading wildcard and ESCAPE", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "email",
+        operator: "ends with",
+        value: "@example.com",
+      };
+      expect(buildSingleFilterClause(filter)).toBe(
+        "email LIKE '%@example.com' ESCAPE '!'"
+      );
+    });
+
+    it("should escape LIKE wildcards and the escape character in text operators", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "name",
+        operator: "contains",
+        value: "100%_off!\\sale",
+      };
+      // Backslash is not special with ESCAPE '!' on postgres/sqlite.
+      expect(buildSingleFilterClause(filter)).toBe(
+        "name LIKE '%100!%!_off!!\\sale%' ESCAPE '!'"
+      );
+    });
+
+    it("should escape single quotes in text operator values", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "name",
+        operator: "starts with",
+        value: "O'Brien",
+      };
+      expect(buildSingleFilterClause(filter)).toBe(
+        "name LIKE 'O''Brien%' ESCAPE '!'"
+      );
+    });
+
+    it("should build is empty as NULL or empty string", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "nickname",
+        operator: "is empty",
+        value: "ignored",
+      };
+      expect(buildSingleFilterClause(filter)).toBe(
+        "(nickname IS NULL OR nickname = '')"
+      );
+    });
+
+    it("should build is not empty as negation of empty", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "nickname",
+        operator: "is not empty",
+        value: "",
+      };
+      expect(buildSingleFilterClause(filter)).toBe(
+        "NOT (nickname IS NULL OR nickname = '')"
+      );
+    });
+
+    it("should never emit ESCAPE '\\' for mysql/mariadb text operators", () => {
+      for (const driver of ["mysql", "mariadb"]) {
+        for (const [operator, expected] of [
+          ["contains", "name LIKE '%john%' ESCAPE '!'"],
+          ["starts with", "name LIKE 'john%' ESCAPE '!'"],
+          ["ends with", "name LIKE '%john' ESCAPE '!'"],
+        ] as const) {
+          const filter: StructuredFilter = {
+            id: "1",
+            column: "name",
+            operator,
+            value: "john",
+          };
+          expect(buildSingleFilterClause(filter, driver)).toBe(expected);
+        }
+      }
+    });
+
+    it("should double backslashes in the mysql literal so they match literally", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "path",
+        operator: "contains",
+        value: "C:\\temp_1%",
+      };
+      expect(buildSingleFilterClause(filter, "mysql")).toBe(
+        "path LIKE '%C:\\\\temp!_1!%%' ESCAPE '!'"
+      );
+    });
+
+    it("should detect mysql dialect from driver capabilities", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "path",
+        operator: "starts with",
+        value: "a\\b",
+      };
+      expect(
+        buildSingleFilterClause(filter, {
+          identifier_quote: "`",
+          sql_dialect: "mysql",
+        } as DriverCapabilities)
+      ).toBe("path LIKE 'a\\\\b%' ESCAPE '!'");
+      expect(
+        buildSingleFilterClause(filter, {
+          identifier_quote: '"',
+          sql_dialect: "postgres",
+        } as DriverCapabilities)
+      ).toBe("path LIKE 'a\\b%' ESCAPE '!'");
+    });
+
+    it("should quote mixed-case columns with text operators for postgres", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "DisplayName",
+        operator: "contains",
+        value: "Ada",
+      };
+      expect(buildSingleFilterClause(filter, "postgres")).toBe(
+        "\"DisplayName\" LIKE '%Ada%' ESCAPE '!'"
+      );
+    });
   });
 
   describe("buildStructuredFilterClause", () => {
@@ -378,6 +700,136 @@ describe("filterBar utils", () => {
         "a = 1 AND b IS NULL AND c LIKE '%x%'"
       );
     });
+
+    it("should join multiple filters with OR in parentheses", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "status", operator: "=", value: "failed" },
+        { id: "2", column: "retries", operator: ">", value: "3" },
+      ];
+      expect(buildStructuredFilterClause(filters, null, "OR")).toBe(
+        "(status = 'failed' OR retries > 3)"
+      );
+    });
+
+    it("should not parenthesize a single filter with OR", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "id", operator: ">", value: "5" },
+      ];
+      expect(buildStructuredFilterClause(filters, null, "OR")).toBe("id > 5");
+    });
+
+    it("should ignore disabled filters with OR", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "=", value: "1" },
+        { id: "2", column: "b", operator: "=", value: "2", enabled: false },
+        { id: "3", column: "c", operator: "=", value: "3" },
+      ];
+      expect(buildStructuredFilterClause(filters, null, "OR")).toBe(
+        "(a = 1 OR c = 3)"
+      );
+    });
+
+    it("should return empty string for OR with no filters", () => {
+      expect(buildStructuredFilterClause([], null, "OR")).toBe("");
+    });
+
+    it("should compare MySQL FLOAT values at column precision", () => {
+      const columns = [makeColumn("price", "float"), makeColumn("qty", "int")];
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "price", operator: "=", value: "89.9" },
+        { id: "2", column: "price", operator: "NOT IN", value: "59.99, 29.5" },
+        { id: "3", column: "qty", operator: "=", value: "89.9" },
+      ];
+      expect(buildStructuredFilterClause(filters, "mysql", "AND", "auto", columns)).toBe(
+        "price = 89.9000015258789 AND price NOT IN (59.9900016784668, 29.5) AND qty = 89.9",
+      );
+      expect(buildStructuredFilterClause(filters, "postgres", "AND", "auto", columns)).toBe(
+        "price = 89.9 AND price NOT IN (59.99, 29.5) AND qty = 89.9",
+      );
+    });
+  });
+
+  describe("buildStructuredFilterClause with incomplete filters", () => {
+    it("should ignore a filter with an empty value", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "id", operator: "=", value: "" },
+      ];
+      expect(buildStructuredFilterClause(filters, "postgres")).toBe("");
+    });
+
+    it("should keep complete filters and drop empty ones", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "id", operator: "=", value: "" },
+        { id: "2", column: "status", operator: "=", value: "active" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe("status = 'active'");
+    });
+
+    it("should keep IS NULL and IS NOT NULL without a value", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "IS NULL", value: "" },
+        { id: "2", column: "b", operator: "IS NOT NULL", value: "" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe(
+        "a IS NULL AND b IS NOT NULL"
+      );
+    });
+
+    it("should ignore BETWEEN when a bound is missing", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "BETWEEN", value: "1", value2: "" },
+        { id: "2", column: "b", operator: "BETWEEN", value: "", value2: "5" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe("");
+    });
+
+    it("should keep BETWEEN when both bounds are set", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "BETWEEN", value: "1", value2: "5" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe("a BETWEEN 1 AND 5");
+    });
+
+    it("should ignore IN and NOT IN without any item", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "IN", value: "" },
+        { id: "2", column: "b", operator: "NOT IN", value: " , " },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe("");
+    });
+
+    it("should keep is empty and is not empty without a value", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "is empty", value: "" },
+        { id: "2", column: "b", operator: "is not empty", value: "" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe(
+        "(a IS NULL OR a = '') AND NOT (b IS NULL OR b = '')"
+      );
+    });
+
+    it("should ignore values made only of whitespace", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "id", operator: "=", value: " " },
+        { id: "2", column: "a", operator: "BETWEEN", value: "1", value2: "  " },
+        { id: "3", column: "n", operator: "contains", value: "\t" },
+      ];
+      expect(buildStructuredFilterClause(filters)).toBe("");
+    });
+
+    it("should expose every no-value operator as complete without a value", () => {
+      for (const operator of NO_VALUE_OPS) {
+        expect(isFilterComplete({ id: "1", column: "a", operator, value: "" })).toBe(true);
+      }
+    });
+
+    it("should ignore empty filters with OR and not parenthesize the rest", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "a", operator: "=", value: "" },
+        { id: "2", column: "b", operator: "=", value: "2" },
+      ];
+      expect(buildStructuredFilterClause(filters, null, "OR")).toBe("b = 2");
+    });
   });
 
   describe("createEmptyFilter", () => {
@@ -417,6 +869,254 @@ describe("filterBar utils", () => {
       const f1 = createEmptyFilter(columns);
       const f2 = createEmptyFilter(columns);
       expect(f1.id).not.toBe(f2.id);
+    });
+  });
+
+  describe("value picker", () => {
+    const filters: StructuredFilter[] = [
+      { id: "a", column: "status", operator: "=", value: "open" },
+      { id: "b", column: "priority", operator: ">", value: "2" },
+      { id: "c", column: "owner", operator: "=", value: "" },
+      { id: "d", column: "deleted_at", operator: "IS NULL", value: "" },
+      { id: "e", column: "region", operator: "=", value: "eu", enabled: false },
+    ];
+
+    describe("isValuePickerSupported", () => {
+      it.each(["VARCHAR(20)", "text", "INTEGER", "boolean", "date", "enum('a','b')", "uuid", ""])(
+        "offers the picker for %s",
+        (type) => expect(isValuePickerSupported(type)).toBe(true)
+      );
+
+      it.each(["BLOB", "longblob", "bytea", "VARBINARY(16)", "binary(16)", "json", "JSONB", "image"])(
+        "does not offer the picker for %s",
+        (type) => expect(isValuePickerSupported(type)).toBe(false)
+      );
+    });
+
+    describe("buildDistinctValuesQuery", () => {
+      it("builds a grouped, most-frequent-first query for postgres", () => {
+        expect(
+          buildDistinctValuesQuery({ table: "orders", schema: "public", column: "Status", driver: "postgres" })
+        ).toBe(
+          'SELECT "Status", COUNT(*) FROM "public"."orders" WHERE "Status" IS NOT NULL ' +
+            'GROUP BY "Status" ORDER BY 2 DESC, 1 LIMIT 100'
+        );
+      });
+
+      it("uses backticks for mysql and mariadb", () => {
+        for (const driver of ["mysql", "mariadb"]) {
+          expect(buildDistinctValuesQuery({ table: "orders", column: "status", driver })).toBe(
+            "SELECT `status`, COUNT(*) FROM `orders` WHERE `status` IS NOT NULL " +
+              "GROUP BY `status` ORDER BY 2 DESC, 1 LIMIT 100"
+          );
+        }
+      });
+
+      it("uses double quotes for sqlite", () => {
+        expect(buildDistinctValuesQuery({ table: "orders", column: "status", driver: "sqlite" })).toBe(
+          'SELECT "status", COUNT(*) FROM "orders" WHERE "status" IS NOT NULL ' +
+            'GROUP BY "status" ORDER BY 2 DESC, 1 LIMIT 100'
+        );
+      });
+
+      it("follows the identifier quote from driver capabilities", () => {
+        const caps = { identifier_quote: "`", sql_dialect: "mysql" } as DriverCapabilities;
+        expect(buildDistinctValuesQuery({ table: "t", schema: "db", column: "c", driver: caps })).toBe(
+          "SELECT `c`, COUNT(*) FROM `db`.`t` WHERE `c` IS NOT NULL GROUP BY `c` ORDER BY 2 DESC, 1 LIMIT 100"
+        );
+      });
+
+      it("escapes quote characters inside identifiers", () => {
+        expect(buildDistinctValuesQuery({ table: "t", column: 'we"ird', driver: "postgres" })).toContain(
+          'SELECT "we""ird", COUNT(*)'
+        );
+        expect(buildDistinctValuesQuery({ table: "t", column: "we`ird", driver: "mysql" })).toContain(
+          "SELECT `we``ird`, COUNT(*)"
+        );
+      });
+
+      it("ANDs the current filter in parentheses", () => {
+        expect(
+          buildDistinctValuesQuery({
+            table: "orders",
+            column: "status",
+            driver: "sqlite",
+            where: "a = 1 OR b = 2",
+          })
+        ).toBe(
+          'SELECT "status", COUNT(*) FROM "orders" WHERE "status" IS NOT NULL AND (a = 1 OR b = 2) ' +
+            'GROUP BY "status" ORDER BY 2 DESC, 1 LIMIT 100'
+        );
+      });
+
+      it("honours a custom limit and defaults to VALUE_PICKER_LIMIT", () => {
+        expect(VALUE_PICKER_LIMIT).toBe(100);
+        expect(buildDistinctValuesQuery({ table: "t", column: "c", driver: "sqlite", limit: 25 })).toMatch(/LIMIT 25$/);
+      });
+    });
+
+    describe("buildValuePickerWhere", () => {
+      it("narrows by the other complete, enabled rows when matching all", () => {
+        expect(buildValuePickerWhere(filters, "a", null, "AND")).toBe(
+          '"priority" > 2 AND "deleted_at" IS NULL'
+        );
+      });
+
+      it("skips the row being edited", () => {
+        expect(buildValuePickerWhere(filters, "b", null, "AND")).toBe(
+          "\"status\" = 'open' AND \"deleted_at\" IS NULL"
+        );
+      });
+
+      it("does not narrow when matching any, since other rows widen the result", () => {
+        expect(buildValuePickerWhere(filters, "a", null, "OR")).toBe("");
+      });
+
+      it("returns an empty clause when there are no other rows", () => {
+        expect(buildValuePickerWhere([filters[0]], "a", null, "AND")).toBe("");
+      });
+
+      it("skips BETWEEN rows with a missing bound", () => {
+        const rows: StructuredFilter[] = [
+          { id: "x", column: "c", operator: "=", value: "" },
+          { id: "y", column: "n", operator: "BETWEEN", value: "1", value2: "" },
+          { id: "z", column: "m", operator: "BETWEEN", value: "1", value2: "5" },
+        ];
+        expect(buildValuePickerWhere(rows, "x", null, "AND")).toBe('"m" BETWEEN 1 AND 5');
+      });
+
+      it("quotes WHERE columns like buildDistinctValuesQuery (MySQL reserved words)", () => {
+        const rows: StructuredFilter[] = [
+          { id: "edit", column: "status", operator: "=", value: "open" },
+          { id: "other", column: "order", operator: ">", value: "5" },
+        ];
+        expect(buildValuePickerWhere(rows, "edit", "mysql", "AND")).toBe("`order` > 5");
+        expect(buildValuePickerWhere(rows, "edit", "postgres", "AND")).toBe('"order" > 5');
+      });
+    });
+
+    describe("parseDistinctValues", () => {
+      it("turns [value, count] rows into strings and numbers", () => {
+        expect(
+          parseDistinctValues([
+            ["open", 12],
+            [3, "4"],
+            [true, BigInt(2)],
+            [{ a: 1 }, 1],
+          ])
+        ).toEqual([
+          { value: "open", count: 12 },
+          { value: "3", count: 4 },
+          { value: "true", count: 2 },
+          { value: '{"a":1}', count: 1 },
+        ]);
+      });
+
+      it("drops NULL values and malformed rows", () => {
+        expect(parseDistinctValues([[null, 5], ["x"], [], ["y", 1]])).toEqual([{ value: "y", count: 1 }]);
+      });
+    });
+
+    describe("filterDistinctValues", () => {
+      const values = [
+        { value: "Open", count: 3 },
+        { value: "closed", count: 2 },
+        { value: "reopened", count: 1 },
+      ];
+
+      it("matches case-insensitively anywhere in the value", () => {
+        expect(filterDistinctValues(values, "OPEN").map((v) => v.value)).toEqual(["Open", "reopened"]);
+      });
+
+      it("returns everything for a blank search", () => {
+        expect(filterDistinctValues(values, "  ")).toBe(values);
+      });
+    });
+
+    describe("formatPickedValue", () => {
+      it("leaves plain values alone", () => {
+        expect(formatPickedValue("open", "varchar")).toBe("open");
+        expect(formatPickedValue("42", "integer")).toBe("42");
+      });
+
+      it("quotes number-like text in string columns so it is compared as text", () => {
+        expect(formatPickedValue("007", "VARCHAR(10)")).toBe("'007'");
+      });
+
+      it("quotes values with commas, edge whitespace or wrapping quotes", () => {
+        expect(formatPickedValue("Paris, TX", "text")).toBe("'Paris, TX'");
+        expect(formatPickedValue(" padded", "text")).toBe("' padded'");
+        expect(formatPickedValue("'quoted'", "text")).toBe("'''quoted'''");
+        expect(formatPickedValue('"dq"', "text")).toBe(`'"dq"'`);
+        expect(formatPickedValue("O'Hare", "text")).toBe("'O''Hare'");
+      });
+
+      it("quotes the empty string", () => {
+        expect(formatPickedValue("", "text")).toBe("''");
+      });
+    });
+
+    describe("applyPickedValues", () => {
+      const base: StructuredFilter = { id: "1", column: "status", operator: "LIKE", value: "x%" };
+
+      it("uses = for a single value", () => {
+        expect(applyPickedValues(base, ["open"], "varchar")).toEqual({ ...base, operator: "=", value: "open" });
+      });
+
+      it("uses IN for several values", () => {
+        expect(applyPickedValues(base, ["open", "Paris, TX"], "varchar")).toEqual({
+          ...base,
+          operator: "IN",
+          value: "open, 'Paris, TX'",
+        });
+      });
+
+      it("keeps a negated operator negated", () => {
+        const neg: StructuredFilter = { ...base, operator: "!=" };
+        expect(applyPickedValues(neg, ["a"], "text").operator).toBe("!=");
+        expect(applyPickedValues(neg, ["a", "b"], "text").operator).toBe("NOT IN");
+        const notIn: StructuredFilter = { ...base, operator: "NOT IN" };
+        expect(applyPickedValues(notIn, ["a"], "text").operator).toBe("!=");
+      });
+
+      it("leaves the filter untouched when nothing is picked", () => {
+        expect(applyPickedValues(base, [], "text")).toBe(base);
+      });
+
+      it("round-trips through buildSingleFilterClause", () => {
+        const picked = applyPickedValues(base, ["Paris, TX", "O'Hare", "007"], "varchar");
+        expect(buildSingleFilterClause(picked)).toBe("status IN ('Paris, TX', 'O''Hare', '007')");
+      });
+    });
+
+    describe("getPickedValues", () => {
+      it("reads back = and IN values without their quotes", () => {
+        expect(getPickedValues({ id: "1", column: "c", operator: "=", value: "open" })).toEqual(["open"]);
+        expect(
+          getPickedValues({ id: "1", column: "c", operator: "IN", value: "open, 'Paris, TX', 'O''Hare'" })
+        ).toEqual(["open", "Paris, TX", "O'Hare"]);
+        expect(getPickedValues({ id: "1", column: "c", operator: "NOT IN", value: "1, 2" })).toEqual(["1", "2"]);
+      });
+
+      it("returns nothing for other operators or an empty value", () => {
+        expect(getPickedValues({ id: "1", column: "c", operator: "LIKE", value: "a%" })).toEqual([]);
+        expect(getPickedValues({ id: "1", column: "c", operator: "=", value: "" })).toEqual([]);
+      });
+    });
+
+    describe("splitInList", () => {
+      it("splits on commas outside quotes and trims", () => {
+        expect(splitInList(` a , 'b, c' ,"d,e", 'it''s'`)).toEqual(["a", "'b, c'", '"d,e"', "'it''s'"]);
+      });
+
+      it("keeps an apostrophe inside an unquoted item", () => {
+        expect(splitInList("O'Hare, Rome")).toEqual(["O'Hare", "Rome"]);
+      });
+
+      it("drops empty items", () => {
+        expect(splitInList(",a,,")).toEqual(["a"]);
+        expect(splitInList("")).toEqual([]);
+      });
     });
   });
 });

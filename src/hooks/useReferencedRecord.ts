@@ -16,6 +16,7 @@ export interface FetchReferencedRecordParams {
   value: unknown;
   driver?: DriverArg;
   schema?: string | null;
+  database?: string | null;
   sourceColumnType?: string;
 }
 
@@ -28,6 +29,7 @@ export async function fetchReferencedRecord({
   value,
   driver,
   schema,
+  database,
   sourceColumnType,
 }: FetchReferencedRecordParams): Promise<QueryResult> {
   if (!isForeignKeyValueNavigable(value)) {
@@ -49,6 +51,7 @@ export async function fetchReferencedRecord({
     limit: 100,
     page: 1,
     ...(schema ? { schema } : {}),
+    ...(database ? { database } : {}),
   });
 }
 
@@ -58,6 +61,7 @@ export interface UseReferencedRecordParams {
   value: unknown;
   driver?: DriverArg;
   schema?: string | null;
+  database?: string | null;
   sourceColumnType?: string;
 }
 
@@ -67,6 +71,7 @@ export function useReferencedRecord({
   value,
   driver,
   schema,
+  database,
   sourceColumnType,
 }: UseReferencedRecordParams) {
   const [result, setResult] = useState<QueryResult | null>(null);
@@ -90,6 +95,7 @@ export function useReferencedRecord({
         value,
         driver,
         schema,
+        database,
         sourceColumnType,
       });
       setResult(res);
@@ -100,7 +106,7 @@ export function useReferencedRecord({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, fk, value, driver, schema, sourceColumnType]);
+  }, [connectionId, fk, value, driver, schema, database, sourceColumnType]);
 
   useEffect(() => {
     loadRecord();

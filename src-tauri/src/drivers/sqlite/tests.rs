@@ -51,6 +51,127 @@ async fn setup_test_db() -> (ConnectionParams, NamedTempFile) {
     (params, file)
 }
 
+#[tokio::test]
+async fn metadata_names_cannot_execute_stacked_statements() {
+    for operation in [
+        "columns",
+        "foreign_keys",
+        "indexes",
+        "batch_columns",
+        "batch_foreign_keys",
+        "view_columns",
+    ] {
+        for payload in [
+            "nonexistent'); DROP TABLE users;--",
+            "nonexistent'); PRAGMA user_version = 42;--",
+        ] {
+            let (params, _file) = setup_test_db().await;
+            let pool = crate::pool_manager::get_sqlite_pool(&params).await.unwrap();
+
+            let empty = match operation {
+                "columns" => get_columns(&params, payload).await.unwrap().is_empty(),
+                "foreign_keys" => super::get_foreign_keys(&params, payload)
+                    .await
+                    .unwrap()
+                    .is_empty(),
+                "indexes" => get_indexes(&params, payload).await.unwrap().is_empty(),
+                "batch_columns" => get_all_columns_batch(&params, &[payload.to_string()])
+                    .await
+                    .unwrap()[payload]
+                    .is_empty(),
+                "batch_foreign_keys" => {
+                    super::get_all_foreign_keys_batch(&params, &[payload.to_string()])
+                        .await
+                        .unwrap()[payload]
+                        .is_empty()
+                }
+                "view_columns" => get_view_columns(&params, payload).await.unwrap().is_empty(),
+                _ => unreachable!(),
+            };
+            assert!(empty, "{operation} should treat the entire name as data");
+            let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+                .fetch_one(&pool)
+                .await
+                .unwrap_or_else(|error| panic!("{operation} executed {payload}: {error}"));
+            assert_eq!(count, 2, "{operation} must preserve the original rows");
+            let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            assert_eq!(version, 0, "{operation} must not execute {payload}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn metadata_supports_quoted_names_and_treats_index_names_as_data() {
+    let (params, _file) = setup_test_db().await;
+    let pool = crate::pool_manager::get_sqlite_pool(&params).await.unwrap();
+    let table = "odd'table\";--";
+    let view = "odd'view\";--";
+    // Index names originate in sqlite_master, but must also be bound rather
+    // than interpreted as SQL when their column metadata is fetched.
+    let index = "idx'); DROP TABLE users;--";
+    let quoted_table = super::escape_identifier(table);
+    for statement in [
+        format!("CREATE TABLE \"{quoted_table}\" (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), label TEXT)"),
+        format!("CREATE INDEX \"{}\" ON \"{quoted_table}\" (user_id, label)", super::escape_identifier(index)),
+        format!("CREATE VIEW \"{}\" AS SELECT user_id, label FROM \"{quoted_table}\"", super::escape_identifier(view)),
+    ] {
+        sqlx::query(&statement).execute(&pool).await.unwrap();
+    }
+
+    let columns = get_columns(&params, table).await.unwrap();
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        ["id", "user_id", "label"]
+    );
+    assert!(columns[0].is_pk);
+    let foreign_keys = super::get_foreign_keys(&params, table).await.unwrap();
+    assert_eq!(foreign_keys.len(), 1);
+    assert_eq!(foreign_keys[0].column_name, "user_id");
+    assert_eq!(foreign_keys[0].ref_table, "users");
+    assert_eq!(foreign_keys[0].ref_column, "id");
+
+    let indexes = get_indexes(&params, table).await.unwrap();
+    assert_eq!(indexes.len(), 2);
+    for (position, column) in ["user_id", "label"].iter().enumerate() {
+        let entry = indexes
+            .iter()
+            .find(|entry| entry.seq_in_index == position as i32)
+            .unwrap();
+        assert_eq!(entry.name, index);
+        assert_eq!(entry.column_name, *column);
+    }
+    let batch_columns = get_all_columns_batch(&params, &[table.to_string()])
+        .await
+        .unwrap();
+    assert_eq!(batch_columns[table].len(), 3);
+    assert_eq!(batch_columns[table][1].name, "user_id");
+    let batch_foreign_keys = super::get_all_foreign_keys_batch(&params, &[table.to_string()])
+        .await
+        .unwrap();
+    assert_eq!(batch_foreign_keys[table].len(), 1);
+    assert_eq!(batch_foreign_keys[table][0].ref_table, "users");
+    let view_columns = get_view_columns(&params, view).await.unwrap();
+    assert_eq!(
+        view_columns
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        ["user_id", "label"]
+    );
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 2);
+}
+
 #[test]
 fn test_parse_sqlite_index_columns() {
     assert_eq!(
@@ -271,6 +392,56 @@ async fn test_get_columns_excludes_hidden_virtual_table_columns() {
 }
 
 #[tokio::test]
+async fn test_get_columns_reports_missing_default_as_none() {
+    let (params, _file) = setup_test_db().await;
+
+    let path = params.database.primary().to_string();
+    let options = SqliteConnectOptions::new().filename(&path);
+    let pool = SqlitePoolOptions::new()
+        .connect_with(options)
+        .await
+        .expect("connect to test DB");
+
+    sqlx::query(
+        "CREATE TABLE defaults (
+            plain TEXT,
+            empty_text TEXT DEFAULT '',
+            zero INTEGER DEFAULT 0,
+            explicit_null TEXT DEFAULT NULL
+        )",
+    )
+    .execute(&pool)
+    .await
+    .expect("create defaults table");
+
+    pool.close().await;
+
+    let expected = [
+        ("plain", None),
+        ("empty_text", Some("''")),
+        ("zero", Some("0")),
+        ("explicit_null", Some("NULL")),
+    ];
+    let cols = get_columns(&params, "defaults")
+        .await
+        .expect("get table columns");
+    let batch = get_all_columns_batch(&params, &["defaults".to_string()])
+        .await
+        .expect("get batch columns");
+    for columns in [&cols, &batch["defaults"]] {
+        for (name, default) in expected {
+            let col = columns
+                .iter()
+                .find(|col| col.name == name)
+                .expect("column should be listed");
+            assert_eq!(col.default_value.as_deref(), default, "{name}");
+        }
+    }
+
+    crate::pool_manager::close_pool(&params).await;
+}
+
+#[tokio::test]
 async fn test_generated_table_columns_are_not_inserted_or_updated() {
     let (params, _file) = setup_test_db().await;
 
@@ -384,5 +555,60 @@ mod sqlite_push_pk_where_tests {
         let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new("");
         sqlite_push_pk_where(&mut qb, &pk_map).unwrap();
         assert_eq!(qb.sql(), "\"a\"\"b\" = ?");
+    }
+}
+
+#[tokio::test]
+async fn read_only_query_returns_rows() {
+    let (params, _file) = setup_test_db().await;
+    let result =
+        super::execute_read_only_query(&params, "SELECT name FROM users ORDER BY id", None, 1)
+            .await
+            .expect("a read runs in read-only mode");
+    assert_eq!(result.rows.len(), 2);
+}
+
+#[tokio::test]
+async fn read_only_query_rejects_writes() {
+    let (params, _file) = setup_test_db().await;
+    for write in [
+        "INSERT INTO users (name) VALUES ('Mallory')",
+        "UPDATE users SET name = 'x'",
+        "CREATE TABLE stolen (id INTEGER)",
+        "PRAGMA user_version = 42",
+    ] {
+        assert!(
+            super::execute_read_only_query(&params, write, None, 1)
+                .await
+                .is_err(),
+            "{write} must be rejected"
+        );
+    }
+    let users = super::execute_query(&params, "SELECT COUNT(*) FROM users", None, 1)
+        .await
+        .expect("count users");
+    assert_eq!(users.rows[0][0], serde_json::json!(2));
+    let version = super::execute_query(&params, "PRAGMA user_version", None, 1)
+        .await
+        .expect("read user_version");
+    assert_eq!(version.rows[0][0], serde_json::json!(0));
+}
+
+#[tokio::test]
+async fn read_only_query_does_not_leak_into_the_pool() {
+    let (params, _file) = setup_test_db().await;
+    // Fail once and succeed once, then make sure ordinary writes still work
+    // on whatever pooled connection comes next.
+    let _ = super::execute_read_only_query(&params, "DELETE FROM users", None, 1).await;
+    let _ = super::execute_read_only_query(&params, "SELECT 1", None, 1).await;
+    for _ in 0..3 {
+        super::execute_query(
+            &params,
+            "INSERT INTO users (name) VALUES ('Carol')",
+            None,
+            1,
+        )
+        .await
+        .expect("writes still work after a read-only query");
     }
 }

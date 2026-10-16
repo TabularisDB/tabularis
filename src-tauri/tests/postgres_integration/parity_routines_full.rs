@@ -15,7 +15,7 @@ async fn parity_get_routine_parameters() {
             "get_routine_parameters:add_numbers",
             |driver, params| async move {
                 driver
-                    .get_routine_parameters(&params, "add_numbers", Some("test_schema"))
+                    .get_routine_parameters(&params, "add_numbers", Some("test_schema"), None)
                     .await
             },
         )
@@ -49,7 +49,13 @@ async fn parity_get_routine_definition() {
             "get_routine_definition:add_numbers",
             |driver, params| async move {
                 driver
-                    .get_routine_definition(&params, "add_numbers", "function", Some("test_schema"))
+                    .get_routine_definition(
+                        &params,
+                        "add_numbers",
+                        "function",
+                        Some("test_schema"),
+                        None,
+                    )
                     .await
             },
         )

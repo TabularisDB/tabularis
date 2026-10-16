@@ -17,7 +17,7 @@ description: |
 
   AI-Powered SQL Assistant: generate SQL from natural language, explain queries,
   and get optimization suggestions. Supports OpenAI, Claude, Ollama (local),
-  OpenRouter, and any OpenAI-compatible API.
+  OpenRouter, Requesty, and any OpenAI-compatible API.
 
   MCP Server: built-in Model Context Protocol server for AI agent integration
   with Claude Desktop, Claude Code, Cursor, and Windsurf.

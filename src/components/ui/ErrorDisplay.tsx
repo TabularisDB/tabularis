@@ -27,7 +27,7 @@ export function ErrorDisplay({ error, t }: ErrorDisplayProps) {
           type="button"
           onClick={handleCopy}
           className="inline-flex items-center gap-1 rounded border border-accent-error/30 px-2 py-1 text-xs text-accent-error/80 hover:bg-accent-error/10 hover:text-accent-error transition-colors select-none shrink-0"
-          title={t("common.copyError")}
+          title={t("sidebar.copyError")}
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
           {copied ? t("common.copied") : t("common.copy")}

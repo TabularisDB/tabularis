@@ -17,19 +17,39 @@ import type { PaletteItem } from "../../src/types/palette";
 import { ROOT_COMMAND_SCOPE_ID } from "../../src/utils/commandScopeStore";
 import { createPaletteSearch } from "../../src/utils/paletteItems";
 
+vi.mock("../../src/hooks/useKeybindings", () => ({
+  useKeybindings: () => ({ shortcuts: [], overrides: {}, isMac: true }),
+}));
+
 const navigateMock = vi.fn();
 const addTabMock = vi.fn(() => "console-tab");
+const connectMock = vi
+  .fn<(connectionId: string) => Promise<void>>()
+  .mockResolvedValue();
+const switchConnectionMock = vi.fn();
 
 const databaseState: {
   activeConnectionId: string | null;
   activeDriver: string | null;
   activeDatabaseName: string | null;
   activeSchema: string | null;
+  connections: Array<{
+    id: string;
+    name: string;
+    params: { driver: string; database: string };
+  }>;
+  openConnectionIds: string[];
+  connect: typeof connectMock;
+  switchConnection: typeof switchConnectionMock;
 } = {
   activeConnectionId: "connection-1",
   activeDriver: "postgres",
   activeDatabaseName: "app",
   activeSchema: "public",
+  connections: [],
+  openConnectionIds: [],
+  connect: connectMock,
+  switchConnection: switchConnectionMock,
 };
 
 const editorState = {
@@ -134,7 +154,41 @@ describe("CommandPaletteProvider", () => {
   beforeEach(() => {
     navigateMock.mockClear();
     addTabMock.mockClear();
+    connectMock.mockClear();
+    switchConnectionMock.mockClear();
     databaseState.activeConnectionId = "connection-1";
+    databaseState.connections = [];
+    databaseState.openConnectionIds = [];
+  });
+
+  it("captures focus at open, keeps it across palette switches, and clears it on close", async () => {
+    let palette: PaletteContexts | undefined;
+    const { getByRole } = render(
+      <CommandPaletteProvider>
+        <div className="monaco-editor"><textarea aria-label="SQL editor" /></div>
+        <button type="button">Outside editor</button>
+        <PaletteTestHarness onContexts={(contexts) => { palette = contexts; }} />
+      </CommandPaletteProvider>,
+    );
+    expect(palette!.state.focusContext).toBeNull();
+    const editorInput = getByRole("textbox", { name: "SQL editor" });
+    editorInput.focus();
+    act(() => palette!.dispatch.openPalette("actions"));
+    expect(palette!.state.focusContext).toEqual({ inMonaco: true, inEditable: true });
+
+    const button = getByRole("button", { name: "Outside editor" });
+    button.focus();
+    act(() => palette!.dispatch.openPalette("objects"));
+    expect(palette!.state.focusContext).toEqual({ inMonaco: true, inEditable: true });
+    act(() => palette!.dispatch.closePalette());
+    expect(palette!.state.focusContext).toBeNull();
+    await waitFor(() => expect(editorInput).toHaveFocus());
+
+    button.focus();
+    act(() => palette!.dispatch.openPalette("actions"));
+    expect(palette!.state.focusContext).toEqual({ inMonaco: false, inEditable: false });
+    act(() => palette!.dispatch.closePalette());
+    await waitFor(() => expect(button).toHaveFocus());
   });
 
   it("should expose global and contextual built-in commands", () => {
@@ -164,6 +218,7 @@ describe("CommandPaletteProvider", () => {
       "app.open-settings",
       "app.open-connections",
       "connection.new-console",
+      "editor.toggle-word-wrap",
     ]);
   });
 
@@ -185,6 +240,47 @@ describe("CommandPaletteProvider", () => {
     act(() => palette!.dispatch.openPalette("objects"));
 
     expect(palette!.state.activePalette).toBe("objects");
+  });
+
+  it("should connect to a saved connection from the palette", async () => {
+    databaseState.connections = [
+      {
+        id: "connection-1",
+        name: "Primary",
+        params: { driver: "postgres", database: "app" },
+      },
+      {
+        id: "connection-2",
+        name: "Analytics",
+        params: { driver: "sqlite", database: "analytics.db" },
+      },
+    ];
+    databaseState.openConnectionIds = ["connection-1"];
+    let palette: PaletteContexts | undefined;
+
+    render(
+      <CommandPaletteProvider>
+        <PaletteTestHarness
+          onContexts={(contexts) => {
+            palette = contexts;
+          }}
+        />
+      </CommandPaletteProvider>,
+    );
+
+    act(() => palette!.dispatch.openPalette("actions"));
+    const command = palette!.items.find(
+      (item) => item.id === "connection.switch:connection-2",
+    );
+
+    expect(command?.title).toBe("Analytics");
+    await act(async () => {
+      await command!.primaryAction.execute();
+    });
+
+    expect(connectMock).toHaveBeenCalledWith("connection-2");
+    expect(switchConnectionMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith("/editor");
   });
 
   it("should restore focus when the palette is closed through its dispatch", async () => {
@@ -230,6 +326,25 @@ describe("CommandPaletteProvider", () => {
     act(() => palette!.dispatch.openPalette("objects"));
 
     expect(palette!.state.activePalette).toBeNull();
+  });
+
+  it("should open unified search without an active connection", () => {
+    databaseState.activeConnectionId = null;
+    let palette: PaletteContexts | undefined;
+
+    render(
+      <CommandPaletteProvider>
+        <PaletteTestHarness
+          onContexts={(contexts) => {
+            palette = contexts;
+          }}
+        />
+      </CommandPaletteProvider>,
+    );
+
+    act(() => palette!.dispatch.openPalette("all"));
+
+    expect(palette!.state.activePalette).toBe("all");
   });
 
   it("should open the current table in a new SQL console", async () => {

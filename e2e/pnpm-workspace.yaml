@@ -1,0 +1,5 @@
+# e2e is its own pnpm workspace root so its devDependencies (notably
+# @wdio/cli's `wdio` binary) install into this dir's node_modules/.bin and are
+# resolvable here. Without this, pnpm detects the tabularis repo-root workspace
+# (packages/*) and hoists the e2e deps away from this directory.
+packages: []

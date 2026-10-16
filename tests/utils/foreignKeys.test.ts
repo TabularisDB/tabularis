@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { ForeignKey } from "../../src/types/schema";
-import type { PluginManifest } from "../../src/types/plugins";
+import type { DriverCapabilities, PluginManifest } from "../../src/types/plugins";
 import {
   pickPrimaryForeignKeyByColumn,
   isForeignKeyValueNavigable,
@@ -122,6 +122,55 @@ describe("foreignKeys", () => {
       expect(
         buildForeignKeyFilterClause(orgFk, BigInt("9007199254740993"), "postgres"),
       ).toBe('"id" = 9007199254740993');
+    });
+
+    it("compares MySQL FLOAT values using their widened single precision", () => {
+      const capabilities: DriverCapabilities = {
+        schemas: true, views: true, routines: true,
+        file_based: false, folder_based: false,
+        identifier_quote: "`", alter_primary_key: true, sql_dialect: "mysql",
+      };
+      const manifest: PluginManifest = {
+        id: "mysql-compatible", name: "MySQL compatible", version: "1.0.0",
+        description: "", default_port: 3306, capabilities,
+      };
+      for (const driver of ["mysql", capabilities, manifest]) {
+        for (const columnType of ["float", "FLOAT UNSIGNED"]) {
+          expect(buildForeignKeyFilterClause(orgFk, 89.9, driver, columnType)).toBe(
+            "`id` = 89.9000015258789",
+          );
+        }
+        expect(buildForeignKeyFilterClause(orgFk, 1e100, driver, "float")).toBe(
+          "`id` = 1e+100",
+        );
+        expect(buildForeignKeyFilterClause(orgFk, 89.9, driver, "double")).toBe(
+          "`id` = 89.9",
+        );
+      }
+      expect(buildForeignKeyFilterClause(orgFk, 89.9, "postgres", "float")).toBe(
+        '"id" = 89.9',
+      );
+    });
+
+    it("compares PostgreSQL real values at column precision", () => {
+      const capabilities: DriverCapabilities = {
+        schemas: true, views: true, routines: true,
+        file_based: false, folder_based: false,
+        identifier_quote: '"', alter_primary_key: true, sql_dialect: "postgres",
+      };
+      for (const driver of ["postgres", "postgresql", capabilities]) {
+        for (const columnType of ["real", "FLOAT4"]) {
+          expect(buildForeignKeyFilterClause(orgFk, 89.9, driver, columnType)).toBe(
+            '"id" = CAST(89.9 AS real)',
+          );
+        }
+      }
+      expect(buildForeignKeyFilterClause(orgFk, 89.9, "postgres", "double precision")).toBe(
+        '"id" = 89.9',
+      );
+      expect(buildForeignKeyFilterClause(orgFk, 89.9, "mysql", "real")).toBe(
+        "`id` = 89.9",
+      );
     });
 
     it("quotes identically for a postgres-dialect plugin manifest as for the bare \"postgres\" string (issue #614)", () => {

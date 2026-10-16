@@ -7,7 +7,7 @@ import { ErrorDisplay } from "../../../src/components/ui/ErrorDisplay";
 const labels: Record<string, string> = {
   "common.copy": "Copy",
   "common.copied": "Copied!",
-  "common.copyError": "Copy error message",
+  "sidebar.copyError": "Copy error message",
   "editor.hideErrorDetails": "Hide details",
   "editor.showErrorDetails": "Show details",
 };

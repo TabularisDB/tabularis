@@ -100,10 +100,104 @@ describe('sqlGenerator utils', () => {
       expect(result).not.toContain('INT NOT NULL AUTO_INCREMENT');
     });
 
+    it('should use BIGSERIAL for bigint auto-increment on PostgreSQL (#840)', () => {
+      const column = { ...baseColumn, data_type: 'bigint', is_auto_increment: true };
+      const result = generateColumnDefinition(column, 'postgresql');
+      expect(result).toBe('  "id" BIGSERIAL NOT NULL');
+    });
+
+    it('should use SMALLSERIAL for smallint auto-increment on PostgreSQL (#840)', () => {
+      const column = { ...baseColumn, data_type: 'smallint', is_auto_increment: true };
+      const result = generateColumnDefinition(column, 'postgresql');
+      expect(result).toBe('  "id" SMALLSERIAL NOT NULL');
+    });
+
+    it('should use SERIAL for integer auto-increment on PostgreSQL (#840)', () => {
+      const column = { ...baseColumn, data_type: 'integer', is_auto_increment: true };
+      const result = generateColumnDefinition(column, 'postgresql');
+      expect(result).toBe('  "id" SERIAL NOT NULL');
+    });
+
     it('should handle VARCHAR with length', () => {
       const column = { ...baseColumn, data_type: 'VARCHAR(255)' };
       const result = generateColumnDefinition(column, 'mysql');
       expect(result).toBe('  `id` VARCHAR(255) NOT NULL');
+    });
+
+    it('should append character_maximum_length to bare varchar/char types (#840)', () => {
+      // The backend reports the base type and the length separately; the
+      // generator must synthesize varchar(n)/char(n) when only the bare type
+      // arrives with a character_maximum_length value.
+      const column: TableColumn = {
+        ...baseColumn,
+        data_type: 'character varying',
+        character_maximum_length: 50,
+      };
+      const result = generateColumnDefinition(column, 'postgresql');
+      expect(result).toBe('  "id" character varying(50) NOT NULL');
+    });
+
+    it('should not duplicate the length when data_type already contains it (#840)', () => {
+      // MySQL column_type already carries the length; don't append again.
+      const column: TableColumn = {
+        ...baseColumn,
+        data_type: 'varchar(100)',
+        character_maximum_length: 100,
+      };
+      const result = generateColumnDefinition(column, 'mysql');
+      expect(result).toBe('  `id` varchar(100) NOT NULL');
+      expect(result).not.toContain('(100)(100)');
+    });
+
+    it('should render numeric precision and scale (#840)', () => {
+      const column: TableColumn = {
+        ...baseColumn,
+        data_type: 'numeric',
+        numeric_precision: 10,
+        numeric_scale: 2,
+      };
+      const result = generateColumnDefinition(column, 'postgresql');
+      expect(result).toBe('  "id" numeric(10,2) NOT NULL');
+    });
+
+    it('should render numeric precision without scale (#840)', () => {
+      const column: TableColumn = {
+        ...baseColumn,
+        data_type: 'numeric',
+        numeric_precision: 10,
+        numeric_scale: 0,
+      };
+      const result = generateColumnDefinition(column, 'postgresql');
+      expect(result).toBe('  "id" numeric(10,0) NOT NULL');
+    });
+
+    it('should render decimal precision and scale (#840)', () => {
+      const column: TableColumn = {
+        ...baseColumn,
+        data_type: 'decimal',
+        numeric_precision: 8,
+        numeric_scale: 3,
+      };
+      const result = generateColumnDefinition(column, 'mysql');
+      expect(result).toBe('  `id` decimal(8,3) NOT NULL');
+    });
+
+    it('should not append precision to a type that already has it (#840)', () => {
+      const column: TableColumn = {
+        ...baseColumn,
+        data_type: 'numeric(10,2)',
+        numeric_precision: 10,
+        numeric_scale: 2,
+      };
+      const result = generateColumnDefinition(column, 'postgresql');
+      expect(result).toBe('  "id" numeric(10,2) NOT NULL');
+      expect(result).not.toContain('(10,2)(10,2)');
+    });
+
+    it('should leave bare numeric types alone when precision is absent (#840)', () => {
+      const column: TableColumn = { ...baseColumn, data_type: 'numeric' };
+      const result = generateColumnDefinition(column, 'postgresql');
+      expect(result).toBe('  "id" numeric NOT NULL');
     });
 
     it('should handle custom column names with special characters', () => {
@@ -137,9 +231,16 @@ describe('sqlGenerator utils', () => {
       expect(generatePrimaryKeyConstraint(columns, 'mysql')).toBeNull();
     });
 
-    it('should return null for SQLite', () => {
+    it('should return a constraint for a SQLite key that is not auto-increment', () => {
       const columns: TableColumn[] = [
         { name: 'id', data_type: 'INT', is_pk: true, is_nullable: false, is_auto_increment: false, default_value: null },
+      ];
+      expect(generatePrimaryKeyConstraint(columns, 'sqlite')).toBe('  PRIMARY KEY ("id")');
+    });
+
+    it('should return null for SQLite when an auto-increment column carries the key inline', () => {
+      const columns: TableColumn[] = [
+        { name: 'id', data_type: 'INTEGER', is_pk: true, is_nullable: false, is_auto_increment: true, default_value: null },
       ];
       expect(generatePrimaryKeyConstraint(columns, 'sqlite')).toBeNull();
     });
@@ -203,6 +304,48 @@ describe('sqlGenerator utils', () => {
       expect(result).toHaveLength(2);
       expect(result[0]).toContain('fk_user');
       expect(result[1]).toContain('fk_product');
+    });
+
+    it('should group composite foreign keys into one multi-column constraint (#840)', () => {
+      const foreignKeys: ForeignKey[] = [
+        { name: 'fk_oi_order', column_name: 'order_id', ref_table: 'orders', ref_column: 'order_id', seq_in_fk: 1 },
+        { name: 'fk_oi_order', column_name: 'seq', ref_table: 'orders', ref_column: 'seq', seq_in_fk: 2 },
+        { name: 'fk_oi_product', column_name: 'product_id', ref_table: 'products', ref_column: 'id', seq_in_fk: 1 },
+      ];
+      const result = generateForeignKeyConstraints(foreignKeys, '"');
+      expect(result).toHaveLength(2);
+      expect(result[0]).toBe(
+        '  CONSTRAINT "fk_oi_order" FOREIGN KEY ("order_id", "seq") REFERENCES "orders" ("order_id", "seq")',
+      );
+      expect(result[1]).toBe(
+        '  CONSTRAINT "fk_oi_product" FOREIGN KEY ("product_id") REFERENCES "products" ("id")',
+      );
+    });
+
+    it('should order composite FK columns by seq_in_fk regardless of row order (#840)', () => {
+      // Backend may return columns out of key order; grouping must sort by seq_in_fk.
+      const foreignKeys: ForeignKey[] = [
+        { name: 'fk_comp', column_name: 'b', ref_table: 'ref_t', ref_column: 'y', seq_in_fk: 2 },
+        { name: 'fk_comp', column_name: 'a', ref_table: 'ref_t', ref_column: 'x', seq_in_fk: 1 },
+      ];
+      const result = generateForeignKeyConstraints(foreignKeys, '"');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(
+        '  CONSTRAINT "fk_comp" FOREIGN KEY ("a", "b") REFERENCES "ref_t" ("x", "y")',
+      );
+    });
+
+    it('should fall back to row order for composite FK columns lacking seq_in_fk (#840)', () => {
+      // Older backends/plugins without seq_in_fk: preserve input order as a stable fallback.
+      const foreignKeys: ForeignKey[] = [
+        { name: 'fk_comp', column_name: 'a', ref_table: 'ref_t', ref_column: 'x' },
+        { name: 'fk_comp', column_name: 'b', ref_table: 'ref_t', ref_column: 'y' },
+      ];
+      const result = generateForeignKeyConstraints(foreignKeys, '"');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(
+        '  CONSTRAINT "fk_comp" FOREIGN KEY ("a", "b") REFERENCES "ref_t" ("x", "y")',
+      );
     });
 
     it('should use double quotes for PostgreSQL', () => {
@@ -456,6 +599,27 @@ describe('sqlGenerator utils', () => {
       expect(result).not.toContain('PRIMARY KEY ("id")'); // SQLite handles PK in column def
     });
 
+    it('should keep the primary key of a SQLite table without AUTOINCREMENT', () => {
+      // What the SQLite driver reports for `id INTEGER PRIMARY KEY, name TEXT`.
+      const sqliteColumns: TableColumn[] = [
+        { name: 'id', data_type: 'INTEGER', is_pk: true, is_nullable: true, is_auto_increment: false, default_value: null },
+        { name: 'name', data_type: 'TEXT', is_pk: false, is_nullable: true, is_auto_increment: false, default_value: null },
+      ];
+      const result = generateCreateTableSQL('users', sqliteColumns, [], [], 'sqlite');
+      expect(result).toBe(
+        'CREATE TABLE "users" (\n  "id" INTEGER,\n  "name" TEXT,\n  PRIMARY KEY ("id")\n);',
+      );
+    });
+
+    it('should keep a composite SQLite primary key', () => {
+      const pairColumns: TableColumn[] = [
+        { name: 'a', data_type: 'TEXT', is_pk: true, is_nullable: true, is_auto_increment: false, default_value: null },
+        { name: 'b', data_type: 'INTEGER', is_pk: true, is_nullable: true, is_auto_increment: false, default_value: null },
+      ];
+      const result = generateCreateTableSQL('pair', pairColumns, [], [], 'sqlite');
+      expect(result).toContain('  PRIMARY KEY ("a", "b")');
+    });
+
     it('should handle empty columns array', () => {
       const result = generateCreateTableSQL('empty', [], [], [], 'mysql');
       expect(result).toContain('CREATE TABLE `empty` (');
@@ -559,9 +723,15 @@ describe('sqlGenerator utils', () => {
       { name: 'id', data_type: 'INT', is_pk: true, is_nullable: false, is_auto_increment: false, default_value: null },
     ];
 
-    it('should return null when inline_pk is true', () => {
+    it('should return null when inline_pk is true and an auto-increment column carries the key', () => {
       const caps = makeCaps({ identifier_quote: '"', inline_pk: true });
-      expect(generatePrimaryKeyConstraint(pkColumns, caps)).toBeNull();
+      const autoIncrementPk = [{ ...pkColumns[0], is_auto_increment: true }];
+      expect(generatePrimaryKeyConstraint(autoIncrementPk, caps)).toBeNull();
+    });
+
+    it('should return constraint when inline_pk is true but no column is auto-increment', () => {
+      const caps = makeCaps({ identifier_quote: '"', inline_pk: true });
+      expect(generatePrimaryKeyConstraint(pkColumns, caps)).toBe('  PRIMARY KEY ("id")');
     });
 
     it('should return constraint when inline_pk is false', () => {

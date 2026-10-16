@@ -4,7 +4,13 @@ import {
   generateTabId,
   createInitialTabState,
   generateTabTitle,
+  getTabDisplayTitle,
   findExistingTableTab,
+  canDuplicateTab,
+  canRenameTab,
+  buildDuplicatedTab,
+  insertTabAfter,
+  DUPLICATE_TAB_TITLE_SUFFIX,
   getConnectionTabs,
   getActiveTab,
   closeTabWithState,
@@ -20,6 +26,7 @@ import {
   validatePageNumber,
   calculateTotalPages,
   resolveTabPageSize,
+  toSqlList,
 } from "../../src/utils/editor";
 
 describe("editor", () => {
@@ -166,6 +173,69 @@ describe("editor", () => {
     });
   });
 
+  describe("getTabDisplayTitle", () => {
+    const tableTab = (overrides: Partial<Tab> = {}): Tab => ({
+      id: "tab-1",
+      title: "clubs",
+      type: "table",
+      query: "",
+      result: null,
+      error: "",
+      executionTime: null,
+      page: 1,
+      activeTable: "clubs",
+      schema: "mira",
+      pkColumns: null,
+      connectionId: "conn-1",
+      ...overrides,
+    });
+
+    it("prefixes the schema when the same table is open from another schema", () => {
+      const mira = tableTab();
+      const dev = tableTab({ id: "tab-2", schema: "mira_dev" });
+      expect(getTabDisplayTitle(mira, [mira, dev])).toBe("mira.clubs");
+      expect(getTabDisplayTitle(dev, [mira, dev])).toBe("mira_dev.clubs");
+    });
+
+    it("keeps the plain title when the table name is unique", () => {
+      const clubs = tableTab();
+      const users = tableTab({
+        id: "tab-2",
+        title: "users",
+        activeTable: "users",
+        schema: "mira_dev",
+      });
+      expect(getTabDisplayTitle(clubs, [clubs, users])).toBe("clubs");
+    });
+
+    it("ignores tabs from other connections", () => {
+      const mira = tableTab();
+      const other = tableTab({
+        id: "tab-2",
+        schema: "mira_dev",
+        connectionId: "conn-2",
+      });
+      expect(getTabDisplayTitle(mira, [mira, other])).toBe("clubs");
+    });
+
+    it("keeps a title that no longer equals the table name", () => {
+      const custom = tableTab({ title: "clubs (db.mira)" });
+      const dev = tableTab({ id: "tab-2", schema: "mira_dev" });
+      expect(getTabDisplayTitle(custom, [custom, dev])).toBe("clubs (db.mira)");
+    });
+
+    it("ignores a same-table tab whose title was customised", () => {
+      const mira = tableTab();
+      const copy = tableTab({ id: "tab-2", schema: "mira_dev", title: "clubs (db.mira_dev)" });
+      expect(getTabDisplayTitle(mira, [mira, copy])).toBe("clubs");
+    });
+
+    it("leaves non-table tabs untouched", () => {
+      const console = tableTab({ type: "console", title: "Console" });
+      expect(getTabDisplayTitle(console, [console])).toBe("Console");
+    });
+  });
+
   describe("findExistingTableTab", () => {
     const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
       id: "tab-1",
@@ -238,6 +308,72 @@ describe("editor", () => {
       const result = findExistingTableTab(tabs, "conn-1", "users");
 
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe("findExistingTableTab: nested multi-db database matching", () => {
+    // Regression: a nested multi-db connection (e.g. PostgreSQL with
+    // opt-in database selection) can have the same table name + schema in
+    // more than one database. Before this fix, dedup only matched on
+    // (connectionId, activeTable, schema), so double-clicking a table in
+    // database B would reactivate an existing tab already open for the
+    // same table/schema in database A -- reusing its stale `database`
+    // and, if that tab predates a database being set at all, re-running
+    // its query with no database override sends the connection's raw
+    // multi-db selection to the plugin ("Pool creation failed: ...dbname
+    // not found").
+    const createMockTableTab = (overrides: Partial<Tab> = {}): Tab => ({
+      id: "tab-1",
+      title: "Test",
+      type: "table",
+      query: "",
+      result: null,
+      error: "",
+      executionTime: null,
+      page: 1,
+      activeTable: "products",
+      pkColumns: null,
+      connectionId: "conn-1",
+      schema: "store",
+      ...overrides,
+    });
+
+    it("does not reuse a tab for the same table/schema in a different database", () => {
+      const tabs: Tab[] = [
+        createMockTableTab({ id: "tab-1", database: "db_a" }),
+      ];
+
+      const result = findExistingTableTab(tabs, "conn-1", "products", "store", "db_b");
+
+      expect(result).toBeUndefined();
+    });
+
+    it("does not reuse a stale tab with no database for a database-scoped open", () => {
+      const tabs: Tab[] = [
+        createMockTableTab({ id: "tab-1", database: undefined }),
+      ];
+
+      const result = findExistingTableTab(tabs, "conn-1", "products", "store", "db_b");
+
+      expect(result).toBeUndefined();
+    });
+
+    it("reuses the tab when database matches too", () => {
+      const tabs: Tab[] = [
+        createMockTableTab({ id: "tab-1", database: "db_a" }),
+      ];
+
+      const result = findExistingTableTab(tabs, "conn-1", "products", "store", "db_a");
+
+      expect(result?.id).toBe("tab-1");
+    });
+
+    it("still matches on the single-database path where neither side has a database", () => {
+      const tabs: Tab[] = [createMockTableTab({ id: "tab-1", database: undefined })];
+
+      const result = findExistingTableTab(tabs, "conn-1", "products", "store");
+
+      expect(result?.id).toBe("tab-1");
     });
   });
 
@@ -998,6 +1134,331 @@ describe("editor", () => {
       expect(resolveTabPageSize(undefined, 0)).toBe(100);
       expect(resolveTabPageSize(undefined, -5)).toBe(100);
       expect(resolveTabPageSize(-1, undefined)).toBe(100);
+    });
+  });
+
+  describe("toSqlList", () => {
+    it("should quote each line for an IN list", () => {
+      expect(toSqlList("alice@example.com\nbob@example.com")).toBe(
+        "'alice@example.com', 'bob@example.com'",
+      );
+    });
+
+    it("should split on newlines, CRLF, tabs and commas", () => {
+      expect(toSqlList("a\r\nb\tc,d")).toBe("'a', 'b', 'c', 'd'");
+    });
+
+    it("should trim values and skip blanks", () => {
+      expect(toSqlList("  a  \n\n\t\n , b ,\n")).toBe("'a', 'b'");
+    });
+
+    it("should escape embedded single quotes", () => {
+      expect(toSqlList("O'Brien\nD'Angelo")).toBe("'O''Brien', 'D''Angelo'");
+    });
+
+    it("should leave numeric-only input unquoted", () => {
+      expect(toSqlList("1\n2\n3")).toBe("1, 2, 3");
+      expect(toSqlList("-4\t0\t3.25")).toBe("-4, 0, 3.25");
+    });
+
+    it("should quote every value when numbers and text are mixed", () => {
+      expect(toSqlList("1\nabc\n3")).toBe("'1', 'abc', '3'");
+    });
+
+    it("should keep identifiers with a leading zero or plus sign quoted", () => {
+      expect(toSqlList("007\n42")).toBe("'007', '42'");
+      expect(toSqlList("+15551234567")).toBe("'+15551234567'");
+    });
+
+    it("should keep duplicates unless dedupe is set", () => {
+      expect(toSqlList("a\nb\na")).toBe("'a', 'b', 'a'");
+      expect(toSqlList("a\nb\na", { dedupe: true })).toBe("'a', 'b'");
+      expect(toSqlList("2\n1\n2", { dedupe: true })).toBe("2, 1");
+    });
+
+    it("should support a custom quote and separator", () => {
+      expect(toSqlList('a\nsay "hi"', { quote: '"', separator: "," })).toBe(
+        '"a","say ""hi"""',
+      );
+      expect(toSqlList("a\nb", { separator: ",\n" })).toBe("'a',\n'b'");
+    });
+
+    it("should return an empty string when there are no values", () => {
+      expect(toSqlList("")).toBe("");
+      expect(toSqlList(" \n\t, ,\n")).toBe("");
+    });
+  });
+
+  describe("canRenameTab", () => {
+    it("shows rename for notebooks and consoles that are not linked to a file", () => {
+      expect(canRenameTab({ type: "notebook" })).toBe(true);
+      expect(canRenameTab({ type: "console" })).toBe(true);
+      expect(canRenameTab({ type: "console", sourceFilePath: undefined })).toBe(
+        true,
+      );
+    });
+
+    it("hides rename for table tabs and file-backed consoles", () => {
+      expect(canRenameTab({ type: "table" })).toBe(false);
+      expect(canRenameTab({ type: "query_builder" })).toBe(false);
+      expect(canRenameTab({ type: "users" })).toBe(false);
+      expect(
+        canRenameTab({ type: "console", sourceFilePath: "/tmp/orders.sql" }),
+      ).toBe(false);
+      expect(canRenameTab(undefined)).toBe(false);
+      expect(canRenameTab(null)).toBe(false);
+    });
+  });
+
+  describe("duplicate tab", () => {
+    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+      id: "tab-1",
+      title: "Orders",
+      type: "console",
+      query: "SELECT * FROM orders WHERE id = :id",
+      result: {
+        columns: ["id"],
+        rows: [[1]],
+        affected_rows: 1,
+      },
+      error: "boom",
+      executionTime: 12,
+      page: 3,
+      activeTable: "orders",
+      pkColumns: ["id"],
+      connectionId: "conn-1",
+      queryParams: { id: "7" },
+      schema: "public",
+      sourceFilePath: "/tmp/orders.sql",
+      sourceFileContent: "SELECT 1",
+      sourceFileDirty: true,
+      notebookId: "notebook-1",
+      results: [
+        {
+          id: "result-1",
+          queryIndex: 0,
+          query: "SELECT 1",
+          result: null,
+          error: "",
+          executionTime: 1,
+          isLoading: false,
+          page: 1,
+          activeTable: null,
+          pkColumns: null,
+        },
+      ],
+      ...overrides,
+    });
+
+    it("should allow console and table tabs only", () => {
+      expect(canDuplicateTab("console")).toBe(true);
+      expect(canDuplicateTab("table")).toBe(true);
+      expect(canDuplicateTab("notebook")).toBe(false);
+      expect(canDuplicateTab("query_builder")).toBe(false);
+      expect(canDuplicateTab("users")).toBe(false);
+      expect(canDuplicateTab(undefined)).toBe(false);
+    });
+
+    it("should copy sql, parameters, table, and schema with a copy title", () => {
+      const source = createMockTab({ type: "table", title: "orders" });
+      const duplicate = buildDuplicatedTab(source);
+
+      expect(duplicate).toEqual({
+        type: "table",
+        title: `orders${DUPLICATE_TAB_TITLE_SUFFIX}`,
+        query: source.query,
+        activeTable: "orders",
+        queryParams: { id: "7" },
+        schema: "public",
+      });
+      expect(duplicate?.queryParams).not.toBe(source.queryParams);
+    });
+
+    it("should leave results, the source file, and notebook ids behind", () => {
+      const source = createMockTab();
+      const duplicate = buildDuplicatedTab(source);
+
+      expect(duplicate).not.toHaveProperty("result");
+      expect(duplicate).not.toHaveProperty("results");
+      expect(duplicate).not.toHaveProperty("error");
+      expect(duplicate).not.toHaveProperty("sourceFilePath");
+      expect(duplicate).not.toHaveProperty("sourceFileContent");
+      expect(duplicate).not.toHaveProperty("sourceFileDirty");
+      expect(duplicate).not.toHaveProperty("notebookId");
+      expect(duplicate).not.toHaveProperty("notebookState");
+
+      const created = createInitialTabState("conn-1", duplicate ?? undefined);
+      expect(created.query).toBe(source.query);
+      expect(created.queryParams).toEqual({ id: "7" });
+      expect(created.result).toBeNull();
+      expect(created.results).toBeUndefined();
+      expect(created.sourceFilePath).toBeUndefined();
+      expect(created.notebookId).toBeUndefined();
+    });
+
+    it("should omit parameters and schema when the source has none", () => {
+      const duplicate = buildDuplicatedTab(
+        createMockTab({ queryParams: undefined, schema: undefined }),
+      );
+
+      expect(duplicate).not.toHaveProperty("queryParams");
+      expect(duplicate).not.toHaveProperty("schema");
+    });
+
+    it("should keep an empty schema", () => {
+      const duplicate = buildDuplicatedTab(createMockTab({ schema: "" }));
+      expect(duplicate?.schema).toBe("");
+    });
+
+    it("should refuse notebook, query builder, and users tabs", () => {
+      expect(buildDuplicatedTab(createMockTab({ type: "notebook" }))).toBeNull();
+      expect(
+        buildDuplicatedTab(createMockTab({ type: "query_builder" })),
+      ).toBeNull();
+      expect(buildDuplicatedTab(createMockTab({ type: "users" }))).toBeNull();
+    });
+
+    it("should not share parameter edits with the source tab", () => {
+      const source = createMockTab();
+      const duplicate = buildDuplicatedTab(source);
+      duplicate!.queryParams!.id = "changed";
+      expect(source.queryParams?.id).toBe("7");
+    });
+
+    it("should keep a materialized table tab read-only", () => {
+      const source = createMockTab({
+        type: "table",
+        title: "mv_orders",
+        activeTable: "mv_orders",
+        query: "SELECT * FROM mv_orders",
+        materialized: true,
+        isLoading: true,
+        executionTime: 4,
+      });
+      const duplicate = buildDuplicatedTab(source);
+
+      expect(duplicate).toEqual({
+        type: "table",
+        title: `mv_orders${DUPLICATE_TAB_TITLE_SUFFIX}`,
+        query: source.query,
+        activeTable: "mv_orders",
+        queryParams: { id: "7" },
+        schema: "public",
+        materialized: true,
+      });
+      expect(duplicate).not.toHaveProperty("readOnly");
+      expect(duplicate).not.toHaveProperty("result");
+      expect(duplicate).not.toHaveProperty("error");
+      expect(duplicate).not.toHaveProperty("isLoading");
+
+      const created = createInitialTabState("conn-1", duplicate ?? undefined);
+      expect(created.id).not.toBe(source.id);
+      expect(created.materialized).toBe(true);
+      expect(created.readOnly).toBeUndefined();
+      expect(created.result).toBeNull();
+      expect(created.error).toBe("");
+      expect(created.isLoading).toBe(false);
+      expect(created.executionTime).toBeNull();
+    });
+
+    it("should keep a read-only definition tab from regaining Run", () => {
+      const source = createMockTab({
+        type: "console",
+        title: "trg_audit Definition",
+        query: "CREATE TRIGGER trg_audit",
+        activeTable: null,
+        readOnly: true,
+        queryParams: undefined,
+        schema: "public",
+        isLoading: true,
+      });
+      const duplicate = buildDuplicatedTab(source);
+
+      expect(duplicate).toEqual({
+        type: "console",
+        title: `trg_audit Definition${DUPLICATE_TAB_TITLE_SUFFIX}`,
+        query: source.query,
+        activeTable: null,
+        schema: "public",
+        readOnly: true,
+      });
+      expect(duplicate).not.toHaveProperty("materialized");
+      expect(duplicate).not.toHaveProperty("result");
+      expect(duplicate).not.toHaveProperty("error");
+
+      const created = createInitialTabState("conn-1", duplicate ?? undefined);
+      expect(created.id).not.toBe(source.id);
+      expect(created.readOnly).toBe(true);
+      expect(created.materialized).toBeUndefined();
+      expect(created.result).toBeNull();
+      expect(created.isLoading).toBe(false);
+    });
+
+    it("should omit editability flags that are not set", () => {
+      const duplicate = buildDuplicatedTab(
+        createMockTab({ materialized: false, readOnly: false }),
+      );
+
+      expect(duplicate).not.toHaveProperty("materialized");
+      expect(duplicate).not.toHaveProperty("readOnly");
+    });
+  });
+
+  describe("insertTabAfter", () => {
+    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+      id: "tab-1",
+      title: "Test",
+      type: "console",
+      query: "",
+      result: null,
+      error: "",
+      executionTime: null,
+      page: 1,
+      activeTable: null,
+      pkColumns: null,
+      connectionId: "conn-1",
+      ...overrides,
+    });
+
+    it("should insert immediately after the source tab", () => {
+      const first = createMockTab({ id: "a1", title: "First" });
+      const source = createMockTab({ id: "a2", title: "Source" });
+      const last = createMockTab({ id: "a3", title: "Last" });
+      const copy = createMockTab({ id: "copy", title: "Source (copy)" });
+      const tabs = [first, source, last];
+
+      const next = insertTabAfter(tabs, "a2", copy);
+
+      expect(next.map((tab) => tab.id)).toEqual(["a1", "a2", "copy", "a3"]);
+      expect(tabs.map((tab) => tab.id)).toEqual(["a1", "a2", "a3"]);
+    });
+
+    it("should keep the copy next to the source inside one connection", () => {
+      const source = createMockTab({ id: "a1", title: "Source" });
+      const other = createMockTab({
+        id: "b1",
+        connectionId: "conn-2",
+        title: "Other",
+      });
+      const last = createMockTab({ id: "a2", title: "Last" });
+      const copy = createMockTab({ id: "copy", title: "Source (copy)" });
+
+      const next = insertTabAfter([source, other, last], "a1", copy);
+
+      expect(next.map((tab) => tab.id)).toEqual(["a1", "copy", "b1", "a2"]);
+      expect(
+        next.filter((tab) => tab.connectionId === "conn-1").map((tab) => tab.id),
+      ).toEqual(["a1", "copy", "a2"]);
+    });
+
+    it("should append when the source id is missing", () => {
+      const first = createMockTab({ id: "a1" });
+      const copy = createMockTab({ id: "copy" });
+
+      expect(insertTabAfter([first], "missing", copy).map((tab) => tab.id)).toEqual([
+        "a1",
+        "copy",
+      ]);
     });
   });
 });

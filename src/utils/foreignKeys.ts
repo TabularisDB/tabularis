@@ -1,6 +1,6 @@
 import type { ForeignKey } from "../types/schema";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { quoteIdentifier } from "./identifiers";
+import { isMysqlDialect, isPostgresDialect, quoteIdentifier } from "./identifiers";
 
 const NUMERIC_TYPE_KEYWORDS = [
   "int",
@@ -95,7 +95,7 @@ export function buildForeignKeyFilterClause(
   sourceColumnType?: string,
 ): string {
   const col = quoteIdentifier(fk.ref_column, driver);
-  return `${col} = ${formatSqlValueForFilter(value, sourceColumnType)}`;
+  return `${col} = ${formatSqlValueForColumnComparison(value, driver, sourceColumnType)}`;
 }
 
 export function isNumericColumnType(type: string | undefined): boolean {
@@ -104,7 +104,7 @@ export function isNumericColumnType(type: string | undefined): boolean {
   return NUMERIC_TYPE_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-function formatSqlValueForFilter(value: unknown, columnType?: string): string {
+export function formatSqlValueForFilter(value: unknown, columnType?: string): string {
   if (typeof value === "number" || typeof value === "bigint") {
     return String(value);
   }
@@ -116,4 +116,30 @@ function formatSqlValueForFilter(value: unknown, columnType?: string): string {
     return str;
   }
   return `'${str.replace(/'/g, "''")}'`;
+}
+
+export function isMysqlFloatColumn(
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+  columnType?: string,
+): boolean {
+  return isMysqlDialect(driver) && /^float(?:\s+unsigned)?$/i.test(columnType?.trim() ?? "");
+}
+
+/** Formats a filter literal at the column's comparison precision. */
+export function formatSqlValueForColumnComparison(
+  value: unknown,
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+  columnType?: string,
+): string {
+  if (isMysqlFloatColumn(driver, columnType) && typeof value === "number" &&
+      Number.isFinite(value)) {
+    // MySQL compares FLOAT as DOUBLE, so the shortest decimal misses the
+    // stored value. CAST(? AS FLOAT) needs MySQL 8.0.17+.
+    const widened = Math.fround(value);
+    if (Number.isFinite(widened)) return String(widened);
+  }
+  const literal = formatSqlValueForFilter(value, columnType);
+  const isPostgresReal = isPostgresDialect(driver) &&
+    /^(real|float4)$/i.test(columnType?.trim() ?? "");
+  return isPostgresReal ? `CAST(${literal} AS real)` : literal;
 }

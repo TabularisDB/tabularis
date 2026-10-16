@@ -18,6 +18,10 @@ import type { CommandPaletteMode } from "../../../src/types/commands";
 
 const openEditorMock = vi.fn();
 const navigateMock = vi.fn();
+vi.mock("../../../src/hooks/useKeybindings", () => ({
+  useKeybindings: () => ({ shortcuts: [], overrides: {}, isMac: true }),
+}));
+
 const invokeMock = vi.fn();
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -100,7 +104,7 @@ const Harness = () => {
 
   return (
     <MemoryRouter>
-      <CommandPaletteStateContext.Provider value={{ activePalette }}>
+      <CommandPaletteStateContext.Provider value={{ activePalette, focusContext: null }}>
         <CommandPaletteDispatchContext.Provider
           value={{
             openPalette: setActivePalette,

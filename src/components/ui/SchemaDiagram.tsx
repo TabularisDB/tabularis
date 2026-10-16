@@ -32,6 +32,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { generateMermaidErDiagram, generateDbml } from "../../utils/schemaExport";
 import { useAlert } from "../../hooks/useAlert";
+import { toErrorMessage } from "../../utils/errors";
 import { useTranslation } from "react-i18next";
 import { ContextMenu } from "./ContextMenu";
 import { useSearchParams } from "react-router-dom";
@@ -116,12 +117,14 @@ interface SchemaDiagramContentProps {
   connectionId: string;
   refreshTrigger: number;
   schema?: string;
+  database?: string;
 }
 
 const SchemaDiagramContent = ({
   connectionId,
   refreshTrigger,
   schema,
+  database,
 }: SchemaDiagramContentProps) => {
   const { t } = useTranslation();
   const { getSchema } = useEditor();
@@ -261,7 +264,7 @@ const SchemaDiagramContent = ({
       setLoading(true);
 
       try {
-        const fetchedSchema = await getSchema(connectionId, undefined, schema);
+        const fetchedSchema = await getSchema(connectionId, undefined, schema, database);
         if (!isMounted) return;
 
         // Build nodes and edges with optimizations
@@ -325,6 +328,14 @@ const SchemaDiagramContent = ({
         }
       } catch (e) {
         console.error("Failed to load schema diagram", e);
+        // Was silent otherwise — an empty canvas with no explanation reads
+        // as "this schema has no tables" rather than "the fetch failed",
+        // which is exactly what happened live against a plugin driver
+        // missing an optional batch RPC before the RpcDriver-level fallback
+        // for it existed.
+        if (isMounted) {
+          showAlert(t("erDiagram.loadError", { message: toErrorMessage(e) }), { kind: "error" });
+        }
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -346,6 +357,9 @@ const SchemaDiagramContent = ({
     setEdges,
     layoutDirection,
     schema,
+    database,
+    showAlert,
+    t,
   ]);
 
   // Effetto per filtrare i nodi quando una tabella è selezionata
@@ -568,18 +582,21 @@ interface SchemaDiagramProps {
   connectionId: string;
   refreshTrigger: number;
   schema?: string;
+  database?: string;
 }
 
 export const SchemaDiagram = ({
   connectionId,
   refreshTrigger,
   schema,
+  database,
 }: SchemaDiagramProps) => (
   <ReactFlowProvider>
     <SchemaDiagramContent
       connectionId={connectionId}
       refreshTrigger={refreshTrigger}
       schema={schema}
+      database={database}
     />
   </ReactFlowProvider>
 );

@@ -35,7 +35,7 @@ function assetUrl(path) {
 
 // --- Generate SPONSORS.md ---
 const lines = [
-  "# Sponsors",
+  "# Sponsors and supporters",
   "",
   "Tabularis is made possible thanks to the support of our sponsors.",
   "Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)",
@@ -50,7 +50,9 @@ for (const s of sponsors) {
 
   if (s.logoImg) {
     const logoPath = assetUrl(s.logoImg);
-    const bg = s.logoImgBg ? ` style="background:${s.logoImgBg};padding:6px;"` : "";
+    const bg = s.logoImgBg
+      ? ` style="background:${s.logoImgBg};padding:6px;"`
+      : "";
     lines.push(
       `<a href="${withUtm(s.url)}" target="_blank"><img src="${logoPath}" height="40" alt="${s.name}"${bg} /></a>`,
     );
@@ -93,7 +95,7 @@ const END = "<!-- SPONSORS:END -->";
 const readmeBlock = [
   START,
   "",
-  "## Sponsors",
+  "## Sponsors and supporters",
   "",
   ...sponsors.map((s) => {
     const logo = s.logoImgCompact ?? s.logoImg;
