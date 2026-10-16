@@ -5,6 +5,7 @@ import {
   createInitialTabState,
   generateTabTitle,
   getTabDisplayTitle,
+  getTabFullTitle,
   findExistingTableTab,
   canDuplicateTab,
   canRenameTab,
@@ -233,6 +234,56 @@ describe("editor", () => {
     it("leaves non-table tabs untouched", () => {
       const console = tableTab({ type: "console", title: "Console" });
       expect(getTabDisplayTitle(console, [console])).toBe("Console");
+    });
+  });
+
+  describe("getTabFullTitle", () => {
+    const tab = (overrides: Partial<Tab> = {}): Tab => ({
+      id: "tab-1",
+      title: "global-mae_firewall_events",
+      type: "table",
+      query: "",
+      result: null,
+      error: "",
+      executionTime: null,
+      page: 1,
+      activeTable: "global-mae_firewall_events",
+      pkColumns: null,
+      connectionId: "conn-1",
+      ...overrides,
+    });
+
+    it("returns the whole table name when there is no schema or database", () => {
+      const t = tab();
+      expect(getTabFullTitle(t, [t])).toBe("global-mae_firewall_events");
+    });
+
+    it("qualifies a table tab with its schema", () => {
+      const t = tab({ schema: "public" });
+      expect(getTabFullTitle(t, [t])).toBe("public.global-mae_firewall_events");
+    });
+
+    it("qualifies a table tab with its database and schema", () => {
+      const t = tab({ schema: "public", database: "analytics" });
+      expect(getTabFullTitle(t, [t])).toBe(
+        "analytics.public.global-mae_firewall_events",
+      );
+    });
+
+    it("keeps a customised table tab title", () => {
+      const t = tab({ title: "firewall (copy)", schema: "public" });
+      expect(getTabFullTitle(t, [t])).toBe("firewall (copy)");
+    });
+
+    it("appends the database to a console tab when one is given", () => {
+      const t = tab({ type: "console", title: "Console 2", activeTable: null });
+      expect(getTabFullTitle(t, [t], "analytics")).toBe("Console 2 (analytics)");
+      expect(getTabFullTitle(t, [t])).toBe("Console 2");
+    });
+
+    it("ignores the database for non-console tabs", () => {
+      const t = tab({ type: "notebook", title: "Notebook", activeTable: null });
+      expect(getTabFullTitle(t, [t], "analytics")).toBe("Notebook");
     });
   });
 

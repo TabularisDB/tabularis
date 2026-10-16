@@ -151,6 +151,26 @@ export function getTabDisplayTitle(tab: Tab, tabs: Tab[]): string {
   return sameTableOtherSchema ? `${tab.schema}.${tab.title}` : tab.title;
 }
 
+/**
+ * Untruncated tab name for the tab strip's tooltip and accessible name, so
+ * tabs whose titles share a long prefix can still be told apart. Table tabs
+ * are qualified with their database and schema; a console shows the database
+ * it runs against when one is given (multi-database layouts).
+ */
+export function getTabFullTitle(
+  tab: Tab,
+  tabs: Tab[],
+  consoleDatabase?: string,
+): string {
+  if (tab.type === "table" && tab.activeTable && tab.title === tab.activeTable) {
+    return [tab.database, tab.schema, tab.activeTable].filter(Boolean).join(".");
+  }
+  const title = getTabDisplayTitle(tab, tabs);
+  return tab.type === "console" && consoleDatabase
+    ? `${title} (${consoleDatabase})`
+    : title;
+}
+
 export function findExistingTableTab(
   tabs: Tab[],
   connectionId: string,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useId } from "react";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { hasPendingTableEdits, tableRefreshIdentity } from "../utils/autoRefresh";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -8,6 +8,7 @@ import {
   canDuplicateTab,
   canRenameTab,
   getTabDisplayTitle,
+  getTabFullTitle,
   reconstructTableQuery,
   resolveTabPageSize,
 } from "../utils/editor";
@@ -582,6 +583,16 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   // Users tabs render full-height like notebooks: no SQL toolbar, no results panel.
   const isUsersTab = activeTab?.type === "users";
   const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
+  const tabStripId = useId();
+  // Full name behind a truncated tab title (tooltip and accessible name).
+  const tabFullTitle = (tab: Tab) =>
+    getTabFullTitle(
+      tab,
+      tabs,
+      tab.type === "console" && isMultiDb
+        ? tab.schema || selectedDatabases[0]
+        : undefined,
+    );
 
   const handleOpenSqlFile = useCallback(async () => {
     try {
@@ -4415,6 +4426,13 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
               onDragOver={handleTabDragOver(index)}
               role="button"
               tabIndex={0}
+              title={tabFullTitle(tab)}
+              aria-label={tabFullTitle(tab)}
+              aria-describedby={
+                transactionTabIds.has(tab.id)
+                  ? `${tabStripId}-transaction-${tab.id}`
+                  : undefined
+              }
               aria-current={activeTabId === tab.id ? "true" : undefined}
               onClick={() => setActiveTabId(tab.id)}
               onKeyDown={onActivationKey(() => setActiveTabId(tab.id))}
@@ -4524,6 +4542,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                     // This tab is holding a pooled connection open, and its
                     // uncommitted changes are invisible to every other tab.
                     <span
+                      id={`${tabStripId}-transaction-${tab.id}`}
                       className={`shrink-0 px-1 rounded text-[9px] font-semibold uppercase tracking-wide ${TONE_SOFT_BG_CLASS.warning} ${TONE_TEXT_CLASS.warning}`}
                       title={t("editor.transactionOpenHint")}
                       aria-label={t("editor.transactionOpenHint")}
