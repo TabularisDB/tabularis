@@ -36,6 +36,7 @@ const {
   scrollToOffsetMock,
   virtualizerRenderControl,
   sidebarState,
+  writeHtmlMock,
 } = vi.hoisted(() => ({
   showToastMock: vi.fn(),
   openRowEditorMock: vi.fn(),
@@ -46,6 +47,14 @@ const {
   // where it has no virtual items yet.
   virtualizerRenderControl: { forceEmpty: false },
   sidebarState: { isOpen: false, activePanel: null as string | null },
+  writeHtmlMock: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/plugin-clipboard-manager", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@tauri-apps/plugin-clipboard-manager")
+  >()),
+  writeHtml: writeHtmlMock,
 }));
 
 vi.mock("../../../src/hooks/useToast", () => ({
@@ -953,6 +962,58 @@ describe("DataGrid select all", () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
     expect(writeText.mock.calls[0][0]).toContain("Alice");
     expect(writeText.mock.calls[0][0]).toContain("Pending");
+  });
+
+  it("copies the selected rows as an HTML table with a plain-text fallback", async () => {
+    writeHtmlMock.mockReset().mockResolvedValue(undefined);
+    const { container } = render(
+      <DataGrid
+        columns={columns}
+        data={data}
+        selectedRows={new Set([0, 1])}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(
+      container.querySelector('td[data-col-index="0"]')!,
+    );
+    fireEvent.click(await screen.findByText("dataGrid.copyAsHtmlTable"));
+
+    await waitFor(() => expect(writeHtmlMock).toHaveBeenCalledOnce());
+    const [html, plainText] = writeHtmlMock.mock.calls[0];
+    expect(html).toContain("<table>");
+    expect(html).toContain("<th>name</th>");
+    expect(html).toContain("<td>Alice</td>");
+    expect(html).toContain("<td>Bob</td>");
+    expect(plainText).toContain("Alice");
+    expect(plainText).toContain("Bob");
+    expect(writeText).not.toHaveBeenCalled();
+    expect(showToastMock).toHaveBeenCalledWith(expect.anything(), {
+      kind: "success",
+    });
+  });
+
+  it("copies only the right-clicked row as HTML when nothing is selected", async () => {
+    writeHtmlMock.mockReset().mockResolvedValue(undefined);
+    const { container } = render(
+      <DataGrid
+        columns={columns}
+        data={data}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(
+      container.querySelectorAll('td[data-col-index="1"]')[1]!,
+    );
+    fireEvent.click(await screen.findByText("dataGrid.copyAsHtmlTable"));
+
+    await waitFor(() => expect(writeHtmlMock).toHaveBeenCalledOnce());
+    const [html] = writeHtmlMock.mock.calls[0];
+    expect(html).toContain("<td>Bob</td>");
+    expect(html).not.toContain("Alice");
   });
 
   it("selects all loaded rows with Cmd/Ctrl+A without copying", () => {

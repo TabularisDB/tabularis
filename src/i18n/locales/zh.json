@@ -1261,6 +1261,7 @@
     "selectAllN": "全选（{{count}}）",
     "deselectAll": "取消全选",
     "copySelectedN": "复制选中（{{count}}）",
+    "copyAsHtmlTable": "复制为 HTML 表格",
     "selectColumn": "选择列",
     "deselectColumn": "取消选择列",
     "copySelectedColumns": "复制选中列（{{count}}）",

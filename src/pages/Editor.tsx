@@ -13,7 +13,7 @@ import {
 } from "../utils/editor";
 import { shouldShowStatementSuccess } from "../utils/resultPresentation";
 import { formatRowsForCopy, copyTextToClipboard } from "../utils/clipboard";
-import { onActivationKey } from "../utils/keyboardEvents";
+import { onActivationKey, isTypingTarget } from "../utils/keyboardEvents";
 import {
   formatResultForExport,
   getLoadedRowsExportLimit,
@@ -2723,12 +2723,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!focused) return;
 
-      const target = e.target as HTMLElement | null;
-      const isTypingTarget =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable);
+      const isTyping = isTypingTarget(e.target);
 
       if (matchesShortcut(e, "close_tab")) {
         e.preventDefault();
@@ -2750,7 +2745,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       }
 
       if (matchesShortcut(e, "next_page")) {
-        if (isTypingTarget) return;
+        if (isTyping) return;
         const tab = tabsRef.current.find(
           (t) => t.id === activeTabIdRef.current,
         );
@@ -2762,7 +2757,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       }
 
       if (matchesShortcut(e, "prev_page")) {
-        if (isTypingTarget) return;
+        if (isTyping) return;
         const tab = tabsRef.current.find(
           (t) => t.id === activeTabIdRef.current,
         );

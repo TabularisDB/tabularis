@@ -28,4 +28,12 @@ describe("driver development installation layout", () => {
       '(cargo metadata --format-version 1 --no-deps | ConvertFrom-Json).target_directory "debug\\${BIN_NAME}.exe"',
     );
   });
+
+  it("copies locales when present on Linux, macOS, and Windows", () => {
+    expect(recipes).toContain("@if [ -d locales ]; then");
+    expect(recipes).toContain("~/.local/share/tabularis/plugins/drivers/${ID}/locales");
+    expect(recipes).toContain('"$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}/locales"');
+    expect(recipes).toContain('if (Test-Path "locales")');
+    expect(recipes).toContain('(Join-Path $dest "locales")');
+  });
 });

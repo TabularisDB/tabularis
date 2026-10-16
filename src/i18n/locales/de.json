@@ -1286,6 +1286,7 @@
     "selectAllN": "Alle auswählen ({{count}})",
     "deselectAll": "Alle abwählen",
     "copySelectedN": "Auswahl kopieren ({{count}})",
+    "copyAsHtmlTable": "Als HTML-Tabelle kopieren",
     "selectColumn": "Spalte auswählen",
     "deselectColumn": "Spalte abwählen",
     "copySelectedColumns": "Ausgewählte Spalten kopieren ({{count}})",

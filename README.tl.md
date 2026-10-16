@@ -314,6 +314,7 @@ Opsyonal na Text-to-SQL at query explanation gamit ang mga provider:
 - Anthropic
 - MiniMax
 - OpenRouter
+- Requesty
 - Ollama
 - OpenAI-compatible APIs
 

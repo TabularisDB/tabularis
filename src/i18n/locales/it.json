@@ -1349,6 +1349,7 @@
     "selectAllN": "Seleziona Tutti ({{count}})",
     "deselectAll": "Deseleziona Tutti",
     "copySelectedN": "Copia Selezionate ({{count}})",
+    "copyAsHtmlTable": "Copia come tabella HTML",
     "selectColumn": "Seleziona Colonna",
     "deselectColumn": "Deseleziona Colonna",
     "copySelectedColumns": "Copia Colonne Selezionate ({{count}})",
