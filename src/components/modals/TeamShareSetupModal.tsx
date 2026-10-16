@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useCallback, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, Loader2, Users, X } from "lucide-react";
+import { useEscapeKey } from "../../hooks/useEscapeKey";
 import { toErrorMessage } from "../../utils/errors";
 import type { TeamShareStatus } from "../../utils/teamShare";
 import { masterPasswordError } from "../../utils/teamShare";
@@ -27,30 +28,39 @@ export const TeamShareSetupModal = ({
   onClose,
 }: TeamShareSetupModalProps) => {
   const { t } = useTranslation();
+  const titleId = useId();
   const [path, setPath] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  if (!isOpen) return null;
-
   // Reset here rather than in an effect on `isOpen`: the modal stays mounted
   // when closed, and a synchronous setState in an effect would just cost an
-  // extra render pass.
-  const handleClose = () => {
+  // extra render pass. Declared above the early return so the Escape handler
+  // can route through it.
+  const handleClose = useCallback(() => {
     setPath("");
     setPassword("");
     setConfirmation("");
     setError(null);
     onClose();
-  };
+  }, [onClose]);
+
+  useEscapeKey(isOpen, handleClose);
+
+  if (!isOpen) return null;
 
   const handleBrowse = async () => {
-    const selected = await open({ multiple: false, directory: true });
-    if (typeof selected === "string") {
-      setPath(selected);
-      setError(null);
+    try {
+      const selected = await open({ multiple: false, directory: true });
+      if (typeof selected === "string") {
+        setPath(selected);
+        setError(null);
+      }
+    } catch (e) {
+      // The folder can still be typed; say why the picker did not open.
+      setError(t("settings.teamShare.errorBrowse", { error: toErrorMessage(e) }));
     }
   };
 
@@ -83,15 +93,26 @@ export const TeamShareSetupModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] backdrop-blur-sm">
-      <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[600px] max-h-[90vh] overflow-hidden flex flex-col">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] backdrop-blur-sm"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+    >
+      <div
+        className="bg-elevated border border-strong rounded-xl shadow-2xl w-[600px] max-h-[90vh] overflow-hidden flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-accent-primary/15 rounded-lg">
               <Users size={20} className="text-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-primary">
+              <h2 id={titleId} className="text-lg font-semibold text-primary">
                 {t("settings.teamShare.setupTitle")}
               </h2>
               <p className="text-xs text-secondary">
@@ -100,6 +121,7 @@ export const TeamShareSetupModal = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={handleClose}
             className="text-secondary hover:text-primary transition-colors"
             aria-label={t("common.close")}
@@ -132,6 +154,7 @@ export const TeamShareSetupModal = ({
                 className="flex-1 min-w-0 px-3 py-2 bg-base border border-strong rounded-lg text-primary font-mono text-sm focus:border-focus focus:outline-none"
               />
               <button
+                type="button"
                 onClick={() => void handleBrowse()}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-accent hover:border-accent-primary/50 transition-colors shrink-0"
               >
@@ -193,12 +216,14 @@ export const TeamShareSetupModal = ({
 
         <div className="p-4 border-t border-default bg-base/50 flex justify-end gap-3">
           <button
+            type="button"
             onClick={handleClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
             {t("common.cancel")}
           </button>
           <button
+            type="button"
             onClick={() => void handleSave()}
             disabled={isSaving}
             className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse rounded-lg text-sm font-medium transition-colors flex items-center gap-2"

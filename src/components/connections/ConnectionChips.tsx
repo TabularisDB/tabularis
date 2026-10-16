@@ -6,6 +6,7 @@ import type { SavedConnection } from '../../contexts/DatabaseContext';
 import type { PluginManifest } from '../../types/plugins';
 import type { ConnectionTag } from '../../types/tags';
 import { usePluginRegistry } from '../../hooks/usePluginRegistry';
+import { isTeamShared } from '../../utils/teamShare';
 import { Chip } from '../ui/Chip';
 import { UpdateTooltip } from '../ui/UpdateTooltip';
 import { PluginUpdateIndicator } from '../plugins/PluginUpdateIndicator';
@@ -73,7 +74,7 @@ export const ConnectionChips = ({ conn, driverManifest, isDriverEnabled, tags }:
         </UpdateTooltip>
       )}
       <EnvironmentBadge environment={conn.environment} />
-      {conn.shared && (
+      {isTeamShared(conn) && (
         <Chip tone="theme" icon={<Share2 size={8} />} title={t('connections.sharedTooltip')}>
           {t('connections.shared')}
         </Chip>

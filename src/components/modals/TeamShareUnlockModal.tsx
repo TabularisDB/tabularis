@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { KeyRound, Loader2, X } from "lucide-react";
+import { useEscapeKey } from "../../hooks/useEscapeKey";
 import { toErrorMessage } from "../../utils/errors";
 import type { TeamShareStatus } from "../../utils/teamShare";
 import { vaultFolder } from "../../utils/teamShare";
@@ -28,6 +29,7 @@ export const TeamShareUnlockModal = ({
   onClose,
 }: TeamShareUnlockModalProps) => {
   const { t } = useTranslation();
+  const titleId = useId();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isUnlocking, setIsUnlocking] = useState(false);
@@ -42,14 +44,7 @@ export const TeamShareUnlockModal = ({
     onClose();
   }, [onClose]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") handleClose();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, handleClose]);
+  useEscapeKey(isOpen, handleClose);
 
   if (!isOpen) return null;
 
@@ -71,15 +66,26 @@ export const TeamShareUnlockModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] backdrop-blur-sm">
-      <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[600px] max-h-[90vh] overflow-hidden flex flex-col">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] backdrop-blur-sm"
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+    >
+      <div
+        className="bg-elevated border border-strong rounded-xl shadow-2xl w-[600px] max-h-[90vh] overflow-hidden flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-accent-primary/15 rounded-lg">
               <KeyRound size={20} className="text-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-primary">
+              <h2 id={titleId} className="text-lg font-semibold text-primary">
                 {t("settings.teamShare.unlockTitle")}
               </h2>
               <p className="text-xs text-secondary">
@@ -88,6 +94,7 @@ export const TeamShareUnlockModal = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={handleClose}
             className="text-secondary hover:text-primary transition-colors"
             aria-label={t("common.close")}
@@ -137,12 +144,14 @@ export const TeamShareUnlockModal = ({
 
         <div className="p-4 border-t border-default bg-base/50 flex justify-end gap-3">
           <button
+            type="button"
             onClick={handleClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
             {t("settings.teamShare.continueLocked")}
           </button>
           <button
+            type="button"
             onClick={() => void handleUnlock()}
             disabled={isUnlocking || !password}
             className="px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse rounded-lg text-sm font-medium transition-colors flex items-center gap-2"

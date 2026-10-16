@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   AlertTriangle,
   Lock,
@@ -15,9 +16,11 @@ import { useDatabase } from "../../hooks/useDatabase";
 import { toErrorMessage } from "../../utils/errors";
 import {
   syncChangeCount,
+  TEAM_SHARE_EVENTS,
   teamSharePhase,
   type TeamShareStatus,
 } from "../../utils/teamShare";
+import { TeamShareLeaveModal } from "../modals/TeamShareLeaveModal";
 import { TeamShareSetupModal } from "../modals/TeamShareSetupModal";
 import { TeamShareUnlockModal } from "../modals/TeamShareUnlockModal";
 import { SettingRow, SettingSection } from "./SettingControls";
@@ -46,6 +49,7 @@ export function TeamShareSection() {
   const [status, setStatus] = useState<TeamShareStatus | null>(null);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [isUnlockOpen, setIsUnlockOpen] = useState(false);
+  const [isLeaveOpen, setIsLeaveOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -58,6 +62,19 @@ export function TeamShareSection() {
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  // Unlocked from the startup prompt, locked, or synced in the background:
+  // the panel follows instead of showing what it read when it opened.
+  useEffect(() => {
+    const unlistenStatus = listen<TeamShareStatus>(TEAM_SHARE_EVENTS.status, (event) =>
+      setStatus(event.payload),
+    );
+    const unlistenSynced = listen(TEAM_SHARE_EVENTS.synced, () => void refresh());
+    return () => {
+      void unlistenStatus.then((fn) => fn());
+      void unlistenSynced.then((fn) => fn());
+    };
   }, [refresh]);
 
   const phase = teamSharePhase(status);
@@ -89,13 +106,12 @@ export function TeamShareSection() {
     }
   };
 
-  const handleDisable = async () => {
+  const handleLeave = async (keepConnections: boolean) => {
     try {
       applyStatus(
-        await invoke<TeamShareStatus>("disable_team_share", {
-          keepConnections: false,
-        }),
+        await invoke<TeamShareStatus>("disable_team_share", { keepConnections }),
       );
+      setIsLeaveOpen(false);
     } catch (e) {
       showAlert(toErrorMessage(e));
     }
@@ -148,6 +164,7 @@ export function TeamShareSection() {
         <div className="flex flex-wrap items-center gap-2 mt-3">
           {phase === "disabled" ? (
             <button
+              type="button"
               onClick={() => setIsSetupOpen(true)}
               className={primaryButtonClass}
             >
@@ -159,6 +176,7 @@ export function TeamShareSection() {
               {status?.unlocked ? (
                 <>
                   <button
+                    type="button"
                     onClick={() => void handleSync()}
                     disabled={isSyncing}
                     className={primaryButtonClass}
@@ -169,13 +187,14 @@ export function TeamShareSection() {
                     />
                     {t("settings.teamShare.syncNow")}
                   </button>
-                  <button onClick={() => void handleLock()} className={buttonClass}>
+                  <button type="button" onClick={() => void handleLock()} className={buttonClass}>
                     <Lock size={14} />
                     {t("settings.teamShare.lock")}
                   </button>
                 </>
               ) : (
                 <button
+                  type="button"
                   onClick={() => setIsUnlockOpen(true)}
                   disabled={phase === "unreachable"}
                   className={primaryButtonClass}
@@ -184,7 +203,7 @@ export function TeamShareSection() {
                   {t("settings.teamShare.unlock")}
                 </button>
               )}
-              <button onClick={() => void handleDisable()} className={dangerButtonClass}>
+              <button type="button" onClick={() => setIsLeaveOpen(true)} className={dangerButtonClass}>
                 <Trash2 size={14} />
                 {t("settings.teamShare.disable")}
               </button>
@@ -229,6 +248,13 @@ export function TeamShareSection() {
           setIsSetupOpen(false);
         }}
         onClose={() => setIsSetupOpen(false)}
+      />
+      <TeamShareLeaveModal
+        isOpen={isLeaveOpen}
+        unlocked={status?.unlocked ?? false}
+        sharedCount={status?.sharedConnectionIds.length ?? 0}
+        onConfirm={handleLeave}
+        onClose={() => setIsLeaveOpen(false)}
       />
       <TeamShareUnlockModal
         isOpen={isUnlockOpen}

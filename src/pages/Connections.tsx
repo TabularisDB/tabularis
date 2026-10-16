@@ -51,6 +51,9 @@ import { useTeamShare } from "../hooks/useTeamShare";
 import {
   countShared,
   filterByShare,
+  isTeamShared,
+  needsUnlockPrompt,
+  requestTeamShareUnlock,
   type ShareFilter,
 } from "../utils/teamShare";
 import { useOpenConnectionInNewWindow } from "../hooks/useOpenConnectionInNewWindow";
@@ -638,9 +641,12 @@ export const Connections = () => {
    * shared folder is read-merged-written once instead of once per connection.
    */
   const handleBulkShare = async (shared: boolean) => {
-    const ids = [...selectedIds].filter(
-      (id) => (connections.find((c) => c.id === id)?.shared ?? false) !== shared,
-    );
+    const ids = [...selectedIds].filter((id) => {
+      const conn = connections.find((c) => c.id === id);
+      // A connection owned by another source is never shared from here.
+      if (!conn || (conn.managed_by && !isTeamShared(conn))) return false;
+      return isTeamShared(conn) !== shared;
+    });
     if (ids.length === 0) return;
     setIsSharing(true);
     try {
@@ -695,6 +701,13 @@ export const Connections = () => {
     // Open in another window: focus that window instead of opening a duplicate.
     if (isConnectionOpenAnywhere(conn.id)) {
       await openConnectionInNewWindow(conn.id, conn.name);
+      return;
+    }
+    // Connecting to a shared connection while the share is locked is an
+    // explicit request for it: ask for the master password, even if the
+    // prompt was dismissed earlier.
+    if (isTeamShared(conn) && needsUnlockPrompt(teamShare)) {
+      requestTeamShareUnlock();
       return;
     }
     setConnectingId(conn.id);

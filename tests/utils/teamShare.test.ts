@@ -2,9 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   countShared,
   filterByShare,
+  isTeamShared,
   masterPasswordError,
   needsUnlockPrompt,
+  shouldOpenUnlockPrompt,
   syncChangeCount,
+  TEAM_SHARE_SOURCE,
   teamSharePhase,
   vaultFileName,
   vaultFolder,
@@ -68,12 +71,48 @@ describe("teamShare", () => {
     });
   });
 
+  describe("shouldOpenUnlockPrompt", () => {
+    const locked = status();
+
+    it("opens at startup and on a locked lookup until the user dismisses it", () => {
+      expect(shouldOpenUnlockPrompt(locked, "startup", false)).toBe(true);
+      expect(shouldOpenUnlockPrompt(locked, "locked", false)).toBe(true);
+    });
+
+    it("stays closed for background lookups once dismissed", () => {
+      expect(shouldOpenUnlockPrompt(locked, "locked", true)).toBe(false);
+    });
+
+    it("reopens for an explicit request even after a dismissal", () => {
+      expect(shouldOpenUnlockPrompt(locked, "explicit", true)).toBe(true);
+    });
+
+    it("never opens when there is nothing to unlock", () => {
+      expect(shouldOpenUnlockPrompt(status({ unlocked: true }), "explicit", false)).toBe(
+        false,
+      );
+      expect(shouldOpenUnlockPrompt(status({ vaultExists: false }), "explicit", false)).toBe(
+        false,
+      );
+      expect(shouldOpenUnlockPrompt(null, "startup", false)).toBe(false);
+    });
+  });
+
+  describe("isTeamShared", () => {
+    it("recognises only the team share as the owner", () => {
+      expect(isTeamShared({ managed_by: TEAM_SHARE_SOURCE })).toBe(true);
+      expect(isTeamShared({ managed_by: "another-source" })).toBe(false);
+      expect(isTeamShared({})).toBe(false);
+      expect(isTeamShared({ managed_by: null })).toBe(false);
+    });
+  });
+
   describe("filterByShare", () => {
     const items = [
-      { id: "a", shared: true },
+      { id: "a", managed_by: TEAM_SHARE_SOURCE },
       { id: "b" },
-      { id: "c", shared: true },
-      { id: "d", shared: false },
+      { id: "c", managed_by: TEAM_SHARE_SOURCE },
+      { id: "d", managed_by: "another-source" },
     ];
 
     it("passes everything through on 'all'", () => {
@@ -89,7 +128,7 @@ describe("teamShare", () => {
       expect(filterByShare(items, "shared").map((i) => i.id)).toEqual(["a", "c"]);
     });
 
-    it("treats a missing flag as local, like the backend does", () => {
+    it("treats a missing flag, or another source, as not shared", () => {
       expect(filterByShare(items, "local").map((i) => i.id)).toEqual(["b", "d"]);
     });
 
@@ -110,7 +149,12 @@ describe("teamShare", () => {
   describe("countShared", () => {
     it("counts only the flagged ones", () => {
       expect(
-        countShared([{ shared: true }, {}, { shared: false }, { shared: true }]),
+        countShared([
+          { managed_by: TEAM_SHARE_SOURCE },
+          {},
+          { managed_by: "another-source" },
+          { managed_by: TEAM_SHARE_SOURCE },
+        ]),
       ).toBe(2);
     });
 

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { TeamShareStatus } from "../utils/teamShare";
+import { TEAM_SHARE_EVENTS, type TeamShareStatus } from "../utils/teamShare";
 
 /**
  * Team-share status for screens that need to know whether a connection is
  * shared and whether the vault is open.
  *
- * Refreshes itself on `team-share-synced`, so a share done from the
- * connections screen and one done from settings stay in agreement.
+ * Refreshes itself after every sync and every unlock, lock or leave, so the
+ * connections screen and the settings panel stay in agreement.
  */
 export function useTeamShare() {
   const [status, setStatus] = useState<TeamShareStatus | null>(null);
@@ -36,10 +36,17 @@ export function useTeamShare() {
         });
     };
     load();
-    const unlisten = listen("team-share-synced", load);
+    const unlistenSynced = listen(TEAM_SHARE_EVENTS.synced, load);
+    const unlistenStatus = listen<TeamShareStatus>(
+      TEAM_SHARE_EVENTS.status,
+      (event) => {
+        if (!cancelled) setStatus(event.payload);
+      },
+    );
     return () => {
       cancelled = true;
-      void unlisten.then((fn) => fn());
+      void unlistenSynced.then((fn) => fn());
+      void unlistenStatus.then((fn) => fn());
     };
   }, []);
 

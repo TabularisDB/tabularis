@@ -89,10 +89,10 @@ export interface SavedConnection {
   tag_ids?: string[];
   /** Deployment environment; production drives warnings and visuals. */
   environment?: "development" | "staging" | "production";
-  /** True when this connection comes from the team share. Its credentials
-   * live in the shared vault, not on this machine, and are only usable while
-   * that vault is unlocked. */
-  shared?: boolean;
+  /** Source that owns this connection, e.g. `"team-share"`. Its credentials
+   * then live with that source, not on this machine, and are only usable
+   * while it is unlocked. */
+  managed_by?: string;
 }
 
 export interface ConnectionGroup {
