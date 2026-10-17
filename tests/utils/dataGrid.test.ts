@@ -26,6 +26,7 @@ import {
   isUuidColumnType,
   isOriginalCellValue,
 } from '../../src/utils/dataGrid';
+import { rowsToCSV, rowsToCSVWithHeaders } from '../../src/utils/clipboard';
 
 describe('createDataGridResultCommands', () => {
   const callbacks = () => ({
@@ -937,6 +938,73 @@ describe('dataGrid utils', () => {
         ['d', 'e'],
       ]);
     });
+
+    it('unquotes a line that is just "" to an empty string', () => {
+      expect(parsePasteMatrix('""')).toEqual([['']]);
+      expect(parsePasteMatrix('""\tb')).toEqual([['', 'b']]);
+    });
+
+    describe('JSON columns', () => {
+      const json = () => true;
+
+      it('keeps the quotes of a pasted JSON string', () => {
+        expect(parsePasteMatrix('"abc"', ',', json)).toEqual([['"abc"']]);
+        expect(parsePasteMatrix('""', ',', json)).toEqual([['""']]);
+      });
+
+      it('unquotes a JSON value the grid copied as CSV', () => {
+        // `{"a":"x,y"}` and the JSON string `"abc"`, as csvField quotes them.
+        expect(parsePasteMatrix('"{""a"":""x,y""}"', ',', json)).toEqual([
+          ['{"a":"x,y"}'],
+        ]);
+        expect(parsePasteMatrix('"""abc"""', ',', json)).toEqual([['"abc"']]);
+      });
+
+      it('keeps quotes around a field that is not valid JSON', () => {
+        expect(parsePasteMatrix('"say ""hi"""', ',', json)).toEqual([
+          ['"say ""hi"""'],
+        ]);
+      });
+
+      it('only keeps the quotes of cells that land in a JSON column', () => {
+        const secondIsJson = (colIndex: number) => colIndex === 1;
+        expect(parsePasteMatrix('"abc"\t"abc"\n"x"\t"[1]"', ',', secondIsJson)).toEqual([
+          ['abc', '"abc"'],
+          ['x', '"[1]"'],
+        ]);
+      });
+
+      it('applies to each line of a one-column copy', () => {
+        expect(parsePasteMatrix('"abc"\n"{""a"":1}"', ',', json)).toEqual([
+          ['"abc"'],
+          ['{"a":1}'],
+        ]);
+      });
+    });
+  });
+
+  describe('parsePasteMatrix round-trip of a CSV copy', () => {
+    const rows = [
+      ['Rome, Italy', 'say "hi"', 'a;b|c', 'plain'],
+      ['', '"quoted"', 'x', 'end'],
+    ];
+    const columns = ['city', 'note', 'mixed', 'other'];
+
+    for (const delimiter of [',', ';', '|', '\t']) {
+      for (const withHeaders of [false, true]) {
+        it(`round-trips text columns with ${JSON.stringify(delimiter)}${withHeaders ? ' and the header line' : ''}`, () => {
+          const copied = withHeaders
+            ? rowsToCSVWithHeaders(rows, columns, 'null', delimiter)
+            : rowsToCSV(rows, 'null', delimiter);
+          const pasted = stripHeaderRow(
+            parsePasteMatrix(copied, delimiter, () => false),
+            columns,
+            0,
+          );
+          expect(pasted).toEqual(rows);
+        });
+      }
+    }
   });
 
   describe('stripHeaderRow', () => {

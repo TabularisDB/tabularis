@@ -2296,8 +2296,14 @@ export const DataGrid = React.memo(
         }
         if (!text) return;
 
+        // Cells that land in a JSON column keep quotes that are part of the
+        // value (a pasted JSON string), see parsePasteMatrix.
+        const isJsonPasteColumn = (offset: number) => {
+          const colType = columnTypeMap?.get(columns[anchor.colIndex + offset]);
+          return !!colType && isJsonColumn(colType);
+        };
         const matrix = stripHeaderRow(
-          parsePasteMatrix(text, csvDelimiter),
+          parsePasteMatrix(text, csvDelimiter, isJsonPasteColumn),
           columns,
           anchor.colIndex,
         );
@@ -2350,6 +2356,7 @@ export const DataGrid = React.memo(
         selectedRowIndices,
         mergedRows,
         columns,
+        columnTypeMap,
         pkColumnSet,
         csvDelimiter,
         stageCellWrites,
