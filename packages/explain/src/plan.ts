@@ -313,3 +313,61 @@ export function getExplainDriverLegend(plan: ExplainPlan): string[] {
       return [];
   }
 }
+
+export interface ExplainTableRowData {
+  index: number;
+  depth: number;
+  nodeType: string;
+  relation: string | null;
+  cost: string | null;
+  planRows: number | null;
+  actualRows: number | null;
+  exclusiveTimeMs: number | null;
+  estimateGap: number | null;
+  filter: string | null;
+}
+
+/**
+ * Flatten an ExplainPlan tree into presentation-ready rows for tabular display and export.
+ * Preserves tree pre-order, computes depth, and extracts key metrics.
+ * Leaves unavailable metrics null rather than converting them to zero.
+ */
+export function getExplainTableRows(
+  plan: ExplainPlan,
+  metrics?: ExplainMetrics,
+): ExplainTableRowData[] {
+  const nodes = flattenExplainNodes(plan.root);
+  const planMetrics = metrics ?? computeExplainMetrics(plan);
+
+  return nodes.map((node, i) => {
+    const nodeMetrics = planMetrics.byId.get(node.id);
+    const index = nodeMetrics?.index ?? i + 1;
+    const depth = nodeMetrics?.depth ?? 0;
+
+    let cost: string | null = null;
+    if (node.startup_cost != null && node.total_cost != null) {
+      cost = `${node.startup_cost} - ${node.total_cost}`;
+    } else if (node.total_cost != null) {
+      cost = `${node.total_cost}`;
+    }
+
+    const rowRatio = getRowEstimateRatio(node);
+    const estimateGap =
+      rowRatio != null ? (rowRatio >= 1 ? rowRatio : 1 / rowRatio) : null;
+
+    return {
+      index,
+      depth,
+      nodeType: node.node_type,
+      relation: node.relation ?? null,
+      cost,
+      planRows: node.plan_rows ?? null,
+      actualRows: plan.has_analyze_data ? (node.actual_rows ?? null) : null,
+      exclusiveTimeMs: plan.has_analyze_data
+        ? (nodeMetrics?.exclusiveTimeMs ?? null)
+        : null,
+      estimateGap,
+      filter: node.filter ?? null,
+    };
+  });
+}

@@ -29,6 +29,7 @@ import {
   getRawExplainFormatLabel,
   saveRawExplainOutput,
 } from "../../utils/explainRaw";
+import { saveExplainTableCsv } from "../../utils/explainTableExport";
 import { ExplainAiAnalysis } from "../modals/visual-explain/ExplainAiAnalysis";
 
 export interface VisualExplainViewProps {
@@ -105,6 +106,8 @@ export const VisualExplainView = ({
     [editorTheme],
   );
 
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+
   const handleSaveRaw = useCallback(async () => {
     // Capture the selected plan synchronously before awaiting the dialog
     const planSnapshot = plan;
@@ -124,6 +127,34 @@ export const VisualExplainView = ({
       setIsSaving(false);
     }
   }, [plan, isSaving, showAlert, t]);
+
+  const handleExportCsv = useCallback(async () => {
+    if (!plan || !metrics) return;
+    setIsExportingCsv(true);
+    try {
+      const saved = await saveExplainTableCsv(plan, metrics);
+      if (saved) {
+        showAlert(
+          t(
+            "editor.visualExplain.exportCsvSuccess",
+            "Explain table exported as CSV",
+          ),
+          { kind: "info" },
+        );
+      }
+    } catch (err) {
+      console.error("Failed to export EXPLAIN table CSV:", err);
+      showAlert(
+        t(
+          "editor.visualExplain.exportCsvError",
+          "Failed to export EXPLAIN table as CSV",
+        ),
+        { kind: "error" },
+      );
+    } finally {
+      setIsExportingCsv(false);
+    }
+  }, [plan, metrics, showAlert, t]);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -206,6 +237,8 @@ export const VisualExplainView = ({
               diagnostics={diagnostics}
               selectedId={selectedNodeId}
               onSelect={onSelectNode}
+              onExportCsv={handleExportCsv}
+              isExportingCsv={isExportingCsv}
             />
           ) : viewMode === "diagram" ? (
             <ExplainDiagramView

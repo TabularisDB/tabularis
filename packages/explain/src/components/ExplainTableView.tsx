@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown, Download } from "lucide-react";
 import clsx from "clsx";
 import type { ExplainNode, ExplainPlan } from "../types";
 import type {
@@ -19,12 +19,14 @@ import {
 import { ExplainDiagnosticChips } from "./ExplainDiagnosticChips";
 import { ExplainNodeDetails } from "./ExplainNodeDetails";
 
-interface ExplainTableViewProps {
+export interface ExplainTableViewProps {
   plan: ExplainPlan;
   metrics: ExplainMetrics;
   diagnostics: Map<string, ExplainDiagnostic[]>;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onExportCsv?: () => void;
+  isExportingCsv?: boolean;
 }
 
 export function ExplainTableView({
@@ -33,6 +35,8 @@ export function ExplainTableView({
   diagnostics,
   selectedId,
   onSelect,
+  onExportCsv,
+  isExportingCsv,
 }: ExplainTableViewProps) {
   const { t } = useTranslation();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
@@ -56,8 +60,31 @@ export function ExplainTableView({
 
   return (
     <div className="flex h-full">
-      <div className="flex-1 overflow-auto border-r border-default min-w-0">
-        <table className="w-full text-xs">
+      <div className="flex-1 flex flex-col min-w-0 border-r border-default">
+        {onExportCsv && (
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-default bg-base/50 text-xs shrink-0">
+            <span className="text-muted font-medium">
+              {t("editor.visualExplain.tableTitle", "Plan Tree")}
+            </span>
+            <button
+              type="button"
+              onClick={onExportCsv}
+              disabled={isExportingCsv}
+              className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium text-secondary hover:text-primary hover:bg-surface-secondary transition-colors disabled:opacity-50 disabled:pointer-events-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              aria-label={t("editor.visualExplain.exportCsv", "Export CSV")}
+              title={t("editor.visualExplain.exportCsv", "Export CSV")}
+            >
+              <Download size={13} aria-hidden="true" />
+              <span>
+                {isExportingCsv
+                  ? t("editor.visualExplain.exportingCsv", "Exporting...")
+                  : t("editor.visualExplain.exportCsv", "Export CSV")}
+              </span>
+            </button>
+          </div>
+        )}
+        <div className="flex-1 overflow-auto min-h-0">
+          <table className="w-full text-xs">
           <thead className="sticky top-0 z-10 bg-base border-b border-default">
             <tr>
               <th className="text-left px-3 py-2 text-muted font-semibold whitespace-nowrap">
@@ -105,6 +132,7 @@ export function ExplainTableView({
             />
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="w-[320px] shrink-0 overflow-y-auto bg-base/50">
