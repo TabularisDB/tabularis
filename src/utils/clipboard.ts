@@ -1,4 +1,9 @@
 import { formatCellValue } from './dataGrid';
+import { quoteIdentifier } from './identifiers';
+import type { DriverCapabilities, PluginManifest } from '../types/plugins';
+
+/** A driver id, or its manifest or capabilities; the capabilities carry the plugin's identifier quote. */
+type DriverRef = string | PluginManifest | DriverCapabilities | null;
 
 export function rowToCSV(row: unknown[], nullLabel: string = "null", delimiter: string = ","): string {
   return row
@@ -96,6 +101,7 @@ export function formatRowsForCopy(
     csvIncludeHeaders?: boolean;
     csvDelimiter?: string;
     tableName?: string | null;
+    driver?: DriverRef;
   } = {},
 ): string {
   const {
@@ -103,10 +109,11 @@ export function formatRowsForCopy(
     csvIncludeHeaders = true,
     csvDelimiter = ",",
     tableName,
+    driver,
   } = options;
   if (copyFormat === "json") return rowsToJSON(rows, columns);
   if (copyFormat === "sql-insert")
-    return rowsToSqlInsert(rows, columns, tableName ?? "table");
+    return rowsToSqlInsert(rows, columns, tableName ?? "table", driver);
   if (copyFormat === "markdown")
     return rowsToMarkdown(rows, columns, "null", withHeaders && csvIncludeHeaders);
   if (withHeaders && csvIncludeHeaders)
@@ -136,6 +143,7 @@ export function projectColumns(
 }
 
 interface ColumnCopyOptions {
+  driver?: string | null;
   format: CopyFormat;
   delimiter?: string;
   includeHeader?: boolean;
@@ -162,6 +170,7 @@ export function columnValuesForCopy(
       projectedRows,
       projectedColumns,
       options.tableName ?? "table",
+      options.driver,
     );
   }
   if (options.format === "markdown") {
@@ -198,22 +207,31 @@ function sqlValue(cell: unknown): string {
   return `'${str.replace(/'/g, "''")}'`;
 }
 
+// Identifiers use the driver's own quote character; backticks when no driver is known.
+function sqlIdentifier(name: string, driver?: DriverRef): string {
+  return driver ? quoteIdentifier(name, driver) : `\`${name}\``;
+}
+
 function rowToSqlInsert(
   row: unknown[],
   columns: string[],
   tableName: string,
+  driver?: DriverRef,
 ): string {
-  const cols = columns.map((c) => `\`${c}\``).join(", ");
+  const cols = columns.map((c) => sqlIdentifier(c, driver)).join(", ");
   const vals = row.map(sqlValue).join(", ");
-  return `INSERT INTO \`${tableName}\` (${cols}) VALUES (${vals});`;
+  return `INSERT INTO ${sqlIdentifier(tableName, driver)} (${cols}) VALUES (${vals});`;
 }
 
 export function rowsToSqlInsert(
   rows: unknown[][],
   columns: string[],
   tableName: string,
+  driver?: DriverRef,
 ): string {
-  return rows.map((row) => rowToSqlInsert(row, columns, tableName)).join("\n");
+  return rows
+    .map((row) => rowToSqlInsert(row, columns, tableName, driver))
+    .join("\n");
 }
 
 export async function copyTextToClipboard(
