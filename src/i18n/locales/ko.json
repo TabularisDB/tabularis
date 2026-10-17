@@ -51,7 +51,9 @@
     "opStartsWith": "으로 시작",
     "opEndsWith": "으로 끝남",
     "opIsEmpty": "비어 있음",
-    "opIsNotEmpty": "비어 있지 않음"
+    "opIsNotEmpty": "비어 있지 않음",
+    "matchCase": "대소문자 구분",
+    "matchCaseHint": "대소문자를 구분합니다(LIKE). 끄면 구분하지 않습니다(ILIKE)."
   },
   "common": {
     "save": "저장",

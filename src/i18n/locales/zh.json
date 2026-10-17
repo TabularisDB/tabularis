@@ -51,7 +51,9 @@
     "opStartsWith": "开头是",
     "opEndsWith": "结尾是",
     "opIsEmpty": "为空",
-    "opIsNotEmpty": "不为空"
+    "opIsNotEmpty": "不为空",
+    "matchCase": "区分大小写",
+    "matchCaseHint": "区分大小写（LIKE）。关闭后不区分大小写（ILIKE）。"
   },
   "tags": {
     "label": "标签",

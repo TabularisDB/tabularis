@@ -51,7 +51,9 @@
     "opStartsWith": "começa com",
     "opEndsWith": "termina com",
     "opIsEmpty": "está vazio",
-    "opIsNotEmpty": "não está vazio"
+    "opIsNotEmpty": "não está vazio",
+    "matchCase": "Diferenciar maiúsculas",
+    "matchCaseHint": "Diferenciar maiúsculas (LIKE). Desativado: qualquer capitalização (ILIKE)."
   },
   "common": {
     "save": "Salvar",

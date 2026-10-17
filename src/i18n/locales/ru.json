@@ -51,7 +51,9 @@
     "opStartsWith": "начинается с",
     "opEndsWith": "заканчивается на",
     "opIsEmpty": "пусто",
-    "opIsNotEmpty": "не пусто"
+    "opIsNotEmpty": "не пусто",
+    "matchCase": "Учитывать регистр",
+    "matchCaseHint": "Учитывать регистр (LIKE). Выключено — любой регистр (ILIKE)."
   },
   "tags": {
     "label": "Теги",

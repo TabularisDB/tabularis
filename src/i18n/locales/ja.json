@@ -51,7 +51,9 @@
     "opStartsWith": "で始まる",
     "opEndsWith": "で終わる",
     "opIsEmpty": "空である",
-    "opIsNotEmpty": "空でない"
+    "opIsNotEmpty": "空でない",
+    "matchCase": "大文字と小文字を区別",
+    "matchCaseHint": "大文字と小文字を区別します（LIKE）。オフにすると区別しません（ILIKE）。"
   },
   "tags": {
     "label": "タグ",

@@ -149,3 +149,47 @@ describe("FilterRow value picker", () => {
   });
 
 });
+
+describe("FilterRow match-case toggle", () => {
+  const textRow: StructuredFilter = {
+    id: "f1",
+    column: "status",
+    operator: "contains",
+    value: "act",
+  };
+  const toggle = () => screen.queryByRole("button", { name: "toolbar.matchCase" });
+
+  it("is offered for the literal text operators on a postgres connection", () => {
+    renderRow(textRow, { supportsMatchCase: true });
+    expect(toggle()).toBeInTheDocument();
+    expect(toggle()).toHaveAttribute("aria-pressed", "true");
+    expect(toggle()).toHaveAttribute("title", "toolbar.matchCaseHint");
+  });
+
+  it("reflects the setting stored on the row", () => {
+    renderRow({ ...textRow, matchCase: false }, { supportsMatchCase: true });
+    expect(toggle()).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("turns the setting off and leaves the value alone", () => {
+    const { onChange } = renderRow(textRow, { supportsMatchCase: true });
+    act(() => {
+      fireEvent.click(toggle()!);
+    });
+    expect(onChange).toHaveBeenCalledWith({ ...textRow, matchCase: false });
+  });
+
+  it("is hidden on connections whose dialect cannot run ILIKE", () => {
+    renderRow(textRow, { supportsMatchCase: false });
+    expect(toggle()).not.toBeInTheDocument();
+    renderRow(textRow);
+    expect(toggle()).not.toBeInTheDocument();
+  });
+
+  it("is hidden for operators that are not a literal text match", () => {
+    for (const operator of ["=", "LIKE", "IN", "IS NULL"] as const) {
+      renderRow({ ...textRow, operator }, { supportsMatchCase: true });
+      expect(toggle()).not.toBeInTheDocument();
+    }
+  });
+});

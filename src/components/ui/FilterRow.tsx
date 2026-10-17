@@ -7,6 +7,7 @@ import {
   getOperatorsForType,
   getPickedValues,
   isFilterComplete,
+  isMatchCaseEnabled,
   isValuePickerSupported,
   NO_VALUE_OPS,
 } from "../../utils/filterBar";
@@ -40,6 +41,12 @@ export interface FilterRowProps {
   onLoadValues?: (filter: StructuredFilter) => Promise<DistinctValue[]>;
   /** Identifies the connection and query whose values the picker displays. */
   valuePickerContextKey?: string;
+  /**
+   * Offers the match-case toggle for the literal text operators. Only a
+   * PostgreSQL dialect can emit `ILIKE`, so other connections hide the control
+   * instead of showing one that changes nothing.
+   */
+  supportsMatchCase?: boolean;
 }
 
 export const FilterRow = ({
@@ -54,6 +61,7 @@ export const FilterRow = ({
   onTriggerApplied,
   onLoadValues,
   valuePickerContextKey,
+  supportsMatchCase,
 }: FilterRowProps) => {
   const { t } = useTranslation();
   const selectedCol = columns.find((c) => c.name === filter.column);
@@ -65,6 +73,12 @@ export const FilterRow = ({
   const dataType = selectedCol?.data_type ?? "";
   const showValuePicker =
     !!onLoadValues && !!filter.column && !noValue && !isBetween && isValuePickerSupported(dataType);
+  const isTextMatch =
+    filter.operator === "contains" ||
+    filter.operator === "starts with" ||
+    filter.operator === "ends with";
+  const showMatchCase = !!supportsMatchCase && isTextMatch;
+  const matchCase = isMatchCaseEnabled(filter);
 
   const handleColumnChange = (col: string) => {
     const colMeta = columns.find((c) => c.name === col);
@@ -141,6 +155,22 @@ export const FilterRow = ({
             placeholder={t("toolbar.valuePlaceholder")}
             autoComplete="off"
           />
+          {showMatchCase && (
+            <button
+              type="button"
+              onClick={() => onChange({ ...filter, matchCase: !matchCase })}
+              aria-pressed={matchCase}
+              aria-label={t("toolbar.matchCase")}
+              title={t("toolbar.matchCaseHint")}
+              className={`shrink-0 h-6 px-1.5 rounded border font-mono text-[10px] leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                matchCase
+                  ? "bg-accent-primary/15 border-accent-primary/40 text-accent hover:bg-accent-primary/25"
+                  : "bg-transparent border-default/60 text-muted hover:text-secondary hover:border-default"
+              }`}
+            >
+              Aa
+            </button>
+          )}
           {showValuePicker && (
             <FilterValuePicker
               key={JSON.stringify([valuePickerContextKey, filter, dataType])}

@@ -24,7 +24,7 @@ import {
   parseDistinctValues,
 } from "../../utils/filterBar";
 import type { StructuredFilter, FilterCombinator, DistinctValue } from "../../utils/filterBar";
-import { formatSqlIdentifier } from "../../utils/identifiers";
+import { formatSqlIdentifier, isPostgresDialect } from "../../utils/identifiers";
 import { formatSortClause } from "../../utils/tableToolbar";
 import { FilterRow } from "./FilterRow";
 import { StyledSelect } from "./StyledSelect";
@@ -222,6 +222,8 @@ const TableToolbarInternal = ({
     [onRunQuery, tableName, queryForValues],
   );
   const canPickValues = !!onRunQuery && !!tableName;
+  // ILIKE is PostgreSQL syntax; every other dialect keeps its LIKE-only rows.
+  const supportsMatchCase = isPostgresDialect(quotingDriver);
 
   // Applies only that single row's filter — resets Applied on all others
   const handleApplySingle = useCallback(
@@ -744,6 +746,7 @@ const TableToolbarInternal = ({
                   onEscape={closePanel}
                   isApplied={appliedFilters[filter.id] === true}
                   onTriggerApplied={() => onTriggerApplied(filter.id)}
+                  supportsMatchCase={supportsMatchCase}
                   onLoadValues={canPickValues ? loadValuesFor : undefined}
                   valuePickerContextKey={canPickValues
                     ? JSON.stringify([activeConnectionId, queryForValues(filter)])
