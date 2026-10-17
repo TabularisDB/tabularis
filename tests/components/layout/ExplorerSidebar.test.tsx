@@ -1129,6 +1129,41 @@ describe("ExplorerSidebar — saved query actions", () => {
       await waitFor(() => expect(moveQuery).toHaveBeenCalledWith("q1", "f1"));
     });
 
+    it("shows the SQL excerpt on rows that also show their folder location", () => {
+      const deep = {
+        ...filed,
+        sql: "SELECT id\nFROM orders\nWHERE status = 'shipped'",
+      };
+      renderWithFolders([savedQuery, deep], [folderRef]);
+      fireEvent.change(screen.getByPlaceholderText("sidebar.searchFavorites"), {
+        target: { value: "SHIPPED" },
+      });
+
+      const row = screen.getByText("Monthly").closest("button")!;
+      expect(row.textContent).toContain("Reports");
+      const mark = row.querySelector("mark");
+      expect(mark?.textContent).toBe("shipped");
+      expect(mark?.parentElement?.textContent).toBe("WHERE status = 'shipped'");
+
+      const unfiledRow = screen.queryByText("Cleanup");
+      expect(unfiledRow).toBeNull();
+    });
+
+    it("shows the excerpt on unfiled results next to their Unfiled label", () => {
+      renderWithFolders();
+      fireEvent.change(screen.getByPlaceholderText("sidebar.searchFavorites"), {
+        target: { value: "archived" },
+      });
+      const row = screen.getByText("Cleanup").closest("button")!;
+      expect(row.textContent).toContain("sidebar.unfiled");
+      expect(row.querySelector("mark")?.textContent).toBe("archived");
+    });
+
+    it("does not show an excerpt on folder rows when not searching", () => {
+      renderWithFolders();
+      expect(document.querySelector("mark")).toBeNull();
+    });
+
     it("replays a filed query with its saved database", () => {
       renderWithFolders();
       fireEvent.doubleClick(screen.getByText("Monthly").closest("button")!);
@@ -1140,6 +1175,63 @@ describe("ExplorerSidebar — saved query actions", () => {
           preventAutoRun: false,
         }),
       );
+    });
+  });
+
+  describe("favorites search excerpt", () => {
+    const multiline = {
+      ...savedQuery,
+      id: "q2",
+      name: "Report",
+      sql: "SELECT id\nFROM orders\nWHERE note = '<img src=x onerror=alert(1)>'",
+    };
+
+    const renderWithQueries = () => {
+      vi.mocked(useSavedQueries).mockReturnValue({
+        queries: [savedQuery, multiline],
+        folders: [],
+        saveQuery,
+        deleteQuery: vi.fn(),
+        updateQuery: vi.fn(),
+      } as unknown as ReturnType<typeof useSavedQueries>);
+      renderFavorites();
+    };
+
+    const search = (value: string) =>
+      fireEvent.change(screen.getByPlaceholderText("sidebar.searchFavorites"), {
+        target: { value },
+      });
+
+    it("shows the matching line, highlighted and as plain text", () => {
+      renderWithQueries();
+      search("<IMG SRC");
+
+      const mark = screen.getByText("<img src", { selector: "mark" });
+      expect(mark.tagName).toBe("MARK");
+      expect(mark.parentElement?.textContent).toContain(
+        "WHERE note = '<img src=x onerror=alert(1)>'",
+      );
+      expect(document.querySelector("img")).toBeNull();
+      expect(screen.queryByText("Cleanup")).toBeNull();
+    });
+
+    it("keeps name-only matches with their default preview", () => {
+      renderWithQueries();
+      search("cleanup");
+
+      expect(screen.getByText("Cleanup")).toBeTruthy();
+      expect(document.querySelector("mark")).toBeNull();
+    });
+
+    it("restores the default list when the search is cleared", () => {
+      renderWithQueries();
+      search("orders");
+      expect(document.querySelector("mark")).not.toBeNull();
+
+      search("");
+      expect(document.querySelector("mark")).toBeNull();
+      expect(screen.getByText("Cleanup")).toBeTruthy();
+      expect(screen.getByText("Report")).toBeTruthy();
     });
   });
 });

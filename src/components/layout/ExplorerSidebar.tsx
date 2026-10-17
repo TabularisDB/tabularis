@@ -107,6 +107,8 @@ import { groupRoutinesByType, routineLabel } from "../../utils/routines";
 import { formatObjectCount } from "../../utils/schema";
 import { groupByDate, formatHistoryTime } from "../../utils/dateGroups";
 import { SqlHighlight } from "../ui/SqlHighlight";
+import { SqlMatchExcerpt } from "../ui/SqlMatchExcerpt";
+import { getSavedQueryExcerpt, matchesSavedQuery } from "../../utils/savedQuerySearch";
 import { isMultiDatabaseCapable, isSchemaBasedMultiDb, usesMultiDatabaseLayout, reconcileDatabaseSelection } from "../../utils/database";
 import { supportsManageTables } from "../../utils/driverCapabilities";
 import { newConsoleForDatabase } from "../../utils/newConsole";
@@ -1045,14 +1047,16 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
               return b.updated_at.localeCompare(a.updated_at);
             });
             const filteredQueries = favoritesFilter.trim()
-              ? sorted.filter((q) => q.name.toLowerCase().includes(favoritesFilter.toLowerCase()) || q.sql.toLowerCase().includes(favoritesFilter.toLowerCase()))
+              ? sorted.filter((q) => matchesSavedQuery(q, favoritesFilter))
               : sorted;
             const isSearching = favoritesFilter.trim() !== "";
             const folderGroups = groupQueriesByFolder(filteredQueries, folders);
             const groupedFavorites = groupByDate(isSearching ? filteredQueries : folderGroups.unfiled, (q) => q.updated_at ?? "1970-01-01", settings.displayTimezone);
             const hasFolders = folders.length > 0;
 
-            const renderQueryRow = (q: SavedQuery, showLocation: boolean, indented = false) => (
+            const renderQueryRow = (q: SavedQuery, showLocation: boolean, indented = false) => {
+              const excerpt = getSavedQueryExcerpt(q.sql, favoritesFilter);
+              return (
               <button
                 type="button"
                 key={q.id}
@@ -1097,9 +1101,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     )}
                   </div>
                 </div>
-                <SqlHighlight sql={q.sql} />
+                {excerpt ? <SqlMatchExcerpt excerpt={excerpt} /> : <SqlHighlight sql={q.sql} />}
               </button>
-            );
+              );
+            };
 
             const renderFolder = ({ folder, queries: folderQueries }: { folder: SavedQueryFolder; queries: SavedQuery[] }) => {
               const isCollapsed = collapsedFolders.has(folder.id);
