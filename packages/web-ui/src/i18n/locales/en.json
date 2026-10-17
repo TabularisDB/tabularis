@@ -1983,6 +1983,25 @@
       "explainNth": "explain Nth",
       "cancel": "cancel"
     },
+    "resultChart": {
+      "viewLabel": "Result view",
+      "viewGrid": "Grid",
+      "viewChart": "Chart",
+      "chartType": "Chart type",
+      "typeBar": "Bar",
+      "typeLine": "Line",
+      "xAxis": "X axis",
+      "yAxis": "Y axis",
+      "scopeLoaded": "Rows plotted: {{count}}",
+      "scopeCapped": "Rows plotted: first {{plotted}} of {{loaded}} loaded",
+      "scopeMore": "more rows not loaded",
+      "emptyNoRowsTitle": "No rows to chart",
+      "emptyNoNumericTitle": "No numeric columns to plot",
+      "emptyNoNumericHint": "A chart needs at least one numeric column. The grid still shows every value.",
+      "showGrid": "Show grid",
+      "maxSeries": "Up to {{max}} series at a time",
+      "summary": "{{type}} chart of {{values}} by {{label}}, rows plotted: {{count}}"
+    },
     "multiResult": {
       "query": "Query {{index}}",
       "summary": "{{total}} queries: {{succeeded}} succeeded, {{failed}} failed",

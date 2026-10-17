@@ -1885,6 +1885,25 @@
       "explainNth": "analizar N-esima",
       "cancel": "cancelar"
     },
+    "resultChart": {
+      "viewLabel": "Vista del resultado",
+      "viewGrid": "Cuadrícula",
+      "viewChart": "Gráfico",
+      "chartType": "Tipo de gráfico",
+      "typeBar": "Barras",
+      "typeLine": "Líneas",
+      "xAxis": "Eje X",
+      "yAxis": "Eje Y",
+      "scopeLoaded": "Filas representadas: {{count}}",
+      "scopeCapped": "Filas representadas: primeras {{plotted}} de {{loaded}} cargadas",
+      "scopeMore": "hay más filas sin cargar",
+      "emptyNoRowsTitle": "No hay filas para representar",
+      "emptyNoNumericTitle": "No hay columnas numéricas para representar",
+      "emptyNoNumericHint": "Un gráfico necesita al menos una columna numérica. La cuadrícula sigue mostrando todos los valores.",
+      "showGrid": "Mostrar cuadrícula",
+      "maxSeries": "Hasta {{max}} series a la vez",
+      "summary": "Gráfico de {{type}} de {{values}} por {{label}}, filas representadas: {{count}}"
+    },
     "multiResult": {
       "query": "Consulta {{index}}",
       "summary": "{{total}} consultas: {{succeeded}} completadas, {{failed}} fallidas",

@@ -116,6 +116,8 @@ import {DataGrid, type DataGridCommandTarget} from '@/components/ui/DataGrid';
 import {MultiResultPanel} from '@/components/ui/MultiResultPanel';
 import {ErrorDisplay} from '@/components/ui/ErrorDisplay';
 import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
+import {ResultChart} from '@/components/ui/ResultChart';
+import {ResultViewToggle} from '@/components/ui/ResultViewToggle';
 import {NewRowModal} from '@/components/modals/NewRowModal';
 import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
 import {ConfirmModal} from '@/components/modals/ConfirmModal';
@@ -156,6 +158,7 @@ import {
 import {extractQueryParams, interpolateQueryParams} from '@/utils/queryParameters';
 import {formatDuration, formatTimingTooltip} from '@/utils/formatTime';
 import {useTimingLabels} from '@/hooks/useTimingLabels';
+import {useResultChartState} from '@/hooks/useResultChartState';
 import {notifyQueryFinished} from '@/utils/queryNotification';
 import {
     buildSyncPayload,
@@ -604,6 +607,11 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const isNotebookTab = activeTab?.type === 'notebook';
     // Users tabs render full-height like notebooks: no SQL toolbar, no results panel.
     const isUsersTab = activeTab?.type === 'users';
+    // Grid | Chart toggle for a query tab's single result (table tabs keep the grid).
+    const resultChartEnabled =
+        !!activeTab && !isTableTab && (activeTab.result?.columns.length ?? 0) > 0;
+    const resultChart = useResultChartState(resultChartEnabled ? activeTab.id : null);
+    const showResultChart = resultChartEnabled && resultChart.view === 'chart';
     const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
     const tabStripId = useId();
     // Full name behind a truncated tab title (tooltip and accessible name).
@@ -6018,6 +6026,14 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             )}
                                         </div>
 
+                                        {resultChartEnabled && (
+                                            <ResultViewToggle
+                                                className="ml-auto"
+                                                view={resultChart.view}
+                                                onChange={resultChart.setView}
+                                            />
+                                        )}
+
                                         {/* Pagination Controls */}
                                         {(activeTab.result.pagination ||
                                             activeTab.pageSize === 0) && (
@@ -6441,80 +6457,96 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 )}
 
                                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                                    <div className="flex-1 min-h-0 overflow-hidden">
-                                        <DataGrid
-                                            ref={dataGridCommandTargetRef}
-                                            key={`${activeTab.id}-${activeTab.sortClause || 'none'}-${activeTab.filterClause || 'none'}-${activeTab.type === 'table' ? 'table' : activeTab.result?.rows.length || 0}-${Object.keys(activeTab.pendingInsertions || {}).length}`}
-                                            columns={activeTab.result?.columns || []}
-                                            data={activeTab.result?.rows || []}
-                                            tableName={activeTab.activeTable}
-                                            pkColumns={rowIdentity?.columns ?? null}
-                                            autoIncrementColumns={activeTab.autoIncrementColumns}
-                                            defaultValueColumns={activeTab.defaultValueColumns}
-                                            nullableColumns={activeTab.nullableColumns}
-                                            columnMetadata={activeTab.columnMetadata}
-                                            foreignKeys={activeTab.foreignKeys}
-                                            onForeignKeyNavigate={handleForeignKeyNavigate}
-                                            onForeignKeyShowPanel={handleForeignKeyShowPanel}
-                                            onForeignKeyHidePanel={() => setActiveFkQuery(null)}
-                                            onFilterByValue={
-                                                activeTab.type === 'table'
-                                                    ? handleFilterByValue
-                                                    : undefined
-                                            }
-                                            onLoadColumnStats={
-                                                activeTab.type === 'table' && columnStatsSource
-                                                    ? handleLoadColumnStats
-                                                    : undefined
-                                            }
-                                            connectionId={activeConnectionId}
-                                            schema={activeTab.schema ?? activeSchema}
-                                            database={activeTab.database}
-                                            onRefresh={handleRefresh}
-                                            onEditingChange={handleEditingChange}
-                                            pendingChanges={activeTab.pendingChanges}
-                                            pendingDeletions={activeTab.pendingDeletions}
-                                            pendingInsertions={activeTab.pendingInsertions}
-                                            onPendingChange={handlePendingChange}
-                                            onPendingInsertionChange={handlePendingInsertionChange}
-                                            onDiscardInsertion={handleDiscardInsertion}
-                                            onRevertDeletion={handleRevertDeletion}
-                                            onMarkForDeletion={handleMarkForDeletion}
-                                            onMarkMultipleForDeletion={
-                                                handleMarkMultipleForDeletion
-                                            }
-                                            onDuplicateRow={handleDuplicateRow}
-                                            selectedRows={new Set(activeTab.selectedRows || [])}
-                                            onSelectionChange={handleSelectionChange}
-                                            copyFormat={copyFormat}
-                                            csvDelimiter={csvDelimiter}
-                                            csvIncludeHeaders={csvIncludeHeaders}
-                                            sortClause={activeTab.sortClause}
-                                            onSort={
-                                                activeTab.type === 'table' &&
-                                                (activeTab.result?.rows.length ?? 0) > 0
-                                                    ? handleSort
-                                                    : undefined
-                                            }
-                                            readonly={driverReadonly || !!activeTab.materialized}
-                                            totalRows={activeTab.result?.pagination?.total_rows}
-                                            hasMore={activeTab.result?.pagination?.has_more}
-                                            onCopyAllRows={() =>
-                                                copyAllRows(fetchTabAllRows(activeTab.id))
-                                            }
-                                            initialScrollTop={scrollTopByTabIdRef.current.get(
-                                                activeTab.id,
-                                            )}
-                                            onScrollTopChange={handleScrollTopChange}
-                                            scrollToNewInsertion={scrollToNewInsertion}
-                                            onUndo={handleUndoGrid}
-                                            onRedo={handleRedoGrid}
-                                            canUndo={canUndoGrid(activeTab.gridHistory)}
-                                            canRedo={canRedoGrid(activeTab.gridHistory)}
-                                            onBeginBatchEdit={handleBeginBatchEdit}
-                                            onEndBatchEdit={handleEndBatchEdit}
+                                    {showResultChart && activeTab.result ? (
+                                        <ResultChart
+                                            result={activeTab.result}
+                                            config={resultChart.config}
+                                            onConfigChange={resultChart.setConfig}
+                                            onShowGrid={() => resultChart.setView('grid')}
+                                            isRefreshing={!!activeTab.isLoading}
                                         />
-                                    </div>
+                                    ) : (
+                                        <div className="flex-1 min-h-0 overflow-hidden">
+                                            <DataGrid
+                                                ref={dataGridCommandTargetRef}
+                                                key={`${activeTab.id}-${activeTab.sortClause || 'none'}-${activeTab.filterClause || 'none'}-${activeTab.type === 'table' ? 'table' : activeTab.result?.rows.length || 0}-${Object.keys(activeTab.pendingInsertions || {}).length}`}
+                                                columns={activeTab.result?.columns || []}
+                                                data={activeTab.result?.rows || []}
+                                                tableName={activeTab.activeTable}
+                                                pkColumns={rowIdentity?.columns ?? null}
+                                                autoIncrementColumns={
+                                                    activeTab.autoIncrementColumns
+                                                }
+                                                defaultValueColumns={activeTab.defaultValueColumns}
+                                                nullableColumns={activeTab.nullableColumns}
+                                                columnMetadata={activeTab.columnMetadata}
+                                                foreignKeys={activeTab.foreignKeys}
+                                                onForeignKeyNavigate={handleForeignKeyNavigate}
+                                                onForeignKeyShowPanel={handleForeignKeyShowPanel}
+                                                onForeignKeyHidePanel={() => setActiveFkQuery(null)}
+                                                onFilterByValue={
+                                                    activeTab.type === 'table'
+                                                        ? handleFilterByValue
+                                                        : undefined
+                                                }
+                                                onLoadColumnStats={
+                                                    activeTab.type === 'table' && columnStatsSource
+                                                        ? handleLoadColumnStats
+                                                        : undefined
+                                                }
+                                                connectionId={activeConnectionId}
+                                                schema={activeTab.schema ?? activeSchema}
+                                                database={activeTab.database}
+                                                onRefresh={handleRefresh}
+                                                onEditingChange={handleEditingChange}
+                                                pendingChanges={activeTab.pendingChanges}
+                                                pendingDeletions={activeTab.pendingDeletions}
+                                                pendingInsertions={activeTab.pendingInsertions}
+                                                onPendingChange={handlePendingChange}
+                                                onPendingInsertionChange={
+                                                    handlePendingInsertionChange
+                                                }
+                                                onDiscardInsertion={handleDiscardInsertion}
+                                                onRevertDeletion={handleRevertDeletion}
+                                                onMarkForDeletion={handleMarkForDeletion}
+                                                onMarkMultipleForDeletion={
+                                                    handleMarkMultipleForDeletion
+                                                }
+                                                onDuplicateRow={handleDuplicateRow}
+                                                selectedRows={new Set(activeTab.selectedRows || [])}
+                                                onSelectionChange={handleSelectionChange}
+                                                copyFormat={copyFormat}
+                                                csvDelimiter={csvDelimiter}
+                                                csvIncludeHeaders={csvIncludeHeaders}
+                                                sortClause={activeTab.sortClause}
+                                                onSort={
+                                                    activeTab.type === 'table' &&
+                                                    (activeTab.result?.rows.length ?? 0) > 0
+                                                        ? handleSort
+                                                        : undefined
+                                                }
+                                                readonly={
+                                                    driverReadonly || !!activeTab.materialized
+                                                }
+                                                totalRows={activeTab.result?.pagination?.total_rows}
+                                                hasMore={activeTab.result?.pagination?.has_more}
+                                                onCopyAllRows={() =>
+                                                    copyAllRows(fetchTabAllRows(activeTab.id))
+                                                }
+                                                initialScrollTop={scrollTopByTabIdRef.current.get(
+                                                    activeTab.id,
+                                                )}
+                                                onScrollTopChange={handleScrollTopChange}
+                                                scrollToNewInsertion={scrollToNewInsertion}
+                                                onUndo={handleUndoGrid}
+                                                onRedo={handleRedoGrid}
+                                                canUndo={canUndoGrid(activeTab.gridHistory)}
+                                                canRedo={canRedoGrid(activeTab.gridHistory)}
+                                                onBeginBatchEdit={handleBeginBatchEdit}
+                                                onEndBatchEdit={handleEndBatchEdit}
+                                            />
+                                        </div>
+                                    )}
                                     {activeFkQuery && activeConnectionId && (
                                         <RelatedRecordsPanel
                                             activeFkQuery={activeFkQuery}

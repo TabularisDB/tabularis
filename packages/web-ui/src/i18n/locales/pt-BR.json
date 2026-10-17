@@ -1930,6 +1930,25 @@
       "explainNth": "explicar Nª",
       "cancel": "cancelar"
     },
+    "resultChart": {
+      "viewLabel": "Visualização do resultado",
+      "viewGrid": "Grade",
+      "viewChart": "Gráfico",
+      "chartType": "Tipo de gráfico",
+      "typeBar": "Barras",
+      "typeLine": "Linhas",
+      "xAxis": "Eixo X",
+      "yAxis": "Eixo Y",
+      "scopeLoaded": "Linhas plotadas: {{count}}",
+      "scopeCapped": "Linhas plotadas: primeiras {{plotted}} de {{loaded}} carregadas",
+      "scopeMore": "há mais linhas não carregadas",
+      "emptyNoRowsTitle": "Nenhuma linha para plotar",
+      "emptyNoNumericTitle": "Nenhuma coluna numérica para plotar",
+      "emptyNoNumericHint": "Um gráfico precisa de pelo menos uma coluna numérica. A grade continua mostrando todos os valores.",
+      "showGrid": "Mostrar grade",
+      "maxSeries": "Até {{max}} séries por vez",
+      "summary": "Gráfico de {{type}} de {{values}} por {{label}}, linhas plotadas: {{count}}"
+    },
     "multiResult": {
       "query": "Consulta {{index}}",
       "summary": "{{total}} consultas: {{succeeded}} com sucesso, {{failed}} com falha",

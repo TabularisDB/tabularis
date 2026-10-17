@@ -1,0 +1,369 @@
+import type {QueryResult} from '@/types/editor';
+import type {CellChartConfig} from '@/types/notebook';
+import {transformResultToChartData, type ChartDataPoint} from './notebookChart';
+
+/** Which presentation a result panel shows. */
+export type ResultView = 'grid' | 'chart';
+
+/** Chart types offered for ordinary query results (first milestone). */
+export const RESULT_CHART_TYPES = ['bar', 'line'] as const;
+export type ResultChartType = (typeof RESULT_CHART_TYPES)[number];
+
+/**
+ * Upper bound on plotted points. Keeps an "all rows" page from freezing the
+ * SVG renderer; the chart says so when it applies.
+ */
+export const MAX_CHART_POINTS = 1000;
+
+export type ChartColumnKind = 'numeric' | 'temporal' | 'text' | 'empty';
+
+const NUMERIC_STRING = /^\s*-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?\s*$/;
+const TEMPORAL_STRING = /^\d{4}-\d{2}(-\d{2})?([ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?/;
+const ID_COLUMN = /(^id$|_id$)/i;
+
+/** A finite number, a bigint, or a string drivers use for exact numerics (DECIMAL). */
+export function isNumericValue(value: unknown): boolean {
+    if (typeof value === 'number') return Number.isFinite(value);
+    if (typeof value === 'bigint') return true;
+    if (typeof value === 'string') return NUMERIC_STRING.test(value);
+    return false;
+}
+
+/** An ISO-like date or timestamp string (`2024-01`, `2024-01-31`, `2024-01-31 10:00`). */
+export function isTemporalValue(value: unknown): boolean {
+    return typeof value === 'string' && TEMPORAL_STRING.test(value);
+}
+
+/**
+ * Classifies every column from its loaded, non-null values: numeric when all
+ * of them are numbers, temporal when all are date-like strings, otherwise text.
+ * A column with no non-null values is `empty`.
+ */
+export function classifyResultColumns(result: QueryResult): ChartColumnKind[] {
+    return result.columns.map((_, colIndex) => {
+        let seen = false;
+        let numeric = true;
+        let temporal = true;
+        for (const row of result.rows) {
+            const value = row[colIndex];
+            if (value === null || value === undefined) continue;
+            seen = true;
+            if (numeric && !isNumericValue(value)) numeric = false;
+            if (temporal && !isTemporalValue(value)) temporal = false;
+            if (!numeric && !temporal) break;
+        }
+        if (!seen) return 'empty';
+        if (numeric) return 'numeric';
+        if (temporal) return 'temporal';
+        return 'text';
+    });
+}
+
+/** Columns that can be plotted on the Y axis. */
+export function getChartValueColumns(result: QueryResult): string[] {
+    const kinds = classifyResultColumns(result);
+    return result.columns.filter((_, i) => kinds[i] === 'numeric');
+}
+
+export type ChartUnavailableReason = 'noRows' | 'noNumeric';
+
+/** Why a result cannot be charted, or null when it can. */
+export function getChartUnavailableReason(result: QueryResult): ChartUnavailableReason | null {
+    if (result.columns.length === 0 || result.rows.length === 0) return 'noRows';
+    if (getChartValueColumns(result).length === 0) return 'noNumeric';
+    return null;
+}
+
+function pickDefaultValueColumn(valueColumns: string[], labelColumn: string): string | undefined {
+    const candidates = valueColumns.filter((c) => c !== labelColumn);
+    return candidates.find((c) => !ID_COLUMN.test(c)) ?? candidates[0];
+}
+
+/**
+ * Picks a sensible starting chart from column types:
+ * - a date-like column goes on X and the chart is a line;
+ * - otherwise the first text column goes on X and the chart is a bar;
+ * - an all-numeric result uses its first column as X.
+ * Y is the first numeric column other than X, preferring non-id columns.
+ */
+export function buildDefaultResultChartConfig(result: QueryResult): CellChartConfig | null {
+    if (getChartUnavailableReason(result) !== null) return null;
+    const kinds = classifyResultColumns(result);
+    const valueColumns = result.columns.filter((_, i) => kinds[i] === 'numeric');
+
+    const temporalIdx = kinds.indexOf('temporal');
+    const textIdx = kinds.indexOf('text');
+    const labelIdx = temporalIdx !== -1 ? temporalIdx : textIdx !== -1 ? textIdx : 0;
+    const labelColumn = result.columns[labelIdx];
+
+    const valueColumn = pickDefaultValueColumn(valueColumns, labelColumn);
+    if (!valueColumn) return null;
+
+    return {
+        type: temporalIdx !== -1 ? 'line' : 'bar',
+        labelColumn,
+        valueColumns: [valueColumn],
+    };
+}
+
+/**
+ * Keeps a stored chart config valid for the current result: drops value
+ * columns that disappeared or are no longer numeric, and falls back to the
+ * defaults when the X column vanished or no Y column is left.
+ */
+export function reconcileResultChartConfig(
+    config: CellChartConfig | null,
+    result: QueryResult,
+): CellChartConfig | null {
+    if (getChartUnavailableReason(result) !== null) return null;
+    if (!config) return buildDefaultResultChartConfig(result);
+
+    const type: ResultChartType = (RESULT_CHART_TYPES as readonly string[]).includes(config.type)
+        ? (config.type as ResultChartType)
+        : 'bar';
+
+    if (!result.columns.includes(config.labelColumn)) {
+        const fallback = buildDefaultResultChartConfig(result);
+        return fallback ? {...fallback, type} : null;
+    }
+
+    const numeric = new Set(getChartValueColumns(result));
+    const valueColumns = config.valueColumns.filter(
+        (c) => numeric.has(c) && c !== config.labelColumn,
+    );
+    if (valueColumns.length === 0) {
+        const valueColumn = pickDefaultValueColumn([...numeric], config.labelColumn);
+        if (!valueColumn) return null;
+        return {
+            type,
+            labelColumn: config.labelColumn,
+            valueColumns: [valueColumn],
+        };
+    }
+
+    if (type === config.type && valueColumns.length === config.valueColumns.length) {
+        return config;
+    }
+    return {type, labelColumn: config.labelColumn, valueColumns};
+}
+
+/**
+ * Adds or removes a Y column, never leaving the chart without one and never
+ * going past `maxSeries`.
+ */
+export function toggleChartValueColumn(
+    config: CellChartConfig,
+    column: string,
+    maxSeries = MAX_CHART_SERIES,
+): CellChartConfig {
+    const selected = config.valueColumns.includes(column);
+    if (selected) {
+        if (config.valueColumns.length === 1) return config;
+        return {
+            ...config,
+            valueColumns: config.valueColumns.filter((c) => c !== column),
+        };
+    }
+    if (config.valueColumns.length >= maxSeries) return config;
+    return {...config, valueColumns: [...config.valueColumns, column]};
+}
+
+/** Sets the X column, removing it from the Y columns if it was plotted there. */
+export function setChartLabelColumn(
+    config: CellChartConfig,
+    column: string,
+    result: QueryResult,
+): CellChartConfig {
+    const next = {
+        ...config,
+        labelColumn: column,
+        valueColumns: config.valueColumns.filter((c) => c !== column),
+    };
+    return reconcileResultChartConfig(next, result) ?? next;
+}
+
+export interface ResultChartScope {
+    /** Rows drawn in the chart. */
+    plotted: number;
+    /** Rows loaded in the result panel. */
+    loaded: number;
+    /** True when `MAX_CHART_POINTS` cut the loaded rows. */
+    capped: boolean;
+    /** True when the server has rows that were not loaded. */
+    hasMore: boolean;
+}
+
+export function getResultChartScope(
+    result: QueryResult,
+    maxPoints = MAX_CHART_POINTS,
+): ResultChartScope {
+    const loaded = result.rows.length;
+    return {
+        plotted: Math.min(loaded, maxPoints),
+        loaded,
+        capped: loaded > maxPoints,
+        hasMore: !!result.pagination?.has_more || !!result.truncated,
+    };
+}
+
+/**
+ * Shapes the loaded rows into chart points, reusing the notebook transform so
+ * both chart surfaces read results the same way.
+ */
+export function shapeResultChartData(
+    result: QueryResult,
+    config: CellChartConfig,
+    maxPoints = MAX_CHART_POINTS,
+): ChartDataPoint[] {
+    const rows = result.rows.length > maxPoints ? result.rows.slice(0, maxPoints) : result.rows;
+    return transformResultToChartData({...result, rows}, config);
+}
+
+/** Dash patterns that tell line series apart without relying on colour. */
+const SERIES_DASHES = [undefined, '6 3', '2 3', '8 3 2 3', '1 3', '10 4'];
+
+/** Dash pattern for the n-th visible line; the first one is solid. */
+export function getSeriesDash(rank: number): string | undefined {
+    return SERIES_DASHES[rank % SERIES_DASHES.length];
+}
+
+/**
+ * Most series a chart shows at once. Every built-in theme has at least this
+ * many distinct series colours; past ~5 overlapping series a chart stops
+ * being readable anyway.
+ */
+export const MAX_CHART_SERIES = 5;
+
+/**
+ * Colour slot for every Y column the chart can show. Slots follow the column,
+ * not the selection order, so hiding one series never repaints the others.
+ * Id-like columns come last so the usual single series gets the first colour.
+ */
+export function getSeriesSlots(result: QueryResult, labelColumn: string): Record<string, number> {
+    const candidates = getChartValueColumns(result).filter((c) => c !== labelColumn);
+    const ordered = [
+        ...candidates.filter((c) => !ID_COLUMN.test(c)),
+        ...candidates.filter((c) => ID_COLUMN.test(c)),
+    ];
+    return Object.fromEntries(ordered.map((c, i) => [c, i]));
+}
+
+function safeNumberFormat(locale: string, options: Intl.NumberFormatOptions) {
+    try {
+        return new Intl.NumberFormat(locale, options);
+    } catch {
+        return new Intl.NumberFormat('en', options);
+    }
+}
+
+/** A value for tooltips: grouped digits, at most four decimals. */
+export function formatChartValue(value: unknown, locale: string): string {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+    return safeNumberFormat(locale, {maximumFractionDigits: 4}).format(value);
+}
+
+/** An axis tick: compact (1.2K, 3.4M) so long numbers never crowd the axis. */
+export function formatChartTick(value: unknown, locale: string): string {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+    return safeNumberFormat(locale, {
+        notation: 'compact',
+        maximumFractionDigits: 1,
+    }).format(value);
+}
+
+/** Shortens a category label for the axis; the tooltip shows it in full. */
+export function truncateChartLabel(label: string, max = 16): string {
+    return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+}
+
+const TEMPORAL_PARTS = /^(\d{4})-(\d{2})(?:-(\d{2}))?(?:[ T](\d{2}):(\d{2}))?/;
+
+export interface TemporalFormatters {
+    /** Short form for axis ticks. */
+    tick: (label: string) => string;
+    /** Full form for tooltips. */
+    full: (label: string) => string;
+}
+
+/**
+ * Formats date-like labels as written (wall-clock, no time-zone shift),
+ * choosing the precision the data actually has: months, days or minutes.
+ * Ticks leave out what every label shares (the year, or the whole date for
+ * timestamps within one day); the tooltip always shows the full value.
+ */
+export function buildTemporalFormatters(labels: string[], locale: string): TemporalFormatters {
+    const parsed = labels.map((l) => TEMPORAL_PARTS.exec(l));
+    const valid = parsed.filter((m): m is RegExpExecArray => m !== null);
+    const hasTime = valid.some((m) => m[4] !== undefined && (m[4] !== '00' || m[5] !== '00'));
+    // Month-start dates (2024-01-01, 2024-02-01, ...) are monthly data: show months.
+    const hasDay = hasTime || valid.some((m) => m[3] !== undefined && m[3] !== '01');
+    const years = new Set(valid.map((m) => m[1]));
+    const days = new Set(valid.map((m) => `${m[1]}-${m[2]}-${m[3] ?? ''}`));
+    // Timestamps within one day: the date is the same everywhere, ticks show the time.
+    const timeOnlyTicks = hasTime && days.size === 1;
+    const showYearInTick = years.size > 1 || !hasDay;
+
+    const make = (options: Intl.DateTimeFormatOptions) => {
+        let format: Intl.DateTimeFormat;
+        try {
+            format = new Intl.DateTimeFormat(locale, {...options, timeZone: 'UTC'});
+        } catch {
+            format = new Intl.DateTimeFormat('en', {...options, timeZone: 'UTC'});
+        }
+        return (label: string) => {
+            const m = TEMPORAL_PARTS.exec(label);
+            if (!m) return label;
+            const date = new Date(
+                Date.UTC(
+                    Number(m[1]),
+                    Number(m[2]) - 1,
+                    m[3] ? Number(m[3]) : 1,
+                    m[4] ? Number(m[4]) : 0,
+                    m[5] ? Number(m[5]) : 0,
+                ),
+            );
+            return Number.isNaN(date.getTime()) ? label : format.format(date);
+        };
+    };
+
+    const time: Intl.DateTimeFormatOptions = hasTime ? {hour: '2-digit', minute: '2-digit'} : {};
+    const tick = make(
+        timeOnlyTicks
+            ? time
+            : {
+                  ...(showYearInTick ? {year: 'numeric'} : {}),
+                  month: 'short',
+                  ...(hasDay ? {day: 'numeric'} : {}),
+                  ...time,
+              },
+    );
+    const full = make({
+        year: 'numeric',
+        month: 'short',
+        ...(hasDay ? {day: 'numeric'} : {}),
+        ...time,
+    });
+    return {tick, full};
+}
+
+/** Thickest bar drawn; wider bars read as blocks rather than marks. */
+export const MAX_BAR_SIZE = 24;
+/** Space between bars of one category. */
+export const BAR_GAP = 2;
+
+/**
+ * Recharts' `barCategoryGap`, in pixels: the space kept on each side of a
+ * category's bars, so the bars sit together (2px apart, at most
+ * `MAX_BAR_SIZE` wide) and the rest of the band is air. Falls back to the
+ * library default until the plot width is known.
+ */
+export function getBarCategoryGap(
+    plotWidth: number,
+    categories: number,
+    seriesCount: number,
+): number | string {
+    if (plotWidth <= 0 || categories <= 0 || seriesCount <= 0) return '10%';
+    const band = plotWidth / categories;
+    const group = seriesCount * MAX_BAR_SIZE + (seriesCount - 1) * BAR_GAP;
+    return Math.max(band * 0.1, (band - group) / 2);
+}
