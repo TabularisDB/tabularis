@@ -2137,6 +2137,8 @@
     },
     "expand": "Expand",
     "collapse": "Collapse",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
     "search": "Search",
     "copyPath": "Copy Path",
     "copyValue": "Copy Value",

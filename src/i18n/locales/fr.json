@@ -2106,6 +2106,8 @@
     },
     "expand": "Développer",
     "collapse": "Réduire",
+    "expandAll": "Tout développer",
+    "collapseAll": "Tout réduire",
     "search": "Rechercher",
     "copyPath": "Copier le chemin",
     "copyValue": "Copier la valeur",

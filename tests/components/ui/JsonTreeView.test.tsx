@@ -266,4 +266,123 @@ describe("JsonTreeView", () => {
       expect(colorDef.showOnEdit).toBe(false);
     });
   });
+
+  describe("expand all / collapse all", () => {
+    const nested = { a: { b: [1, { c: "x" }] }, d: [[1], [2]] };
+    const variants = [
+      { name: "compact view-only", props: {} },
+      { name: "compact editable", props: { onChange: () => {} } },
+      { name: "full-height view-only", props: { fillHeight: true } },
+      {
+        name: "full-height editable",
+        props: { fillHeight: true, onChange: () => {} },
+      },
+    ];
+
+    it.each(variants)("renders accessible buttons ($name)", ({ props }) => {
+      render(<JsonTreeView value={nested} {...props} />);
+      expect(
+        screen.getByRole("button", { name: "jsonInput.expandAll" }),
+      ).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: "jsonInput.collapseAll" }),
+      ).toBeEnabled();
+    });
+
+    it.each(variants)(
+      "triggers the library collapse API without changing data ($name)",
+      ({ props }) => {
+        const onChange = vi.fn();
+        render(
+          <JsonTreeView
+            value={nested}
+            {...props}
+            {...("onChange" in props ? { onChange } : {})}
+          />,
+        );
+        expect(lastProps.current!.externalTriggers).toBeUndefined();
+
+        fireEvent.click(
+          screen.getByRole("button", { name: "jsonInput.collapseAll" }),
+        );
+        expect(lastProps.current!.externalTriggers).toEqual({
+          collapse: { path: [], collapsed: true, includeChildren: true },
+        });
+
+        fireEvent.click(
+          screen.getByRole("button", { name: "jsonInput.expandAll" }),
+        );
+        expect(lastProps.current!.externalTriggers).toEqual({
+          collapse: { path: [], collapsed: false, includeChildren: true },
+        });
+
+        expect(lastProps.current!.data).toBe(nested);
+        expect(onChange).not.toHaveBeenCalled();
+      },
+    );
+
+    it("issues a new trigger object on repeated clicks", () => {
+      render(<JsonTreeView value={nested} />);
+      const button = screen.getByRole("button", {
+        name: "jsonInput.collapseAll",
+      });
+      fireEvent.click(button);
+      const first = lastProps.current!.externalTriggers;
+      fireEvent.click(button);
+      expect(lastProps.current!.externalTriggers).not.toBe(first);
+    });
+
+    it("keeps the search text when toggling", () => {
+      render(<JsonTreeView value={nested} />);
+      fireEvent.change(screen.getByPlaceholderText("jsonInput.search"), {
+        target: { value: "x" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "jsonInput.collapseAll" }),
+      );
+      expect(lastProps.current!.searchText).toBe("x");
+      expect(lastProps.current!.searchFilter).toBe("all");
+    });
+
+    it("still shows controls when an external searchQuery hides the search box", () => {
+      render(<JsonTreeView value={nested} searchQuery="x" />);
+      expect(
+        screen.getByRole("button", { name: "jsonInput.expandAll" }),
+      ).toBeInTheDocument();
+      expect(lastProps.current!.searchText).toBe("x");
+    });
+
+    it("works for arrays and nested containers", () => {
+      render(<JsonTreeView value={[[1, [2]], { a: [] }]} />);
+      fireEvent.click(
+        screen.getByRole("button", { name: "jsonInput.expandAll" }),
+      );
+      expect(lastProps.current!.externalTriggers?.collapse).toMatchObject({
+        path: [],
+        includeChildren: true,
+      });
+    });
+
+    it.each(["text", 42, true, null])(
+      "disables controls for scalar root %s",
+      (value) => {
+        render(<JsonTreeView value={value} />);
+        expect(
+          screen.getByRole("button", { name: "jsonInput.expandAll" }),
+        ).toBeDisabled();
+        expect(
+          screen.getByRole("button", { name: "jsonInput.collapseAll" }),
+        ).toBeDisabled();
+      },
+    );
+
+    it("does not remount the editor when toggling", () => {
+      render(<JsonTreeView value={nested} />);
+      const editor = screen.getByTestId("mock-json-editor");
+      fireEvent.click(
+        screen.getByRole("button", { name: "jsonInput.collapseAll" }),
+      );
+      expect(screen.getByTestId("mock-json-editor")).toBe(editor);
+    });
+  });
 });

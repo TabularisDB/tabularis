@@ -2096,6 +2096,8 @@
     },
     "expand": "I-expand",
     "collapse": "I-collapse",
+    "expandAll": "Palawakin lahat",
+    "collapseAll": "Tiklupin lahat",
     "search": "Maghanap",
     "copyPath": "Kopyahin ang Path",
     "copyValue": "Kopyahin ang Value",

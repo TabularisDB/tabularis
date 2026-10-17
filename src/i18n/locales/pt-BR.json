@@ -2080,6 +2080,8 @@
     },
     "expand": "Expandir",
     "collapse": "Recolher",
+    "expandAll": "Expandir tudo",
+    "collapseAll": "Recolher tudo",
     "search": "Buscar",
     "copyPath": "Copiar Caminho",
     "copyValue": "Copiar Valor",

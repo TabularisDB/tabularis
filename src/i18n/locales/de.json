@@ -2032,6 +2032,8 @@
     },
     "expand": "Aufklappen",
     "collapse": "Zuklappen",
+    "expandAll": "Alle erweitern",
+    "collapseAll": "Alle reduzieren",
     "search": "Suchen",
     "copyPath": "Pfad kopieren",
     "copyValue": "Wert kopieren",

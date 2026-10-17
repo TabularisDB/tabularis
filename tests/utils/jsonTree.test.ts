@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { safeParse, isJsonColumn } from "../../src/utils/jsonTree";
+import {
+  safeParse,
+  isJsonColumn,
+  buildCollapseTrigger,
+  hasCollapsibleNodes,
+} from "../../src/utils/jsonTree";
 
 describe("jsonTree", () => {
   describe("safeParse", () => {
@@ -82,6 +87,35 @@ describe("jsonTree", () => {
 
     it("returns false for empty string", () => {
       expect(isJsonColumn("")).toBe(false);
+    });
+  });
+
+  describe("hasCollapsibleNodes", () => {
+    it("is true for objects and arrays", () => {
+      expect(hasCollapsibleNodes({ a: 1 })).toBe(true);
+      expect(hasCollapsibleNodes([1, 2])).toBe(true);
+      expect(hasCollapsibleNodes({})).toBe(true);
+    });
+
+    it("is false for scalar roots", () => {
+      for (const v of ["x", 1, true, null, undefined]) {
+        expect(hasCollapsibleNodes(v)).toBe(false);
+      }
+    });
+  });
+
+  describe("buildCollapseTrigger", () => {
+    it("targets the root and all descendants", () => {
+      expect(buildCollapseTrigger(true)).toEqual({
+        collapse: { path: [], collapsed: true, includeChildren: true },
+      });
+      expect(buildCollapseTrigger(false).collapse).toMatchObject({
+        collapsed: false,
+      });
+    });
+
+    it("returns a new object each call so repeated clicks re-trigger", () => {
+      expect(buildCollapseTrigger(true)).not.toBe(buildCollapseTrigger(true));
     });
   });
 });

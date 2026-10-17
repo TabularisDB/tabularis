@@ -1,6 +1,6 @@
 import { useContext, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ExternalLink, Search } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, ExternalLink, Search } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   JsonEditor,
@@ -9,11 +9,13 @@ import {
   githubLightTheme,
   type CustomNodeDefinition,
   type CustomNodeProps,
+  type ExternalTriggers,
   type JsonData,
   type Theme as JerTheme,
 } from "json-edit-react";
 import { ThemeContext } from "../../contexts/ThemeContext";
 import type { Theme } from "../../types/theme";
+import { buildCollapseTrigger, hasCollapsibleNodes } from "../../utils/jsonTree";
 import { isColorString, isLinkString } from "../../utils/jsonValueDecorators";
 
 export interface JsonTreeViewProps {
@@ -149,6 +151,45 @@ const CUSTOM_NODE_DEFINITIONS: CustomNodeDefinition[] = [
   },
 ];
 
+const CONTROL_BUTTON_CLASS =
+  "inline-flex items-center gap-1 px-2 py-1.5 text-xs text-muted hover:text-primary bg-base border border-strong rounded transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
+
+interface TreeControlsProps {
+  disabled: boolean;
+  onExpandAll: () => void;
+  onCollapseAll: () => void;
+}
+
+const TreeControls = ({
+  disabled,
+  onExpandAll,
+  onCollapseAll,
+}: TreeControlsProps) => {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center gap-1 flex-shrink-0">
+      <button
+        type="button"
+        onClick={onExpandAll}
+        disabled={disabled}
+        className={CONTROL_BUTTON_CLASS}
+      >
+        <ChevronsUpDown size={14} aria-hidden="true" />
+        {t("jsonInput.expandAll")}
+      </button>
+      <button
+        type="button"
+        onClick={onCollapseAll}
+        disabled={disabled}
+        className={CONTROL_BUTTON_CLASS}
+      >
+        <ChevronsDownUp size={14} aria-hidden="true" />
+        {t("jsonInput.collapseAll")}
+      </button>
+    </div>
+  );
+};
+
 export const JsonTreeView = ({
   value,
   onChange,
@@ -161,6 +202,9 @@ export const JsonTreeView = ({
   const themeContext = useContext(ThemeContext);
   const currentTheme = themeContext?.currentTheme;
   const [internalSearch, setInternalSearch] = useState("");
+  const [externalTriggers, setExternalTriggers] = useState<
+    ExternalTriggers | undefined
+  >(undefined);
 
   const isViewOnly = readOnly === true || onChange === undefined;
   const externalSearchProvided = searchQuery !== undefined;
@@ -181,23 +225,34 @@ export const JsonTreeView = ({
       }
     : true;
 
+  const controls = (
+    <TreeControls
+      disabled={!hasCollapsibleNodes(value)}
+      onExpandAll={() => setExternalTriggers(buildCollapseTrigger(false))}
+      onCollapseAll={() => setExternalTriggers(buildCollapseTrigger(true))}
+    />
+  );
+
   if (fillHeight) {
     return (
       <div className="flex flex-col gap-2 h-full min-h-0">
-        {!externalSearchProvided && (
-          <div className="flex items-center gap-2 bg-base border border-strong rounded px-2 py-1.5 focus-within:border-focus transition-colors flex-shrink-0">
-            <Search size={14} className="text-muted shrink-0" />
-            <input autoCorrect="off" autoCapitalize="off" autoComplete="off"
-              type="text"
-              role="searchbox"
-              value={internalSearch}
-              onChange={(e) => setInternalSearch(e.target.value)}
-              placeholder={t("jsonInput.search")}
-              spellCheck={false}
-              className="w-full bg-transparent border-none text-sm text-primary focus:outline-none placeholder:text-muted"
-            />
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!externalSearchProvided && (
+            <div className="flex flex-1 items-center gap-2 bg-base border border-strong rounded px-2 py-1.5 focus-within:border-focus transition-colors">
+              <Search size={14} className="text-muted shrink-0" />
+              <input autoCorrect="off" autoCapitalize="off" autoComplete="off"
+                type="text"
+                role="searchbox"
+                value={internalSearch}
+                onChange={(e) => setInternalSearch(e.target.value)}
+                placeholder={t("jsonInput.search")}
+                spellCheck={false}
+                className="w-full bg-transparent border-none text-sm text-primary focus:outline-none placeholder:text-muted"
+              />
+            </div>
+          )}
+          {controls}
+        </div>
         <div className="flex-1 min-h-0 overflow-auto bg-base border border-strong rounded px-3 py-2">
           <JsonEditor
             data={value as JsonData}
@@ -226,6 +281,7 @@ export const JsonTreeView = ({
             }}
             customNodeDefinitions={CUSTOM_NODE_DEFINITIONS}
             enableClipboard={enableClipboard}
+            externalTriggers={externalTriggers}
           />
         </div>
       </div>
@@ -234,20 +290,23 @@ export const JsonTreeView = ({
 
   return (
     <div className="space-y-2">
-      {!externalSearchProvided && (
-        <div className="flex items-center gap-2 bg-base border border-strong rounded px-2 py-1.5 focus-within:border-focus transition-colors">
-          <Search size={14} className="text-muted shrink-0" />
-          <input autoCorrect="off" autoCapitalize="off" autoComplete="off"
-            type="text"
-            role="searchbox"
-            value={internalSearch}
-            onChange={(e) => setInternalSearch(e.target.value)}
-            placeholder={t("jsonInput.search")}
-            spellCheck={false}
-            className="w-full bg-transparent border-none text-sm text-primary focus:outline-none placeholder:text-muted"
-          />
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        {!externalSearchProvided && (
+          <div className="flex flex-1 items-center gap-2 bg-base border border-strong rounded px-2 py-1.5 focus-within:border-focus transition-colors">
+            <Search size={14} className="text-muted shrink-0" />
+            <input autoCorrect="off" autoCapitalize="off" autoComplete="off"
+              type="text"
+              role="searchbox"
+              value={internalSearch}
+              onChange={(e) => setInternalSearch(e.target.value)}
+              placeholder={t("jsonInput.search")}
+              spellCheck={false}
+              className="w-full bg-transparent border-none text-sm text-primary focus:outline-none placeholder:text-muted"
+            />
+          </div>
+        )}
+        {controls}
+      </div>
       <div className="max-h-[280px] overflow-auto bg-base border border-strong rounded [overflow-wrap:anywhere] [&_*]:!max-w-full">
         <JsonEditor
           data={value as JsonData}
@@ -272,6 +331,7 @@ export const JsonTreeView = ({
           }}
           customNodeDefinitions={CUSTOM_NODE_DEFINITIONS}
           enableClipboard={enableClipboard}
+          externalTriggers={externalTriggers}
         />
       </div>
     </div>
