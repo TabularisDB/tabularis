@@ -68,6 +68,12 @@ pub struct DriverCapabilities {
     /// Folder-based database (e.g. CSV directory); connection points to a directory instead of a file.
     #[serde(default)]
     pub folder_based: bool,
+    /// File-based driver that also accepts the `:memory:` path, opening a
+    /// temporary database that lives in the driver process (e.g. DuckDB).
+    /// The connection test then skips the file existence check for that
+    /// path. Defaults to `false`.
+    #[serde(default, alias = "inMemory")]
+    pub in_memory: bool,
     /// The driver exposes a single implicit database, so there is nothing to
     /// select or name (e.g. a flat search/document store like Meilisearch).
     /// Skips the database tab and the database-name field in the connection

@@ -10,6 +10,7 @@ import {
   Settings,
   XCircle,
   FolderOpen,
+  MemoryStick,
   CheckSquare,
   Square,
   Plug,
@@ -68,7 +69,11 @@ import { DefaultDatabaseSelect } from "./NewConnectionModal/DefaultDatabaseSelec
 import { isMultiDatabaseCapable, isSchemaBasedMultiDbCapable, hasOptedIntoDatabaseSelection } from "../../utils/database";
 import { updateExtraField, withoutBlankSslMode } from "../../utils/connections";
 import { normalizeLocalDatabasePath, sanitizeLocalFilePath } from "../../utils/fsPath";
-import { isLocalDriver } from "../../utils/driverCapabilities";
+import {
+  IN_MEMORY_DATABASE,
+  isLocalDriver,
+  supportsInMemoryDatabase,
+} from "../../utils/driverCapabilities";
 import { toErrorMessage } from "../../utils/errors";
 import {
   classifyConnectionError,
@@ -2756,6 +2761,23 @@ export const NewConnectionModal = ({
             >
               <FolderOpen size={15} />
             </button>
+            {supportsInMemoryDatabase(activeDriver.capabilities) && (
+              <button
+                type="button"
+                onClick={() => updateField("database", IN_MEMORY_DATABASE)}
+                aria-pressed={formData.database === IN_MEMORY_DATABASE}
+                className={clsx(
+                  "flex items-center gap-1.5 px-3 py-2 border rounded-md text-sm font-medium transition-colors",
+                  formData.database === IN_MEMORY_DATABASE
+                    ? "bg-accent-primary/10 border-accent-primary text-primary"
+                    : "bg-base hover:bg-surface-secondary border-strong text-muted hover:text-primary",
+                )}
+                title={t("newConnection.inMemoryDatabaseHint")}
+              >
+                <MemoryStick size={15} />
+                {t("newConnection.inMemoryDatabase")}
+              </button>
+            )}
             {driver === "sqlite" &&
               activeDriver.capabilities.file_based === true && (
                 <button

@@ -1131,6 +1131,8 @@
     "filePathPlaceholder": "/절대/경로/db.sqlite",
     "folderPathPlaceholder": "/절대/경로/폴더",
     "browseFile": "파일 찾아보기",
+    "inMemoryDatabase": "인메모리",
+    "inMemoryDatabaseHint": "드라이버가 실행되는 동안에만 존재하는 임시 데이터베이스를 엽니다",
     "createSqliteFile": "새로 만들기",
     "browseFolder": "폴더 찾아보기",
     "useSsh": "SSH 터널 사용",

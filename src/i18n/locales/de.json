@@ -1156,6 +1156,8 @@
     "filePathPlaceholder": "/absoluter/pfad/zu/db.sqlite",
     "folderPathPlaceholder": "/absoluter/pfad/zum/ordner",
     "browseFile": "Datei auswählen",
+    "inMemoryDatabase": "Im Speicher",
+    "inMemoryDatabaseHint": "Öffnet eine temporäre Datenbank, die nur existiert, solange der Treiber läuft",
     "createSqliteFile": "Neu",
     "browseFolder": "Ordner auswählen",
     "useSsh": "SSH-Tunnel verwenden",

@@ -37,6 +37,16 @@ pub fn sanitize_database_selection(selection: &DatabaseSelection) -> DatabaseSel
     }
 }
 
+/// Path that file-based drivers declaring `in_memory` treat as a temporary,
+/// process-local database instead of a file on disk.
+pub const IN_MEMORY_DATABASE: &str = ":memory:";
+
+/// `true` when a file-based connection must point at an existing file:
+/// always, except for `:memory:` on a driver that declares `in_memory`.
+pub fn requires_existing_database_file(supports_in_memory: bool, database: &str) -> bool {
+    !(supports_in_memory && sanitize_local_file_path(database) == IN_MEMORY_DATABASE)
+}
+
 fn is_invisible_path_noise(c: char) -> bool {
     matches!(
         c,

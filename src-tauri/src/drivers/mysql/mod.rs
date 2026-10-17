@@ -1957,6 +1957,7 @@ impl MysqlDriver {
                     routine_management: true,
                     file_based: false,
                     folder_based: false,
+                    in_memory: false,
                     connection_string: true,
                     connection_string_example: "mysql://user:pass@localhost:3306/db".into(),
                     connection_string_examples: Vec::new(),

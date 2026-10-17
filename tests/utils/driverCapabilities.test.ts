@@ -4,6 +4,7 @@ import {
   supportsAlterColumn,
   supportsCreateForeignKeys,
   supportsExplain,
+  supportsInMemoryDatabase,
   findDriverManifest,
   getCapabilitiesForDriver,
 } from '../../src/utils/driverCapabilities';
@@ -215,5 +216,29 @@ describe('driverCapabilities', () => {
     it('is not local by default', () => expect(isLocalDriver(unknownCaps)).toBe(false));
     it('does not support alter column by default', () => expect(supportsAlterColumn(unknownCaps)).toBe(false));
     it('does not support foreign keys by default', () => expect(supportsCreateForeignKeys(unknownCaps)).toBe(false));
+  });
+});
+
+describe('supportsInMemoryDatabase', () => {
+  it('is true for a file-based plugin that declares in_memory', () => {
+    expect(supportsInMemoryDatabase(makeCapabilities({ file_based: true, in_memory: true }))).toBe(true);
+  });
+
+  it('accepts the camelCase inMemory alias', () => {
+    expect(supportsInMemoryDatabase(makeCapabilities({ file_based: true, inMemory: true }))).toBe(true);
+  });
+
+  it('is false for file-based drivers that do not opt in', () => {
+    expect(supportsInMemoryDatabase(makeCapabilities({ file_based: true }))).toBe(false);
+  });
+
+  it('is false when in_memory is set on a non file-based driver', () => {
+    expect(supportsInMemoryDatabase(makeCapabilities({ in_memory: true }))).toBe(false);
+    expect(supportsInMemoryDatabase(makeCapabilities({ folder_based: true, in_memory: true }))).toBe(false);
+  });
+
+  it('is false without capabilities', () => {
+    expect(supportsInMemoryDatabase(null)).toBe(false);
+    expect(supportsInMemoryDatabase(undefined)).toBe(false);
   });
 });

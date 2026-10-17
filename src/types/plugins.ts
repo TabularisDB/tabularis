@@ -12,6 +12,12 @@ export interface DriverCapabilities {
   routines: boolean;
   file_based: boolean;
   folder_based: boolean;
+  /** File-based driver that also opens `:memory:` as a temporary database living in
+   * the driver process (e.g. DuckDB). Adds an in-memory shortcut to the connection
+   * form and skips the file existence check for that path. Defaults to false. */
+  in_memory?: boolean;
+  /** CamelCase alias accepted for plugin compatibility. */
+  inMemory?: boolean;
   /** The driver exposes a single implicit database (e.g. a flat search/document
    * store like Meilisearch). Skips the database tab + database-name field. */
   single_database?: boolean;

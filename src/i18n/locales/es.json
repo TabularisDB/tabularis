@@ -1184,6 +1184,8 @@
     "filePathPlaceholder": "/ruta/absoluta/db.sqlite",
     "folderPathPlaceholder": "/ruta/absoluta/carpeta",
     "browseFile": "Explorar archivo",
+    "inMemoryDatabase": "En memoria",
+    "inMemoryDatabaseHint": "Abre una base de datos temporal que solo existe mientras el controlador está en ejecución",
     "createSqliteFile": "Nuevo",
     "browseFolder": "Explorar carpeta",
     "useSsh": "Usar Túnel SSH",

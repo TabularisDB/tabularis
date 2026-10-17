@@ -70,6 +70,7 @@ fn explicit_false_and_empty_collections_replace_defaults() {
 fn metadata_cannot_change_connection_setup_or_lift_readonly() {
     for field in [
         "file_based",
+        "in_memory",
         "connection_uri",
         "supports_ssl",
         "no_connection_required",

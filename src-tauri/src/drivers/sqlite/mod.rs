@@ -1049,6 +1049,8 @@ impl SqliteDriver {
                     routine_management: false,
                     file_based: true,
                     folder_based: false,
+                    // sqlx pools several connections; each would get its own `:memory:` database.
+                    in_memory: false,
                     connection_string: false,
                     connection_string_example: String::new(),
                     connection_string_examples: Vec::new(),

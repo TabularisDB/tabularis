@@ -98,6 +98,11 @@
           "type": "boolean",
           "description": "true for local file databases (e.g. SQLite, DuckDB). Replaces the host/port fields with a file path input."
         },
+        "in_memory": {
+          "type": "boolean",
+          "default": false,
+          "description": "Requires file_based. true if the driver also opens the path \":memory:\" as a temporary database that lives in the plugin process (e.g. DuckDB). Adds an in-memory shortcut next to the file path input and skips the file existence check for that path."
+        },
         "folder_based": {
           "type": "boolean",
           "default": false,

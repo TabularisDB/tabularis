@@ -1132,6 +1132,8 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "浏览文件",
+    "inMemoryDatabase": "内存数据库",
+    "inMemoryDatabaseHint": "打开一个仅在驱动运行期间存在的临时数据库",
     "createSqliteFile": "新建",
     "browseFolder": "浏览文件夹",
     "useSsh": "使用 SSH 隧道",

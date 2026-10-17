@@ -1193,6 +1193,8 @@
     "filePathPlaceholder": "/chemin/absolu/vers/db.sqlite",
     "folderPathPlaceholder": "/chemin/absolu/vers/dossier",
     "browseFile": "Parcourir le fichier",
+    "inMemoryDatabase": "En mémoire",
+    "inMemoryDatabaseHint": "Ouvre une base de données temporaire qui n'existe que pendant l'exécution du pilote",
     "createSqliteFile": "Nouveau",
     "browseFolder": "Parcourir le dossier",
     "useSsh": "Utiliser un tunnel SSH",

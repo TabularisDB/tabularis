@@ -1173,6 +1173,8 @@
     "filePathPlaceholder": "/caminho/absoluto/para/db.sqlite",
     "folderPathPlaceholder": "/caminho/absoluto/para/pasta",
     "browseFile": "Procurar arquivo",
+    "inMemoryDatabase": "Em memória",
+    "inMemoryDatabaseHint": "Abre um banco de dados temporário que existe apenas enquanto o driver está em execução",
     "browseFolder": "Procurar pasta",
     "useSsh": "Usar Túnel SSH",
     "sshHost": "Host SSH",

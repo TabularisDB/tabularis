@@ -1186,6 +1186,8 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "Mag-browse ng file",
+    "inMemoryDatabase": "In-memory",
+    "inMemoryDatabaseHint": "Magbukas ng pansamantalang database na umiiral lamang habang tumatakbo ang driver",
     "createSqliteFile": "Bago",
     "browseFolder": "Mag-browse ng folder",
     "useSsh": "Gumamit ng SSH Tunnel",

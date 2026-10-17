@@ -2996,8 +2996,15 @@ pub async fn test_connection<R: Runtime>(
     };
     emit_test_progress(&app, progress_id, "dbConnect", "start", Some(db_target));
 
-    // For file-based drivers, verify the database file exists before attempting connection
-    if drv.manifest().capabilities.file_based {
+    // For file-based drivers, verify the database file exists before attempting
+    // connection, unless the driver opens `:memory:` as a temporary database.
+    let capabilities = &drv.manifest().capabilities;
+    if capabilities.file_based
+        && crate::fs_path::requires_existing_database_file(
+            capabilities.in_memory,
+            resolved_params.database.primary(),
+        )
+    {
         let db_path = if resolved_params.driver == "sqlite" {
             crate::sqlite_database::expand_sqlite_filename(resolved_params.database.primary())
         } else {

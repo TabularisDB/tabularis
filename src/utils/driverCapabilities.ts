@@ -8,6 +8,18 @@ export function isLocalDriver(
   );
 }
 
+/** Path a file-based driver declaring `in_memory` opens as a temporary database. */
+export const IN_MEMORY_DATABASE = ":memory:";
+
+export function supportsInMemoryDatabase(
+  capabilities?: DriverCapabilities | null,
+): boolean {
+  return (
+    capabilities?.file_based === true &&
+    (capabilities.in_memory === true || capabilities.inMemory === true)
+  );
+}
+
 export function supportsAlterColumn(
   capabilities?: DriverCapabilities | null,
 ): boolean {

@@ -1223,6 +1223,8 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "Browse file",
+    "inMemoryDatabase": "In-memory",
+    "inMemoryDatabaseHint": "Open a temporary database that lives only while the driver is running",
     "createSqliteFile": "New",
     "browseFolder": "Browse folder",
     "useSsh": "Use SSH Tunnel",

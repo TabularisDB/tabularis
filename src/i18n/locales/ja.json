@@ -1170,6 +1170,8 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "ファイルを参照",
+    "inMemoryDatabase": "インメモリ",
+    "inMemoryDatabaseHint": "ドライバーの実行中のみ存在する一時データベースを開きます",
     "createSqliteFile": "新規",
     "browseFolder": "フォルダを参照",
     "useSsh": "SSH トンネルを使用",

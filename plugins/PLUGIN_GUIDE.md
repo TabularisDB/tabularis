@@ -136,6 +136,7 @@ Upgrade the registry before publishing the new format. Add `id` equal to the **e
 | `routines` | bool | `true` if the database supports stored procedures/functions. |
 | `triggers` | bool | `true` if the database supports triggers. Enables trigger-related UI for drivers that implement the trigger RPCs. |
 | `file_based` | bool | `true` for local file databases (e.g., SQLite, DuckDB). Replaces host/port with a file path input in the connection form. |
+| `in_memory` | bool | Requires `file_based`. `true` if the driver also opens the path `:memory:` as a temporary database (e.g. DuckDB). Adds an in-memory shortcut next to the file path input and skips the file existence check for that path. The database lives in the plugin process: connections that use `:memory:` share it until the plugin process stops. Also accepted as camelCase `inMemory`. Defaults to `false`. |
 | `folder_based` | bool | `true` for plugins that connect to a directory rather than a single file (e.g. CSV plugin). Replaces host/port with a folder picker. |
 | `no_connection_required` | bool | `true` for API-based plugins that need no host, port, or credentials (e.g. a public REST API). Hides the entire connection form — the user only fills in the connection name. |
 | `connection_string` | bool | Set `false` to hide the connection string import UI for this driver. Defaults to `true` for network drivers. `file_based` and `folder_based` drivers skip the import UI automatically regardless of this flag. |

@@ -1219,6 +1219,8 @@
     "filePathPlaceholder": "/percorso/assoluto/db.sqlite",
     "folderPathPlaceholder": "/percorso/assoluto/cartella",
     "browseFile": "Sfoglia file",
+    "inMemoryDatabase": "In memoria",
+    "inMemoryDatabaseHint": "Apri un database temporaneo che esiste solo finché il driver è in esecuzione",
     "createSqliteFile": "Nuovo",
     "browseFolder": "Sfoglia cartella",
     "useSsh": "Usa Tunnel SSH",
