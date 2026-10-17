@@ -1356,6 +1356,7 @@
     "copyColumnNames": "Копировать имена столбцов",
     "copyColumnNamesLines": "По одному на строку",
     "copyColumnNamesJson": "Как массив JSON",
+    "copyColumnNamesSqlList": "Как список SQL",
     "copiedColumnNames_one": "Скопировано {{count}} имя столбца в буфер обмена",
     "copiedColumnNames_few": "Скопировано {{count}} имени столбцов в буфер обмена",
     "copiedColumnNames_many": "Скопировано {{count}} имён столбцов в буфер обмена",

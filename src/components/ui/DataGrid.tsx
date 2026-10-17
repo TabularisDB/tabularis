@@ -140,6 +140,9 @@ import {
   columnNamesAsJson,
 } from "../../utils/clipboard";
 import {
+  formatColumnNamesAsSqlList,
+} from "../../utils/objectNameCopy";
+import {
   DEFAULT_MASKING_PATTERNS,
   isColumnMasked,
 } from "../../utils/columnMasking";
@@ -359,9 +362,18 @@ export const DataGrid = React.memo(
       connections,
       activeDriver,
       activeCapabilities,
+      getConnectionData,
     } = useDatabase();
-    // Dialect the copied SQL literals follow (copy as INSERT / IN list).
-    const copyDriver = activeCapabilities ?? activeDriver;
+    // Dialect the copied SQL literals follow. Prefers the grid's connection
+    // capabilities/driver when available, falling back to the active connection.
+    const connectionData = connectionId
+      ? getConnectionData(connectionId)
+      : undefined;
+    const copyDriver =
+      connectionData?.capabilities ??
+      connectionData?.driver ??
+      activeCapabilities ??
+      activeDriver;
     const activeSchema = schemaProp ?? globalActiveSchema;
     const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
@@ -2110,6 +2122,14 @@ export const DataGrid = React.memo(
       setHeaderContextMenu(null);
     }, [columns, copyToClipboard, t]);
 
+    const copyColumnNamesAsSqlList = useCallback(async () => {
+      await copyToClipboard(
+        formatColumnNamesAsSqlList(columns, copyDriver),
+        t("dataGrid.copiedColumnNames", { count: columns.length }),
+      );
+      setHeaderContextMenu(null);
+    }, [columns, copyDriver, copyToClipboard, t]);
+
     const copySelectedCells = useCallback(async () => {
       if (selectedRowIndices.size === 0) return;
       const rows = getSelectedRows(
@@ -3753,6 +3773,11 @@ export const DataGrid = React.memo(
                       label: t("dataGrid.copyColumnNamesJson"),
                       icon: Copy,
                       action: copyColumnNamesAsJson,
+                    },
+                    {
+                      label: t("dataGrid.copyColumnNamesSqlList"),
+                      icon: Copy,
+                      action: copyColumnNamesAsSqlList,
                     },
                   ],
                 },

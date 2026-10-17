@@ -1383,6 +1383,7 @@
     "copyColumnNames": "Copiar nombres de columnas",
     "copyColumnNamesLines": "Uno por línea",
     "copyColumnNamesJson": "Como array JSON",
+    "copyColumnNamesSqlList": "Como lista SQL",
     "copiedColumnNames_one": "{{count}} nombre de columna copiado al portapapeles",
     "copiedColumnNames_other": "{{count}} nombres de columna copiados al portapapeles",
     "copyColumnValuesIn": "Copiar valores de columna como SQL IN",

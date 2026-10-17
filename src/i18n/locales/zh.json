@@ -1330,6 +1330,7 @@
     "copyColumnNames": "复制所有列名",
     "copyColumnNamesLines": "每行一个",
     "copyColumnNamesJson": "作为 JSON 数组",
+    "copyColumnNamesSqlList": "作为 SQL 列表",
     "copiedColumnNames_one": "已复制 {{count}} 个列名到剪贴板",
     "copiedColumnNames_other": "已复制 {{count}} 个列名到剪贴板",
     "copyColumnValuesIn": "将列值复制为 SQL IN",

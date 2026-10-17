@@ -1424,6 +1424,7 @@
     "copyColumnNames": "Copy column names",
     "copyColumnNamesLines": "One per line",
     "copyColumnNamesJson": "As JSON array",
+    "copyColumnNamesSqlList": "As SQL list",
     "copiedColumnNames_one": "Copied {{count}} column name to clipboard",
     "copiedColumnNames_other": "Copied {{count}} column names to clipboard",
     "copyColumnValues": "Copy column values",

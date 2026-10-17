@@ -1394,6 +1394,7 @@
     "copyColumnNames": "Copier les noms de colonnes",
     "copyColumnNamesLines": "Un par ligne",
     "copyColumnNamesJson": "Comme tableau JSON",
+    "copyColumnNamesSqlList": "Comme liste SQL",
     "copiedColumnNames_one": "{{count}} nom de colonne copié dans le presse-papiers",
     "copiedColumnNames_other": "{{count}} noms de colonne copiés dans le presse-papiers",
     "copyColumnValues": "Copier les valeurs de la colonne",

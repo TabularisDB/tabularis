@@ -1373,6 +1373,7 @@
     "copyColumnNames": "Copiar nomes das colunas",
     "copyColumnNamesLines": "Um por linha",
     "copyColumnNamesJson": "Como array JSON",
+    "copyColumnNamesSqlList": "Como lista SQL",
     "copiedColumnNames_one": "{{count}} nome de coluna copiado para a área de transferência",
     "copiedColumnNames_other": "{{count}} nomes de coluna copiados para a área de transferência",
     "copyColumnValues": "Copiar valores da coluna",

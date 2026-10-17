@@ -1355,6 +1355,7 @@
     "copyColumnNames": "Spaltennamen kopieren",
     "copyColumnNamesLines": "Eine pro Zeile",
     "copyColumnNamesJson": "Als JSON-Array",
+    "copyColumnNamesSqlList": "Als SQL-Liste",
     "copiedColumnNames_one": "{{count}} Spaltenname in die Zwischenablage kopiert",
     "copiedColumnNames_other": "{{count}} Spaltennamen in die Zwischenablage kopiert",
     "copyColumnValuesIn": "Spaltenwerte als SQL IN kopieren",
