@@ -1328,6 +1328,7 @@
     "copyColumnNames": "컬럼 이름 복사",
     "copyColumnNamesLines": "한 줄에 하나씩",
     "copyColumnNamesJson": "JSON 배열로",
+    "copyColumnNamesSqlList": "컬럼 이름을 SQL 목록으로 복사",
     "copiedColumnNames_one": "{{count}}개 컬럼 이름이 클립보드에 복사되었습니다",
     "copiedColumnNames_other": "{{count}}개 컬럼 이름이 클립보드에 복사되었습니다",
     "copyColumnValuesIn": "열 값을 SQL IN으로 복사",

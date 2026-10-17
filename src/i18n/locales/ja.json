@@ -1365,6 +1365,7 @@
     "copyColumnNames": "カラム名をコピー",
     "copyColumnNamesLines": "1行に1つ",
     "copyColumnNamesJson": "JSON配列として",
+    "copyColumnNamesSqlList": "カラム名を SQL リストとしてコピー",
     "copiedColumnNames_one": "{{count}} 個のカラム名をクリップボードにコピーしました",
     "copiedColumnNames_other": "{{count}} 個のカラム名をクリップボードにコピーしました",
     "copyColumnValuesIn": "列の値を SQL IN としてコピー",

@@ -1384,6 +1384,7 @@
     "copyColumnNames": "Kopyahin ang mga pangalan ng column",
     "copyColumnNamesLines": "Isa bawat linya",
     "copyColumnNamesJson": "Bilang JSON array",
+    "copyColumnNamesSqlList": "Kopyahin ang mga pangalan ng column bilang SQL list",
     "copiedColumnNames_one": "Nakopya ang {{count}} pangalan ng column sa clipboard",
     "copiedColumnNames_other": "Nakopya ang {{count}} na pangalan ng column sa clipboard",
     "copyColumnValuesIn": "Kopyahin ang mga value ng column bilang SQL IN",

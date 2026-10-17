@@ -114,10 +114,7 @@ export function quoteIdentifier(
   driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string {
   const quote = getQuoteChar(driver);
-  const escaped =
-    quote === "`"
-      ? identifier.replace(/`/g, "``")
-      : identifier.replace(/"/g, '""');
+  const escaped = identifier.replaceAll(quote, `${quote}${quote}`);
   return `${quote}${escaped}${quote}`;
 }
 
