@@ -19,7 +19,7 @@
     "test:contrast": "vitest run tests/utils/themeContrast.test.ts",
     "preview": "vite preview",
     "test": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b",
     "test:coverage": "vitest run --coverage",
     "test:rust": "cd src-tauri && cargo test",
     "test:all": "pnpm test:rust && pnpm test:coverage",
