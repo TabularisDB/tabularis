@@ -2996,6 +2996,16 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     ],
   );
 
+  // Filtering by a value from the grid (e.g. a top value in the column
+  // statistics popover) remounts the grid: its key includes the filter, and
+  // the loading state replaces it until the rows arrive. Focus drops to
+  // <body> on the way, so the grid showing the new rows takes it back
+  // (issue #1138). `staleResult` is the result the filter was picked from.
+  const gridFocusRequestRef = useRef<{
+    tabId: string;
+    staleResult: QueryResult | null | undefined;
+  } | null>(null);
+
   const handleFilterByValue = useCallback(
     (
       column: string,
@@ -3007,6 +3017,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         (tb) => tb.id === activeTabIdRef.current,
       );
       if (!currentTab) return;
+      gridFocusRequestRef.current = {
+        tabId: currentTab.id,
+        staleResult: currentTab.result,
+      };
 
       const sourceType =
         columnType ||
@@ -3026,6 +3040,28 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     },
     [activeDriver, activeCapabilities, handleToolbarUpdate],
   );
+
+  const activeResult = activeTab?.result;
+  const activeIsLoading = !!activeTab?.isLoading;
+  useEffect(() => {
+    const request = gridFocusRequestRef.current;
+    if (!request) return;
+    if (request.tabId !== activeTabId) {
+      gridFocusRequestRef.current = null;
+      return;
+    }
+    // Wait for the filtered rows: the grid also remounts as soon as the
+    // filter changes, still showing the old ones, before the loading state.
+    if (activeIsLoading || !activeResult || activeResult === request.staleResult) {
+      return;
+    }
+    gridFocusRequestRef.current = null;
+    // Leave focus alone if the user moved it while the query ran.
+    const focused = document.activeElement;
+    if (!focused || focused === document.body) {
+      dataGridCommandTargetRef.current?.focus();
+    }
+  }, [activeTabId, activeResult, activeIsLoading]);
 
   // Column statistics popover (issue #1001): counts the rows matching the
   // tab's current filter, like the row count does (sort and LIMIT ignored).

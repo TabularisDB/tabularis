@@ -252,4 +252,90 @@ describe("ColumnStatsPopover", () => {
     fireEvent.click(screen.getByRole("button", { name: "dataGrid.columnStats.close" }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
+
+  describe("focus on close (#1138)", () => {
+    // Stands in for the column header the popover was opened from.
+    const renderWithHeader = (
+      props: Partial<React.ComponentProps<typeof ColumnStatsPopover>> = {},
+    ) => {
+      const onClose = vi.fn();
+      const onFilterByValue = vi.fn();
+      render(<button type="button">header</button>);
+      const header = screen.getByRole("button", { name: "header" });
+      const returnFocusTo = vi.fn(() => header);
+      const load = props.load ?? vi.fn().mockResolvedValue(stats);
+      const popover = (focusTarget: () => HTMLElement | null) => (
+        <ColumnStatsPopover
+          x={20}
+          y={20}
+          column="amount"
+          support={ALL}
+          load={load}
+          onFilterByValue={onFilterByValue}
+          returnFocusTo={focusTarget}
+          onClose={onClose}
+        />
+      );
+      const { rerender } = render(popover(returnFocusTo));
+      const rerenderWith = (focusTarget: () => HTMLElement | null) =>
+        rerender(popover(focusTarget));
+      return { header, returnFocusTo, onClose, onFilterByValue, rerenderWith };
+    };
+
+    it("returns focus to the header on Escape", () => {
+      const { header, onClose } = renderWithHeader();
+      expect(screen.getByRole("dialog")).toHaveFocus();
+      fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+      expect(onClose).toHaveBeenCalledOnce();
+      expect(header).toHaveFocus();
+    });
+
+    it("returns focus to the header from the close button", async () => {
+      const { header, onClose } = renderWithHeader();
+      await screen.findByText("dataGrid.columnStats.rows");
+      fireEvent.click(screen.getByRole("button", { name: "dataGrid.columnStats.close" }));
+      expect(onClose).toHaveBeenCalledOnce();
+      expect(header).toHaveFocus();
+    });
+
+    it("returns focus to the header when the load is cancelled", () => {
+      const { header, onClose } = renderWithHeader({
+        load: vi.fn(() => new Promise<ColumnStats>(() => {})),
+      });
+      fireEvent.click(screen.getByRole("button", { name: "common.cancel" }));
+      expect(onClose).toHaveBeenCalledOnce();
+      expect(header).toHaveFocus();
+    });
+
+    it("leaves focus on what was clicked outside", async () => {
+      const { header, returnFocusTo, onClose } = renderWithHeader();
+      await screen.findByText("dataGrid.columnStats.rows");
+      render(<input aria-label="elsewhere" />);
+      const elsewhere = screen.getByRole("textbox", { name: "elsewhere" });
+      // A real click focuses the target on mousedown; jsdom only dispatches it.
+      fireEvent.mouseDown(elsewhere);
+      elsewhere.focus();
+      expect(onClose).toHaveBeenCalledOnce();
+      expect(returnFocusTo).not.toHaveBeenCalled();
+      expect(elsewhere).toHaveFocus();
+      expect(header).not.toHaveFocus();
+    });
+
+    it("leaves focus to the grid when a top value is picked", async () => {
+      const { returnFocusTo, onClose, onFilterByValue } = renderWithHeader();
+      const values = await screen.findAllByTitle("dataGrid.columnStats.filterBy");
+      fireEvent.click(values[0]);
+      expect(onFilterByValue).toHaveBeenCalledWith("7");
+      expect(onClose).toHaveBeenCalledOnce();
+      // Filtering re-renders the grid, which takes focus itself.
+      expect(returnFocusTo).not.toHaveBeenCalled();
+    });
+
+    it("focuses the dialog only when it opens, not when its props change", () => {
+      const { header, rerenderWith } = renderWithHeader();
+      header.focus();
+      rerenderWith(() => header);
+      expect(header).toHaveFocus();
+    });
+  });
 });
