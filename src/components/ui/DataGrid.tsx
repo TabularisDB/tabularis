@@ -140,6 +140,10 @@ import {
   columnNamesAsJson,
 } from "../../utils/clipboard";
 import {
+  formatColumnNamesAsSqlList,
+  isSqlCapableDriver,
+} from "../../utils/objectNameCopy";
+import {
   DEFAULT_MASKING_PATTERNS,
   isColumnMasked,
 } from "../../utils/columnMasking";
@@ -354,7 +358,22 @@ export const DataGrid = React.memo(
   }: DataGridProps) {
     const { t } = useTranslation();
     const keybindings = useContext(KeybindingsContext);
-    const { activeSchema: globalActiveSchema, connections, activeDriver } = useDatabase();
+    const {
+      activeSchema: globalActiveSchema,
+      connections,
+      activeDriver,
+      activeCapabilities,
+      getConnectionData,
+    } = useDatabase();
+    const connectionData = connectionId
+      ? getConnectionData?.(connectionId)
+      : undefined;
+    const effectiveDriverOrCapabilities =
+      connectionData?.capabilities ??
+      activeCapabilities ??
+      connectionData?.driver ??
+      activeDriver;
+    const isSqlCapable = isSqlCapableDriver(effectiveDriverOrCapabilities);
     const activeSchema = schemaProp ?? globalActiveSchema;
     const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
@@ -2102,6 +2121,14 @@ export const DataGrid = React.memo(
       setHeaderContextMenu(null);
     }, [columns, copyToClipboard, t]);
 
+    const copyColumnNamesAsSqlList = useCallback(async () => {
+      await copyToClipboard(
+        formatColumnNamesAsSqlList(columns, effectiveDriverOrCapabilities),
+        t("dataGrid.copiedColumnNames", { count: columns.length }),
+      );
+      setHeaderContextMenu(null);
+    }, [columns, copyToClipboard, effectiveDriverOrCapabilities, t]);
+
     const copySelectedCells = useCallback(async () => {
       if (selectedRowIndices.size === 0) return;
       const rows = getSelectedRows(
@@ -3740,6 +3767,15 @@ export const DataGrid = React.memo(
                       icon: Copy,
                       action: copyColumnNamesAsJson,
                     },
+                    ...(isSqlCapable
+                      ? [
+                          {
+                            label: t("dataGrid.copyColumnNamesSqlList"),
+                            icon: Copy,
+                            action: copyColumnNamesAsSqlList,
+                          } as ContextMenuItem,
+                        ]
+                      : []),
                   ],
                 },
                 {

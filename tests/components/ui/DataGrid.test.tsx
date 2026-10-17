@@ -2687,3 +2687,44 @@ describe("DataGrid Edit selection context menu (#1000)", () => {
     });
   });
 });
+
+describe("DataGrid copy column names as SQL list", () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+
+  beforeEach(() => {
+    writeText.mockClear();
+    showToastMock.mockClear();
+    translationMock.mockClear();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+  });
+
+  it("copies all column names as a quoted SQL list in result-column order and shows the toast", async () => {
+    const { container } = render(
+      <DataGrid
+        columns={["select", "full name", 'col"quote']}
+        data={[[1, "Alice", "x"]]}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        readonly
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelectorAll("th")[1]);
+    fireEvent.click(await screen.findByText("dataGrid.copyColumnNames"));
+    fireEvent.click(await screen.findByText("dataGrid.copyColumnNamesSqlList"));
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith('"select", "full name", "col""quote"'),
+    );
+    expect(showToastMock).toHaveBeenCalledWith("dataGrid.copiedColumnNames", {
+      kind: "success",
+    });
+    expect(translationMock).toHaveBeenCalledWith("dataGrid.copiedColumnNames", {
+      count: 3,
+    });
+  });
+});
+

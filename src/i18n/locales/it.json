@@ -1416,6 +1416,7 @@
     "copyColumnNames": "Copia nomi colonne",
     "copyColumnNamesLines": "Uno per riga",
     "copyColumnNamesJson": "Come array JSON",
+    "copyColumnNamesSqlList": "Copia nomi colonne come elenco SQL",
     "copiedColumnNames_one": "{{count}} nome di colonna copiato negli appunti",
     "copiedColumnNames_other": "{{count}} nomi di colonna copiati negli appunti",
     "copyColumnValuesIn": "Copia i valori della colonna come SQL IN",
