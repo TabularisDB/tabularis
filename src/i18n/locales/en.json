@@ -1691,6 +1691,8 @@
       "snapshotCopied": "Explain snapshot copied to clipboard",
       "rawExported": "Raw explain output exported",
       "noRawOutput": "No raw explain output available to export.",
+      "saveRawPlan": "Save raw plan…",
+      "saveRawError": "Failed to save raw plan",
       "aiAnalysis": "AI Analysis",
       "aiAnalysisTitle": "AI Query Plan Analysis",
       "aiAnalyzing": "Analyzing query plan with AI...",

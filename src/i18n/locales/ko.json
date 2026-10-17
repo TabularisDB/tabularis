@@ -1595,6 +1595,8 @@
       "snapshotCopied": "실행 계획 스냅샷이 클립보드에 복사되었습니다",
       "rawExported": "원본 실행 계획 출력을 내보냈습니다",
       "noRawOutput": "내보낼 원본 실행 계획 출력이 없습니다.",
+      "saveRawPlan": "원시 실행 계획 저장…",
+      "saveRawError": "원시 실행 계획 저장에 실패했습니다",
       "aiAnalysis": "AI 분석",
       "aiAnalysisTitle": "AI 쿼리 계획 분석",
       "aiAnalyzing": "AI로 쿼리 계획을 분석하는 중...",

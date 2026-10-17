@@ -1631,6 +1631,8 @@
       "snapshotCopied": "Explain スナップショットをクリップボードにコピーしました",
       "rawExported": "生の Explain 出力をエクスポートしました",
       "noRawOutput": "エクスポート可能な生の Explain 出力がありません。",
+      "saveRawPlan": "未加工の実行計画を保存…",
+      "saveRawError": "未加工の実行計画の保存に失敗しました",
       "aiAnalysis": "AI 分析",
       "aiAnalysisTitle": "AI によるクエリ計画分析",
       "aiAnalyzing": "AI でクエリ計画を分析中...",

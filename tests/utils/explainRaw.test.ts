@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   detectRawExplainLanguage,
   formatRawExplainOutput,
   formatXml,
+  getRawExplainExtension,
+  getRawExplainFileOptions,
+  saveRawExplainOutput,
 } from "../../src/utils/explainRaw";
 
 describe("explainRaw", () => {
@@ -94,6 +97,112 @@ describe("explainRaw", () => {
       const text = "Seq Scan on users  (cost=0.00..1.00 rows=1 width=4)";
       expect(formatRawExplainOutput(json)).toBe(json);
       expect(formatRawExplainOutput(text)).toBe(text);
+    });
+  });
+
+  describe("getRawExplainExtension", () => {
+    it("maps json to json", () => {
+      expect(getRawExplainExtension("json")).toBe("json");
+    });
+
+    it("maps xml to xml", () => {
+      expect(getRawExplainExtension("xml")).toBe("xml");
+    });
+
+    it("maps plaintext to txt", () => {
+      expect(getRawExplainExtension("plaintext")).toBe("txt");
+    });
+  });
+
+  describe("getRawExplainFileOptions", () => {
+    it("returns json options for json payload", () => {
+      const options = getRawExplainFileOptions('{"plan":{}}');
+      expect(options.defaultPath).toBe("explain.json");
+      expect(options.filters).toEqual([
+        { name: "JSON", extensions: ["json"] },
+        { name: "All files", extensions: ["*"] },
+      ]);
+    });
+
+    it("returns xml options for xml payload", () => {
+      const options = getRawExplainFileOptions("<ShowPlanXML/>");
+      expect(options.defaultPath).toBe("explain.xml");
+      expect(options.filters).toEqual([
+        { name: "XML", extensions: ["xml"] },
+        { name: "All files", extensions: ["*"] },
+      ]);
+    });
+
+    it("returns txt options for plaintext payload", () => {
+      const options = getRawExplainFileOptions("Seq Scan on users");
+      expect(options.defaultPath).toBe("explain.txt");
+      expect(options.filters).toEqual([
+        { name: "Text", extensions: ["txt"] },
+        { name: "All files", extensions: ["*"] },
+      ]);
+    });
+  });
+
+  describe("saveRawExplainOutput", () => {
+    it("writes original content without modification to the chosen file path", async () => {
+      const saveDialog = vi.fn().mockResolvedValue("/tmp/saved_explain.json");
+      const writeFile = vi.fn().mockResolvedValue(undefined);
+      const raw = '{"query_block": {"cost": 10.5}}';
+
+      const result = await saveRawExplainOutput(raw, { saveDialog, writeFile });
+
+      expect(result).toBe(true);
+      expect(saveDialog).toHaveBeenCalledWith({
+        defaultPath: "explain.json",
+        filters: [
+          { name: "JSON", extensions: ["json"] },
+          { name: "All files", extensions: ["*"] },
+        ],
+      });
+      // Content must match the original raw string exactly, not reformatted
+      expect(writeFile).toHaveBeenCalledWith("/tmp/saved_explain.json", raw);
+    });
+
+    it("preserves unformatted single-line XML when saving", async () => {
+      const saveDialog = vi.fn().mockResolvedValue("/tmp/plan.xml");
+      const writeFile = vi.fn().mockResolvedValue(undefined);
+      const singleLineXml = "<ShowPlanXML><BatchSequence/></ShowPlanXML>";
+
+      const result = await saveRawExplainOutput(singleLineXml, { saveDialog, writeFile });
+
+      expect(result).toBe(true);
+      expect(writeFile).toHaveBeenCalledWith("/tmp/plan.xml", singleLineXml);
+    });
+
+    it("returns false and does not write when user cancels dialog", async () => {
+      const saveDialog = vi.fn().mockResolvedValue(null);
+      const writeFile = vi.fn();
+
+      const result = await saveRawExplainOutput('{"test": true}', { saveDialog, writeFile });
+
+      expect(result).toBe(false);
+      expect(saveDialog).toHaveBeenCalled();
+      expect(writeFile).not.toHaveBeenCalled();
+    });
+
+    it("propagates dialog rejection", async () => {
+      const saveDialog = vi.fn().mockRejectedValue(new Error("dialog cancelled by OS"));
+      const writeFile = vi.fn();
+
+      await expect(
+        saveRawExplainOutput("raw content", { saveDialog, writeFile }),
+      ).rejects.toThrow("dialog cancelled by OS");
+
+      expect(writeFile).not.toHaveBeenCalled();
+    });
+
+    it("propagates file write rejection", async () => {
+      const saveDialog = vi.fn().mockResolvedValue("/read-only/path.txt");
+      const writeFile = vi.fn().mockRejectedValue(new Error("permission denied"));
+
+      await expect(
+        saveRawExplainOutput("raw content", { saveDialog, writeFile }),
+      ).rejects.toThrow("permission denied");
     });
   });
 });

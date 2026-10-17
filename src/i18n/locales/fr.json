@@ -1660,6 +1660,8 @@
       "snapshotCopied": "Instantané Explain copié dans le presse-papiers",
       "rawExported": "Sortie brute d’Explain exportée",
       "noRawOutput": "Aucune sortie brute Explain disponible à exporter.",
+      "saveRawPlan": "Enregistrer le plan brut…",
+      "saveRawError": "Échec de l'enregistrement du plan brut",
       "aiAnalysis": "Analyse IA",
       "aiAnalysisTitle": "Analyse IA du plan de requête",
       "aiAnalyzing": "Analyse du plan de requête avec l’IA...",

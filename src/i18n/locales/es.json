@@ -1645,6 +1645,8 @@
       "snapshotCopied": "Snapshot del explain copiado al portapapeles",
       "rawExported": "Salida raw del explain exportada",
       "noRawOutput": "No hay salida raw del explain disponible para exportar.",
+      "saveRawPlan": "Guardar plan raw…",
+      "saveRawError": "Error al guardar el plan raw",
       "aiAnalysis": "Analisis IA",
       "aiAnalysisTitle": "Analisis IA del Plan de Ejecucion",
       "aiAnalyzing": "Analizando plan de ejecucion con IA...",

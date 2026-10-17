@@ -1680,6 +1680,8 @@
       "snapshotCopied": "Snapshot dell'explain copiato negli appunti",
       "rawExported": "Output raw dell'explain esportato",
       "noRawOutput": "Nessun output raw dell'explain disponibile da esportare.",
+      "saveRawPlan": "Salva piano raw…",
+      "saveRawError": "Impossibile salvare il piano raw",
       "aiAnalysis": "Analisi AI",
       "aiAnalysisTitle": "Analisi AI del Piano di Esecuzione",
       "aiAnalyzing": "Analisi del piano di esecuzione con AI...",
