@@ -26,6 +26,7 @@ import { getMonacoThemeId } from "../../themes/themeRuntime";
 import {
   detectRawExplainLanguage,
   formatRawExplainOutput,
+  getRawExplainFormatLabel,
   saveRawExplainOutput,
 } from "../../utils/explainRaw";
 import { ExplainAiAnalysis } from "../modals/visual-explain/ExplainAiAnalysis";
@@ -83,17 +84,14 @@ export const VisualExplainView = ({
     [plan],
   );
 
-  const rawFormatLabel = useMemo(() => {
-    switch (rawLanguage) {
-      case "json":
-        return "JSON";
-      case "xml":
-        return "XML";
-      case "plaintext":
-      default:
-        return t("editor.visualExplain.formatText", "Text");
-    }
-  }, [rawLanguage, t]);
+  const rawFormatLabel = useMemo(
+    () =>
+      getRawExplainFormatLabel(
+        rawLanguage,
+        t("editor.visualExplain.formatText", "Text"),
+      ),
+    [rawLanguage, t],
+  );
 
   const rawValue = useMemo(
     () => (plan?.raw_output ? formatRawExplainOutput(plan.raw_output) : ""),

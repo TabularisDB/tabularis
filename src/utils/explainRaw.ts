@@ -38,9 +38,12 @@ export function getRawExplainExtension(language: RawExplainLanguage): string {
 
 /**
  * Return a clean user-facing format label for a raw EXPLAIN payload.
- * "json" maps to "JSON", "xml" to "XML", and "plaintext" to "Text".
+ * "json" maps to "JSON", "xml" to "XML", and "plaintext" to the provided text label (defaults to "Text").
  */
-export function getRawExplainFormatLabel(language: RawExplainLanguage): string {
+export function getRawExplainFormatLabel(
+  language: RawExplainLanguage,
+  formatTextLabel = "Text",
+): string {
   switch (language) {
     case "json":
       return "JSON";
@@ -48,7 +51,7 @@ export function getRawExplainFormatLabel(language: RawExplainLanguage): string {
       return "XML";
     case "plaintext":
     default:
-      return "Text";
+      return formatTextLabel;
   }
 }
 
