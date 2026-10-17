@@ -16,6 +16,24 @@ name: Publish npm packages
 # Manual runs: `workflow_dispatch` re-runs the same detection (useful to
 # retry after a transient failure); tick `dry_run` to build and pack
 # without uploading anything.
+#
+# Version bumps come from release-please (last job). It reads the
+# Conventional Commit titles that land on main and keeps one release PR open
+# per package with releasable changes: `fix` bumps the patch, `feat` the
+# minor, and below 1.0.0 a breaking change also bumps the minor. `chore`,
+# `ci`, `docs`, `test`, ... never bump. Merging a release PR changes the
+# version, so the jobs above publish it. Config: release-please-config.json
+# and .release-please-manifest.json at the repo root.
+#
+# No GitHub releases are created: they would replace the app's "latest"
+# release that the updater reads. release-please still needs to know where
+# each package was last released, so after publishing the `tag` job pushes a
+# plain git tag (`create-plugin-v0.4.3`, never matching release.yml's `v*`)
+# and marks the merged release PR `autorelease: tagged`. Without that label
+# swap release-please stops opening new release PRs.
+#
+# Requires "Allow GitHub Actions to create and approve pull requests" in the
+# repository Actions settings.
 
 on:
   push:
@@ -23,6 +41,8 @@ on:
     paths:
       - 'packages/**'
       - 'pnpm-lock.yaml'
+      - 'release-please-config.json'
+      - '.release-please-manifest.json'
       - '.github/workflows/npm-publish.yml'
   workflow_dispatch:
     inputs:
@@ -149,3 +169,77 @@ jobs:
               echo "- published ${{ matrix.package.name }}@${{ matrix.package.version }}: https://www.npmjs.com/package/${{ matrix.package.name }}/v/${{ matrix.package.version }}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+  tag:
+    name: Tag released versions
+    needs: [detect, publish]
+    # Also after a partial failure: tag whatever did reach npm.
+    if: ${{ !cancelled() && needs.detect.outputs.packages != '[]' && !inputs.dry_run }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # push tags
+      issues: write # relabel the release PR
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # find the commit that bumped each version
+
+      - name: Tag versions and mark release PRs as tagged
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGES: ${{ needs.detect.outputs.packages }}
+        run: |
+          set -euo pipefail
+          echo "$PACKAGES" | jq -c '.[]' | while read -r pkg; do
+            name=$(jq -r '.name' <<<"$pkg")
+            version=$(jq -r '.version' <<<"$pkg")
+            dir=$(jq -r '.dir' <<<"$pkg")
+            component=$(basename "$dir")
+            tag="$component-v$version"
+
+            if ! npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "::warning::$name@$version is not on npm, not tagging"
+              continue
+            fi
+
+            # The tag marks where release-please starts collecting commits for
+            # the next release, so it goes on the commit that set the version,
+            # not on HEAD (they differ when this runs from workflow_dispatch).
+            sha=$(git log -1 --format=%H -G'"version"' -- "$dir/package.json")
+            if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+              echo "$tag already exists"
+            else
+              git tag "$tag" "$sha"
+              git push origin "refs/tags/$tag"
+              echo "- tagged $tag at ${sha:0:7}" >> "$GITHUB_STEP_SUMMARY"
+            fi
+
+            title="chore($component): release $version"
+            gh pr list --state merged --label "autorelease: pending" --json number,title \
+              --jq ".[] | select(.title == \"$title\") | .number" |
+              while read -r number; do
+                gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$number/labels/autorelease:%20pending" >/dev/null
+                gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/labels" -f 'labels[]=autorelease: tagged' >/dev/null
+                echo "- marked #$number as tagged" >> "$GITHUB_STEP_SUMMARY"
+              done
+          done
+
+  release-please:
+    name: Update release PRs
+    needs: [detect, publish, tag]
+    # Runs after publish/tag so a just-merged release PR is already marked
+    # tagged; otherwise release-please would refuse to open new release PRs.
+    if: ${{ !cancelled() && !inputs.dry_run }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # release branches
+      pull-requests: write
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
