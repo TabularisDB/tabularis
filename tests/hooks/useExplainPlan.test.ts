@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { parseExplain, type ExplainPlan, type ExplainQueryOutput } from "@tabularis/explain";
+import { parsePostgresJson, type ExplainPlan, type ExplainQueryOutput } from "@tabularis/explain";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useExplainPlan } from "../../src/hooks/useExplainPlan";
 import * as sql from "../../src/utils/sql";
@@ -21,7 +21,7 @@ function createDeferred<T>() {
 }
 
 function makePlan(id: string): ExplainPlan {
-  const plan = parseExplain('[{"Plan":{"Node Type":"Result"}}]');
+  const plan = parsePostgresJson('[{"Plan":{"Node Type":"Result"}}]');
   return { ...plan, root: { ...plan.root, id }, original_query: id };
 }
 

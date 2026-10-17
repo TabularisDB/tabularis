@@ -9,9 +9,9 @@ export interface RegisteredExplainParser {
   /** Human label for format pickers. */
   readonly label?: string;
   /** Parse the raw payload or throw an Error. */
-  parse(payload: string): ExplainPlan;
+  parse(payload: string): ExplainPlan | Promise<ExplainPlan>;
   /** Cheap, side-effect-free source detection. */
-  sniff?(payload: string): boolean;
+  sniff?(payload: string): boolean | Promise<boolean>;
 }
 
 const builtinParsersByFormat = new Map(

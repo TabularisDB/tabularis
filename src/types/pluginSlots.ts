@@ -146,6 +146,19 @@ export type HostSlotContextRequirements = {
     rowIndex: number;
     rowData?: Record<string, unknown>;
   };
+  "connection-modal.connection_content": {
+    driver: string;
+    database: string;
+    connectionName: string;
+    onDatabaseChange: (value: string) => void;
+  };
+  "connection-modal.extra_fields": {
+    driver: string;
+    extra: Record<string, string>;
+    setExtraField: (key: string, value: string) => void;
+    credentialFieldsHidden: boolean;
+    setCredentialFieldsHidden: (hidden: boolean) => void;
+  };
 };
 
 /** Context prop type for a given slot: required keys when known, else loose SlotContext. */

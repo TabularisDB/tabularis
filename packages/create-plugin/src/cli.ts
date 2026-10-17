@@ -10,7 +10,7 @@ import { titleCase, validateDbType, validateName, validateQuote } from "./valida
 // Resolved at runtime so `--version` can never drift from package.json again.
 const PACKAGE_VERSION = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
 // Caret range written into scaffolded plugins; bump alongside packages/plugin-api.
-const PLUGIN_API_VERSION = "0.2.0";
+const PLUGIN_API_VERSION = "0.3.0";
 const MIN_TABULARIS_VERSION = "0.9.20";
 
 function main(argv: string[]): number {

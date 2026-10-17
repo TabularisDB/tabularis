@@ -362,6 +362,12 @@
     "import": "연결 가져오기",
     "exportTitle": "연결 내보내기",
     "exportWarning": "내보낸 파일에는 데이터베이스 및 SSH 비밀번호가 평문으로 포함됩니다. 안전하게 보관하세요.",
+    "exportSecretsConfirmation": {
+      "title": "비밀 정보 내보내기 확인",
+      "message": "저장된 비밀번호, SSH 키 및 연결 URI를 일반 텍스트로 내보낼까요?",
+      "export": "내보내기",
+      "cancel": "취소"
+    },
     "importFromApp": {
       "title": "앱에서 가져오기",
       "subtitle": "설치된 다른 SQL 클라이언트에서 연결을 가져옵니다",

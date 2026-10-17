@@ -70,7 +70,7 @@ afterEach(() => {
 });
 
 describe("EXPLAIN parser registry", () => {
-  it("keeps built-in behavior unchanged with no mutable parsers", () => {
+  it("keeps built-in behavior unchanged with no mutable parsers", async () => {
     expect(listExplainParsers().map(({ format }) => format)).toEqual([
       "postgres-json",
       "postgres-text",
@@ -82,19 +82,19 @@ describe("EXPLAIN parser registry", () => {
     ]);
     expect(Object.isFrozen(listExplainParsers())).toBe(true);
 
-    const postgres = parseRawExplain({
+    const postgres = await parseRawExplain({
       engine: "postgres",
       format: "postgres-json",
       payload: '[{ "Plan": { "Node Type": "Result" } }]',
       original_query: "SELECT 1",
     });
     expect(postgres.root.node_type).toBe("Result");
-    expect(detectFormat("Seq Scan on users (cost=0.00..1.00 rows=1 width=4)")).toBe(
+    expect(await detectFormat("Seq Scan on users (cost=0.00..1.00 rows=1 width=4)")).toBe(
       "postgres-text",
     );
   });
 
-  it("registers and dispatches a custom parser for raw and source payloads", () => {
+  it("registers and dispatches a custom parser for raw and source payloads", async () => {
     registerExplainParser({
       engine: "acme",
       format: "acme-plan",
@@ -104,20 +104,20 @@ describe("EXPLAIN parser registry", () => {
     });
 
     expect(getExplainParser("acme-plan")?.label).toBe("Acme plan");
-    expect(detectFormatFor("ACME PLAN", "ACME")).toBe("acme-plan");
-    expect(detectFormat("ACME PLAN")).toBe("acme-plan");
-    expect(parseExplainFor("ACME PLAN", "acme").root.node_type).toBe(
+    expect(await detectFormatFor("ACME PLAN", "ACME")).toBe("acme-plan");
+    expect(await detectFormat("ACME PLAN")).toBe("acme-plan");
+    expect((await parseExplainFor("ACME PLAN", "acme")).root.node_type).toBe(
       "Acme Scan",
     );
     expect(explainEngineFromDriverName(" AcMe ")).toBe("acme");
 
-    const parsed = parseRawExplain(raw("acme-plan"));
+    const parsed = await parseRawExplain(raw("acme-plan"));
     expect(parsed.root.node_type).toBe("Acme Scan");
     expect(parsed.driver).toBe("acme");
     expect(parsed.original_query).toBe("SELECT 1");
   });
 
-  it("replaces a registration in place and warns exactly once", () => {
+  it("replaces a registration in place and warns exactly once", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const first = {
       engine: "acme",
@@ -143,7 +143,7 @@ describe("EXPLAIN parser registry", () => {
     expect(
       listExplainParsers().findIndex(({ format }) => format === "acme-plan"),
     ).toBe(position);
-    expect(parseRawExplain(raw("acme-plan")).root.node_type).toBe("Replacement");
+    expect((await parseRawExplain(raw("acme-plan"))).root.node_type).toBe("Replacement");
   });
 
   it("removes custom parsers and reveals overridden built-ins", () => {
@@ -170,14 +170,14 @@ describe("EXPLAIN parser registry", () => {
     expect(getExplainParser("acme-plan")).toBeNull();
   });
 
-  it("throws the exact owner-directed error for an unknown raw format", () => {
-    expect(() => parseRawExplain(raw("unknown-plan"))).toThrow(
+  it("throws the exact owner-directed error for an unknown raw format", async () => {
+    await expect(parseRawExplain(raw("unknown-plan"))).rejects.toThrow(
       "No EXPLAIN parser registered for format 'unknown-plan' (engine 'acme'). " +
         "Import the parser package for 'acme' before parsing.",
     );
   });
 
-  it("keeps built-in sniffing ahead of custom sniffers", () => {
+  it("keeps built-in sniffing ahead of custom sniffers", async () => {
     const sniff = vi.fn(() => true);
     registerExplainParser({
       engine: "acme",
@@ -186,13 +186,13 @@ describe("EXPLAIN parser registry", () => {
       sniff,
     });
 
-    expect(detectFormat('[{ "Plan": { "Node Type": "Result" } }]')).toBe(
+    expect(await detectFormat('[{ "Plan": { "Node Type": "Result" } }]')).toBe(
       "postgres-json",
     );
     expect(sniff).not.toHaveBeenCalled();
   });
 
-  it("tries custom sniffers in registration order and ignores failures", () => {
+  it("tries custom sniffers in registration order and ignores failures", async () => {
     registerExplainParser({
       engine: "acme",
       format: "throwing-plan",
@@ -214,8 +214,8 @@ describe("EXPLAIN parser registry", () => {
       sniff: () => true,
     });
 
-    expect(detectFormat("CUSTOM PLAN")).toBe("first-plan");
-    expect(detectFormatFor("CUSTOM PLAN", "acme")).toBe("first-plan");
+    expect(await detectFormat("CUSTOM PLAN")).toBe("first-plan");
+    expect(await detectFormatFor("CUSTOM PLAN", "acme")).toBe("first-plan");
   });
 
   it("validates registrations before mutating the registry", () => {
@@ -233,7 +233,7 @@ describe("EXPLAIN parser registry", () => {
     expect(getExplainParser("acme-plan")).toBeNull();
   });
 
-  it("propagates parser exceptions unchanged", () => {
+  it("propagates parser exceptions unchanged", async () => {
     const error = new Error("custom parser failed");
     registerExplainParser({
       engine: "acme",
@@ -243,6 +243,6 @@ describe("EXPLAIN parser registry", () => {
       },
     });
 
-    expect(() => parseRawExplain(raw("acme-plan"))).toThrow(error);
+    await expect(parseRawExplain(raw("acme-plan"))).rejects.toThrow(error);
   });
 });

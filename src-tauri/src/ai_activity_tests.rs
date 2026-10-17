@@ -383,6 +383,25 @@ mod tests {
     }
 
     #[test]
+    fn classify_read_statements_with_side_effects_as_non_read_only() {
+        for query in [
+            "WITH d AS (DELETE FROM users RETURNING *) SELECT * FROM d",
+            "SELECT * INTO t2 FROM users",
+            "SELECT * INTO OUTFILE '/tmp/export' FROM users",
+            "PRAGMA user_version = 42",
+            "PRAGMA writable_schema = 1",
+            "SELECT pg_terminate_backend(123)",
+            "SELECT \"pg_terminate_backend\"(123)",
+            "SELECT lo_export(1, '/tmp/export')",
+            "SELECT pg_read_file('/etc/passwd')",
+            "SELECT dblink_exec('conn', 'DELETE FROM users')",
+            "SELECT nextval('dangerous_sequence')",
+        ] {
+            assert_ne!(classify_query_kind(query), "select", "{query}");
+        }
+    }
+
+    #[test]
     fn classify_ddl() {
         assert_eq!(classify_query_kind("CREATE TABLE t (id INT)"), "ddl");
         assert_eq!(

@@ -4,6 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2022"],
+    "types": ["node"],
     "strict": true,
     "noImplicitAny": true,
     "noUnusedLocals": true,
@@ -17,7 +18,7 @@
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "../.."
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "scripts", "tests", "templates"]

@@ -2561,8 +2561,7 @@ pub async fn save_k8s_connection<R: Runtime>(
     };
 
     connections.push(connection.clone());
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
     persistence::write_private_file(&path, json)?;
 
     Ok(connection)
@@ -2601,8 +2600,7 @@ pub async fn update_k8s_connection<R: Runtime>(
     };
 
     connections[idx] = connection.clone();
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
     persistence::write_private_file(&path, json)?;
 
     Ok(connection)
@@ -2622,8 +2620,7 @@ pub async fn delete_k8s_connection<R: Runtime>(
     };
 
     connections.retain(|c| c.id != id);
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
     persistence::write_private_file(&path, json)?;
 
     Ok(())
@@ -4892,6 +4889,35 @@ fn emit_database_dropped<R: Runtime>(app: &AppHandle<R>, connection_id: &str, da
 }
 
 #[tauri::command]
+pub async fn execute_plugin_read_only_query<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    query: String,
+    schema: Option<String>,
+) -> Result<QueryResult, String> {
+    if query.trim().is_empty() || query.len() > 100_000 {
+        return Err("Plugin query must contain between 1 and 100,000 characters".to_string());
+    }
+    if crate::ai_activity::classify_query_kind(&query) != "select" {
+        return Err("Plugin queries must be classified as read-only".to_string());
+    }
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let query = sanitize_user_query(&query);
+    let driver = driver_for_params(&params).await?;
+    match params.driver.as_str() {
+        "sqlite" | "postgres" | "mysql" | "mariadb" => {
+            driver
+                .execute_read_only_query(&params, &query, None, 1, schema.as_deref())
+                .await
+        }
+        _ => Err("This driver does not support sandboxed read-only queries".to_string()),
+    }
+}
+
+#[tauri::command]
 pub async fn execute_query<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, QueryCancellationState>,
@@ -7018,8 +7044,54 @@ pub async fn export_connections_payload<R: Runtime>(
     app: AppHandle<R>,
     include_secrets: Option<bool>,
     connection_ids: Option<Vec<String>>,
+    confirmation_title: Option<String>,
+    confirmation_message: Option<String>,
+    confirmation_export_label: Option<String>,
+    confirmation_cancel_label: Option<String>,
 ) -> Result<ExportPayload, String> {
-    let include_secrets = include_secrets.unwrap_or(true);
+    // Design note Phase 1: default false so no-arg / plugin callers get no secrets.
+    let include_secrets = include_secrets.unwrap_or(false);
+
+    if include_secrets {
+        use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+        let app2 = app.clone();
+        let title = confirmation_title.unwrap_or_else(|| "Export secrets".into());
+        let message = confirmation_message.unwrap_or_else(|| {
+            "Export saved passwords, SSH keys and connection URIs in plain form?".into()
+        });
+        let export_label = confirmation_export_label.unwrap_or_else(|| "Export".into());
+        let cancel_label = confirmation_cancel_label.unwrap_or_else(|| "Cancel".into());
+        let ok = tauri::async_runtime::spawn_blocking(move || {
+            app2.dialog()
+                .message(message)
+                .title(title)
+                .kind(MessageDialogKind::Warning)
+                .buttons(MessageDialogButtons::OkCancelCustom(
+                    export_label,
+                    cancel_label,
+                ))
+                .blocking_show()
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+
+        if !ok {
+            return Err("SECRET_EXPORT_CANCELLED".into());
+        }
+    }
+
+    export_connections_payload_unconfirmed(app, include_secrets, connection_ids).await
+}
+
+/// Build the payload for trusted internal callers such as encrypted backups.
+/// The Tauri command above is the only UI-facing path for secret exports and
+/// always shows the native confirmation before calling this helper.
+pub(crate) async fn export_connections_payload_unconfirmed<R: Runtime>(
+    app: AppHandle<R>,
+    include_secrets: bool,
+    connection_ids: Option<Vec<String>>,
+) -> Result<ExportPayload, String> {
     let conn_path = get_config_path(&app)?;
     let ssh_path = get_ssh_config_path(&app)?;
 

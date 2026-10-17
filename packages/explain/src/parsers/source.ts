@@ -97,8 +97,8 @@ export function explainEngineFromDriverName(name: string): ExplainEngine | null 
  *
  * Recognises the two Postgres shapes before trying registered custom sniffers.
  */
-export function detectFormat(raw: string): ExplainSourceFormat {
-  return detectFormatFor(raw, null);
+export async function detectFormat(raw: string): Promise<ExplainSourceFormat> {
+  return await detectFormatFor(raw, null);
 }
 
 /**
@@ -108,19 +108,19 @@ export function detectFormat(raw: string): ExplainSourceFormat {
  * Built-in hints retain their historical decisions. Custom parsers are tried
  * in registry order and only through their side-effect-free sniffers.
  */
-export function detectFormatFor(
+export async function detectFormatFor(
   raw: string,
   engine: ExplainEngine | null,
-): ExplainSourceFormat {
+): Promise<ExplainSourceFormat> {
   switch (engine) {
     case "postgres":
-      return detectPostgresFormat(raw);
+      return Promise.resolve(detectPostgresFormat(raw));
     case "mysql":
-      if (looksLikeJson(raw)) return "mysql-json";
+      if (looksLikeJson(raw)) return Promise.resolve("mysql-json");
       if (raw.trim() === "") {
         throw new Error("Unsupported EXPLAIN file format: input is empty");
       }
-      return "mysql-text";
+      return Promise.resolve("mysql-text");
     case "sqlite":
       throw new Error(
         "SQLite EXPLAIN QUERY PLAN has no text form here: pass its " +
@@ -129,16 +129,14 @@ export function detectFormatFor(
     case null: {
       const builtinFormat = detectPostgresFormatOrNull(raw);
       if (builtinFormat !== null) return builtinFormat;
-
-      const customFormat = sniffRegisteredFormat(raw, null);
+      const customFormat = await sniffRegisteredFormat(raw, null);
       if (customFormat !== null) return customFormat;
-
       throw new Error(
         "Unsupported EXPLAIN file format: expected Postgres JSON or text output",
       );
     }
     default: {
-      const format = sniffRegisteredFormat(raw, engine);
+      const format = await sniffRegisteredFormat(raw, engine);
       if (format !== null) return format;
       throw new Error(`Unsupported EXPLAIN file format for engine '${engine}'`);
     }
@@ -161,10 +159,10 @@ function detectPostgresFormatOrNull(
   return null;
 }
 
-function sniffRegisteredFormat(
+async function sniffRegisteredFormat(
   raw: string,
   engine: ExplainEngine | null,
-): ExplainSourceFormat | null {
+): Promise<ExplainSourceFormat | null> {
   const normalizedEngine = engine?.trim().toLowerCase() ?? null;
 
   for (const parser of listExplainParsers()) {
@@ -180,7 +178,7 @@ function sniffRegisteredFormat(
     if (parser.sniff === undefined) continue;
 
     try {
-      if (parser.sniff(raw)) return parser.format;
+      if (await parser.sniff(raw)) return parser.format;
     } catch {
       // A sniffer is advisory; one broken parser must not block later parsers.
     }
@@ -206,16 +204,17 @@ function looksLikePostgresText(raw: string): boolean {
  *
  * Equivalent to `parseExplainFor(raw, null)`.
  */
-export function parseExplain(raw: string): ExplainPlan {
+export function parseExplain(raw: string): Promise<ExplainPlan> {
   return parseExplainFor(raw, null);
 }
 
 /** Parse a payload, using the caller's engine hint when there is one. */
-export function parseExplainFor(
+export async function parseExplainFor(
   raw: string,
   engine: ExplainEngine | null,
-): ExplainPlan {
-  return parserFor(detectFormatFor(raw, engine)).parse(raw);
+): Promise<ExplainPlan> {
+  const format = await detectFormatFor(raw, engine);
+  return await parserFor(format).parse(raw);
 }
 
 /**

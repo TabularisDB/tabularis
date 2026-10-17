@@ -406,6 +406,12 @@
     "import": "Importa connessioni",
     "exportTitle": "Esporta connessioni",
     "exportWarning": "Il file esportato conterrà le password del database e SSH in chiaro. Conservalo in modo sicuro.",
+    "exportSecretsConfirmation": {
+      "title": "Conferma esportazione dei segreti",
+      "message": "Esportare in testo semplice le password salvate, le chiavi SSH e gli URI di connessione?",
+      "export": "Esporta",
+      "cancel": "Annulla"
+    },
     "exportModal": {
       "title": "Esporta connessioni",
       "subtitle": "Scegli come esportare le tue connessioni",

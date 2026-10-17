@@ -14,6 +14,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:plugin-guest": "node packages/plugin-guest/build.mjs",
     "lint": "eslint . && node scripts/check-theme-tokens.mjs",
     "lint:theme": "node scripts/check-theme-tokens.mjs",
     "test:contrast": "vitest run tests/utils/themeContrast.test.ts",
@@ -96,6 +97,7 @@
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.26",
+    "esbuild": "^0.27.4",
     "gitnexus": "^1.6.9",
     "globals": "^16.5.0",
     "jsdom": "^28.1.0",

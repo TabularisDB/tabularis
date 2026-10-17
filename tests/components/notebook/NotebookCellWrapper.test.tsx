@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { parseExplain } from "@tabularis/explain";
+import { parsePostgresJson } from "@tabularis/explain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotebookCellWrapper } from "../../../src/components/notebook/NotebookCellWrapper";
 import type { SqlCellEditor } from "../../../src/components/notebook/SqlCellEditor";
@@ -63,7 +63,7 @@ async function settle() {
 describe("NotebookCellWrapper query plans", () => {
   beforeEach(() => {
     mockInvoke.mockReset().mockResolvedValue({
-      kind: "plan", plan: parseExplain('[{"Plan":{"Node Type":"Result"}}]'),
+      kind: "plan", plan: parsePostgresJson('[{"Plan":{"Node Type":"Result"}}]'),
     });
     database.capabilities = { explain: false };
     database.getConnectionData.mockReset().mockImplementation((id: string) => {

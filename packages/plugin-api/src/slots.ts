@@ -73,6 +73,9 @@ export type SlotContextMap = {
   };
   "connection-modal.connection_content": {
     driver: string;
+    database: string;
+    connectionName: string;
+    onDatabaseChange: (value: string) => void;
   };
   "connection-modal.extra_fields": {
     driver: string;

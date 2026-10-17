@@ -203,9 +203,9 @@ function effectiveStatementKeyword(cleaned: string): string | null {
   return keyword;
 }
 
-// True when every statement in `sql` is clearly read-only (SELECT/SHOW/
-// EXPLAIN-of-a-SELECT/...). Used by the production write warning: a `false`
-// here means "may write", so unknown statement types err on prompting.
+// A quick UI-side filter for statements with obvious write keywords. The host
+// repeats classification in Rust and executes accepted plugin queries through
+// a database-enforced read-only path.
 export const isReadOnlyQuery = (sql: string): boolean =>
   stripCommentsAndLiterals(sql)
     .split(';')

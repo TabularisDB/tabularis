@@ -1,7 +1,7 @@
 import { StrictMode, type ComponentProps } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { parseExplain, type ExplainPlan, type ExplainQueryOutput } from "@tabularis/explain";
+import { parsePostgresJson, type ExplainPlan, type ExplainQueryOutput } from "@tabularis/explain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VisualExplainModal } from "../../../src/components/modals/VisualExplainModal";
 import type { VisualExplainViewProps } from "../../../src/components/explain/VisualExplainView";
@@ -44,7 +44,7 @@ const defaults: Props = {
 const mockInvoke = vi.mocked(invoke);
 
 function makePlan(id = "resolved"): ExplainPlan {
-  const plan = parseExplain('[{"Plan":{"Node Type":"Result"}}]');
+  const plan = parsePostgresJson('[{"Plan":{"Node Type":"Result"}}]');
   return { ...plan, original_query: id, root: { ...plan.root, id } };
 }
 

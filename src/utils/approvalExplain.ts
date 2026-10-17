@@ -10,14 +10,14 @@ import { resolveExplainOutput } from "@tabularis/explain";
  * client-side, same as the Editor's explain modal. Casting the payload
  * straight to `ExplainPlan` crashes the visualiser on `plan.root`.
  */
-export function parseApprovalExplainPlan(value: unknown): ExplainPlan | null {
+export async function parseApprovalExplainPlan(value: unknown): Promise<ExplainPlan | null> {
   if (!value || typeof value !== "object") {
     return null;
   }
   try {
     const plan =
       "kind" in value
-        ? resolveExplainOutput(value as ExplainQueryOutput)
+        ? await resolveExplainOutput(value as ExplainQueryOutput)
         : (value as ExplainPlan);
     // A plan without a root would crash the visualiser downstream.
     return plan?.root ? plan : null;

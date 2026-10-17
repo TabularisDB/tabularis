@@ -336,7 +336,8 @@ pub async fn run_backup<R: Runtime>(app: AppHandle<R>, trigger: &str) -> Result<
     let config = crate::config::load_config_internal(&app);
     let password = get_password()?.ok_or("Backup password is not set")?;
 
-    let payload = crate::commands::export_connections_payload(app.clone(), Some(true), None).await?;
+    let payload =
+        crate::commands::export_connections_payload_unconfirmed(app.clone(), true, None).await?;
     let plaintext = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
     let envelope = crate::export_crypto::encrypt(&plaintext, &password)?;
     let content = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;

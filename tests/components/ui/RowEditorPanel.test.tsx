@@ -3,6 +3,20 @@ import { screen, waitFor } from '@testing-library/react';
 import { RowEditorPanel } from '../../../src/components/ui/RowEditorPanel';
 import { useDatabase } from '../../../src/hooks/useDatabase';
 import { renderWithSlotProbe } from '../../fixtures/pluginSlotProbe';
+import {
+  getPluginProbeFrames,
+  getPluginProbeFrameModules,
+  pluginSlotProbeContexts,
+  resetPluginSlotProbe,
+} from '../../fixtures/pluginSlotProbeTransport';
+
+vi.mock('../../../src/plugins/sandbox/connectFrame', async () => {
+  const actual = await vi.importActual<typeof import('../../../src/plugins/sandbox/connectFrame')>(
+    '../../../src/plugins/sandbox/connectFrame',
+  );
+  const transport = await import('../../fixtures/pluginSlotProbeTransport');
+  return { ...actual, connectFrame: transport.connectFrameMock };
+});
 
 vi.mock('../../../src/hooks/useDatabase', () => ({ useDatabase: vi.fn() }));
 
@@ -23,47 +37,55 @@ function setDatabase(activeDriver: string, includeTarget = true) {
 }
 
 describe('RowEditorPanel plugin context', () => {
-  beforeEach(() => { vi.clearAllMocks(); setDatabase('mysql'); });
+  beforeEach(() => { vi.clearAllMocks(); resetPluginSlotProbe(); setDatabase('mysql'); });
+
+  const contextsFor = (driver: unknown) => pluginSlotProbeContexts.filter((context) => context.driver === driver);
 
   it('renders PostgreSQL plugins for the row connection while MySQL is globally active', async () => {
     await renderWithSlotProbe(<RowEditorPanel {...props} />, [...slots]);
-    const probes = await screen.findAllByTestId('postgres-slot');
-    expect(probes).toHaveLength(2);
+    await waitFor(() => expect(contextsFor('postgres').length).toBeGreaterThanOrEqual(2));
+    const probes = contextsFor('postgres');
     for (const probe of probes) {
-      expect(JSON.parse(probe.textContent ?? '{}')).toMatchObject({
+      expect(probe).toMatchObject({
         driver: 'postgres', connectionId: 'pg-pane', schema: 'tenant',
         tableName: 'users', database: 'shop', rowData: row, rowIndex: 0, isInsertion: false,
       });
     }
-    expect(screen.queryByTestId('mysql-slot')).not.toBeInTheDocument();
+    expect(contextsFor('mysql')).toHaveLength(0);
+    const frames = getPluginProbeFrames();
+    expect(getPluginProbeFrameModules()).toEqual(expect.arrayContaining(['postgres.js', 'unfiltered.js']));
+    expect(frames.length).toBeGreaterThan(0);
+    expect(frames.every((frame) => frame.getAttribute('sandbox') === 'allow-scripts')).toBe(true);
   });
 
   it('keeps the row connection context when global focus changes', async () => {
     const { rerender } = await renderWithSlotProbe(<RowEditorPanel {...props} />, [...slots]);
-    await screen.findAllByTestId('postgres-slot');
+    await waitFor(() => expect(contextsFor('postgres').length).toBeGreaterThanOrEqual(2));
     setDatabase('sqlite');
     rerender(<RowEditorPanel {...props} />);
-    expect(screen.getAllByTestId('postgres-slot')).toHaveLength(2);
-    expect(screen.queryByTestId('mysql-slot')).not.toBeInTheDocument();
+    expect(contextsFor('postgres').length).toBeGreaterThanOrEqual(2);
+    expect(contextsFor('mysql')).toHaveLength(0);
+    expect(getPluginProbeFrameModules()).toEqual(expect.arrayContaining(['postgres.js', 'unfiltered.js']));
   });
 
   it('hides driver-filtered plugins when the row connection disappears', async () => {
     const { rerender } = await renderWithSlotProbe(<RowEditorPanel {...props} />, [...slots]);
-    await screen.findAllByTestId('postgres-slot');
+    await waitFor(() => expect(contextsFor('postgres').length).toBeGreaterThanOrEqual(2));
     setDatabase('mysql', false);
     rerender(<RowEditorPanel {...props} />);
-    await waitFor(() => expect(screen.queryByTestId('postgres-slot')).not.toBeInTheDocument());
-    expect(screen.queryByTestId('mysql-slot')).not.toBeInTheDocument();
+    await waitFor(() => {
+      const modules = getPluginProbeFrameModules();
+      expect(modules).toEqual(['unfiltered.js', 'unfiltered.js']);
+    });
   });
 
   it('does not borrow the active driver when the row has no connection', async () => {
     await renderWithSlotProbe(<RowEditorPanel {...props} connectionId={null} />, [...slots]);
-    const probes = await screen.findAllByTestId('unfiltered-slot');
-    expect(probes).toHaveLength(2);
+    await waitFor(() => expect(contextsFor(null).length).toBeGreaterThanOrEqual(2));
+    const probes = contextsFor(null);
     for (const probe of probes) {
-      expect(JSON.parse(probe.textContent ?? '{}')).toMatchObject({ driver: null, connectionId: null });
+      expect(probe).toMatchObject({ driver: null, connectionId: null });
     }
-    expect(screen.queryByTestId('mysql-slot')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('postgres-slot')).not.toBeInTheDocument();
+    expect(getPluginProbeFrameModules()).toEqual(['unfiltered.js', 'unfiltered.js']);
   });
 });

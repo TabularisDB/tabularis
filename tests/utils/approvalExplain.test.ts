@@ -39,8 +39,8 @@ function plan(overrides: Partial<ExplainPlan>): ExplainPlan {
 }
 
 describe("parseApprovalExplainPlan", () => {
-  it("parses the raw ExplainQueryOutput stored by the MCP preflight", () => {
-    const parsed = parseApprovalExplainPlan({
+  it("parses the raw ExplainQueryOutput stored by the MCP preflight", async () => {
+    const parsed = await parseApprovalExplainPlan({
       kind: "raw",
       raw: {
         engine: "postgres",
@@ -54,18 +54,18 @@ describe("parseApprovalExplainPlan", () => {
     expect(parsed?.driver).toBe("postgres");
   });
 
-  it("passes a plugin's already parsed plan output through", () => {
-    const parsed = parseApprovalExplainPlan({ kind: "plan", plan: plan({}) });
+  it("passes a plugin's already parsed plan output through", async () => {
+    const parsed = await parseApprovalExplainPlan({ kind: "plan", plan: plan({}) });
     expect(parsed?.root.id).toBe("node_0");
   });
 
-  it("accepts a bare plan object", () => {
-    const parsed = parseApprovalExplainPlan(plan({}));
+  it("accepts a bare plan object", async () => {
+    const parsed = await parseApprovalExplainPlan(plan({}));
     expect(parsed?.root.id).toBe("node_0");
   });
 
-  it("returns null instead of throwing on an unparseable raw payload", () => {
-    const parsed = parseApprovalExplainPlan({
+  it("returns null instead of throwing on an unparseable raw payload", async () => {
+    const parsed = await parseApprovalExplainPlan({
       kind: "raw",
       raw: {
         engine: "sqlite",
@@ -77,14 +77,14 @@ describe("parseApprovalExplainPlan", () => {
     expect(parsed).toBeNull();
   });
 
-  it("returns null for a plan without a root", () => {
-    expect(parseApprovalExplainPlan({ kind: "plan", plan: {} })).toBeNull();
-    expect(parseApprovalExplainPlan({ raw_output: "x" })).toBeNull();
+  it("returns null for a plan without a root", async () => {
+    expect(await parseApprovalExplainPlan({ kind: "plan", plan: {} })).toBeNull();
+    expect(await parseApprovalExplainPlan({ raw_output: "x" })).toBeNull();
   });
 
-  it("returns null for non-object payloads", () => {
-    expect(parseApprovalExplainPlan(null)).toBeNull();
-    expect(parseApprovalExplainPlan(undefined)).toBeNull();
-    expect(parseApprovalExplainPlan("Seq Scan")).toBeNull();
+  it("returns null for non-object payloads", async () => {
+    expect(await parseApprovalExplainPlan(null)).toBeNull();
+    expect(await parseApprovalExplainPlan(undefined)).toBeNull();
+    expect(await parseApprovalExplainPlan("Seq Scan")).toBeNull();
   });
 });

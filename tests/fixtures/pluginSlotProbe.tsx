@@ -7,7 +7,7 @@ import { PluginSlotProvider } from '../../src/contexts/PluginSlotProvider';
 import { SettingsContext, DEFAULT_SETTINGS } from '../../src/contexts/SettingsContext';
 import type { SlotName } from '../../src/types/pluginSlots';
 
-/** Load probe bundles through the real manifest loader and driver filter. */
+/** Load plugin manifests and render their sandboxed iframe slots. */
 export async function renderWithSlotProbe(children: ReactNode, slots: SlotName[]) {
   if (!i18n.isInitialized) {
     await i18n.init({ lng: 'en', resources: { en: { translation: {} } } });
@@ -25,13 +25,8 @@ export async function renderWithSlotProbe(children: ReactNode, slots: SlotName[]
     }
     if (command === 'read_plugin_file' && args && 'filePath' in args) {
       const filePath = String(args.filePath);
-      if (filePath.endsWith('.js')) {
-        const driver = filePath.slice(0, -3);
-        return `var __tabularis_plugin__ = function(props) {
-          return React.createElement('output', {'data-testid': '${driver}-slot'}, JSON.stringify(props.context));
-        };`;
-      }
-      return '{}';
+      if (filePath.startsWith('locales/')) return '{}';
+      throw new Error(`Unexpected plugin file read: ${filePath}`);
     }
     throw new Error(`Unexpected probe command: ${command}`);
   });

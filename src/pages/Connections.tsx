@@ -496,6 +496,10 @@ export const Connections = () => {
     try {
       const payload = await invoke("export_connections_payload", {
         includeSecrets: mode !== "noSecrets",
+        confirmationTitle: t("connections.exportSecretsConfirmation.title"),
+        confirmationMessage: t("connections.exportSecretsConfirmation.message"),
+        confirmationExportLabel: t("connections.exportSecretsConfirmation.export"),
+        confirmationCancelLabel: t("connections.exportSecretsConfirmation.cancel"),
         connectionIds:
           exportSelectionOnly && selectedIds.size > 0
             ? [...selectedIds]
@@ -513,6 +517,7 @@ export const Connections = () => {
         await writeTextFile(path, JSON.stringify(fileContent, null, 2));
       }
     } catch (e) {
+      if (String(e).includes("SECRET_EXPORT_CANCELLED")) return;
       console.error("Export failed:", e);
       setError(toErrorMessage(e));
     }

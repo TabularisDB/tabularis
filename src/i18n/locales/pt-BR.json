@@ -363,6 +363,12 @@
     "import": "Importar Conexões",
     "exportTitle": "Exportar Conexões",
     "exportWarning": "O arquivo exportado conterá suas senhas de banco de dados e SSH em texto simples. Guarde-o com segurança.",
+    "exportSecretsConfirmation": {
+      "title": "Confirmar exportação de segredos",
+      "message": "Exportar senhas salvas, chaves SSH e URIs de conexão em texto simples?",
+      "export": "Exportar",
+      "cancel": "Cancelar"
+    },
     "exportModal": {
       "title": "Exportar Conexões",
       "subtitle": "Escolha como exportar suas conexões",
