@@ -235,7 +235,7 @@ If your changes involve native desktop behaviors (Tauri IPC commands, filesystem
 
 1. **Explore open targets and scope:**
    - Review current and requested drivers in the [Driver Contribution Hub (#1145)](https://github.com/TabularisDB/tabularis/issues/1145).
-   - Check the [Plugin Bounty Board](https://tabularis.dev/plugins/bounties) for funded driver opportunities.
+   - Check the [Plugin Bounty Board](https://tabularis.dev/plugins/bounties) for open driver targets looking for contributors.
 2. **Scaffold a new driver plugin:**
    Use the official `@tabularis/create-plugin` generator:
    ```bash
