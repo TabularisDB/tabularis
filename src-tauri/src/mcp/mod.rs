@@ -118,6 +118,19 @@ async fn expand_ssh_params_for_mcp(
             data: None,
         })?;
 
+    // Same rule as for a managed connection: a local connection tunnelling
+    // through a shared SSH profile cannot get its secrets here either.
+    if let Some(managed_by) = &ssh.managed_by {
+        return Err(JsonRpcError {
+            code: -32000,
+            message: crate::managed::unavailable_outside_app_message(
+                managed_by,
+                &format!("SSH tunnel {}", ssh.name),
+            ),
+            data: None,
+        });
+    }
+
     if ssh.auth_type.is_none() {
         ssh.auth_type = Some(
             if ssh
@@ -253,6 +266,17 @@ async fn resolve_db_params(
     conn_id: &str,
 ) -> Result<(crate::models::SavedConnection, ConnectionParams), JsonRpcError> {
     let mut conn = find_connection(conn_id)?;
+
+    // A managed connection (the team share) has no credentials in the
+    // keychain or the file: its source lives in the app, which this process is
+    // not. Say so, instead of failing authentication with a misleading error.
+    if let Some(managed_by) = &conn.managed_by {
+        return Err(JsonRpcError {
+            code: -32000,
+            message: crate::managed::unavailable_outside_app_message(managed_by, &conn.name),
+            data: None,
+        });
+    }
 
     // Load DB password from keychain unless the connection uses IAM auth,
     // whose 15-min tokens must come from the `password` field on every

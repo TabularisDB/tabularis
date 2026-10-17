@@ -1,11 +1,12 @@
 import type { SyntheticEvent } from 'react';
-import { Shield, PlugZap } from 'lucide-react';
+import { Shield, PlugZap, Share2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { SavedConnection } from '../../contexts/DatabaseContext';
 import type { PluginManifest } from '../../types/plugins';
 import type { ConnectionTag } from '../../types/tags';
 import { usePluginRegistry } from '../../hooks/usePluginRegistry';
+import { isTeamShared } from '../../utils/teamShare';
 import { Chip } from '../ui/Chip';
 import { UpdateTooltip } from '../ui/UpdateTooltip';
 import { PluginUpdateIndicator } from '../plugins/PluginUpdateIndicator';
@@ -29,8 +30,8 @@ const stopCardEvents = {
 /**
  * The attribute chips of a saved connection, in a fixed order shared by the
  * grid card and the list row: driver facts first (name, deprecation, pending
- * update), then where it lives (environment, tags), then how it is reached
- * (SSH, K8s, SSM), then anything blocking it (plugin disabled).
+ * update), then where it lives (environment, team sharing, tags), then how it
+ * is reached (SSH, K8s, SSM), then anything blocking it (plugin disabled).
  */
 export const ConnectionChips = ({ conn, driverManifest, isDriverEnabled, tags }: ConnectionChipsProps) => {
   const { t } = useTranslation();
@@ -73,6 +74,11 @@ export const ConnectionChips = ({ conn, driverManifest, isDriverEnabled, tags }:
         </UpdateTooltip>
       )}
       <EnvironmentBadge environment={conn.environment} />
+      {isTeamShared(conn) && (
+        <Chip tone="theme" icon={<Share2 size={8} />} title={t('connections.sharedTooltip')}>
+          {t('connections.shared')}
+        </Chip>
+      )}
       <TagChips tagIds={conn.tag_ids} tags={tags} />
       {conn.params.ssh_enabled && (
         <Chip tone="success" icon={<Shield size={8} />}>SSH</Chip>

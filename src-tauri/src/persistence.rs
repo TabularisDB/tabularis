@@ -1,8 +1,139 @@
-use crate::models::{ConnectionGroup, ConnectionParams, ConnectionsFile, SavedConnection};
+use crate::models::{
+    ConnectionGroup, ConnectionParams, ConnectionsFile, K8sConnection, SavedConnection,
+    SshConnection,
+};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::{Mutex, MutexGuard, PoisonError};
+
+/// Serialises the writes to one local file and counts them.
+///
+/// A reader that takes a snapshot of the file, works on it for a while (the
+/// team share reads and writes a shared folder in between) and then writes a
+/// result back can hold the gate, compare the count with the one it saw, and
+/// so tell whether a local edit landed in the meantime instead of silently
+/// overwriting it.
+pub struct WriteGate {
+    generation: Mutex<u64>,
+}
+
+impl WriteGate {
+    pub const fn new() -> Self {
+        Self {
+            generation: Mutex::new(0),
+        }
+    }
+
+    /// Hold the gate: no other write to the file lands until the guard drops.
+    /// The guarded value is the number of writes so far.
+    pub fn hold(&self) -> MutexGuard<'_, u64> {
+        // A panic while holding the gate leaves the count as good as it was;
+        // refusing every later write over it would be worse.
+        self.generation
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl Default for WriteGate {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Gate of `connections.json`.
+pub static CONNECTIONS_FILE_GATE: WriteGate = WriteGate::new();
+/// Gate of `ssh_connections.json`.
+pub static SSH_FILE_GATE: WriteGate = WriteGate::new();
+/// Gate of `k8s_connections.json`.
+pub static K8S_FILE_GATE: WriteGate = WriteGate::new();
+
+/// Load `ssh_connections.json`. A missing or unparseable file yields an empty
+/// list, matching what every call site did inline before.
+pub fn load_ssh_connections_file(path: &Path) -> Result<Vec<SshConnection>, String> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    Ok(serde_json::from_str(&content).unwrap_or_default())
+}
+
+/// Write `ssh_connections.json`, keeping the secrets of managed profiles out
+/// of it: those belong to their source (see [`crate::managed`]), and a copy
+/// here would outlive the source being locked. The single write path for this
+/// file, so no caller can leak one by accident.
+pub fn save_ssh_connections_file(
+    path: &Path,
+    connections: &[SshConnection],
+) -> Result<(), String> {
+    let mut generation = SSH_FILE_GATE.hold();
+    save_ssh_connections_file_held(&mut generation, path, connections)
+}
+
+/// [`save_ssh_connections_file`] for a caller already holding [`SSH_FILE_GATE`].
+pub fn save_ssh_connections_file_held(
+    generation: &mut u64,
+    path: &Path,
+    connections: &[SshConnection],
+) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+    }
+    let to_save: Vec<SshConnection> = connections
+        .iter()
+        .map(|ssh| {
+            let mut copy = ssh.clone();
+            if copy.is_managed() {
+                crate::managed::strip_ssh_secrets(&mut copy);
+            }
+            copy
+        })
+        .collect();
+    let json = serde_json::to_string_pretty(&to_save).map_err(|e| e.to_string())?;
+    write_private_file(path, json)?;
+    *generation += 1;
+    Ok(())
+}
+
+/// Load `k8s_connections.json`. A missing or unparseable file yields an empty
+/// list.
+pub fn load_k8s_connections_file(path: &Path) -> Result<Vec<K8sConnection>, String> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    Ok(serde_json::from_str(&content).unwrap_or_default())
+}
+
+/// Write `k8s_connections.json`. The single write path for this file.
+pub fn save_k8s_connections_file(
+    path: &Path,
+    connections: &[K8sConnection],
+) -> Result<(), String> {
+    let mut generation = K8S_FILE_GATE.hold();
+    save_k8s_connections_file_held(&mut generation, path, connections)
+}
+
+/// [`save_k8s_connections_file`] for a caller already holding [`K8S_FILE_GATE`].
+pub fn save_k8s_connections_file_held(
+    generation: &mut u64,
+    path: &Path,
+    connections: &[K8sConnection],
+) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+    }
+    let json = serde_json::to_string_pretty(connections).map_err(|e| e.to_string())?;
+    write_private_file(path, json)?;
+    *generation += 1;
+    Ok(())
+}
 
 /// Parses connections file content already read from disk. Supports both
 /// the old format (a bare array of connections) and the new format (an
@@ -45,6 +176,17 @@ pub fn load_connections(path: &Path) -> Result<Vec<SavedConnection>, String> {
 }
 
 pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), String> {
+    let mut generation = CONNECTIONS_FILE_GATE.hold();
+    save_connections_file_held(&mut generation, path, file)
+}
+
+/// [`save_connections_file`] for a caller already holding
+/// [`CONNECTIONS_FILE_GATE`].
+pub fn save_connections_file_held(
+    generation: &mut u64,
+    path: &Path,
+    file: &ConnectionsFile,
+) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         if !parent.exists() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -55,7 +197,12 @@ pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), 
     let mut connections_to_save = Vec::new();
     for conn in &file.connections {
         let mut c = conn.clone();
-        if c.params.save_in_keychain.unwrap_or(false) {
+        if c.is_managed() {
+            // Credentials of a managed connection belong to its source only.
+            // Strip every secret here as well, so no code path can leak one
+            // into the local file.
+            crate::managed::strip_connection_secrets(&mut c.params);
+        } else if c.params.save_in_keychain.unwrap_or(false) {
             // Passwords are stored in keychain, remove from JSON
             c.params.password = None;
             c.params.ssh_password = None;
@@ -72,7 +219,9 @@ pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), 
     let mut json = serde_json::to_value(&to_save).map_err(|e| e.to_string())?;
     preserve_unknown_fields(path, &mut json);
     let json = serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?;
-    write_private_file(path, json)
+    write_private_file(path, json)?;
+    *generation += 1;
+    Ok(())
 }
 
 /// Writes `contents` so that, on Unix, the file is readable and writable only

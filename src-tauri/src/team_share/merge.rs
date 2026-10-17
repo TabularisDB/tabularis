@@ -84,7 +84,14 @@ pub fn merge_payload(
         ctx,
         &mut notes,
     );
-    let tags = merge_list("tag", &base.tags, &remote.tags, &local.tags, ctx, &mut notes);
+    let tags = merge_list(
+        "tag",
+        &base.tags,
+        &remote.tags,
+        &local.tags,
+        ctx,
+        &mut notes,
+    );
     let ssh_profiles = merge_list(
         "ssh profile",
         &base.ssh_profiles,
@@ -266,8 +273,15 @@ fn merge_list<T: Mergeable>(
 
     let mut merged = Vec::new();
     for id in ids {
-        let Some(resolved) = resolve(kind, id, find(base, id), find(remote, id), find(local, id), ctx, notes)
-        else {
+        let Some(resolved) = resolve(
+            kind,
+            id,
+            find(base, id),
+            find(remote, id),
+            find(local, id),
+            ctx,
+            notes,
+        ) else {
             continue;
         };
         merged.push(resolved);
