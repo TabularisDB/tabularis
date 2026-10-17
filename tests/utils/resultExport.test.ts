@@ -89,6 +89,48 @@ describe("resultExport", () => {
     );
   });
 
+  it("formats loaded result rows as NDJSON with one JSON object per line and escaped newlines", () => {
+    const ndjsonResult: QueryResult = {
+      columns: ["id", "active", "note", "meta", "missing"],
+      rows: [
+        [1, true, "first\nline\r\nsecond", { role: "admin", tags: ["a", "b"] }, undefined],
+        [2, false, null, { role: "user", tags: [] }, "present"],
+      ],
+      affected_rows: 0,
+    };
+
+    const output = formatResultForExport(ndjsonResult, "ndjson");
+    const lines = output.split("\n");
+
+    expect(lines).toHaveLength(2);
+    expect(lines.map((line) => JSON.parse(line))).toEqual([
+      {
+        id: 1,
+        active: true,
+        note: "first\nline\r\nsecond",
+        meta: { role: "admin", tags: ["a", "b"] },
+        missing: null,
+      },
+      {
+        id: 2,
+        active: false,
+        note: null,
+        meta: { role: "user", tags: [] },
+        missing: "present",
+      },
+    ]);
+  });
+
+  it("produces an empty file when exporting empty results as NDJSON", () => {
+    const emptyResult: QueryResult = {
+      columns: ["id", "name"],
+      rows: [],
+      affected_rows: 0,
+    };
+
+    expect(formatResultForExport(emptyResult, "ndjson")).toBe("");
+  });
+
   it("formats loaded result rows as Markdown", () => {
     expect(formatResultForExport(result, "markdown")).toBe(
       "| id | name |\n| --- | --- |\n| 1 | John |\n| 2 | null |",

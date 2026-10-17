@@ -1,7 +1,7 @@
 import type { QueryResult } from "../types/editor";
 import { csvField, rowsToHtmlTable, rowsToMarkdown } from "./clipboard";
 
-export type ResultExportFormat = "csv" | "json" | "markdown" | "html";
+export type ResultExportFormat = "csv" | "json" | "ndjson" | "markdown" | "html";
 
 export function getLoadedRowsExportLimit(
   result: QueryResult,
@@ -26,6 +26,17 @@ export function getLoadedRowsExportLimit(
  * NULL gets the sentinel.
  */
 const NULL_CSV_VALUE = "NULL";
+
+function rowToResultObject(
+  columns: string[],
+  row: unknown[],
+): Record<string, unknown> {
+  const obj: Record<string, unknown> = {};
+  columns.forEach((column, index) => {
+    obj[column] = row[index] ?? null;
+  });
+  return obj;
+}
 
 function csvValue(value: unknown, delimiter: string): string {
   const text =
@@ -84,14 +95,16 @@ export function formatResultForExport(
   csvDelimiter = ",",
 ): string {
   if (format === "json") {
-    const rows = result.rows.map((row) => {
-      const obj: Record<string, unknown> = {};
-      result.columns.forEach((column, index) => {
-        obj[column] = row[index] ?? null;
-      });
-      return obj;
-    });
+    const rows = result.rows.map((row) =>
+      rowToResultObject(result.columns, row),
+    );
     return JSON.stringify(rows, null, 2);
+  }
+
+  if (format === "ndjson") {
+    return result.rows
+      .map((row) => JSON.stringify(rowToResultObject(result.columns, row)))
+      .join("\n");
   }
 
   if (format === "markdown") {
