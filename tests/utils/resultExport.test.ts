@@ -17,13 +17,39 @@ const result: QueryResult = {
 describe("resultExport", () => {
   it("formats loaded result rows as CSV with headers", () => {
     expect(formatResultForExport(result, "csv")).toBe(
-      "id,name\n1,John\n2,",
+      "id,name\n1,John\n2,NULL",
+    );
+  });
+
+  it("writes NULL the same way the streaming exporter does", () => {
+    // Mirrors value_to_csv_string in src-tauri/src/export/format.rs: only NULL
+    // gets the sentinel, an empty string stays an empty field.
+    const fixture: QueryResult = {
+      columns: ["null_col", "empty_col", "literal_null", "zero", "flag"],
+      rows: [[null, "", "NULL", 0, false]],
+      affected_rows: 0,
+    };
+
+    expect(formatResultForExport(fixture, "csv")).toBe(
+      "null_col,empty_col,literal_null,zero,flag\nNULL,,NULL,0,false",
+    );
+  });
+
+  it("keeps quoting around NULL-adjacent fields that need it", () => {
+    const tricky: QueryResult = {
+      columns: ["a", "b", "c"],
+      rows: [[null, 'has,comma', 'say "hi"\nthere']],
+      affected_rows: 0,
+    };
+
+    expect(formatResultForExport(tricky, "csv")).toBe(
+      'a,b,c\nNULL,"has,comma","say ""hi""\nthere"',
     );
   });
 
   it("uses the configured CSV delimiter", () => {
     expect(formatResultForExport(result, "csv", ";")).toBe(
-      "id;name\n1;John\n2;",
+      "id;name\n1;John\n2;NULL",
     );
   });
 
