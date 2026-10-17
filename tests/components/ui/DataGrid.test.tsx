@@ -21,7 +21,7 @@ vi.mock("../../../src/components/ui/CellCodeEditor", () => ({
 }));
 
 vi.mock("../../../src/hooks/useDatabase", () => ({
-  useDatabase: () => ({ activeSchema: null, connections: [] }),
+  useDatabase: () => databaseMock(),
 }));
 
 vi.mock("../../../src/hooks/useAlert", () => ({
@@ -37,6 +37,7 @@ const {
   virtualizerRenderControl,
   sidebarState,
   writeHtmlMock,
+  databaseMock,
 } = vi.hoisted(() => ({
   showToastMock: vi.fn(),
   openRowEditorMock: vi.fn(),
@@ -48,6 +49,10 @@ const {
   virtualizerRenderControl: { forceEmpty: false },
   sidebarState: { isOpen: false, activePanel: null as string | null },
   writeHtmlMock: vi.fn(),
+  databaseMock: vi.fn((): Record<string, unknown> => ({
+    activeSchema: null,
+    connections: [],
+  })),
 }));
 
 vi.mock("@tauri-apps/plugin-clipboard-manager", async (importOriginal) => ({
@@ -2695,6 +2700,8 @@ describe("DataGrid copy column names as SQL list", () => {
     writeText.mockClear();
     showToastMock.mockClear();
     translationMock.mockClear();
+    databaseMock.mockReset();
+    databaseMock.mockReturnValue({ activeSchema: null, connections: [] });
     Object.defineProperty(navigator, "clipboard", {
       value: { writeText },
       configurable: true,
@@ -2725,6 +2732,49 @@ describe("DataGrid copy column names as SQL list", () => {
     expect(translationMock).toHaveBeenCalledWith("dataGrid.copiedColumnNames", {
       count: 3,
     });
+  });
+
+  it("honors the grid connection's own capabilities and driver over the globally active connection", async () => {
+    databaseMock.mockReturnValue({
+      activeSchema: null,
+      connections: [],
+      activeDriver: "postgres",
+      activeCapabilities: {
+        schemas: true,
+        views: true,
+        routines: false,
+        file_based: false,
+        folder_based: false,
+        identifier_quote: '"',
+        alter_primary_key: false,
+      },
+      getConnectionData: (id: string) =>
+        id === "mysql-conn"
+          ? {
+              driver: "mysql",
+              capabilities: null,
+            }
+          : undefined,
+    });
+
+    const { container } = render(
+      <DataGrid
+        connectionId="mysql-conn"
+        columns={["id", "user`name"]}
+        data={[[1, "Alice"]]}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        readonly
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelectorAll("th")[1]);
+    fireEvent.click(await screen.findByText("dataGrid.copyColumnNames"));
+    fireEvent.click(await screen.findByText("dataGrid.copyColumnNamesSqlList"));
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("`id`, `user``name`"),
+    );
   });
 });
 

@@ -139,10 +139,7 @@ import {
   columnNamesAsLines,
   columnNamesAsJson,
 } from "../../utils/clipboard";
-import {
-  formatColumnNamesAsSqlList,
-  isSqlCapableDriver,
-} from "../../utils/objectNameCopy";
+import { formatColumnNamesAsSqlList } from "../../utils/objectNameCopy";
 import {
   DEFAULT_MASKING_PATTERNS,
   isColumnMasked,
@@ -368,12 +365,9 @@ export const DataGrid = React.memo(
     const connectionData = connectionId
       ? getConnectionData?.(connectionId)
       : undefined;
-    const effectiveDriverOrCapabilities =
-      connectionData?.capabilities ??
-      activeCapabilities ??
-      connectionData?.driver ??
-      activeDriver;
-    const isSqlCapable = isSqlCapableDriver(effectiveDriverOrCapabilities);
+    const effectiveDriverOrCapabilities = connectionId
+      ? (connectionData?.capabilities ?? connectionData?.driver)
+      : (activeCapabilities ?? activeDriver);
     const activeSchema = schemaProp ?? globalActiveSchema;
     const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
@@ -3767,15 +3761,11 @@ export const DataGrid = React.memo(
                       icon: Copy,
                       action: copyColumnNamesAsJson,
                     },
-                    ...(isSqlCapable
-                      ? [
-                          {
-                            label: t("dataGrid.copyColumnNamesSqlList"),
-                            icon: Copy,
-                            action: copyColumnNamesAsSqlList,
-                          } as ContextMenuItem,
-                        ]
-                      : []),
+                    {
+                      label: t("dataGrid.copyColumnNamesSqlList"),
+                      icon: Copy,
+                      action: copyColumnNamesAsSqlList,
+                    },
                   ],
                 },
                 {

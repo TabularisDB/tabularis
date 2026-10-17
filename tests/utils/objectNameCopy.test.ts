@@ -3,7 +3,6 @@ import type { DriverCapabilities, PluginManifest } from "../../src/types/plugins
 import {
   formatColumnNamesAsSqlList,
   formatObjectNameForCopy,
-  isSqlCapableDriver,
 } from "../../src/utils/objectNameCopy";
 
 const baseCapabilities: DriverCapabilities = {
@@ -97,30 +96,6 @@ describe("formatColumnNamesAsSqlList", () => {
 
   it("returns an empty string when there are no columns", () => {
     expect(formatColumnNamesAsSqlList([], "postgres")).toBe("");
-  });
-});
-
-describe("isSqlCapableDriver", () => {
-  it("returns true for built-in SQL drivers and SQL capabilities", () => {
-    expect(isSqlCapableDriver("postgres")).toBe(true);
-    expect(isSqlCapableDriver("mysql")).toBe(true);
-    expect(isSqlCapableDriver("sqlite")).toBe(true);
-    expect(isSqlCapableDriver(baseCapabilities)).toBe(true);
-    expect(isSqlCapableDriver(null)).toBe(true);
-  });
-
-  it("returns false for non-SQL plugin manifests or empty identifier quotes", () => {
-    const documentManifest: PluginManifest = {
-      id: "firestore",
-      name: "Firestore",
-      version: "1.0.0",
-      description: "",
-      default_port: null,
-      paradigms: ["document"],
-      capabilities: baseCapabilities,
-    };
-    expect(isSqlCapableDriver(documentManifest)).toBe(false);
-    expect(isSqlCapableDriver({ ...baseCapabilities, identifier_quote: "" })).toBe(false);
   });
 });
 
