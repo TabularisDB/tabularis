@@ -16,10 +16,21 @@ export function getLoadedRowsExportLimit(
   return loadedRows < totalRows ? { loadedRows, totalRows } : null;
 }
 
+/**
+ * How a NULL cell is written into CSV.
+ *
+ * Matches `value_to_csv_string` in `src-tauri/src/export/format.rs`, which the
+ * streaming exporter uses. The two paths previously disagreed (empty field
+ * here, `NULL` there), so the same query produced different files depending on
+ * which export button was used. An empty string is still an empty field: only
+ * NULL gets the sentinel.
+ */
+const NULL_CSV_VALUE = "NULL";
+
 function csvValue(value: unknown, delimiter: string): string {
   const text =
     value === null || value === undefined
-      ? ""
+      ? NULL_CSV_VALUE
       : typeof value === "object"
         ? JSON.stringify(value)
         : String(value);
