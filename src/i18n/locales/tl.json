@@ -1653,6 +1653,7 @@
       "noRawOutput": "Walang raw explain output na available para i-export.",
       "saveRawPlan": "I-save ang raw plan…",
       "saveRawError": "Nabigong i-save ang raw plan",
+      "formatText": "Teksto",
       "aiAnalysis": "AI Analysis",
       "aiAnalysisTitle": "AI Query Plan Analysis",
       "aiAnalyzing": "Sinusuri ang query plan gamit ang AI...",

@@ -5,6 +5,7 @@ import {
   formatXml,
   getRawExplainExtension,
   getRawExplainFileOptions,
+  getRawExplainFormatLabel,
   saveRawExplainOutput,
 } from "../../src/utils/explainRaw";
 
@@ -111,6 +112,20 @@ describe("explainRaw", () => {
 
     it("maps plaintext to txt", () => {
       expect(getRawExplainExtension("plaintext")).toBe("txt");
+    });
+  });
+
+  describe("getRawExplainFormatLabel", () => {
+    it("maps json to JSON", () => {
+      expect(getRawExplainFormatLabel("json")).toBe("JSON");
+    });
+
+    it("maps xml to XML", () => {
+      expect(getRawExplainFormatLabel("xml")).toBe("XML");
+    });
+
+    it("maps plaintext to Text", () => {
+      expect(getRawExplainFormatLabel("plaintext")).toBe("Text");
     });
   });
 

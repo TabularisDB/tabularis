@@ -1682,6 +1682,7 @@
       "noRawOutput": "Nessun output raw dell'explain disponibile da esportare.",
       "saveRawPlan": "Salva piano raw…",
       "saveRawError": "Impossibile salvare il piano raw",
+      "formatText": "Testo",
       "aiAnalysis": "Analisi AI",
       "aiAnalysisTitle": "Analisi AI del Piano di Esecuzione",
       "aiAnalyzing": "Analisi del piano di esecuzione con AI...",

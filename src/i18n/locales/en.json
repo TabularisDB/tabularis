@@ -1693,6 +1693,7 @@
       "noRawOutput": "No raw explain output available to export.",
       "saveRawPlan": "Save raw plan…",
       "saveRawError": "Failed to save raw plan",
+      "formatText": "Text",
       "aiAnalysis": "AI Analysis",
       "aiAnalysisTitle": "AI Query Plan Analysis",
       "aiAnalyzing": "Analyzing query plan with AI...",

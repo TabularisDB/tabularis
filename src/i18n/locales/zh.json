@@ -1595,6 +1595,7 @@
       "noRawOutput": "没有可导出的 Explain 原始输出。",
       "saveRawPlan": "保存原始计划…",
       "saveRawError": "保存原始计划失败",
+      "formatText": "文本",
       "aiAnalysis": "AI 分析",
       "aiAnalysisTitle": "AI 执行计划分析",
       "aiAnalyzing": "正在使用 AI 分析执行计划...",

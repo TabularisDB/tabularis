@@ -1647,6 +1647,7 @@
       "noRawOutput": "No hay salida raw del explain disponible para exportar.",
       "saveRawPlan": "Guardar plan raw…",
       "saveRawError": "Error al guardar el plan raw",
+      "formatText": "Texto",
       "aiAnalysis": "Analisis IA",
       "aiAnalysisTitle": "Analisis IA del Plan de Ejecucion",
       "aiAnalyzing": "Analizando plan de ejecucion con IA...",

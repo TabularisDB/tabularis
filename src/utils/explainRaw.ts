@@ -36,6 +36,22 @@ export function getRawExplainExtension(language: RawExplainLanguage): string {
   }
 }
 
+/**
+ * Return a clean user-facing format label for a raw EXPLAIN payload.
+ * "json" maps to "JSON", "xml" to "XML", and "plaintext" to "Text".
+ */
+export function getRawExplainFormatLabel(language: RawExplainLanguage): string {
+  switch (language) {
+    case "json":
+      return "JSON";
+    case "xml":
+      return "XML";
+    case "plaintext":
+    default:
+      return "Text";
+  }
+}
+
 export interface RawExplainFileFilter {
   name: string;
   extensions: string[];

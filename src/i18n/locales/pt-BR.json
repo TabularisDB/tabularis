@@ -1640,6 +1640,7 @@
       "noRawOutput": "Nenhuma saída bruta do explain disponível para exportar.",
       "saveRawPlan": "Salvar plano bruto…",
       "saveRawError": "Falha ao salvar plano bruto",
+      "formatText": "Texto",
       "aiAnalysis": "Análise por IA",
       "aiAnalysisTitle": "Análise de Plano de Consulta por IA",
       "aiAnalyzing": "Analisando plano de consulta com IA...",

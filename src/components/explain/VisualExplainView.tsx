@@ -83,6 +83,18 @@ export const VisualExplainView = ({
     [plan],
   );
 
+  const rawFormatLabel = useMemo(() => {
+    switch (rawLanguage) {
+      case "json":
+        return "JSON";
+      case "xml":
+        return "XML";
+      case "plaintext":
+      default:
+        return t("editor.visualExplain.formatText", "Text");
+    }
+  }, [rawLanguage, t]);
+
   const rawValue = useMemo(
     () => (plan?.raw_output ? formatRawExplainOutput(plan.raw_output) : ""),
     [plan],
@@ -150,7 +162,7 @@ export const VisualExplainView = ({
             <div className="flex flex-col h-full min-h-0">
               <div className="flex items-center justify-between px-4 py-2 border-b border-default bg-base/40">
                 <span className="text-xs font-mono uppercase text-muted">
-                  {rawLanguage}
+                  {rawFormatLabel}
                 </span>
                 <button
                   type="button"
