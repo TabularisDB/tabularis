@@ -1429,7 +1429,8 @@
       "maskedNote": "Nascosto perché la colonna è mascherata",
       "unsupportedNote": "Non disponibile per questo tipo di colonna",
       "filterBy": "Filtra per {{value}}",
-      "clickToFilter": "Fai clic su un valore per filtrare la tabella"
+      "clickToFilter": "Fai clic su un valore per filtrare la tabella",
+      "sampled": "Valori distinti, min / max e più frequenti si basano su un campione di {{size}} valori"
     },
     "copyCells": "Copia {{count}} celle",
     "copyRows": "Copia {{count}} righe",

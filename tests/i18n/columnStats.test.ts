@@ -11,5 +11,6 @@ describe("column statistics translations", () => {
     for (const value of Object.values(dataGrid.columnStats)) expect(value.trim()).not.toBe("");
     expect(dataGrid.columnStats.topValues).toContain("{{count}}");
     expect(dataGrid.columnStats.filterBy).toContain("{{value}}");
+    expect(dataGrid.columnStats.sampled).toContain("{{size}}");
   });
 });

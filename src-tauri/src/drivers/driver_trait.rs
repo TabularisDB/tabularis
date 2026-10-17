@@ -116,6 +116,11 @@ pub struct DriverCapabilities {
     /// Omitted/false preserves the host's existing template generation.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub table_query_templates: bool,
+    /// Opts the column statistics popover into the optional
+    /// get_column_stats RPC. Omitted/false keeps the host's generic SQL for
+    /// SQL-compatible drivers and hides the entry for the others.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub column_stats: bool,
     // DDL capabilities
     /// Supports ALTER TABLE MODIFY/ALTER COLUMN on existing tables.
     #[serde(default)]
@@ -872,6 +877,16 @@ pub trait DatabaseDriver: Send + Sync {
         _params: &ConnectionParams,
         _request: &crate::models::TableQueryTemplateRequest,
     ) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+
+    /// Optional column statistics (issue #1137). None asks the host to use
+    /// its generic SQL, or to report that the driver has no statistics.
+    async fn get_column_stats(
+        &self,
+        _params: &ConnectionParams,
+        _request: &crate::models::ColumnStatsRequest,
+    ) -> Result<Option<crate::models::ColumnStatsResult>, String> {
         Ok(None)
     }
 
