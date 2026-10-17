@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ChartColumn, Filter, Loader2, RefreshCw, X } from "lucide-react";
@@ -40,6 +40,13 @@ export interface ColumnStatsPopoverProps {
   load: (signal: AbortSignal) => Promise<ColumnStats>;
   /** Filters the table by a top value. The list is read-only without it. */
   onFilterByValue?: (value: string) => void;
+  /**
+   * The element that gets focus back when the popover is closed from inside
+   * (Escape, the close button or Cancel): the column header it was opened
+   * for, or the grid. An outside click leaves focus on what was clicked, and
+   * a top value leaves it to the grid, which the filter re-renders.
+   */
+  returnFocusTo?: () => HTMLElement | null;
   onClose: () => void;
 }
 
@@ -56,6 +63,7 @@ export const ColumnStatsPopover = ({
   masked = false,
   load,
   onFilterByValue,
+  returnFocusTo,
   onClose,
 }: ColumnStatsPopoverProps) => {
   const { t } = useTranslation();
@@ -93,22 +101,34 @@ export const ColumnStatsPopover = ({
     });
   }, [x, y]);
 
+  const close = useCallback(
+    (restoreFocus = false) => {
+      onClose();
+      if (restoreFocus) returnFocusTo?.()?.focus();
+    },
+    [onClose, returnFocusTo],
+  );
+
   useEffect(() => {
     popover.current?.focus();
+  }, []);
+
+  useEffect(() => {
     const outside = (event: MouseEvent) => {
       if (
         event.target instanceof Node &&
         !popover.current?.contains(event.target)
       ) {
-        onClose();
+        close();
       }
     };
+    const dismiss = () => close();
     const scroll = (event: Event) => {
       if (
         !(event.target instanceof Node) ||
         !popover.current?.contains(event.target)
       ) {
-        onClose();
+        close();
       }
     };
     // On the dialog itself, so Escape closes it whether focus is on the
@@ -119,19 +139,19 @@ export const ColumnStatsPopover = ({
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
-      onClose();
+      close(true);
     };
     dialog?.addEventListener("keydown", escape);
     document.addEventListener("mousedown", outside);
-    window.addEventListener("resize", onClose);
+    window.addEventListener("resize", dismiss);
     window.addEventListener("scroll", scroll, true);
     return () => {
       dialog?.removeEventListener("keydown", escape);
       document.removeEventListener("mousedown", outside);
-      window.removeEventListener("resize", onClose);
+      window.removeEventListener("resize", dismiss);
       window.removeEventListener("scroll", scroll, true);
     };
-  }, [onClose]);
+  }, [close]);
 
   const retry = () => {
     setState({ status: "loading" });
@@ -140,7 +160,7 @@ export const ColumnStatsPopover = ({
 
   const pickValue = (value: string) => {
     onFilterByValue?.(value);
-    onClose();
+    close();
   };
 
   const formatPercent = (value: number) =>
@@ -310,7 +330,7 @@ export const ColumnStatsPopover = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => close(true)}
             aria-label={t("dataGrid.columnStats.close")}
             title={t("dataGrid.columnStats.close")}
             className={`shrink-0 p-1 rounded text-muted hover:text-primary transition-colors ${FOCUS_RING}`}
@@ -331,7 +351,7 @@ export const ColumnStatsPopover = ({
               </div>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => close(true)}
                 className={`px-2.5 py-1 rounded text-xs text-muted border border-default/70 hover:text-secondary hover:border-default transition-colors ${FOCUS_RING}`}
               >
                 {t("common.cancel")}

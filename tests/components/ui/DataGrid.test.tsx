@@ -2211,6 +2211,96 @@ describe("DataGrid column statistics (#1001)", () => {
     await screen.findByText("dataGrid.copyColumnName");
     expect(screen.queryByText("dataGrid.columnStatistics")).toBeNull();
   });
+
+  describe("focus when the popover closes (#1138)", () => {
+    const gridOf = (container: HTMLElement) =>
+      container.querySelector<HTMLElement>('div[tabindex="0"]')!;
+    // The header's focusable "select column" control.
+    const headerControl = (header: Element) =>
+      header.querySelector<HTMLElement>('[role="button"]')!;
+
+    const openStats = async (overrides: Partial<ComponentProps<typeof DataGrid>> = {}) => {
+      const utils = renderStatsGrid(overrides);
+      const control = headerControl(utils.header(1));
+      control.focus();
+      // Shift+F10 / the context-menu key fire contextmenu on the focused control.
+      fireEvent.contextMenu(control);
+      fireEvent.click(await screen.findByText("dataGrid.columnStatistics"));
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveFocus();
+      return { ...utils, control, dialog };
+    };
+
+    it("returns focus to the column header on Escape", async () => {
+      const { control, dialog } = await openStats();
+      fireEvent.keyDown(dialog, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(control).toHaveFocus();
+    });
+
+    it("returns focus to the column header from the close button", async () => {
+      const { control } = await openStats();
+      await screen.findByText("dataGrid.columnStats.rows");
+      fireEvent.click(screen.getByRole("button", { name: "dataGrid.columnStats.close" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(control).toHaveFocus();
+    });
+
+    it("returns focus to the column header when the load is cancelled", async () => {
+      const { control } = await openStats({
+        onLoadColumnStats: vi.fn(() => new Promise<never>(() => {})),
+      });
+      fireEvent.click(screen.getByRole("button", { name: "common.cancel" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(control).toHaveFocus();
+    });
+
+    it("falls back to the grid when the header is gone", async () => {
+      const { container, dialog, rerender } = await openStats();
+      // The column the popover was opened for is no longer rendered.
+      rerender(
+        <DataGrid
+          columns={["id"]}
+          data={[[1]]}
+          tableName="orders"
+          columnMetadata={metadata}
+          onFilterByValue={vi.fn()}
+          onLoadColumnStats={vi.fn().mockResolvedValue(stats)}
+          selectedRows={new Set()}
+          onSelectionChange={vi.fn()}
+          readonly
+        />,
+      );
+      fireEvent.keyDown(dialog, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(gridOf(container)).toHaveFocus();
+    });
+
+    it("leaves focus on what was clicked outside the popover", async () => {
+      const { control } = await openStats();
+      const elsewhere = document.createElement("button");
+      document.body.appendChild(elsewhere);
+      try {
+        // A real click focuses the target on mousedown; jsdom only dispatches it.
+        fireEvent.mouseDown(elsewhere);
+        elsewhere.focus();
+        expect(screen.queryByRole("dialog")).toBeNull();
+        expect(elsewhere).toHaveFocus();
+        expect(control).not.toHaveFocus();
+      } finally {
+        elsewhere.remove();
+      }
+    });
+
+    it("focuses the grid when a top value is picked", async () => {
+      const { container, onFilterByValue } = await openStats();
+      const values = await screen.findAllByTitle("dataGrid.columnStats.filterBy");
+      fireEvent.click(values[0]);
+      expect(onFilterByValue).toHaveBeenCalledWith("status", "=", "open", "varchar(20)");
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(gridOf(container)).toHaveFocus();
+    });
+  });
 });
 
 describe("DataGrid open link context menu", () => {

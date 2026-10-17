@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState, useImperativeHandle, type Ref } from "react";
-import { act, render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { Editor } from "../../src/pages/Editor";
@@ -19,6 +19,9 @@ let capturedRunToolbarQuery: ((sql: string) => Promise<QueryResult>) | undefined
 // Same for the DataGrid's column statistics loader (issue #1001).
 type LoadColumnStats = NonNullable<ComponentProps<typeof DataGridType>["onLoadColumnStats"]>;
 let capturedLoadColumnStats: LoadColumnStats | undefined;
+// And the grid's filter-by-value handler (a top value in the popover, #1138).
+type FilterByValue = NonNullable<ComponentProps<typeof DataGridType>["onFilterByValue"]>;
+let capturedFilterByValue: FilterByValue | undefined;
 
 const mocks = vi.hoisted(() => ({
   connectionId: "connection-1",
@@ -128,19 +131,27 @@ vi.mock("../../src/components/ui/DataGrid", () => ({
     data,
     onEditingChange,
     onLoadColumnStats,
+    onFilterByValue,
   }: {
     ref: Ref<DataGridCommandTarget>;
     data: unknown[][];
     onEditingChange?: (editing: boolean) => void;
     onLoadColumnStats?: LoadColumnStats;
+    onFilterByValue?: FilterByValue;
   }) {
     const [editing, setEditing] = useState(false);
+    const gridRef = useRef<HTMLDivElement>(null);
     useLayoutEffect(() => {
       capturedLoadColumnStats = onLoadColumnStats;
+      capturedFilterByValue = onFilterByValue;
     });
     useImperativeHandle(
       ref,
-      () => ({ isEditing: () => editing, getResultCommands: () => ({}) }),
+      () => ({
+        isEditing: () => editing,
+        getResultCommands: () => ({}),
+        focus: () => gridRef.current?.focus(),
+      }),
       [editing],
     );
     useLayoutEffect(() => {
@@ -148,7 +159,7 @@ vi.mock("../../src/components/ui/DataGrid", () => ({
     }, [onEditingChange, editing]);
     useLayoutEffect(() => () => onEditingChange?.(false), [onEditingChange]);
     return (
-      <div data-testid="grid" style={{ overflow: "auto" }}>
+      <div ref={gridRef} tabIndex={-1} data-testid="grid" style={{ overflow: "auto" }}>
         <span>{JSON.stringify(data)}</span>
         <button onClick={() => setEditing(!editing)}>Toggle editing</button>
       </div>
@@ -390,5 +401,65 @@ describe("column statistics loader (#1001)", () => {
 
     expect(executeQueryCalls()).toHaveLength(0);
     expect(invoke).not.toHaveBeenCalledWith("cancel_query", expect.anything());
+  });
+});
+
+describe("focus after filtering by a grid value (#1138)", () => {
+  let finish: (value: QueryResult) => void = () => {};
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    mocks.connectionId = "connection-1";
+    capturedFilterByValue = undefined;
+    vi.mocked(invoke).mockReset();
+    vi.mocked(invoke).mockImplementation((command) =>
+      command === "execute_query"
+        ? new Promise((resolve) => { finish = resolve; })
+        : Promise.resolve([]),
+    );
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Picks a value with focus in the grid; the filter remounts the grid and
+  // the loading state replaces it until the query returns.
+  const filterFromGrid = async () => {
+    render(<Harness />);
+    screen.getByTestId("grid").focus();
+    await act(async () => {
+      capturedFilterByValue?.("id", "=", "7", "integer");
+    });
+    expect(executeQueryCalls()).toHaveLength(1);
+    expect(screen.queryByTestId("grid")).toBeNull();
+  };
+
+  it("focuses the grid that shows the filtered rows", async () => {
+    await filterFromGrid();
+    expect(document.body).toHaveFocus();
+
+    await act(async () => {
+      finish({ ...initialResult, rows: [[7]] });
+    });
+
+    expect(screen.getByTestId("grid")).toHaveTextContent("[[7]]");
+    expect(screen.getByTestId("grid")).toHaveFocus();
+  });
+
+  it("leaves focus where the user moved it while the query ran", async () => {
+    await filterFromGrid();
+    const elsewhere = document.createElement("input");
+    document.body.appendChild(elsewhere);
+    try {
+      elsewhere.focus();
+      await act(async () => {
+        finish({ ...initialResult, rows: [[7]] });
+      });
+      expect(screen.getByTestId("grid")).toHaveTextContent("[[7]]");
+      expect(elsewhere).toHaveFocus();
+    } finally {
+      elsewhere.remove();
+    }
   });
 });
