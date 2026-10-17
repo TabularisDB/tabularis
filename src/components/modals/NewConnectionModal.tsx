@@ -1905,7 +1905,7 @@ export const NewConnectionModal = ({
           setSelectedDatabasesState(db);
           setLoadAllDatabases(false);
           setFormData({ ...paramsForForm, database: db[0] ?? "" });
-        } else if (editIsMultiDb && db.trim()) {
+        } else if (editIsMultiDb && typeof db === "string" && db.trim()) {
           // A saved single database on a multi-db driver is an explicit
           // one-element selection.
           setSelectedDatabasesState([db]);

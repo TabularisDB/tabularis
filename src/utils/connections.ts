@@ -335,7 +335,7 @@ export function connectionSubtitle(
   const db = conn.params.database;
   const isAllDatabases =
     isMultiDatabaseCapable(capabilities) &&
-    (Array.isArray(db) ? db.length === 0 : db.trim() === '');
+    (Array.isArray(db) ? db.length === 0 : typeof db === "string" && db.trim() === "");
   const dbStr = isAllDatabases
     ? labels?.allDatabases ?? 'All databases'
     : Array.isArray(db)
