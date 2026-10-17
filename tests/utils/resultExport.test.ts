@@ -17,13 +17,25 @@ const result: QueryResult = {
 describe("resultExport", () => {
   it("formats loaded result rows as CSV with headers", () => {
     expect(formatResultForExport(result, "csv")).toBe(
-      "id,name\n1,John\n2,",
+      "id,name\n1,John\n2,NULL",
     );
   });
 
   it("uses the configured CSV delimiter", () => {
     expect(formatResultForExport(result, "csv", ";")).toBe(
-      "id;name\n1;John\n2;",
+      "id;name\n1;John\n2;NULL",
+    );
+  });
+
+  it("emits NULL for null values while keeping empty strings, literal NULL, zero, and false consistent with streaming export", () => {
+    const fixture: QueryResult = {
+      columns: ["null_col", "empty_col", "literal_null", "zero_col", "false_col"],
+      rows: [[null, "", "NULL", 0, false]],
+      affected_rows: 0,
+    };
+
+    expect(formatResultForExport(fixture, "csv")).toBe(
+      "null_col,empty_col,literal_null,zero_col,false_col\nNULL,,NULL,0,false",
     );
   });
 

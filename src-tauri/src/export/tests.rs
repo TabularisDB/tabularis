@@ -198,6 +198,21 @@ fn csv_emits_null_sentinel_for_null_values() {
 }
 
 #[test]
+fn csv_matches_frontend_export_for_null_empty_literal_zero_and_false() {
+    let csv = collect_csv(
+        b',',
+        &[(
+            vec!["null_col", "empty_col", "literal_null", "zero_col", "false_col"],
+            vec![Value::Null, json!(""), json!("NULL"), json!(0), json!(false)],
+        )],
+    );
+    assert_eq!(
+        csv,
+        "null_col,empty_col,literal_null,zero_col,false_col\nNULL,,NULL,0,false\n"
+    );
+}
+
+#[test]
 fn csv_quotes_values_containing_delimiter() {
     let csv = collect_csv(b',', &[(vec!["v"], vec![json!("a,b")])]);
     assert!(csv.contains("\"a,b\""));
