@@ -57,6 +57,10 @@ export interface DriverCapabilities {
   column_comments?: boolean;
   /** Opts the explorer's Drop table action into the optional get_drop_table_sql RPC. Defaults to false. */
   drop_table_sql?: boolean;
+  /** Opts the column statistics popover into the optional get_column_stats RPC.
+   * Defaults to false: SQL-compatible drivers (see `speaksGenericSql`) keep the
+   * host's generic SQL, the others don't show the menu entry. */
+  column_stats?: boolean;
   // DDL capabilities (optional, default to false when not present)
   alter_column?: boolean;
   create_foreign_keys?: boolean;

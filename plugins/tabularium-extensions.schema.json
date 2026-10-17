@@ -130,6 +130,11 @@
           "default": false,
           "description": "The explorer's Drop table action asks the optional get_drop_table_sql RPC for the statement. Without it the generic DROP TABLE is used and the RPC is never called."
         },
+        "column_stats": {
+          "type": "boolean",
+          "default": false,
+          "description": "Column statistics popover through the optional get_column_stats RPC. When false, plugins with a postgres, mysql or sqlite sql_dialect keep the host's generic SQL and the others don't show the entry."
+        },
         "no_connection_required": {
           "type": "boolean",
           "description": "API-based driver with no host/port/credentials. Hides the connection form entirely."

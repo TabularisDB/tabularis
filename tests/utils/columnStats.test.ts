@@ -2,10 +2,14 @@ import { describe, it, expect, vi } from "vitest";
 import {
   COLUMN_STATS_TOP_VALUES_LIMIT,
   buildColumnStatsQuery,
+  buildColumnStatsRequest,
   formatColumnStatValue,
+  fromPluginColumnStats,
+  getColumnStatsSource,
   getColumnStatsSupport,
   isColumnStatsAbort,
   loadColumnStats,
+  loadPluginColumnStats,
   parseColumnStats,
   percentOf,
 } from "../../src/utils/columnStats";
@@ -353,6 +357,190 @@ describe("columnStats", () => {
     it("returns the share as a percentage and 0 for an empty total", () => {
       expect(percentOf(1, 4)).toBe(25);
       expect(percentOf(3, 0)).toBe(0);
+    });
+  });
+});
+
+describe("columnStats for plugin drivers (#1137)", () => {
+  const caps = (overrides: Partial<DriverCapabilities> = {}): DriverCapabilities => ({
+    schemas: false,
+    views: false,
+    routines: false,
+    file_based: false,
+    folder_based: false,
+    identifier_quote: '"',
+    alter_primary_key: false,
+    ...overrides,
+  });
+
+  describe("getColumnStatsSource", () => {
+    it("uses the plugin RPC when the plugin opts in, whatever its dialect", () => {
+      expect(getColumnStatsSource(caps({ column_stats: true }))).toBe("plugin");
+      expect(getColumnStatsSource(caps({ column_stats: true, sql_dialect: "mysql" }))).toBe(
+        "plugin",
+      );
+    });
+
+    it("keeps the generic SQL for built-in drivers and SQL-compatible plugins", () => {
+      expect(getColumnStatsSource(caps({ sql_dialect: "postgres" }), { builtin: true })).toBe("sql");
+      expect(getColumnStatsSource(null, { builtin: true })).toBe("sql");
+      for (const dialect of ["postgres", "mysql", "sqlite"] as const) {
+        expect(getColumnStatsSource(caps({ sql_dialect: dialect }))).toBe("sql");
+      }
+    });
+
+    it("hides the entry for plugins that neither opt in nor speak the generic SQL", () => {
+      expect(getColumnStatsSource(caps())).toBeNull();
+      expect(getColumnStatsSource(caps({ column_stats: false }))).toBeNull();
+      for (const dialect of ["mssql", "oracle", "generic"] as const) {
+        expect(getColumnStatsSource(caps({ sql_dialect: dialect }))).toBeNull();
+      }
+      expect(getColumnStatsSource(null)).toBeNull();
+      expect(getColumnStatsSource(undefined)).toBeNull();
+    });
+  });
+
+  describe("buildColumnStatsRequest", () => {
+    it("carries the identifiers unquoted, the filter, the top-N limit and the parts", () => {
+      expect(
+        buildColumnStatsRequest({
+          table: "orders",
+          schema: "sales",
+          column: "order total",
+          dataType: "decimal",
+          where: "  status = 'open' ",
+          support: { distinct: true, minMax: false, topValues: true },
+        }),
+      ).toEqual({
+        table: "orders",
+        schema: "sales",
+        column: "order total",
+        data_type: "decimal",
+        filter: "status = 'open'",
+        top_values_limit: COLUMN_STATS_TOP_VALUES_LIMIT,
+        include: { distinct: true, min_max: false, top_values: true },
+      });
+    });
+
+    it("sends null for a missing schema, type or blank filter", () => {
+      expect(
+        buildColumnStatsRequest({ table: "t", column: "c", where: "  ", support: COUNTS_ONLY }),
+      ).toMatchObject({ schema: null, data_type: null, filter: null });
+    });
+  });
+
+  describe("fromPluginColumnStats", () => {
+    const result = {
+      row_count: 10,
+      null_count: 2,
+      distinct_count: 3,
+      min: 1,
+      max: 9,
+      top_values: [
+        { value: 1, count: 5 },
+        { value: null, count: 2 },
+        { value: { nested: true }, count: 1 },
+      ],
+    };
+
+    it("maps the plugin result to the popover shape", () => {
+      expect(fromPluginColumnStats(result, ALL, true)).toEqual({
+        rowCount: 10,
+        nullCount: 2,
+        distinctCount: 3,
+        min: 1,
+        max: 9,
+        topValues: [
+          { value: "1", count: 5 },
+          { value: '{"nested":true}', count: 1 },
+        ],
+        filtered: true,
+        sampleSize: null,
+      });
+    });
+
+    it("drops min / max and top values the host didn't ask for (masked columns)", () => {
+      const masked = getColumnStatsSupport("integer", { masked: true });
+      expect(fromPluginColumnStats(result, masked, false)).toMatchObject({
+        distinctCount: 3,
+        min: null,
+        max: null,
+        topValues: null,
+      });
+      expect(fromPluginColumnStats(result, COUNTS_ONLY, false).distinctCount).toBeNull();
+    });
+
+    it("caps top values at the limit and keeps the sample size", () => {
+      const many = Array.from({ length: 15 }, (_, i) => ({ value: i, count: 15 - i }));
+      const stats = fromPluginColumnStats(
+        { row_count: 100, null_count: 0, top_values: many, sample_size: 50 },
+        ALL,
+        false,
+      );
+      expect(stats.topValues).toHaveLength(COLUMN_STATS_TOP_VALUES_LIMIT);
+      expect(stats.sampleSize).toBe(50);
+      expect(stats.distinctCount).toBeNull();
+      expect(stats.min).toBeNull();
+    });
+  });
+
+  describe("loadPluginColumnStats", () => {
+    const options = {
+      table: "orders",
+      column: "status",
+      where: "id > 1",
+      support: { distinct: true, minMax: false, topValues: true },
+    };
+
+    it("sends one request and converts the result", async () => {
+      const fetchStats = vi.fn().mockResolvedValue({
+        row_count: 5,
+        null_count: 1,
+        distinct_count: 2,
+        top_values: [{ value: "open", count: 3 }],
+      });
+      const signal = new AbortController().signal;
+      const stats = await loadPluginColumnStats(fetchStats, options, signal);
+      expect(fetchStats).toHaveBeenCalledTimes(1);
+      expect(fetchStats.mock.calls[0][0]).toMatchObject({ filter: "id > 1", column: "status" });
+      expect(fetchStats.mock.calls[0][1]).toBe(signal);
+      expect(stats).toMatchObject({
+        rowCount: 5,
+        distinctCount: 2,
+        topValues: [{ value: "open", count: 3 }],
+        filtered: true,
+      });
+    });
+
+    it("resolves to null when the plugin doesn't implement the method", async () => {
+      const fetchStats = vi.fn().mockResolvedValue(null);
+      await expect(loadPluginColumnStats(fetchStats, options)).resolves.toBeNull();
+    });
+
+    it("sends nothing once aborted and drops a late result", async () => {
+      const aborted = new AbortController();
+      aborted.abort();
+      const idle = vi.fn();
+      await expect(loadPluginColumnStats(idle, options, aborted.signal)).rejects.toSatisfy(
+        isColumnStatsAbort,
+      );
+      expect(idle).not.toHaveBeenCalled();
+
+      const controller = new AbortController();
+      const late = vi.fn().mockImplementation(async () => {
+        controller.abort();
+        return { row_count: 1, null_count: 0 };
+      });
+      await expect(loadPluginColumnStats(late, options, controller.signal)).rejects.toSatisfy(
+        isColumnStatsAbort,
+      );
+    });
+
+    it("propagates plugin errors", async () => {
+      const fetchStats = vi.fn().mockRejectedValue(new Error("Invalid column statistics"));
+      await expect(loadPluginColumnStats(fetchStats, options)).rejects.toThrow(
+        "Invalid column statistics",
+      );
     });
   });
 });

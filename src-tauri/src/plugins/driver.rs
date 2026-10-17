@@ -1566,6 +1566,32 @@ impl DatabaseDriver for RpcDriver {
         }
     }
 
+    async fn get_column_stats(
+        &self,
+        params: &ConnectionParams,
+        request: &crate::models::ColumnStatsRequest,
+    ) -> Result<Option<crate::models::ColumnStatsResult>, String> {
+        if !self.manifest.capabilities.column_stats {
+            return Ok(None);
+        }
+        let params = self.with_primary_database(params);
+        match self
+            .process
+            .call_detailed(
+                "get_column_stats",
+                json!({ "params": params, "request": request }),
+            )
+            .await
+        {
+            Ok(value) => serde_json::from_value::<crate::models::ColumnStatsResult>(value)
+                .map_err(|error| format!("Invalid column statistics: {error}"))
+                .and_then(|result| crate::models::restrict_column_stats(result, request))
+                .map(Some),
+            Err(PluginCallError::Remote(error)) if error.code == -32601 => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
     async fn get_create_table_sql(
         &self,
         table_name: &str,
@@ -3751,6 +3777,10 @@ mod tests {
 #[cfg(test)]
 #[path = "table_query_template_tests.rs"]
 mod table_query_template_tests;
+
+#[cfg(test)]
+#[path = "column_stats_tests.rs"]
+mod column_stats_tests;
 
 #[cfg(test)]
 #[path = "startup_tests.rs"]

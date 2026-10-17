@@ -1425,7 +1425,8 @@
       "maskedNote": "Oculto porque la columna está enmascarada",
       "unsupportedNote": "No disponible para este tipo de columna",
       "filterBy": "Filtrar por {{value}}",
-      "clickToFilter": "Haz clic en un valor para filtrar la tabla por él"
+      "clickToFilter": "Haz clic en un valor para filtrar la tabla por él",
+      "sampled": "Los valores distintos, mín. / máx. y más frecuentes se basan en una muestra de {{size}} valores"
     },
     "copyCells": "Copiar {{count}} Celdas",
     "copyRows": "Copiar {{count}} Filas",

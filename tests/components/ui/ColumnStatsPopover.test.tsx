@@ -103,6 +103,34 @@ describe("ColumnStatsPopover", () => {
     expect(screen.getByText("dataGrid.columnStats.filtered")).toBeInTheDocument();
   });
 
+  it("notes a plugin's sample, skips the unique chip and sizes shares by the sample (#1137)", async () => {
+    setup({
+      load: vi.fn().mockResolvedValue({
+        ...stats,
+        rowCount: 1000,
+        nullCount: 0,
+        distinctCount: 3,
+        topValues: [
+          { value: "a", count: 2 },
+          { value: "b", count: 1 },
+          { value: "c", count: 1 },
+        ],
+        sampleSize: 4,
+      }),
+    });
+    expect(await screen.findByText("dataGrid.columnStats.sampled")).toBeInTheDocument();
+    expect(screen.queryByText("dataGrid.columnStats.unique")).toBeNull();
+    // 2 of the 4 sampled values, not 2 of the 1000 rows.
+    const bars = document.querySelectorAll<HTMLElement>('[style*="width"]');
+    expect(Array.from(bars).map((bar) => bar.style.width)).toContain("50%");
+  });
+
+  it("shows no sample note for exact statistics", async () => {
+    setup();
+    await screen.findByText("dataGrid.columnStats.rows");
+    expect(screen.queryByText("dataGrid.columnStats.sampled")).toBeNull();
+  });
+
   it("hides min / max and explains missing top values for unsupported types", async () => {
     setup({
       support: { distinct: false, minMax: false, topValues: false },

@@ -1428,7 +1428,8 @@
       "maskedNote": "Nakatago dahil naka-mask ang column",
       "unsupportedNote": "Hindi available para sa ganitong uri ng column",
       "filterBy": "I-filter ayon sa {{value}}",
-      "clickToFilter": "Mag-click ng value para i-filter ang table ayon dito"
+      "clickToFilter": "Mag-click ng value para i-filter ang table ayon dito",
+      "sampled": "Ang distinct, min / max at mga nangungunang value ay batay sa sample na {{size}} value"
     },
     "copyCells": "Kopyahin ang {{count}} Cell",
     "copyRows": "Kopyahin ang {{count}} Row",

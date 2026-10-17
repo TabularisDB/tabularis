@@ -1409,7 +1409,8 @@
       "maskedNote": "列がマスクされているため非表示",
       "unsupportedNote": "この列の型では利用できません",
       "filterBy": "{{value}} で絞り込む",
-      "clickToFilter": "値をクリックするとテーブルをその値で絞り込みます"
+      "clickToFilter": "値をクリックするとテーブルをその値で絞り込みます",
+      "sampled": "一意の値、最小 / 最大、上位の値は {{size}} 件のサンプルに基づいています"
     },
     "copyCells": "{{count}} 個のセルをコピー",
     "copyRows": "{{count}} 行をコピー",

@@ -1416,7 +1416,8 @@
       "maskedNote": "Oculto porque a coluna está mascarada",
       "unsupportedNote": "Indisponível para este tipo de coluna",
       "filterBy": "Filtrar por {{value}}",
-      "clickToFilter": "Clique em um valor para filtrar a tabela por ele"
+      "clickToFilter": "Clique em um valor para filtrar a tabela por ele",
+      "sampled": "Valores distintos, mín. / máx. e mais frequentes se baseiam em uma amostra de {{size}} valores"
     },
     "copyCells": "Copiar {{count}} Células",
     "copyRows": "Copiar {{count}} Linhas",

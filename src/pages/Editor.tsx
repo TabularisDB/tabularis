@@ -47,7 +47,12 @@ import {
   selectFlatMultiDbTabDatabase,
   toFlatMultiDbTabTarget,
 } from "../utils/database";
-import { isReadonly, supportsExplain } from "../utils/driverCapabilities";
+import {
+  findDriverManifest,
+  isReadonly,
+  speaksGenericSql,
+  supportsExplain,
+} from "../utils/driverCapabilities";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { DANGEROUS_QUERY_I18N } from "../hooks/useDangerousQueryGuard";
 import { useProductionGuard } from "../hooks/useProductionGuard";
@@ -216,9 +221,13 @@ import {
   type CellValueFilterOperator,
 } from "../utils/cellValueFilter";
 import {
+  getColumnStatsSource,
   loadColumnStats,
+  loadPluginColumnStats,
   type ColumnStats,
   type ColumnStatsSupport,
+  type PluginColumnStats,
+  type PluginColumnStatsFetcher,
 } from "../utils/columnStats";
 import { getNextSortClause } from "../utils/tableToolbar";
 import { getAdjacentTabGap } from "../utils/tabDnd";
@@ -2923,13 +2932,16 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   );
 
   // Read-only helper for the filter value picker (issue #869) and the column
-  // statistics popover (issue #1001): runs on the tab's own session so it sees
-  // the same rows as the grid. Aborting `signal` skips a query that is still
-  // queued behind the tab's other work. A query already running is left to
-  // finish and its result is dropped by the caller: `cancel_query` stops
-  // everything on the connection, which could include another tab's query.
-  const runToolbarQuery = useCallback(
-    async (sql: string, signal?: AbortSignal): Promise<QueryResult> => {
+  // statistics popover (issues #1001, #1137): runs `task` for the active table
+  // tab, queued behind the tab's other work. Aborting `signal` skips a task
+  // that is still queued. A task already running is left to finish and its
+  // result is dropped by the caller: `cancel_query` stops everything on the
+  // connection, which could include another tab's query.
+  const runOnActiveTableTab = useCallback(
+    async <T,>(
+      task: (tab: Tab, schema: string | null | undefined) => Promise<T>,
+      signal?: AbortSignal,
+    ): Promise<T | undefined> => {
       const tabId = activeTabIdRef.current;
       const currentTab = tabsRef.current.find((tb) => tb.id === tabId);
       if (!currentTab || currentTab.connectionId !== activeConnectionIdRef.current) {
@@ -2938,7 +2950,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       const connectionId = currentTab.connectionId;
       const schema = currentTab.schema ?? activeSchema;
       const table = currentTab.activeTable;
-      const result = await getAutoRefreshSchedule(currentTab.id).run(async () => {
+      return getAutoRefreshSchedule(currentTab.id).run(async () => {
         const targetTab = tabsRef.current.find((tab) => tab.id === currentTab.id);
         if (!targetTab || activeTabIdRef.current !== currentTab.id ||
           activeConnectionIdRef.current !== connectionId ||
@@ -2947,18 +2959,46 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           throw new Error("The table changed before the values query could run");
         }
         if (signal?.aborted) throw new Error("The values query was cancelled");
-        return invoke<QueryResult>("execute_query", {
-          connectionId,
-          query: sql,
-          sessionId: currentTab.id,
-          ...(currentTab.database ? { database: currentTab.database } : {}),
-          ...(schema ? { schema } : {}),
-        });
+        return task(currentTab, schema);
       });
+    },
+    [activeSchema, getAutoRefreshSchedule],
+  );
+
+  // Runs a read-only query on the tab's own session so it sees the same rows
+  // as the grid.
+  const runToolbarQuery = useCallback(
+    async (sql: string, signal?: AbortSignal): Promise<QueryResult> => {
+      const result = await runOnActiveTableTab(
+        (tab, schema) =>
+          invoke<QueryResult>("execute_query", {
+            connectionId: tab.connectionId,
+            query: sql,
+            sessionId: tab.id,
+            ...(tab.database ? { database: tab.database } : {}),
+            ...(schema ? { schema } : {}),
+          }),
+        signal,
+      );
       if (!result) throw new Error("The values query did not run");
       return result;
     },
-    [activeSchema, getAutoRefreshSchedule],
+    [runOnActiveTableTab],
+  );
+
+  // The plugin's own column statistics (issue #1137), in the tab's database.
+  const fetchPluginColumnStats = useCallback<PluginColumnStatsFetcher>(
+    async (request, signal) =>
+      (await runOnActiveTableTab(
+        (tab) =>
+          invoke<PluginColumnStats | null>("get_column_stats", {
+            connectionId: tab.connectionId,
+            request,
+            ...(tab.database ? { database: tab.database } : {}),
+          }),
+        signal,
+      )) ?? null,
+    [runOnActiveTableTab],
   );
 
   const handleForeignKeyShowPanel = useCallback(
@@ -3110,10 +3150,26 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     }
   }, [activeTabId, activeResult, activeIsLoading]);
 
+  // Where the column statistics come from (issue #1137): the plugin's own
+  // RPC, the generic SQL, or nowhere (the menu entry is hidden).
+  const activeDriverIsBuiltin = useMemo(
+    () =>
+      !!activeDriver &&
+      findDriverManifest(activeDriver, allDrivers)?.is_builtin === true,
+    [activeDriver, allDrivers],
+  );
+  const columnStatsSource = useMemo(
+    () =>
+      getColumnStatsSource(activeCapabilities, {
+        builtin: activeDriverIsBuiltin,
+      }),
+    [activeCapabilities, activeDriverIsBuiltin],
+  );
+
   // Column statistics popover (issue #1001): counts the rows matching the
   // tab's current filter, like the row count does (sort and LIMIT ignored).
   const handleLoadColumnStats = useCallback(
-    (
+    async (
       column: string,
       support: ColumnStatsSupport,
       signal: AbortSignal,
@@ -3121,25 +3177,45 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       const currentTab = tabsRef.current.find(
         (tb) => tb.id === activeTabIdRef.current,
       );
-      if (!currentTab?.activeTable) {
-        return Promise.reject(new Error("No active table"));
-      }
+      if (!currentTab?.activeTable) throw new Error("No active table");
       const filter = currentTab.filterClause?.trim();
+      const options = {
+        table: currentTab.activeTable,
+        schema:
+          activeCapabilities?.schemas === true ? currentTab.schema : undefined,
+        column,
+        where: filter ? normalizeSmartQuotes(filter) : undefined,
+        support,
+      };
+      if (columnStatsSource === "plugin") {
+        const stats = await loadPluginColumnStats(
+          fetchPluginColumnStats,
+          {
+            ...options,
+            dataType: currentTab.columnMetadata?.find((c) => c.name === column)
+              ?.data_type,
+          },
+          signal,
+        );
+        if (stats) return stats;
+        // The plugin answered "method not found": only SQL engines can fall back.
+        if (!speaksGenericSql(activeCapabilities)) {
+          throw new Error("This driver doesn't provide column statistics");
+        }
+      }
       return loadColumnStats(
         runToolbarQuery,
-        {
-          table: currentTab.activeTable,
-          schema:
-            activeCapabilities?.schemas === true ? currentTab.schema : undefined,
-          column,
-          driver: activeCapabilities ?? activeDriver ?? null,
-          where: filter ? normalizeSmartQuotes(filter) : undefined,
-          support,
-        },
+        { ...options, driver: activeCapabilities ?? activeDriver ?? null },
         signal,
       );
     },
-    [activeCapabilities, activeDriver, runToolbarQuery],
+    [
+      activeCapabilities,
+      activeDriver,
+      columnStatsSource,
+      fetchPluginColumnStats,
+      runToolbarQuery,
+    ],
   );
 
   const handleSort = useCallback(
@@ -6321,7 +6397,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                           : undefined
                       }
                       onLoadColumnStats={
-                        activeTab.type === "table"
+                        activeTab.type === "table" && columnStatsSource
                           ? handleLoadColumnStats
                           : undefined
                       }
