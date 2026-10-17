@@ -9,6 +9,9 @@ export type { QueryHistoryEntry };
 export interface QueryHistoryContextType {
   entries: QueryHistoryEntry[];
   isLoading: boolean;
+  isPaused: boolean;
+  setPaused: (paused: boolean) => void;
+  togglePaused: () => void;
   recoveryNotice: QueryHistoryRecoveryNotice | null;
   dismissRecoveryNotice: () => void;
   addEntry: (
