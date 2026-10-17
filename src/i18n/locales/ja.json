@@ -1167,7 +1167,7 @@
     "selectDatabase": "データベースを選択",
     "noDatabasesFound": "データベースが見つかりません",
     "failLoadDatabases": "データベースの読み込みに失敗しました。認証情報を確認してください。",
-    "filePathPlaceholder": "/absolute/path/to/db.sqlite",
+    "filePathPlaceholder": "/absolute/path/to/file",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "ファイルを参照",
     "inMemoryDatabase": "インメモリ",

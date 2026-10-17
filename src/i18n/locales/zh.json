@@ -1129,7 +1129,7 @@
     "selectDatabase": "选择一个数据库",
     "noDatabasesFound": "未找到数据库",
     "failLoadDatabases": "加载数据库失败。请检查您的凭据。",
-    "filePathPlaceholder": "/absolute/path/to/db.sqlite",
+    "filePathPlaceholder": "/absolute/path/to/file",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "浏览文件",
     "inMemoryDatabase": "内存数据库",

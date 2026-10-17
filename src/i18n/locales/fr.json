@@ -1190,7 +1190,7 @@
     "selectDatabase": "Sélectionner une base de données",
     "noDatabasesFound": "Aucune base de données trouvée",
     "failLoadDatabases": "Échec du chargement des bases de données. Vérifiez vos identifiants.",
-    "filePathPlaceholder": "/chemin/absolu/vers/db.sqlite",
+    "filePathPlaceholder": "/chemin/absolu/vers/fichier",
     "folderPathPlaceholder": "/chemin/absolu/vers/dossier",
     "browseFile": "Parcourir le fichier",
     "inMemoryDatabase": "En mémoire",

@@ -1153,7 +1153,7 @@
     "selectDatabase": "Datenbank auswählen",
     "noDatabasesFound": "Keine Datenbanken gefunden",
     "failLoadDatabases": "Laden der Datenbanken fehlgeschlagen. Prüfe deine Anmeldedaten.",
-    "filePathPlaceholder": "/absoluter/pfad/zu/db.sqlite",
+    "filePathPlaceholder": "/absoluter/pfad/zur/datei",
     "folderPathPlaceholder": "/absoluter/pfad/zum/ordner",
     "browseFile": "Datei auswählen",
     "inMemoryDatabase": "Im Speicher",

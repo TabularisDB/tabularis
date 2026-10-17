@@ -1181,7 +1181,7 @@
     "selectDatabase": "Selecciona una base de datos",
     "noDatabasesFound": "No se encontraron bases de datos",
     "failLoadDatabases": "Error al cargar las bases de datos. Verifica tus credenciales.",
-    "filePathPlaceholder": "/ruta/absoluta/db.sqlite",
+    "filePathPlaceholder": "/ruta/absoluta/archivo",
     "folderPathPlaceholder": "/ruta/absoluta/carpeta",
     "browseFile": "Explorar archivo",
     "inMemoryDatabase": "En memoria",

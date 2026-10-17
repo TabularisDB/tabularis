@@ -1128,7 +1128,7 @@
     "selectDatabase": "데이터베이스 선택",
     "noDatabasesFound": "데이터베이스를 찾을 수 없습니다",
     "failLoadDatabases": "데이터베이스를 불러오지 못했습니다. 자격 증명을 확인하세요.",
-    "filePathPlaceholder": "/절대/경로/db.sqlite",
+    "filePathPlaceholder": "/절대/경로/파일",
     "folderPathPlaceholder": "/절대/경로/폴더",
     "browseFile": "파일 찾아보기",
     "inMemoryDatabase": "인메모리",

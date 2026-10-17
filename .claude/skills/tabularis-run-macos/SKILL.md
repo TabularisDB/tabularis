@@ -63,7 +63,7 @@ The app also exposes `window.__e2e_contextMenu(row, col)` and `window.__e2e_dblc
 
 ## Test data
 
-- **SQLite** is the quickest fixture: create it with `sqlite3 $RUN_DIR/pr.db "CREATE TABLE ..."` and add a connection through the UI (`Add Connection` → `button[aria-label="Connect to SQLite"]` → `fill` name and `input[placeholder="/absolute/path/to/db.sqlite"]` → `Save`). Include a NOT NULL column, a table without a primary key, and text with spaces/mixed case when edits are involved.
+- **SQLite** is the quickest fixture: create it with `sqlite3 $RUN_DIR/pr.db "CREATE TABLE ..."` and add a connection through the UI (`Add Connection` → `button[aria-label="Connect to SQLite"]` → `fill` name and `input[placeholder="/absolute/path/to/file"]` → `Save`). Include a NOT NULL column, a table without a primary key, and text with spaces/mixed case when edits are involved.
 - **Connections and groups**: write a small `connections.dev.json` (`{"groups":[{id,name,collapsed,sort_order,parent_id?}],"connections":[{id,name,group_id?,sort_order,params:{driver:"sqlite",database:"..."}}]}`) before `up.sh` (the backup is already taken on the first run), or `cp` it while the app is closed.
 
 ## Gotchas

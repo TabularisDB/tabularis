@@ -1183,7 +1183,7 @@
     "selectDatabase": "Pumili ng database",
     "noDatabasesFound": "Walang nahanap na database",
     "failLoadDatabases": "Nabigong i-load ang mga database. Suriin ang iyong credentials.",
-    "filePathPlaceholder": "/absolute/path/to/db.sqlite",
+    "filePathPlaceholder": "/absolute/path/to/file",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "Mag-browse ng file",
     "inMemoryDatabase": "In-memory",

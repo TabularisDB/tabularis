@@ -1151,7 +1151,7 @@
     "selectDatabase": "Выберите базу данных",
     "noDatabasesFound": "Базы данных не найдены",
     "failLoadDatabases": "Не удалось загрузить базы данных. Проверьте учётные данные.",
-    "filePathPlaceholder": "/абсолютный/путь/к/db.sqlite",
+    "filePathPlaceholder": "/абсолютный/путь/к/файлу",
     "folderPathPlaceholder": "/абсолютный/путь/к/папке",
     "browseFile": "Выбрать файл",
     "inMemoryDatabase": "В памяти",

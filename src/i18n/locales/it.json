@@ -1216,7 +1216,7 @@
     "selectDatabase": "Seleziona un database",
     "noDatabasesFound": "Nessun database trovato",
     "failLoadDatabases": "Impossibile caricare i database. Verifica le credenziali.",
-    "filePathPlaceholder": "/percorso/assoluto/db.sqlite",
+    "filePathPlaceholder": "/percorso/assoluto/file",
     "folderPathPlaceholder": "/percorso/assoluto/cartella",
     "browseFile": "Sfoglia file",
     "inMemoryDatabase": "In memoria",

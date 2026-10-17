@@ -1220,7 +1220,7 @@
     "selectDatabase": "Select a database",
     "noDatabasesFound": "No databases found",
     "failLoadDatabases": "Failed to load databases. Check your credentials.",
-    "filePathPlaceholder": "/absolute/path/to/db.sqlite",
+    "filePathPlaceholder": "/absolute/path/to/file",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "Browse file",
     "inMemoryDatabase": "In-memory",
