@@ -1366,7 +1366,8 @@
       "maskedNote": "Ausgeblendet, da die Spalte maskiert ist",
       "unsupportedNote": "Für diesen Spaltentyp nicht verfügbar",
       "filterBy": "Nach {{value}} filtern",
-      "clickToFilter": "Auf einen Wert klicken, um die Tabelle danach zu filtern"
+      "clickToFilter": "Auf einen Wert klicken, um die Tabelle danach zu filtern",
+      "sampled": "Eindeutige Werte, Min / Max und häufigste Werte beruhen auf einer Stichprobe von {{size}} Werten"
     },
     "copyCells": "{{count}} Zelle(n) kopieren",
     "copyRows": "{{count}} Zeile(n) kopieren",

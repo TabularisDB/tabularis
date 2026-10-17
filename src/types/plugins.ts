@@ -47,6 +47,10 @@ export interface DriverCapabilities {
   inline_pk?: boolean;
   /** Opts Generate SQL into the optional get_table_query_template RPC. Defaults to false. */
   table_query_templates?: boolean;
+  /** Opts the column statistics popover into the optional get_column_stats RPC.
+   * Defaults to false: SQL-compatible drivers (see `speaksGenericSql`) keep the
+   * host's generic SQL, the others don't show the menu entry. */
+  column_stats?: boolean;
   // DDL capabilities (optional, default to false when not present)
   alter_column?: boolean;
   create_foreign_keys?: boolean;

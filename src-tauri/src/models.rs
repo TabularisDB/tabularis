@@ -2,7 +2,11 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+mod column_stats;
 mod table_query_template;
+pub use column_stats::{
+    restrict_column_stats, ColumnStatsParts, ColumnStatsRequest, ColumnStatsResult, ColumnTopValue,
+};
 pub use table_query_template::{TableQueryTemplateKind, TableQueryTemplateRequest};
 
 /// Returns the set of group IDs that form the subtree rooted at `root_id`,

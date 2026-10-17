@@ -286,6 +286,7 @@ fn plugin_manifest() -> PluginManifest {
             serial_type: "SERIAL".into(),
             inline_pk: false,
             table_query_templates: false,
+            column_stats: false,
             alter_column: true,
             create_foreign_keys: true,
             no_connection_required: false,

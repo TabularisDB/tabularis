@@ -1,6 +1,7 @@
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { isBlobColumn } from "./blob";
 import { isComparableColumnType } from "./cellValueFilter";
+import { speaksGenericSql, supportsColumnStatsRpc } from "./driverCapabilities";
 import {
   buildDistinctValuesQuery,
   isValuePickerSupported,
@@ -155,6 +156,11 @@ export interface ColumnStats extends ColumnStatsCounts {
   topValues: DistinctValue[] | null;
   /** True when the counts are limited by the table's current filter. */
   filtered: boolean;
+  /**
+   * Set when a plugin computed the distinct count, min / max and top values
+   * over a sample of this many non-NULL values. Row and NULL counts stay exact.
+   */
+  sampleSize?: number | null;
 }
 
 /** Runs a read-only query and returns its rows. */
@@ -213,6 +219,147 @@ export async function loadColumnStats(
 /** True for the rejection `loadColumnStats` uses when it is cancelled. */
 export function isColumnStatsAbort(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
+}
+
+// ─── Column statistics from plugin drivers (issue #1137) ─────────────────────
+
+/** Where the popover gets its statistics from. */
+export type ColumnStatsSource = "plugin" | "sql";
+
+/**
+ * Picks the statistics source for the active driver, or `null` when the
+ * driver can't provide them and the menu entry is hidden:
+ *
+ * - a plugin with `capabilities.column_stats` computes them itself
+ *   (`get_column_stats` RPC);
+ * - built-in drivers, and plugins that declare a `sql_dialect` the generic
+ *   SQL runs on (`speaksGenericSql`), get the host's generic SQL;
+ * - any other plugin gets nothing.
+ */
+export function getColumnStatsSource(
+  capabilities: DriverCapabilities | null | undefined,
+  { builtin = false }: { builtin?: boolean } = {},
+): ColumnStatsSource | null {
+  if (supportsColumnStatsRpc(capabilities)) return "plugin";
+  if (builtin || speaksGenericSql(capabilities)) return "sql";
+  return null;
+}
+
+/** Request of the `get_column_stats` command (snake_case, as sent to Rust). */
+export interface ColumnStatsRequest {
+  table: string;
+  schema: string | null;
+  column: string;
+  data_type: string | null;
+  /** The tab's filter (WHERE clause without the keyword) in the driver's dialect. */
+  filter: string | null;
+  top_values_limit: number;
+  include: { distinct: boolean; min_max: boolean; top_values: boolean };
+}
+
+/** Result of the `get_column_stats` command, as the plugin returns it. */
+export interface PluginColumnStats {
+  row_count: number;
+  null_count: number;
+  distinct_count?: number | null;
+  min?: unknown;
+  max?: unknown;
+  top_values?: { value: unknown; count: number }[] | null;
+  sample_size?: number | null;
+}
+
+/** Runs the `get_column_stats` command; `null` when the plugin has no stats. */
+export type PluginColumnStatsFetcher = (
+  request: ColumnStatsRequest,
+  signal?: AbortSignal,
+) => Promise<PluginColumnStats | null>;
+
+export interface PluginColumnStatsOptions {
+  table: string;
+  schema?: string | null;
+  column: string;
+  dataType?: string | null;
+  where?: string;
+  support: ColumnStatsSupport;
+}
+
+export function buildColumnStatsRequest({
+  table,
+  schema,
+  column,
+  dataType,
+  where,
+  support,
+}: PluginColumnStatsOptions): ColumnStatsRequest {
+  const filter = where?.trim();
+  return {
+    table,
+    schema: schema ?? null,
+    column,
+    data_type: dataType ?? null,
+    filter: filter || null,
+    top_values_limit: COLUMN_STATS_TOP_VALUES_LIMIT,
+    include: {
+      distinct: support.distinct,
+      min_max: support.minMax,
+      top_values: support.topValues,
+    },
+  };
+}
+
+/**
+ * Converts a plugin result into what the popover renders. Parts that
+ * `support` rules out are dropped whatever the plugin sent, so a masked
+ * column never shows min / max or top values.
+ */
+export function fromPluginColumnStats(
+  result: PluginColumnStats,
+  support: ColumnStatsSupport,
+  filtered: boolean,
+): ColumnStats {
+  const topValues =
+    support.topValues && Array.isArray(result.top_values)
+      ? parseDistinctValues(result.top_values.map((v) => [v.value, v.count])).slice(
+          0,
+          COLUMN_STATS_TOP_VALUES_LIMIT,
+        )
+      : null;
+  const sampleSize =
+    typeof result.sample_size === "number" && Number.isFinite(result.sample_size)
+      ? result.sample_size
+      : null;
+  return {
+    rowCount: toCount(result.row_count),
+    nullCount: toCount(result.null_count),
+    distinctCount:
+      support.distinct && result.distinct_count != null
+        ? toCount(result.distinct_count)
+        : null,
+    min: support.minMax ? (result.min ?? null) : null,
+    max: support.minMax ? (result.max ?? null) : null,
+    topValues,
+    filtered,
+    sampleSize,
+  };
+}
+
+/**
+ * Loads a column's statistics through the plugin's `get_column_stats` RPC.
+ * Resolves to `null` when the plugin answers that it doesn't implement the
+ * method, so the caller can fall back. The RPC can't be cancelled: once
+ * `signal` is aborted no request starts, and a result that arrives later is
+ * dropped with an `AbortError`.
+ */
+export async function loadPluginColumnStats(
+  fetchStats: PluginColumnStatsFetcher,
+  options: PluginColumnStatsOptions,
+  signal?: AbortSignal,
+): Promise<ColumnStats | null> {
+  if (signal?.aborted) throw abortError();
+  const result = await fetchStats(buildColumnStatsRequest(options), signal);
+  if (signal?.aborted) throw abortError();
+  if (result === null) return null;
+  return fromPluginColumnStats(result, options.support, !!options.where?.trim());
 }
 
 /** Formats a MIN / MAX value for display. */

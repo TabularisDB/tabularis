@@ -186,6 +186,11 @@
           "default": false,
           "description": "Generate SQL SELECT/UPDATE/DELETE previews through the optional get_table_query_template RPC."
         },
+        "column_stats": {
+          "type": "boolean",
+          "default": false,
+          "description": "Column statistics popover through the optional get_column_stats RPC. When false, plugins with a postgres, mysql or sqlite sql_dialect keep the host's generic SQL and the others don't show the entry."
+        },
         "alter_column": {
           "type": "boolean",
           "default": false,

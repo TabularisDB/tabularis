@@ -6,6 +6,8 @@ import {
   supportsExplain,
   findDriverManifest,
   getCapabilitiesForDriver,
+  speaksGenericSql,
+  supportsColumnStatsRpc,
 } from '../../src/utils/driverCapabilities';
 import type { DriverCapabilities, PluginManifest } from '../../src/types/plugins';
 
@@ -215,5 +217,30 @@ describe('driverCapabilities', () => {
     it('is not local by default', () => expect(isLocalDriver(unknownCaps)).toBe(false));
     it('does not support alter column by default', () => expect(supportsAlterColumn(unknownCaps)).toBe(false));
     it('does not support foreign keys by default', () => expect(supportsCreateForeignKeys(unknownCaps)).toBe(false));
+  });
+});
+
+describe('speaksGenericSql', () => {
+  it('accepts an explicitly declared postgres, mysql or sqlite dialect', () => {
+    for (const dialect of ['postgres', 'mysql', 'sqlite'] as const) {
+      expect(speaksGenericSql(makeCapabilities({ sql_dialect: dialect }))).toBe(true);
+    }
+  });
+
+  it('rejects dialects without LIMIT, the generic dialect and an omitted dialect', () => {
+    for (const dialect of ['mssql', 'oracle', 'generic'] as const) {
+      expect(speaksGenericSql(makeCapabilities({ sql_dialect: dialect }))).toBe(false);
+    }
+    expect(speaksGenericSql(makeCapabilities())).toBe(false);
+    expect(speaksGenericSql(null)).toBe(false);
+  });
+});
+
+describe('supportsColumnStatsRpc', () => {
+  it('is true only when the plugin opts in', () => {
+    expect(supportsColumnStatsRpc(makeCapabilities({ column_stats: true }))).toBe(true);
+    expect(supportsColumnStatsRpc(makeCapabilities({ column_stats: false }))).toBe(false);
+    expect(supportsColumnStatsRpc(makeCapabilities())).toBe(false);
+    expect(supportsColumnStatsRpc(undefined)).toBe(false);
   });
 });

@@ -148,8 +148,15 @@ export const ColumnStatsPopover = ({
 
   const renderStats = (stats: ColumnStats) => {
     const nonNull = stats.rowCount - stats.nullCount;
+    // A plugin may compute the value stats over a sample (issue #1137): a
+    // sample with no repeats says nothing about the whole column, and the
+    // top value shares are relative to the sample.
+    const sampleSize = stats.sampleSize ?? null;
     const allUnique =
-      stats.distinctCount !== null && nonNull > 0 && stats.distinctCount === nonNull;
+      sampleSize === null &&
+      stats.distinctCount !== null &&
+      nonNull > 0 &&
+      stats.distinctCount === nonNull;
     const valuesNote = masked
       ? t("dataGrid.columnStats.maskedNote")
       : t("dataGrid.columnStats.unsupportedNote");
@@ -217,6 +224,14 @@ export const ColumnStatsPopover = ({
           </p>
         )}
 
+        {sampleSize !== null && (
+          <p className="px-3 pb-2 text-[11px] text-muted">
+            {t("dataGrid.columnStats.sampled", {
+              size: sampleSize.toLocaleString(),
+            })}
+          </p>
+        )}
+
         <div className="border-t border-default/60 px-3 pt-2 pb-1">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
             {t("dataGrid.columnStats.topValues", {
@@ -235,7 +250,7 @@ export const ColumnStatsPopover = ({
         ) : (
           <ul className="pb-1">
             {stats.topValues.map((v) => {
-              const share = percentOf(v.count, stats.rowCount);
+              const share = percentOf(v.count, sampleSize ?? stats.rowCount);
               const content = (
                 <>
                   <span

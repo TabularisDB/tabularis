@@ -1060,6 +1060,7 @@ impl SqliteDriver {
                     serial_type: String::new(),
                     inline_pk: true,
                     table_query_templates: false,
+                    column_stats: false,
                     alter_column: false,
                     create_foreign_keys: false,
                     no_connection_required: false,

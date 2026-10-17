@@ -1341,7 +1341,8 @@
       "maskedNote": "열이 마스킹되어 숨겨짐",
       "unsupportedNote": "이 열 유형에서는 사용할 수 없습니다",
       "filterBy": "{{value}}(으)로 필터링",
-      "clickToFilter": "값을 클릭하면 해당 값으로 테이블을 필터링합니다"
+      "clickToFilter": "값을 클릭하면 해당 값으로 테이블을 필터링합니다",
+      "sampled": "고유 값, 최소 / 최대, 상위 값은 {{size}}개 값의 샘플을 기준으로 합니다"
     },
     "copyCells": "{{count}}개 셀 복사",
     "copyRows": "{{count}}개 행 복사",
