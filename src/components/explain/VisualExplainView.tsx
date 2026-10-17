@@ -1,6 +1,6 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { MonacoEditor } from "../ui/LazyMonaco";
 import type * as monaco from "monaco-editor";
 import type { ExplainPlan } from "@tabularis/explain";
@@ -20,11 +20,14 @@ import {
   type ExplainViewMode,
 } from "@tabularis/explain/react";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
+import { useAlert } from "../../hooks/useAlert";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 import { getMonacoThemeId } from "../../themes/themeRuntime";
 import {
   detectRawExplainLanguage,
   formatRawExplainOutput,
+  getRawExplainFormatLabel,
+  saveRawExplainOutput,
 } from "../../utils/explainRaw";
 import { ExplainAiAnalysis } from "../modals/visual-explain/ExplainAiAnalysis";
 
@@ -73,9 +76,21 @@ export const VisualExplainView = ({
     [plan, selectedNodeId],
   );
 
+  const { showAlert } = useAlert();
+  const [isSaving, setIsSaving] = useState(false);
+
   const rawLanguage = useMemo(
     () => (plan?.raw_output ? detectRawExplainLanguage(plan.raw_output) : "plaintext"),
     [plan],
+  );
+
+  const rawFormatLabel = useMemo(
+    () =>
+      getRawExplainFormatLabel(
+        rawLanguage,
+        t("editor.visualExplain.formatText", "Text"),
+      ),
+    [rawLanguage, t],
   );
 
   const rawValue = useMemo(
@@ -89,6 +104,26 @@ export const VisualExplainView = ({
     },
     [editorTheme],
   );
+
+  const handleSaveRaw = useCallback(async () => {
+    // Capture the selected plan synchronously before awaiting the dialog
+    const planSnapshot = plan;
+    const rawToSave = planSnapshot?.raw_output;
+    if (!rawToSave || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      const saved = await saveRawExplainOutput(rawToSave);
+      if (saved) {
+        showAlert(t("editor.visualExplain.rawExported"), { kind: "info" });
+      }
+    } catch (e) {
+      console.error("Failed to save raw EXPLAIN output", e);
+      showAlert(t("editor.visualExplain.saveRawError"), { kind: "error" });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [plan, isSaving, showAlert, t]);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -121,21 +156,47 @@ export const VisualExplainView = ({
             </div>
           </div>
         ) : plan && metrics && diagnostics ? (
-          viewMode === "raw" && plan.raw_output ? (
-            <MonacoEditor
-              height="100%"
-              language={rawLanguage}
-              theme={getMonacoThemeId(editorTheme.id)}
-              value={rawValue}
-              beforeMount={handleBeforeMount}
-              options={{
-                readOnly: true,
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                fontSize: 12,
-                wordWrap: "on",
-              }}
-            />
+          viewMode === "raw" ? (
+            <div className="flex flex-col h-full min-h-0">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-default bg-base/40">
+                <span className="text-xs font-mono uppercase text-muted">
+                  {rawFormatLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSaveRaw}
+                  disabled={!plan.raw_output || isSaving}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded border border-default bg-surface hover:bg-surface-secondary text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                  title={t("editor.visualExplain.saveRawPlan")}
+                  aria-label={t("editor.visualExplain.saveRawPlan")}
+                >
+                  <Download size={14} className="text-secondary" />
+                  <span>{t("editor.visualExplain.saveRawPlan")}</span>
+                </button>
+              </div>
+              <div className="flex-1 min-h-0">
+                {plan.raw_output ? (
+                  <MonacoEditor
+                    height="100%"
+                    language={rawLanguage}
+                    theme={getMonacoThemeId(editorTheme.id)}
+                    value={rawValue}
+                    beforeMount={handleBeforeMount}
+                    options={{
+                      readOnly: true,
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      fontSize: 12,
+                      wordWrap: "on",
+                    }}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-xs text-muted">
+                    {t("editor.visualExplain.noRawOutput")}
+                  </div>
+                )}
+              </div>
+            </div>
           ) : viewMode === "ai" ? (
             <ExplainAiAnalysis plan={plan} />
           ) : viewMode === "table" ? (
