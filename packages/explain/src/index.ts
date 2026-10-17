@@ -95,6 +95,7 @@ export type {
   NodeCostStyle,
   ExplainMetricNode,
   ExplainPlanSummary,
+  ExplainTableRowData,
 } from "./plan";
 export {
   getNodeCostStyle,
@@ -110,4 +111,5 @@ export {
   getRowEstimateRatio,
   getExplainPlanSummary,
   getExplainDriverLegend,
+  getExplainTableRows,
 } from "./plan";

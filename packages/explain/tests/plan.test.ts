@@ -13,6 +13,7 @@ import {
   getMaxCost,
   getMaxTime,
   getRowEstimateRatio,
+  getExplainTableRows,
 } from "../src/plan";
 import type { ExplainNode, ExplainPlan } from "../src/types";
 
@@ -346,6 +347,86 @@ describe("plan", () => {
     it("should return sqlite notes", () => {
       const legend = getExplainDriverLegend(makePlan({ driver: "sqlite" }));
       expect(legend[0]).toBe("editor.visualExplain.sqliteLegend1");
+    });
+  });
+
+  describe("getExplainTableRows", () => {
+    it("should preserve tree order and compute depths across full hierarchy", () => {
+      const leafA = makeNode({ id: "leaf_a", node_type: "Index Scan", relation: "users" });
+      const leafB = makeNode({ id: "leaf_b", node_type: "Seq Scan", relation: "orders" });
+      const branch = makeNode({ id: "branch", node_type: "Nested Loop", children: [leafA, leafB] });
+      const root = makeNode({ id: "root", node_type: "Sort", children: [branch] });
+      const plan = makePlan({ root });
+
+      const rows = getExplainTableRows(plan);
+
+      expect(rows.map((r) => r.index)).toEqual([1, 2, 3, 4]);
+      expect(rows.map((r) => r.nodeType)).toEqual(["Sort", "Nested Loop", "Index Scan", "Seq Scan"]);
+      expect(rows.map((r) => r.depth)).toEqual([0, 1, 2, 2]);
+      expect(rows.map((r) => r.relation)).toEqual([null, null, "users", "orders"]);
+    });
+
+    it("should leave unavailable metrics as null rather than converting to zero for estimates-only plans", () => {
+      const root = makeNode({
+        id: "root",
+        node_type: "Seq Scan",
+        relation: "items",
+        startup_cost: 10.5,
+        total_cost: 25.0,
+        plan_rows: 1000,
+        actual_rows: null,
+        actual_time_ms: null,
+      });
+      const plan = makePlan({ root, has_analyze_data: false });
+
+      const rows = getExplainTableRows(plan);
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+
+      expect(row.cost).toBe("10.5 - 25");
+      expect(row.planRows).toBe(1000);
+      expect(row.actualRows).toBeNull();
+      expect(row.exclusiveTimeMs).toBeNull();
+      expect(row.estimateGap).toBeNull();
+    });
+
+    it("should extract execution metrics and estimate gap for analyzed plans", () => {
+      const child = makeNode({
+        id: "child",
+        node_type: "Seq Scan",
+        relation: "items",
+        total_cost: 100,
+        plan_rows: 50,
+        actual_rows: 250,
+        actual_time_ms: 10,
+        actual_loops: 2,
+      });
+      const root = makeNode({
+        id: "root",
+        node_type: "Limit",
+        total_cost: 120,
+        plan_rows: 10,
+        actual_rows: 10,
+        actual_time_ms: 12,
+        actual_loops: 2,
+        children: [child],
+      });
+      const plan = makePlan({ root, has_analyze_data: true });
+
+      const rows = getExplainTableRows(plan);
+      expect(rows).toHaveLength(2);
+
+      // Root
+      expect(rows[0].nodeType).toBe("Limit");
+      expect(rows[0].actualRows).toBe(10);
+      expect(rows[0].planRows).toBe(10);
+      expect(rows[0].estimateGap).toBe(1);
+
+      // Child: 250 actual rows / 50 estimated rows = 5x gap
+      expect(rows[1].nodeType).toBe("Seq Scan");
+      expect(rows[1].actualRows).toBe(250);
+      expect(rows[1].planRows).toBe(50);
+      expect(rows[1].estimateGap).toBe(5);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { MonacoEditor } from "../ui/LazyMonaco";
@@ -20,12 +20,14 @@ import {
   type ExplainViewMode,
 } from "@tabularis/explain/react";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
+import { useAlert } from "../../hooks/useAlert";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 import { getMonacoThemeId } from "../../themes/themeRuntime";
 import {
   detectRawExplainLanguage,
   formatRawExplainOutput,
 } from "../../utils/explainRaw";
+import { saveExplainTableCsv } from "../../utils/explainTableExport";
 import { ExplainAiAnalysis } from "../modals/visual-explain/ExplainAiAnalysis";
 
 export interface VisualExplainViewProps {
@@ -90,6 +92,37 @@ export const VisualExplainView = ({
     [editorTheme],
   );
 
+  const { showAlert } = useAlert();
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+
+  const handleExportCsv = useCallback(async () => {
+    if (!plan || !metrics) return;
+    setIsExportingCsv(true);
+    try {
+      const saved = await saveExplainTableCsv(plan, metrics);
+      if (saved) {
+        showAlert(
+          t(
+            "editor.visualExplain.exportCsvSuccess",
+            "Explain table exported as CSV",
+          ),
+          { kind: "info" },
+        );
+      }
+    } catch (err) {
+      console.error("Failed to export EXPLAIN table CSV:", err);
+      showAlert(
+        t(
+          "editor.visualExplain.exportCsvError",
+          "Failed to export EXPLAIN table as CSV",
+        ),
+        { kind: "error" },
+      );
+    } finally {
+      setIsExportingCsv(false);
+    }
+  }, [plan, metrics, showAlert, t]);
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <ExplainSummaryBar
@@ -145,6 +178,8 @@ export const VisualExplainView = ({
               diagnostics={diagnostics}
               selectedId={selectedNodeId}
               onSelect={onSelectNode}
+              onExportCsv={handleExportCsv}
+              isExportingCsv={isExportingCsv}
             />
           ) : viewMode === "diagram" ? (
             <ExplainDiagramView
