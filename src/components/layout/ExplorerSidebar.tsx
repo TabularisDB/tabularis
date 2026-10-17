@@ -3352,7 +3352,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
       <ConfirmModal
         isOpen={folderDeleteConfirm !== null}
         onClose={() => setFolderDeleteConfirm(null)}
-        title={t("sidebar.confirmDeleteTitle")}
+        title={t("sidebar.confirmDeleteFolderTitle")}
         message={t("sidebar.confirmDeleteFolder", { name: folderDeleteConfirm?.name ?? "" })}
         onConfirm={async () => {
           const target = folderDeleteConfirm;

@@ -1117,6 +1117,48 @@ describe("ExplorerSidebar — saved query actions", () => {
       await waitFor(() => expect(renameFolder).toHaveBeenCalledTimes(2));
     });
 
+    it("titles the delete-folder confirmation for folders, not queries", () => {
+      renderWithFolders([savedQuery], [folderRef]);
+      fireEvent.click(screen.getByLabelText("sidebar.deleteFolder: Reports"));
+      expect(screen.getByText("sidebar.confirmDeleteFolderTitle")).toBeTruthy();
+      expect(screen.queryByText("sidebar.confirmDeleteTitle")).toBeNull();
+    });
+
+    it("starts the folder dialog fresh each time it opens", () => {
+      renderWithFolders();
+      fireEvent.click(screen.getByLabelText("sidebar.newFolder"));
+      fireEvent.change(screen.getByLabelText("sidebar.folderName"), { target: { value: "Draft" } });
+      fireEvent.click(screen.getByText("common.cancel"));
+
+      fireEvent.click(screen.getByLabelText("sidebar.newFolder"));
+      expect((screen.getByLabelText("sidebar.folderName") as HTMLInputElement).value).toBe("");
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("shows the backend's message when creating a folder fails", async () => {
+      createFolder.mockRejectedValueOnce(new Error("The saved query folders file is unreadable."));
+      renderWithFolders();
+      fireEvent.click(screen.getByLabelText("sidebar.newFolder"));
+      fireEvent.change(screen.getByLabelText("sidebar.folderName"), { target: { value: "Ops" } });
+      fireEvent.click(screen.getByText("sidebar.createFolderAction"));
+
+      await waitFor(() =>
+        expect(screen.getByRole("alert").textContent).toBe("The saved query folders file is unreadable."),
+      );
+    });
+
+    it("preselects the query's current folder when the move dialog opens", () => {
+      renderWithFolders();
+      fireEvent.contextMenu(screen.getByText("Monthly"));
+      fireEvent.click(screen.getByText("sidebar.moveToFolder"));
+      expect(screen.getByText("sidebar.moveAction").closest("button")!.disabled).toBe(true);
+      fireEvent.click(screen.getByText("common.cancel"));
+
+      fireEvent.contextMenu(screen.getByText("Cleanup"));
+      fireEvent.click(screen.getByText("sidebar.moveToFolder"));
+      expect(screen.getByText("sidebar.unfiledFolderOption")).toBeTruthy();
+    });
+
     it("moves a query from its context menu", async () => {
       renderWithFolders();
       fireEvent.contextMenu(screen.getByText("Cleanup"));

@@ -248,7 +248,10 @@ mod tests {
         let path = dir.path().join("folders.json");
         std::fs::write(&path, "{ not json").unwrap();
 
-        assert!(read_folders_file(&path).is_err());
+        let err = read_folders_file(&path).unwrap_err();
+        assert_eq!(err, FOLDERS_FILE_ERROR);
+        assert!(!err.contains("expected"));
+        assert!(!err.contains("line 1"));
         assert!(read_folders_file_lenient(&path).is_empty());
         // The bad file is left in place for manual recovery.
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "{ not json");

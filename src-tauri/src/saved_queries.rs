@@ -81,7 +81,8 @@ fn read_folders<R: Runtime>(app: &AppHandle<R>) -> Result<Vec<SavedQueryFolder>,
     saved_query_folders::read_folders_file(&get_folders_path(app)?)
 }
 
-/// Lenient read, for commands that only display or return the folder.
+/// Lenient read, for commands that only display or return folders: a corrupt
+/// file degrades to no folders (queries show as Unfiled) instead of failing.
 fn read_folders_or_empty<R: Runtime>(app: &AppHandle<R>) -> Vec<SavedQueryFolder> {
     match get_folders_path(app) {
         Ok(path) => saved_query_folders::read_folders_file_lenient(&path),
@@ -278,7 +279,7 @@ pub async fn get_saved_query_folders<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<Vec<SavedQueryFolder>, String> {
-    Ok(read_folders(&app)?
+    Ok(read_folders_or_empty(&app)
         .into_iter()
         .filter(|f| f.connection_id == connection_id)
         .collect())

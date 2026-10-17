@@ -16,6 +16,13 @@ use crate::saved_queries::SavedQueryMeta;
 /// frontend input.
 pub const MAX_FOLDER_NAME_CHARS: usize = 64;
 
+/// Shown when `folders.json` cannot be read or parsed. Creating, renaming,
+/// deleting and moving stop instead of overwriting the file, so the user can
+/// repair or remove it.
+pub const FOLDERS_FILE_ERROR: &str =
+    "The saved query folders file (saved_queries/folders.json) is unreadable. \
+     Repair or remove it, then try again.";
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SavedQueryFolder {
     pub id: String,
@@ -153,14 +160,21 @@ pub fn resolve_folder_id(meta: &SavedQueryMeta, folders: &[SavedQueryFolder]) ->
         .map(|f| f.id.clone())
 }
 
-/// Reads `folders.json`. A missing file is an empty list; unreadable or
-/// invalid content is an error.
+/// Reads `folders.json`. A missing file is an empty list. Unreadable or
+/// invalid content is an error with a user-facing message; the technical
+/// detail goes to the log instead of the UI.
 pub fn read_folders_file(path: &Path) -> Result<Vec<SavedQueryFolder>, String> {
     if !path.exists() {
         return Ok(Vec::new());
     }
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    serde_json::from_str(&content).map_err(|e| e.to_string())
+    let content = fs::read_to_string(path).map_err(|e| {
+        log::warn!("Cannot read {}: {}", path.display(), e);
+        FOLDERS_FILE_ERROR.to_string()
+    })?;
+    serde_json::from_str(&content).map_err(|e| {
+        log::warn!("Cannot parse {}: {}", path.display(), e);
+        FOLDERS_FILE_ERROR.to_string()
+    })
 }
 
 /// Like `read_folders_file`, but a corrupt or unreadable file degrades to no
