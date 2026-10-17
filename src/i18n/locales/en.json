@@ -51,7 +51,9 @@
     "opStartsWith": "starts with",
     "opEndsWith": "ends with",
     "opIsEmpty": "is empty",
-    "opIsNotEmpty": "is not empty"
+    "opIsNotEmpty": "is not empty",
+    "matchCase": "Match case",
+    "matchCaseHint": "Match case (LIKE). Off matches any case (ILIKE)."
   },
   "tags": {
     "label": "Tags",

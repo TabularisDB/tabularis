@@ -51,7 +51,9 @@
     "opStartsWith": "empieza con",
     "opEndsWith": "termina con",
     "opIsEmpty": "está vacío",
-    "opIsNotEmpty": "no está vacío"
+    "opIsNotEmpty": "no está vacío",
+    "matchCase": "Distinguir mayúsculas",
+    "matchCaseHint": "Distinguir mayúsculas (LIKE). Desactivado coincide con cualquier combinación (ILIKE)."
   },
   "tags": {
     "label": "Etiquetas",

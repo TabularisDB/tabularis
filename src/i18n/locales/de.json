@@ -51,7 +51,9 @@
     "opStartsWith": "beginnt mit",
     "opEndsWith": "endet mit",
     "opIsEmpty": "ist leer",
-    "opIsNotEmpty": "ist nicht leer"
+    "opIsNotEmpty": "ist nicht leer",
+    "matchCase": "Groß-/Kleinschreibung beachten",
+    "matchCaseHint": "Groß-/Kleinschreibung beachten (LIKE). Aus: jede Schreibweise (ILIKE)."
   },
   "tags": {
     "label": "Tags",

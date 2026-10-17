@@ -1,6 +1,11 @@
 import type { TableColumn } from "../types/editor";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { formatSqlIdentifier, quoteIdentifier, quoteTableRef } from "./identifiers";
+import {
+  formatSqlIdentifier,
+  isPostgresDialect,
+  quoteIdentifier,
+  quoteTableRef,
+} from "./identifiers";
 import { formatSqlValueForColumnComparison, isMysqlFloatColumn } from "./foreignKeys";
 
 
@@ -35,6 +40,14 @@ export interface StructuredFilter {
   value: string;
   value2?: string; // for BETWEEN only
   enabled?: boolean; // defaults to true when building clause
+  /**
+   * Case sensitivity for the literal text operators (`contains`,
+   * `starts with`, `ends with`). Defaults to `true`, which keeps emitting the
+   * `LIKE` every dialect has always produced; `false` emits `ILIKE`, which
+   * only a PostgreSQL dialect can run. Other dialects ignore the flag, so a
+   * row reused on another connection keeps its previous SQL.
+   */
+  matchCase?: boolean;
 }
 
 const NUMERIC_TYPES = [
@@ -200,7 +213,7 @@ export function buildSingleFilterClause(
   }
 
   if (op === "contains" || op === "starts with" || op === "ends with") {
-    return buildLiteralLikeClause(col, filter.value, op, driver);
+    return buildLiteralLikeClause(col, filter.value, op, driver, isMatchCaseEnabled(filter));
   }
 
   if (op === "BETWEEN") {
@@ -237,16 +250,31 @@ export function buildSingleFilterClause(
 export type LikeMatchMode = "contains" | "starts with" | "ends with";
 
 /**
+ * Whether a row's literal text match is case-sensitive. Only `contains`,
+ * `starts with` and `ends with` read it, and only a PostgreSQL dialect can act
+ * on it. `matchCase` is `true` unless the user turned it off, so filters saved
+ * before the setting existed keep generating `LIKE`.
+ */
+export function isMatchCaseEnabled(filter: StructuredFilter): boolean {
+  return filter.matchCase !== false;
+}
+
+/**
  * Builds `col LIKE '<pattern>' ESCAPE '!'` that matches `value` literally:
  * `%`, `_` and the escape character in the value are escaped, so they don't
  * act as wildcards, and the pattern is wrapped with `%` according to `mode`.
  * `col` must already be a quoted/formatted identifier.
+ *
+ * `matchCase` swaps `LIKE` for `ILIKE` on PostgreSQL dialects only. The
+ * pattern and its escaping are identical in both modes, so turning the setting
+ * off changes case sensitivity and nothing else.
  */
 export function buildLiteralLikeClause(
   col: string,
   value: string,
   mode: LikeMatchMode,
   driver: string | PluginManifest | DriverCapabilities | null | undefined,
+  matchCase = true,
 ): string {
   const escaped = escapeLikePattern(value);
   let pattern: string;
@@ -262,7 +290,10 @@ export function buildLiteralLikeClause(
   const literal = usesBackslashStringEscapes(driver)
     ? pattern.replace(/\\/g, "\\\\")
     : pattern;
-  return `${col} LIKE ${quoteLiteral(literal)} ESCAPE '${LIKE_ESCAPE}'`;
+  // ILIKE exists only in PostgreSQL. Everywhere else the flag is ignored, so
+  // the toggle can never produce SQL the connection's dialect rejects.
+  const operator = matchCase || !isPostgresDialect(driver) ? "LIKE" : "ILIKE";
+  return `${col} ${operator} ${quoteLiteral(literal)} ESCAPE '${LIKE_ESCAPE}'`;
 }
 
 /**

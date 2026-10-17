@@ -7,6 +7,7 @@ import {
   buildSingleFilterClause,
   buildStructuredFilterClause,
   isFilterComplete,
+  isMatchCaseEnabled,
   NO_VALUE_OPS,
   createEmptyFilter,
   isValuePickerSupported,
@@ -21,8 +22,8 @@ import {
   VALUE_PICKER_LIMIT,
 } from "../../src/utils/filterBar";
 import type { TableColumn } from "../../src/types/editor";
-import type { StructuredFilter } from "../../src/utils/filterBar";
-import type { DriverCapabilities } from "../../src/types/plugins";
+import type { LikeMatchMode, StructuredFilter } from "../../src/utils/filterBar";
+import type { DriverCapabilities, PluginManifest } from "../../src/types/plugins";
 
 const makeColumn = (name: string, data_type: string): TableColumn => ({
   name,
@@ -649,6 +650,130 @@ describe("filterBar utils", () => {
       );
     });
   });
+
+
+describe("match-case setting for literal text operators", () => {
+  const textFilter = (
+    operator: LikeMatchMode,
+    value: string,
+    matchCase?: boolean,
+  ): StructuredFilter => ({
+    id: "match-case",
+    column: "name",
+    operator,
+    value,
+    ...(matchCase === undefined ? {} : { matchCase }),
+  });
+
+  it("keeps emitting LIKE on postgres when the setting is absent", () => {
+    expect(buildSingleFilterClause(textFilter("contains", "Ada"), "postgres")).toBe(
+      "name LIKE '%Ada%' ESCAPE '!'",
+    );
+    expect(buildSingleFilterClause(textFilter("starts with", "Ada"), "postgres")).toBe(
+      "name LIKE 'Ada%' ESCAPE '!'",
+    );
+    expect(buildSingleFilterClause(textFilter("ends with", "Ada"), "postgres")).toBe(
+      "name LIKE '%Ada' ESCAPE '!'",
+    );
+  });
+
+  it("keeps a filter saved before the setting existed on LIKE after a round-trip", () => {
+    const saved: StructuredFilter = JSON.parse(
+      '{"id":"1","column":"name","operator":"contains","value":"Ada"}',
+    );
+    expect(buildSingleFilterClause(saved, "postgres")).toBe("name LIKE '%Ada%' ESCAPE '!'");
+  });
+
+  it("emits ILIKE for the builtin postgres driver when the setting is off", () => {
+    expect(buildSingleFilterClause(textFilter("contains", "Ada", false), "postgres")).toBe(
+      "name ILIKE '%Ada%' ESCAPE '!'",
+    );
+    expect(buildSingleFilterClause(textFilter("starts with", "Ada", false), "postgres")).toBe(
+      "name ILIKE 'Ada%' ESCAPE '!'",
+    );
+    expect(buildSingleFilterClause(textFilter("ends with", "Ada", false), "postgres")).toBe(
+      "name ILIKE '%Ada' ESCAPE '!'",
+    );
+  });
+
+  it("emits ILIKE for a plugin that declares the postgres dialect", () => {
+    const capabilities = {
+      identifier_quote: '"',
+      sql_dialect: "postgres",
+    } as DriverCapabilities;
+    expect(buildSingleFilterClause(textFilter("contains", "Ada", false), capabilities)).toBe(
+      "name ILIKE '%Ada%' ESCAPE '!'",
+    );
+    expect(buildSingleFilterClause(textFilter("contains", "Ada", true), capabilities)).toBe(
+      "name LIKE '%Ada%' ESCAPE '!'",
+    );
+
+    const manifest: PluginManifest = {
+      id: "acme-postgres",
+      name: "Acme PostgreSQL",
+      version: "1.0.0",
+      description: "PostgreSQL-compatible plugin",
+      default_port: 5432,
+      capabilities,
+    };
+    expect(buildSingleFilterClause(textFilter("contains", "Ada", false), manifest)).toBe(
+      "name ILIKE '%Ada%' ESCAPE '!'",
+    );
+  });
+
+  it("escapes wildcards, quotes and the escape character identically in both modes", () => {
+    // The fixture must really hold a backslash: MySQL doubles it inside the
+    // literal, PostgreSQL leaves it alone, and both have to survive the swap.
+    // Written as \ so the runtime value is one backslash, not "sale".
+    const value = "100%_off!\\sale O'Brien";
+    expect(value).toContain("\\");
+    const caseSensitive = buildSingleFilterClause(textFilter("contains", value, true), "postgres");
+    const caseInsensitive = buildSingleFilterClause(textFilter("contains", value, false), "postgres");
+    expect(caseSensitive).toBe("name LIKE '%100!%!_off!!\\sale O''Brien%' ESCAPE '!'");
+    // The only difference is the operator: same literal, same ESCAPE clause.
+    expect(caseInsensitive).toBe(caseSensitive.replace(" LIKE ", " ILIKE "));
+  });
+
+  it.each(["mysql", "mariadb", "sqlite", "mssql", "oracle", "generic"])(
+    "ignores the setting on %s so existing SQL does not change",
+    (driver) => {
+      for (const operator of ["contains", "starts with", "ends with"] as const) {
+        const before = buildSingleFilterClause(textFilter(operator, "Ada"), driver);
+        const after = buildSingleFilterClause(textFilter(operator, "Ada", false), driver);
+        expect(after).toBe(before);
+        expect(after).not.toContain("ILIKE");
+      }
+    },
+  );
+
+  it("leaves non-text operators untouched when the setting is off", () => {
+    const filter: StructuredFilter = {
+      id: "1",
+      column: "status",
+      operator: "=",
+      value: "active",
+      matchCase: false,
+    };
+    expect(buildSingleFilterClause(filter, "postgres")).toBe("status = 'active'");
+  });
+
+  it("applies the setting per row inside a combined clause", () => {
+    const filters: StructuredFilter[] = [
+      textFilter("contains", "Ada", false),
+      { id: "2", column: "city", operator: "starts with", value: "Ber" },
+    ];
+    expect(buildStructuredFilterClause(filters, "postgres")).toBe(
+      "name ILIKE '%Ada%' ESCAPE '!' AND city LIKE 'Ber%' ESCAPE '!'",
+    );
+  });
+
+  it("treats the setting as on unless it is explicitly off", () => {
+    const base: StructuredFilter = { id: "1", column: "name", operator: "contains", value: "x" };
+    expect(isMatchCaseEnabled(base)).toBe(true);
+    expect(isMatchCaseEnabled({ ...base, matchCase: true })).toBe(true);
+    expect(isMatchCaseEnabled({ ...base, matchCase: false })).toBe(false);
+  });
+});
 
   describe("buildStructuredFilterClause", () => {
     it("should return empty string for empty filters array", () => {
