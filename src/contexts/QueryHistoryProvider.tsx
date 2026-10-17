@@ -78,7 +78,7 @@ export const QueryHistoryProvider = ({
     error: string | null,
     database?: string | null,
   ) => {
-    if (!activeConnectionId || isPaused || isPausedRef.current) return;
+    if (!activeConnectionId || isPausedRef.current) return;
     try {
       const entry = await invoke<QueryHistoryEntry>(
         "add_query_history_entry",
@@ -102,7 +102,7 @@ export const QueryHistoryProvider = ({
     } catch (e) {
       console.error("Failed to add query history entry:", e);
     }
-  }, [activeConnectionId, isPaused]);
+  }, [activeConnectionId]);
 
   const deleteEntry = async (id: string) => {
     if (!activeConnectionId) return;

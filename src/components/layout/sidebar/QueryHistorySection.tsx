@@ -1,11 +1,10 @@
-import { useState, useMemo, useContext } from "react";
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Search, Trash2, Loader2, Database, AlertTriangle, X, ChevronDown, Pause, Play } from "lucide-react";
 import { groupByDate, formatHistoryTime } from "../../../utils/dateGroups";
 import { SqlHighlight } from "../../ui/SqlHighlight";
 import { formatSqlPreview } from "../../../utils/sqlHighlight";
 import { useSettings } from "../../../hooks/useSettings";
-import { QueryHistoryContext } from "../../../contexts/QueryHistoryContext";
 import {
   filterQueryHistoryEntries,
   isQueryHistoryFilterActive,
@@ -54,7 +53,7 @@ const TIME_RANGE_LABEL_KEYS: Record<QueryHistoryTimeRange, string> = {
 export function QueryHistorySection({
   entries,
   isLoading,
-  isPaused,
+  isPaused = false,
   onTogglePaused,
   recoveryNotice,
   onDismissRecoveryNotice,
@@ -64,9 +63,8 @@ export function QueryHistorySection({
 }: QueryHistorySectionProps) {
   const { t } = useTranslation();
   const { settings } = useSettings();
-  const historyCtx = useContext(QueryHistoryContext);
-  const paused = isPaused ?? historyCtx?.isPaused ?? false;
-  const handleTogglePaused = onTogglePaused ?? historyCtx?.togglePaused;
+  const paused = isPaused;
+  const handleTogglePaused = onTogglePaused;
 
   // Session-only: search and the new filters reset when the section unmounts
   // (same as the existing search field; nothing is persisted).
