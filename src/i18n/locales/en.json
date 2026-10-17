@@ -1513,6 +1513,7 @@
     "stop": "Stop",
     "run": "Run",
     "runSelection": "Run Selection",
+    "copyWithoutComments": "Copy SQL Without Comments",
     "runStatement": "Run Statement",
     "runAll": "Run All",
     "export": "Export",

@@ -1456,6 +1456,7 @@
     "auto": "Auto"
   },
   "editor": {
+    "copyWithoutComments": "Copiar SQL sem comentários",
     "noTabs": "Nenhuma aba aberta para esta conexão.",
     "newConsole": "Novo Console",
     "noActiveSession": "Nenhuma sessão ativa. Selecione uma conexão.",

@@ -1473,6 +1473,7 @@
     "stop": "停止",
     "run": "実行",
     "runSelection": "選択箇所を実行",
+    "copyWithoutComments": "コメントなしで SQL をコピー",
     "runStatement": "この文を実行",
     "runAll": "すべて実行",
     "export": "エクスポート",

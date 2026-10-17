@@ -124,6 +124,7 @@ import {
 import { splitQueries, splitStatements, splitBatches, findStatementAtOffset, extractTableName, getExplainableQueries, statementLabel, type Statement } from "../utils/sql";
 import type { DialectInput } from "../utils/sqlSplitter";
 import { resolveSqlSyntax } from "../utils/sqlSyntax";
+import { canStripSqlComments, stripSqlComments } from "../utils/stripSqlComments";
 import { resolveRunTarget, type RunContext } from "../utils/runTarget";
 import {
   createResultEntries,
@@ -773,6 +774,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const runMultipleQueriesRef = useRef<typeof runMultipleQueries>(null!);
   const openExplainForQueryRef = useRef<(query: string) => void>(null!);
   const activeDialectRef = useRef<typeof activeDialect>(undefined);
+  // Per-editor Monaco context keys that gate the Copy SQL Without Comments
+  // action, so it is hidden where the connection declares no SQL dialect.
+  const stripCommentsKeysRef = useRef<Map<string, { set(value: boolean): void }>>(new Map());
   const supportsExplainRef = useRef(false);
   const tabScrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -2732,6 +2736,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   runMultipleQueriesRef.current = runMultipleQueries;
   openExplainForQueryRef.current = openExplainForQuery;
   activeDialectRef.current = activeDialect;
+
+  useEffect(() => {
+    const canStrip = canStripSqlComments(activeDialect);
+    for (const key of stripCommentsKeysRef.current.values()) key.set(canStrip);
+  }, [activeDialect]);
   supportsExplainRef.current = driverSupportsExplain;
 
   // Global Ctrl/Command+F5 shortcut for Run (+Shift for Run All)
@@ -4065,6 +4074,32 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           setExplainSelectableQueries(explainable);
           setIsExplainSelectionOpen(true);
         }
+      },
+    });
+    stripCommentsKeysRef.current.set(
+      tabId,
+      editor.createContextKey(
+        "tabularisCanStripSqlComments",
+        canStripSqlComments(activeDialectRef.current),
+      ),
+    );
+    editor.onDidDispose(() => stripCommentsKeysRef.current.delete(tabId));
+    editor.addAction({
+      id: "copy-sql-without-comments",
+      label: t("editor.copyWithoutComments"),
+      precondition: "tabularisCanStripSqlComments",
+      contextMenuGroupId: "9_cutcopypaste",
+      contextMenuOrder: 3,
+      run: (ed) => {
+        const selection = ed.getSelection();
+        const model = ed.getModel();
+        const source =
+          selection && !selection.isEmpty()
+            ? model?.getValueInRange(selection)
+            : ed.getValue();
+        if (!source) return;
+        const stripped = stripSqlComments(source, activeDialectRef.current);
+        void copyTextToClipboard(stripped);
       },
     });
   };

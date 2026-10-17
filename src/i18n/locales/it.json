@@ -1504,6 +1504,7 @@
     "stop": "Stop",
     "run": "Esegui",
     "runSelection": "Esegui selezione",
+    "copyWithoutComments": "Copia SQL senza commenti",
     "runStatement": "Esegui istruzione",
     "runAll": "Esegui tutto",
     "export": "Esporta",

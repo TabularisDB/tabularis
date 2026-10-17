@@ -1418,6 +1418,7 @@
     "stop": "중지",
     "run": "실행",
     "runSelection": "선택 영역 실행",
+    "copyWithoutComments": "주석 없이 SQL 복사",
     "runStatement": "문 실행",
     "runAll": "모두 실행",
     "export": "내보내기",

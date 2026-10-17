@@ -1436,6 +1436,7 @@
     "stop": "停止",
     "run": "运行",
     "runSelection": "运行选中内容",
+    "copyWithoutComments": "复制不含注释的 SQL",
     "runStatement": "运行当前语句",
     "runAll": "全部运行",
     "export": "导出",

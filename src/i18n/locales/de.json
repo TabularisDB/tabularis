@@ -1461,6 +1461,7 @@
     "stop": "Stopp",
     "run": "Ausführen",
     "runSelection": "Auswahl ausführen",
+    "copyWithoutComments": "SQL ohne Kommentare kopieren",
     "runStatement": "Anweisung ausführen",
     "runAll": "Alle ausführen",
     "export": "Exportieren",

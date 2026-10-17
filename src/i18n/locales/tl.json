@@ -1474,6 +1474,7 @@
     "stop": "Itigil",
     "run": "Patakbuhin",
     "runSelection": "Patakbuhin ang napili",
+    "copyWithoutComments": "Kopyahin ang SQL nang walang komento",
     "runStatement": "Patakbuhin ang statement",
     "runAll": "Patakbuhin lahat",
     "export": "I-export",
