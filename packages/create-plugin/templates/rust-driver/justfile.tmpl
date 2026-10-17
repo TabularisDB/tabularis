@@ -1,6 +1,12 @@
 set shell := ["bash", "-cu"]
 set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
 
+# The Windows recipes below are [script] recipes (just 1.44+): each one runs as a
+# single PowerShell script, so variables and multi-line blocks carry across lines.
+# Bypass only applies to this process, so the default Restricted policy doesn't
+# block the temporary .ps1 file just writes.
+set script-interpreter := ["powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"]
+
 # ---------------------------------------------------------------------------
 # Cross-platform recipes (only shell-agnostic tooling — cargo, npm).
 # ---------------------------------------------------------------------------
@@ -42,7 +48,9 @@ build-ui:
     fi
 
 [windows]
+[script]
 build-ui:
+    $ErrorActionPreference = "Stop"
     if (Test-Path ui/package.json) {
         Write-Host "Building UI extension..."
         Push-Location ui
@@ -94,10 +102,12 @@ dev-install: build
     @echo "Restart Tabularis (or toggle the plugin in Settings) to pick up changes."
 
 [windows]
+[script]
 dev-install: build
+    $ErrorActionPreference = "Stop"
     $dest = Join-Path $env:APPDATA "tabularis\plugins\drivers\${ID}"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
-    Copy-Item (Join-Path (cargo metadata --format-version 1 --no-deps | ConvertFrom-Json).target_directory "debug\${BIN_NAME}.exe") (Join-Path $env:APPDATA "tabularis\plugins\drivers\${ID}")
+    Copy-Item (Join-Path (cargo metadata --format-version 1 --no-deps | ConvertFrom-Json).target_directory "debug\${BIN_NAME}.exe") $dest
     Copy-Item ".tabularium" $dest
     if (Test-Path "locales") {
         New-Item -ItemType Directory -Force -Path (Join-Path $dest "locales") | Out-Null
@@ -120,6 +130,8 @@ uninstall:
     rm -rf "$HOME/Library/Application Support/tabularis/plugins/drivers/${ID}"
 
 [windows]
+[script]
 uninstall:
+    $ErrorActionPreference = "Stop"
     $dest = Join-Path $env:APPDATA "tabularis\plugins\drivers\${ID}"
     if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
