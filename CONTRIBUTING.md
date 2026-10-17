@@ -32,13 +32,13 @@ All types of contributions are encouraged and valued. See the [Table of Contents
 ## Code of Conduct
 
 This project and everyone participating in it is governed by the
-[tabularis Code of Conduct](https://github.com/TabularisDB/tabularis/blob/develop/CODE_OF_CONDUCT.md).
+[tabularis Code of Conduct](https://github.com/TabularisDB/tabularis/blob/main/CODE_OF_CONDUCT.md).
 By participating, you are expected to uphold this code. Please report unacceptable behavior
 to <andrea@debbaweb.it>.
 
 ## I Have a Question
 
-> If you want to ask a question, we assume that you have read the available [Documentation]().
+> If you want to ask a question, we assume that you have read the available [Documentation](https://tabularis.dev/).
 
 Before you ask a question, it is best to search for existing [Issues](https://github.com/TabularisDB/tabularis/issues) that might help you. In case you have found a suitable issue and still need clarification, you can write your question in this issue. It is also advisable to search the internet for answers first.
 
@@ -81,7 +81,7 @@ Depending on how large the project is, you may want to outsource the questioning
 A good bug report shouldn't leave others needing to chase you up for more information. Therefore, we ask you to investigate carefully, collect information and describe the issue in detail in your report. Please complete the following steps in advance to help us fix any potential bug as fast as possible.
 
 - Make sure that you are using the latest version.
-- Determine if your bug is really a bug and not an error on your side e.g. using incompatible environment components/versions (Make sure that you have read the [documentation](). If you are looking for support, you might want to check [this section](#i-have-a-question)).
+- Determine if your bug is really a bug and not an error on your side e.g. using incompatible environment components/versions (Make sure that you have read the [documentation](https://tabularis.dev/). If you are looking for support, you might want to check [this section](#i-have-a-question)).
 - To see if other users have experienced (and potentially already solved) the same issue you are having, check if there is not already a bug report existing for your bug or error in the [bug tracker](https://github.com/TabularisDB/tabularis/issues?q=label%3Abug).
 - Also make sure to search the internet (including Stack Overflow) to see if users outside of the GitHub community have discussed the issue.
 - Collect information about the bug:
@@ -143,10 +143,127 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/Tabula
 
 ### Your First Code Contribution
 
-<!-- TODO
-include Setup of env, IDE and typical getting started instructions?
+Unsure where to begin? Browse our open issues labeled with [good first issue](https://github.com/TabularisDB/tabularis/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) for well-scoped starter tasks. If you are interested in database drivers, check the [Plugin Bounty Board](https://tabularis.dev/plugins/bounties) and our [Driver Contribution Hub (#1145)](https://github.com/TabularisDB/tabularis/issues/1145).
 
--->
+#### 1. Prerequisites
+
+Before cloning and building, ensure you have the following installed:
+
+- **Node.js**: `18.17+` (v20 LTS recommended). Verify with `node --version`.
+- **pnpm**: `9+` (package manager). Enable with `corepack enable pnpm` or install with `npm install -g pnpm`.
+- **Rust Toolchain**: `stable` (required for desktop Tauri builds, `src-tauri` backend, and Rust-based plugins). Install via [rustup](https://rustup.rs/): `rustc --version` and `cargo --version`.
+- **Platform Dependencies (Tauri v2)**:
+  - **Linux**: Standard GTK, WebKit, and build libraries (e.g. on Debian/Ubuntu: `sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`).
+  - **macOS**: Xcode Command Line Tools (`xcode-select --install`).
+  - **Windows**: Microsoft Visual Studio C++ Build Tools and WebView2.
+
+#### 2. Repository Source Map
+
+Understanding the codebase layout will help you navigate directly to the relevant files:
+
+```
+tabularis/
+├── src/                      # Frontend application (React 19, TypeScript, Tailwind CSS, Monaco editor)
+│   ├── components/           # UI components (modals, data grid, query editor, explorer)
+│   ├── locales/              # i18n translation catalogs (en, it, zh, etc.)
+│   ├── theme/                # Theme tokens and CSS rules (see tokens.css)
+│   └── utils/                # Pure frontend helper and calculation utilities
+├── tests/                    # Frontend tests (Vitest)
+│   └── utils/                # Unit tests matching src/utils/
+├── src-tauri/                # Native desktop backend (Rust, Tauri v2 shell, native SQLite/MySQL/PostgreSQL engines)
+├── plugins/                  # Plugin documentation, JSON schemas (manifest.schema.json), and reference guides
+├── packages/
+│   ├── create-plugin/        # Official CLI scaffolder (@tabularis/create-plugin)
+│   ├── plugin-api/           # Plugin TypeScript SDK and protocol contracts
+│   └── explain/              # Visual query plan renderer package
+└── .rules/                   # Architectural, accessibility, and design guidelines (see AGENTS.md)
+```
+
+#### 3. Choosing Your Contribution Workflow
+
+Tabularis contributions typically fall into one of three distinct categories. Pick the workflow matching your task:
+
+##### Workflow A: Frontend Utility or Component Task (Web-only, Fast)
+
+If your task touches pure frontend helpers in `src/utils/`, data transformations, formatting, or UI components:
+
+1. **Install dependencies:**
+   ```bash
+   pnpm install
+   ```
+2. **Start the Vite web dev server:**
+   ```bash
+   pnpm dev
+   ```
+   Open `http://localhost:5173` in your browser. This mode offers instant Hot Module Replacement (HMR) without compiling Rust or the Tauri desktop shell.
+3. **Run targeted tests:**
+   ```bash
+   pnpm test tests/utils/themeContrast.test.ts
+   # or run vitest in watch mode:
+   pnpm test
+   ```
+4. **Validate code formatting, theme tokens, and types:**
+   ```bash
+   pnpm lint          # ESLint + checks design token usage
+   pnpm exec tsc -b   # TypeScript typecheck across workspaces
+   ```
+
+##### Workflow B: Desktop UI Verification & Rust Backend (Full Tauri App)
+
+If your changes involve native desktop behaviors (Tauri IPC commands, filesystem access, native file dialogs, system notifications, or changes inside `src-tauri`):
+
+> [!NOTE]
+> In web-only mode (`pnpm dev`), native Tauri APIs (`@tauri-apps/api`, `@tauri-apps/plugin-*`) are unavailable or stubbed. Desktop features must be verified within the Tauri container.
+
+1. **Launch Tabularis in development mode:**
+   ```bash
+   pnpm tauri dev
+   ```
+   This compiles the Rust backend, starts the Vite frontend server, and launches the native desktop window with devtools enabled.
+2. **Run Rust backend tests:**
+   ```bash
+   pnpm test:rust
+   # or directly in the Rust crate:
+   cd src-tauri && cargo test
+   ```
+
+##### Workflow C: Standalone Driver Work (Plugins)
+
+> [!IMPORTANT]
+> **Do not add new database drivers directly to Tabularis core!**
+> Tabularis uses a decoupled, multi-language plugin architecture (JSON-RPC 2.0 over stdio). All new database and cloud data-source drivers are developed, versioned, and published as **standalone plugins in their own repositories**.
+
+1. **Explore open targets and scope:**
+   - Review current and requested drivers in the [Driver Contribution Hub (#1145)](https://github.com/TabularisDB/tabularis/issues/1145).
+   - Check the [Plugin Bounty Board](https://tabularis.dev/plugins/bounties) for funded driver opportunities.
+2. **Scaffold a new driver plugin:**
+   Use the official `@tabularis/create-plugin` generator:
+   ```bash
+   pnpm create @tabularis/plugin@latest my-driver --db-type=network
+   ```
+   * `--db-type=network`: Standard TCP databases (e.g. CockroachDB, TiDB, ClickHouse).
+   * `--db-type=api`: Cloud REST/GraphQL services (e.g. Google Sheets, Airtable, DynamoDB).
+   * `--db-type=file`: Local and embedded file formats (e.g. DuckDB, SQLite, Parquet).
+3. **Develop and test locally:**
+   ```bash
+   cd my-driver
+   just dev-install   # Builds your driver and installs it into local Tabularis plugin directory
+   ```
+4. **Read the guides:**
+   - Step-by-step walkthrough: [Plugin Tutorial](./plugins/PLUGIN_TUTORIAL.md).
+   - Full RPC specification and manifest capabilities: [Plugin Guide](./plugins/PLUGIN_GUIDE.md).
+   - Driver capability best practices: [Plugin Rules](./.rules/plugins.md). Always declare supported dialects and capabilities rather than branching on driver IDs.
+
+#### 4. Quality Checklist & PR Guidelines
+
+Before opening a pull request, ensure your branch satisfies the quality standards described in [AGENTS.md](./AGENTS.md) and [`.rules/`](./.rules/):
+
+- [ ] **Tests pass**: Targeted unit tests (`pnpm test <path>`) and full test suite pass cleanly.
+- [ ] **Typecheck**: `pnpm exec tsc -b` (or `pnpm typecheck`) completes with zero errors.
+- [ ] **Lint & Design Tokens**: `pnpm lint` passes cleanly. Use theme tokens from `src/theme/tokens.css` (never hardcode arbitrary hex/RGB colors).
+- [ ] **Accessibility**: Maintain keyboard navigation, visible focus outlines, and appropriate ARIA attributes for interactive elements ([Accessibility Rules](./.rules/accessibility.md)).
+- [ ] **Internationalization**: If adding user-visible strings, declare translation keys in `src/locales/` instead of hardcoding text in JSX.
+- [ ] **Issue Reference**: Include `Closes #<issue-number>` or `Fixes #<issue-number>` in your PR description.
 
 ### Testing a Pull Request Build
 
@@ -156,22 +273,36 @@ If you reported a bug and a maintainer points you to such a build, that is the f
 
 ### Improving The Documentation
 
-<!-- TODO
-Updating, improving and correcting the documentation
-
--->
+Documentation improvements are always welcome! Whether fixing typos, clarifying complex workflows, or expanding guides:
+- For repository documentation and guides, edit Markdown files directly in the repository and submit a PR with the `docs:` prefix.
+- For website documentation, tutorials, and wiki pages, visit [tabularis.dev](https://tabularis.dev/) and its documentation source.
 
 ## Styleguides
 
 ### Commit Messages
 
-<!-- TODO
+Tabularis follows the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification:
 
--->
+- `feat:` Adds a new user-facing feature or enhancement.
+- `fix:` Patches a bug or addresses unexpected behavior.
+- `docs:` Documentation improvements, markdown corrections, and guides.
+- `style:` Formatting, missing semicolons, or whitespace adjustments (no code change).
+- `refactor:` Code restructuring without changing behavior or adding features.
+- `test:` Adding or refactoring automated tests.
+- `chore:` Maintenance tasks, dependency updates, and build script adjustments.
+
+Example:
+```git
+feat(editor): add shortcut for executing current cell in sql notebook
+fix(grid): prevent horizontal scroll jump when expanding nested json
+docs(contributing): add first contribution quickstart and workflow guide
+```
 
 ## Join The Project Team
 
-<!-- TODO -->
+Active contributors, driver authors, and community members are encouraged to join the conversation:
+- Join our [Discord community](https://discord.com/invite/K2hmhfHRSt) to discuss features, drivers, and design proposals.
+- Follow development updates and roadmap discussions on [GitHub Issues & Discussions](https://github.com/TabularisDB/tabularis).
 
 <!-- omit in toc -->
 
