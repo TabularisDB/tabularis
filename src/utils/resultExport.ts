@@ -19,7 +19,7 @@ export function getLoadedRowsExportLimit(
 function csvValue(value: unknown, delimiter: string): string {
   const text =
     value === null || value === undefined
-      ? ""
+      ? "NULL"
       : typeof value === "object"
         ? JSON.stringify(value)
         : String(value);
