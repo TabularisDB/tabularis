@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" font-family="JetBrains Mono, monospace">
+  <!-- Background -->
+  <rect width="900" height="400" fill="#1a1b26"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="900" height="44" fill="#24283b"/>
+  <text x="20" y="28" font-size="14" fill="#c0caf5" font-weight="bold">Data Compare</text>
+  <text x="820" y="28" font-size="11" fill="#565f89">⌘+Shift+D</text>
+
+  <!-- Left Source Panel -->
+  <rect x="20" y="60" width="400" height="180" rx="8" fill="#24283b" stroke="#3b4261" stroke-width="1"/>
+  <text x="40" y="88" font-size="12" fill="#7aa2f7" font-weight="bold">LEFT SOURCE</text>
+
+  <text x="40" y="118" font-size="11" fill="#565f89">Connection</text>
+  <rect x="40" y="124" width="360" height="30" rx="4" fill="#1a1b26" stroke="#3b4261"/>
+  <text x="52" y="144" font-size="12" fill="#c0caf5">staging-db (PostgreSQL)</text>
+  <text x="374" y="144" font-size="10" fill="#565f89">▼</text>
+
+  <text x="40" y="174" font-size="11" fill="#565f89">Table</text>
+  <rect x="40" y="180" width="360" height="30" rx="4" fill="#1a1b26" stroke="#3b4261"/>
+  <text x="52" y="200" font-size="12" fill="#c0caf5">public.users</text>
+  <text x="374" y="200" font-size="10" fill="#565f89">▼</text>
+
+  <!-- Swap Button -->
+  <rect x="430" y="130" width="40" height="40" rx="20" fill="#24283b" stroke="#7aa2f7" stroke-width="1"/>
+  <text x="443" y="155" font-size="16" fill="#7aa2f7">⇄</text>
+
+  <!-- Right Source Panel -->
+  <rect x="480" y="60" width="400" height="180" rx="8" fill="#24283b" stroke="#3b4261" stroke-width="1"/>
+  <text x="500" y="88" font-size="12" fill="#bb9af7" font-weight="bold">RIGHT SOURCE</text>
+
+  <text x="500" y="118" font-size="11" fill="#565f89">Connection</text>
+  <rect x="500" y="124" width="360" height="30" rx="4" fill="#1a1b26" stroke="#3b4261"/>
+  <text x="512" y="144" font-size="12" fill="#c0caf5">production-db (PostgreSQL)</text>
+  <text x="834" y="144" font-size="10" fill="#565f89">▼</text>
+
+  <text x="500" y="174" font-size="11" fill="#565f89">Table</text>
+  <rect x="500" y="180" width="360" height="30" rx="4" fill="#1a1b26" stroke="#3b4261"/>
+  <text x="512" y="200" font-size="12" fill="#c0caf5">public.users</text>
+  <text x="834" y="200" font-size="10" fill="#565f89">▼</text>
+
+  <!-- Options Bar -->
+  <rect x="20" y="260" width="860" height="50" rx="6" fill="#24283b" stroke="#3b4261" stroke-width="1"/>
+  <text x="40" y="290" font-size="11" fill="#565f89">Comparison Key:</text>
+  <rect x="150" y="272" width="120" height="26" rx="4" fill="#1a1b26" stroke="#3b4261"/>
+  <text x="162" y="290" font-size="11" fill="#c0caf5">Primary Key ▼</text>
+
+  <text x="300" y="290" font-size="11" fill="#565f89">Columns:</text>
+  <rect x="365" y="272" width="100" height="26" rx="4" fill="#1a1b26" stroke="#3b4261"/>
+  <text x="377" y="290" font-size="11" fill="#c0caf5">All (8) ▼</text>
+
+  <text x="500" y="290" font-size="11" fill="#565f89">Options:</text>
+  <rect x="558" y="276" width="14" height="14" rx="2" fill="#1a1b26" stroke="#3b4261"/>
+  <text x="578" y="290" font-size="11" fill="#a9b1d6">Case-insensitive</text>
+  <rect x="698" y="276" width="14" height="14" rx="2" fill="#1a1b26" stroke="#3b4261"/>
+  <text x="718" y="290" font-size="11" fill="#a9b1d6">Trim whitespace</text>
+
+  <!-- Compare Button -->
+  <rect x="20" y="330" width="860" height="44" rx="6" fill="#7aa2f7"/>
+  <text x="410" y="357" font-size="14" fill="#1a1b26" font-weight="bold" text-anchor="middle">▶ Run Comparison</text>
+</svg>
