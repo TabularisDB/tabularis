@@ -122,6 +122,7 @@ import {
   type ExportStatus,
 } from "../components/modals/ExportProgressModal";
 import { splitQueries, splitStatements, splitBatches, findStatementAtOffset, extractTableName, getExplainableQueries, statementLabel, type Statement } from "../utils/sql";
+import { stripSqlComments } from "../utils/stripSqlComments";
 import { resolveRunTarget, type RunContext } from "../utils/runTarget";
 import {
   createResultEntries,
@@ -4059,6 +4060,23 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           setExplainSelectableQueries(explainable);
           setIsExplainSelectionOpen(true);
         }
+      },
+    });
+    editor.addAction({
+      id: "copy-sql-without-comments",
+      label: t("editor.copyWithoutComments"),
+      contextMenuGroupId: "9_cutcopypaste",
+      contextMenuOrder: 3,
+      run: (ed) => {
+        const selection = ed.getSelection();
+        const model = ed.getModel();
+        const source =
+          selection && !selection.isEmpty()
+            ? model?.getValueInRange(selection)
+            : ed.getValue();
+        if (!source) return;
+        const stripped = stripSqlComments(source, activeDialectRef.current);
+        void copyTextToClipboard(stripped);
       },
     });
   };
