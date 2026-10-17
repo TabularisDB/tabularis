@@ -8,7 +8,9 @@ vi.mock("lucide-react", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    Download: (props: any) => <span data-testid="download-icon" {...props} />,
+    Download: (props: React.HTMLAttributes<HTMLSpanElement>) => (
+      <span data-testid="download-icon" {...props} />
+    ),
     ChevronRight: () => <span />,
     ChevronDown: () => <span />,
   };
