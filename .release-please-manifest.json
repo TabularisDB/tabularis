@@ -1,0 +1,5 @@
+{
+  "packages/create-plugin": "0.4.2",
+  "packages/explain": "0.2.0",
+  "packages/plugin-api": "0.2.0"
+}

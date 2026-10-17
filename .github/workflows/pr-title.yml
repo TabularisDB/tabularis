@@ -1,0 +1,42 @@
+name: PR title
+
+# PRs are squash merged, so the PR title becomes the commit on main. It must
+# follow Conventional Commits (see CONTRIBUTING.md#commit-messages): the npm
+# package release PRs (release-please.yml) are computed from these titles.
+#
+# pull_request_target so it also runs on PRs from forks. Safe: it never checks
+# out or runs PR code, it only reads the title through the API.
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  conventional-title:
+    name: Conventional Commit title
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            docs
+            style
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" in the PR title "{title}" must start
+            with a lowercase letter, e.g. "fix(grid): prevent scroll jump".
