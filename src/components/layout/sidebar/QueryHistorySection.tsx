@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useContext } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, Trash2, Loader2, Database, AlertTriangle, X, ChevronDown } from "lucide-react";
+import { Search, Trash2, Loader2, Database, AlertTriangle, X, ChevronDown, Pause, Play } from "lucide-react";
 import { groupByDate, formatHistoryTime } from "../../../utils/dateGroups";
 import { SqlHighlight } from "../../ui/SqlHighlight";
 import { formatSqlPreview } from "../../../utils/sqlHighlight";
 import { useSettings } from "../../../hooks/useSettings";
+import { QueryHistoryContext } from "../../../contexts/QueryHistoryContext";
 import {
   filterQueryHistoryEntries,
   isQueryHistoryFilterActive,
@@ -21,6 +22,8 @@ import type {
 interface QueryHistorySectionProps {
   entries: QueryHistoryEntry[];
   isLoading: boolean;
+  isPaused?: boolean;
+  onTogglePaused?: () => void;
   recoveryNotice: QueryHistoryRecoveryNotice | null;
   onDismissRecoveryNotice: () => void;
   onDoubleClick: (entry: QueryHistoryEntry) => void;
@@ -51,6 +54,8 @@ const TIME_RANGE_LABEL_KEYS: Record<QueryHistoryTimeRange, string> = {
 export function QueryHistorySection({
   entries,
   isLoading,
+  isPaused,
+  onTogglePaused,
   recoveryNotice,
   onDismissRecoveryNotice,
   onDoubleClick,
@@ -59,6 +64,10 @@ export function QueryHistorySection({
 }: QueryHistorySectionProps) {
   const { t } = useTranslation();
   const { settings } = useSettings();
+  const historyCtx = useContext(QueryHistoryContext);
+  const paused = isPaused ?? historyCtx?.isPaused ?? false;
+  const handleTogglePaused = onTogglePaused ?? historyCtx?.togglePaused;
+
   // Session-only: search and the new filters reset when the section unmounts
   // (same as the existing search field; nothing is persisted).
   const [search, setSearch] = useState("");
@@ -89,6 +98,48 @@ export function QueryHistorySection({
     if (ms < 1000) return `${Math.round(ms)}ms`;
     return `${(ms / 1000).toFixed(1)}s`;
   };
+
+  const pauseToggleLabel = paused
+    ? t("sidebar.resumeHistoryCapture")
+    : t("sidebar.pauseHistoryCapture");
+
+  const pauseToggleButton = handleTogglePaused ? (
+    <button
+      type="button"
+      onClick={handleTogglePaused}
+      aria-pressed={paused}
+      className={`p-1 rounded transition-colors shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
+        paused
+          ? "text-accent-warning bg-accent-warning/15 hover:bg-accent-warning/25"
+          : "text-muted hover:text-primary"
+      }`}
+      title={pauseToggleLabel}
+      aria-label={pauseToggleLabel}
+    >
+      {paused ? <Play size={13} /> : <Pause size={13} />}
+    </button>
+  ) : null;
+
+  const pausedBanner = paused ? (
+    <div
+      role="status"
+      className="mx-2 mb-1.5 px-2.5 py-1.5 bg-accent-warning/10 border border-accent-warning/40 rounded flex items-center justify-between gap-2 text-[11px] text-accent-warning"
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        <Pause size={12} className="shrink-0 text-accent-warning" />
+        <span className="truncate">{t("sidebar.historyCapturePausedNotice")}</span>
+      </div>
+      {handleTogglePaused && (
+        <button
+          type="button"
+          onClick={handleTogglePaused}
+          className="shrink-0 font-medium underline hover:text-accent-warning/80 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+        >
+          {t("sidebar.resumeHistoryCapture")}
+        </button>
+      )}
+    </div>
+  ) : null;
 
   const recoveryBanner = recoveryNotice ? (
     <div className="m-2 p-2.5 bg-accent-warning/10 border border-accent-warning/40 rounded text-[11px] text-accent-warning leading-snug">
@@ -134,6 +185,12 @@ export function QueryHistorySection({
     return (
       <div>
         {recoveryBanner}
+        {handleTogglePaused && (
+          <div className="px-2 pb-1.5 flex items-center justify-end">
+            {pauseToggleButton}
+          </div>
+        )}
+        {pausedBanner}
         <div className="text-center p-4 text-xs text-muted italic">
           {t("sidebar.noQueryHistory")}
         </div>
@@ -144,7 +201,7 @@ export function QueryHistorySection({
   return (
     <div>
       {recoveryBanner}
-      {/* Header with search and clear */}
+      {/* Header with search, pause/resume, and clear */}
       <div className="px-2 pb-1.5 flex items-center gap-1">
         <div className="relative flex-1">
           <Search
@@ -159,6 +216,7 @@ export function QueryHistorySection({
             className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-focus/50"
           />
         </div>
+        {pauseToggleButton}
         <button
           type="button"
           onClick={onClearAll}
@@ -169,6 +227,7 @@ export function QueryHistorySection({
           <Trash2 size={13} />
         </button>
       </div>
+      {pausedBanner}
 
       {/* Outcome + time filters (session-only, same as search) */}
       <div className="px-2 pb-1.5 flex items-center gap-1">

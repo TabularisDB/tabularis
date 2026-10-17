@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDatabase } from "../hooks/useDatabase";
 import {
@@ -18,8 +18,23 @@ export const QueryHistoryProvider = ({
   const { activeConnectionId } = useDatabase();
   const [entries, setEntries] = useState<QueryHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  // Session-only pause toggle: survives opening/closing the history section
+  // within the same provider session, and restores capture on app restart.
+  const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(false);
   const [recoveryNotice, setRecoveryNotice] =
     useState<QueryHistoryRecoveryNotice | null>(null);
+
+  const setPaused = useCallback((paused: boolean) => {
+    isPausedRef.current = paused;
+    setIsPaused(paused);
+  }, []);
+
+  const togglePaused = useCallback(() => {
+    const next = !isPausedRef.current;
+    isPausedRef.current = next;
+    setIsPaused(next);
+  }, []);
 
   const refreshHistory = useCallback(async () => {
     if (!activeConnectionId) {
@@ -63,7 +78,7 @@ export const QueryHistoryProvider = ({
     error: string | null,
     database?: string | null,
   ) => {
-    if (!activeConnectionId) return;
+    if (!activeConnectionId || isPaused || isPausedRef.current) return;
     try {
       const entry = await invoke<QueryHistoryEntry>(
         "add_query_history_entry",
@@ -87,7 +102,7 @@ export const QueryHistoryProvider = ({
     } catch (e) {
       console.error("Failed to add query history entry:", e);
     }
-  }, [activeConnectionId]);
+  }, [activeConnectionId, isPaused]);
 
   const deleteEntry = async (id: string) => {
     if (!activeConnectionId) return;
@@ -125,6 +140,9 @@ export const QueryHistoryProvider = ({
       value={{
         entries,
         isLoading,
+        isPaused,
+        setPaused,
+        togglePaused,
         recoveryNotice,
         dismissRecoveryNotice,
         addEntry,
