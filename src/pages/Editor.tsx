@@ -19,6 +19,7 @@ import { onActivationKey, isTypingTarget } from "../utils/keyboardEvents";
 import {
   formatResultForExport,
   getLoadedRowsExportLimit,
+  type ResultExportFormat,
 } from "../utils/resultExport";
 import { serializePkKey, buildPkMap } from "../utils/dataGrid";
 import { TONE_SOFT_BG_CLASS, TONE_TEXT_CLASS, tint } from "../utils/tones";
@@ -4203,62 +4204,80 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     setExportState((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
-  const handleExportCommon = async (format: "csv" | "json" | "markdown") => {
+  const handleExportLoadedRows = async (
+    result: QueryResult,
+    format: ResultExportFormat,
+  ) => {
+    if (!activeTab) return;
+
+    const extension = format === "markdown" ? "md" : format;
+    const filterName =
+      format === "markdown" ? "Markdown" : format.toUpperCase();
+    try {
+      const loadedRowsLimit = getLoadedRowsExportLimit(result);
+      const warningMessage = loadedRowsLimit
+        ? t("editor.exportLoadedRowsWarning", {
+            loaded: loadedRowsLimit.loadedRows.toLocaleString(),
+            total: loadedRowsLimit.totalRows.toLocaleString(),
+          })
+        : undefined;
+
+      const filePath = await saveFileDialog({
+        filters: [
+          {
+            name: filterName,
+            extensions: [extension],
+          },
+        ],
+        defaultPath: buildExportFileName({
+          tableName: activeTab.type === "table" ? activeTab.activeTable : null,
+          extension,
+        }),
+      });
+
+      if (!filePath) return;
+
+      setExportState({
+        isOpen: true,
+        status: "exporting",
+        rowsProcessed: result.rows.length,
+        fileName: filePath.split(/[/\\]/).pop() || filePath,
+        errorMessage: undefined,
+        warningMessage,
+      });
+      setExportMenuOpen(false);
+
+      await writeTextFile(
+        filePath,
+        formatResultForExport(result, format, csvDelimiter),
+      );
+
+      setExportState((prev) => ({
+        ...prev,
+        status: "completed",
+      }));
+    } catch (e) {
+      setExportState((prev) => ({
+        ...prev,
+        status: "error",
+        errorMessage: String(e),
+      }));
+    }
+  };
+
+  const handleExportCommon = async (format: ResultExportFormat) => {
     if (!activeTab || !activeConnectionId) return;
+
+    if (format === "ndjson") {
+      if (!activeExportResult) return;
+      await handleExportLoadedRows(activeExportResult, "ndjson");
+      return;
+    }
 
     const extension = format === "markdown" ? "md" : format;
     const multiResult = activeResultEntry?.result;
     if (multiResult?.rows.length) {
-      try {
-        const loadedRowsLimit = getLoadedRowsExportLimit(multiResult);
-        const warningMessage = loadedRowsLimit
-          ? t("editor.exportLoadedRowsWarning", {
-              loaded: loadedRowsLimit.loadedRows.toLocaleString(),
-              total: loadedRowsLimit.totalRows.toLocaleString(),
-            })
-          : undefined;
-
-        const filePath = await saveFileDialog({
-          filters: [
-            {
-              name: format === "markdown" ? "Markdown" : format.toUpperCase(),
-              extensions: [extension],
-            },
-          ],
-          defaultPath: buildExportFileName({
-            tableName: activeTab.type === "table" ? activeTab.activeTable : null,
-            extension,
-          }),
-        });
-
-        if (!filePath) return;
-
-        setExportState({
-          isOpen: true,
-          status: "exporting",
-          rowsProcessed: multiResult.rows.length,
-          fileName: filePath.split(/[/\\]/).pop() || filePath,
-          errorMessage: undefined,
-          warningMessage,
-        });
-        setExportMenuOpen(false);
-
-        await writeTextFile(
-          filePath,
-          formatResultForExport(multiResult, format, csvDelimiter),
-        );
-
-        setExportState((prev) => ({
-          ...prev,
-          status: "completed",
-        }));
-      } catch (e) {
-        setExportState((prev) => ({
-          ...prev,
-          status: "error",
-          errorMessage: String(e),
-        }));
-      }
+      await handleExportLoadedRows(multiResult, format);
       return;
     }
 
@@ -4342,6 +4361,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const handleExportCSV = () => handleExportCommon("csv");
   const handleExportJSON = () => handleExportCommon("json");
+  const handleExportNDJSON = () => handleExportCommon("ndjson");
   const handleExportMarkdown = () => handleExportCommon("markdown");
 
   const handleRunDropdownToggle = useCallback(() => {
@@ -4963,7 +4983,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           {exportMenuOpen && (
             <div
               role="menu"
-              className="absolute top-full right-0 mt-1 w-44 max-w-[calc(100cqw-1rem)] bg-elevated border border-strong rounded-md shadow-xl z-50 flex flex-col py-1 overflow-hidden"
+              className="absolute top-full right-0 mt-1 min-w-44 w-max max-w-[calc(100cqw-1rem)] bg-elevated border border-strong rounded-md shadow-xl z-50 flex flex-col py-1 overflow-hidden"
             >
               <button
                 role="menuitem"
@@ -4982,6 +5002,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                 <FileJson size={14} className="shrink-0 opacity-80" />
                 <span className="flex-1">JSON</span>
                 <span className="text-xs text-muted">.json</span>
+              </button>
+              <button
+                role="menuitem"
+                onClick={handleExportNDJSON}
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap"
+              >
+                <FileJson size={14} className="shrink-0 opacity-80" />
+                <span className="flex-1">{t("editor.exportLoadedNdjson")}</span>
+                <span className="text-xs text-muted">.ndjson</span>
               </button>
               <button
                 role="menuitem"

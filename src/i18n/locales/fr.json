@@ -1583,6 +1583,7 @@
     "exporting": "Exportation...",
     "rowsProcessed": "Lignes traitées",
     "exportLoadedRowsWarning": "Seules {{loaded}} lignes chargées sur {{total}} lignes au total ont été exportées. Parcourez les pages du résultat ou exécutez une requête plus restrictive avant d'exporter si vous avez besoin de plus de lignes.",
+    "exportLoadedNdjson": "Exporter les lignes chargées en NDJSON…",
     "queryParameters": "Paramètres de requête",
     "formatSql": "Formater SQL",
     "selectCurrentStatement": "Sélectionner l’instruction actuelle",

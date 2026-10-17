@@ -1574,6 +1574,7 @@
     "exporting": "Nag-e-export...",
     "rowsProcessed": "Mga Row na Naproseso",
     "exportLoadedRowsWarning": "{{loaded}} lang na na-load na row ang na-export mula sa kabuuang {{total}} row. Mag-page sa resulta o magpatakbo ng mas makitid na query bago mag-export kung kailangan mo ng mas maraming row.",
+    "exportLoadedNdjson": "I-export ang mga na-load na row bilang NDJSON…",
     "queryParameters": "Mga Parameter ng Query",
     "formatSql": "I-format ang SQL",
     "selectCurrentStatement": "Piliin ang kasalukuyang statement",
