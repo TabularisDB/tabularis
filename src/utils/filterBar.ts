@@ -484,11 +484,36 @@ export interface DistinctValue {
 const NON_PICKABLE_TYPES = ["blob", "bytea", "binary", "json", "image"];
 
 /**
+ * Nested and repeated container types, written the way engines with
+ * parameterized types report them: `ARRAY<INT64>`, `STRUCT<a STRING>`,
+ * `MAP<STRING, INT>`, a bare `STRUCT` / `RECORD`, or a `REPEATED` field.
+ * A bare `ARRAY` (how PostgreSQL reports `int[]`) is not matched: those
+ * arrays support `=` and `GROUP BY`.
+ */
+const NESTED_TYPE_PATTERNS: readonly RegExp[] = [
+  /^\s*(?:array|struct|map)\s*</i,
+  /^\s*(?:struct|record)\s*$/i,
+  /\brepeated\b/i,
+];
+
+/**
+ * True for nested / repeated column types (arrays, structs, records, maps
+ * with element types). Many engines can't group, `COUNT(DISTINCT …)` or
+ * compare them with `=`, and their values don't read as a list entry.
+ */
+export function isNestedColumnType(dataType: string | null | undefined): boolean {
+  const type = dataType ?? "";
+  return NESTED_TYPE_PATTERNS.some((re) => re.test(type));
+}
+
+/**
  * True when the value picker makes sense for a column of this type.
- * BLOB / binary and JSON columns are excluded: their values are neither
- * readable in a list nor comparable with `=` on every dialect.
+ * BLOB / binary, JSON and nested (array / struct / record) columns are
+ * excluded: their values are neither readable in a list nor comparable
+ * with `=` on every dialect.
  */
 export function isValuePickerSupported(dataType: string): boolean {
+  if (isNestedColumnType(dataType)) return false;
   const lower = dataType.toLowerCase();
   return !NON_PICKABLE_TYPES.some((t) => lower.includes(t));
 }
