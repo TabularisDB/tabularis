@@ -1163,11 +1163,16 @@ async fn tool_run_query(
 
     audit.connection_id = Some(conn_id.to_string());
     audit.query = Some(query.to_string());
-    let kind = ai_activity::classify_query_kind(query);
-    audit.query_kind = Some(kind.to_string());
+    // Dialect-agnostic first, so the audit entry has a kind even when the
+    // connection cannot be resolved; refined below once the driver's
+    // `sql_dialect` is known.
+    audit.query_kind = Some(ai_activity::classify_query_kind(query).to_string());
 
     let (conn, mut db_params, driver) =
         resolve_db_driver(conn_id, config.active_external_drivers.as_deref()).await?;
+    let dialect = driver.manifest().capabilities.sql_dialect;
+    let kind = ai_activity::classify_query_kind_for_dialect(query, dialect);
+    audit.query_kind = Some(kind.to_string());
     audit.connection_name = Some(conn.name.clone());
     let database = database_arg(args);
     audit.database = database.map(str::to_string);
@@ -1280,7 +1285,8 @@ async fn tool_run_query(
                         // payload) and slip past the gate that runs against
                         // the *original* query above.
                         effective_query = edited.to_string();
-                        let new_kind = ai_activity::classify_query_kind(&effective_query);
+                        let new_kind =
+                            ai_activity::classify_query_kind_for_dialect(&effective_query, dialect);
                         audit.query = Some(effective_query.clone());
                         audit.query_kind = Some(new_kind.to_string());
 
