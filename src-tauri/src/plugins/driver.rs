@@ -1624,6 +1624,38 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    /// Optional RPC: a -32601 (or a `null` result) keeps the host's generic
+    /// `DROP TABLE`. `database` is the browsed database, also present in
+    /// `params.database`, sent on its own for convenience.
+    async fn get_drop_table_sql(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Option<String>, String> {
+        let params = self.with_primary_database(params);
+        let database = params.database.primary().to_string();
+        let res = self
+            .process
+            .call_detailed(
+                "get_drop_table_sql",
+                json!({
+                    "params": params,
+                    "table": table,
+                    "schema": schema,
+                    "database": (!database.is_empty()).then_some(database),
+                }),
+            )
+            .await;
+        match res {
+            Ok(value) => serde_json::from_value::<Option<String>>(value)
+                .map(|sql| sql.filter(|s| !s.trim().is_empty()))
+                .map_err(|e| format!("Invalid drop table statement: {e}")),
+            Err(e) if is_method_not_found(&e) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+
     /// Not yet part of the plugin RPC protocol — a plugin that hasn't added a
     /// `get_table_ddl` handler surfaces this as a clear "method not
     /// implemented" error from `self.process.call`, rather than the

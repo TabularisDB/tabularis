@@ -985,6 +985,18 @@ pub trait DatabaseDriver: Send + Sync {
         Err("DDL generation not supported".into())
     }
 
+    /// Statement that drops `table`, for engines where a plain `DROP TABLE`
+    /// is wrong for some table kinds (snapshots, external tables, ...).
+    /// `None` means the host builds its generic `DROP TABLE`.
+    async fn get_drop_table_sql(
+        &self,
+        _params: &ConnectionParams,
+        _table: &str,
+        _schema: Option<&str>,
+    ) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+
     /// Returns the DDL (e.g. `CREATE TABLE ...`) for an *existing* table, as
     /// used by `dump_database` to write a schema-preserving dump. Distinct
     /// from `get_create_table_sql`, which generates a brand-new statement

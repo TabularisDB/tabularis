@@ -145,3 +145,77 @@ fn column_comments_capability_is_opt_in_and_omitted_when_false() {
     let capabilities: DriverCapabilities = serde_json::from_value(enabled).unwrap();
     assert!(capabilities.column_comments);
 }
+
+fn method_not_found(method: &str) -> PluginCallError {
+    PluginCallError::Remote(crate::plugins::rpc::JsonRpcError {
+        code: -32601,
+        message: format!("Method not found: {method}"),
+    })
+}
+
+#[tokio::test]
+async fn drop_table_sql_forwards_table_schema_database_and_params() {
+    let driver = test_driver(|request| {
+        assert_eq!(request.method, "get_drop_table_sql");
+        assert_eq!(request.params["table"], "daily_snapshot");
+        assert_eq!(request.params["schema"], "sales");
+        assert_eq!(request.params["database"], "analytics-project");
+        assert_bound(&request);
+        json!("DROP SNAPSHOT TABLE `analytics-project.sales.daily_snapshot`")
+    });
+    let sql = driver
+        .get_drop_table_sql(&browsed_params(), "daily_snapshot", Some("sales"))
+        .await
+        .unwrap();
+    assert_eq!(
+        sql.as_deref(),
+        Some("DROP SNAPSHOT TABLE `analytics-project.sales.daily_snapshot`")
+    );
+}
+
+#[tokio::test]
+async fn drop_table_sql_falls_back_when_plugin_lacks_the_rpc() {
+    let driver = test_driver_detailed(|request| Err(method_not_found(&request.method)));
+    let sql = driver
+        .get_drop_table_sql(&browsed_params(), "t", None)
+        .await
+        .unwrap();
+    assert_eq!(sql, None);
+}
+
+#[tokio::test]
+async fn drop_table_sql_treats_null_or_blank_results_as_fallback() {
+    for reply in [json!(null), json!("   ")] {
+        let driver = test_driver(move |_| reply.clone());
+        let sql = driver
+            .get_drop_table_sql(&browsed_params(), "t", None)
+            .await
+            .unwrap();
+        assert_eq!(sql, None);
+    }
+}
+
+#[tokio::test]
+async fn drop_table_sql_surfaces_other_plugin_errors() {
+    let driver = test_driver_detailed(|_| {
+        Err(PluginCallError::Remote(crate::plugins::rpc::JsonRpcError {
+            code: -32000,
+            message: "table not found".into(),
+        }))
+    });
+    let err = driver
+        .get_drop_table_sql(&browsed_params(), "t", None)
+        .await
+        .unwrap_err();
+    assert!(err.contains("table not found"), "{err}");
+}
+
+#[tokio::test]
+async fn built_in_default_has_no_drop_table_override() {
+    let driver = crate::drivers::sqlite::SqliteDriver::new();
+    let sql = driver
+        .get_drop_table_sql(&ConnectionParams::default(), "t", None)
+        .await
+        .unwrap();
+    assert_eq!(sql, None);
+}

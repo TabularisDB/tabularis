@@ -1599,6 +1599,25 @@ to a generic `CREATE PROCEDURE`/`CREATE FUNCTION` skeleton.
 
 ---
 
+#### `get_drop_table_sql`
+
+Optional. Returns the statement the explorer runs when the user drops a table,
+for engines where a plain `DROP TABLE` is wrong for some table kinds (for
+example `DROP SNAPSHOT TABLE` or `DROP EXTERNAL TABLE`). `database` is the
+database the user is browsing (also applied to `params.database`), or `null`.
+
+**Params:** `{ "params": ConnectionParams, "table": string, "schema": string | null, "database": string | null }`
+
+**Result:** ``"DROP SNAPSHOT TABLE `project.dataset.daily`"``
+
+Return `null` (or a `-32601` Method not found error) to let Tabularis build its
+generic `DROP TABLE <quoted schema>.<quoted table>` with your
+`identifier_quote`. Any other error is shown to the user and nothing is
+executed. Built-in drivers never receive this call. No capability flag is
+needed; older hosts never call it.
+
+---
+
 #### `drop_index`
 
 **Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "index_name": string }`

@@ -701,6 +701,7 @@ pub fn run() {
             commands::get_alter_column_sql,
             commands::get_create_index_sql,
             commands::get_create_foreign_key_sql,
+            commands::get_drop_table_sql,
             commands::drop_index_action,
             commands::drop_foreign_key_action,
             // Routines
