@@ -1895,6 +1895,8 @@
   "modifyColumn": {
     "titleAdd": "カラムを追加",
     "titleEdit": "カラムを変更",
+    "comment": "説明",
+    "commentPlaceholder": "列の説明（任意）",
     "sqliteWarn": "SQLite はカラムの名前変更のみサポートします。その他の変更にはテーブルの再作成が必要です。",
     "name": "名前",
     "type": "タイプ",

@@ -26,6 +26,13 @@ export function supportsAlterColumn(
   return capabilities?.alter_column === true;
 }
 
+/** The driver's DDL builders accept a column description (ColumnDefinition.comment). */
+export function supportsColumnComments(
+  capabilities?: DriverCapabilities | null,
+): boolean {
+  return capabilities?.column_comments === true;
+}
+
 export function supportsCreateForeignKeys(
   capabilities?: DriverCapabilities | null,
 ): boolean {

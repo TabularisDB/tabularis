@@ -9,6 +9,7 @@ fn column(name: &str) -> ColumnDefinition {
         is_pk: false,
         is_auto_increment: false,
         default_value: None,
+        comment: None,
     }
 }
 
@@ -102,4 +103,45 @@ async fn bound_driver_keeps_manifest_and_metadata_flag() {
     let bound = driver.bind_connection_params(&browsed_params()).unwrap();
     assert_eq!(bound.manifest().id, "test-plugin");
     assert!(bound.has_connection_metadata());
+}
+
+#[tokio::test]
+async fn column_comment_reaches_the_plugin_only_when_set() {
+    let driver = test_driver(|request| {
+        assert!(request.params["old_column"].get("comment").is_none());
+        assert_eq!(request.params["new_column"]["comment"], "Primary contact");
+        json!(["ALTER TABLE t ALTER COLUMN c SET OPTIONS (description = 'Primary contact')"])
+    });
+    let mut described = column("c");
+    described.comment = Some("Primary contact".into());
+    driver
+        .get_alter_column_sql("t", column("c"), described, None)
+        .await
+        .unwrap();
+}
+
+#[test]
+fn legacy_column_payload_without_comment_still_deserializes() {
+    let parsed: ColumnDefinition = serde_json::from_value(json!({
+        "name": "c", "data_type": "INT", "is_nullable": true, "is_pk": false,
+        "is_auto_increment": false, "default_value": null
+    }))
+    .unwrap();
+    assert_eq!(parsed.comment, None);
+}
+
+#[test]
+fn column_comments_capability_is_opt_in_and_omitted_when_false() {
+    use crate::drivers::driver_trait::DriverCapabilities;
+    let legacy = json!({ "schemas": true, "views": true, "routines": false, "file_based": false });
+    let capabilities: DriverCapabilities = serde_json::from_value(legacy.clone()).unwrap();
+    assert!(!capabilities.column_comments);
+    assert!(serde_json::to_value(&capabilities)
+        .unwrap()
+        .get("column_comments")
+        .is_none());
+    let mut enabled = legacy;
+    enabled["column_comments"] = json!(true);
+    let capabilities: DriverCapabilities = serde_json::from_value(enabled).unwrap();
+    assert!(capabilities.column_comments);
 }

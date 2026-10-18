@@ -3,6 +3,7 @@ import {
   isLocalDriver,
   supportsAlterColumn,
   supportsCreateForeignKeys,
+  supportsColumnComments,
   supportsExplain,
   supportsInMemoryDatabase,
   findDriverManifest,
@@ -81,6 +82,22 @@ describe('driverCapabilities', () => {
 
     it('should return false when capabilities are undefined', () => {
       expect(supportsAlterColumn(undefined)).toBe(false);
+    });
+  });
+
+  describe('supportsColumnComments', () => {
+    it('should return true only when a plugin opts into column_comments', () => {
+      expect(supportsColumnComments(makeCapabilities({ column_comments: true, identifier_quote: '`' }))).toBe(true);
+    });
+
+    it('should return false when column_comments is false or missing', () => {
+      expect(supportsColumnComments(makeCapabilities({ column_comments: false }))).toBe(false);
+      expect(supportsColumnComments(makeCapabilities())).toBe(false);
+    });
+
+    it('should return false when capabilities are null or undefined', () => {
+      expect(supportsColumnComments(null)).toBe(false);
+      expect(supportsColumnComments(undefined)).toBe(false);
     });
   });
 

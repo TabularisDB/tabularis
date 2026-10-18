@@ -227,6 +227,38 @@ describe('columnTypes utils', () => {
       });
       expect(result.data_type).toBe('NUMERIC(10,2)');
     });
+
+    it('should include a trimmed comment when one is given', () => {
+      const result = buildColumnDefinition({
+        name: 'email',
+        type: 'STRING',
+        isNullable: true,
+        isPk: false,
+        isAutoInc: false,
+        comment: '  Primary contact  ',
+      });
+      expect(result).toHaveProperty('comment', 'Primary contact');
+    });
+
+    it('should omit the comment key when it is blank or missing', () => {
+      const blank = buildColumnDefinition({
+        name: 'email',
+        type: 'STRING',
+        isNullable: true,
+        isPk: false,
+        isAutoInc: false,
+        comment: '   ',
+      });
+      const missing = buildColumnDefinition({
+        name: 'email',
+        type: 'STRING',
+        isNullable: true,
+        isPk: false,
+        isAutoInc: false,
+      });
+      expect('comment' in blank).toBe(false);
+      expect('comment' in missing).toBe(false);
+    });
   });
 
   describe('getRequiredExtensions', () => {

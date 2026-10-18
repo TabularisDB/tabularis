@@ -1884,6 +1884,8 @@
   "modifyColumn": {
     "titleAdd": "Spalte hinzufügen",
     "titleEdit": "Spalte ändern",
+    "comment": "Beschreibung",
+    "commentPlaceholder": "Optionale Spaltenbeschreibung",
     "sqliteWarn": "SQLite unterstützt nur das Umbenennen von Spalten. Andere Änderungen erfordern, dass die Tabelle manuell neu erstellt wird.",
     "name": "Name",
     "type": "Typ",

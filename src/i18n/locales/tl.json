@@ -1914,6 +1914,8 @@
   "modifyColumn": {
     "titleAdd": "Magdagdag ng Column",
     "titleEdit": "Baguhin ang Column",
+    "comment": "Paglalarawan",
+    "commentPlaceholder": "Opsyonal na paglalarawan ng column",
     "sqliteWarn": "Ang SQLite ay sumusuporta lamang sa pagpapalit ng pangalan ng column. Ang ibang pagbabago ay nangangailangan ng manual na pag-recreate ng table.",
     "name": "Pangalan",
     "type": "Uri",

@@ -1944,6 +1944,8 @@
   "modifyColumn": {
     "titleAdd": "Aggiungi Colonna",
     "titleEdit": "Modifica Colonna",
+    "comment": "Descrizione",
+    "commentPlaceholder": "Descrizione facoltativa della colonna",
     "sqliteWarn": "SQLite supporta solo la rinomina delle colonne. Altre modifiche richiedono la ricreazione manuale della tabella.",
     "name": "Nome",
     "type": "Tipo",

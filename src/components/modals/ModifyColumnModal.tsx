@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useId } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Save, Loader2, AlertTriangle, Columns, Plus } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
@@ -8,7 +8,7 @@ import { useDataTypes } from "../../hooks/useDataTypes";
 import { useDrivers } from "../../hooks/useDrivers";
 import { Modal } from "../ui/Modal";
 import { Select } from "../ui/Select";
-import { supportsAlterColumn } from "../../utils/driverCapabilities";
+import { supportsAlterColumn, supportsColumnComments } from "../../utils/driverCapabilities";
 import { parseColumnType, buildColumnDefinition } from "../../utils/columnTypes";
 import type { ColumnFormData } from "../../utils/columnTypes";
 
@@ -32,6 +32,7 @@ interface ModifyColumnModalProps {
     is_nullable: boolean;
     is_pk: boolean;
     is_auto_increment: boolean;
+    comment?: string | null;
   } | null;
 }
 
@@ -55,6 +56,8 @@ export const ModifyColumnModal = ({
   const driverCapabilities = connectionDataMap[connectionId]?.capabilities ?? driverManifest?.capabilities ?? null;
   const canAlterPk = driverCapabilities?.alter_primary_key !== false;
   const canAlterColumn = supportsAlterColumn(driverCapabilities);
+  const canComment = supportsColumnComments(driverCapabilities);
+  const commentInputId = useId();
   const isEdit = !!column;
 
   const availableTypes = useMemo(
@@ -73,6 +76,7 @@ export const ModifyColumnModal = ({
         defaultValue: "",
         isPk: column.is_pk || false,
         isAutoInc: column.is_auto_increment || false,
+        comment: canComment ? column.comment ?? "" : undefined,
       };
     }
     return {
@@ -83,8 +87,9 @@ export const ModifyColumnModal = ({
       defaultValue: "",
       isPk: false,
       isAutoInc: false,
+      comment: canComment ? "" : undefined,
     };
-  }, [column, availableTypes]);
+  }, [column, availableTypes, canComment]);
 
   const [form, setForm] = useState<ColumnDef>(initial);
   const [loading, setLoading] = useState(false);
@@ -116,6 +121,7 @@ export const ModifyColumnModal = ({
           defaultValue: "",
           isPk: column!.is_pk,
           isAutoInc: column!.is_auto_increment,
+          comment: canComment ? column!.comment ?? "" : undefined,
         });
         const newCol = buildColumnDefinition(form);
         stmts = await invoke<string[]>("get_alter_column_sql", {
@@ -140,7 +146,7 @@ export const ModifyColumnModal = ({
     } catch (e) {
       setSqlPreview("-- " + String(e));
     }
-  }, [form, isEdit, column, connectionId, tableName, activeSchema, database, availableTypes, t]);
+  }, [form, isEdit, column, connectionId, tableName, activeSchema, database, availableTypes, canComment, t]);
 
   // Debounced preview generation
   useEffect(() => {
@@ -167,6 +173,7 @@ export const ModifyColumnModal = ({
           defaultValue: "",
           isPk: column!.is_pk,
           isAutoInc: column!.is_auto_increment,
+          comment: canComment ? column!.comment ?? "" : undefined,
         });
         const newCol = buildColumnDefinition(form);
         stmts = await invoke<string[]>("get_alter_column_sql", {
@@ -318,6 +325,25 @@ export const ModifyColumnModal = ({
               />
             </div>
           </div>
+
+          {canComment && (
+            <div>
+              <label
+                htmlFor={commentInputId}
+                className="block text-xs uppercase font-bold text-muted mb-1"
+              >
+                {t("modifyColumn.comment")}
+              </label>
+              <input autoCorrect="off" autoComplete="off"
+                id={commentInputId}
+                value={form.comment ?? ""}
+                onChange={(e) => setForm({ ...form, comment: e.target.value })}
+                disabled={!canAlterColumn && isEdit}
+                className="w-full bg-base border border-strong rounded p-2 text-primary text-sm focus:border-focus outline-none disabled:opacity-50"
+                placeholder={t("modifyColumn.commentPlaceholder")}
+              />
+            </div>
+          )}
 
           <div className="flex gap-6 mt-2">
             <div className="flex items-center gap-2">

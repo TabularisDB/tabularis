@@ -122,6 +122,10 @@ pub struct DriverCapabilities {
     /// Omitted/false preserves the host's existing template generation.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub table_query_templates: bool,
+    /// The DDL builders honour `ColumnDefinition::comment`, so the column
+    /// editor shows a description field. Omitted/false hides it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub column_comments: bool,
     // DDL capabilities
     /// Supports ALTER TABLE MODIFY/ALTER COLUMN on existing tables.
     #[serde(default)]

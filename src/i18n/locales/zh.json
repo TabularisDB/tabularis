@@ -1842,6 +1842,8 @@
   "modifyColumn": {
     "titleAdd": "添加列",
     "titleEdit": "修改列",
+    "comment": "描述",
+    "commentPlaceholder": "可选的列描述",
     "sqliteWarn": "SQLite 仅支持重命名列。其他修改需要手动重建表。",
     "name": "名称",
     "type": "类型",

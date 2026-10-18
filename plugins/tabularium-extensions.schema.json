@@ -120,6 +120,11 @@
           "default": false,
           "description": "Generate SQL SELECT/UPDATE/DELETE previews through the optional get_table_query_template RPC."
         },
+        "column_comments": {
+          "type": "boolean",
+          "default": false,
+          "description": "The DDL builder RPCs honour ColumnDefinition.comment, so the column editor shows a description field."
+        },
         "no_connection_required": {
           "type": "boolean",
           "description": "API-based driver with no host/port/credentials. Hides the connection form entirely."

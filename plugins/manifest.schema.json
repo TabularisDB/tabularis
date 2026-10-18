@@ -191,6 +191,11 @@
           "default": false,
           "description": "Generate SQL SELECT/UPDATE/DELETE previews through the optional get_table_query_template RPC."
         },
+        "column_comments": {
+          "type": "boolean",
+          "default": false,
+          "description": "The DDL builder RPCs honour ColumnDefinition.comment, so the column editor shows a description field."
+        },
         "alter_column": {
           "type": "boolean",
           "default": false,
