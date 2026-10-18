@@ -42,6 +42,14 @@ describe("sqlLiteral", () => {
       expect(stringEscapeStyle(invalid)).toBe("mysql");
     });
 
+    it("falls back to the driver id when no dialect is declared", () => {
+      expect(stringEscapeStyle(caps(), "mariadb")).toBe("mysql");
+      expect(stringEscapeStyle(caps("generic"), "mysql")).toBe("mysql");
+      expect(stringEscapeStyle(caps(), "informix")).toBe("standard");
+      // A concrete dialect decides over the id.
+      expect(stringEscapeStyle(caps("postgres"), "mariadb")).toBe("standard");
+    });
+
     it("falls back to the manifest id when no dialect is declared", () => {
       expect(stringEscapeStyle({ id: "mariadb", capabilities: caps() } as PluginManifest))
         .toBe("mysql");
@@ -65,6 +73,7 @@ describe("sqlLiteral", () => {
       expect(quoteSqlString("", GOOGLESQL_CAPS)).toBe("''");
       expect(quoteSqlStringWithStyle("a'\\", "backslash")).toBe("'a\\'\\\\'");
     });
+
   });
 
   describe("supportsLikeEscape", () => {

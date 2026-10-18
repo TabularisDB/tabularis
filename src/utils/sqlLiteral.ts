@@ -5,21 +5,32 @@ export type { StringEscapeStyle } from "./sqlSyntax";
 
 type DriverRef = string | PluginManifest | DriverCapabilities | null | undefined;
 
+/** Driver ids whose literals were MySQL-escaped before capabilities existed. */
+const MYSQL_ESCAPE_DRIVER_IDS = new Set(["mysql", "mariadb"]);
+
 /**
  * Resolves the string-literal escape style of a driver from its resolved SQL
- * syntax (`sql_syntax.string_escape`, else the `sql_dialect` preset). A bare
- * driver id, or capabilities that declare neither, only know the built-in
- * MySQL/MariaDB ids.
+ * syntax (`sql_syntax.string_escape`, else the `sql_dialect` preset).
+ *
+ * When nothing concrete is declared (a bare driver id, or capabilities with
+ * no `sql_syntax` and no or a `generic` `sql_dialect`), only the built-in
+ * MySQL/MariaDB ids are known, read from `driverId` or the manifest's `id`.
+ * That keeps a `mariadb` plugin without a dialect doubling backslashes as it
+ * did before capabilities were consulted.
  */
-export function stringEscapeStyle(driver: DriverRef): StringEscapeStyle {
-  if (typeof driver === "string") {
-    return driver === "mysql" || driver === "mariadb" ? "mysql" : "standard";
-  }
-  if (!driver) return "standard";
+export function stringEscapeStyle(
+  driver: DriverRef,
+  driverId?: string | null,
+): StringEscapeStyle {
+  const byId = (id: string | null | undefined): StringEscapeStyle =>
+    id && MYSQL_ESCAPE_DRIVER_IDS.has(id) ? "mysql" : "standard";
+  if (typeof driver === "string") return byId(driver);
+  if (!driver) return byId(driverId);
   const caps = "capabilities" in driver ? driver.capabilities : driver;
-  if (caps?.sql_dialect || caps?.sql_syntax) return resolveSqlSyntax(caps).stringEscape;
-  const id = "id" in driver ? driver.id : undefined;
-  return id === "mysql" || id === "mariadb" ? "mysql" : "standard";
+  const declared =
+    !!caps?.sql_syntax || (!!caps?.sql_dialect && caps.sql_dialect !== "generic");
+  if (declared) return resolveSqlSyntax(caps).stringEscape;
+  return byId(driverId ?? ("id" in driver ? driver.id : undefined));
 }
 
 /**

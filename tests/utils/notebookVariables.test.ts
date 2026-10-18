@@ -7,7 +7,7 @@ import {
   variableOptionsForDriver,
 } from "../../src/utils/notebookVariables";
 import type { NotebookCell } from "../../src/types/notebook";
-import type { DriverCapabilities } from "../../src/types/plugins";
+import type { DriverCapabilities, PluginManifest } from "../../src/types/plugins";
 import { GOOGLESQL_CAPS } from "../fixtures/sql-syntax/googlesql";
 
 function makeCell(overrides: Partial<NotebookCell> = {}): NotebookCell {
@@ -508,6 +508,58 @@ describe("notebookVariables", () => {
       expect(
         variableOptionsForDriver(caps({ identifier_quote: "`", sql_dialect: "generic" })),
       ).toEqual({ escapeBackslashes: false, identifierQuote: "`" });
+    });
+
+    it("should keep the driver-id escaping when capabilities name no dialect", () => {
+      // A `mariadb` plugin without sql_dialect: main escaped by id, so the
+      // capabilities must not make it weaker.
+      expect(variableOptionsForDriver(caps({ identifier_quote: "`" }), "mariadb")).toEqual({
+        escapeBackslashes: true,
+        identifierQuote: "`",
+      });
+      expect(
+        variableOptionsForDriver(caps({ identifier_quote: "`", sql_dialect: "generic" }), "mysql"),
+      ).toEqual({ escapeBackslashes: true, identifierQuote: "`" });
+      expect(variableOptionsForDriver(caps({}), "informix")).toEqual({
+        escapeBackslashes: false,
+        identifierQuote: '"',
+      });
+    });
+
+    it("should let a declared dialect decide over the driver id", () => {
+      expect(
+        variableOptionsForDriver(caps({ sql_dialect: "postgres" }), "mariadb"),
+      ).toEqual({ escapeBackslashes: false, identifierQuote: '"' });
+      expect(
+        variableOptionsForDriver(caps({ sql_dialect: "mysql", identifier_quote: "`" }), "custom"),
+      ).toEqual({ escapeBackslashes: true, identifierQuote: "`" });
+    });
+
+    it("should read the id from a plugin manifest", () => {
+      const manifest = {
+        id: "mariadb",
+        capabilities: caps({ identifier_quote: "`" }),
+      } as unknown as PluginManifest;
+      expect(variableOptionsForDriver(manifest).escapeBackslashes).toBe(true);
+    });
+
+    it("should double backslashes in the CTE for a dialect-less mariadb plugin", () => {
+      const cells = [
+        makeCell({
+          id: "c1",
+          result: {
+            columns: ["v"],
+            rows: [["a\\"]],
+            affected_rows: 0,
+          } as NotebookCell["result"],
+        }),
+      ];
+      const { sql } = resolveQueryVariables(
+        "SELECT * FROM {{cell_1}}",
+        cells,
+        variableOptionsForDriver(caps({ identifier_quote: "`" }), "mariadb"),
+      );
+      expect(sql).toContain("'a\\\\' AS `v`");
     });
 
     it("should fall back to builtin rules for a bare driver id", () => {

@@ -1,7 +1,7 @@
 import type { NotebookCell } from "../types/notebook";
 import type { QueryResult } from "../types/editor";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { getQuoteChar, isMysqlDialect } from "./identifiers";
+import { getQuoteChar } from "./identifiers";
 import { quoteSqlStringWithStyle, stringEscapeStyle } from "./sqlLiteral";
 
 const CELL_REF_PATTERN = /\{\{cell_(\d+)\}\}/g;
@@ -158,17 +158,25 @@ export interface ResolveVariablesOptions {
 
 /**
  * Variable-resolution options for the active driver, read from its
- * capabilities (`identifier_quote`, `sql_dialect`) so plugin drivers get
- * column aliases and string literals their dialect accepts. A bare driver id
- * falls back to the builtin MySQL/MariaDB rules.
+ * capabilities (`identifier_quote`, and the resolved `sql_syntax` /
+ * `sql_dialect` literal style) so plugin drivers get column aliases and
+ * string literals their dialect accepts.
+ *
+ * `driverId` is the active driver id. When the capabilities declare neither
+ * `sql_syntax` nor a concrete `sql_dialect`, the id-based rule used before
+ * capabilities existed still applies, so a `mariadb` plugin without a
+ * dialect keeps doubling backslashes; dropping that would let a value ending
+ * in `\` escape its closing quote on a MySQL-family engine.
  */
 export function variableOptionsForDriver(
   driver: string | PluginManifest | DriverCapabilities | null | undefined,
+  driverId?: string | null,
 ): ResolveVariablesOptions {
+  const style = stringEscapeStyle(driver, driverId);
   return {
-    escapeBackslashes: isMysqlDialect(driver) || driver === "mariadb",
+    escapeBackslashes: style !== "standard",
     identifierQuote: getQuoteChar(driver),
-    ...(stringEscapeStyle(driver) === "backslash" ? { backslashLiterals: true } : {}),
+    ...(style === "backslash" ? { backslashLiterals: true } : {}),
   };
 }
 
