@@ -122,6 +122,8 @@ import {
   type ExportStatus,
 } from "../components/modals/ExportProgressModal";
 import { splitQueries, splitStatements, splitBatches, findStatementAtOffset, extractTableName, getExplainableQueries, statementLabel, type Statement } from "../utils/sql";
+import type { DialectInput } from "../utils/sqlSplitter";
+import { resolveSqlSyntax } from "../utils/sqlSyntax";
 import { resolveRunTarget, type RunContext } from "../utils/runTarget";
 import {
   createResultEntries,
@@ -231,7 +233,7 @@ const CHEVRON_SELECT_STYLE: React.CSSProperties = {
 };
 
 // Execution units: one per `GO` batch on T-SQL, one per statement elsewhere.
-function splitBatchQueries(sql: string, dialect: string | undefined): string[] {
+function splitBatchQueries(sql: string, dialect: DialectInput): string[] {
   return splitBatches(sql, dialect).map((statement) => statement.text);
 }
 
@@ -239,7 +241,7 @@ function splitBatchQueries(sql: string, dialect: string | undefined): string[] {
 // "run statement at cursor"), used by both the Run and Explain actions.
 function getStatementAtCursor(
   editor: Parameters<OnMount>[0],
-  dialect: string | undefined,
+  dialect: DialectInput,
   split = splitBatches,
 ): Statement | undefined {
   const model = editor.getModel();
@@ -302,7 +304,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const driverReadonly = isReadonly(activeCapabilities);
   const driverSupportsExplain = supportsExplain(activeCapabilities);
-  const activeDialect = activeCapabilities?.sql_dialect;
+  // The connection's resolved SQL syntax (`sql_dialect` preset plus any
+  // declared `sql_syntax`), passed wherever a dialect is needed. Cached per
+  // capabilities, so it is as stable as the dialect string it replaces.
+  const activeDialect = resolveSqlSyntax(activeCapabilities);
 
   // Editor panes stay mounted (hidden with display:none) so Monaco never
   // remounts. Render them sorted by id, decoupled from the tab-strip order:

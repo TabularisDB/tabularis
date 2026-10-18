@@ -2,7 +2,7 @@ import type { TableColumn } from "../types/editor";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { formatSqlIdentifier, quoteIdentifier, quoteTableRef } from "./identifiers";
 import { formatSqlValueForColumnComparison, isMysqlFloatColumn } from "./foreignKeys";
-import { quoteSqlString, stringEscapeStyle } from "./sqlLiteral";
+import { quoteSqlString, stringEscapeStyle, supportsLikeEscape } from "./sqlLiteral";
 
 
 export type FilterOperator =
@@ -250,10 +250,11 @@ export function buildLiteralLikeClause(
   mode: LikeMatchMode,
   driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string {
-  // GoogleSQL LIKE has no ESCAPE clause: a backslash escapes `%`, `_` and
-  // itself, and the literal then needs its own backslash escaping.
-  const googleSql = stringEscapeStyle(driver) === "bigquery";
-  const escaped = googleSql
+  // A syntax without `LIKE … ESCAPE` (declared `like_escape: false`, e.g.
+  // GoogleSQL) escapes `%`, `_` and backslash itself with a backslash, its
+  // default LIKE escape; the literal then gets the syntax's own escaping.
+  const noEscapeClause = !supportsLikeEscape(driver);
+  const escaped = noEscapeClause
     ? value.replace(/[\\%_]/g, (ch) => `\\${ch}`)
     : escapeLikePattern(value);
   let pattern: string;
@@ -264,7 +265,7 @@ export function buildLiteralLikeClause(
   } else {
     pattern = `%${escaped}`;
   }
-  if (googleSql) return `${col} LIKE ${quoteSqlString(pattern, driver)}`;
+  if (noEscapeClause) return `${col} LIKE ${quoteSqlString(pattern, driver)}`;
   // MySQL/MariaDB (default sql_mode) treat backslash as an escape inside
   // string literals, so a literal backslash must be doubled to survive.
   const literal = usesBackslashStringEscapes(driver)
@@ -306,14 +307,15 @@ function usesBackslashStringEscapes(
 
 /**
  * Always quote a SQL string literal. Doubles embedded single quotes, except
- * on GoogleSQL, which has no doubled-quote escape and uses backslashes.
- * MySQL backslashes are doubled by the caller before this runs.
+ * for a declared `string_escape: "backslash"` syntax (GoogleSQL), which has
+ * no doubled-quote escape. MySQL backslashes are doubled by the caller
+ * before this runs.
  */
 function quoteLiteral(
   value: string,
   driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string {
-  if (stringEscapeStyle(driver) === "bigquery") return quoteSqlString(value, driver);
+  if (stringEscapeStyle(driver) === "backslash") return quoteSqlString(value, driver);
   return `'${value.replace(/'/g, "''")}'`;
 }
 
@@ -361,9 +363,10 @@ function quoteIfNeeded(
   // Single-quoted SQL literals are already escaped by the user. For IN lists,
   // interpret double-quoted items as values; other operators keep their
   // existing identifier behavior. A pre-quoted literal uses the standard
-  // doubled-quote escape, which GoogleSQL lacks, so it is re-quoted there.
+  // doubled-quote escape, which a backslash-escape syntax lacks, so it is
+  // re-quoted there.
   if (value.startsWith("'") && value.endsWith("'")) {
-    return stringEscapeStyle(driver) === "bigquery" && value.length >= 2
+    return stringEscapeStyle(driver) === "backslash" && value.length >= 2
       ? quoteLiteral(value.slice(1, -1).replace(/''/g, "'"), driver)
       : value;
   }

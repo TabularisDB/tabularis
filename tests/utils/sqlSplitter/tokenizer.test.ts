@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { scanToken, type TokenizerState } from '../../../src/utils/sqlSplitter/tokenizer';
 import { dialectOptions } from '../../../src/utils/sqlSplitter';
+import { GOOGLESQL } from '../../fixtures/sql-syntax/googlesql';
 
 const PG = dialectOptions('postgres');
 const MY = dialectOptions('mysql');
 const MS = dialectOptions('mssql');
 const OR = dialectOptions('oracle');
-const BQ = dialectOptions('bigquery');
+// GoogleSQL as a plugin declares it: the `sql_syntax` descriptor fixture.
+const BQ = GOOGLESQL.options;
 
 const freshState = (): TokenizerState => ({ delimiter: ';', lineLeading: true });
 
@@ -196,7 +198,7 @@ describe('scanToken', () => {
     });
   });
 
-  describe('bigquery strings and identifiers', () => {
+  describe('GoogleSQL descriptor strings and identifiers', () => {
     it('scans a single-quoted string with a backslash-escaped quote', () => {
       const src = "'it\\'s;' x";
       expect(scanToken(src, 0, BQ, freshState())).toEqual({

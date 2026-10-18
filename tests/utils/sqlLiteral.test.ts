@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { quoteSqlString, stringEscapeStyle } from "../../src/utils/sqlLiteral";
+import {
+  quoteSqlString,
+  quoteSqlStringWithStyle,
+  stringEscapeStyle,
+  supportsLikeEscape,
+} from "../../src/utils/sqlLiteral";
+import { GOOGLESQL_CAPS } from "../fixtures/sql-syntax/googlesql";
 import type { DriverCapabilities, PluginManifest } from "../../src/types/plugins";
 
 const caps = (sql_dialect?: DriverCapabilities["sql_dialect"]): DriverCapabilities =>
@@ -17,11 +23,23 @@ describe("sqlLiteral", () => {
     });
 
     it("reads sql_dialect from capabilities and manifests", () => {
-      expect(stringEscapeStyle(caps("bigquery"))).toBe("bigquery");
       expect(stringEscapeStyle(caps("mysql"))).toBe("mysql");
       expect(stringEscapeStyle(caps("postgres"))).toBe("standard");
-      const manifest = { id: "bq", capabilities: caps("bigquery") } as PluginManifest;
-      expect(stringEscapeStyle(manifest)).toBe("bigquery");
+      expect(stringEscapeStyle(caps("generic"))).toBe("standard");
+    });
+
+    it("reads a declared sql_syntax string_escape over the dialect", () => {
+      expect(stringEscapeStyle(GOOGLESQL_CAPS)).toBe("backslash");
+      const manifest = { id: "bq", capabilities: GOOGLESQL_CAPS } as PluginManifest;
+      expect(stringEscapeStyle(manifest)).toBe("backslash");
+      const standardMysql = {
+        ...caps("mysql"),
+        sql_syntax: { string_escape: "standard" },
+      } as DriverCapabilities;
+      expect(stringEscapeStyle(standardMysql)).toBe("standard");
+      // An invalid value keeps the preset's style.
+      const invalid = { ...caps("mysql"), sql_syntax: { string_escape: "mysql" } } as never;
+      expect(stringEscapeStyle(invalid)).toBe("mysql");
     });
 
     it("falls back to the manifest id when no dialect is declared", () => {
@@ -40,11 +58,21 @@ describe("sqlLiteral", () => {
       expect(quoteSqlString("O'Brien \\ x", "mysql")).toBe("'O''Brien \\\\ x'");
     });
 
-    it("backslash-escapes quotes, backslashes and line breaks for bigquery", () => {
-      expect(quoteSqlString("O'Brien \\ x\r\ny", caps("bigquery"))).toBe(
+    it("backslash-escapes quotes, backslashes and line breaks for a backslash syntax", () => {
+      expect(quoteSqlString("O'Brien \\ x\r\ny", GOOGLESQL_CAPS)).toBe(
         "'O\\'Brien \\\\ x\\r\\ny'",
       );
-      expect(quoteSqlString("", caps("bigquery"))).toBe("''");
+      expect(quoteSqlString("", GOOGLESQL_CAPS)).toBe("''");
+      expect(quoteSqlStringWithStyle("a'\\", "backslash")).toBe("'a\\'\\\\'");
+    });
+  });
+
+  describe("supportsLikeEscape", () => {
+    it("is true unless a declared syntax turns it off", () => {
+      for (const driver of ["postgres", "mysql", null, undefined, caps("mysql"), caps()]) {
+        expect(supportsLikeEscape(driver)).toBe(true);
+      }
+      expect(supportsLikeEscape(GOOGLESQL_CAPS)).toBe(false);
     });
   });
 });

@@ -7,6 +7,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../hooks/useAlert";
 import { extractEditableViewDefinition } from "../../utils/sql";
 import { formatSql } from "../../utils/sqlFormat";
+import { resolveSqlSyntax } from "../../utils/sqlSyntax";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import { useDatabase } from "../../hooks/useDatabase";
 import { Modal } from "../ui/Modal";
@@ -90,7 +91,7 @@ export const ViewEditorModal = ({
     // typed within that window would be discarded by the format.
     const current = editorRef.current?.getValue() ?? definition;
     if (!current.trim()) return;
-    setDefinition(formatSql(current, activeCapabilities?.sql_dialect));
+    setDefinition(formatSql(current, resolveSqlSyntax(activeCapabilities)));
   };
 
   const handlePreview = async () => {

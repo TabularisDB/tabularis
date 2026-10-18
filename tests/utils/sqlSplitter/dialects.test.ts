@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { splitQueries } from '../../../src/utils/sqlSplitter';
+import { GOOGLESQL } from '../../fixtures/sql-syntax/googlesql';
 
 describe('dialect canaries', () => {
   it('postgres treats $$ as a string boundary', () => {
@@ -44,9 +45,14 @@ describe('dialect canaries', () => {
     expect(splitQueries('SELECT [a;b] FROM t', 'sqlite')).toHaveLength(1);
   });
 
-  it('bigquery keeps a scripting block and a triple-quoted string whole', () => {
+  it('bigquery is not a host dialect and falls back to generic', () => {
+    const sql = "BEGIN SELECT 1; END";
+    expect(splitQueries(sql, 'bigquery')).toEqual(splitQueries(sql, 'generic'));
+  });
+
+  it('a declared GoogleSQL syntax keeps a scripting block and a triple-quoted string whole', () => {
     const sql = "BEGIN SELECT '''a;b'''; END; SELECT `c;d`";
-    expect(splitQueries(sql, 'bigquery')).toEqual([
+    expect(splitQueries(sql, GOOGLESQL)).toEqual([
       "BEGIN SELECT '''a;b'''; END",
       'SELECT `c;d`',
     ]);

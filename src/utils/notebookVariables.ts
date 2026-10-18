@@ -2,6 +2,7 @@ import type { NotebookCell } from "../types/notebook";
 import type { QueryResult } from "../types/editor";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { getQuoteChar, isMysqlDialect } from "./identifiers";
+import { quoteSqlStringWithStyle, stringEscapeStyle } from "./sqlLiteral";
 
 const CELL_REF_PATTERN = /\{\{cell_(\d+)\}\}/g;
 
@@ -33,15 +34,22 @@ function quoteIdentifier(col: string, quote: string): string {
 }
 
 /**
- * Escape a value as a SQL string literal. Backslashes are doubled only for
+ * Quote a value as a SQL string literal. Backslashes are doubled only for
  * dialects where `\` is an escape character inside strings (MySQL/MariaDB);
  * doubling them unconditionally would corrupt values on standard-conforming
- * databases like PostgreSQL or SQLite.
+ * databases like PostgreSQL or SQLite. A declared `string_escape:
+ * "backslash"` syntax (GoogleSQL) has no doubled-quote escape and gets
+ * backslash escapes instead.
  */
-function escapeStringLiteral(val: string, escapeBackslashes: boolean): string {
+function quoteStringLiteral(
+  val: string,
+  escapeBackslashes: boolean,
+  backslashLiterals: boolean,
+): string {
+  if (backslashLiterals) return quoteSqlStringWithStyle(val, "backslash");
   let escaped = val;
   if (escapeBackslashes) escaped = escaped.replace(/\\/g, "\\\\");
-  return escaped.replace(/'/g, "''");
+  return `'${escaped.replace(/'/g, "''")}'`;
 }
 
 /**
@@ -55,9 +63,10 @@ function resultToCte(
   result: QueryResult,
   alias: string,
   escapeBackslashes: boolean,
+  backslashLiterals: boolean,
   identifierQuote: string,
 ): string {
-  const variantKey = `${escapeBackslashes ? 1 : 0}:${identifierQuote}:${alias}`;
+  const variantKey = `${escapeBackslashes ? 1 : 0}${backslashLiterals ? 1 : 0}:${identifierQuote}:${alias}`;
   let variants = cteCache.get(result);
   const cached = variants?.get(variantKey);
   if (cached !== undefined) return cached;
@@ -78,8 +87,12 @@ function resultToCte(
           if (typeof val === "number" && Number.isFinite(val)) {
             return `${val} AS ${ident}`;
           }
-          const escaped = escapeStringLiteral(String(val), escapeBackslashes);
-          return `'${escaped}' AS ${ident}`;
+          const literal = quoteStringLiteral(
+            String(val),
+            escapeBackslashes,
+            backslashLiterals,
+          );
+          return `${literal} AS ${ident}`;
         })
         .join(", ");
       return `SELECT ${cols}`;
@@ -131,6 +144,12 @@ export interface ResolveVariablesOptions {
   /** Double backslashes in string literals (MySQL/MariaDB dialects). */
   escapeBackslashes?: boolean;
   /**
+   * Backslash-escape quotes, backslashes and line breaks instead of doubling
+   * quotes: a declared `sql_syntax.string_escape: "backslash"` (GoogleSQL).
+   * Takes precedence over `escapeBackslashes`.
+   */
+  backslashLiterals?: boolean;
+  /**
    * Quote for the CTE column aliases: the driver's `identifier_quote`
    * capability. Defaults to `"`.
    */
@@ -149,6 +168,7 @@ export function variableOptionsForDriver(
   return {
     escapeBackslashes: isMysqlDialect(driver) || driver === "mariadb",
     identifierQuote: getQuoteChar(driver),
+    ...(stringEscapeStyle(driver) === "backslash" ? { backslashLiterals: true } : {}),
   };
 }
 
@@ -183,6 +203,7 @@ export function resolveQueryVariables(
           targetCell.result,
           alias,
           options?.escapeBackslashes ?? false,
+          options?.backslashLiterals ?? false,
           options?.identifierQuote || '"',
         ),
       );

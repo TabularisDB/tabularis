@@ -3,6 +3,8 @@ import {
   cleanSqlInvisibleCharacters,
   getSqlInvisibleCharacterEdits,
 } from '../../src/utils/sqlInvisibleCharacters';
+import { resolveSqlSyntax } from '../../src/utils/sqlSyntax';
+import { GOOGLESQL } from '../fixtures/sql-syntax/googlesql';
 
 describe('cleanSqlInvisibleCharacters', () => {
   it('removes invisible characters from SQL code but keeps layout', () => {
@@ -36,7 +38,15 @@ describe('cleanSqlInvisibleCharacters', () => {
   it('keeps GoogleSQL triple-quoted strings, raw strings and # comments intact', () => {
     const sql = "SELECT '''It\u2019s\u200B''', r'a\u200Bb', \u0060x\u200B\u0060 # \u200B\nFROM t\uFF1B";
     const expected = sql.replace('\uFF1B', ';');
-    expect(cleanSqlInvisibleCharacters(sql, 'bigquery')).toBe(expected);
+    expect(cleanSqlInvisibleCharacters(sql, GOOGLESQL)).toBe(expected);
+  });
+
+  it('reads a resolved preset like its dialect name and no dialect as generic', () => {
+    const sql = "SELECT 'a\\'b​', ‘x’";
+    expect(cleanSqlInvisibleCharacters(sql, resolveSqlSyntax({ sql_dialect: 'mysql' } as never)))
+      .toBe(cleanSqlInvisibleCharacters(sql, 'mysql'));
+    expect(cleanSqlInvisibleCharacters(sql, resolveSqlSyntax(null)))
+      .toBe(cleanSqlInvisibleCharacters(sql, 'generic'));
   });
 
   it('reports changes in original document offsets for editor selections', () => {

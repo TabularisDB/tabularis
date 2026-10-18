@@ -1,7 +1,7 @@
 import type * as Monaco from "monaco-editor";
 import {
   splitStatements,
-  type Dialect,
+  type DialectInput,
 } from "./sqlSplitter";
 
 export interface SqlFoldingRange {
@@ -11,10 +11,7 @@ export interface SqlFoldingRange {
 
 const MAX_FOLDABLE_CHARACTERS = 2_000_000;
 const registeredMonacoInstances = new WeakSet<object>();
-const modelDialects = new WeakMap<
-  Monaco.editor.ITextModel,
-  Dialect | string | undefined
->();
+const modelDialects = new WeakMap<Monaco.editor.ITextModel, DialectInput>();
 const foldingChangeListeners = new Set<() => void>();
 
 function lineStarts(source: string): number[] {
@@ -39,7 +36,7 @@ function lineAtOffset(starts: ReadonlyArray<number>, offset: number): number {
 /** Returns one fold for each SQL statement that spans multiple lines. */
 export function getSqlFoldingRanges(
   source: string,
-  dialect?: Dialect | string,
+  dialect?: DialectInput,
 ): SqlFoldingRange[] {
   const starts = lineStarts(source);
   return splitStatements(source, dialect).flatMap((statement) => {
@@ -53,7 +50,7 @@ export function getSqlFoldingRanges(
 export function getSqlQueryAtFoldLine(
   source: string,
   line: number,
-  dialect?: Dialect | string,
+  dialect?: DialectInput,
 ): string | null {
   const starts = lineStarts(source);
   const statement = splitStatements(source, dialect).find((candidate) => {
@@ -71,7 +68,7 @@ export function getSqlQueryAtFoldLine(
 
 export function setSqlFoldingDialect(
   model: Monaco.editor.ITextModel | null,
-  dialect?: Dialect | string,
+  dialect?: DialectInput,
 ): void {
   if (!model || modelDialects.get(model) === dialect) return;
   modelDialects.set(model, dialect);

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { GOOGLESQL_CAPS } from "../fixtures/sql-syntax/googlesql";
 import {
   filterColumnSuggestions,
   getCurrentWordPrefix,
@@ -91,8 +92,9 @@ describe("filter string literals with backslashes", () => {
   });
 });
 
-describe("GoogleSQL (bigquery) filter literals", () => {
-  const bq = { identifier_quote: "`", sql_dialect: "bigquery" } as DriverCapabilities;
+describe("declared GoogleSQL syntax filter literals", () => {
+  // The BigQuery plugin: `mysql` fallback plus the GoogleSQL `sql_syntax`.
+  const bq = GOOGLESQL_CAPS;
   const filter = (value: string, operator: StructuredFilter["operator"] = "="): StructuredFilter => ({
     id: "f", column: "name", operator, value,
   });
@@ -133,9 +135,34 @@ describe("GoogleSQL (bigquery) filter literals", () => {
     );
   });
 
+  it("follows like_escape and string_escape independently", () => {
+    const standardNoEscape = {
+      identifier_quote: '"',
+      sql_dialect: "postgres",
+      sql_syntax: { like_escape: false },
+    } as DriverCapabilities;
+    expect(buildSingleFilterClause(filter("a%'", "contains"), standardNoEscape, "always")).toBe(
+      `"name" LIKE '%a\\%''%'`,
+    );
+    const backslashWithEscape = {
+      identifier_quote: '"',
+      sql_dialect: "postgres",
+      sql_syntax: { string_escape: "backslash" },
+    } as DriverCapabilities;
+    expect(
+      buildSingleFilterClause(filter("a%'", "contains"), backslashWithEscape, "always"),
+    ).toBe(`"name" LIKE '%a!%\\'%' ESCAPE '!'`);
+  });
+
   it("keeps the ESCAPE clause for other dialects", () => {
     expect(buildSingleFilterClause(filter("a%", "contains"), "postgres", "always")).toBe(
       `"name" LIKE '%a!%%' ESCAPE '!'`,
+    );
+    // The mysql fallback alone (an older plugin, or a host that ignores
+    // `sql_syntax`) keeps the MySQL form.
+    const mysqlOnly = { identifier_quote: "`", sql_dialect: "mysql" } as DriverCapabilities;
+    expect(buildSingleFilterClause(filter("a\\%", "contains"), mysqlOnly, "always")).toBe(
+      "`name` LIKE '%a\\\\!%%' ESCAPE '!'",
     );
   });
 });

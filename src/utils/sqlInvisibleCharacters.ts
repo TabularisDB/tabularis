@@ -1,4 +1,4 @@
-import { scanNonCodeSpans, type Dialect } from './sqlSplitter';
+import { isDialect, scanNonCodeSpans, type DialectInput } from './sqlSplitter';
 
 /** A replacement in the original SQL text, using UTF-16 offsets. */
 export interface SqlCharacterCleanupEdit {
@@ -39,14 +39,15 @@ function replacementFor(character: string): string {
  */
 export function getSqlInvisibleCharacterEdits(
   text: string,
-  dialect?: Dialect | string,
+  dialect?: DialectInput,
 ): SqlCharacterCleanupEdit[] {
   // The action is exposed in notebook and modal editors without a dialect.
   // Default to conservative generic parsing rather than mutating SQL literals.
-  const supportedDialects: ReadonlySet<string> = new Set([
-    'postgres', 'mysql', 'mssql', 'sqlite', 'oracle', 'bigquery', 'generic',
-  ]);
-  const cleanupDialect = dialect && supportedDialects.has(dialect) ? dialect : 'generic';
+  const known =
+    typeof dialect === 'object'
+      ? dialect.declared || dialect.dialect !== undefined
+      : isDialect(dialect);
+  const cleanupDialect: DialectInput = known ? dialect : 'generic';
   const nonCodeSpans = scanNonCodeSpans(text, cleanupDialect);
   const edits: SqlCharacterCleanupEdit[] = [];
   let spanIndex = 0;
@@ -70,7 +71,7 @@ export function getSqlInvisibleCharacterEdits(
 /** Clean pasted SQL only when the user runs the editor action. */
 export function cleanSqlInvisibleCharacters(
   text: string,
-  dialect?: Dialect | string,
+  dialect?: DialectInput,
 ): string {
   const edits = getSqlInvisibleCharacterEdits(text, dialect);
   if (edits.length === 0) return text;

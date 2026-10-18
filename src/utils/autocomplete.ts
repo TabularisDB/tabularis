@@ -6,7 +6,7 @@ import { formatSqlIdentifier, getQuoteChar, quoteIdentifier } from "./identifier
 import { getCurrentStatement, parseTablesFromQuery, type ParsedTableRef } from "./sqlAnalysis";
 import { analyzeSqlContext, findStatementScopeEnd, getKeywordRelevance, getSuggestionKinds } from "./sqlContext";
 import { maskNestedSqlBodies, parseDerivedTables } from "./derivedTables";
-import { getDialectKeywords } from "./sqlDialectKeywords";
+import { resolveSqlSyntax, syntaxKeywords } from "./sqlSyntax";
 
 export type AutocompleteKeywordCase = "match" | "upper" | "lower";
 
@@ -163,13 +163,11 @@ export const registerSqlAutocomplete = (
   driver?: string | PluginManifest | DriverCapabilities | null,
   keywordCase: AutocompleteKeywordCase = "match",
 ) => {
-  const caps =
-    typeof driver === "object" && driver !== null
-      ? "capabilities" in driver
-        ? driver.capabilities
-        : driver
-      : null;
-  const keywords = getDialectKeywords(SQL_KEYWORDS, caps?.sql_dialect);
+  // Declared `sql_syntax` keywords and functions join the shared list.
+  const keywords = syntaxKeywords(
+    SQL_KEYWORDS,
+    resolveSqlSyntax(typeof driver === "object" ? driver : null),
+  );
   const provider = monaco.languages.registerCompletionItemProvider("sql", {
     triggerCharacters: [".", " "],
     provideCompletionItems: async (model: { getWordUntilPosition: (position: { lineNumber: number; column: number }) => { word?: string; startColumn: number; endColumn: number }; getValueInRange: (range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => string; getValue: () => string; getOffsetAt: (position: { lineNumber: number; column: number }) => number }, position: { lineNumber: number; column: number }) => {

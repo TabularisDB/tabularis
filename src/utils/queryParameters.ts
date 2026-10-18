@@ -1,4 +1,4 @@
-import { scanNonCodeSpans } from "./sqlSplitter";
+import { scanNonCodeSpans, type DialectInput } from "./sqlSplitter";
 
 /**
  * Converts an arbitrary identifier (e.g. a column name) into a valid named
@@ -28,7 +28,7 @@ const PARAM_RE = /(?<!:):([a-zA-Z_][a-zA-Z0-9_]*)(?!\w)/g;
  * scanNonCodeSpans) and detection behaves exactly as it did before
  * dialects were threaded through.
  */
-export const maskNonCode = (sql: string, dialect?: string): string => {
+export const maskNonCode = (sql: string, dialect?: DialectInput): string => {
   const spans = scanNonCodeSpans(sql, dialect);
   if (spans.length === 0) return sql;
   let masked = "";
@@ -40,7 +40,7 @@ export const maskNonCode = (sql: string, dialect?: string): string => {
   return masked + sql.slice(cursor);
 };
 
-export const extractQueryParams = (sql: string, dialect?: string): string[] => {
+export const extractQueryParams = (sql: string, dialect?: DialectInput): string[] => {
   if (!sql) return [];
   const matches = maskNonCode(sql, dialect).match(PARAM_RE);
   if (!matches) return [];
@@ -53,7 +53,7 @@ export const extractQueryParams = (sql: string, dialect?: string): string[] => {
 export const interpolateQueryParams = (
   sql: string,
   params: Record<string, string>,
-  dialect?: string,
+  dialect?: DialectInput,
 ): string => {
   if (!sql) return "";
 

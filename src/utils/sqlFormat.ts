@@ -1,27 +1,17 @@
 import { format, type FormatOptionsWithLanguage, type SqlLanguage } from 'sql-formatter';
-import type { SqlDialect } from './sql';
+import type { DialectInput } from './sqlSplitter';
+import { presetFormatter, type SqlSyntax } from './sqlSyntax';
 
 /**
- * Maps Tabularis' internal SQL dialect to the matching `sql-formatter`
- * language. Unknown or generic dialects fall back to standard `sql`.
+ * Maps Tabularis' internal SQL dialect, or a resolved syntax (whose
+ * declared `formatter` wins), to the matching `sql-formatter` language.
+ * Unknown or generic dialects fall back to standard `sql`.
  */
-export function toFormatterLanguage(dialect: SqlDialect | undefined): SqlLanguage {
-  switch (dialect) {
-    case 'postgres':
-      return 'postgresql';
-    case 'mysql':
-      return 'mysql';
-    case 'mssql':
-      return 'transactsql';
-    case 'sqlite':
-      return 'sqlite';
-    case 'oracle':
-      return 'plsql';
-    case 'bigquery':
-      return 'bigquery';
-    default:
-      return 'sql';
+export function toFormatterLanguage(dialect: DialectInput | SqlSyntax): SqlLanguage {
+  if (typeof dialect === 'object') {
+    return 'formatter' in dialect ? dialect.formatter : presetFormatter(dialect.dialect);
   }
+  return presetFormatter(dialect);
 }
 
 /**
@@ -31,7 +21,7 @@ export function toFormatterLanguage(dialect: SqlDialect | undefined): SqlLanguag
  */
 export function formatSql(
   sql: string,
-  dialect?: SqlDialect,
+  dialect?: DialectInput | SqlSyntax,
   options?: Partial<FormatOptionsWithLanguage>,
 ): string {
   if (!sql.trim()) {

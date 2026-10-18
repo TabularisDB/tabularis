@@ -7,7 +7,6 @@ export type Dialect =
   | 'mssql'
   | 'sqlite'
   | 'oracle'
-  | 'bigquery'
   | 'generic';
 
 /**
@@ -72,6 +71,11 @@ export interface QuoteRule {
   readonly close: string;
   readonly escape?: string;
   readonly doubleClose: boolean;
+  /**
+   * What the run delimits. Only string quotes take `stringPrefixes` and
+   * `tripleQuotedStrings`; both kinds are non-code for splitting.
+   */
+  readonly kind: 'string' | 'identifier';
 }
 
 export interface DialectOptions {
@@ -116,24 +120,52 @@ export interface DialectOptions {
    */
   readonly lineCommentRequiresSpace: boolean;
   /**
-   * GoogleSQL (BigQuery) string literals: triple-quoted `'''…'''` and
-   * `"""…"""` strings that may span lines, plus the raw/bytes prefixes
-   * `r`, `b`, `rb` and `br` (any case) in front of any quote form.
+   * Triple-quoted `'''…'''` and `"""…"""` strings that may span lines
+   * (GoogleSQL), for the `'` and `"` quotes of kind `string`. Escapes follow
+   * that quote's rule; the run ends at the first unescaped triple quote.
    */
   readonly tripleQuotedStrings: boolean;
   /**
-   * GoogleSQL procedural-language blocks (`BEGIN … END`, `IF … END IF`,
-   * `LOOP`, `WHILE`, `REPEAT`, `FOR … DO`, `CASE … END CASE`, procedure
-   * bodies). A `;` inside an open block does not end the statement, so a
-   * whole block runs as one script.
+   * Lower-case letter prefixes (`r`, `b`, `rb`, …) accepted, in any case,
+   * in front of a `string` quote (or a triple quote). A prefix only joins
+   * the literal; escapes still follow the quote's rule, so a raw `r'\''`
+   * is still one literal (GoogleSQL raw literals keep the backslash as text
+   * but it still can't end the literal).
+   */
+  readonly stringPrefixes: ReadonlyArray<string>;
+  /**
+   * Procedural-language blocks (`BEGIN … END`, `IF … END IF`, `LOOP`,
+   * `WHILE`, `REPEAT`, `FOR … DO`, `CASE … END CASE`, procedure bodies) as
+   * GoogleSQL scripting has them. A `;` inside an open block does not end the
+   * statement, so a whole block runs as one script.
    */
   readonly scriptBlocks: boolean;
 }
 
+/**
+ * A resolved SQL syntax (see `resolveSqlSyntax` in `src/utils/sqlSyntax.ts`)
+ * as the splitter entry points accept it in place of a dialect name.
+ */
+export interface SqlSyntaxSource {
+  /** The preset in force, or undefined when the driver declares none. */
+  readonly dialect: Dialect | undefined;
+  /** The driver declared `sql_syntax`. */
+  readonly declared: boolean;
+  readonly options: DialectOptions;
+}
+
+/**
+ * What the splitter entry points accept: a dialect name (unknown names fall
+ * back to `generic`, `undefined` to `postgres`) or a resolved syntax.
+ */
+export type DialectInput = Dialect | string | SqlSyntaxSource | undefined;
+
 const STANDARD_QUOTES: ReadonlyArray<QuoteRule> = [
-  { open: "'", close: "'", doubleClose: true },
-  { open: '"', close: '"', doubleClose: true },
+  { open: "'", close: "'", doubleClose: true, kind: 'string' },
+  { open: '"', close: '"', doubleClose: true, kind: 'identifier' },
 ];
+
+const NO_PREFIXES: ReadonlyArray<string> = [];
 
 const POSTGRES: DialectOptions = {
   quotes: STANDARD_QUOTES,
@@ -151,14 +183,15 @@ const POSTGRES: DialectOptions = {
   nestedBlockComments: true,
   lineCommentRequiresSpace: false,
   tripleQuotedStrings: false,
+  stringPrefixes: NO_PREFIXES,
   scriptBlocks: false,
 };
 
 const MYSQL: DialectOptions = {
   quotes: [
-    { open: "'", close: "'", escape: '\\', doubleClose: true },
-    { open: '"', close: '"', escape: '\\', doubleClose: true },
-    { open: '`', close: '`', doubleClose: true },
+    { open: "'", close: "'", escape: '\\', doubleClose: true, kind: 'string' },
+    { open: '"', close: '"', escape: '\\', doubleClose: true, kind: 'string' },
+    { open: '`', close: '`', doubleClose: true, kind: 'identifier' },
   ],
   eString: false,
   dollarQuoting: false,
@@ -174,18 +207,19 @@ const MYSQL: DialectOptions = {
   nestedBlockComments: false,
   lineCommentRequiresSpace: true,
   tripleQuotedStrings: false,
+  stringPrefixes: NO_PREFIXES,
   scriptBlocks: false,
 };
 
 const MSSQL: DialectOptions = {
   quotes: [
-    { open: "'", close: "'", doubleClose: true },
+    { open: "'", close: "'", doubleClose: true, kind: 'string' },
     // T-SQL: `]]` inside `[...]` is the literal `]` escape.
-    { open: '[', close: ']', doubleClose: true },
+    { open: '[', close: ']', doubleClose: true, kind: 'identifier' },
     // Double quotes delimit identifiers under the default
     // QUOTED_IDENTIFIER ON (and strings when it is OFF) — non-code
     // either way.
-    { open: '"', close: '"', doubleClose: true },
+    { open: '"', close: '"', doubleClose: true, kind: 'identifier' },
   ],
   eString: false,
   dollarQuoting: false,
@@ -202,15 +236,16 @@ const MSSQL: DialectOptions = {
   nestedBlockComments: true,
   lineCommentRequiresSpace: false,
   tripleQuotedStrings: false,
+  stringPrefixes: NO_PREFIXES,
   scriptBlocks: false,
 };
 
 const SQLITE: DialectOptions = {
   quotes: [
-    { open: "'", close: "'", doubleClose: true },
-    { open: '"', close: '"', doubleClose: true },
-    { open: '`', close: '`', doubleClose: true },
-    { open: '[', close: ']', doubleClose: false },
+    { open: "'", close: "'", doubleClose: true, kind: 'string' },
+    { open: '"', close: '"', doubleClose: true, kind: 'identifier' },
+    { open: '`', close: '`', doubleClose: true, kind: 'identifier' },
+    { open: '[', close: ']', doubleClose: false, kind: 'identifier' },
   ],
   eString: false,
   dollarQuoting: false,
@@ -226,6 +261,7 @@ const SQLITE: DialectOptions = {
   nestedBlockComments: false,
   lineCommentRequiresSpace: false,
   tripleQuotedStrings: false,
+  stringPrefixes: NO_PREFIXES,
   scriptBlocks: false,
 };
 
@@ -245,32 +281,8 @@ const ORACLE: DialectOptions = {
   nestedBlockComments: false,
   lineCommentRequiresSpace: false,
   tripleQuotedStrings: false,
+  stringPrefixes: NO_PREFIXES,
   scriptBlocks: false,
-};
-
-// GoogleSQL (BigQuery). Strings and quoted identifiers use backslash
-// escapes and no doubled-quote escape; `#` starts a line comment.
-const BIGQUERY: DialectOptions = {
-  quotes: [
-    { open: "'", close: "'", escape: '\\', doubleClose: false },
-    { open: '"', close: '"', escape: '\\', doubleClose: false },
-    { open: '`', close: '`', escape: '\\', doubleClose: false },
-  ],
-  eString: false,
-  dollarQuoting: false,
-  customDelimiter: false,
-  goDelimiter: false,
-  slashDelimiter: false,
-  plsqlBlocks: false,
-  qQuoting: false,
-  lineComments: true,
-  blockComments: true,
-  hashComments: true,
-  executableComments: false,
-  nestedBlockComments: false,
-  lineCommentRequiresSpace: false,
-  tripleQuotedStrings: true,
-  scriptBlocks: true,
 };
 
 const GENERIC: DialectOptions = {
@@ -289,6 +301,7 @@ const GENERIC: DialectOptions = {
   nestedBlockComments: false,
   lineCommentRequiresSpace: false,
   tripleQuotedStrings: false,
+  stringPrefixes: NO_PREFIXES,
   scriptBlocks: false,
 };
 
@@ -298,7 +311,6 @@ const DIALECT_TABLE: Readonly<Record<Dialect, DialectOptions>> = {
   mssql: MSSQL,
   sqlite: SQLITE,
   oracle: ORACLE,
-  bigquery: BIGQUERY,
   generic: GENERIC,
 };
 
@@ -313,31 +325,45 @@ export function dialectOptions(dialect: Dialect): DialectOptions {
   return DIALECT_TABLE[dialect];
 }
 
-function normalizeDialect(dialect: Dialect | string | undefined): Dialect {
-  if (dialect === undefined) return 'postgres';
+/** Whether `name` is one of the built-in presets. */
+export function isDialect(name: unknown): name is Dialect {
   // Own-property check: `in` would also accept prototype members such
   // as '__proto__' or 'toString' and return a non-DialectOptions value.
-  return Object.hasOwn(DIALECT_TABLE, dialect)
-    ? (dialect as Dialect)
-    : 'generic';
+  return typeof name === 'string' && Object.hasOwn(DIALECT_TABLE, name);
+}
+
+/**
+ * The preset a dialect name selects: `postgres` when undefined (the
+ * historical default), `generic` when unknown.
+ */
+export function normalizeDialect(dialect: Dialect | string | undefined): Dialect {
+  if (dialect === undefined) return 'postgres';
+  return isDialect(dialect) ? dialect : 'generic';
+}
+
+/** The splitter options for a dialect name or a resolved syntax. */
+export function optionsFor(input: DialectInput): DialectOptions {
+  if (typeof input === 'object') return input.options;
+  return dialectOptions(normalizeDialect(input));
 }
 
 /**
  * Split a SQL source into per-statement metadata. `dialect` is accepted
  * as `Dialect | string` so plugin-manifest values can flow in without
  * additional validation at the call site; unknown values fall back to
- * the `generic` preset rather than throwing.
+ * the `generic` preset rather than throwing. A resolved syntax
+ * (`resolveSqlSyntax`) carries a plugin's declared `sql_syntax`.
  */
 export function splitStatements(
   sql: string,
-  dialect?: Dialect | string,
+  dialect?: DialectInput,
 ): Statement[] {
-  return splitInto(sql, dialectOptions(normalizeDialect(dialect)));
+  return splitInto(sql, optionsFor(dialect));
 }
 
 export function splitQueries(
   sql: string,
-  dialect?: Dialect | string,
+  dialect?: DialectInput,
 ): string[] {
   return splitStatements(sql, dialect).map((s) => s.text);
 }
@@ -345,9 +371,9 @@ export function splitQueries(
 /** Like `splitStatements`, but T-SQL splits on `GO` only so `DECLARE @var` scope survives. */
 export function splitBatches(
   sql: string,
-  dialect?: Dialect | string,
+  dialect?: DialectInput,
 ): Statement[] {
-  const options = dialectOptions(normalizeDialect(dialect));
+  const options = optionsFor(dialect);
   return splitInto(sql, options, options.goDelimiter);
 }
 
@@ -365,15 +391,16 @@ export function splitBatches(
  */
 export function scanNonCodeSpans(
   sql: string,
-  dialect?: Dialect | string,
+  dialect?: DialectInput,
 ): NonCodeSpan[] {
-  // Own-property check: `in` would also accept prototype members such
-  // as '__proto__' or 'toString' and hand a non-DialectOptions value to
-  // the scanner.
-  if (dialect === undefined || !Object.hasOwn(DIALECT_TABLE, dialect)) {
-    return [];
+  if (typeof dialect === 'object') {
+    // A resolved syntax with neither a declared syntax nor a known
+    // dialect is the "no dialect" case above.
+    if (!dialect.declared && dialect.dialect === undefined) return [];
+    return collectNonCodeSpans(sql, dialect.options);
   }
-  return collectNonCodeSpans(sql, DIALECT_TABLE[dialect as Dialect]);
+  if (!isDialect(dialect)) return [];
+  return collectNonCodeSpans(sql, DIALECT_TABLE[dialect]);
 }
 
 export {

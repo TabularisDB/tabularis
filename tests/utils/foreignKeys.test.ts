@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { GOOGLESQL_CAPS } from "../fixtures/sql-syntax/googlesql";
 import type { ForeignKey } from "../../src/types/schema";
 import type { DriverCapabilities, PluginManifest } from "../../src/types/plugins";
 import {
@@ -119,7 +120,7 @@ describe("foreignKeys", () => {
     });
 
     it("backslash-escapes string values for a GoogleSQL plugin", () => {
-      const bq = { identifier_quote: "`", sql_dialect: "bigquery" } as DriverCapabilities;
+      const bq = GOOGLESQL_CAPS;
       expect(buildForeignKeyFilterClause(orgFk, "O'Brien\\", bq)).toBe(
         "`id` = 'O\\'Brien\\\\'",
       );

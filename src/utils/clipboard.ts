@@ -214,9 +214,9 @@ function sqlValue(cell: unknown, driver?: CopyDriver): string {
   if (typeof cell === "boolean") return cell ? "TRUE" : "FALSE";
   if (typeof cell === "number") return String(cell);
   const str = typeof cell === "object" ? JSON.stringify(cell) : String(cell);
-  // GoogleSQL has no doubled-quote escape; other dialects keep the
-  // standard form.
-  if (stringEscapeStyle(driver) === "bigquery") return quoteSqlString(str, driver);
+  // A backslash-escape syntax (GoogleSQL) has no doubled-quote escape;
+  // every other driver, MySQL included, keeps the standard form.
+  if (stringEscapeStyle(driver) === "backslash") return quoteSqlString(str, driver);
   return `'${str.replace(/'/g, "''")}'`;
 }
 

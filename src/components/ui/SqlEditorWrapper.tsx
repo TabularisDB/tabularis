@@ -18,14 +18,13 @@ import {
 import {
   splitBatches,
   findStatementAtOffset,
-  type Dialect,
+  type DialectInput,
   type Statement,
 } from "../../utils/sqlSplitter";
 import { formatSql } from "../../utils/sqlFormat";
 import { toSqlList } from "../../utils/editor";
 import { getSqlInvisibleCharacterEdits } from "../../utils/sqlInvisibleCharacters";
 import { isTextCompositionKeyEvent } from "../../utils/keyboardEvents";
-import type { SqlDialect } from "../../utils/sql";
 import type { RunContext } from "../../utils/runTarget";
 import {
   registerSqlFoldingProvider,
@@ -41,8 +40,11 @@ interface SqlEditorWrapperProps {
   height?: string | number;
   options?: React.ComponentProps<typeof MonacoEditor>['options'];
   editorKey?: string;
-  /** When provided, highlights the statement the cursor is currently inside. */
-  dialect?: Dialect | string;
+  /**
+   * When provided, highlights the statement the cursor is currently inside.
+   * A dialect name or the connection's resolved syntax (`resolveSqlSyntax`).
+   */
+  dialect?: DialectInput;
   /** Run the whole editor content (Mod+Shift+Enter). */
   onRunAll?: () => void;
   /**
@@ -131,7 +133,7 @@ const SqlEditorInternal = ({
   const lastSplitRef = useRef<{
     model: Monaco.editor.ITextModel | null;
     versionId: number;
-    dialect: Dialect | string | undefined;
+    dialect: DialectInput;
     statements: Statement[];
   }>({ model: null, versionId: -1, dialect: undefined, statements: [] });
   const editorTheme = useEditorTheme();
@@ -478,7 +480,7 @@ const SqlEditorInternal = ({
 
           const selection = ed.getSelection();
           const hasSelection = selection && !selection.isEmpty();
-          const sqlDialect = (dialectRef.current as SqlDialect) ?? undefined;
+          const sqlDialect = dialectRef.current;
           const formatOptions = {
             keywordCase: settings.formatterKeywordCase ?? 'upper' as const,
             indentStyle: settings.formatterIndentStyle ?? 'standard' as const,

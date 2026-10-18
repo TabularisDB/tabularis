@@ -1,5 +1,5 @@
 import type * as Monaco from "monaco-editor";
-import type { Dialect } from "./sqlSplitter";
+import type { DialectInput } from "./sqlSplitter";
 import { getSqlQueryAtFoldLine } from "./sqlFolding";
 
 const HOVER_DELAY_MS = 400;
@@ -29,7 +29,7 @@ function positionPreview(preview: HTMLElement, x: number, y: number): void {
 export function installSqlFoldPreview(
   editor: Monaco.editor.ICodeEditor,
   monaco: typeof Monaco,
-  dialect: () => Dialect | string | undefined,
+  dialect: () => DialectInput,
 ): Monaco.IDisposable {
   let preview: HTMLDivElement | null = null;
   let hoverTimer: ReturnType<typeof setTimeout> | null = null;

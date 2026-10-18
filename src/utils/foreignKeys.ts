@@ -120,9 +120,9 @@ export function formatSqlValueForFilter(
   if (isNumericColumnType(columnType) && /^-?\d+(\.\d+)?$/.test(str)) {
     return str;
   }
-  // GoogleSQL has no doubled-quote escape; other dialects keep the
-  // standard form.
-  return stringEscapeStyle(driver) === "bigquery"
+  // A backslash-escape syntax (GoogleSQL) has no doubled-quote escape;
+  // every other driver keeps the standard form.
+  return stringEscapeStyle(driver) === "backslash"
     ? quoteSqlString(str, driver)
     : `'${str.replace(/'/g, "''")}'`;
 }

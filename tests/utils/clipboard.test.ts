@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { GOOGLESQL_CAPS } from '../fixtures/sql-syntax/googlesql';
 import {
   rowToCSV,
   rowsToCSV,
@@ -424,7 +425,7 @@ describe('clipboard utils', () => {
     });
 
     it('backslash-escapes strings for a GoogleSQL driver', () => {
-      const bq = { identifier_quote: '`', sql_dialect: 'bigquery' } as DriverCapabilities;
+      const bq = GOOGLESQL_CAPS;
       const rows = [["O'Brien\\"], [null]];
       expect(columnValuesToInClause(rows, 0, bq)).toBe("'O\\'Brien\\\\', NULL");
       expect(columnValuesToInClause(rows, 0, 'postgres')).toBe("'O''Brien\\', NULL");
@@ -433,7 +434,7 @@ describe('clipboard utils', () => {
 
   describe('rowsToSqlInsert', () => {
     it('quotes values for the driver dialect', () => {
-      const bq = { identifier_quote: '`', sql_dialect: 'bigquery' } as DriverCapabilities;
+      const bq = GOOGLESQL_CAPS;
       expect(rowsToSqlInsert([[1, "it's"]], ['id', 'name'], 't', bq)).toBe(
         "INSERT INTO `t` (`id`, `name`) VALUES (1, 'it\\'s');",
       );
@@ -443,7 +444,7 @@ describe('clipboard utils', () => {
     });
 
     it('passes the driver through formatRowsForCopy and columnValuesForCopy', () => {
-      const bq = { identifier_quote: '`', sql_dialect: 'bigquery' } as DriverCapabilities;
+      const bq = GOOGLESQL_CAPS;
       expect(
         formatRowsForCopy([["a'b"]], ['c'], 'sql-insert', { tableName: 't', driver: bq }),
       ).toBe("INSERT INTO `t` (`c`) VALUES ('a\\'b');");

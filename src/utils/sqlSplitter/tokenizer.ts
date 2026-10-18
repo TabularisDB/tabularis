@@ -97,9 +97,9 @@ export function scanToken(
     if (qQuoteToken) return qQuoteToken;
   }
 
-  if (options.tripleQuotedStrings) {
-    const googleSqlToken = scanGoogleSqlString(source, position);
-    if (googleSqlToken) return googleSqlToken;
+  if (options.tripleQuotedStrings || options.stringPrefixes.length > 0) {
+    const literalToken = scanPrefixedOrTripleString(source, position, options);
+    if (literalToken) return literalToken;
   }
 
   for (const rule of options.quotes) {
@@ -230,50 +230,81 @@ function scanDollarQuoted(source: string, position: number): Token | null {
 }
 
 /**
- * GoogleSQL string literal with an optional `r` / `b` / `rb` / `br`
- * prefix (any case) and/or triple quotes. Returns null for a plain
- * single-quoted or double-quoted literal without prefix, which the
- * dialect's ordinary quote rules handle.
+ * A string literal with one of the dialect's `stringPrefixes` (matched
+ * case-insensitively, longest first, e.g. GoogleSQL `r` / `b` / `rb` /
+ * `br`) and/or triple quotes (`'''…'''`, `"""…"""`) when
+ * `tripleQuotedStrings` is on. Only quotes of kind `string` qualify.
+ * Returns null for a plain literal without prefix or triple quote, which
+ * the ordinary quote rules handle.
  *
- * A backslash always pairs with the next character while lexing, raw
- * literals included: in a raw literal the backslash is kept as text
- * instead of starting an escape sequence, but it still cannot end the
- * literal (`r'\''` is the two characters `\'`). This is why a raw
+ * Escapes follow the quote's own rule. With a backslash escape, a
+ * backslash pairs with the next character even in a raw literal: the
+ * backslash is kept as text there, but it still cannot end the literal
+ * (`r'\''` is the two characters `\'`), which is why a GoogleSQL raw
  * literal can't end in an odd number of backslashes.
  */
-function scanGoogleSqlString(source: string, position: number): Token | null {
+function scanPrefixedOrTripleString(
+  source: string,
+  position: number,
+  options: DialectOptions,
+): Token | null {
   let p = position;
   if (!isIdentBoundary(source, position - 1)) {
-    const first = source[p]?.toLowerCase();
-    const second = source[p + 1]?.toLowerCase();
-    if (
-      (first === 'r' && second === 'b') ||
-      (first === 'b' && second === 'r')
-    ) {
-      p += 2;
-    } else if (first === 'r' || first === 'b') {
-      p += 1;
-    }
+    p += matchStringPrefix(source, position, options.stringPrefixes);
   }
-  const quote = source[p];
-  if (quote !== "'" && quote !== '"') return null;
-  const triple = quote.repeat(3);
-  const isTriple = source.startsWith(triple, p);
+  const rule = options.quotes.find(
+    (q) =>
+      q.kind === 'string' &&
+      q.open.length === 1 &&
+      q.open === q.close &&
+      source.startsWith(q.open, p),
+  );
+  if (!rule) return null;
+  const triple = rule.open.repeat(3);
+  const isTriple =
+    options.tripleQuotedStrings &&
+    (rule.open === "'" || rule.open === '"') &&
+    source.startsWith(triple, p);
   if (p === position && !isTriple) return null;
+  if (!isTriple) {
+    const token = scanQuoted(source, p, rule);
+    return { kind: 'string', length: token.length + p - position };
+  }
 
-  const close = isTriple ? triple : quote;
-  p += close.length;
+  p += triple.length;
   while (p < source.length) {
-    if (source[p] === '\\' && p + 1 < source.length) {
+    if (
+      rule.escape !== undefined &&
+      source[p] === rule.escape &&
+      p + 1 < source.length
+    ) {
       p += 2;
       continue;
     }
-    if (source.startsWith(close, p)) {
-      return { kind: 'string', length: p + close.length - position };
+    if (source.startsWith(triple, p)) {
+      return { kind: 'string', length: p + triple.length - position };
     }
     p++;
   }
   return { kind: 'string', length: source.length - position };
+}
+
+/** Length of the longest of `prefixes` at `position` (any case), or 0. */
+function matchStringPrefix(
+  source: string,
+  position: number,
+  prefixes: ReadonlyArray<string>,
+): number {
+  let longest = 0;
+  for (const prefix of prefixes) {
+    if (
+      prefix.length > longest &&
+      source.slice(position, position + prefix.length).toLowerCase() === prefix
+    ) {
+      longest = prefix.length;
+    }
+  }
+  return longest;
 }
 
 function scanQQuoted(source: string, position: number): Token | null {

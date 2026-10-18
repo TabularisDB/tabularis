@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  dialectOptions,
   splitQueries,
   splitStatements,
   scanNonCodeSpans,
@@ -13,9 +12,11 @@ import {
   resetScriptBlockState,
   scanScriptWord,
 } from '../../../src/utils/sqlSplitter/scriptBlocks';
+import { GOOGLESQL } from '../../fixtures/sql-syntax/googlesql';
 
-const BQ = dialectOptions('bigquery');
-const split = (sql: string): string[] => splitQueries(sql, 'bigquery');
+// GoogleSQL as a plugin declares it: the `sql_syntax` descriptor fixture.
+const BQ = GOOGLESQL.options;
+const split = (sql: string): string[] => splitQueries(sql, GOOGLESQL);
 
 describe('scriptBlocks', () => {
   describe('scanScriptWord', () => {
@@ -77,7 +78,7 @@ describe('scriptBlocks', () => {
     });
   });
 
-  describe('bigquery splitting', () => {
+  describe('GoogleSQL descriptor splitting', () => {
     it('splits plain statements', () => {
       expect(split('SELECT 1; SELECT 2;')).toEqual(['SELECT 1', 'SELECT 2']);
     });
@@ -286,7 +287,7 @@ describe('scriptBlocks', () => {
 
     it('reports ranges that cover the whole block', () => {
       const sql = 'BEGIN SELECT 1; END; SELECT 2';
-      const [block, next] = splitStatements(sql, 'bigquery');
+      const [block, next] = splitStatements(sql, GOOGLESQL);
       expect(sql.slice(block.range.start, block.range.end)).toBe('BEGIN SELECT 1; END');
       expect(sql.slice(next.range.start, next.range.end)).toBe('SELECT 2');
     });
@@ -297,10 +298,10 @@ describe('scriptBlocks', () => {
     });
   });
 
-  describe('bigquery non-code spans', () => {
+  describe('GoogleSQL descriptor non-code spans', () => {
     it('masks triple-quoted, raw and backtick literals and # comments', () => {
       const sql = "SELECT '''a:b''', r'c:d', `e:f` # g:h\nFROM t";
-      const spans = scanNonCodeSpans(sql, 'bigquery').map(({ start, end }) =>
+      const spans = scanNonCodeSpans(sql, GOOGLESQL).map(({ start, end }) =>
         sql.slice(start, end),
       );
       expect(spans).toEqual(["'''a:b'''", "r'c:d'", '`e:f`', '# g:h']);
