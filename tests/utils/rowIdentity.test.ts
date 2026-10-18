@@ -76,15 +76,30 @@ describe("rowIdentity", () => {
 			expect(isComparableColumn(col("a", "BINARY_DOUBLE"))).toBe(false);
 		});
 
-		it("should reject struct, array, map and record types", () => {
+		it("should reject struct, nested array, map and record types", () => {
 			expect(isComparableColumn(col("a", "STRUCT<name STRING, age INT64>"))).toBe(false);
+			expect(isComparableColumn(col("a", "STRUCT"))).toBe(false);
 			expect(isComparableColumn(col("a", "ARRAY<STRING>"))).toBe(false);
-			expect(isComparableColumn(col("a", "array"))).toBe(false);
+			expect(isComparableColumn(col("a", "ARRAY<STRUCT<x INT64>>"))).toBe(false);
 			expect(isComparableColumn(col("a", "RECORD"))).toBe(false);
+			expect(isComparableColumn(col("a", "REPEATED"))).toBe(false);
+			expect(isComparableColumn(col("a", "MAP"))).toBe(false);
 			expect(isComparableColumn(col("a", "MAP<STRING, INT64>"))).toBe(false);
+			expect(isComparableColumn(col("a", "Map(String, UInt64)"))).toBe(false);
+			expect(isComparableColumn(col("a", "Tuple(UInt8, String)"))).toBe(false);
+			expect(isComparableColumn(col("a", "Nested(id UInt32)"))).toBe(false);
 			expect(isComparableColumn(col("a", "ROW(a INTEGER)"))).toBe(false);
 			expect(isComparableColumn(col("a", "RANGE<DATE>"))).toBe(false);
-			expect(isComparableColumn(col("a", "integer[]"))).toBe(false);
+			expect(isComparableColumn(col("a", "SUPER"))).toBe(false);
+		});
+
+		it("should keep plain PostgreSQL arrays and ranges comparable", () => {
+			expect(isComparableColumn(col("a", "ARRAY"))).toBe(true);
+			expect(isComparableColumn(col("a", "array"))).toBe(true);
+			expect(isComparableColumn(col("a", "integer[]"))).toBe(true);
+			expect(isComparableColumn(col("a", "text[]"))).toBe(true);
+			expect(isComparableColumn(col("a", "int4range"))).toBe(true);
+			expect(isComparableColumn(col("a", "tstzrange"))).toBe(true);
 		});
 
 		it("should reject semi-structured document types", () => {
@@ -215,6 +230,18 @@ describe("rowIdentity", () => {
 			expect(
 				resolveRowIdentity(null, columns, ["id", "address", "tags", "ratio", "area"]),
 			).toEqual({ columns: ["id"], isKeyless: true });
+		});
+
+		it("should keep PostgreSQL array columns in a keyless identity", () => {
+			const columns = [
+				col("name", "text"),
+				col("tags", "ARRAY"),
+				col("labels", "text[]"),
+				col("score", "float8"),
+			];
+			expect(
+				resolveRowIdentity(null, columns, ["name", "tags", "labels", "score"]),
+			).toEqual({ columns: ["name", "tags", "labels"], isKeyless: true });
 		});
 
 		it("should return null when no column is comparable", () => {

@@ -47,27 +47,35 @@ function isApproximateNumericType(dataType: string): boolean {
 }
 
 /**
- * Composite and semi-structured types: records/structs, arrays, maps, ranges
- * and document-like values. The grid shows a serialized form (usually JSON),
- * which cannot be compared with `=` against the stored value, and several
- * engines reject equality on these types altogether.
+ * Composite and semi-structured types: structs/records, maps, tuples, nested
+ * and parameterized arrays/ranges, and document-like values. The grid shows a
+ * serialized form (usually JSON), which cannot be compared with `=` against
+ * the stored value, and several engines reject equality on these types.
+ *
+ * Plain arrays stay comparable on purpose: PostgreSQL reports `int[]`/`text[]`
+ * columns as `ARRAY` (or `type[]`) and compares them with `=`, so a keyless
+ * table keeps them in its identity. Likewise PostgreSQL ranges (`int4range`,
+ * `tstzrange`, ...) stay comparable; only the parameterized `RANGE<…>` form
+ * is excluded.
  */
-const STRUCTURED_TYPE_PREFIX = /^(struct|array|map|row|record|range|tuple|nested)\b/;
+const STRUCTURED_TYPE_PREFIX = /^(struct|record|repeated|map|tuple|nested)\b/;
+const PARAMETERIZED_STRUCTURED_TYPE = /^((array|range)\s*<|row\s*\()/;
 const STRUCTURED_TYPE_NAMES = new Set(["variant", "object", "super"]);
 
 function isStructuredType(dataType: string): boolean {
 	const normalized = dataType.toLowerCase().trim();
 	return (
 		STRUCTURED_TYPE_PREFIX.test(normalized) ||
-		STRUCTURED_TYPE_NAMES.has(normalized) ||
-		normalized.endsWith("[]")
+		PARAMETERIZED_STRUCTURED_TYPE.test(normalized) ||
+		STRUCTURED_TYPE_NAMES.has(normalized)
 	);
 }
 
 /**
  * Returns true when a column's value can be safely compared with `=` (or
  * `IS NULL`) in a WHERE clause. Binary, geometric, JSON, hstore, structured
- * (struct/array/map/record) and floating-point columns are excluded: the grid holds display/wire
+ * (struct/record/map/nested array) and floating-point columns are excluded:
+ * the grid holds display/wire
  * representations of their values, which would not match the stored value in
  * an equality comparison.
  */
