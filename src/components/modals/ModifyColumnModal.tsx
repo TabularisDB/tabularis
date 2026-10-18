@@ -334,7 +334,7 @@ export const ModifyColumnModal = ({
               >
                 {t("modifyColumn.comment")}
               </label>
-              <input autoCorrect="off" autoComplete="off"
+              <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
                 id={commentInputId}
                 value={form.comment ?? ""}
                 onChange={(e) => setForm({ ...form, comment: e.target.value })}
