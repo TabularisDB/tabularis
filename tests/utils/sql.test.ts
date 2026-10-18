@@ -279,6 +279,12 @@ describe('sql utils', () => {
   });
 
   describe("isDataModifyingQuery", () => {
+    it("detects writes behind a leading # comment (MySQL)", () => {
+      expect(isDataModifyingQuery("# purge\nDELETE FROM t")).toBe(true);
+      expect(isDataModifyingQuery("# copy\nSELECT * INTO t2 FROM t")).toBe(true);
+      expect(isDataModifyingQuery("# note\nSELECT * FROM t")).toBe(false);
+    });
+
     it("should detect INSERT", () => {
       expect(isDataModifyingQuery("INSERT INTO t VALUES (1)")).toBe(true);
     });

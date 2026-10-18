@@ -1,5 +1,7 @@
 import type { NotebookCell } from "../types/notebook";
 import type { QueryResult } from "../types/editor";
+import type { DriverCapabilities, PluginManifest } from "../types/plugins";
+import { getQuoteChar, isMysqlDialect } from "./identifiers";
 
 const CELL_REF_PATTERN = /\{\{cell_(\d+)\}\}/g;
 
@@ -22,9 +24,12 @@ export function hasCellReferences(sql: string): boolean {
   return new RegExp(CELL_REF_PATTERN.source).test(sql);
 }
 
-/** Quote a column name as a SQL identifier, doubling embedded quotes. */
-function quoteIdentifier(col: string): string {
-  return `"${col.replace(/"/g, '""')}"`;
+/**
+ * Quote a column name as a SQL identifier with the driver's identifier quote,
+ * doubling embedded quote characters.
+ */
+function quoteIdentifier(col: string, quote: string): string {
+  return `${quote}${col.split(quote).join(quote + quote)}${quote}`;
 }
 
 /**
@@ -50,8 +55,9 @@ function resultToCte(
   result: QueryResult,
   alias: string,
   escapeBackslashes: boolean,
+  identifierQuote: string,
 ): string {
-  const variantKey = `${escapeBackslashes ? 1 : 0}:${alias}`;
+  const variantKey = `${escapeBackslashes ? 1 : 0}:${identifierQuote}:${alias}`;
   let variants = cteCache.get(result);
   const cached = variants?.get(variantKey);
   if (cached !== undefined) return cached;
@@ -59,7 +65,7 @@ function resultToCte(
   let cte: string;
   if (result.rows.length === 0) {
     const emptyCols = result.columns
-      .map((col) => `NULL AS ${quoteIdentifier(col)}`)
+      .map((col) => `NULL AS ${quoteIdentifier(col, identifierQuote)}`)
       .join(", ");
     cte = `${alias} AS (SELECT ${emptyCols} WHERE 1=0)`;
   } else {
@@ -67,7 +73,7 @@ function resultToCte(
       const cols = result.columns
         .map((col, i) => {
           const val = row[i];
-          const ident = quoteIdentifier(col);
+          const ident = quoteIdentifier(col, identifierQuote);
           if (val === null || val === undefined) return `NULL AS ${ident}`;
           if (typeof val === "number" && Number.isFinite(val)) {
             return `${val} AS ${ident}`;
@@ -124,6 +130,51 @@ export function findUnresolvedDependencies(
 export interface ResolveVariablesOptions {
   /** Double backslashes in string literals (MySQL/MariaDB dialects). */
   escapeBackslashes?: boolean;
+  /**
+   * Quote for the CTE column aliases: the driver's `identifier_quote`
+   * capability. Defaults to `"`.
+   */
+  identifierQuote?: string;
+}
+
+/** Driver ids whose string literals the builtin notebook always escaped. */
+const LEGACY_BACKSLASH_DRIVERS = new Set(["mysql", "mariadb"]);
+
+/**
+ * Variable-resolution options for the active driver, read from its
+ * capabilities (`identifier_quote`, `sql_dialect`) so plugin drivers get
+ * column aliases and string literals their dialect accepts.
+ *
+ * `driverId` is the active driver id. When the capabilities don't name a
+ * concrete dialect (no `sql_dialect`, or `generic`), the id-based rule used
+ * before capabilities existed still applies, so a `mariadb` plugin without a
+ * `sql_dialect` keeps doubling backslashes; dropping that would let a value
+ * ending in `\` escape its closing quote on a MySQL-family engine.
+ */
+export function variableOptionsForDriver(
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+  driverId?: string | null,
+): ResolveVariablesOptions {
+  const caps =
+    typeof driver === "object" && driver !== null
+      ? "capabilities" in driver
+        ? driver.capabilities
+        : driver
+      : null;
+  const declaresDialect = !!caps?.sql_dialect && caps.sql_dialect !== "generic";
+  const id =
+    driverId ??
+    (typeof driver === "string"
+      ? driver
+      : driver && "id" in driver
+        ? driver.id
+        : undefined);
+  const legacyEscape = !!id && LEGACY_BACKSLASH_DRIVERS.has(id);
+  return {
+    escapeBackslashes:
+      isMysqlDialect(driver) || (!declaresDialect && legacyEscape),
+    identifierQuote: getQuoteChar(driver),
+  };
 }
 
 export function resolveQueryVariables(
@@ -153,7 +204,12 @@ export function resolveQueryVariables(
     if (!seen.has(cellIndex)) {
       seen.add(cellIndex);
       ctes.push(
-        resultToCte(targetCell.result, alias, options?.escapeBackslashes ?? false),
+        resultToCte(
+          targetCell.result,
+          alias,
+          options?.escapeBackslashes ?? false,
+          options?.identifierQuote || '"',
+        ),
       );
     }
     return alias;

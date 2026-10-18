@@ -1,11 +1,12 @@
 #[cfg(test)]
 mod tests {
     use crate::ai_activity::{
-        append_event_in, classify_query_kind, clear_in, compute_or_rotate_session_id_in,
+        append_event_in, classify_query_kind, classify_query_kind_for_dialect, clear_in, compute_or_rotate_session_id_in,
         load_session_state_in, read_events_in, read_session_events_in, read_sessions_in,
         rotate_if_needed_in, save_session_state_in, set_client_hint_in,
         strip_strings_and_comments, to_local_rfc3339, AiActivityEvent, EventFilter, SessionState,
     };
+    use crate::drivers::driver_trait::SqlDialect;
     use std::path::Path;
     use tempfile::TempDir;
 
@@ -920,8 +921,15 @@ mod tests {
             classify_query_kind("SELECT \"a b\", \"c\" FROM t"),
             "select"
         );
-        // A dollar-quoted / escape-string body with no trailing call is a read.
-        assert_eq!(classify_query_kind("SELECT $$hello ; world$$"), "select");
+        // A dollar-quoted / escape-string body with no trailing call is a read
+        // on PostgreSQL. Without a dialect the `;` inside `$$…$$` is a real
+        // separator for MySQL-like engines, so it fails closed.
+        let pg = Some(SqlDialect::Postgres);
+        assert_eq!(
+            classify_query_kind_for_dialect("SELECT $$hello ; world$$", pg),
+            "select"
+        );
+        assert_eq!(classify_query_kind("SELECT $$hello ; world$$"), "unknown");
         assert_eq!(classify_query_kind("SELECT E'line\\n'"), "select");
     }
 

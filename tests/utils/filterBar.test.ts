@@ -10,6 +10,7 @@ import {
   NO_VALUE_OPS,
   createEmptyFilter,
   isValuePickerSupported,
+  isNestedColumnType,
   buildDistinctValuesQuery,
   buildValuePickerWhere,
   parseDistinctValues,
@@ -891,6 +892,43 @@ describe("filterBar utils", () => {
         "does not offer the picker for %s",
         (type) => expect(isValuePickerSupported(type)).toBe(false)
       );
+
+      it.each([
+        "ARRAY<INT64>",
+        "array<string>",
+        "STRUCT<a STRING, b INT64>",
+        "ARRAY<STRUCT<id INT64>>",
+        "MAP<STRING, INT>",
+        "STRUCT",
+        "RECORD",
+        "STRING REPEATED",
+        "RECORD (REPEATED)",
+      ])("does not offer the picker for the nested type %s", (type) =>
+        expect(isValuePickerSupported(type)).toBe(false)
+      );
+
+      it.each(["ARRAY", "integer[]", "_int4", "text[]", "structure_code", "record_id"])(
+        "still offers the picker for %s",
+        (type) => expect(isValuePickerSupported(type)).toBe(true)
+      );
+    });
+
+    describe("isNestedColumnType", () => {
+      it("matches parameterized containers, records and repeated fields", () => {
+        expect(isNestedColumnType("ARRAY<STRING>")).toBe(true);
+        expect(isNestedColumnType(" Struct < x INT64 >")).toBe(true);
+        expect(isNestedColumnType("record")).toBe(true);
+        expect(isNestedColumnType("INT64 REPEATED")).toBe(true);
+      });
+
+      it("leaves scalar and PostgreSQL array types alone", () => {
+        expect(isNestedColumnType("ARRAY")).toBe(false);
+        expect(isNestedColumnType("integer[]")).toBe(false);
+        expect(isNestedColumnType("GEOGRAPHY")).toBe(false);
+        expect(isNestedColumnType("")).toBe(false);
+        expect(isNestedColumnType(null)).toBe(false);
+        expect(isNestedColumnType(undefined)).toBe(false);
+      });
     });
 
     describe("buildDistinctValuesQuery", () => {

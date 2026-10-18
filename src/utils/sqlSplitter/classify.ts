@@ -36,11 +36,23 @@ export const EXPLAINABLE_KEYWORDS: ReadonlySet<string> = new Set([
   'MERGE',
 ]);
 
-export function stripLeadingComments(query: string): string {
+export interface LeadingCommentOptions {
+  /**
+   * Treat `#` as a line comment, as MySQL/MariaDB (and other dialects whose
+   * splitter options enable `hashComments`) do. Off by default: elsewhere
+   * `#` is an operator (PostgreSQL) or an identifier character (Oracle).
+   */
+  readonly hashComments?: boolean;
+}
+
+export function stripLeadingComments(
+  query: string,
+  options: LeadingCommentOptions = {},
+): string {
   let s = query;
   for (;;) {
     s = s.replace(/^\s+/, '');
-    if (s.startsWith('--')) {
+    if (s.startsWith('--') || (options.hashComments && s.startsWith('#'))) {
       const nl = s.indexOf('\n');
       s = nl === -1 ? '' : s.slice(nl + 1);
     } else if (s.startsWith('/*')) {
@@ -56,13 +68,16 @@ export function stripLeadingComments(query: string): string {
 const LEADING_KEYWORD_RE = /^([A-Za-z_][A-Za-z0-9_]*)/;
 const LEADING_PARENS_RE = /^[(\s]+/;
 
-export function leadingKeyword(query: string): string {
+export function leadingKeyword(
+  query: string,
+  options: LeadingCommentOptions = {},
+): string {
   // Comments may sit inside the parens (`(\n-- header\nSELECT 1)`),
   // and parens may sit between leading comments (`/* x */ ( SELECT 1 )`),
   // so we strip both in a fixed-point loop instead of one pass each.
   let body = query;
   for (;;) {
-    const next = stripLeadingComments(body).replace(LEADING_PARENS_RE, '');
+    const next = stripLeadingComments(body, options).replace(LEADING_PARENS_RE, '');
     if (next === body) break;
     body = next;
   }

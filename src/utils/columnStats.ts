@@ -3,6 +3,7 @@ import { isBlobColumn } from "./blob";
 import { isComparableColumnType } from "./cellValueFilter";
 import {
   buildDistinctValuesQuery,
+  isNestedColumnType,
   isValuePickerSupported,
   parseDistinctValues,
 } from "./filterBar";
@@ -48,7 +49,8 @@ const NO_EQUALITY_TYPES = new Set(["xml", "box", "circle", "line", "lseg", "path
 /**
  * Decides which statistics to compute for a column of `dataType`:
  *
- * - JSON, XML and geometry columns only get the row and NULL counts.
+ * - JSON, XML, geometry and nested (array / struct / record) columns only
+ *   get the row and NULL counts.
  * - BLOB / binary columns also get the distinct count, but no min / max or
  *   top values (the values aren't readable in a list).
  * - Min / max are limited to numeric and date/time columns.
@@ -63,6 +65,7 @@ export function getColumnStatsSupport(
   if (
     isJsonColumn(baseType) ||
     isGeometricType(type) ||
+    isNestedColumnType(type) ||
     NO_EQUALITY_TYPES.has(baseType)
   ) {
     return { distinct: false, minMax: false, topValues: false };

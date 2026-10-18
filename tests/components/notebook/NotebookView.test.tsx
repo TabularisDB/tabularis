@@ -16,7 +16,7 @@ const fixtures = vi.hoisted(() => ({
   database: {
     activeDriver: "postgres",
     activeSchema: "active_schema" as string | null,
-    activeCapabilities: null,
+    activeCapabilities: null as { identifier_quote: string; sql_dialect: string } | null,
     selectedDatabases: [] as string[],
   },
   settings: { resultPageSize: 37, safetyConfirmationDelayEnabled: false },
@@ -121,7 +121,8 @@ const sourceResult: QueryResult = {
 };
 const queryResult: QueryResult = { columns: ["id"], rows: [[7], [8]], affected_rows: 0 };
 const standardSql = `WITH cell_1 AS (\n  SELECT 7 AS "id", '${String.raw`C:\team\O''Reilly`}' AS "label"\n)\nSELECT * FROM cell_1 WHERE id >= 7`;
-const mysqlSql = `WITH cell_1 AS (\n  SELECT 7 AS "id", '${String.raw`C:\\team\\O''Reilly`}' AS "label"\n)\nSELECT * FROM cell_1 WHERE id >= 7`;
+const mysqlSql = `WITH cell_1 AS (\n  SELECT 7 AS \`id\`, '${String.raw`C:\\team\\O''Reilly`}' AS \`label\`\n)\nSELECT * FROM cell_1 WHERE id >= 7`;
+const backtickStandardSql = `WITH cell_1 AS (\n  SELECT 7 AS \`id\`, '${String.raw`C:\team\O''Reilly`}' AS \`label\`\n)\nSELECT * FROM cell_1 WHERE id >= 7`;
 
 function sqlCell(id: string, content: string, partial: Partial<NotebookCell> = {}): NotebookCell {
   return { id, type: "sql", content, ...partial };
@@ -157,6 +158,7 @@ describe("NotebookView", () => {
     fixtures.notebooks.clear();
     fixtures.mounts.clear();
     fixtures.database.activeDriver = "postgres";
+    fixtures.database.activeCapabilities = null;
     fixtures.database.activeSchema = "active_schema";
     fixtures.settings.resultPageSize = 37;
     fixtures.guardQuery.mockReset().mockResolvedValue(true);
@@ -177,7 +179,10 @@ describe("NotebookView", () => {
       await settle();
 
       expect(mockResolveParams).toHaveBeenCalledWith(rawQuery.trim(), params);
-      expect(mockResolveVariables).toHaveBeenCalledWith(parameterSql, state.cells, { escapeBackslashes: false });
+      expect(mockResolveVariables).toHaveBeenCalledWith(parameterSql, state.cells, {
+        escapeBackslashes: false,
+        identifierQuote: '"',
+      });
       expect(explainFor("target")).toEqual({ sql: standardSql, unresolvedRefs: [] });
       expect(screen.getByRole("textbox", { name: "SQL target" })).toHaveValue(rawQuery);
       expect(screen.getByTestId("cell-target")).toHaveAttribute("data-connection", connectionId);
@@ -294,12 +299,20 @@ describe("NotebookView", () => {
 
   describe("legacy runCell", () => {
     it.each([
-      { driver: "mysql", escapeBackslashes: true, expectedSql: mysqlSql },
-      { driver: "postgres", escapeBackslashes: false, expectedSql: standardSql },
-      { driver: "sqlite", escapeBackslashes: false, expectedSql: standardSql },
-      { driver: "test-driver", escapeBackslashes: false, expectedSql: standardSql },
-    ])("uses the same prepared SQL for the plan and execute_query with $driver escaping, preserving result history", async ({ driver, escapeBackslashes, expectedSql }) => {
+      { driver: "mysql", capabilities: null, escapeBackslashes: true, identifierQuote: "`", expectedSql: mysqlSql },
+      { driver: "postgres", capabilities: null, escapeBackslashes: false, identifierQuote: '"', expectedSql: standardSql },
+      { driver: "sqlite", capabilities: null, escapeBackslashes: false, identifierQuote: '"', expectedSql: standardSql },
+      { driver: "test-driver", capabilities: null, escapeBackslashes: false, identifierQuote: '"', expectedSql: standardSql },
+      {
+        driver: "backtick-plugin",
+        capabilities: { identifier_quote: "`", sql_dialect: "generic" },
+        escapeBackslashes: false,
+        identifierQuote: "`",
+        expectedSql: backtickStandardSql,
+      },
+    ])("uses the same prepared SQL for the plan and execute_query with $driver escaping, preserving result history", async ({ driver, capabilities, escapeBackslashes, identifierQuote, expectedSql }) => {
       fixtures.database.activeDriver = driver;
+      fixtures.database.activeCapabilities = capabilities;
       const previousEntry = { query: "SELECT 1", result: null, executionTime: 1, timestamp: 1 };
       renderNotebook({
         params,
@@ -310,7 +323,10 @@ describe("NotebookView", () => {
       });
       const prepared = explainFor("target");
       expect(prepared).toEqual({ sql: expectedSql, unresolvedRefs: [] });
-      expect(mockResolveVariables).toHaveBeenCalledWith(parameterSql, expect.any(Array), { escapeBackslashes });
+      expect(mockResolveVariables).toHaveBeenCalledWith(parameterSql, expect.any(Array), {
+        escapeBackslashes,
+        identifierQuote,
+      });
       expect(mockInvoke).not.toHaveBeenCalled();
 
       await act(async () => {

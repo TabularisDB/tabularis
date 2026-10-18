@@ -3,6 +3,8 @@ pub mod chatgpt;
 pub mod ai_activity;
 #[cfg(test)]
 pub mod ai_activity_tests;
+#[cfg(test)]
+pub mod ai_activity_lexer_tests;
 pub mod ai_approval;
 #[cfg(test)]
 pub mod ai_approval_tests;

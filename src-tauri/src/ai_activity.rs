@@ -15,6 +15,7 @@ use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
+use crate::drivers::driver_trait::SqlDialect;
 use crate::paths::get_app_config_dir;
 
 const ACTIVITY_FILENAME: &str = "ai_activity.jsonl";
@@ -358,8 +359,53 @@ pub fn clear() -> Result<(), String> {
 /// Conservative on purpose: any input we cannot confidently identify as a
 /// read returns `"unknown"`, so callers can fail closed when enforcing
 /// safety policies (read-only mode, approval gates).
+///
+/// The dialect is not known here, so the statement is lexed under every
+/// dialect's rules (see [`classify_query_kind_for_dialect`]). Callers that
+/// know the connection's `sql_dialect` should use that function instead: it
+/// is just as strict for that dialect and avoids false positives caused by
+/// syntax that only another dialect would read differently.
 pub fn classify_query_kind(sql: &str) -> &'static str {
-    let stripped = strip_strings_and_comments(sql);
+    classify_query_kind_for_dialect(sql, None)
+}
+
+/// Classify `sql` as [`classify_query_kind`] does, for a connection whose
+/// driver declares `dialect` (its `sql_dialect` capability).
+///
+/// Where a string literal, quoted identifier or comment ends depends on the
+/// dialect (and, for MySQL, on server modes such as `NO_BACKSLASH_ESCAPES`
+/// and `ANSI_QUOTES`). A payload can exploit any disagreement between how
+/// this classifier and the server tokenize it to hide a `;` and a second
+/// statement — e.g. `SELECT 1 # '` + newline + `; DROP TABLE t` on MySQL,
+/// where `#` starts a comment. So the statement is lexed once per plausible
+/// tokenization of the dialect ([`lex_profiles_for`]) and classified under
+/// each; it is a read only if EVERY pass sees exactly one read statement.
+/// Any pass that sees a write, DDL, an unrecognised statement or a second
+/// statement wins, which also covers passes disagreeing on the statement
+/// count. `None`, `Generic`, `Oracle` and any dialect without a dedicated
+/// profile set are lexed under all profiles.
+pub fn classify_query_kind_for_dialect(sql: &str, dialect: Option<SqlDialect>) -> &'static str {
+    for profile in lex_profiles_for(dialect) {
+        let kind = classify_with_profile(sql, profile);
+        if kind != "select" {
+            return kind;
+        }
+    }
+    "select"
+}
+
+/// Whether `sql` holds more than one statement under any tokenization
+/// plausible for `dialect` (`None` = every known dialect). Fails closed: a
+/// `;` that only one dialect sees as a separator still counts.
+pub(crate) fn has_multiple_statements(sql: &str, dialect: Option<SqlDialect>) -> bool {
+    lex_profiles_for(dialect)
+        .iter()
+        .any(|profile| has_trailing_statements(&strip_with_profile(sql, profile, false)))
+}
+
+/// Classify `sql` as tokenized by a single lexer profile.
+fn classify_with_profile(sql: &str, profile: &LexProfile) -> &'static str {
+    let stripped = strip_with_profile(sql, profile, false);
     let trimmed = stripped.trim_start();
     if trimmed.is_empty() {
         return "unknown";
@@ -373,19 +419,9 @@ pub fn classify_query_kind(sql: &str) -> &'static str {
     // Fail closed for multi-statement payloads: a leading `SELECT 1; DROP …`
     // must NOT be tagged as a clean read just because the first keyword is
     // SELECT — the read-only and approval gates rely on this classification.
-    //
-    // SQL dialects disagree on backslash escaping inside string literals:
-    // MySQL/MariaDB treat `\'` as an escaped quote by default, while
-    // PostgreSQL standard-conforming strings treat `\` as a literal byte.
-    // That disagreement shifts where a string literal ends, and therefore
-    // where a `;` becomes a visible statement separator — e.g. MySQL reads
-    // `SELECT '\''; DROP TABLE users` as two statements, the standard reading
-    // as one. We strip under both interpretations and fail closed if EITHER
-    // reveals a trailing statement, so a payload cannot hide an injected
-    // separator by exploiting whichever dialect we happen not to assume.
-    if has_trailing_statements(&stripped)
-        || has_trailing_statements(&strip_impl(sql, true))
-    {
+    // Dialect disagreements over where a literal or comment ends are handled
+    // by running this once per profile, see `classify_query_kind_for_dialect`.
+    if has_trailing_statements(&stripped) {
         return "unknown";
     }
     // Peel any leading `(` (and surrounding whitespace) before reading the
@@ -428,7 +464,7 @@ pub fn classify_query_kind(sql: &str) -> &'static str {
     // would miss. Fail closed: the engine read-only backstop does not stop
     // every such function (e.g. `lo_export` writes a file even inside a
     // read-only transaction), so the classifier is the last line of defence.
-    if kind == "select" && has_quoted_function_call(sql) {
+    if kind == "select" && has_quoted_function_call(sql, profile) {
         return "unknown";
     }
     kind
@@ -785,92 +821,238 @@ fn classify_wrapped_statement(wrapped_upper: &str) -> &'static str {
 /// or quoted identifier.
 ///
 /// Uses the SQL-standard reading of single-quoted strings (only `''` escapes
-/// a quote). For the backslash-aware reading used to harden multi-statement
-/// detection against MySQL-style escaping, see [`strip_impl`].
+/// a quote) plus PostgreSQL escape strings and dollar quotes. The classifier
+/// itself lexes under several dialect profiles, see [`lex_profiles_for`].
 pub fn strip_strings_and_comments(sql: &str) -> String {
-    strip_impl(sql, false)
+    strip_with_profile(sql, &LEGACY_STANDARD, false)
 }
 
-/// Backing implementation for [`strip_strings_and_comments`].
+/// How one SQL dialect (or server mode) tokenizes the parts of a statement
+/// the classifier must skip: string literals, quoted identifiers, comments.
 ///
-/// When `backslash_escapes` is true, a `\` inside a single-quoted string
-/// escapes the following byte (MySQL/MariaDB default). When false, backslash
-/// is an ordinary literal byte (SQL standard / PostgreSQL standard strings).
-/// Only single-quoted string scanning honours the flag — comments and quoted
-/// identifiers are dialect-independent here.
-fn strip_impl(sql: &str, backslash_escapes: bool) -> String {
-    strip_impl_opts(sql, backslash_escapes, false)
+/// Every flag describes a rule a real engine applies. A rule that is wrong for
+/// the engine actually running the query can only hide or reveal text in that
+/// one pass; because a statement is a read only when every pass of its
+/// dialect agrees (see [`classify_query_kind_for_dialect`]), extra passes make
+/// the classifier stricter, never laxer.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LexProfile {
+    /// `\` escapes the next byte inside `'…'` (MySQL default, PostgreSQL
+    /// with `standard_conforming_strings = off`, BigQuery).
+    backslash_in_single: bool,
+    /// `\` escapes the next byte inside `"…"` (MySQL strings without
+    /// `ANSI_QUOTES`, BigQuery).
+    backslash_in_double: bool,
+    /// `\` escapes the next byte inside `` `…` `` (BigQuery).
+    backslash_in_backtick: bool,
+    /// `#` starts a line comment (MySQL, MariaDB, BigQuery).
+    hash_comments: bool,
+    /// `--` only starts a comment when followed by whitespace, a control byte
+    /// or end of input (MySQL: `1--1` is arithmetic).
+    dash_comment_needs_space: bool,
+    /// A carriage return also ends a line comment (PostgreSQL, SQL Server).
+    line_comment_ends_at_cr: bool,
+    /// `/* … */` comments nest (PostgreSQL, SQL Server).
+    nested_block_comments: bool,
+    /// `/*! … */` and `/*M! … */` bodies are executed (MySQL, MariaDB), so
+    /// they are scanned as code rather than skipped.
+    executable_comments: bool,
+    /// `'''…'''` and `"""…"""` delimit strings (BigQuery).
+    triple_quotes: bool,
+    /// PostgreSQL `E'…'` escape strings and `$tag$…$tag$` dollar quotes.
+    postgres_strings: bool,
+    /// `[…]` delimits an identifier (SQL Server, SQLite).
+    bracket_identifiers: bool,
 }
 
-/// Backing implementation for [`strip_impl`] and [`strip_identifiers_marked`].
+const BASE_PROFILE: LexProfile = LexProfile {
+    backslash_in_single: false,
+    backslash_in_double: false,
+    backslash_in_backtick: false,
+    hash_comments: false,
+    dash_comment_needs_space: false,
+    line_comment_ends_at_cr: false,
+    nested_block_comments: false,
+    executable_comments: false,
+    triple_quotes: false,
+    postgres_strings: false,
+    bracket_identifiers: false,
+};
+
+/// The historical single-pass reading: SQL-standard strings, PostgreSQL
+/// escape strings and dollar quotes, non-nesting block comments.
+const LEGACY_STANDARD: LexProfile = LexProfile {
+    postgres_strings: true,
+    ..BASE_PROFILE
+};
+
+/// [`LEGACY_STANDARD`] with backslash escapes in `'…'`.
+const LEGACY_BACKSLASH: LexProfile = LexProfile {
+    backslash_in_single: true,
+    postgres_strings: true,
+    ..BASE_PROFILE
+};
+
+/// PostgreSQL proper: nesting block comments, `--` ends at CR or LF.
+const POSTGRES: LexProfile = LexProfile {
+    nested_block_comments: true,
+    line_comment_ends_at_cr: true,
+    postgres_strings: true,
+    ..BASE_PROFILE
+};
+
+/// PostgreSQL with `standard_conforming_strings = off`.
+const POSTGRES_BACKSLASH: LexProfile = LexProfile {
+    backslash_in_single: true,
+    ..POSTGRES
+};
+
+/// MySQL / MariaDB default SQL mode: `"…"` is a string, backslash escapes in
+/// both string kinds, `#` and `-- ` comments, executable comments.
+const MYSQL: LexProfile = LexProfile {
+    backslash_in_single: true,
+    backslash_in_double: true,
+    hash_comments: true,
+    dash_comment_needs_space: true,
+    executable_comments: true,
+    ..BASE_PROFILE
+};
+
+/// MySQL with `ANSI_QUOTES`: `"…"` is an identifier (no backslash escapes).
+const MYSQL_ANSI_QUOTES: LexProfile = LexProfile {
+    backslash_in_double: false,
+    ..MYSQL
+};
+
+/// MySQL with `NO_BACKSLASH_ESCAPES`.
+const MYSQL_NO_BACKSLASH: LexProfile = LexProfile {
+    backslash_in_single: false,
+    backslash_in_double: false,
+    ..MYSQL
+};
+
+/// SQL Server: `[…]` identifiers, nesting block comments.
+const MSSQL: LexProfile = LexProfile {
+    bracket_identifiers: true,
+    nested_block_comments: true,
+    line_comment_ends_at_cr: true,
+    ..BASE_PROFILE
+};
+
+/// SQLite: `[…]` and `` `…` `` identifiers, no backslash escapes, no nesting.
+const SQLITE: LexProfile = LexProfile {
+    bracket_identifiers: true,
+    ..BASE_PROFILE
+};
+
+/// BigQuery GoogleSQL: `#` comments, backslash escapes in every quote kind
+/// (including backtick identifiers), triple-quoted strings.
+const BIGQUERY: LexProfile = LexProfile {
+    backslash_in_single: true,
+    backslash_in_double: true,
+    backslash_in_backtick: true,
+    hash_comments: true,
+    triple_quotes: true,
+    ..BASE_PROFILE
+};
+
+const POSTGRES_PROFILES: &[LexProfile] = &[
+    LEGACY_STANDARD,
+    LEGACY_BACKSLASH,
+    POSTGRES,
+    POSTGRES_BACKSLASH,
+];
+const MYSQL_PROFILES: &[LexProfile] = &[MYSQL, MYSQL_ANSI_QUOTES, MYSQL_NO_BACKSLASH];
+const MSSQL_PROFILES: &[LexProfile] = &[MSSQL, SQLITE];
+const SQLITE_PROFILES: &[LexProfile] = &[SQLITE];
+const ALL_PROFILES: &[LexProfile] = &[
+    LEGACY_STANDARD,
+    LEGACY_BACKSLASH,
+    POSTGRES,
+    POSTGRES_BACKSLASH,
+    MYSQL,
+    MYSQL_ANSI_QUOTES,
+    MYSQL_NO_BACKSLASH,
+    MSSQL,
+    SQLITE,
+    BIGQUERY,
+];
+
+/// The lexer profiles a statement for `dialect` must be read as a single read
+/// statement under. Dialects without a dedicated set (`generic`, `oracle`, an
+/// undeclared dialect, or one added after this was written) get every profile,
+/// which fails closed.
+pub(crate) fn lex_profiles_for(dialect: Option<SqlDialect>) -> &'static [LexProfile] {
+    match dialect {
+        Some(SqlDialect::Postgres) => POSTGRES_PROFILES,
+        Some(SqlDialect::Mysql) => MYSQL_PROFILES,
+        Some(SqlDialect::Mssql) => MSSQL_PROFILES,
+        Some(SqlDialect::Sqlite) => SQLITE_PROFILES,
+        _ => ALL_PROFILES,
+    }
+}
+
+/// Blank out string literals, comments and quoted identifiers of `sql` as
+/// tokenized by `profile`, keeping byte offsets. Every other byte is copied.
 ///
-/// When `mark_identifiers` is true, each quoted identifier is replaced by the
-/// marker byte [`IDENT_MARK`] instead of spaces, so a later pass can tell a
-/// quoted identifier apart from a blanked string literal — needed to spot a
-/// function invoked through a quoted name (`"lo_export"(…)`).
-fn strip_impl_opts(sql: &str, backslash_escapes: bool, mark_identifiers: bool) -> String {
+/// When `mark_identifiers` is true, `"…"` and `` `…` `` regions become runs of
+/// [`IDENT_MARK`] instead of spaces, so a later pass can tell a quoted
+/// identifier apart from a blanked literal — needed to spot a function invoked
+/// through a quoted name (`"lo_export"(…)`).
+pub(crate) fn strip_with_profile(
+    sql: &str,
+    profile: &LexProfile,
+    mark_identifiers: bool,
+) -> String {
+    let p = profile;
     let ident_fill = if mark_identifiers { IDENT_MARK } else { b' ' };
     let bytes = sql.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
+    let n = bytes.len();
+    let mut out = Vec::with_capacity(n);
     let mut i = 0;
-    while i < bytes.len() {
+    while i < n {
         let c = bytes[i];
-        // Line comment
-        if c == b'-' && i + 1 < bytes.len() && bytes[i + 1] == b'-' {
-            while i < bytes.len() && bytes[i] != b'\n' {
+        // Line comments: `--` (MySQL needs a following space) and `#`.
+        let dash_comment = c == b'-'
+            && bytes.get(i + 1) == Some(&b'-')
+            && (!p.dash_comment_needs_space
+                || bytes
+                    .get(i + 2)
+                    .map_or(true, |b| b.is_ascii_whitespace() || b.is_ascii_control()));
+        if dash_comment || (p.hash_comments && c == b'#') {
+            while i < n && bytes[i] != b'\n' && !(p.line_comment_ends_at_cr && bytes[i] == b'\r') {
                 out.push(b' ');
                 i += 1;
             }
             continue;
         }
-        // Block comment (non-nesting; sufficient for classification)
-        if c == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'*' {
-            out.push(b' ');
-            out.push(b' ');
-            i += 2;
-            while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
-                out.push(b' ');
-                i += 1;
-            }
-            if i + 1 < bytes.len() {
-                out.push(b' ');
-                out.push(b' ');
-                i += 2;
-            } else {
-                while i < bytes.len() {
-                    out.push(b' ');
-                    i += 1;
+        if c == b'/' && bytes.get(i + 1) == Some(&b'*') {
+            // MySQL executable comment: blank the opener (and its version
+            // number) and keep scanning the body as code, because the server
+            // runs it.
+            if p.executable_comments {
+                if let Some(len) = executable_comment_opener_len(&bytes[i..]) {
+                    out.extend(std::iter::repeat(b' ').take(len));
+                    i += len;
+                    continue;
                 }
             }
-            continue;
-        }
-        // Escape string constant (`E'…'` / `e'…'`, PostgreSQL): a backslash
-        // always escapes the next byte here, regardless of the dialect flag.
-        // Without this, `E'\''` desynchronises the scanner under the standard
-        // reading — the `\` is treated as literal, the following `''` reads as
-        // an escaped quote, and the string never closes — masking whatever
-        // comes after (e.g. a side-effecting `lo_export(…)` call).
-        if (c == b'E' || c == b'e')
-            && i + 1 < bytes.len()
-            && bytes[i + 1] == b'\''
-            && (i == 0 || !is_ident_byte(bytes[i - 1]))
-        {
-            out.push(b' ');
-            out.push(b' ');
-            i += 2;
-            while i < bytes.len() {
-                if bytes[i] == b'\\' && i + 1 < bytes.len() {
-                    out.push(b' ');
-                    out.push(b' ');
+            let mut depth = 0usize;
+            while i < n {
+                if bytes[i] == b'/'
+                    && bytes.get(i + 1) == Some(&b'*')
+                    && (depth == 0 || p.nested_block_comments)
+                {
+                    depth += 1;
+                    out.extend_from_slice(b"  ");
                     i += 2;
-                } else if bytes[i] == b'\'' && i + 1 < bytes.len() && bytes[i + 1] == b'\'' {
-                    out.push(b' ');
-                    out.push(b' ');
+                } else if bytes[i] == b'*' && bytes.get(i + 1) == Some(&b'/') {
+                    depth -= 1;
+                    out.extend_from_slice(b"  ");
                     i += 2;
-                } else if bytes[i] == b'\'' {
-                    out.push(b' ');
-                    i += 1;
-                    break;
+                    if depth == 0 {
+                        break;
+                    }
                 } else {
                     out.push(b' ');
                     i += 1;
@@ -878,23 +1060,37 @@ fn strip_impl_opts(sql: &str, backslash_escapes: bool, mark_identifiers: bool) -
             }
             continue;
         }
+        // Escape string constant (`E'…'` / `e'…'`, PostgreSQL): a backslash
+        // always escapes the next byte here. Without this, `E'\''`
+        // desynchronises the scanner under the standard reading — the `\` is
+        // treated as literal, the following `''` reads as an escaped quote,
+        // and the string never closes — masking whatever comes after (e.g. a
+        // side-effecting `lo_export(…)` call). The `E` must start a token:
+        // `xE'…'` is the identifier `xE` followed by a standard string.
+        if p.postgres_strings
+            && (c == b'E' || c == b'e')
+            && bytes.get(i + 1) == Some(&b'\'')
+            && (i == 0 || !is_ident_continue(bytes[i - 1]))
+        {
+            out.push(b' ');
+            i += 1;
+            scan_quoted(bytes, &mut i, &mut out, b'\'', true, b' ');
+            continue;
+        }
         // Dollar-quoted string constant (`$tag$ … $tag$`, PostgreSQL). The body
         // is wholly literal — no escapes — so it ends only at the matching
         // delimiter. Scanning it as text (rather than skipping it) is what let
         // `$$'$$, lo_export(…)` hide the call: the `'` inside was read as an
-        // ordinary string opener and swallowed the rest of the statement.
-        if c == b'$' {
+        // ordinary string opener and swallowed the rest of the statement. A
+        // `$` inside an identifier (`a$b$`) does not open one.
+        if p.postgres_strings && c == b'$' && (i == 0 || !is_ident_continue(bytes[i - 1])) {
             if let Some(tag_len) = dollar_quote_tag_len(&bytes[i..]) {
                 let delim = &bytes[i..i + tag_len];
-                for _ in 0..tag_len {
-                    out.push(b' ');
-                }
+                out.extend(std::iter::repeat(b' ').take(tag_len));
                 i += tag_len;
-                while i < bytes.len() {
+                while i < n {
                     if bytes[i] == b'$' && bytes[i..].starts_with(delim) {
-                        for _ in 0..tag_len {
-                            out.push(b' ');
-                        }
+                        out.extend(std::iter::repeat(b' ').take(tag_len));
                         i += tag_len;
                         break;
                     }
@@ -904,24 +1100,26 @@ fn strip_impl_opts(sql: &str, backslash_escapes: bool, mark_identifiers: bool) -
                 continue;
             }
         }
-        // Single-quoted string literal (SQL-style escaped quote: '')
-        if c == b'\'' {
-            out.push(b' ');
-            i += 1;
-            while i < bytes.len() {
-                if backslash_escapes && bytes[i] == b'\\' && i + 1 < bytes.len() {
-                    // MySQL-style backslash escape: the next byte is part of
-                    // the string regardless of what it is (including `'`).
-                    out.push(b' ');
-                    out.push(b' ');
+        // Triple-quoted string (BigQuery): ends only at three matching quotes.
+        if p.triple_quotes
+            && (c == b'\'' || c == b'"')
+            && bytes.get(i + 1) == Some(&c)
+            && bytes.get(i + 2) == Some(&c)
+        {
+            let backslash = if c == b'\'' {
+                p.backslash_in_single
+            } else {
+                p.backslash_in_double
+            };
+            out.extend_from_slice(b"   ");
+            i += 3;
+            while i < n {
+                if backslash && bytes[i] == b'\\' && i + 1 < n {
+                    out.extend_from_slice(b"  ");
                     i += 2;
-                } else if bytes[i] == b'\'' && i + 1 < bytes.len() && bytes[i + 1] == b'\'' {
-                    out.push(b' ');
-                    out.push(b' ');
-                    i += 2;
-                } else if bytes[i] == b'\'' {
-                    out.push(b' ');
-                    i += 1;
+                } else if bytes[i..].starts_with(&[c, c, c]) {
+                    out.extend_from_slice(b"   ");
+                    i += 3;
                     break;
                 } else {
                     out.push(b' ');
@@ -930,61 +1128,136 @@ fn strip_impl_opts(sql: &str, backslash_escapes: bool, mark_identifiers: bool) -
             }
             continue;
         }
-        // Double-quoted identifier (PostgreSQL / ANSI)
-        if c == b'"' {
-            out.push(ident_fill);
-            i += 1;
-            while i < bytes.len() && bytes[i] != b'"' {
-                out.push(ident_fill);
+        match c {
+            b'\'' => scan_quoted(bytes, &mut i, &mut out, c, p.backslash_in_single, b' '),
+            b'"' => scan_quoted(
+                bytes,
+                &mut i,
+                &mut out,
+                c,
+                p.backslash_in_double,
+                ident_fill,
+            ),
+            b'`' => scan_quoted(
+                bytes,
+                &mut i,
+                &mut out,
+                c,
+                p.backslash_in_backtick,
+                ident_fill,
+            ),
+            // Brackets are blanked, not marked: SQL Server and SQLite have no
+            // quoted-name bypass of the (PostgreSQL) side-effect denylist, and
+            // `[dbo].[fn](…)` is an ordinary scalar function call.
+            b'[' if p.bracket_identifiers => {
+                scan_delimited(bytes, &mut i, &mut out, b'[', b']', b' ')
+            }
+            _ => {
+                out.push(c);
                 i += 1;
             }
-            if i < bytes.len() {
-                out.push(ident_fill);
-                i += 1;
-            }
-            continue;
         }
-        // Backtick-quoted identifier (MySQL)
-        if c == b'`' {
-            out.push(ident_fill);
-            i += 1;
-            while i < bytes.len() && bytes[i] != b'`' {
-                out.push(ident_fill);
-                i += 1;
-            }
-            if i < bytes.len() {
-                out.push(ident_fill);
-                i += 1;
-            }
-            continue;
-        }
-        out.push(c);
-        i += 1;
     }
     String::from_utf8(out).unwrap_or_default()
 }
 
-/// Marker byte that [`strip_identifiers_marked`] leaves in place of a quoted
-/// identifier. `0x01` cannot occur in the stripped output otherwise (every
-/// other byte is either copied source or a blanking space), so a run of it
-/// unambiguously marks where a quoted identifier stood.
+/// Blank a quoted run that opens with `quote` at `bytes[*i]` and ends at the
+/// next unescaped, undoubled `quote` (or end of input). A doubled quote
+/// (`''`, `""`, ``` `` ```) is always an escaped quote; with `backslash`, a
+/// `\` also escapes the byte after it.
+fn scan_quoted(
+    bytes: &[u8],
+    i: &mut usize,
+    out: &mut Vec<u8>,
+    quote: u8,
+    backslash: bool,
+    fill: u8,
+) {
+    scan_delimited_with(bytes, i, out, quote, quote, backslash, fill);
+}
+
+/// Like [`scan_quoted`] for a run with distinct open/close bytes (`[…]`),
+/// where a doubled close byte (`]]`) escapes it.
+fn scan_delimited(bytes: &[u8], i: &mut usize, out: &mut Vec<u8>, open: u8, close: u8, fill: u8) {
+    scan_delimited_with(bytes, i, out, open, close, false, fill);
+}
+
+fn scan_delimited_with(
+    bytes: &[u8],
+    i: &mut usize,
+    out: &mut Vec<u8>,
+    open: u8,
+    close: u8,
+    backslash: bool,
+    fill: u8,
+) {
+    debug_assert_eq!(bytes.get(*i), Some(&open));
+    let n = bytes.len();
+    out.push(fill);
+    *i += 1;
+    while *i < n {
+        let b = bytes[*i];
+        if backslash && b == b'\\' && *i + 1 < n {
+            out.push(fill);
+            out.push(fill);
+            *i += 2;
+        } else if b == close && bytes.get(*i + 1) == Some(&close) {
+            out.push(fill);
+            out.push(fill);
+            *i += 2;
+        } else if b == close {
+            out.push(fill);
+            *i += 1;
+            return;
+        } else {
+            out.push(fill);
+            *i += 1;
+        }
+    }
+}
+
+/// Length of a MySQL / MariaDB executable comment opener at the start of
+/// `bytes` — `/*!`, `/*M!`, each optionally followed by a version number —
+/// or `None` for an ordinary comment (including `/*+ hints */`).
+fn executable_comment_opener_len(bytes: &[u8]) -> Option<usize> {
+    let mut j = if bytes.starts_with(b"/*!") {
+        3
+    } else if bytes.starts_with(b"/*M!") {
+        4
+    } else {
+        return None;
+    };
+    while j < bytes.len() && bytes[j].is_ascii_digit() {
+        j += 1;
+    }
+    Some(j)
+}
+
+/// Marker byte that [`strip_with_profile`] leaves in place of a quoted
+/// identifier when asked to. `0x01` cannot occur in the stripped output
+/// otherwise (every other byte is either copied source or a blanking space),
+/// so a run of it unambiguously marks where a quoted identifier stood.
 const IDENT_MARK: u8 = 0x01;
 
-/// Whether `b` can appear inside an unquoted identifier. Used to tell an
-/// `E'…'` escape string apart from an identifier that merely ends in `E`.
-fn is_ident_byte(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_'
+/// Whether `b` can continue an unquoted identifier: ASCII alphanumerics, `_`,
+/// `$` (PostgreSQL, MySQL) and any non-ASCII byte (identifiers may contain
+/// Unicode letters). Used to tell an `E'…'` escape string or a `$tag$` dollar
+/// quote apart from an identifier that merely ends in `E` or contains `$`.
+fn is_ident_continue(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_' || b == b'$' || b >= 0x80
 }
 
 /// If `bytes` starts with a PostgreSQL dollar-quote opening delimiter
-/// (`$$` or `$tag$`, where `tag` is an identifier), return its length in
-/// bytes; otherwise `None` (e.g. a `$1` positional parameter).
+/// (`$$` or `$tag$`, where `tag` is an identifier without `$`), return its
+/// length in bytes; otherwise `None` (e.g. a `$1` positional parameter).
 fn dollar_quote_tag_len(bytes: &[u8]) -> Option<usize> {
     debug_assert_eq!(bytes.first(), Some(&b'$'));
+    let is_tag_start = |b: u8| b.is_ascii_alphabetic() || b == b'_' || b >= 0x80;
+    let is_tag_continue = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b >= 0x80;
     let mut j = 1;
-    if j < bytes.len() && (bytes[j].is_ascii_alphabetic() || bytes[j] == b'_') {
+    if j < bytes.len() && is_tag_start(bytes[j]) {
         j += 1;
-        while j < bytes.len() && is_ident_byte(bytes[j]) {
+        while j < bytes.len() && is_tag_continue(bytes[j]) {
             j += 1;
         }
     }
@@ -995,22 +1268,16 @@ fn dollar_quote_tag_len(bytes: &[u8]) -> Option<usize> {
     }
 }
 
-/// Like [`strip_strings_and_comments`], but quoted identifiers become runs of
-/// [`IDENT_MARK`] instead of spaces so [`has_quoted_function_call`] can find a
-/// function invoked through a quoted name.
-fn strip_identifiers_marked(sql: &str) -> String {
-    strip_impl_opts(sql, false, true)
-}
-
-/// Whether the statement calls a function through a *quoted* identifier, i.e. a
-/// quoted identifier immediately followed by `(` — `"lo_export"(…)`,
-/// `pg_catalog."lo_export"(…)`, `U&"lo_export"(…)`. The side-effect-function
-/// denylist matches on the bare name, so quoting the name slips a write-shaped
-/// call (file write via `lo_export`, backend signals, `dblink_exec`, …) past
-/// it. A read-only transaction does not stop several of those functions, so a
-/// query that calls one by a quoted name is never treated as a clean read.
-fn has_quoted_function_call(sql: &str) -> bool {
-    let marked = strip_identifiers_marked(sql);
+/// Whether the statement, as tokenized by `profile`, calls a function through
+/// a *quoted* identifier, i.e. a quoted identifier immediately followed by `(`
+/// — `"lo_export"(…)`, `pg_catalog."lo_export"(…)`, `U&"lo_export"(…)`. The
+/// side-effect-function denylist matches on the bare name, so quoting the name
+/// slips a write-shaped call (file write via `lo_export`, backend signals,
+/// `dblink_exec`, …) past it. A read-only transaction does not stop several of
+/// those functions, so a query that calls one by a quoted name is never
+/// treated as a clean read.
+fn has_quoted_function_call(sql: &str, profile: &LexProfile) -> bool {
+    let marked = strip_with_profile(sql, profile, true);
     let bytes = marked.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -1018,9 +1285,7 @@ fn has_quoted_function_call(sql: &str) -> bool {
             while i < bytes.len() && bytes[i] == IDENT_MARK {
                 i += 1;
             }
-            let next = bytes[i..]
-                .iter()
-                .find(|b| !b.is_ascii_whitespace());
+            let next = bytes[i..].iter().find(|b| !b.is_ascii_whitespace());
             if next == Some(&b'(') {
                 return true;
             }
