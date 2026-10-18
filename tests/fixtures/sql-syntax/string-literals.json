@@ -1,0 +1,125 @@
+{
+  "_comment": "String literal quoting cases shared by the Rust (quote_string_literal) and TypeScript (quoteSqlStringWithStyle) tests so both sides stay identical.",
+  "cases": [
+    {
+      "style": "standard",
+      "input": "",
+      "expected": "''"
+    },
+    {
+      "style": "standard",
+      "input": "plain",
+      "expected": "'plain'"
+    },
+    {
+      "style": "standard",
+      "input": "O'Brien",
+      "expected": "'O''Brien'"
+    },
+    {
+      "style": "standard",
+      "input": "a\\b",
+      "expected": "'a\\b'"
+    },
+    {
+      "style": "standard",
+      "input": "a\u0000b",
+      "expected": "'a\u0000b'"
+    },
+    {
+      "style": "standard",
+      "input": "\\\u0000",
+      "expected": "'\\\u0000'"
+    },
+    {
+      "style": "standard",
+      "input": "line\r\nbreak",
+      "expected": "'line\r\nbreak'"
+    },
+    {
+      "style": "standard",
+      "input": "mix '\\ \u0000 \n end",
+      "expected": "'mix ''\\ \u0000 \n end'"
+    },
+    {
+      "style": "mysql",
+      "input": "",
+      "expected": "''"
+    },
+    {
+      "style": "mysql",
+      "input": "plain",
+      "expected": "'plain'"
+    },
+    {
+      "style": "mysql",
+      "input": "O'Brien",
+      "expected": "'O''Brien'"
+    },
+    {
+      "style": "mysql",
+      "input": "a\\b",
+      "expected": "'a\\\\b'"
+    },
+    {
+      "style": "mysql",
+      "input": "a\u0000b",
+      "expected": "'a\\0b'"
+    },
+    {
+      "style": "mysql",
+      "input": "\\\u0000",
+      "expected": "'\\\\\\0'"
+    },
+    {
+      "style": "mysql",
+      "input": "line\r\nbreak",
+      "expected": "'line\r\nbreak'"
+    },
+    {
+      "style": "mysql",
+      "input": "mix '\\ \u0000 \n end",
+      "expected": "'mix ''\\\\ \\0 \n end'"
+    },
+    {
+      "style": "backslash",
+      "input": "",
+      "expected": "''"
+    },
+    {
+      "style": "backslash",
+      "input": "plain",
+      "expected": "'plain'"
+    },
+    {
+      "style": "backslash",
+      "input": "O'Brien",
+      "expected": "'O\\'Brien'"
+    },
+    {
+      "style": "backslash",
+      "input": "a\\b",
+      "expected": "'a\\\\b'"
+    },
+    {
+      "style": "backslash",
+      "input": "a\u0000b",
+      "expected": "'a\\0b'"
+    },
+    {
+      "style": "backslash",
+      "input": "\\\u0000",
+      "expected": "'\\\\\\0'"
+    },
+    {
+      "style": "backslash",
+      "input": "line\r\nbreak",
+      "expected": "'line\\r\\nbreak'"
+    },
+    {
+      "style": "backslash",
+      "input": "mix '\\ \u0000 \n end",
+      "expected": "'mix \\'\\\\ \\0 \\n end'"
+    }
+  ]
+}

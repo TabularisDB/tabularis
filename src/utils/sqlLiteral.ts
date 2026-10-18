@@ -76,7 +76,7 @@ export function quoteSqlStringWithStyle(value: string, style: StringEscapeStyle)
     case "backslash":
       return `'${escapeBackslashString(value)}'`;
     case "mysql":
-      return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "''")}'`;
+      return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "''").replace(/\0/g, "\\0")}'`;
     default:
       return `'${value.replace(/'/g, "''")}'`;
   }

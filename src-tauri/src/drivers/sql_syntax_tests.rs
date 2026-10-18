@@ -400,3 +400,29 @@ fn boolean_literal_spells_the_style() {
     assert_eq!(BooleanLiterals::Numeric.literal(true), "1");
     assert_eq!(BooleanLiterals::Numeric.literal(false), "0");
 }
+
+/// String literal cases shared with `tests/utils/sqlLiteral.test.ts`, so the
+/// Rust and TypeScript quoting stay identical.
+#[test]
+fn quote_string_literal_matches_shared_fixture() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/sql-syntax/string-literals.json"
+    ))
+    .unwrap();
+    let cases = fixture["cases"].as_array().unwrap();
+    assert!(!cases.is_empty());
+    for case in cases {
+        let style = match case["style"].as_str().unwrap() {
+            "standard" => LiteralStyle::Standard,
+            "mysql" => LiteralStyle::Mysql,
+            "backslash" => LiteralStyle::Backslash,
+            other => panic!("unknown style {other}"),
+        };
+        let input = case["input"].as_str().unwrap();
+        assert_eq!(
+            quote_string_literal(input, style),
+            case["expected"].as_str().unwrap(),
+            "{style:?}: {input:?}"
+        );
+    }
+}

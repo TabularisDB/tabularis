@@ -9,6 +9,8 @@ import {
   supportsLikeEscape,
 } from "../../src/utils/sqlLiteral";
 import { GOOGLESQL_CAPS } from "../fixtures/sql-syntax/googlesql";
+import stringLiterals from "../fixtures/sql-syntax/string-literals.json";
+import type { StringEscapeStyle } from "../../src/utils/sqlSyntax";
 import type { DriverCapabilities, PluginManifest } from "../../src/types/plugins";
 
 const caps = (sql_dialect?: DriverCapabilities["sql_dialect"]): DriverCapabilities =>
@@ -82,6 +84,19 @@ describe("sqlLiteral", () => {
     it("writes NUL as \\0 in a backslash syntax", () => {
       expect(quoteSqlStringWithStyle("a\0b", "backslash")).toBe("'a\\0b'");
       expect(quoteSqlStringWithStyle("\\\0", "backslash")).toBe("'\\\\\\0'");
+    });
+
+    it("writes NUL as \\0 for mysql, like the Rust dump side", () => {
+      expect(quoteSqlStringWithStyle("a\0b", "mysql")).toBe("'a\\0b'");
+      expect(quoteSqlString("O'\\\0", "mysql")).toBe("'O''\\\\\\0'");
+    });
+
+    it("matches the shared Rust quote_string_literal cases", () => {
+      const cases = stringLiterals.cases as { style: StringEscapeStyle; input: string; expected: string }[];
+      expect(cases.length).toBeGreaterThan(0);
+      for (const { style, input, expected } of cases) {
+        expect(quoteSqlStringWithStyle(input, style), `${style}: ${JSON.stringify(input)}`).toBe(expected);
+      }
     });
   });
 
