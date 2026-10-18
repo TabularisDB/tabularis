@@ -1018,7 +1018,7 @@ pub(crate) fn strip_with_profile(
             && (!p.dash_comment_needs_space
                 || bytes
                     .get(i + 2)
-                    .is_none_or(|b| b.is_ascii_whitespace() || b.is_ascii_control()));
+                    .map_or(true, |b| b.is_ascii_whitespace() || b.is_ascii_control()));
         if dash_comment || (p.hash_comments && c == b'#') {
             while i < n && bytes[i] != b'\n' && !(p.line_comment_ends_at_cr && bytes[i] == b'\r') {
                 out.push(b' ');
