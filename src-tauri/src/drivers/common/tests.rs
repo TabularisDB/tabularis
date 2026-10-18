@@ -1,10 +1,11 @@
 use super::{
     build_paginated_query, calculate_query_timing, calculate_query_timing_from_start,
     decode_blob_wire_format, encode_blob, encode_blob_full, i64_to_json, is_explainable_query,
-    is_select_query, parse_unsafe_bigint_string, returns_result_set, returns_result_set_for,
-    strip_leading_sql_comments, strip_leading_sql_comments_for, strip_limit_offset,
-    transaction_effect, u64_to_json, TransactionEffect, DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER,
-    JS_MAX_SAFE_UINT, MAX_BLOB_PREVIEW_SIZE,
+    is_explainable_query_for, is_select_query, is_select_query_for, parse_unsafe_bigint_string,
+    returns_result_set, returns_result_set_for, strip_leading_sql_comments,
+    strip_leading_sql_comments_for, strip_limit_offset, transaction_effect, u64_to_json,
+    TransactionEffect, DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT,
+    MAX_BLOB_PREVIEW_SIZE,
 };
 
 #[test]
@@ -204,6 +205,25 @@ fn test_is_select_query_with_leading_comments() {
     ));
     assert!(!is_select_query("-- header\nUPDATE users SET name = 't'"));
     assert!(!is_select_query("/* sel */ INSERT INTO t VALUES (1)"));
+}
+
+#[test]
+fn test_is_select_query_for_hash_comments() {
+    assert!(is_select_query_for("# note\nSELECT * FROM users", true));
+    assert!(is_select_query_for("# a\n-- b\n/* c */ SELECT 1", true));
+    assert!(!is_select_query_for("# note\nUPDATE users SET a = 1", true));
+    // Without hash comments a leading `#` is code, not a comment.
+    assert!(!is_select_query_for("# note\nSELECT 1", false));
+    assert!(!is_select_query("# note\nSELECT 1"));
+}
+
+#[test]
+fn test_is_explainable_query_for_hash_comments() {
+    assert!(is_explainable_query_for("# note\nSELECT 1", true));
+    assert!(is_explainable_query_for("# note\nDELETE FROM t", true));
+    assert!(!is_explainable_query_for("# note\nDROP TABLE t", true));
+    assert!(!is_explainable_query_for("# note\nSELECT 1", false));
+    assert!(!is_explainable_query("# note\nSELECT 1"));
 }
 
 #[test]

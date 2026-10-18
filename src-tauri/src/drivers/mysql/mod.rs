@@ -1458,7 +1458,7 @@ async fn exec_on_mysql_conn(
         });
     }
 
-    let is_select = crate::drivers::common::is_select_query(query);
+    let is_select = crate::drivers::common::is_select_query_for(query, *HASH_COMMENTS);
     let mut pagination: Option<Pagination> = None;
     let final_query: String;
     let mut manual_limit = limit;

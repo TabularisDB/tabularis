@@ -5,7 +5,14 @@
 /// on this to route commented-header SELECTs through the pagination
 /// path.
 pub fn is_select_query(query: &str) -> bool {
-    strip_leading_sql_comments(query)
+    is_select_query_for(query, false)
+}
+
+/// [`is_select_query`] for a driver whose resolved syntax has `#` line
+/// comments (`hash_comments`). Must use the same flag as
+/// [`returns_result_set_for`] so `# note\nSELECT 1` is paginated too.
+pub fn is_select_query_for(query: &str, hash_comments: bool) -> bool {
+    strip_leading_sql_comments_for(query, hash_comments)
         .trim_start()
         .to_uppercase()
         .starts_with("SELECT")
@@ -95,7 +102,13 @@ pub fn returns_result_set_for(query: &str, hash_comments: bool) -> bool {
 /// `src/utils/sqlSplitter/classify.ts` (EXPLAINABLE_KEYWORDS) so the
 /// editor's Explain UI cannot offer a statement the backend will refuse.
 pub fn is_explainable_query(query: &str) -> bool {
-    let upper = strip_leading_sql_comments(query).to_uppercase();
+    is_explainable_query_for(query, false)
+}
+
+/// [`is_explainable_query`] for a driver whose resolved syntax has `#` line
+/// comments (`hash_comments`), so `# note\nSELECT 1` can be explained.
+pub fn is_explainable_query_for(query: &str, hash_comments: bool) -> bool {
+    let upper = strip_leading_sql_comments_for(query, hash_comments).to_uppercase();
     upper.starts_with("SELECT")
         || upper.starts_with("INSERT")
         || upper.starts_with("UPDATE")
