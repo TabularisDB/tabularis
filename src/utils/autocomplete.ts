@@ -6,6 +6,7 @@ import { formatSqlIdentifier, getQuoteChar, quoteIdentifier } from "./identifier
 import { getCurrentStatement, parseTablesFromQuery, type ParsedTableRef } from "./sqlAnalysis";
 import { analyzeSqlContext, findStatementScopeEnd, getKeywordRelevance, getSuggestionKinds } from "./sqlContext";
 import { maskNestedSqlBodies, parseDerivedTables } from "./derivedTables";
+import { getDialectKeywords } from "./sqlDialectKeywords";
 
 export type AutocompleteKeywordCase = "match" | "upper" | "lower";
 
@@ -162,6 +163,13 @@ export const registerSqlAutocomplete = (
   driver?: string | PluginManifest | DriverCapabilities | null,
   keywordCase: AutocompleteKeywordCase = "match",
 ) => {
+  const caps =
+    typeof driver === "object" && driver !== null
+      ? "capabilities" in driver
+        ? driver.capabilities
+        : driver
+      : null;
+  const keywords = getDialectKeywords(SQL_KEYWORDS, caps?.sql_dialect);
   const provider = monaco.languages.registerCompletionItemProvider("sql", {
     triggerCharacters: [".", " "],
     provideCompletionItems: async (model: { getWordUntilPosition: (position: { lineNumber: number; column: number }) => { word?: string; startColumn: number; endColumn: number }; getValueInRange: (range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => string; getValue: () => string; getOffsetAt: (position: { lineNumber: number; column: number }) => number }, position: { lineNumber: number; column: number }) => {
@@ -519,7 +527,7 @@ export const registerSqlAutocomplete = (
       // WHERE, not WHEN).
       const colLabels = new Set(contextColumnSuggestions.map(s => s.label.toUpperCase()));
       const keywordSuggestions = suggestionKinds.keywords
-        ? SQL_KEYWORDS
+        ? keywords
             .filter(kw => !colLabels.has(kw))
             .map((kw) => ({ kw, relevance: getKeywordRelevance(sqlContext.clause, kw) }))
             .filter(({ relevance }) => relevance !== 'hidden')

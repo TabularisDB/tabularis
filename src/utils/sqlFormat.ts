@@ -17,6 +17,8 @@ export function toFormatterLanguage(dialect: SqlDialect | undefined): SqlLanguag
       return 'sqlite';
     case 'oracle':
       return 'plsql';
+    case 'bigquery':
+      return 'bigquery';
     default:
       return 'sql';
   }

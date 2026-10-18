@@ -90,6 +90,55 @@ describe("filter string literals with backslashes", () => {
   });
 });
 
+describe("GoogleSQL (bigquery) filter literals", () => {
+  const bq = { identifier_quote: "`", sql_dialect: "bigquery" } as DriverCapabilities;
+  const filter = (value: string, operator: StructuredFilter["operator"] = "="): StructuredFilter => ({
+    id: "f", column: "name", operator, value,
+  });
+
+  it("backslash-escapes quotes and backslashes instead of doubling quotes", () => {
+    expect(buildSingleFilterClause(filter("O'Brien C:\\x"), bq, "always")).toBe(
+      "`name` = 'O\\'Brien C:\\\\x'",
+    );
+  });
+
+  it("re-quotes picked values stored in the standard form", () => {
+    const picked = formatPickedValue("O'Brien", "STRING");
+    expect(picked).toBe("'O''Brien'");
+    expect(buildSingleFilterClause(filter(picked), bq, "always")).toBe(
+      "`name` = 'O\\'Brien'",
+    );
+    expect(buildSingleFilterClause(filter("''"), bq, "always")).toBe("`name` = ''");
+  });
+
+  it("quotes IN lists and BETWEEN bounds", () => {
+    expect(buildSingleFilterClause(filter(`"a'b", 'c''d', 3`, "IN"), bq, "always")).toBe(
+      "`name` IN ('a\\'b', 'c\\'d', 3)",
+    );
+    expect(
+      buildSingleFilterClause({ ...filter("a'", "BETWEEN"), value2: "z" }, bq, "always"),
+    ).toBe("`name` BETWEEN 'a\\'' AND 'z'");
+  });
+
+  it("escapes LIKE wildcards with backslashes and no ESCAPE clause", () => {
+    expect(buildSingleFilterClause(filter("50%_a\\b'", "contains"), bq, "always")).toBe(
+      "`name` LIKE '%50\\\\%\\\\_a\\\\\\\\b\\'%'",
+    );
+    expect(buildSingleFilterClause(filter("ab", "starts with"), bq, "always")).toBe(
+      "`name` LIKE 'ab%'",
+    );
+    expect(buildSingleFilterClause(filter("ab", "ends with"), bq, "always")).toBe(
+      "`name` LIKE '%ab'",
+    );
+  });
+
+  it("keeps the ESCAPE clause for other dialects", () => {
+    expect(buildSingleFilterClause(filter("a%", "contains"), "postgres", "always")).toBe(
+      `"name" LIKE '%a!%%' ESCAPE '!'`,
+    );
+  });
+});
+
 describe("filterBar utils", () => {
   describe("filterColumnSuggestions", () => {
     const columns: TableColumn[] = [

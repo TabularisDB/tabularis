@@ -23,6 +23,10 @@ describe('sqlFormat', () => {
       expect(toFormatterLanguage('oracle')).toBe('plsql');
     });
 
+    it('maps bigquery to bigquery', () => {
+      expect(toFormatterLanguage('bigquery')).toBe('bigquery');
+    });
+
     it('falls back to sql for the generic dialect', () => {
       expect(toFormatterLanguage('generic')).toBe('sql');
     });

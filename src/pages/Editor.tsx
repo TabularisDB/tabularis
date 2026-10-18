@@ -2204,10 +2204,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         csvIncludeHeaders,
         csvDelimiter,
         tableName,
+        driver: activeCapabilities,
       });
       return { text, count: res.rows.length };
     },
-    [activeConnectionId, copyFormat, csvDelimiter, csvIncludeHeaders],
+    [activeConnectionId, activeCapabilities, copyFormat, csvDelimiter, csvIncludeHeaders],
   );
 
   // Schema resolution mirrors runQuery so the full fetch targets the same

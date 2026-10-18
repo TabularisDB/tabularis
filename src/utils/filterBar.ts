@@ -2,6 +2,7 @@ import type { TableColumn } from "../types/editor";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { formatSqlIdentifier, quoteIdentifier, quoteTableRef } from "./identifiers";
 import { formatSqlValueForColumnComparison, isMysqlFloatColumn } from "./foreignKeys";
+import { quoteSqlString, stringEscapeStyle } from "./sqlLiteral";
 
 
 export type FilterOperator =
@@ -228,6 +229,7 @@ export function buildSingleFilterClause(
     // Stored filter values stay dialect-independent when the picker reopens.
     return quoteIfNeeded(
       usesBackslashStringEscapes(driver) ? value.replace(/\\/g, "\\\\") : value,
+      driver,
       doubleQuotedValue,
     );
   }
@@ -248,7 +250,12 @@ export function buildLiteralLikeClause(
   mode: LikeMatchMode,
   driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string {
-  const escaped = escapeLikePattern(value);
+  // GoogleSQL LIKE has no ESCAPE clause: a backslash escapes `%`, `_` and
+  // itself, and the literal then needs its own backslash escaping.
+  const googleSql = stringEscapeStyle(driver) === "bigquery";
+  const escaped = googleSql
+    ? value.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+    : escapeLikePattern(value);
   let pattern: string;
   if (mode === "contains") {
     pattern = `%${escaped}%`;
@@ -257,12 +264,13 @@ export function buildLiteralLikeClause(
   } else {
     pattern = `%${escaped}`;
   }
+  if (googleSql) return `${col} LIKE ${quoteSqlString(pattern, driver)}`;
   // MySQL/MariaDB (default sql_mode) treat backslash as an escape inside
   // string literals, so a literal backslash must be doubled to survive.
   const literal = usesBackslashStringEscapes(driver)
     ? pattern.replace(/\\/g, "\\\\")
     : pattern;
-  return `${col} LIKE ${quoteLiteral(literal)} ESCAPE '${LIKE_ESCAPE}'`;
+  return `${col} LIKE ${quoteLiteral(literal, driver)} ESCAPE '${LIKE_ESCAPE}'`;
 }
 
 /**
@@ -293,18 +301,19 @@ function escapeLikePattern(value: string): string {
 function usesBackslashStringEscapes(
   driver: string | PluginManifest | DriverCapabilities | null | undefined
 ): boolean {
-  if (typeof driver === "string") {
-    return driver === "mysql" || driver === "mariadb";
-  }
-  if (!driver) return false;
-  const caps = "capabilities" in driver ? driver.capabilities : driver;
-  if (caps?.sql_dialect) return caps.sql_dialect === "mysql";
-  const id = "id" in driver ? driver.id : undefined;
-  return id === "mysql" || id === "mariadb";
+  return stringEscapeStyle(driver) === "mysql";
 }
 
-/** Always quote a SQL string literal, doubling embedded single quotes. */
-function quoteLiteral(value: string): string {
+/**
+ * Always quote a SQL string literal. Doubles embedded single quotes, except
+ * on GoogleSQL, which has no doubled-quote escape and uses backslashes.
+ * MySQL backslashes are doubled by the caller before this runs.
+ */
+function quoteLiteral(
+  value: string,
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+): string {
+  if (stringEscapeStyle(driver) === "bigquery") return quoteSqlString(value, driver);
   return `'${value.replace(/'/g, "''")}'`;
 }
 
@@ -341,22 +350,29 @@ function splitFilterValues(input: string): string[] {
   return values;
 }
 
-function quoteIfNeeded(value: string, doubleQuotedValue = false): string {
+function quoteIfNeeded(
+  value: string,
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+  doubleQuotedValue = false,
+): string {
   if (value === "") return "''";
   // If it's a pure number (integer or decimal), don't quote
   if (/^-?\d+(\.\d+)?$/.test(value)) return value;
   // Single-quoted SQL literals are already escaped by the user. For IN lists,
   // interpret double-quoted items as values; other operators keep their
-  // existing identifier behavior.
+  // existing identifier behavior. A pre-quoted literal uses the standard
+  // doubled-quote escape, which GoogleSQL lacks, so it is re-quoted there.
   if (value.startsWith("'") && value.endsWith("'")) {
-    return value;
+    return stringEscapeStyle(driver) === "bigquery" && value.length >= 2
+      ? quoteLiteral(value.slice(1, -1).replace(/''/g, "'"), driver)
+      : value;
   }
   if (doubleQuotedValue && value.startsWith('"') && value.endsWith('"')) {
-    return quoteLiteral(value.slice(1, -1).replace(/""/g, '"'));
+    return quoteLiteral(value.slice(1, -1).replace(/""/g, '"'), driver);
   }
   if (value.startsWith('"') && value.endsWith('"')) return value;
   // Escape single quotes inside the value
-  return quoteLiteral(value);
+  return quoteLiteral(value, driver);
 }
 
 /** Operators that take no value: the value input is hidden and never read. */
@@ -590,7 +606,9 @@ export function formatPickedValue(value: string, dataType: string): string {
     value.includes(",") ||
     /['"]/.test(value) ||
     (isString && /^-?\d+(\.\d+)?$/.test(value));
-  return needsQuotes ? quoteLiteral(value) : value;
+  // Stored in the dialect-independent standard form; the clause builder
+  // converts it for the active dialect.
+  return needsQuotes ? quoteLiteral(value, null) : value;
 }
 
 /**

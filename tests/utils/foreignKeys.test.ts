@@ -118,6 +118,16 @@ describe("foreignKeys", () => {
       );
     });
 
+    it("backslash-escapes string values for a GoogleSQL plugin", () => {
+      const bq = { identifier_quote: "`", sql_dialect: "bigquery" } as DriverCapabilities;
+      expect(buildForeignKeyFilterClause(orgFk, "O'Brien\\", bq)).toBe(
+        "`id` = 'O\\'Brien\\\\'",
+      );
+      expect(buildForeignKeyFilterClause(orgFk, "O'Brien", "postgres")).toBe(
+        `"id" = 'O''Brien'`,
+      );
+    });
+
     it("treats bigint values as numeric", () => {
       expect(
         buildForeignKeyFilterClause(orgFk, BigInt("9007199254740993"), "postgres"),

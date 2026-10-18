@@ -1,6 +1,7 @@
 import type { ForeignKey } from "../types/schema";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { isMysqlDialect, isPostgresDialect, quoteIdentifier } from "./identifiers";
+import { quoteSqlString, stringEscapeStyle } from "./sqlLiteral";
 
 const NUMERIC_TYPE_KEYWORDS = [
   "int",
@@ -104,7 +105,11 @@ export function isNumericColumnType(type: string | undefined): boolean {
   return NUMERIC_TYPE_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-export function formatSqlValueForFilter(value: unknown, columnType?: string): string {
+export function formatSqlValueForFilter(
+  value: unknown,
+  columnType?: string,
+  driver?: string | PluginManifest | DriverCapabilities | null,
+): string {
   if (typeof value === "number" || typeof value === "bigint") {
     return String(value);
   }
@@ -115,7 +120,11 @@ export function formatSqlValueForFilter(value: unknown, columnType?: string): st
   if (isNumericColumnType(columnType) && /^-?\d+(\.\d+)?$/.test(str)) {
     return str;
   }
-  return `'${str.replace(/'/g, "''")}'`;
+  // GoogleSQL has no doubled-quote escape; other dialects keep the
+  // standard form.
+  return stringEscapeStyle(driver) === "bigquery"
+    ? quoteSqlString(str, driver)
+    : `'${str.replace(/'/g, "''")}'`;
 }
 
 export function isMysqlFloatColumn(
@@ -138,7 +147,7 @@ export function formatSqlValueForColumnComparison(
     const widened = Math.fround(value);
     if (Number.isFinite(widened)) return String(widened);
   }
-  const literal = formatSqlValueForFilter(value, columnType);
+  const literal = formatSqlValueForFilter(value, columnType, driver);
   const isPostgresReal = isPostgresDialect(driver) &&
     /^(real|float4)$/i.test(columnType?.trim() ?? "");
   return isPostgresReal ? `CAST(${literal} AS real)` : literal;

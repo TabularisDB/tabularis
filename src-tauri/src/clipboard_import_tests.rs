@@ -81,7 +81,7 @@ fn mysql_import_sends_booleans_in_created_columns_as_literals() {
     ]
     .map(|v| Some(v.to_string()));
     assert_eq!(
-        row_to_values_clause(&row, &boolean_columns),
+        row_to_values_clause(&row, &boolean_columns, None),
         "('KB-101', 'Mechanical Keyboard', '89.90', TRUE, '2026-09-02')"
     );
 }
@@ -98,7 +98,7 @@ fn boolean_literals_cover_the_values_the_parser_accepts() {
     ]
     .map(|v| v.map(String::from));
     assert_eq!(
-        row_to_values_clause(&row, &[true; 6]),
+        row_to_values_clause(&row, &[true; 6], None),
         "(FALSE, TRUE, FALSE, NULL, NULL, 'maybe')"
     );
 }
@@ -182,5 +182,24 @@ fn existing_tinyint_columns_are_found_by_type() {
     assert_eq!(
         tinyint_column_names(&columns),
         HashSet::from(["in_stock".to_string(), "archived".to_string()])
+    );
+}
+
+#[test]
+fn string_literals_follow_the_driver_dialect() {
+    let value = "O'Brien \\ a\nb";
+    assert_eq!(escape_sql_string(value, None), "'O''Brien \\ a\nb'");
+    assert_eq!(
+        escape_sql_string(value, Some(SqlDialect::Postgres)),
+        "'O''Brien \\ a\nb'"
+    );
+    assert_eq!(
+        escape_sql_string(value, Some(SqlDialect::Bigquery)),
+        "'O\\'Brien \\\\ a\\nb'"
+    );
+    let row = vec![Some("it's".to_string()), None];
+    assert_eq!(
+        row_to_values_clause(&row, &[false, false], Some(SqlDialect::Bigquery)),
+        "('it\\'s', NULL)"
     );
 }

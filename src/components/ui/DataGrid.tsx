@@ -354,7 +354,14 @@ export const DataGrid = React.memo(
   }: DataGridProps) {
     const { t } = useTranslation();
     const keybindings = useContext(KeybindingsContext);
-    const { activeSchema: globalActiveSchema, connections, activeDriver } = useDatabase();
+    const {
+      activeSchema: globalActiveSchema,
+      connections,
+      activeDriver,
+      activeCapabilities,
+    } = useDatabase();
+    // Dialect the copied SQL literals follow (copy as INSERT / IN list).
+    const copyDriver = activeCapabilities ?? activeDriver;
     const activeSchema = schemaProp ?? globalActiveSchema;
     const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
@@ -1969,8 +1976,9 @@ export const DataGrid = React.memo(
           csvIncludeHeaders,
           csvDelimiter,
           tableName,
+          driver: copyDriver,
         }),
-      [columns, copyFormat, csvDelimiter, csvIncludeHeaders, tableName],
+      [columns, copyFormat, csvDelimiter, csvIncludeHeaders, tableName, copyDriver],
     );
 
     // Rows the row context menu acts on: the selected rows (pending insertions
@@ -2133,6 +2141,7 @@ export const DataGrid = React.memo(
           csvIncludeHeaders,
           csvDelimiter,
           tableName,
+          driver: copyDriver,
         }),
         rowsCopiedToast(rows.length),
       );
@@ -2144,6 +2153,7 @@ export const DataGrid = React.memo(
       csvIncludeHeaders,
       csvDelimiter,
       tableName,
+      copyDriver,
       copyToClipboard,
       rowsCopiedToast,
     ]);
@@ -2166,6 +2176,7 @@ export const DataGrid = React.memo(
           csvIncludeHeaders,
           csvDelimiter,
           tableName,
+          driver: copyDriver,
         }),
         t("dataGrid.copiedCells", {
           count: rangeRows.length * projected.columns.length,
@@ -2179,6 +2190,7 @@ export const DataGrid = React.memo(
       csvIncludeHeaders,
       csvDelimiter,
       tableName,
+      copyDriver,
       copyToClipboard,
       t,
     ]);
@@ -2196,6 +2208,7 @@ export const DataGrid = React.memo(
           delimiter: csvDelimiter,
           includeHeader: csvIncludeHeaders,
           tableName: tableName ?? "table",
+          driver: copyDriver,
         });
         await copyToClipboard(text);
       },
@@ -2207,6 +2220,7 @@ export const DataGrid = React.memo(
         csvDelimiter,
         csvIncludeHeaders,
         tableName,
+        copyDriver,
         copyToClipboard,
       ],
     );
@@ -2219,9 +2233,9 @@ export const DataGrid = React.memo(
           selectedRowIndices.size > 0
             ? getSelectedRows(rowsWithInsertions, selectedRowIndices)
             : rowsWithInsertions;
-        await copyToClipboard(columnValuesToInClause(rows, colIndex));
+        await copyToClipboard(columnValuesToInClause(rows, colIndex, copyDriver));
       },
-      [selectedRowIndices, mergedRows, copyToClipboard],
+      [selectedRowIndices, mergedRows, copyDriver, copyToClipboard],
     );
 
     const copyCellValue = useCallback(

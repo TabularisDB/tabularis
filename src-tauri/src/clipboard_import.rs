@@ -5,7 +5,10 @@ use crate::{
         expand_k8s_connection_params, expand_ssh_connection_params, find_connection_by_id,
         resolve_connection_params_with_id,
     },
-    drivers::{driver_trait::DatabaseDriver, registry::get_driver},
+    drivers::{
+        driver_trait::{DatabaseDriver, SqlDialect},
+        registry::get_driver,
+    },
     models::{ColumnDefinition, TableColumn},
 };
 use serde::{Deserialize, Serialize};
@@ -40,7 +43,18 @@ pub struct ClipboardImportResult {
     pub table_created: bool,
 }
 
-fn escape_sql_string(s: &str) -> String {
+/// Quotes a string literal for the driver's dialect. GoogleSQL has no
+/// doubled-quote escape and no raw newlines in a quoted literal, so it gets
+/// backslash escapes; every other dialect doubles the quote.
+fn escape_sql_string(s: &str, dialect: Option<SqlDialect>) -> String {
+    if dialect == Some(SqlDialect::Bigquery) {
+        let escaped = s
+            .replace('\\', "\\\\")
+            .replace('\'', "\\'")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r");
+        return format!("'{escaped}'");
+    }
     format!("'{}'", s.replace('\'', "''"))
 }
 
@@ -109,7 +123,11 @@ async fn existing_tinyint_columns(
     }
 }
 
-fn row_to_values_clause(row: &[Option<String>], boolean_columns: &[bool]) -> String {
+fn row_to_values_clause(
+    row: &[Option<String>],
+    boolean_columns: &[bool],
+    dialect: Option<SqlDialect>,
+) -> String {
     let values: Vec<String> = row
         .iter()
         .enumerate()
@@ -118,7 +136,7 @@ fn row_to_values_clause(row: &[Option<String>], boolean_columns: &[bool]) -> Str
             Some(v) if v.is_empty() => "NULL".to_string(),
             Some(v) => match boolean_literal(v) {
                 Some(literal) if boolean_columns.get(i) == Some(&true) => literal.to_string(),
-                _ => escape_sql_string(v),
+                _ => escape_sql_string(v, dialect),
             },
         })
         .collect();
@@ -272,13 +290,14 @@ async fn insert_rows(
     let boolean_columns =
         boolean_literal_columns(req, &drv.manifest().id, table_created, &existing_tinyint);
 
+    let dialect = drv.manifest().capabilities.sql_dialect;
     const BATCH_SIZE: usize = 500;
     let mut rows_inserted = 0;
 
     for chunk in req.rows.chunks(BATCH_SIZE) {
         let values_clauses: Vec<String> = chunk
             .iter()
-            .map(|r| row_to_values_clause(r, &boolean_columns))
+            .map(|r| row_to_values_clause(r, &boolean_columns, dialect))
             .collect();
         let insert_sql = format!(
             "INSERT INTO {} ({}) VALUES {}",

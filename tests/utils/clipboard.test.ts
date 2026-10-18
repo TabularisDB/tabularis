@@ -12,7 +12,10 @@ import {
   rowsToHtmlTable,
   columnNamesAsLines,
   columnNamesAsJson,
+  formatRowsForCopy,
+  rowsToSqlInsert,
 } from '../../src/utils/clipboard';
+import type { DriverCapabilities } from '../../src/types/plugins';
 
 describe('clipboard utils', () => {
   describe('rowToCSV', () => {
@@ -418,6 +421,35 @@ describe('clipboard utils', () => {
       expect(columnValuesToInClause(rows, 1)).toBe(
         "'Alice', 'O''Brien', NULL, TRUE",
       );
+    });
+
+    it('backslash-escapes strings for a GoogleSQL driver', () => {
+      const bq = { identifier_quote: '`', sql_dialect: 'bigquery' } as DriverCapabilities;
+      const rows = [["O'Brien\\"], [null]];
+      expect(columnValuesToInClause(rows, 0, bq)).toBe("'O\\'Brien\\\\', NULL");
+      expect(columnValuesToInClause(rows, 0, 'postgres')).toBe("'O''Brien\\', NULL");
+    });
+  });
+
+  describe('rowsToSqlInsert', () => {
+    it('quotes values for the driver dialect', () => {
+      const bq = { identifier_quote: '`', sql_dialect: 'bigquery' } as DriverCapabilities;
+      expect(rowsToSqlInsert([[1, "it's"]], ['id', 'name'], 't', bq)).toBe(
+        "INSERT INTO `t` (`id`, `name`) VALUES (1, 'it\\'s');",
+      );
+      expect(rowsToSqlInsert([[1, "it's"]], ['id', 'name'], 't')).toBe(
+        "INSERT INTO `t` (`id`, `name`) VALUES (1, 'it''s');",
+      );
+    });
+
+    it('passes the driver through formatRowsForCopy and columnValuesForCopy', () => {
+      const bq = { identifier_quote: '`', sql_dialect: 'bigquery' } as DriverCapabilities;
+      expect(
+        formatRowsForCopy([["a'b"]], ['c'], 'sql-insert', { tableName: 't', driver: bq }),
+      ).toBe("INSERT INTO `t` (`c`) VALUES ('a\\'b');");
+      expect(
+        columnValuesForCopy([["a'b"]], ['c'], 0, { format: 'sql-insert', tableName: 't', driver: bq }),
+      ).toBe("INSERT INTO `t` (`c`) VALUES ('a\\'b');");
     });
   });
 

@@ -1,4 +1,9 @@
 import { formatCellValue } from './dataGrid';
+import type { DriverCapabilities, PluginManifest } from '../types/plugins';
+import { quoteSqlString, stringEscapeStyle } from './sqlLiteral';
+
+/** Driver whose dialect the copied SQL literals follow. */
+type CopyDriver = string | PluginManifest | DriverCapabilities | null;
 
 // RFC 4180 quoting, shared with the file export: a field with the delimiter, a quote or a line
 // break (LF or CR) is wrapped in quotes, and its quotes are doubled.
@@ -105,6 +110,7 @@ export function formatRowsForCopy(
     csvIncludeHeaders?: boolean;
     csvDelimiter?: string;
     tableName?: string | null;
+    driver?: CopyDriver;
   } = {},
 ): string {
   const {
@@ -112,10 +118,11 @@ export function formatRowsForCopy(
     csvIncludeHeaders = true,
     csvDelimiter = ",",
     tableName,
+    driver,
   } = options;
   if (copyFormat === "json") return rowsToJSON(rows, columns);
   if (copyFormat === "sql-insert")
-    return rowsToSqlInsert(rows, columns, tableName ?? "table");
+    return rowsToSqlInsert(rows, columns, tableName ?? "table", driver);
   if (copyFormat === "markdown")
     return rowsToMarkdown(rows, columns, "null", withHeaders && csvIncludeHeaders);
   if (withHeaders && csvIncludeHeaders)
@@ -149,6 +156,7 @@ interface ColumnCopyOptions {
   delimiter?: string;
   includeHeader?: boolean;
   tableName?: string;
+  driver?: CopyDriver;
 }
 
 export function columnValuesForCopy(
@@ -171,6 +179,7 @@ export function columnValuesForCopy(
       projectedRows,
       projectedColumns,
       options.tableName ?? "table",
+      options.driver,
     );
   }
   if (options.format === "markdown") {
@@ -195,15 +204,19 @@ export function columnValuesForCopy(
 export function columnValuesToInClause(
   rows: unknown[][],
   colIndex: number,
+  driver?: CopyDriver,
 ): string {
-  return rows.map((row) => sqlValue(row[colIndex])).join(", ");
+  return rows.map((row) => sqlValue(row[colIndex], driver)).join(", ");
 }
 
-function sqlValue(cell: unknown): string {
+function sqlValue(cell: unknown, driver?: CopyDriver): string {
   if (cell === null || cell === undefined) return "NULL";
   if (typeof cell === "boolean") return cell ? "TRUE" : "FALSE";
   if (typeof cell === "number") return String(cell);
   const str = typeof cell === "object" ? JSON.stringify(cell) : String(cell);
+  // GoogleSQL has no doubled-quote escape; other dialects keep the
+  // standard form.
+  if (stringEscapeStyle(driver) === "bigquery") return quoteSqlString(str, driver);
   return `'${str.replace(/'/g, "''")}'`;
 }
 
@@ -211,9 +224,10 @@ function rowToSqlInsert(
   row: unknown[],
   columns: string[],
   tableName: string,
+  driver?: CopyDriver,
 ): string {
   const cols = columns.map((c) => `\`${c}\``).join(", ");
-  const vals = row.map(sqlValue).join(", ");
+  const vals = row.map((cell) => sqlValue(cell, driver)).join(", ");
   return `INSERT INTO \`${tableName}\` (${cols}) VALUES (${vals});`;
 }
 
@@ -221,8 +235,9 @@ export function rowsToSqlInsert(
   rows: unknown[][],
   columns: string[],
   tableName: string,
+  driver?: CopyDriver,
 ): string {
-  return rows.map((row) => rowToSqlInsert(row, columns, tableName)).join("\n");
+  return rows.map((row) => rowToSqlInsert(row, columns, tableName, driver)).join("\n");
 }
 
 export async function copyTextToClipboard(
