@@ -1535,9 +1535,15 @@ example a project), not the first one saved on the connection. Plugins can use
 it to qualify names (`project.dataset.table`) or pick a dialect variant. The
 field is additive: older plugins that ignore it keep working. These are pure
 SQL builders: Tabularis does not open SSH/SSM/K8s tunnels for them, so
-`host`/`port` are the saved values (not a local tunnel endpoint) and keychain
-secrets may be missing. Build the SQL without connecting. Results are an
-array of statements, executed in order.
+`host`/`port` are the saved values (not a local tunnel endpoint). The keychain
+password, the connection URI and the plugin-owned secrets
+(`params.extra[key]`, see [`setSecretField`](#slotcontext)) are passed when
+they can be read; a secret that is missing or unreadable is left unset and the
+request is still sent. Build the SQL without connecting when you can. A builder
+that needs the backend (for example `get_drop_table_sql` looking up the table
+kind) must handle an unset credential by falling back to a generic statement or
+returning a clear error. Results are an array of statements, executed in
+order.
 
 `ColumnDefinition`:
 

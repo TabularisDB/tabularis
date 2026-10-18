@@ -4555,6 +4555,67 @@ mod tests {
     }
 
     #[test]
+    fn sql_builder_params_carry_stored_plugin_secrets() {
+        let cache = credential_cache::CredentialCache::default();
+        credential_cache::set_plugin_secret_cached(
+            &cache,
+            "conn-1",
+            "test-plugin",
+            "credential",
+            "stored-credential",
+        );
+        let mut conn = saved(ConnectionParams {
+            driver: "test-plugin".to_string(),
+            host: Some("db.internal".to_string()),
+            ssh_enabled: Some(true),
+            ..base_params()
+        });
+        conn.plugin_secret_keys = vec!["credential".to_string()];
+        conn.params
+            .extra
+            .insert("project".to_string(), "analytics".to_string());
+
+        bind_sql_builder_secrets(&cache, &mut conn);
+        let built = sql_builder_params(&conn, None);
+
+        assert_eq!(
+            built.extra.get("credential").map(String::as_str),
+            Some("stored-credential")
+        );
+        assert_eq!(
+            built.extra.get("project").map(String::as_str),
+            Some("analytics")
+        );
+        assert_eq!(built.host.as_deref(), Some("db.internal"));
+    }
+
+    #[test]
+    fn sql_builder_params_build_without_a_missing_plugin_secret() {
+        let cache = credential_cache::CredentialCache::default();
+        // A cached miss stands in for a keychain without the entry.
+        cache.plugin_secrets.lock().unwrap().insert(
+            credential_cache::plugin_secret_cache_key("conn-1", "test-plugin", "credential"),
+            credential_cache::CacheEntry::Absent,
+        );
+        let mut conn = saved(ConnectionParams {
+            driver: "test-plugin".to_string(),
+            ..base_params()
+        });
+        conn.plugin_secret_keys = vec!["credential".to_string()];
+
+        bind_sql_builder_secrets(&cache, &mut conn);
+        let built = sql_builder_params(&conn, Some("analytics".to_string()));
+
+        assert!(!built.extra.contains_key("credential"));
+        assert_eq!(built.connection_id.as_deref(), Some("conn-1"));
+        assert_eq!(
+            built.database,
+            DatabaseSelection::Single("analytics".to_string())
+        );
+        assert_eq!(conn.plugin_secret_keys, vec!["credential"]);
+    }
+
+    #[test]
     fn sql_builder_secrets_bind_keychain_values() {
         let mut params = ConnectionParams {
             save_in_keychain: Some(true),
@@ -6798,21 +6859,33 @@ fn apply_sql_builder_secrets(
     }
 }
 
-/// Saved connection for the SQL-builder commands: keychain secrets are read
-/// leniently (see `apply_sql_builder_secrets`) and no tunnel is touched.
+/// Bind every secret a plugin SQL builder may need: the keychain connection
+/// URI and password (see `apply_sql_builder_secrets`) and the plugin-owned
+/// secrets, resolved into `params.extra` like for any other driver call. A
+/// builder may call the plugin's backend (for example to look up a table's
+/// type before rendering its DROP statement), so it needs the same
+/// credentials. Never fails: a missing or unreadable secret is logged and left
+/// unset. SSH secrets are not loaded because the builders never open tunnels.
+fn bind_sql_builder_secrets(cache: &credential_cache::CredentialCache, conn: &mut SavedConnection) {
+    let conn_id = conn.id.clone();
+    apply_sql_builder_secrets(
+        &mut conn.params,
+        &conn_id,
+        |stored| credential_cache::get_connection_uri_cached(cache, &conn_id, stored),
+        || credential_cache::get_db_password_cached(cache, &conn_id),
+    );
+    crate::plugin_secrets::hydrate_connection(cache, conn);
+}
+
+/// Saved connection for the SQL-builder commands: secrets are read leniently
+/// (see `bind_sql_builder_secrets`) and no tunnel is touched.
 fn find_connection_for_sql_builders<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
 ) -> Result<SavedConnection, String> {
     let mut conn = lookup_saved_connection(app, id)?;
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    let conn_id = conn.id.clone();
-    apply_sql_builder_secrets(
-        &mut conn.params,
-        &conn_id,
-        |stored| credential_cache::get_connection_uri_cached(&cache, &conn_id, stored),
-        || credential_cache::get_db_password_cached(&cache, &conn_id),
-    );
+    bind_sql_builder_secrets(&cache, &mut conn);
     Ok(conn)
 }
 
