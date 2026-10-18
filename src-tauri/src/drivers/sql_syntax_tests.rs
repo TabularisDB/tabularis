@@ -3,7 +3,7 @@ use serde_json::json;
 use crate::drivers::driver_trait::{DatabaseDriver, DriverCapabilities, SqlDialect};
 use crate::drivers::sql_syntax::{
     quote_string_literal, LiteralStyle, QuoteEscape, QuoteKind, SqlSyntax, SqlSyntaxDescriptor,
-    StringEscape, MAX_QUOTES, MAX_WORDS, MAX_WORD_LEN,
+    StringEscape, FORMATTER_LANGUAGES, MAX_QUOTES, MAX_STRING_PREFIXES, MAX_WORDS, MAX_WORD_LEN,
 };
 
 /// The GoogleSQL descriptor the BigQuery plugin ships, shared with the
@@ -290,4 +290,24 @@ fn quote_string_literal_follows_the_style() {
         quote_string_literal(value, LiteralStyle::Backslash),
         "'O\\'Brien \\\\ a\\r\\nb\0'"
     );
+}
+
+#[test]
+fn limits_match_the_manifest_schema() {
+    // The frontend (`src/utils/sqlSyntax.ts`) is checked against the same
+    // schema, so the two sides cannot drift apart.
+    let schema: serde_json::Value =
+        serde_json::from_str(include_str!("../../../plugins/manifest.schema.json")).unwrap();
+    let props = &schema["properties"]["capabilities"]["properties"]["sql_syntax"]["properties"];
+    assert_eq!(props["quotes"]["maxItems"], json!(MAX_QUOTES));
+    assert_eq!(
+        props["string_prefixes"]["maxItems"],
+        json!(MAX_STRING_PREFIXES)
+    );
+    assert_eq!(props["keywords"]["maxItems"], json!(MAX_WORDS));
+    assert_eq!(
+        props["functions"]["items"]["maxLength"],
+        json!(MAX_WORD_LEN)
+    );
+    assert_eq!(props["formatter"]["enum"], json!(FORMATTER_LANGUAGES));
 }
