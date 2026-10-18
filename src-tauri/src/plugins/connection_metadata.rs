@@ -41,6 +41,11 @@ pub struct ConnectionCapabilityOverrides {
     pub user_management: Option<bool>,
     pub routine_management: Option<bool>,
     pub identifier_quote: Option<String>,
+    /// An unknown dialect is ignored with a warning, keeping the manifest's.
+    #[serde(
+        default,
+        deserialize_with = "crate::drivers::sql_dialect::deserialize_lenient_override"
+    )]
     pub sql_dialect: Option<SqlDialect>,
     pub alter_primary_key: Option<bool>,
     pub alter_column: Option<bool>,

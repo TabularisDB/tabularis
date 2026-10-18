@@ -1,5 +1,5 @@
 use crate::drivers::driver_trait::{DriverCapabilities, SqlDialect};
-use crate::drivers::sql_dialect::parse_or_generic;
+use crate::drivers::sql_dialect::{parse_known, parse_or_generic};
 
 fn capabilities_with(dialect: serde_json::Value) -> serde_json::Value {
     let mut capabilities = serde_json::to_value(DriverCapabilities::default()).unwrap();
@@ -56,4 +56,12 @@ fn non_string_dialect_is_rejected() {
     let result =
         serde_json::from_value::<DriverCapabilities>(capabilities_with(serde_json::json!(42)));
     assert!(result.is_err());
+}
+
+#[test]
+fn parse_known_drops_unknown_names() {
+    assert_eq!(parse_known("postgres"), Some(SqlDialect::Postgres));
+    assert_eq!(parse_known("generic"), Some(SqlDialect::Generic));
+    assert_eq!(parse_known("future-dialect"), None);
+    assert_eq!(parse_known("MySQL"), None);
 }

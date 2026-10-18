@@ -130,7 +130,9 @@ The allowed capability overrides are:
 Connection-form fields, plugin identity and executable settings cannot be
 overridden, and neither can `sql_syntax`: it always comes from the manifest. A
 descriptor without `extends` extends the overridden `sql_dialect`. Unknown
-fields, invalid field types and unknown SQL dialects are rejected. Identifier quoting currently accepts a double quote or backtick, as
+fields and invalid field types are rejected. An unknown `sql_dialect` name is
+ignored with a warning and the manifest's dialect stays in force (it does not
+become `generic`). Identifier quoting currently accepts a double quote or backtick, as
 in the manifest schema. Do not forward JDBC's single-space value for unsupported
 quoting as a delimiter; omit the override and disable operations that cannot be
 implemented correctly with the fallback.

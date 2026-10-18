@@ -99,7 +99,7 @@ fn metadata_cannot_change_connection_setup_or_lift_readonly() {
 fn invalid_types_quotes_and_dialects_are_rejected() {
     for payload in [
         json!({"capabilities": {"schemas": "yes"}}),
-        json!({"capabilities": {"sql_dialect": "unknown"}}),
+        json!({"capabilities": {"sql_dialect": 42}}),
         json!({"data_types": [{}]}),
         json!(null),
     ] {
@@ -112,6 +112,48 @@ fn invalid_types_quotes_and_dialects_are_rejected() {
         let overrides: ConnectionMetadataOverrides = serde_json::from_value(payload).unwrap();
         assert!(overrides.resolve(&manifest(), &types()).is_err());
     }
+}
+
+#[test]
+fn unknown_metadata_dialect_keeps_the_manifest_dialect() {
+    let mut base = manifest();
+    base.capabilities.sql_dialect = Some(SqlDialect::Mysql);
+    let overrides: ConnectionMetadataOverrides =
+        serde_json::from_value(json!({"capabilities": {"sql_dialect": "future-dialect"}})).unwrap();
+    assert_eq!(overrides.capabilities.sql_dialect, None);
+    let resolved = overrides.resolve(&base, &types()).unwrap();
+    // Not generic: the manifest's dialect stays.
+    assert_eq!(resolved.capabilities.sql_dialect, Some(SqlDialect::Mysql));
+
+    // Without a manifest dialect it stays unset.
+    let resolved = overrides.resolve(&manifest(), &types()).unwrap();
+    assert_eq!(resolved.capabilities.sql_dialect, None);
+}
+
+#[test]
+fn known_and_null_metadata_dialects() {
+    let mut base = manifest();
+    base.capabilities.sql_dialect = Some(SqlDialect::Mysql);
+    let overrides: ConnectionMetadataOverrides =
+        serde_json::from_value(json!({"capabilities": {"sql_dialect": "postgres"}})).unwrap();
+    assert_eq!(
+        overrides
+            .resolve(&base, &types())
+            .unwrap()
+            .capabilities
+            .sql_dialect,
+        Some(SqlDialect::Postgres)
+    );
+    let overrides: ConnectionMetadataOverrides =
+        serde_json::from_value(json!({"capabilities": {"sql_dialect": null}})).unwrap();
+    assert_eq!(
+        overrides
+            .resolve(&base, &types())
+            .unwrap()
+            .capabilities
+            .sql_dialect,
+        Some(SqlDialect::Mysql)
+    );
 }
 
 #[test]
