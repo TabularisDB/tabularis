@@ -168,6 +168,19 @@ For URI passthrough drivers, an opaque placeholder (such as `jdbc:h2:mem:test`) 
 }
 ```
 
+### Declare `sql_dialect` (or `sql_syntax`)
+
+Always set `sql_dialect` to the closest preset, and add `sql_syntax` when no preset describes your engine. A plugin that declares neither (or only `generic`) still loads, but the host can't know how its SQL is tokenized, so it assumes the worst:
+
+- **AI/MCP read-only check.** Without a dialect, every query is lexed under every preset's rules, and it only counts as a single read statement when all of them agree. Reads that some dialect tokenizes differently are rejected as possibly unsafe (`unknown` or a write), for example queries containing:
+  - a `#` outside a string (a comment in MySQL, an operator such as `#>` in PostgreSQL);
+  - a backslash inside a string literal (`'C:\temp'`, `'it\'s'`), which only some dialects treat as an escape;
+  - double-quoted or backtick-quoted text whose meaning differs (a string in MySQL, an identifier elsewhere), or `[bracketed]` identifiers;
+  - `$$` / `$tag$` dollar-quoted bodies, `E'…'` strings, nested `/* /* */ */` comments or `/*! … */` executable comments;
+  - `--` not followed by a space (`1--1` is arithmetic in MySQL);
+  - a `;` that any dialect reads as a statement separator, even inside what your engine treats as a string or comment.
+- **Generated SQL and literals.** Filters, dumps, notebook cell CTEs and Copy as INSERT fall back to standard quoting (`'` doubled, backslashes left as is), and dumps write booleans as `1`/`0`. On an engine where `\` is an escape character this is wrong, so declare `mysql` (or `sql_syntax.string_escape`) there.
+
 ### SQL Syntax (`sql_syntax`)
 
 `sql_dialect` picks one of the host's presets. When your engine lexes SQL differently from all of them (GoogleSQL's triple-quoted strings, `#` comments and procedural scripts, for example), describe the difference in `capabilities.sql_syntax`. It is data only: the host never runs code from it.
@@ -189,7 +202,7 @@ For URI passthrough drivers, an opaque placeholder (such as `jdbc:h2:mem:test`) 
 | `line_comment_requires_space` | bool | preset (`mysql`: `true`) | `--` only starts a comment when followed by whitespace (`1--1` is arithmetic). |
 | `script_blocks` | bool | `false` | Procedural blocks stay one statement: `BEGIN … END` (not `BEGIN TRANSACTION`), `EXCEPTION WHEN ERROR THEN`, `IF … END IF`, `LOOP`, `WHILE`, `REPEAT`, `FOR … DO`, `CASE … END CASE`, labels and `CREATE PROCEDURE` bodies. |
 | `dollar_quoting` | bool | preset (`postgres`: `true`) | `$tag$ … $tag$` strings. |
-| `string_escape` | string | preset (`mysql`: doubled quote plus doubled backslash; others: `"standard"`) | How the host writes string literals in filters, foreign-key filters, Copy as INSERT / IN list, clipboard import, dumps and notebook cell CTEs: `"standard"` (`'it''s'`) or `"backslash"` (`'it\'s'`, with `\\`, `\n` and `\r` escaped too). |
+| `string_escape` | string | preset (`mysql`: doubled quote plus doubled backslash; others: `"standard"`) | How the host writes string literals in filters, foreign-key filters, Copy as INSERT / IN list, clipboard import, dumps and notebook cell CTEs: `"standard"` (`'it''s'`) or `"backslash"` (`'it\'s'`, with `\\`, NUL (`\0`), `\n` and `\r` escaped too). On a `mysql` base (`extends: "mysql"`, or `sql_dialect: "mysql"` without `extends`) `"standard"` is ignored with a warning, since the engine still reads `\` as an escape character; `"backslash"` is allowed. |
 | `like_escape` | bool | `true` | Whether `LIKE … ESCAPE '!'` is supported. With `false`, literal LIKE filters escape `%`, `_` and `\` with a backslash (the engine's default LIKE escape) and omit `ESCAPE`. |
 | `formatter` | string | preset | `sql-formatter` language for Format SQL: `bigquery`, `clickhouse`, `db2`, `db2i`, `duckdb`, `hive`, `mariadb`, `mysql`, `n1ql`, `plsql`, `postgresql`, `redshift`, `singlestoredb`, `snowflake`, `spark`, `sql`, `sqlite`, `tidb`, `transactsql` or `trino`. |
 | `keywords` | string[] | `[]` | Extra autocomplete keywords. At most 1000 entries of up to 64 characters: an ASCII letter or `_`, then letters, digits, `_`, `$`, `.` or single inner spaces (`"FOR SYSTEM_TIME AS OF"`, `"SAFE."`). |
