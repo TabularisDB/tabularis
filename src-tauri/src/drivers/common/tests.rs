@@ -1,9 +1,10 @@
 use super::{
     build_paginated_query, calculate_query_timing, calculate_query_timing_from_start,
     decode_blob_wire_format, encode_blob, encode_blob_full, i64_to_json, is_explainable_query,
-    is_select_query, parse_unsafe_bigint_string, strip_leading_sql_comments, strip_limit_offset,
-    transaction_effect, u64_to_json, TransactionEffect, DEFAULT_MAX_BLOB_SIZE,
-    JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT, MAX_BLOB_PREVIEW_SIZE,
+    is_select_query, parse_unsafe_bigint_string, returns_result_set, returns_result_set_for,
+    strip_leading_sql_comments, strip_leading_sql_comments_for, strip_limit_offset,
+    transaction_effect, u64_to_json, TransactionEffect, DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER,
+    JS_MAX_SAFE_UINT, MAX_BLOB_PREVIEW_SIZE,
 };
 
 #[test]
@@ -84,6 +85,45 @@ fn test_strip_leading_sql_comments_mixed() {
 fn test_strip_leading_sql_comments_no_comments() {
     assert_eq!(strip_leading_sql_comments("SELECT 1"), "SELECT 1");
     assert_eq!(strip_leading_sql_comments("  SELECT 1"), "SELECT 1");
+}
+
+#[test]
+fn test_strip_leading_sql_comments_keeps_hash_without_hash_comments() {
+    assert_eq!(
+        strip_leading_sql_comments("# note\nSELECT 1"),
+        "# note\nSELECT 1"
+    );
+    assert!(!returns_result_set("# note\nSELECT 1"));
+}
+
+#[test]
+fn test_strip_leading_sql_comments_for_hash_comments() {
+    assert_eq!(
+        strip_leading_sql_comments_for("# note\n-- x\n#y\n/* z */ SELECT 1", true),
+        "SELECT 1"
+    );
+    assert_eq!(strip_leading_sql_comments_for("# only comment", true), "");
+    // Without hash comments the `#` line stays, exactly as before.
+    assert_eq!(
+        strip_leading_sql_comments_for("# note\nSELECT 1", false),
+        strip_leading_sql_comments("# note\nSELECT 1")
+    );
+}
+
+#[test]
+fn test_returns_result_set_for_hash_comments() {
+    assert!(returns_result_set_for("# note\nSELECT 1", true));
+    assert!(returns_result_set_for("#a\n# b\nSHOW TABLES", true));
+    assert!(!returns_result_set_for(
+        "# note\nINSERT INTO t VALUES (1)",
+        true
+    ));
+    assert!(!returns_result_set_for("# note\nSELECT 1", false));
+    // MySQL's resolved syntax has hash comments; PostgreSQL's does not.
+    use crate::drivers::driver_trait::SqlDialect;
+    use crate::drivers::sql_syntax::SqlSyntax;
+    assert!(SqlSyntax::preset(Some(SqlDialect::Mysql)).hash_comments);
+    assert!(!SqlSyntax::preset(Some(SqlDialect::Postgres)).hash_comments);
 }
 
 #[test]

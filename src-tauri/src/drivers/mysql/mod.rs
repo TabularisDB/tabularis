@@ -31,7 +31,7 @@ use helpers::{
 };
 use row_identity::get_float_columns;
 use sqlx::{Column, Row};
-use stmt_classify::is_text_protocol_stmt;
+use stmt_classify::{is_text_protocol_stmt, HASH_COMMENTS};
 
 /// Whether this connection must avoid the prepared-statement protocol.
 ///
@@ -1438,7 +1438,7 @@ async fn exec_on_mysql_conn(
     // Non-result-set statements (INSERT / UPDATE / DELETE / DDL) go through
     // `execute()` so we can return the actual `rows_affected`. In text mode
     // they must use `raw_sql` (COM_QUERY) since the bastion rejects prepares.
-    if !crate::drivers::common::returns_result_set(query) {
+    if !crate::drivers::common::returns_result_set_for(query, *HASH_COMMENTS) {
         use sqlx::Executor;
         let exec_result = if text.enabled {
             conn.execute(sqlx::raw_sql(query)).await
