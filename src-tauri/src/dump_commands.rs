@@ -4,7 +4,7 @@ use crate::commands::{
     AbortHandleMap,
 };
 use crate::drivers::driver_trait::DatabaseDriver;
-use crate::dump_utils::{drop_table_if_exists, format_table_ref, insert_into_statement};
+use crate::dump_utils::DumpDialect;
 use crate::models::{ConnectionParams, Pagination, TableColumn};
 use crate::pool_manager::{get_mysql_pool, get_postgres_pool, get_sqlite_pool};
 use futures::TryStreamExt;
@@ -76,7 +76,6 @@ pub async fn dump_database<R: Runtime>(
         params.database = crate::models::DatabaseSelection::Single(db);
     }
     let driver = saved_conn.params.driver.clone();
-    let schema = schema.unwrap_or_else(|| "public".to_string());
 
     // Spawn the dump process
     let task = tokio::spawn(async move {
@@ -91,18 +90,18 @@ pub async fn dump_database<R: Runtime>(
 
         // Get tables
         let drv = crate::drivers::registry::get_connection_driver(&params).await?;
-        // Schema-based drivers (Postgres) use `schema` to scope the listing
-        // to a specific schema within the database. Flat multi-db drivers
-        // (MySQL, SQLite) pass None — they ignore the schema arg and use
+        // Quoting, schema qualification and literal syntax follow the
+        // driver's capabilities, so plugin drivers (backtick quoting,
+        // datasets as schemas, ...) get statements their engine accepts.
+        let dialect = DumpDialect::from_capabilities(&driver, &drv.manifest().capabilities);
+        let schema = dialect.resolve_schema(schema.as_deref());
+        // Schema-based drivers use `schema` to scope the listing to a
+        // specific schema within the database. Flat multi-db drivers (MySQL,
+        // SQLite) pass None — they ignore the schema arg and use
         // params.database to determine which tables to list, avoiding a
         // confusing `WHERE table_schema = 'public'` on a MySQL connection.
-        let schema_for_listing: Option<&str> =
-            if driver.as_str() == "postgres" || driver.as_str() == "postgresql" {
-                Some(&schema)
-            } else {
-                None
-            };
-        let all_tables = drv.get_tables(&params, schema_for_listing).await?;
+        let scoped_schema = dialect.scoped_schema(schema.as_deref());
+        let all_tables = drv.get_tables(&params, scoped_schema).await?;
 
         let tables_to_process: Vec<String> = if let Some(selection) = &options.tables {
             selection.clone()
@@ -115,7 +114,7 @@ pub async fn dump_database<R: Runtime>(
                 writeln!(
                     writer,
                     "-- Structure for table {}",
-                    format_table_ref(&driver, &schema, &table)
+                    dialect.table_ref(scoped_schema, &table)
                 )
                 .map_err(|e| e.to_string())?;
                 // A plugin that doesn't implement get_table_ddl must not
@@ -137,17 +136,21 @@ pub async fn dump_database<R: Runtime>(
                 // statement independently — the DROP commits and the table is
                 // gone). Skipping both when DDL fails leaves the existing table
                 // intact.
-                match drv.get_table_ddl(&params, &table, Some(&schema)).await {
+                match drv.get_table_ddl(&params, &table, scoped_schema).await {
                     Ok(ddl) => {
-                        writeln!(writer, "{}", drop_table_if_exists(&driver, &schema, &table))
-                            .map_err(|e| e.to_string())?;
+                        writeln!(
+                            writer,
+                            "{}",
+                            dialect.drop_table_if_exists(scoped_schema, &table)
+                        )
+                        .map_err(|e| e.to_string())?;
                         writeln!(writer, "{}\n", ddl).map_err(|e| e.to_string())?;
                     }
                     Err(e) => {
                         writeln!(
                             writer,
                             "-- WARNING: could not generate DDL for {}: {} (table left unchanged)\n",
-                            format_table_ref(&driver, &schema, &table),
+                            dialect.table_ref(scoped_schema, &table),
                             e
                         )
                         .map_err(|e| e.to_string())?;
@@ -159,10 +162,19 @@ pub async fn dump_database<R: Runtime>(
                 writeln!(
                     writer,
                     "-- Data for table {}",
-                    format_table_ref(&driver, &schema, &table)
+                    dialect.table_ref(scoped_schema, &table)
                 )
                 .map_err(|e| e.to_string())?;
-                export_table_data(&mut writer, &drv, &params, &driver, &table, &schema).await?;
+                export_table_data(
+                    &mut writer,
+                    &drv,
+                    &params,
+                    &driver,
+                    &dialect,
+                    &table,
+                    scoped_schema,
+                )
+                .await?;
                 writeln!(writer, "\n").map_err(|e| e.to_string())?;
             }
         }
@@ -189,8 +201,9 @@ async fn export_table_data(
     drv: &Arc<dyn DatabaseDriver>,
     params: &ConnectionParams,
     driver: &str,
+    dialect: &DumpDialect,
     table: &str,
-    schema: &str,
+    schema: Option<&str>,
 ) -> Result<(), String> {
     // We need to implement streaming fetch manually here because we need raw values, not JSON strings if possible,
     // or we parse JSON strings back to SQL literals.
@@ -198,7 +211,7 @@ async fn export_table_data(
     // Let's reuse `extract_value` logic but format for SQL.
 
     // Ideally we should use specific batch size
-    let query = format!("SELECT * FROM {}", format_table_ref(driver, schema, table));
+    let query = format!("SELECT * FROM {}", dialect.table_ref(schema, table));
 
     match driver {
         "mysql" => {
@@ -218,9 +231,9 @@ async fn export_table_data(
                     // written back as JSON literals, not as their string content.
                     let is_json_column = row.column(i).type_info().name() == "JSON";
                     values.push(if is_json_column {
-                        escape_json_column_value(driver, val)
+                        dialect.escape_json_value(val)
                     } else {
-                        escape_sql_value(driver, val)
+                        dialect.escape_value(val)
                     });
                 }
                 batch.push(format!("({})", values.join(", ")));
@@ -229,7 +242,7 @@ async fn export_table_data(
                     writeln!(
                         writer,
                         "{}",
-                        insert_into_statement(driver, schema, table, &batch.join(", "))
+                        dialect.insert_into_statement(schema, table, &batch.join(", "))
                     )
                     .map_err(|e| e.to_string())?;
                     batch.clear();
@@ -239,7 +252,7 @@ async fn export_table_data(
                 writeln!(
                     writer,
                     "{}",
-                    insert_into_statement(driver, schema, table, &batch.join(", "))
+                    dialect.insert_into_statement(schema, table, &batch.join(", "))
                 )
                 .map_err(|e| e.to_string())?;
             }
@@ -266,9 +279,9 @@ async fn export_table_data(
                     let is_json_column = *column_type == tokio_postgres::types::Type::JSON
                         || *column_type == tokio_postgres::types::Type::JSONB;
                     values.push(if is_json_column {
-                        escape_json_column_value(driver, val)
+                        dialect.escape_json_value(val)
                     } else {
-                        escape_sql_value(driver, val)
+                        dialect.escape_value(val)
                     });
                 }
                 batch.push(format!("({})", values.join(", ")));
@@ -277,7 +290,7 @@ async fn export_table_data(
                     writeln!(
                         writer,
                         "{}",
-                        insert_into_statement(driver, schema, table, &batch.join(", "))
+                        dialect.insert_into_statement(schema, table, &batch.join(", "))
                     )
                     .map_err(|e| e.to_string())?;
                     batch.clear();
@@ -287,7 +300,7 @@ async fn export_table_data(
                 writeln!(
                     writer,
                     "{}",
-                    insert_into_statement(driver, schema, table, &batch.join(", "))
+                    dialect.insert_into_statement(schema, table, &batch.join(", "))
                 )
                 .map_err(|e| e.to_string())?;
             }
@@ -304,7 +317,7 @@ async fn export_table_data(
                 let mut values = Vec::new();
                 for i in 0..row.columns().len() {
                     let val = extract_value(&row, i, None);
-                    values.push(escape_sql_value(driver, val));
+                    values.push(dialect.escape_value(val));
                 }
                 batch.push(format!("({})", values.join(", ")));
 
@@ -312,7 +325,7 @@ async fn export_table_data(
                     writeln!(
                         writer,
                         "{}",
-                        insert_into_statement(driver, schema, table, &batch.join(", "))
+                        dialect.insert_into_statement(schema, table, &batch.join(", "))
                     )
                     .map_err(|e| e.to_string())?;
                     batch.clear();
@@ -322,7 +335,7 @@ async fn export_table_data(
                 writeln!(
                     writer,
                     "{}",
-                    insert_into_statement(driver, schema, table, &batch.join(", "))
+                    dialect.insert_into_statement(schema, table, &batch.join(", "))
                 )
                 .map_err(|e| e.to_string())?;
             }
@@ -332,19 +345,11 @@ async fn export_table_data(
         // generic RPC surface every driver implements — paginate through
         // `execute_query` instead of a raw `sqlx`/`tokio-postgres` client.
         _ => {
-            // `schema` is dump_database's caller-supplied schema, defaulted
-            // to "public" unconditionally for every driver. Only a
-            // Postgres-flavored plugin actually has that schema concept —
-            // a non-Postgres plugin's "schema" RPC parameter may mean
-            // something else entirely (e.g. a database selector for a
-            // MySQL-like plugin with no real schema concept), so passing
-            // "public" there could silently retarget it to a database that
-            // doesn't exist instead of leaving the plugin's own default alone.
-            let fallback_schema = if is_postgres_driver(driver) {
-                Some(schema)
-            } else {
-                None
-            };
+            // `schema` is already scoped by `DumpDialect::scoped_schema`: it
+            // is `None` for a plugin without schemas, whose "schema" RPC
+            // parameter may mean something else entirely (e.g. a database
+            // selector), so the plugin's own default is left alone.
+            let fallback_schema = schema;
             let json_columns =
                 json_column_names(&drv.get_columns(params, table, fallback_schema).await?);
 
@@ -361,14 +366,14 @@ async fn export_table_data(
                         row,
                         &result.columns,
                         &json_columns,
-                        driver,
+                        dialect,
                     ));
 
                     if batch.len() >= 100 {
                         writeln!(
                             writer,
                             "{}",
-                            insert_into_statement(driver, schema, table, &batch.join(", "))
+                            dialect.insert_into_statement(schema, table, &batch.join(", "))
                         )
                         .map_err(|e| e.to_string())?;
                         batch.clear();
@@ -385,7 +390,7 @@ async fn export_table_data(
                 writeln!(
                     writer,
                     "{}",
-                    insert_into_statement(driver, schema, table, &batch.join(", "))
+                    dialect.insert_into_statement(schema, table, &batch.join(", "))
                 )
                 .map_err(|e| e.to_string())?;
             }
@@ -393,66 +398,6 @@ async fn export_table_data(
     }
 
     Ok(())
-}
-
-/// Quotes `s` as a string literal for the target dialect.
-///
-/// MySQL treats backslashes inside string literals as escape sequences
-/// (unless `NO_BACKSLASH_ESCAPES` is set), so a literal backslash must be
-/// doubled and a NUL byte written as `\0` — otherwise a `\u4e2d` escape
-/// inside JSON silently re-imports as `u4e2d` and `\"` breaks the JSON
-/// altogether. PostgreSQL (with the default
-/// `standard_conforming_strings = on`) and SQLite take backslashes
-/// literally, so doubling them there would corrupt the data instead; only
-/// the single quote needs escaping.
-fn escape_sql_string(driver: &str, s: &str) -> String {
-    match driver {
-        "mysql" => format!(
-            "'{}'",
-            s.replace('\\', "\\\\")
-                .replace('\'', "''")
-                .replace('\0', "\\0")
-        ),
-        _ => format!("'{}'", s.replace('\'', "''")),
-    }
-}
-
-fn escape_sql_value(driver: &str, val: serde_json::Value) -> String {
-    match val {
-        serde_json::Value::Null => "NULL".to_string(),
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::Bool(b) => {
-            // Postgres boolean columns reject integer literals (SQLSTATE 42804)
-            // — emit TRUE/FALSE so dump/import round-trips. MySQL/SQLite accept
-            // 1/0 (and some configurations reject the keyword form), so keep the
-            // integer literal there.
-            if is_postgres_driver(driver) {
-                if b { "TRUE".to_string() } else { "FALSE".to_string() }
-            } else {
-                if b { "1".to_string() } else { "0".to_string() }
-            }
-        } // Most SQL dialects
-        serde_json::Value::String(s) => escape_sql_string(driver, &s),
-        // Arrays/objects only reach here from non-JSON columns (e.g. hstore);
-        // serialize them and escape the text exactly like any other string.
-        other => escape_sql_string(driver, &other.to_string()),
-    }
-}
-
-/// Formats a value read from a JSON-typed column (`JSON` on MySQL,
-/// `json`/`jsonb` on PostgreSQL).
-///
-/// Such columns are extracted as parsed `serde_json::Value`s, so they must be
-/// written back as JSON *literals*: a JSON string keeps its surrounding
-/// quotes (`"\"[1, 2]\""`, not `[1, 2]`), booleans stay `true`/`false`, and
-/// the resulting text is escaped like any other string literal for the
-/// dialect. SQL `NULL` and a JSON `null` are indistinguishable at this
-/// point; both are written as `NULL`.
-fn escape_json_column_value(driver: &str, val: serde_json::Value) -> String {
-    match val {
-        serde_json::Value::Null => "NULL".to_string(),
-        other => escape_sql_string(driver, &other.to_string()),
-    }
 }
 
 /// Whether the plugin-driver fallback's paginated fetch loop (in
@@ -470,16 +415,6 @@ fn plugin_dump_has_more(pagination: Option<Pagination>, fetched: u32, page_size:
     pagination
         .map(|p| p.has_more)
         .unwrap_or(fetched >= page_size)
-}
-
-/// Whether a driver id is Postgres-flavored: the builtin `postgres` client,
-/// or the `postgresql` plugin. Only these actually have a `public`-schema
-/// convention for unqualified dump/import statements — used to decide
-/// whether the generic plugin-driver fallbacks in `export_table_data` and
-/// `import_database` may default a missing schema to "public", or must
-/// leave a non-Postgres plugin's own schema/database default alone.
-fn is_postgres_driver(driver: &str) -> bool {
-    driver == "postgres" || driver == "postgresql"
 }
 
 /// Column names whose PostgreSQL type is `json`/`jsonb`. Used to decide
@@ -508,16 +443,16 @@ fn format_row_values(
     row: Vec<serde_json::Value>,
     columns: &[String],
     json_columns: &HashSet<String>,
-    driver: &str,
+    dialect: &DumpDialect,
 ) -> String {
     let values: Vec<String> = row
         .into_iter()
         .zip(columns.iter())
         .map(|(val, col_name)| {
             if json_columns.contains(col_name) {
-                escape_json_column_value(driver, val)
+                dialect.escape_json_value(val)
             } else {
-                escape_sql_value(driver, val)
+                dialect.escape_value(val)
             }
         })
         .collect();
@@ -692,6 +627,8 @@ pub async fn import_database<R: Runtime>(
     let app_handle = app.clone();
     let conn_id = connection_id.clone();
     let drv = crate::drivers::registry::get_connection_driver(&params).await?;
+    let is_postgres =
+        DumpDialect::from_capabilities(&driver, &drv.manifest().capabilities).postgres;
 
     // Spawn the import process
     let task = tokio::spawn(async move {
@@ -835,9 +772,9 @@ pub async fn import_database<R: Runtime>(
             // transactional bulk-execute RPC would need to be added to the
             // plugin protocol to close that gap (followed up separately).
             _ => {
-                // Only default to "public" for a Postgres-flavored plugin;
-                // see is_postgres_driver's doc comment.
-                let fallback_schema = if is_postgres_driver(&driver) {
+                // Only default to "public" for a Postgres-flavored plugin
+                // (see `pg_schema` above).
+                let fallback_schema = if is_postgres {
                     Some(pg_schema.as_str())
                 } else {
                     schema.as_deref()
@@ -906,112 +843,9 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    #[test]
-    fn test_escape_sql_value() {
-        for driver in ["mysql", "postgres", "sqlite"] {
-            assert_eq!(escape_sql_value(driver, json!(null)), "NULL");
-            assert_eq!(escape_sql_value(driver, json!(123)), "123");
-            assert_eq!(escape_sql_value(driver, json!(12.34)), "12.34");
-            assert_eq!(escape_sql_value(driver, json!("hello")), "'hello'");
-            assert_eq!(escape_sql_value(driver, json!("O'Reilly")), "'O''Reilly'");
-            assert_eq!(
-                escape_sql_value(driver, json!("Multi\nLine")),
-                "'Multi\nLine'"
-            );
-        }
-        // Postgres boolean columns reject integer literals (SQLSTATE 42804) —
-        // the dump path must emit TRUE/FALSE so dump/import round-trips.
-        for pg_driver in ["postgres", "postgresql"] {
-            assert_eq!(escape_sql_value(pg_driver, json!(true)), "TRUE");
-            assert_eq!(escape_sql_value(pg_driver, json!(false)), "FALSE");
-        }
-        // MySQL/SQLite accept 1/0 for booleans.
-        for non_pg_driver in ["mysql", "sqlite"] {
-            assert_eq!(escape_sql_value(non_pg_driver, json!(true)), "1");
-            assert_eq!(escape_sql_value(non_pg_driver, json!(false)), "0");
-        }
-    }
-
-    #[test]
-    fn test_escape_sql_value_mysql_doubles_backslashes_and_escapes_nul() {
-        assert_eq!(
-            escape_sql_value("mysql", json!("Back\\slash")),
-            "'Back\\\\slash'"
-        );
-        assert_eq!(escape_sql_value("mysql", json!("a\u{0}b")), "'a\\0b'");
-        // A backslash followed by a quote must not collapse into `\'`.
-        assert_eq!(escape_sql_value("mysql", json!("\\'")), "'\\\\'''");
-    }
-
-    #[test]
-    fn test_escape_sql_value_postgres_and_sqlite_keep_backslashes_literal() {
-        // With standard_conforming_strings (PostgreSQL) and in SQLite a
-        // backslash is an ordinary character; doubling it would re-import
-        // as two backslashes.
-        assert_eq!(
-            escape_sql_value("postgres", json!("Back\\slash")),
-            "'Back\\slash'"
-        );
-        assert_eq!(
-            escape_sql_value("sqlite", json!("Back\\slash")),
-            "'Back\\slash'"
-        );
-    }
-
-    #[test]
-    fn test_escape_sql_value_nested_values_are_escaped_like_text() {
-        assert_eq!(
-            escape_sql_value("mysql", json!({"path": "a\\b"})),
-            r#"'{"path":"a\\\\b"}'"#
-        );
-        assert_eq!(
-            escape_sql_value("postgres", json!({"path": "a\\b"})),
-            r#"'{"path":"a\\b"}'"#
-        );
-    }
-
-    #[test]
-    fn test_escape_json_column_value_mysql() {
-        // JSON escape sequences must survive MySQL's string-literal parser.
-        assert_eq!(
-            escape_json_column_value("mysql", json!({"html": "<a target=\"_blank\">"})),
-            r#"'{"html":"<a target=\\"_blank\\">"}'"#
-        );
-        assert_eq!(
-            escape_json_column_value("mysql", json!({"class": "App\\Jobs\\Foo"})),
-            r#"'{"class":"App\\\\Jobs\\\\Foo"}'"#
-        );
-        // A JSON string value keeps its quotes instead of degrading to its content.
-        assert_eq!(
-            escape_json_column_value("mysql", json!("\"[151, 152, 153]\"")),
-            r#"'"\\"[151, 152, 153]\\""'"#
-        );
-        // Scalars stay JSON scalars rather than becoming SQL 1/0.
-        assert_eq!(escape_json_column_value("mysql", json!(true)), "'true'");
-        assert_eq!(escape_json_column_value("mysql", json!(42)), "'42'");
-        assert_eq!(escape_json_column_value("mysql", json!(null)), "NULL");
-        // Non-ASCII is written as UTF-8 rather than \uXXXX, so nothing is
-        // left for escape processing to mangle on re-import.
-        assert_eq!(
-            escape_json_column_value("mysql", json!({"name": "中文"})),
-            r#"'{"name":"中文"}'"#
-        );
-    }
-
-    #[test]
-    fn test_escape_json_column_value_postgres() {
-        assert_eq!(
-            escape_json_column_value("postgres", json!({"html": "<a target=\"_blank\">"})),
-            r#"'{"html":"<a target=\"_blank\">"}'"#
-        );
-        assert_eq!(
-            escape_json_column_value("postgres", json!("it's")),
-            r#"'"it''s"'"#
-        );
-        assert_eq!(
-            escape_json_column_value("postgres", json!(false)),
-            "'false'"
-        );
+    fn postgres_dialect() -> DumpDialect {
+        let pg = crate::drivers::postgres::PostgresDriver::new();
+        DumpDialect::from_capabilities("postgres", &pg.manifest().capabilities)
     }
 
     fn column(name: &str, data_type: &str) -> TableColumn {
@@ -1066,7 +900,7 @@ mod tests {
 
         let row = vec![json!("hi"), json!("hi")];
         assert_eq!(
-            format_row_values(row, &columns, &json_cols, "postgres"),
+            format_row_values(row, &columns, &json_cols, &postgres_dialect()),
             r#"('hi', '"hi"')"#
         );
     }
@@ -1079,7 +913,7 @@ mod tests {
 
         let row = vec![json!(1), json!({"a": 1}), serde_json::Value::Null];
         assert_eq!(
-            format_row_values(row, &columns, &json_cols, "postgres"),
+            format_row_values(row, &columns, &json_cols, &postgres_dialect()),
             r#"(1, '{"a":1}', NULL)"#
         );
     }
@@ -1120,18 +954,5 @@ mod tests {
     #[test]
     fn test_plugin_dump_has_more_an_empty_page_without_pagination_ends_the_fetch() {
         assert!(!plugin_dump_has_more(None, 0, 1000));
-    }
-
-    #[test]
-    fn test_is_postgres_driver_matches_builtin_and_plugin_ids() {
-        assert!(is_postgres_driver("postgres"));
-        assert!(is_postgres_driver("postgresql"));
-    }
-
-    #[test]
-    fn test_is_postgres_driver_rejects_other_drivers() {
-        assert!(!is_postgres_driver("mysql"));
-        assert!(!is_postgres_driver("sqlite"));
-        assert!(!is_postgres_driver("some-other-plugin"));
     }
 }

@@ -4,7 +4,9 @@ import {
   returnsResultSet,
   isExplainable,
   stripLeadingComments,
+  splitStatements,
 } from '../../../src/utils/sqlSplitter';
+import { leadingKeyword } from '../../../src/utils/sqlSplitter/classify';
 
 describe('stripLeadingComments', () => {
   it('strips line comments', () => {
@@ -24,6 +26,43 @@ describe('stripLeadingComments', () => {
   it('returns empty string for a comment-only input', () => {
     expect(stripLeadingComments('-- only comment')).toBe('');
     expect(stripLeadingComments('/* never closes')).toBe('');
+  });
+});
+
+describe('hash comments', () => {
+  it('keeps a leading # by default (PostgreSQL operator, Oracle identifier char)', () => {
+    expect(stripLeadingComments('# note\nSELECT 1')).toBe('# note\nSELECT 1');
+    expect(leadingKeyword('# note\nSELECT 1')).toBe('');
+  });
+
+  it('strips leading # lines when the dialect has hash comments', () => {
+    const opts = { hashComments: true };
+    expect(stripLeadingComments('# note\nSELECT 1', opts)).toBe('SELECT 1');
+    expect(stripLeadingComments('#a\n -- b\n/* c */ #d\nSELECT 1', opts)).toBe('SELECT 1');
+    expect(stripLeadingComments('# only a comment', opts)).toBe('');
+    expect(leadingKeyword('# note\n(SELECT 1)', opts)).toBe('SELECT');
+  });
+
+  it('only strips # at the start of the statement', () => {
+    expect(stripLeadingComments('SELECT 1 # tail', { hashComments: true })).toBe(
+      'SELECT 1 # tail',
+    );
+  });
+
+  it('classifies MySQL statements behind a # comment', () => {
+    const [stmt] = splitStatements('# header\nSELECT * FROM t', 'mysql');
+    expect(stmt.isSelect).toBe(true);
+    expect(stmt.returnsResultSet).toBe(true);
+    expect(stmt.isExplainable).toBe(true);
+  });
+
+  it('does not treat # as a comment for PostgreSQL', () => {
+    // `#` is PostgreSQL's bitwise XOR; a statement cannot start with it.
+    const [stmt] = splitStatements('# header\nSELECT * FROM t', 'postgres');
+    expect(stmt.isSelect).toBe(false);
+    const [xor] = splitStatements('SELECT 5 # 3', 'postgres');
+    expect(xor.isSelect).toBe(true);
+    expect(xor.text).toBe('SELECT 5 # 3');
   });
 });
 

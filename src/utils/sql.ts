@@ -62,11 +62,15 @@ const MASK_DIALECTS: readonly SqlDialect[] = [
  * helpers rather than in the plan analysis package.
  */
 export function isDataModifyingQuery(query: string): boolean {
-  const keyword = leadingKeyword(query);
-  if (DATA_MODIFYING_KEYWORDS.has(keyword)) return true;
-  if (keyword === "SELECT") return matchesOutsideStrings(query, SELECT_INTO_RE);
-  if (keyword === "WITH") return matchesOutsideStrings(query, CTE_WRITE_RE);
-  return false;
+  // The dialect is unknown: a statement modifies data if it does under either
+  // reading of a leading `#` (a MySQL comment, or code elsewhere).
+  return [false, true].some((hashComments) => {
+    const keyword = leadingKeyword(query, { hashComments });
+    if (DATA_MODIFYING_KEYWORDS.has(keyword)) return true;
+    if (keyword === "SELECT") return matchesOutsideStrings(query, SELECT_INTO_RE);
+    if (keyword === "WITH") return matchesOutsideStrings(query, CTE_WRITE_RE);
+    return false;
+  });
 }
 
 // Look for a keyword outside strings and comments. The connection's dialect is

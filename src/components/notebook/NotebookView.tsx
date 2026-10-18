@@ -36,7 +36,11 @@ import {
   addFailure,
   addSkipped,
 } from "../../utils/notebookRunAll";
-import { resolveQueryVariables, findUnresolvedDependencies } from "../../utils/notebookVariables";
+import {
+  resolveQueryVariables,
+  findUnresolvedDependencies,
+  variableOptionsForDriver,
+} from "../../utils/notebookVariables";
 import { resolveParams } from "../../utils/notebookParams";
 import {
   addHistoryEntry,
@@ -94,10 +98,8 @@ export function NotebookView({
   const { activeSchema, activeCapabilities, selectedDatabases, activeDriver } =
     useDatabase();
   const variableOptions = useMemo(
-    () => ({
-      escapeBackslashes: activeDriver === "mysql" || activeDriver === "mariadb",
-    }),
-    [activeDriver],
+    () => variableOptionsForDriver(activeCapabilities ?? activeDriver),
+    [activeCapabilities, activeDriver],
   );
   const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
   const effectiveSchema =

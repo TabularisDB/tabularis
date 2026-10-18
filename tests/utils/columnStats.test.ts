@@ -33,6 +33,25 @@ describe("columnStats", () => {
       expect(getColumnStatsSupport(type)).toEqual(ALL);
     });
 
+    it.each([
+      "ARRAY<INT64>",
+      "STRUCT<name STRING, age INT64>",
+      "ARRAY<STRUCT<id INT64>>",
+      "MAP<STRING, INT64>",
+      "RECORD",
+      "STRING REPEATED",
+    ])("only counts rows and NULLs for the nested type %s", (type) => {
+      expect(getColumnStatsSupport(type)).toEqual(COUNTS_ONLY);
+    });
+
+    it("keeps PostgreSQL arrays groupable", () => {
+      expect(getColumnStatsSupport("ARRAY")).toEqual({
+        distinct: true,
+        minMax: false,
+        topValues: true,
+      });
+    });
+
     it.each(["varchar(255)", "text", "uuid", "boolean", "enum('a','b')", ""])(
       "skips min / max but lists top values for %s",
       (type) => {

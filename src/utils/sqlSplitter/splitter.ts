@@ -61,7 +61,7 @@ export function splitInto(
   const segments = collectSegments(sql, options, batchOnly);
   const foldedBlocks = options.plsqlBlocks ? foldBlocks(sql, segments) : segments;
   const folded = foldComments(foldedBlocks);
-  return folded.map((group) => buildStatement(sql, group));
+  return folded.map((group) => buildStatement(sql, group, options));
 }
 
 function collectSegments(
@@ -360,12 +360,18 @@ function foldComments(segments: ReadonlyArray<RawSegment>): FoldedGroup[] {
   return output;
 }
 
-function buildStatement(sql: string, group: FoldedGroup): Statement {
+function buildStatement(
+  sql: string,
+  group: FoldedGroup,
+  options: DialectOptions,
+): Statement {
   const text = group.spans
     .map((s) => sql.slice(s.start, s.end))
     .join('')
     .trim();
-  const keyword = leadingKeyword(text);
+  // A leading `#` line is a comment only where the dialect lexes it as one
+  // (MySQL/MariaDB); elsewhere it is code, e.g. PostgreSQL's `#` operator.
+  const keyword = leadingKeyword(text, { hashComments: options.hashComments });
   const [start, end] = trimRange(sql, group.meaningful.start, group.meaningful.end);
   return {
     text,
