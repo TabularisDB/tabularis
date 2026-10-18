@@ -215,3 +215,17 @@ fn identifier_dispatches_on_the_opening_character() {
     assert_eq!(identifier("[a b]"), Some("a b".into()));
     assert_eq!(identifier(""), None);
 }
+
+#[test]
+fn rejects_a_second_statement_hidden_from_one_dialect() {
+    // MySQL reads `#` as a comment, so the `'` does not open a string and the
+    // `;` separates a second statement.
+    assert_eq!(
+        dropped_database("DROP DATABASE foo # '\n; DROP DATABASE bar"),
+        None
+    );
+    assert_eq!(
+        dropped_database("DROP DATABASE foo /*!; DROP DATABASE bar */"),
+        None
+    );
+}
