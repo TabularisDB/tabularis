@@ -26,6 +26,7 @@ async fn parity_ddl_create_table() {
                     is_pk: true,
                     is_auto_increment: true,
                     default_value: None,
+                    comment: None,
                 },
                 ColumnDefinition {
                     name: "name".to_string(),
@@ -34,6 +35,7 @@ async fn parity_ddl_create_table() {
                     is_pk: false,
                     is_auto_increment: false,
                     default_value: None,
+                    comment: None,
                 },
                 ColumnDefinition {
                     name: "email".to_string(),
@@ -42,6 +44,7 @@ async fn parity_ddl_create_table() {
                     is_pk: false,
                     is_auto_increment: false,
                     default_value: Some("'unknown@example.com'".to_string()),
+                    comment: None,
                 },
             ];
             driver
@@ -98,6 +101,7 @@ async fn parity_ddl_add_column() {
                 is_pk: false,
                 is_auto_increment: false,
                 default_value: Some("0".to_string()),
+                comment: None,
             };
             driver
                 .get_add_column_sql("all_types", column, Some("test_schema"))
@@ -142,6 +146,7 @@ async fn parity_ddl_alter_column_rename() {
                     is_pk: false,
                     is_auto_increment: false,
                     default_value: None,
+                    comment: None,
                 };
                 let new_column = ColumnDefinition {
                     name: "new_name".to_string(),
@@ -150,6 +155,7 @@ async fn parity_ddl_alter_column_rename() {
                     is_pk: false,
                     is_auto_increment: false,
                     default_value: None,
+                    comment: None,
                 };
                 driver
                     .get_alter_column_sql("all_types", old_column, new_column, Some("test_schema"))
@@ -197,6 +203,7 @@ async fn parity_ddl_alter_column_type_change() {
                     is_pk: false,
                     is_auto_increment: false,
                     default_value: None,
+                    comment: None,
                 };
                 let new_column = ColumnDefinition {
                     name: "col_text".to_string(),
@@ -205,6 +212,7 @@ async fn parity_ddl_alter_column_type_change() {
                     is_pk: false,
                     is_auto_increment: false,
                     default_value: None,
+                    comment: None,
                 };
                 driver
                     .get_alter_column_sql("all_types", old_column, new_column, Some("test_schema"))

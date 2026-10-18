@@ -910,17 +910,14 @@ fn restore_runtime_connection_uri(
     }
 }
 
-/// Load a saved connection with its host-owned credentials (keychain password,
-/// SSH secrets, connection URI) but without plugin-owned secrets. Used by the
-/// edit modal and by the Test Connection / Load Databases flows, which resolve
-/// plugin secrets themselves once the pending changes are known.
-pub fn find_connection_metadata_by_id<R: Runtime>(
+/// Saved connection as stored, without any keychain secret.
+fn lookup_saved_connection<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
 ) -> Result<SavedConnection, String> {
     let conn_cache = app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>();
 
-    let mut conn = match conn_cache.lookup(id) {
+    let conn = match conn_cache.lookup(id) {
         crate::connection_cache::CacheLookup::Hit(c) => c,
         crate::connection_cache::CacheLookup::Miss => {
             return Err("Connection not found".to_string())
@@ -936,6 +933,18 @@ pub fn find_connection_metadata_by_id<R: Runtime>(
                 .ok_or_else(|| "Connection not found".to_string())?
         }
     };
+    Ok(conn)
+}
+
+/// Load a saved connection with its host-owned credentials (keychain password,
+/// SSH secrets, connection URI) but without plugin-owned secrets. Used by the
+/// edit modal and by the Test Connection / Load Databases flows, which resolve
+/// plugin secrets themselves once the pending changes are known.
+pub fn find_connection_metadata_by_id<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+) -> Result<SavedConnection, String> {
+    let mut conn = lookup_saved_connection(app, id)?;
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     restore_runtime_connection_uri(&cache, &conn.id, &mut conn.params)?;
@@ -1291,9 +1300,10 @@ pub async fn get_routine_create_template<R: Runtime>(
     connection_id: String,
     routine_type: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<String, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let saved_conn = find_connection_for_sql_builders(&app, &connection_id)?;
+    let (drv, _) = ddl_driver_for_saved(&saved_conn, database).await?;
     drv.routine_create_template(&routine_type, schema.as_deref())
         .await
 }
@@ -4477,6 +4487,219 @@ mod tests {
             vec!["c1".to_string(), "c4".to_string()],
         );
     }
+
+    #[test]
+    fn ddl_database_override_targets_the_browsed_database() {
+        let mut params = base_params();
+        params.database =
+            DatabaseSelection::Multiple(vec!["first".to_string(), "second".to_string()]);
+        apply_ddl_database_override(&mut params, Some("second".to_string()));
+        assert_eq!(
+            params.database,
+            DatabaseSelection::Single("second".to_string())
+        );
+    }
+
+    fn saved(params: ConnectionParams) -> SavedConnection {
+        SavedConnection {
+            id: "conn-1".to_string(),
+            name: "Conn".to_string(),
+            params,
+            group_id: None,
+            sort_order: None,
+            detect_json_in_text_columns: None,
+            appearance: None,
+            tag_ids: None,
+            environment: None,
+            plugin_secret_keys: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn sql_builder_params_never_resolve_tunnels() {
+        // Resolving any of these would fail (no SSH host, no SSM target, no
+        // K8s context) or open a tunnel; the builders must skip it entirely.
+        for (ssh, ssm, k8s) in [
+            (true, false, false),
+            (false, true, false),
+            (false, false, true),
+        ] {
+            let params = ConnectionParams {
+                driver: "test-plugin".to_string(),
+                host: Some("db.internal".to_string()),
+                port: Some(5432),
+                ssh_enabled: Some(ssh),
+                ssm_enabled: Some(ssm),
+                k8s_enabled: Some(k8s),
+                ..base_params()
+            };
+            let built = sql_builder_params(&saved(params), Some("analytics".to_string()));
+            assert_eq!(built.host.as_deref(), Some("db.internal"));
+            assert_eq!(built.port, Some(5432));
+            assert_eq!(built.connection_id.as_deref(), Some("conn-1"));
+            assert_eq!(
+                built.database,
+                DatabaseSelection::Single("analytics".to_string())
+            );
+        }
+    }
+
+    #[test]
+    fn sql_builder_params_keep_saved_database_without_override() {
+        let built = sql_builder_params(&saved(base_params()), None);
+        assert_eq!(
+            built.database,
+            DatabaseSelection::Single("testdb".to_string())
+        );
+        assert_eq!(built.host.as_deref(), Some("localhost"));
+    }
+
+    #[test]
+    fn sql_builder_params_carry_stored_plugin_secrets() {
+        let cache = credential_cache::CredentialCache::default();
+        credential_cache::set_plugin_secret_cached(
+            &cache,
+            "conn-1",
+            "test-plugin",
+            "credential",
+            "stored-credential",
+        );
+        let mut conn = saved(ConnectionParams {
+            driver: "test-plugin".to_string(),
+            host: Some("db.internal".to_string()),
+            ssh_enabled: Some(true),
+            ..base_params()
+        });
+        conn.plugin_secret_keys = vec!["credential".to_string()];
+        conn.params
+            .extra
+            .insert("project".to_string(), "analytics".to_string());
+
+        bind_sql_builder_secrets(&cache, &mut conn);
+        let built = sql_builder_params(&conn, None);
+
+        assert_eq!(
+            built.extra.get("credential").map(String::as_str),
+            Some("stored-credential")
+        );
+        assert_eq!(
+            built.extra.get("project").map(String::as_str),
+            Some("analytics")
+        );
+        assert_eq!(built.host.as_deref(), Some("db.internal"));
+    }
+
+    #[test]
+    fn sql_builder_params_build_without_a_missing_plugin_secret() {
+        let cache = credential_cache::CredentialCache::default();
+        // A cached miss stands in for a keychain without the entry.
+        cache.plugin_secrets.lock().unwrap().insert(
+            credential_cache::plugin_secret_cache_key("conn-1", "test-plugin", "credential"),
+            credential_cache::CacheEntry::Absent,
+        );
+        let mut conn = saved(ConnectionParams {
+            driver: "test-plugin".to_string(),
+            ..base_params()
+        });
+        conn.plugin_secret_keys = vec!["credential".to_string()];
+
+        bind_sql_builder_secrets(&cache, &mut conn);
+        let built = sql_builder_params(&conn, Some("analytics".to_string()));
+
+        assert!(!built.extra.contains_key("credential"));
+        assert_eq!(built.connection_id.as_deref(), Some("conn-1"));
+        assert_eq!(
+            built.database,
+            DatabaseSelection::Single("analytics".to_string())
+        );
+        assert_eq!(conn.plugin_secret_keys, vec!["credential"]);
+    }
+
+    #[test]
+    fn sql_builder_secrets_bind_keychain_values() {
+        let mut params = ConnectionParams {
+            save_in_keychain: Some(true),
+            connection_uri_in_keychain: Some(true),
+            ..base_params()
+        };
+        apply_sql_builder_secrets(
+            &mut params,
+            "conn-1",
+            |stored| {
+                assert!(stored);
+                Ok(Some("plugin://token@host".to_string()))
+            },
+            || Ok("pw".to_string()),
+        );
+        assert_eq!(
+            params.connection_uri.as_deref(),
+            Some("plugin://token@host")
+        );
+        assert_eq!(params.password.as_deref(), Some("pw"));
+    }
+
+    #[test]
+    fn sql_builder_secrets_tolerate_keychain_failures() {
+        let mut params = ConnectionParams {
+            save_in_keychain: Some(true),
+            connection_uri_in_keychain: Some(true),
+            ..base_params()
+        };
+        apply_sql_builder_secrets(
+            &mut params,
+            "conn-1",
+            |_| Err("keychain locked".to_string()),
+            || Err("keychain locked".to_string()),
+        );
+        assert_eq!(params.connection_uri, None);
+        assert_eq!(params.password, None);
+
+        let mut missing_uri = ConnectionParams {
+            connection_uri_in_keychain: Some(true),
+            ..base_params()
+        };
+        apply_sql_builder_secrets(
+            &mut missing_uri,
+            "conn-1",
+            |_| Ok(None),
+            || panic!("password not stored in the keychain"),
+        );
+        assert_eq!(missing_uri.connection_uri, None);
+    }
+
+    #[test]
+    fn sql_builder_secrets_skip_iam_passwords_and_runtime_uris() {
+        let mut params = ConnectionParams {
+            save_in_keychain: Some(true),
+            use_iam_auth: Some(true),
+            connection_uri: Some("plugin://inline".to_string()),
+            password: Some("iam-token".to_string()),
+            ..base_params()
+        };
+        apply_sql_builder_secrets(
+            &mut params,
+            "conn-1",
+            |_| panic!("runtime URI must not be replaced"),
+            || panic!("IAM tokens never come from the keychain"),
+        );
+        assert_eq!(params.connection_uri.as_deref(), Some("plugin://inline"));
+        assert_eq!(params.password.as_deref(), Some("iam-token"));
+    }
+
+    #[test]
+    fn ddl_database_override_ignores_missing_or_empty_values() {
+        let mut params = base_params();
+        apply_ddl_database_override(&mut params, None);
+        assert_eq!(
+            params.database,
+            DatabaseSelection::Single("testdb".to_string())
+        );
+        apply_ddl_database_override(&mut params, Some(String::new()));
+        assert_eq!(
+            params.database,
+            DatabaseSelection::Single("testdb".to_string())
+        );
+    }
 }
 
 #[tauri::command]
@@ -6599,6 +6822,121 @@ pub async fn map_inferred_column_types<R: Runtime>(
 
 // --- DDL generation commands ---
 
+/// Point `params` at the database the user is browsing (multi-database
+/// layouts, #822). An empty or missing override keeps the saved selection.
+pub(crate) fn apply_ddl_database_override(params: &mut ConnectionParams, database: Option<String>) {
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
+}
+
+/// Bind the keychain secrets the SQL builders may forward to a plugin (the
+/// connection URI and the database password), without ever failing: a
+/// builder only renders SQL, so a keychain error leaves the secret unset and
+/// the params are bound without it. SSH secrets are not loaded because the
+/// builders never open tunnels.
+fn apply_sql_builder_secrets(
+    params: &mut ConnectionParams,
+    connection_id: &str,
+    connection_uri: impl FnOnce(bool) -> Result<Option<String>, String>,
+    db_password: impl FnOnce() -> Result<String, String>,
+) {
+    if runtime_connection_uri(params).is_none() {
+        let stored_in_keychain = params.connection_uri_in_keychain.unwrap_or(false);
+        match connection_uri(stored_in_keychain) {
+            Ok(Some(uri)) => params.connection_uri = Some(uri),
+            Ok(None) if stored_in_keychain => log::warn!(
+                "Connection URI for {connection_id} is missing from the OS keychain; building SQL without it"
+            ),
+            Ok(None) => {}
+            Err(e) => log::warn!(
+                "Failed to read the connection URI for {connection_id} from the OS keychain; building SQL without it: {e}"
+            ),
+        }
+    }
+    if params.save_in_keychain.unwrap_or(false) && !params.use_iam_auth.unwrap_or(false) {
+        match db_password() {
+            Ok(password) => params.password = Some(password),
+            Err(e) => log::warn!(
+                "Failed to read the DB password for {connection_id} from the OS keychain; building SQL without it: {e}"
+            ),
+        }
+    }
+}
+
+/// Bind every secret a plugin SQL builder may need: the keychain connection
+/// URI and password (see `apply_sql_builder_secrets`) and the plugin-owned
+/// secrets, resolved into `params.extra` like for any other driver call. A
+/// builder may call the plugin's backend (for example to look up a table's
+/// type before rendering its DROP statement), so it needs the same
+/// credentials. Never fails: a missing or unreadable secret is logged and left
+/// unset. SSH secrets are not loaded because the builders never open tunnels.
+fn bind_sql_builder_secrets(cache: &credential_cache::CredentialCache, conn: &mut SavedConnection) {
+    let conn_id = conn.id.clone();
+    apply_sql_builder_secrets(
+        &mut conn.params,
+        &conn_id,
+        |stored| credential_cache::get_connection_uri_cached(cache, &conn_id, stored),
+        || credential_cache::get_db_password_cached(cache, &conn_id),
+    );
+    crate::plugin_secrets::hydrate_connection(cache, conn);
+}
+
+/// Saved connection for the SQL-builder commands: secrets are read leniently
+/// (see `bind_sql_builder_secrets`) and no tunnel is touched.
+fn find_connection_for_sql_builders<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+) -> Result<SavedConnection, String> {
+    let mut conn = lookup_saved_connection(app, id)?;
+    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    bind_sql_builder_secrets(&cache, &mut conn);
+    Ok(conn)
+}
+
+/// Params forwarded to the plugin SQL builders: the saved params with the
+/// connection id and the browsed `database` applied. SSH/SSM/K8s tunnels and
+/// proxies are never resolved here, so host and port stay as saved: a
+/// preview must not open a tunnel, and must work while the server is
+/// unreachable.
+pub(crate) fn sql_builder_params(
+    saved: &SavedConnection,
+    database: Option<String>,
+) -> ConnectionParams {
+    let mut params = saved.params.clone();
+    params.connection_id = Some(saved.id.clone());
+    if crate::drivers::registry::is_local_path_driver(&params.driver) {
+        params.database = crate::fs_path::sanitize_database_selection(&params.database);
+    }
+    apply_ddl_database_override(&mut params, database);
+    params
+}
+
+/// Driver and params for the SQL-preview builders. Built-in drivers build SQL
+/// without credentials, so they keep the registered instance and the saved
+/// params, exactly as before. Plugin drivers get `sql_builder_params` bound
+/// to a driver snapshot, so every builder RPC carries the connection context
+/// (additive `params` field). No tunnel, metadata discovery or other RPC
+/// happens here.
+async fn ddl_driver_for_saved(
+    saved: &SavedConnection,
+    database: Option<String>,
+) -> Result<
+    (
+        Arc<dyn crate::drivers::driver_trait::DatabaseDriver>,
+        ConnectionParams,
+    ),
+    String,
+> {
+    let driver = driver_for(&saved.params.driver).await?;
+    if driver.manifest().is_builtin {
+        return Ok((driver, saved.params.clone()));
+    }
+    let params = sql_builder_params(saved, database);
+    let driver = driver.bind_connection_params(&params).unwrap_or(driver);
+    Ok((driver, params))
+}
+
 #[tauri::command]
 pub async fn get_create_table_sql<R: Runtime>(
     app: AppHandle<R>,
@@ -6606,9 +6944,10 @@ pub async fn get_create_table_sql<R: Runtime>(
     table_name: String,
     columns: Vec<ColumnDefinition>,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let saved_conn = find_connection_for_sql_builders(&app, &connection_id)?;
+    let (drv, _) = ddl_driver_for_saved(&saved_conn, database).await?;
     drv.get_create_table_sql(&table_name, columns, schema.as_deref())
         .await
 }
@@ -6620,9 +6959,10 @@ pub async fn get_add_column_sql<R: Runtime>(
     table: String,
     column: ColumnDefinition,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let saved_conn = find_connection_for_sql_builders(&app, &connection_id)?;
+    let (drv, _) = ddl_driver_for_saved(&saved_conn, database).await?;
     drv.get_add_column_sql(&table, column, schema.as_deref())
         .await
 }
@@ -6635,9 +6975,10 @@ pub async fn get_alter_column_sql<R: Runtime>(
     old_column: ColumnDefinition,
     new_column: ColumnDefinition,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let saved_conn = find_connection_for_sql_builders(&app, &connection_id)?;
+    let (drv, _) = ddl_driver_for_saved(&saved_conn, database).await?;
     drv.get_alter_column_sql(&table, old_column, new_column, schema.as_deref())
         .await
 }
@@ -6651,9 +6992,10 @@ pub async fn get_create_index_sql<R: Runtime>(
     columns: Vec<String>,
     is_unique: bool,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let saved_conn = find_connection_for_sql_builders(&app, &connection_id)?;
+    let (drv, _) = ddl_driver_for_saved(&saved_conn, database).await?;
     drv.get_create_index_sql(&table, &index_name, columns, is_unique, schema.as_deref())
         .await
 }
@@ -6670,11 +7012,12 @@ pub async fn get_create_foreign_key_sql<R: Runtime>(
     on_delete: Option<String>,
     on_update: Option<String>,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let saved_conn = find_connection_for_sql_builders(&app, &connection_id)?;
+    let (drv, params) = ddl_driver_for_saved(&saved_conn, database).await?;
     drv.get_create_foreign_key_sql(
-        &saved_conn.params,
+        &params,
         &table,
         &fk_name,
         &column,
@@ -6685,6 +7028,29 @@ pub async fn get_create_foreign_key_sql<R: Runtime>(
         schema.as_deref(),
     )
     .await
+}
+
+/// Plugin-provided statement for dropping a table, or `None` to let the
+/// explorer build its generic `DROP TABLE`. Only plugins declaring
+/// `capabilities.drop_table_sql` are asked; every other driver (built-ins
+/// included) returns `None` without resolving credentials or params.
+#[tauri::command]
+pub async fn get_drop_table_sql<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    table: String,
+    schema: Option<String>,
+    database: Option<String>,
+) -> Result<Option<String>, String> {
+    let stored = lookup_saved_connection(&app, &connection_id)?;
+    let driver = driver_for(&stored.params.driver).await?;
+    if driver.manifest().is_builtin || !driver.manifest().capabilities.drop_table_sql {
+        return Ok(None);
+    }
+    let saved_conn = find_connection_for_sql_builders(&app, &connection_id)?;
+    let (drv, params) = ddl_driver_for_saved(&saved_conn, database).await?;
+    drv.get_drop_table_sql(&params, &table, schema.as_deref())
+        .await
 }
 
 #[tauri::command]

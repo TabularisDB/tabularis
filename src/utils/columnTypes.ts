@@ -12,6 +12,8 @@ export interface ColumnDefinition {
   is_pk: boolean;
   is_auto_increment: boolean;
   default_value: string | null;
+  /** Column description; omitted when blank so legacy payloads are unchanged. */
+  comment?: string | null;
 }
 
 export interface ColumnFormData {
@@ -22,6 +24,7 @@ export interface ColumnFormData {
   defaultValue?: string;
   isPk: boolean;
   isAutoInc: boolean;
+  comment?: string;
 }
 
 /**
@@ -59,6 +62,7 @@ export function buildColumnDefinition(form: ColumnFormData): ColumnDefinition {
     is_pk: form.isPk,
     is_auto_increment: form.isAutoInc,
     default_value: form.defaultValue || null,
+    ...(form.comment?.trim() ? { comment: form.comment.trim() } : {}),
   };
 }
 

@@ -1924,6 +1924,8 @@
   "modifyColumn": {
     "titleAdd": "Ajouter une colonne",
     "titleEdit": "Modifier la colonne",
+    "comment": "Description",
+    "commentPlaceholder": "Description facultative de la colonne",
     "sqliteWarn": "SQLite ne prend en charge que le renommage des colonnes. Les autres modifications nécessitent de recréer la table manuellement.",
     "name": "Nom",
     "type": "Type",

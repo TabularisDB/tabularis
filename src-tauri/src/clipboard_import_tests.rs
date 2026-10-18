@@ -40,6 +40,7 @@ fn column(name: &str, data_type: &str) -> ColumnDefinition {
         is_pk: false,
         is_auto_increment: false,
         default_value: None,
+        comment: None,
     }
 }
 

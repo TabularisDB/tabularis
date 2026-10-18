@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { quoteIdentifier, quoteTableRef } from "../../utils/identifiers";
+import { quoteIdentifier } from "../../utils/identifiers";
+import { buildDropTableSql } from "../../utils/dropTable";
 import { formatObjectNameForCopy, type ObjectNameCopyFormat } from "../../utils/objectNameCopy";
 import { isPostgresDriver, triggerFunctionName } from "../../utils/triggerSql";
 import { invoke } from "@tauri-apps/api/core";
@@ -2470,7 +2471,6 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       icon: Trash2,
                       danger: true,
                       action: async () => {
-                        const quotedTable = quoteTableRef(contextMenu.id, activeCapabilities ?? activeDriver, ctxSchema);
                         if (
                           await ask(
                             t("sidebar.deleteTableConfirm", { table: contextMenu.id }),
@@ -2478,9 +2478,22 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           )
                         ) {
                           try {
+                            const dropSql = await buildDropTableSql(
+                              activeCapabilities,
+                              () =>
+                                invoke<unknown>("get_drop_table_sql", {
+                                  connectionId: activeConnectionId,
+                                  table: contextMenu.id,
+                                  ...(ctxSchema ? { schema: ctxSchema } : {}),
+                                  ...(ctxDatabase ? { database: ctxDatabase } : {}),
+                                }),
+                              contextMenu.id,
+                              activeCapabilities ?? activeDriver,
+                              ctxSchema,
+                            );
                             await invoke("execute_query", {
                               connectionId: activeConnectionId,
-                              query: `DROP TABLE ${quotedTable}`,
+                              query: dropSql,
                               ...(ctxSchema ? { schema: ctxSchema } : {}),
                               ...(ctxDatabase ? { database: ctxDatabase } : {}),
                             });

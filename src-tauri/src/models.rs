@@ -729,6 +729,10 @@ pub struct ColumnDefinition {
     pub is_pk: bool,
     pub is_auto_increment: bool,
     pub default_value: Option<String>,
+    /// Column description. Sent to plugins that declare `column_comments`;
+    /// omitted from the payload when unset so legacy request shapes hold.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

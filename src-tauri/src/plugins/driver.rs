@@ -48,6 +48,18 @@ fn is_method_not_found(err: &PluginCallError) -> bool {
     }
 }
 
+/// JSON type name of `value`, for log messages about unexpected RPC results.
+fn json_kind(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
+
 /// Read an `execute_query` response in either supported shape.
 ///
 /// A plugin written before session pinning answers with the `QueryResult`
@@ -563,8 +575,10 @@ impl RpcDriver {
         })
     }
 
-    /// SQL-building methods historically had no connection parameters. Add
-    /// them only for opted-in snapshots; legacy plugin request shapes stay intact.
+    /// SQL-building methods carry no connection parameters in their trait
+    /// signature. Inject the bound snapshot params (from `for_connection` or
+    /// `bind_connection_params`) as an additive `params` field; a driver with
+    /// nothing bound keeps the legacy request shape.
     async fn call_with_connection(&self, method: &str, arguments: Value) -> Result<Value, String> {
         self.call_with_connection_detailed(method, arguments)
             .await
@@ -706,6 +720,17 @@ impl DatabaseDriver for RpcDriver {
 
     async fn invalidate_connection_metadata(&self, connection_id: Option<&str>) {
         self.metadata_cache.invalidate(connection_id).await;
+    }
+
+    fn bind_connection_params(&self, params: &ConnectionParams) -> Option<Arc<dyn DatabaseDriver>> {
+        Some(Arc::new(Self {
+            manifest: self.manifest.clone(),
+            process: self.process.clone(),
+            data_types: self.data_types.clone(),
+            connection_metadata: self.connection_metadata,
+            metadata_cache: self.metadata_cache.clone(),
+            connection_params: Some(self.with_primary_database(params)),
+        }))
     }
 
     async fn shutdown(&self) {
@@ -1609,6 +1634,50 @@ impl DatabaseDriver for RpcDriver {
         let params = self.connection_params.as_ref().unwrap_or(params);
         let res = self.process.call("get_create_foreign_key_sql", json!({ "params": self.with_primary_database(params), "table": table, "fk_name": fk_name, "column": column, "ref_table": ref_table, "ref_column": ref_column, "on_delete": on_delete, "on_update": on_update, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
+    }
+
+    /// Optional RPC, only called when the manifest declares
+    /// `capabilities.drop_table_sql`. A -32601, a `null`/blank result or any
+    /// non-string result keeps the host's generic `DROP TABLE`. `database` is
+    /// the browsed database, also present in `params.database`, sent on its
+    /// own for convenience.
+    async fn get_drop_table_sql(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Option<String>, String> {
+        if !self.manifest.capabilities.drop_table_sql {
+            return Ok(None);
+        }
+        let params = self.with_primary_database(params);
+        let database = params.database.primary().to_string();
+        let res = self
+            .process
+            .call_detailed(
+                "get_drop_table_sql",
+                json!({
+                    "params": params,
+                    "table": table,
+                    "schema": schema,
+                    "database": (!database.is_empty()).then_some(database),
+                }),
+            )
+            .await;
+        match res {
+            Ok(Value::String(sql)) => Ok(Some(sql).filter(|s| !s.trim().is_empty())),
+            Ok(Value::Null) => Ok(None),
+            Ok(other) => {
+                log::warn!(
+                    "Plugin '{}' returned a non-string get_drop_table_sql result ({}); using the generic DROP TABLE",
+                    self.manifest.id,
+                    json_kind(&other)
+                );
+                Ok(None)
+            }
+            Err(e) if is_method_not_found(&e) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
     }
 
     /// Not yet part of the plugin RPC protocol — a plugin that hasn't added a
@@ -3690,3 +3759,7 @@ mod startup_tests;
 #[cfg(test)]
 #[path = "cancel_tests.rs"]
 mod cancel_tests;
+
+#[cfg(test)]
+#[path = "ddl_context_tests.rs"]
+mod ddl_context_tests;

@@ -1857,6 +1857,8 @@
   "modifyColumn": {
     "titleAdd": "Agregar Columna",
     "titleEdit": "Modificar Columna",
+    "comment": "Descripción",
+    "commentPlaceholder": "Descripción opcional de la columna",
     "sqliteWarn": "SQLite solo soporta renombrar columnas. Otras modificaciones requieren recrear la tabla manualmente.",
     "name": "Nombre",
     "type": "Tipo",

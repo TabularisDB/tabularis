@@ -26,6 +26,20 @@ export function supportsAlterColumn(
   return capabilities?.alter_column === true;
 }
 
+/** The driver's DDL builders accept a column description (ColumnDefinition.comment). */
+export function supportsColumnComments(
+  capabilities?: DriverCapabilities | null,
+): boolean {
+  return capabilities?.column_comments === true;
+}
+
+/** The plugin builds its own drop statement through the optional get_drop_table_sql RPC. */
+export function supportsPluginDropTableSql(
+  capabilities?: DriverCapabilities | null,
+): boolean {
+  return capabilities?.drop_table_sql === true;
+}
+
 export function supportsCreateForeignKeys(
   capabilities?: DriverCapabilities | null,
 ): boolean {

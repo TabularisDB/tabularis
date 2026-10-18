@@ -71,6 +71,50 @@ describe("rowIdentity", () => {
 			expect(isComparableColumn(col("a", "float4"))).toBe(false);
 			expect(isComparableColumn(col("a", "float8"))).toBe(false);
 			expect(isComparableColumn(col("a", "FLOAT(10)"))).toBe(false);
+			expect(isComparableColumn(col("a", "FLOAT64"))).toBe(false);
+			expect(isComparableColumn(col("a", "float32"))).toBe(false);
+			expect(isComparableColumn(col("a", "BINARY_DOUBLE"))).toBe(false);
+		});
+
+		it("should reject struct, nested array, map and record types", () => {
+			expect(isComparableColumn(col("a", "STRUCT<name STRING, age INT64>"))).toBe(false);
+			expect(isComparableColumn(col("a", "STRUCT"))).toBe(false);
+			expect(isComparableColumn(col("a", "ARRAY<STRING>"))).toBe(false);
+			expect(isComparableColumn(col("a", "ARRAY<STRUCT<x INT64>>"))).toBe(false);
+			expect(isComparableColumn(col("a", "RECORD"))).toBe(false);
+			expect(isComparableColumn(col("a", "REPEATED"))).toBe(false);
+			expect(isComparableColumn(col("a", "MAP"))).toBe(false);
+			expect(isComparableColumn(col("a", "MAP<STRING, INT64>"))).toBe(false);
+			expect(isComparableColumn(col("a", "Map(String, UInt64)"))).toBe(false);
+			expect(isComparableColumn(col("a", "Tuple(UInt8, String)"))).toBe(false);
+			expect(isComparableColumn(col("a", "Nested(id UInt32)"))).toBe(false);
+			expect(isComparableColumn(col("a", "ROW(a INTEGER)"))).toBe(false);
+			expect(isComparableColumn(col("a", "RANGE<DATE>"))).toBe(false);
+			expect(isComparableColumn(col("a", "SUPER"))).toBe(false);
+		});
+
+		it("should keep plain PostgreSQL arrays and ranges comparable", () => {
+			expect(isComparableColumn(col("a", "ARRAY"))).toBe(true);
+			expect(isComparableColumn(col("a", "array"))).toBe(true);
+			expect(isComparableColumn(col("a", "integer[]"))).toBe(true);
+			expect(isComparableColumn(col("a", "text[]"))).toBe(true);
+			expect(isComparableColumn(col("a", "int4range"))).toBe(true);
+			expect(isComparableColumn(col("a", "tstzrange"))).toBe(true);
+		});
+
+		it("should reject semi-structured document types", () => {
+			expect(isComparableColumn(col("a", "JSON"))).toBe(false);
+			expect(isComparableColumn(col("a", "VARIANT"))).toBe(false);
+			expect(isComparableColumn(col("a", "object"))).toBe(false);
+			expect(isComparableColumn(col("a", "GEOGRAPHY"))).toBe(false);
+		});
+
+		it("should not mistake scalar types that share a structured prefix", () => {
+			expect(isComparableColumn(col("a", "rowversion"))).toBe(true);
+			expect(isComparableColumn(col("a", "int4range"))).toBe(true);
+			expect(isComparableColumn(col("a", "STRING"))).toBe(true);
+			expect(isComparableColumn(col("a", "INT64"))).toBe(true);
+			expect(isComparableColumn(col("a", "NUMERIC(38, 9)"))).toBe(true);
 		});
 
 		it("should keep exact numeric types comparable", () => {
@@ -173,6 +217,31 @@ describe("rowIdentity", () => {
 					"score",
 				]),
 			).toEqual({ columns: ["name"], isKeyless: true });
+		});
+
+		it("should keep only scalar columns of a keyless table with nested fields", () => {
+			const columns = [
+				col("id", "INT64"),
+				col("address", "STRUCT<city STRING, zip STRING>"),
+				col("tags", "ARRAY<STRING>"),
+				col("ratio", "FLOAT64"),
+				col("area", "GEOGRAPHY"),
+			];
+			expect(
+				resolveRowIdentity(null, columns, ["id", "address", "tags", "ratio", "area"]),
+			).toEqual({ columns: ["id"], isKeyless: true });
+		});
+
+		it("should keep PostgreSQL array columns in a keyless identity", () => {
+			const columns = [
+				col("name", "text"),
+				col("tags", "ARRAY"),
+				col("labels", "text[]"),
+				col("score", "float8"),
+			];
+			expect(
+				resolveRowIdentity(null, columns, ["name", "tags", "labels", "score"]),
+			).toEqual({ columns: ["name", "tags", "labels"], isKeyless: true });
 		});
 
 		it("should return null when no column is comparable", () => {

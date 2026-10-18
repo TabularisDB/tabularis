@@ -122,6 +122,15 @@ pub struct DriverCapabilities {
     /// Omitted/false preserves the host's existing template generation.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub table_query_templates: bool,
+    /// The DDL builders honour `ColumnDefinition::comment`, so the column
+    /// editor shows a description field. Omitted/false hides it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub column_comments: bool,
+    /// Opts the explorer's "Drop table" action into the optional
+    /// `get_drop_table_sql` RPC. Omitted/false keeps the generic `DROP TABLE`
+    /// and the RPC is never called.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub drop_table_sql: bool,
     // DDL capabilities
     /// Supports ALTER TABLE MODIFY/ALTER COLUMN on existing tables.
     #[serde(default)]
@@ -417,6 +426,18 @@ pub trait DatabaseDriver: Send + Sync {
 
     /// Drop cached discovery results on reconnect. Static drivers do nothing.
     async fn invalidate_connection_metadata(&self, _connection_id: Option<&str>) {}
+
+    /// Bind resolved connection params (with the browsed database already
+    /// applied) to a driver snapshot, so SQL builders whose signature carries
+    /// no params (create table/column/index, routine template) can still
+    /// forward the connection context. Static drivers return `None` and keep
+    /// using the registered instance. No RPC is made.
+    fn bind_connection_params(
+        &self,
+        _params: &ConnectionParams,
+    ) -> Option<std::sync::Arc<dyn DatabaseDriver>> {
+        None
+    }
 
     /// Returns the list of data types supported by this driver.
     fn get_data_types(&self) -> Vec<DataTypeInfo>;
@@ -986,6 +1007,19 @@ pub trait DatabaseDriver: Send + Sync {
         _schema: Option<&str>,
     ) -> Result<Vec<String>, String> {
         Err("DDL generation not supported".into())
+    }
+
+    /// Statement that drops `table`, for engines where a plain `DROP TABLE`
+    /// is wrong for some table kinds (snapshots, external tables, ...).
+    /// `None` means the host builds its generic `DROP TABLE`. Only plugins
+    /// declaring `capabilities.drop_table_sql` are asked.
+    async fn get_drop_table_sql(
+        &self,
+        _params: &ConnectionParams,
+        _table: &str,
+        _schema: Option<&str>,
+    ) -> Result<Option<String>, String> {
+        Ok(None)
     }
 
     /// Returns the DDL (e.g. `CREATE TABLE ...`) for an *existing* table, as

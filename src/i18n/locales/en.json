@@ -1955,6 +1955,8 @@
   "modifyColumn": {
     "titleAdd": "Add Column",
     "titleEdit": "Modify Column",
+    "comment": "Description",
+    "commentPlaceholder": "Optional column description",
     "sqliteWarn": "SQLite only supports renaming columns. Other modifications require recreating the table manually.",
     "name": "Name",
     "type": "Type",
