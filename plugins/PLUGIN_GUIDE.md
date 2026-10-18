@@ -1533,7 +1533,10 @@ These methods generate SQL statements. Tabularis may display the SQL to the user
 in a multi-database connection `params.database` is the selected database (for
 example a project), not the first one saved on the connection. Plugins can use
 it to qualify names (`project.dataset.table`) or pick a dialect variant. The
-field is additive: older plugins that ignore it keep working. Results are an
+field is additive: older plugins that ignore it keep working. These are pure
+SQL builders: Tabularis does not open SSH/SSM/K8s tunnels for them, so
+`host`/`port` are the saved values (not a local tunnel endpoint) and keychain
+secrets may be missing. Build the SQL without connecting. Results are an
 array of statements, executed in order.
 
 `ColumnDefinition`:
