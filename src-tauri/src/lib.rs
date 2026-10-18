@@ -81,6 +81,7 @@ pub mod storage_location_tests;
 pub mod persistence;
 #[cfg(test)]
 pub mod persistence_tests;
+pub mod plugin_secrets;
 pub mod plugins;
 pub mod pool_manager;
 #[cfg(test)]

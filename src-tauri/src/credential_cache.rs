@@ -20,6 +20,7 @@ pub enum CacheEntry {
 pub struct CredentialCache {
     pub db_passwords: Mutex<HashMap<String, CacheEntry>>,
     pub connection_uris: Mutex<HashMap<String, CacheEntry>>,
+    pub plugin_secrets: Mutex<HashMap<String, CacheEntry>>,
     pub ssh_passwords: Mutex<HashMap<String, CacheEntry>>,
     pub ssh_passphrases: Mutex<HashMap<String, CacheEntry>>,
     pub ai_keys: Mutex<HashMap<String, CacheEntry>>,
@@ -30,11 +31,16 @@ impl Default for CredentialCache {
         Self {
             db_passwords: Mutex::new(HashMap::new()),
             connection_uris: Mutex::new(HashMap::new()),
+            plugin_secrets: Mutex::new(HashMap::new()),
             ssh_passwords: Mutex::new(HashMap::new()),
             ssh_passphrases: Mutex::new(HashMap::new()),
             ai_keys: Mutex::new(HashMap::new()),
         }
     }
+}
+
+fn plugin_secret_cache_key(connection_id: &str, driver: &str, key: &str) -> String {
+    format!("{}\0{}\0{}", connection_id, driver, key)
 }
 
 // ─── Read-through helpers ─────────────────────────────────────────────────────
@@ -93,6 +99,33 @@ pub fn get_connection_uri_cached(
         CacheEntry::Present(value.clone()),
     );
     Ok(Some(value))
+}
+
+pub fn get_plugin_secret_cached(
+    cache: &CredentialCache,
+    connection_id: &str,
+    driver: &str,
+    key: &str,
+) -> Result<Option<String>, String> {
+    let cache_key = plugin_secret_cache_key(connection_id, driver, key);
+    {
+        let guard = cache.plugin_secrets.lock().unwrap();
+        match guard.get(&cache_key) {
+            Some(CacheEntry::Present(value)) => return Ok(Some(value.clone())),
+            Some(CacheEntry::Absent) => return Ok(None),
+            None => {}
+        }
+    }
+
+    let value = crate::keychain_utils::get_plugin_secret(connection_id, driver, key)?;
+    cache.plugin_secrets.lock().unwrap().insert(
+        cache_key,
+        match &value {
+            Some(value) => CacheEntry::Present(value.clone()),
+            None => CacheEntry::Absent,
+        },
+    );
+    Ok(value)
 }
 
 /// Get SSH password: check cache first, fall through to keychain on miss.
@@ -198,6 +231,19 @@ pub fn set_connection_uri_cached(
     );
 }
 
+pub fn set_plugin_secret_cached(
+    cache: &CredentialCache,
+    connection_id: &str,
+    driver: &str,
+    key: &str,
+    value: &str,
+) {
+    cache.plugin_secrets.lock().unwrap().insert(
+        plugin_secret_cache_key(connection_id, driver, key),
+        CacheEntry::Present(value.to_string()),
+    );
+}
+
 pub fn set_ssh_password_cached(cache: &CredentialCache, connection_id: &str, password: &str) {
     cache.ssh_passwords.lock().unwrap().insert(
         connection_id.to_string(),
@@ -237,6 +283,19 @@ pub fn invalidate_connection_uri(cache: &CredentialCache, connection_id: &str) {
     cache.connection_uris.lock().unwrap().remove(connection_id);
 }
 
+pub fn invalidate_plugin_secret(
+    cache: &CredentialCache,
+    connection_id: &str,
+    driver: &str,
+    key: &str,
+) {
+    cache
+        .plugin_secrets
+        .lock()
+        .unwrap()
+        .remove(&plugin_secret_cache_key(connection_id, driver, key));
+}
+
 pub fn invalidate_ssh_password(cache: &CredentialCache, connection_id: &str) {
     cache.ssh_passwords.lock().unwrap().remove(connection_id);
 }
@@ -255,4 +314,10 @@ pub fn invalidate_all_for_connection(cache: &CredentialCache, connection_id: &st
     cache.connection_uris.lock().unwrap().remove(connection_id);
     cache.ssh_passwords.lock().unwrap().remove(connection_id);
     cache.ssh_passphrases.lock().unwrap().remove(connection_id);
+    let prefix = format!("{}\0", connection_id);
+    cache
+        .plugin_secrets
+        .lock()
+        .unwrap()
+        .retain(|key, _| !key.starts_with(&prefix));
 }

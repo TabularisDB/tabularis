@@ -306,6 +306,26 @@ async fn resolve_db_params(
         }
     }
 
+    // Plugin-owned secrets live only in the keychain and must reach the
+    // plugin driver through `params.extra`, exactly as in the app.
+    if !conn.plugin_secret_keys.is_empty() {
+        conn = tokio::task::spawn_blocking(move || {
+            let cache = credential_cache::CredentialCache::default();
+            crate::plugin_secrets::hydrate_connection(&cache, &mut conn).map(|()| conn)
+        })
+        .await
+        .map_err(|e| JsonRpcError {
+            code: -32000,
+            message: e.to_string(),
+            data: None,
+        })?
+        .map_err(|message| JsonRpcError {
+            code: -32000,
+            message,
+            data: None,
+        })?;
+    }
+
     let expanded = expand_ssh_params_for_mcp(&conn.params).await?;
     let expanded = expand_k8s_params_for_mcp(&expanded).await?;
     let db_params = commands::resolve_connection_params(&expanded).map_err(|e| JsonRpcError {

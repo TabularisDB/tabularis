@@ -55,6 +55,9 @@ pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), 
     let mut connections_to_save = Vec::new();
     for conn in &file.connections {
         let mut c = conn.clone();
+        for key in &c.plugin_secret_keys {
+            c.params.extra.remove(key);
+        }
         if c.params.save_in_keychain.unwrap_or(false) {
             // Passwords are stored in keychain, remove from JSON
             c.params.password = None;

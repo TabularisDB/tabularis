@@ -53,6 +53,7 @@ export interface ConnectionAppearance {
 export interface SavedConnection {
   id: string;
   name: string;
+  plugin_secret_keys?: string[];
   params: {
     driver: string;
     host?: string;

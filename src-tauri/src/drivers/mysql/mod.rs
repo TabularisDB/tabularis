@@ -2030,6 +2030,7 @@ impl MysqlDriver {
                 ],
                 ui_extensions: None,
                 explain_parsers: None,
+                connection_fields: None,
                 type_mappings: std::collections::HashMap::new(),
                 deprecated: None,
             },

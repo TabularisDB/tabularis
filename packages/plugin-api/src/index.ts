@@ -28,6 +28,7 @@ export type {
   SlotContext,
   SlotComponentProps,
   SlotContextMap,
+  PluginSecretFieldState,
   TypedSlotProps,
   UIExtensionDeclaration,
 } from "./slots";

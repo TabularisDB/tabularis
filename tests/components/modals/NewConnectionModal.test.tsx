@@ -24,6 +24,9 @@ const driverState = vi.hoisted(() => ({
   defaultPort: 15432 as number | null,
   multiDatabase: false,
   catalogueDriver: "mysql" as "mysql" | "sqlite",
+  connectionFields: undefined as
+    | Record<string, { hidden?: boolean; label?: string; placeholder?: string }>
+    | undefined,
 }));
 
 const k8sMocks = vi.hoisted(() => ({
@@ -105,6 +108,7 @@ vi.mock("../../../src/hooks/useDrivers", () => ({
         name: "MySQL",
         version: "1.0.0",
         default_port: driverState.defaultPort,
+        connection_fields: driverState.connectionFields,
         is_builtin: true,
         capabilities: {
           schemas: driverState.multiDatabase ? false : undefined,
@@ -166,6 +170,10 @@ vi.mock("../../../src/hooks/usePluginSlotRegistry", () => ({
     getSlotContributions: () => [],
   }),
 }));
+
+afterEach(() => {
+  driverState.connectionFields = undefined;
+});
 
 vi.mock("../../../src/hooks/useSettings", () => ({
   useSettings: () => ({
@@ -491,6 +499,39 @@ describe("NewConnectionModal layout", () => {
     expect(shell).toHaveClass("overflow-hidden");
     expect(shell).toHaveClass("flex");
     expect(shell).toHaveClass("flex-col");
+  });
+
+  it("applies additive hide and label overrides to common fields", () => {
+    driverState.connectionFields = {
+      host: { hidden: true },
+      port: { hidden: true },
+      username: { hidden: true },
+      password: { label: "Credential" },
+      database: { label: "GCP Project ID", placeholder: "billing-project" },
+    };
+
+    renderModal(createInitialConnection({ password: "", host: "", username: "" }));
+
+    expect(screen.queryByText("newConnection.host")).not.toBeInTheDocument();
+    expect(screen.queryByText("newConnection.port")).not.toBeInTheDocument();
+    expect(screen.queryByText("newConnection.username")).not.toBeInTheDocument();
+    expect(screen.getByText("Credential")).toBeInTheDocument();
+    expect(screen.getByText("GCP Project ID")).toBeInTheDocument();
+  });
+
+  it("does not require a database name the plugin hides", async () => {
+    driverState.connectionFields = { database: { hidden: true } };
+    vi.mocked(invoke).mockResolvedValue("ok");
+
+    renderModal(createInitialConnection({ database: "" }));
+    expect(screen.queryByText("newConnection.dbName")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("newConnection.testConnection"));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("test_connection", expect.anything());
+    });
+    expect(screen.queryByText("newConnection.dbNameRequired")).not.toBeInTheDocument();
   });
 });
 
@@ -2016,5 +2057,145 @@ describe("NewConnectionModal keychain default", () => {
     expect(
       screen.queryByText("newConnection.secretsStoredInPlainText"),
     ).not.toBeInTheDocument();
+  });
+});
+
+// Simulates a driver plugin (e.g. a cloud warehouse with a service-account
+// key) storing a credential through `setSecretField` instead of `extra`.
+interface SecretFieldContext {
+  secretFields?: Record<
+    string,
+    { value: string; hasStoredValue: boolean; dirty: boolean }
+  >;
+  setSecretField?: (key: string, value: string) => void;
+}
+
+function PluginSecretField({ context }: SlotComponentProps) {
+  const c = context as SecretFieldContext;
+  const state = c.secretFields?.credential;
+  return (
+    <div>
+      <input
+        aria-label="plugin-credential"
+        value={state?.value ?? ""}
+        placeholder={
+          state?.hasStoredValue && !state.dirty ? "stored-secret" : "new-secret"
+        }
+        onChange={(event) =>
+          c.setSecretField?.("credential", event.target.value)
+        }
+      />
+      <button
+        type="button"
+        onClick={() => c.setSecretField?.("credential", "")}
+      >
+        plugin-clear-credential
+      </button>
+      <span data-testid="plugin-secret-state">{JSON.stringify(state ?? null)}</span>
+    </div>
+  );
+}
+
+function renderModalWithSecretField(initialConnection?: InitialConnection) {
+  const registry = registryWith({
+    pluginId: "warehouse",
+    slot: "connection-modal.extra_fields",
+    component: PluginSecretField,
+  });
+  return render(
+    <PluginSlotContext.Provider value={registry}>
+      <NewConnectionModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        initialConnection={initialConnection}
+      />
+    </PluginSlotContext.Provider>,
+  );
+}
+
+function invokeArgs(command: string): Record<string, unknown> | undefined {
+  const call = vi
+    .mocked(invoke)
+    .mock.calls.find(([name]) => name === command);
+  return call?.[1] as Record<string, unknown> | undefined;
+}
+
+describe("NewConnectionModal extra_fields slot plugin secrets", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === "list_databases" ? [] : "ok",
+    );
+    sshMocks.loadSshConnections.mockResolvedValue([]);
+    k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
+  });
+
+  function connectionWithStoredSecret(): InitialConnection {
+    const connection = createInitialConnection({ driver: "mysql" });
+    connection.plugin_secret_keys = ["credential"];
+    return connection;
+  }
+
+  it("exposes a stored secret only as metadata", async () => {
+    renderModalWithSecretField(connectionWithStoredSecret());
+
+    const input = await screen.findByLabelText("plugin-credential");
+    expect(input).toHaveValue("");
+    expect(input).toHaveAttribute("placeholder", "stored-secret");
+    expect(screen.getByTestId("plugin-secret-state")).toHaveTextContent(
+      '{"value":"","hasStoredValue":true,"dirty":false}',
+    );
+  });
+
+  it("sends a replaced secret to Test Connection as a pending change", async () => {
+    renderModalWithSecretField(connectionWithStoredSecret());
+
+    fireEvent.change(await screen.findByLabelText("plugin-credential"), {
+      target: { value: "replacement" },
+    });
+    fireEvent.click(screen.getByText("newConnection.testConnection"));
+
+    await waitFor(() => {
+      expect(invokeArgs("test_connection")).toBeDefined();
+    });
+    const request = invokeArgs("test_connection")?.request as Record<
+      string,
+      unknown
+    >;
+    expect(request.plugin_secret_changes).toEqual({ credential: "replacement" });
+    expect(
+      (request.params as { extra?: Record<string, string> }).extra?.credential,
+    ).toBeUndefined();
+  });
+
+  it("clears a stored secret with an explicit null on save", async () => {
+    renderModalWithSecretField(connectionWithStoredSecret());
+
+    fireEvent.click(await screen.findByText("plugin-clear-credential"));
+    expect(screen.getByTestId("plugin-secret-state")).toHaveTextContent(
+      '{"value":"","hasStoredValue":true,"dirty":true}',
+    );
+    fireEvent.click(screen.getByText("newConnection.save"));
+
+    await waitFor(() => {
+      expect(invokeArgs("update_connection")).toBeDefined();
+    });
+    expect(invokeArgs("update_connection")?.pluginSecretChanges).toEqual({
+      credential: null,
+    });
+  });
+
+  it("sends no secret changes when the plugin leaves the field untouched", async () => {
+    renderModalWithSecretField(connectionWithStoredSecret());
+
+    await screen.findByLabelText("plugin-credential");
+    fireEvent.click(screen.getByText("newConnection.save"));
+
+    await waitFor(() => {
+      expect(invokeArgs("update_connection")).toBeDefined();
+    });
+    expect(invokeArgs("update_connection")?.pluginSecretChanges).toEqual({});
   });
 });

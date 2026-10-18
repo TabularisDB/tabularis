@@ -70,6 +70,15 @@ export interface SlotComponentProps {
   pluginId: string;
 }
 
+export interface PluginSecretFieldState {
+  /** Value typed during this modal session. Stored values are never exposed. */
+  value: string;
+  /** Whether the connection had a value in the OS keychain when editing began. */
+  hasStoredValue: boolean;
+  /** Whether this modal will set (non-empty value) or clear (empty value) it on save. */
+  dirty: boolean;
+}
+
 /**
  * A UI contribution registered by a plugin.
  */

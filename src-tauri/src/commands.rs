@@ -910,7 +910,11 @@ fn restore_runtime_connection_uri(
     }
 }
 
-pub fn find_connection_by_id<R: Runtime>(
+/// Load a saved connection with its host-owned credentials (keychain password,
+/// SSH secrets, connection URI) but without plugin-owned secrets. Used by the
+/// edit modal and by the Test Connection / Load Databases flows, which resolve
+/// plugin secrets themselves once the pending changes are known.
+pub fn find_connection_metadata_by_id<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
 ) -> Result<SavedConnection, String> {
@@ -964,6 +968,18 @@ pub fn find_connection_by_id<R: Runtime>(
         }
     }
 
+    Ok(conn)
+}
+
+/// Load a connection for driver execution. Unlike the metadata/edit path,
+/// this resolves plugin-owned secrets into `params.extra` only in memory.
+pub fn find_connection_by_id<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+) -> Result<SavedConnection, String> {
+    let mut conn = find_connection_metadata_by_id(app, id)?;
+    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    crate::plugin_secrets::hydrate_connection(&cache, &mut conn)?;
     Ok(conn)
 }
 
@@ -1031,7 +1047,7 @@ pub async fn get_connection_by_id<R: Runtime>(
     app: AppHandle<R>,
     id: String,
 ) -> Result<SavedConnection, String> {
-    find_connection_by_id(&app, &id)
+    find_connection_metadata_by_id(&app, &id)
 }
 
 #[tauri::command]
@@ -1400,6 +1416,7 @@ pub async fn save_connection<R: Runtime>(
     app: AppHandle<R>,
     name: String,
     params: ConnectionParams,
+    plugin_secret_changes: Option<crate::plugin_secrets::PluginSecretChanges>,
     detect_json_in_text_columns: Option<bool>,
     environment: Option<String>,
 ) -> Result<SavedConnection, String> {
@@ -1411,9 +1428,15 @@ pub async fn save_connection<R: Runtime>(
 
     let id = Uuid::new_v4().to_string();
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    let plugin_secret_changes = plugin_secret_changes.unwrap_or_default();
+    let plugin_secret_keys =
+        crate::plugin_secrets::next_secret_keys(&[], true, &plugin_secret_changes)?;
     let connection_uri = runtime_connection_uri(&params).map(str::to_owned);
     let mut params_to_save = params_for_persistence(&params, connection_uri.is_some());
     let mut keychain_writes = KeychainSecretWrites::default();
+    for key in plugin_secret_changes.keys() {
+        params_to_save.extra.remove(key);
+    }
 
     if params.save_in_keychain.unwrap_or(false) {
         log::debug!("Storing passwords in keychain for connection: {}", name);
@@ -1487,6 +1510,7 @@ pub async fn save_connection<R: Runtime>(
         id: id.clone(),
         name: name.clone(),
         params: params_to_save,
+        plugin_secret_keys,
         group_id: None,
         sort_order: None,
         detect_json_in_text_columns,
@@ -1495,12 +1519,22 @@ pub async fn save_connection<R: Runtime>(
         environment: validate_environment(environment)?,
     };
     conn_file.connections.push(new_conn.clone());
-    if let Err(err) = persist_connection_uri_change(
+    if let Err(err) = crate::plugin_secrets::persist_secret_changes(
         &cache,
         &id,
-        false,
-        connection_uri.as_deref().map(Some),
-        || save_connections_and_invalidate(&app, &path, &conn_file),
+        None,
+        &[],
+        &params.driver,
+        &plugin_secret_changes,
+        || {
+            persist_connection_uri_change(
+                &cache,
+                &id,
+                false,
+                connection_uri.as_deref().map(Some),
+                || save_connections_and_invalidate(&app, &path, &conn_file),
+            )
+        },
     ) {
         keychain_writes.roll_back(&cache, &id);
         return Err(err);
@@ -1540,6 +1574,11 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
         .find(|c| c.id == id)
         .and_then(|c| c.params.connection_uri_in_keychain)
         .unwrap_or(false);
+    let plugin_secret_metadata = conn_file
+        .connections
+        .iter()
+        .find(|c| c.id == id)
+        .map(|c| (c.params.driver.clone(), c.plugin_secret_keys.clone()));
 
     // Capture the appearance before retain so we can cascade-delete the icon file.
     let appearance_to_delete = conn_file
@@ -1559,6 +1598,9 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
     persist_connection_uri_change(&cache, &id, uri_stored_in_keychain, Some(None), || {
         save_connections_and_invalidate(&app, &path, &conn_file)
     })?;
+    if let Some((driver, keys)) = plugin_secret_metadata {
+        crate::plugin_secrets::delete_connection_secrets(&cache, &id, &driver, &keys);
+    }
     // Invalidate the in-memory cache for this connection
     credential_cache::invalidate_all_for_connection(&cache, &id);
 
@@ -1595,6 +1637,7 @@ pub async fn update_connection<R: Runtime>(
     id: String,
     name: String,
     params: ConnectionParams,
+    plugin_secret_changes: Option<crate::plugin_secrets::PluginSecretChanges>,
     detect_json_in_text_columns: Option<bool>,
     environment: Option<String>,
 ) -> Result<SavedConnection, String> {
@@ -1616,6 +1659,13 @@ pub async fn update_connection<R: Runtime>(
     // must drop it rather than hand one driver's credentials to another.
     let previous_driver_id = conn_file.connections[conn_idx].params.driver.clone();
     let same_driver = previous_driver_id == params.driver;
+    let original_plugin_secret_keys = conn_file.connections[conn_idx].plugin_secret_keys.clone();
+    let plugin_secret_changes = plugin_secret_changes.unwrap_or_default();
+    let plugin_secret_keys = crate::plugin_secrets::next_secret_keys(
+        &original_plugin_secret_keys,
+        same_driver,
+        &plugin_secret_changes,
+    )?;
     let connection_uri = runtime_connection_uri(&params).map(str::to_owned);
     // The frontend sends the URI back only when the user retyped it. An edit
     // that leaves the field untouched must keep the stored secret; an edit that
@@ -1632,6 +1682,9 @@ pub async fn update_connection<R: Runtime>(
     };
     let mut params_to_save =
         params_for_persistence(&params, connection_uri.is_some() || preserve_stored_uri);
+    for key in plugin_secret_changes.keys() {
+        params_to_save.extra.remove(key);
+    }
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     let mut keychain_writes = KeychainSecretWrites::default();
@@ -1738,6 +1791,7 @@ pub async fn update_connection<R: Runtime>(
         id: id.clone(),
         name,
         params: params_to_save,
+        plugin_secret_keys,
         group_id: original_group_id,
         sort_order: original_sort_order,
         detect_json_in_text_columns,
@@ -1748,11 +1802,19 @@ pub async fn update_connection<R: Runtime>(
 
     conn_file.connections[conn_idx] = updated.clone();
 
-    if let Err(err) =
-        persist_connection_uri_change(&cache, &id, existing_uri_in_keychain, uri_change, || {
-            save_connections_and_invalidate(&app, &path, &conn_file)
-        })
-    {
+    if let Err(err) = crate::plugin_secrets::persist_secret_changes(
+        &cache,
+        &id,
+        Some(&previous_driver_id),
+        &original_plugin_secret_keys,
+        &params.driver,
+        &plugin_secret_changes,
+        || {
+            persist_connection_uri_change(&cache, &id, existing_uri_in_keychain, uri_change, || {
+                save_connections_and_invalidate(&app, &path, &conn_file)
+            })
+        },
+    ) {
         keychain_writes.roll_back(&cache, &id);
         return Err(err);
     }
@@ -1854,6 +1916,16 @@ pub async fn duplicate_connection<R: Runtime>(
     let mut original = conn_file.connections[original_idx].clone();
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    let plugin_secret_values = crate::plugin_secrets::load_secret_values(
+        &cache,
+        &original.id,
+        &original.params.driver,
+        &original.plugin_secret_keys,
+    )?;
+    let plugin_secret_changes: crate::plugin_secrets::PluginSecretChanges = plugin_secret_values
+        .into_iter()
+        .map(|(key, value)| (key, Some(value)))
+        .collect();
 
     // Same IAM-auth guard as `find_connection_by_id`: never copy a stale RDS
     // auth token into a duplicated connection.
@@ -1956,9 +2028,10 @@ pub async fn duplicate_connection<R: Runtime>(
     };
 
     let new_conn = SavedConnection {
-        id: new_id,
+        id: new_id.clone(),
         name: format!("{} (Copy)", original.name),
         params: new_params,
+        plugin_secret_keys: original.plugin_secret_keys.clone(),
         group_id: original.group_id.clone(), // Copy to same group as original
         sort_order: None,                    // Will be placed at end of group
         detect_json_in_text_columns: original.detect_json_in_text_columns,
@@ -1971,7 +2044,15 @@ pub async fn duplicate_connection<R: Runtime>(
 
     conn_file.connections.push(new_conn.clone());
 
-    save_connections_and_invalidate(&app, &path, &conn_file)?;
+    crate::plugin_secrets::persist_secret_changes(
+        &cache,
+        &new_id,
+        None,
+        &[],
+        &original.params.driver,
+        &plugin_secret_changes,
+        || save_connections_and_invalidate(&app, &path, &conn_file),
+    )?;
 
     let mut returned_conn = new_conn;
     // Return with passwords for frontend consistency
@@ -2873,6 +2954,12 @@ pub async fn test_connection<R: Runtime>(
         request.params.database
     );
     let progress_id = request.progress_id.as_deref();
+    // The saved connection, without plugin secrets: they are resolved below,
+    // after the pending changes from the modal are known.
+    let saved_conn = match &request.connection_id {
+        Some(id) => find_connection_metadata_by_id(&app, id).ok(),
+        None => None,
+    };
 
     let mut expanded_params = expand_ssh_connection_params(&app, &request.params)
         .await
@@ -2898,14 +2985,23 @@ pub async fn test_connection<R: Runtime>(
     .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
 
     if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
-        let saved_conn = match &request.connection_id {
-            Some(id) => find_connection_by_id(&app, id).ok(),
-            None => None,
-        };
         expanded_params.password =
             resolve_test_connection_password(&request.params, saved_conn.as_ref(), |conn_id| {
                 keychain_utils::get_db_password(conn_id, "")
             });
+    }
+
+    // Plugin-owned secrets: stored values of the saved connection, overridden
+    // by whatever the modal is about to set or clear.
+    {
+        let cache = app.state::<std::sync::Arc<credential_cache::CredentialCache>>();
+        crate::plugin_secrets::apply_request_secrets(
+            &cache,
+            saved_conn.as_ref(),
+            &mut expanded_params,
+            &request.plugin_secret_changes,
+        )
+        .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
     }
 
     // Reconnecting to a saved connection sends the on-disk params, which never
@@ -3286,6 +3382,7 @@ mod tests {
                 save_in_keychain: Some(save_in_keychain),
                 ..base_params()
             },
+            plugin_secret_keys: Vec::new(),
             group_id: None,
             sort_order: None,
             detect_json_in_text_columns: None,
@@ -3314,6 +3411,7 @@ mod tests {
             id: "conn-1".to_string(),
             name: "Old Name".to_string(),
             params: base_params(),
+            plugin_secret_keys: Vec::new(),
             group_id: Some("group-a".to_string()),
             sort_order: Some(3),
             detect_json_in_text_columns: None,
@@ -3334,6 +3432,7 @@ mod tests {
             id: existing.id.clone(),
             name: "New Name".to_string(),
             params: base_params(),
+            plugin_secret_keys: Vec::new(),
             group_id: existing.group_id.clone(),
             sort_order: existing.sort_order,
             detect_json_in_text_columns: None,
@@ -3359,6 +3458,7 @@ mod tests {
             id: id.to_string(),
             name: "Test".to_string(),
             params: base_params(),
+            plugin_secret_keys: Vec::new(),
             group_id: None,
             sort_order: None,
             detect_json_in_text_columns: None,
@@ -4392,11 +4492,11 @@ pub async fn list_databases<R: Runtime>(
         expanded_params.password.as_deref(),
     )?;
 
+    let saved_conn = match &request.connection_id {
+        Some(id) => find_connection_metadata_by_id(&app, id).ok(),
+        None => None,
+    };
     if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
-        let saved_conn = match &request.connection_id {
-            Some(id) => find_connection_by_id(&app, id).ok(),
-            None => None,
-        };
         expanded_params.password =
             resolve_test_connection_password(&request.params, saved_conn.as_ref(), |conn_id| {
                 keychain_utils::get_db_password(conn_id, "")
@@ -4411,6 +4511,17 @@ pub async fn list_databases<R: Runtime>(
             let cache = app.state::<std::sync::Arc<credential_cache::CredentialCache>>();
             restore_runtime_connection_uri(&cache, conn_id, &mut expanded_params)?;
         }
+    }
+
+    // Plugin-owned secrets, resolved the same way as in `test_connection`.
+    {
+        let cache = app.state::<std::sync::Arc<credential_cache::CredentialCache>>();
+        crate::plugin_secrets::apply_request_secrets(
+            &cache,
+            saved_conn.as_ref(),
+            &mut expanded_params,
+            &request.plugin_secret_changes,
+        )?;
     }
 
     let resolved_params = if let Some(conn_id) = &request.connection_id {
@@ -6388,7 +6499,15 @@ pub async fn disconnect_connection<R: Runtime>(
     // Unregister from health check before closing the pool.
     crate::health_check::unregister_connection(&connection_id).await;
 
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    // A plugin secret that can no longer be read must not prevent closing the
+    // pools: fall back to the connection without plugin secrets.
+    let saved_conn = match find_connection_by_id(&app, &connection_id) {
+        Ok(conn) => conn,
+        Err(e) => {
+            log::warn!("Disconnecting {connection_id} without plugin secrets: {e}");
+            find_connection_metadata_by_id(&app, &connection_id)?
+        }
+    };
     if let Some(driver) = crate::drivers::registry::get_driver(&saved_conn.params.driver).await {
         driver
             .invalidate_connection_metadata(Some(&connection_id))
@@ -6915,6 +7034,23 @@ pub async fn delete_connection_group<R: Runtime>(
     // deleted along with it. Connections belonging to any group in the
     // subtree are removed as well.
     let to_delete = crate::models::collect_group_subtree(&file.groups, &id);
+    let deleted_plugin_secrets: Vec<(String, String, Vec<String>)> = file
+        .connections
+        .iter()
+        .filter(|connection| {
+            connection
+                .group_id
+                .as_ref()
+                .is_some_and(|group_id| to_delete.contains(group_id))
+        })
+        .map(|connection| {
+            (
+                connection.id.clone(),
+                connection.params.driver.clone(),
+                connection.plugin_secret_keys.clone(),
+            )
+        })
+        .collect();
 
     file.groups.retain(|g| !to_delete.contains(&g.id));
     file.connections.retain(|c| {
@@ -6924,6 +7060,10 @@ pub async fn delete_connection_group<R: Runtime>(
     });
 
     save_connections_and_invalidate(&app, &path, &file)?;
+    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    for (connection_id, driver, keys) in deleted_plugin_secrets {
+        crate::plugin_secrets::delete_connection_secrets(&cache, &connection_id, &driver, &keys);
+    }
 
     Ok(())
 }
@@ -7072,6 +7212,7 @@ pub async fn export_connections_payload<R: Runtime>(
         .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
         .inner()
         .clone();
+    let mut plugin_secrets = HashMap::new();
 
     // Resolve passwords for database connections
     for conn in &mut conn_file.connections {
@@ -7081,7 +7222,19 @@ pub async fn export_connections_payload<R: Runtime>(
             conn.params.ssh_password = None;
             conn.params.ssh_key_passphrase = None;
             conn.params.connection_uri = None;
+            conn.plugin_secret_keys.clear();
             continue;
+        }
+        // A missing keychain entry must not abort the whole export (or a
+        // scheduled backup): the connection is exported without that value.
+        let resolved_plugin_secrets = crate::plugin_secrets::load_available_secret_values(
+            &cache,
+            &conn.id,
+            &conn.params.driver,
+            &conn.plugin_secret_keys,
+        );
+        if !resolved_plugin_secrets.is_empty() {
+            plugin_secrets.insert(conn.id.clone(), resolved_plugin_secrets);
         }
         if conn.params.save_in_keychain.unwrap_or(false) {
             // Without this the export carries the marker but not the URI, and
@@ -7132,6 +7285,7 @@ pub async fn export_connections_payload<R: Runtime>(
         ssh_connections,
         k8s_connections,
         tags: conn_file.tags,
+        plugin_secrets,
     })
 }
 
@@ -7166,7 +7320,7 @@ pub async fn import_connections_payload<R: Runtime>(
 /// import command above and the foreign-app import flow.
 pub async fn apply_export_payload<R: Runtime>(
     app: AppHandle<R>,
-    payload: ExportPayload,
+    mut payload: ExportPayload,
 ) -> Result<(), String> {
     let conn_path = get_config_path(&app)?;
     let ssh_path = get_ssh_config_path(&app)?;
@@ -7183,6 +7337,7 @@ pub async fn apply_export_payload<R: Runtime>(
         .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
         .inner()
         .clone();
+    let mut imported_plugin_secrets = std::mem::take(&mut payload.plugin_secrets);
 
     // Merge groups (preserves hierarchy; demotes orphaned parent_ids to root)
     merge_groups(&mut current_file.groups, payload.groups);
@@ -7222,6 +7377,64 @@ pub async fn apply_export_payload<R: Runtime>(
         // An imported payload is untrusted input and may carry an inline URI.
         // Hold it to the same rule as a save: keychain or nothing.
         validate_connection_uri_persistence(&new_conn.params)?;
+        let declared_plugin_secret_keys = std::mem::take(&mut new_conn.plugin_secret_keys);
+        for key in &declared_plugin_secret_keys {
+            crate::plugin_secrets::validate_secret_key(key)?;
+            new_conn.params.extra.remove(key);
+        }
+        let secrets_for_connection = imported_plugin_secrets
+            .remove(&new_conn.id)
+            .unwrap_or_default();
+        let previous_plugin_metadata = current_file
+            .connections
+            .iter()
+            .find(|connection| connection.id == new_conn.id)
+            .map(|connection| {
+                (
+                    connection.params.driver.clone(),
+                    connection.plugin_secret_keys.clone(),
+                )
+            });
+        // Imported values are "set" changes: keys the payload does not carry
+        // keep their stored value (a metadata-only export re-imported over the
+        // same connection must not wipe its secrets), unless the driver
+        // changed, in which case the old driver's secrets are dropped.
+        let kept_keys: Vec<String> = match &previous_plugin_metadata {
+            Some((old_driver, old_keys)) if *old_driver == new_conn.params.driver => {
+                old_keys.clone()
+            }
+            _ => Vec::new(),
+        };
+        let imported_keys = crate::plugin_secrets::next_secret_keys(
+            &kept_keys,
+            true,
+            &secrets_for_connection
+                .iter()
+                .map(|(key, value)| (key.clone(), Some(value.clone())))
+                .collect(),
+        )?;
+        for (key, value) in &secrets_for_connection {
+            new_conn.params.extra.remove(key);
+            keychain_utils::set_plugin_secret(&new_conn.id, &new_conn.params.driver, key, value)?;
+            credential_cache::set_plugin_secret_cached(
+                &cache,
+                &new_conn.id,
+                &new_conn.params.driver,
+                key,
+                value,
+            );
+        }
+        if let Some((old_driver, old_keys)) = previous_plugin_metadata {
+            if old_driver != new_conn.params.driver {
+                crate::plugin_secrets::delete_connection_secrets(
+                    &cache,
+                    &new_conn.id,
+                    &old_driver,
+                    &old_keys,
+                );
+            }
+        }
+        new_conn.plugin_secret_keys = imported_keys;
 
         // Handle passwords in keychain
         if new_conn.params.save_in_keychain.unwrap_or(false) {

@@ -273,6 +273,123 @@
           }
         }
       }
+    },
+    "connection_fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional presentation overrides for the host-owned connection inputs. Omitted fields keep the standard Tabularis behaviour.",
+      "properties": {
+        "host": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Overrides for the `host` input.",
+          "properties": {
+            "hidden": {
+              "type": "boolean",
+              "default": false,
+              "description": "Hide this input for the driver."
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 80,
+              "description": "Driver-specific label."
+            },
+            "placeholder": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Driver-specific input placeholder."
+            }
+          }
+        },
+        "port": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Overrides for the `port` input.",
+          "properties": {
+            "hidden": {
+              "type": "boolean",
+              "default": false,
+              "description": "Hide this input for the driver."
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 80,
+              "description": "Driver-specific label."
+            },
+            "placeholder": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Driver-specific input placeholder."
+            }
+          }
+        },
+        "username": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Overrides for the `username` input.",
+          "properties": {
+            "hidden": {
+              "type": "boolean",
+              "default": false,
+              "description": "Hide this input for the driver."
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 80,
+              "description": "Driver-specific label."
+            },
+            "placeholder": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Driver-specific input placeholder."
+            }
+          }
+        },
+        "password": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Overrides for the `password` input.",
+          "properties": {
+            "hidden": {
+              "type": "boolean",
+              "default": false,
+              "description": "Hide this input for the driver."
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 80,
+              "description": "Driver-specific label."
+            },
+            "placeholder": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Driver-specific input placeholder."
+            }
+          }
+        },
+        "database": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Overrides for the `database` input.",
+          "properties": {
+            "hidden": {
+              "type": "boolean",
+              "default": false,
+              "description": "Hide this input for the driver."
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 80,
+              "description": "Driver-specific label."
+            },
+            "placeholder": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Driver-specific input placeholder."
+            }
+          }
+        }
+      }
     }
   }
 }

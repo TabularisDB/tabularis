@@ -140,6 +140,56 @@ pub fn delete_connection_uri(connection_id: &str) -> Result<(), String> {
     }
 }
 
+/// Keychain account of a plugin-owned connection secret. The driver id is part
+/// of the account so switching a connection to another driver never hands one
+/// plugin's secret to another.
+fn plugin_secret_account(connection_id: &str, driver: &str, key: &str) -> String {
+    format!("{}:plugin:{}:{}", connection_id, driver, key)
+}
+
+pub fn set_plugin_secret(
+    connection_id: &str,
+    driver: &str,
+    key: &str,
+    value: &str,
+) -> Result<(), String> {
+    let entry = Entry::new(
+        SERVICE_NAME,
+        &plugin_secret_account(connection_id, driver, key),
+    )
+    .map_err(|e| e.to_string())?;
+    entry.set_password(value).map_err(keychain_error)
+}
+
+pub fn get_plugin_secret(
+    connection_id: &str,
+    driver: &str,
+    key: &str,
+) -> Result<Option<String>, String> {
+    let entry = Entry::new(
+        SERVICE_NAME,
+        &plugin_secret_account(connection_id, driver, key),
+    )
+    .map_err(|e| e.to_string())?;
+    match entry.get_password() {
+        Ok(value) => Ok(Some(value)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(error) => Err(keychain_error(error)),
+    }
+}
+
+pub fn delete_plugin_secret(connection_id: &str, driver: &str, key: &str) -> Result<(), String> {
+    let entry = Entry::new(
+        SERVICE_NAME,
+        &plugin_secret_account(connection_id, driver, key),
+    )
+    .map_err(|e| e.to_string())?;
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(error) => Err(keychain_error(error)),
+    }
+}
+
 pub fn set_ssh_password(connection_id: &str, password: &str) -> Result<(), String> {
     eprintln!("[Keychain] Setting SSH password for {}", connection_id);
     let entry =

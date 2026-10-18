@@ -1,6 +1,19 @@
 import type { ComponentType } from "react";
 
 /**
+ * State of one plugin-owned secret in the connection modal
+ * (`connection-modal.extra_fields` slot).
+ */
+export interface PluginSecretFieldState {
+  /** Value typed during this modal session. Stored values are never exposed. */
+  value: string;
+  /** Whether the connection had a value in the OS keychain when editing began. */
+  hasStoredValue: boolean;
+  /** Whether this modal will set (non-empty value) or clear (empty value) it on save. */
+  dirty: boolean;
+}
+
+/**
  * Typed context shape per slot.
  *
  * Each key is a slot name; the value type lists the context fields that slot
@@ -91,6 +104,19 @@ export type SlotContextMap = {
      * connection. The host resets the flag whenever the driver changes.
      */
     setCredentialFieldsHidden: (hidden: boolean) => void;
+    /**
+     * Plugin-owned secrets of this connection, keyed by field name. A value
+     * already stored in the OS keychain is never exposed: it is reported only
+     * through `hasStoredValue`. Optional so bundles can detect older hosts.
+     */
+    secretFields?: Record<string, PluginSecretFieldState>;
+    /**
+     * Set a plugin-owned secret for Test Connection and Save. The value is
+     * stored in the OS keychain, never in the connections file, and reaches
+     * the driver as `params.extra[key]` at runtime. An empty value explicitly
+     * clears the stored secret on save.
+     */
+    setSecretField?: (key: string, value: string) => void;
   };
 };
 

@@ -114,6 +114,20 @@ export interface DeprecationInfo {
   removal_version?: string;
 }
 
+export interface ConnectionFieldOverride {
+  hidden?: boolean;
+  label?: string;
+  placeholder?: string;
+}
+
+export interface ConnectionFieldOverrides {
+  host?: ConnectionFieldOverride;
+  port?: ConnectionFieldOverride;
+  username?: ConnectionFieldOverride;
+  password?: ConnectionFieldOverride;
+  database?: ConnectionFieldOverride;
+}
+
 export interface PluginManifest {
   id: string;
   name: string;
@@ -151,6 +165,8 @@ export interface PluginManifest {
   deprecated?: DeprecationInfo;
   /** Raw EXPLAIN parser bundles loaded when this plugin is enabled. */
   explain_parsers?: ExplainParserManifestEntry[];
+  /** Optional presentation overrides for host-owned connection fields. */
+  connection_fields?: ConnectionFieldOverrides;
 }
 
 /** Manifest-level declaration for a plugin-owned EXPLAIN parser bundle. */

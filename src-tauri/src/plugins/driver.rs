@@ -1983,6 +1983,7 @@ pub(crate) fn test_manifest() -> PluginManifest {
         settings: Vec::new(),
         ui_extensions: None,
         explain_parsers: None,
+        connection_fields: None,
         type_mappings: HashMap::new(),
         deprecated: None,
     }
