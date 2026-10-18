@@ -1,4 +1,5 @@
 use super::*;
+use crate::drivers::driver_trait::DriverCapabilities;
 
 #[test]
 fn import_identifiers_use_the_connection_quote_and_escape_delimiters() {
@@ -81,7 +82,7 @@ fn mysql_import_sends_booleans_in_created_columns_as_literals() {
     ]
     .map(|v| Some(v.to_string()));
     assert_eq!(
-        row_to_values_clause(&row, &boolean_columns, None),
+        row_to_values_clause(&row, &boolean_columns, LiteralStyle::Standard),
         "('KB-101', 'Mechanical Keyboard', '89.90', TRUE, '2026-09-02')"
     );
 }
@@ -98,7 +99,7 @@ fn boolean_literals_cover_the_values_the_parser_accepts() {
     ]
     .map(|v| v.map(String::from));
     assert_eq!(
-        row_to_values_clause(&row, &[true; 6], None),
+        row_to_values_clause(&row, &[true; 6], LiteralStyle::Standard),
         "(FALSE, TRUE, FALSE, NULL, NULL, 'maybe')"
     );
 }
@@ -186,20 +187,31 @@ fn existing_tinyint_columns_are_found_by_type() {
 }
 
 #[test]
-fn string_literals_follow_the_driver_dialect() {
+fn string_literals_follow_the_resolved_literal_style() {
     let value = "O'Brien \\ a\nb";
-    assert_eq!(escape_sql_string(value, None), "'O''Brien \\ a\nb'");
+    let style_of = |caps: &DriverCapabilities| SqlSyntax::resolve(caps).string_escape;
+    let postgres = crate::drivers::postgres::PostgresDriver::new();
+    let mysql = crate::drivers::mysql::MysqlDriver::new();
+    // Built-in drivers keep the doubled quote, MySQL included.
+    for caps in [
+        DriverCapabilities::default(),
+        postgres.manifest().capabilities.clone(),
+        mysql.manifest().capabilities.clone(),
+    ] {
+        assert_eq!(
+            escape_sql_string(value, style_of(&caps)),
+            "'O''Brien \\ a\nb'"
+        );
+    }
+    let googlesql = crate::drivers::sql_syntax_tests::googlesql_capabilities();
+    assert_eq!(style_of(&googlesql), LiteralStyle::Backslash);
     assert_eq!(
-        escape_sql_string(value, Some(SqlDialect::Postgres)),
-        "'O''Brien \\ a\nb'"
-    );
-    assert_eq!(
-        escape_sql_string(value, Some(SqlDialect::Bigquery)),
+        escape_sql_string(value, style_of(&googlesql)),
         "'O\\'Brien \\\\ a\\nb'"
     );
     let row = vec![Some("it's".to_string()), None];
     assert_eq!(
-        row_to_values_clause(&row, &[false, false], Some(SqlDialect::Bigquery)),
+        row_to_values_clause(&row, &[false, false], LiteralStyle::Backslash),
         "('it\\'s', NULL)"
     );
 }

@@ -1979,6 +1979,7 @@ impl MysqlDriver {
                     user_management: true,
                     supports_ssl: true,
                     sql_dialect: Some(SqlDialect::Mysql),
+                    sql_syntax: None,
                 },
                 is_builtin: true,
                 engine: Some("mysql".to_string()),

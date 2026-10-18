@@ -428,3 +428,37 @@ fn json_column_values_postgres() {
     assert_eq!(d.escape_json_value(json!("it's")), r#"'"it''s"'"#);
     assert_eq!(d.escape_json_value(json!(false)), "'false'");
 }
+
+#[test]
+fn declared_backslash_escape_writes_googlesql_literals() {
+    let caps = crate::drivers::sql_syntax_tests::googlesql_capabilities();
+    let dialect = DumpDialect::from_capabilities("bigquery", &caps);
+    assert_eq!(dialect.string_escape, LiteralStyle::Backslash);
+    assert_eq!(dialect.escape_value(json!("it's")), "'it\\'s'");
+    assert_eq!(dialect.escape_value(json!("a\\b\nc")), "'a\\\\b\\nc'");
+    assert_eq!(
+        dialect.escape_json_value(json!({ "k": "v'" })),
+        "'{\"k\":\"v\\'\"}'"
+    );
+    assert_eq!(dialect.table_ref(None, "events"), "`events`");
+}
+
+#[test]
+fn declared_standard_escape_overrides_the_mysql_preset() {
+    let mut caps = DriverCapabilities {
+        sql_dialect: Some(SqlDialect::Mysql),
+        ..Default::default()
+    };
+    assert_eq!(
+        DumpDialect::from_capabilities("plugin", &caps).escape_value(json!("a\\b")),
+        "'a\\\\b'"
+    );
+    caps.sql_syntax = Some(crate::drivers::sql_syntax::SqlSyntaxDescriptor {
+        string_escape: Some(crate::drivers::sql_syntax::StringEscape::Standard),
+        ..Default::default()
+    });
+    assert_eq!(
+        DumpDialect::from_capabilities("plugin", &caps).escape_value(json!("a\\b")),
+        "'a\\b'"
+    );
+}

@@ -297,6 +297,7 @@ fn plugin_manifest() -> PluginManifest {
             supports_ssl: true,
             user_management: false,
             sql_dialect: Some(SqlDialect::Postgres),
+            sql_syntax: None,
         },
         is_builtin: false,
         engine: Some("postgresql".to_string()),

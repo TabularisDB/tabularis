@@ -6,8 +6,9 @@ use crate::{
         resolve_connection_params_with_id,
     },
     drivers::{
-        driver_trait::{DatabaseDriver, SqlDialect},
+        driver_trait::DatabaseDriver,
         registry::get_driver,
+        sql_syntax::{quote_string_literal, LiteralStyle, SqlSyntax},
     },
     models::{ColumnDefinition, TableColumn},
 };
@@ -43,17 +44,13 @@ pub struct ClipboardImportResult {
     pub table_created: bool,
 }
 
-/// Quotes a string literal for the driver's dialect. GoogleSQL has no
-/// doubled-quote escape and no raw newlines in a quoted literal, so it gets
-/// backslash escapes; every other dialect doubles the quote.
-fn escape_sql_string(s: &str, dialect: Option<SqlDialect>) -> String {
-    if dialect == Some(SqlDialect::Bigquery) {
-        let escaped = s
-            .replace('\\', "\\\\")
-            .replace('\'', "\\'")
-            .replace('\n', "\\n")
-            .replace('\r', "\\r");
-        return format!("'{escaped}'");
+/// Quotes a string literal in the driver's declared literal style. A driver
+/// whose `sql_syntax` declares `string_escape: "backslash"` (no doubled-quote
+/// escape, no raw newlines in a literal) gets backslash escapes; every other
+/// driver, MySQL included, doubles the quote as before.
+fn escape_sql_string(s: &str, style: LiteralStyle) -> String {
+    if style == LiteralStyle::Backslash {
+        return quote_string_literal(s, style);
     }
     format!("'{}'", s.replace('\'', "''"))
 }
@@ -126,7 +123,7 @@ async fn existing_tinyint_columns(
 fn row_to_values_clause(
     row: &[Option<String>],
     boolean_columns: &[bool],
-    dialect: Option<SqlDialect>,
+    literal_style: LiteralStyle,
 ) -> String {
     let values: Vec<String> = row
         .iter()
@@ -136,7 +133,7 @@ fn row_to_values_clause(
             Some(v) if v.is_empty() => "NULL".to_string(),
             Some(v) => match boolean_literal(v) {
                 Some(literal) if boolean_columns.get(i) == Some(&true) => literal.to_string(),
-                _ => escape_sql_string(v, dialect),
+                _ => escape_sql_string(v, literal_style),
             },
         })
         .collect();
@@ -290,14 +287,14 @@ async fn insert_rows(
     let boolean_columns =
         boolean_literal_columns(req, &drv.manifest().id, table_created, &existing_tinyint);
 
-    let dialect = drv.manifest().capabilities.sql_dialect;
+    let literal_style = SqlSyntax::resolve(&drv.manifest().capabilities).string_escape;
     const BATCH_SIZE: usize = 500;
     let mut rows_inserted = 0;
 
     for chunk in req.rows.chunks(BATCH_SIZE) {
         let values_clauses: Vec<String> = chunk
             .iter()
-            .map(|r| row_to_values_clause(r, &boolean_columns, dialect))
+            .map(|r| row_to_values_clause(r, &boolean_columns, literal_style))
             .collect();
         let insert_sql = format!(
             "INSERT INTO {} ({}) VALUES {}",

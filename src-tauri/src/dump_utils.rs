@@ -1,8 +1,10 @@
 //! SQL formatting for database dump files, driven by the driver's declared
-//! capabilities (`identifier_quote`, `schemas`, `sql_dialect`) rather than its
-//! id, so a plugin driver gets statements its engine can read back.
+//! capabilities (`identifier_quote`, `schemas`, `sql_dialect`, `sql_syntax`)
+//! rather than its id, so a plugin driver gets statements its engine can read
+//! back.
 
 use crate::drivers::driver_trait::{DriverCapabilities, SqlDialect};
+use crate::drivers::sql_syntax::{quote_string_literal, LiteralStyle, SqlSyntax};
 
 #[cfg(test)]
 mod tests;
@@ -16,9 +18,9 @@ pub struct DumpDialect {
     pub schema_qualified: bool,
     /// PostgreSQL-flavoured: a missing schema defaults to `public`.
     pub postgres: bool,
-    /// String literals treat `\` as an escape character (MySQL dialect), so
-    /// backslashes are doubled and NUL is written as `\0`.
-    pub backslash_escapes: bool,
+    /// How string literals are escaped: the driver's resolved syntax
+    /// (`sql_syntax.string_escape`, else the `sql_dialect` preset).
+    pub string_escape: LiteralStyle,
     /// Booleans are written as `TRUE`/`FALSE` rather than `1`/`0`.
     pub boolean_keywords: bool,
 }
@@ -52,7 +54,7 @@ impl DumpDialect {
             identifier_quote,
             schema_qualified: caps.schemas,
             postgres,
-            backslash_escapes: caps.sql_dialect == Some(SqlDialect::Mysql),
+            string_escape: SqlSyntax::resolve(caps).string_escape,
             boolean_keywords: !integer_booleans,
         }
     }
@@ -122,18 +124,11 @@ impl DumpDialect {
     /// altogether. PostgreSQL (with the default
     /// `standard_conforming_strings = on`) and SQLite take backslashes
     /// literally, so doubling them there would corrupt the data instead; only
-    /// the single quote needs escaping.
+    /// the single quote needs escaping. A driver declaring
+    /// `string_escape: "backslash"` (GoogleSQL) has no doubled-quote escape,
+    /// so quote, backslash and line breaks are backslash-escaped.
     pub fn escape_string(&self, s: &str) -> String {
-        if self.backslash_escapes {
-            format!(
-                "'{}'",
-                s.replace('\\', "\\\\")
-                    .replace('\'', "''")
-                    .replace('\0', "\\0")
-            )
-        } else {
-            format!("'{}'", s.replace('\'', "''"))
-        }
+        quote_string_literal(s, self.string_escape)
     }
 
     /// Formats a value from a non-JSON column as a SQL literal.
