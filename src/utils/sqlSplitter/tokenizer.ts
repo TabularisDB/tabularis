@@ -32,48 +32,8 @@ export function scanToken(
     return { kind: 'whitespace', length: 1 };
   }
 
-  if (options.lineComments && ch === '-' && source[position + 1] === '-') {
-    // MySQL/MariaDB require a whitespace (or EOF) after `--` for it to
-    // be a comment; otherwise it is the binary subtraction operator
-    // (e.g. `SELECT 1--1` → 2). Other dialects accept `--` regardless.
-    if (options.lineCommentRequiresSpace) {
-      const after = source[position + 2];
-      if (
-        after !== undefined &&
-        after !== ' ' &&
-        after !== '\t' &&
-        after !== '\n' &&
-        after !== '\r'
-      ) {
-        return { kind: 'data', length: 1 };
-      }
-    }
-    let end = position + 2;
-    while (end < source.length && source[end] !== '\n') end++;
-    return { kind: 'lineComment', length: end - position };
-  }
-
-  if (options.hashComments && ch === '#') {
-    // MySQL/MariaDB `#` starts a comment anywhere outside a string,
-    // with no whitespace requirement (unlike `--`).
-    let end = position + 1;
-    while (end < source.length && source[end] !== '\n') end++;
-    return { kind: 'lineComment', length: end - position };
-  }
-
-  if (options.blockComments && ch === '/' && source[position + 1] === '*') {
-    const length = scanBlockCommentLength(
-      source,
-      position,
-      options.nestedBlockComments,
-    );
-    // MySQL/MariaDB conditional comment `/*! ... */` is executable SQL,
-    // not a noop comment. Emit as `data` so it is treated as meaningful
-    // by the splitter and gets its own statement boundary.
-    const isExecutable =
-      options.executableComments && source[position + 2] === '!';
-    return { kind: isExecutable ? 'data' : 'blockComment', length };
-  }
+  const comment = scanComment(source, position, options);
+  if (comment) return comment;
 
   if (
     options.eString &&
@@ -127,6 +87,66 @@ export function scanToken(
   }
 
   return { kind: 'data', length: 1 };
+}
+
+/**
+ * Scans a comment starting at `position` with the dialect's comment rules
+ * (`--` with the optional space rule, `#`, nested or flat block comments).
+ * Returns null when no comment starts here. A `--` that is an operator and
+ * a MySQL executable comment (`/*!` ...) come back as `data`: callers that
+ * skip trivia (see `scriptBlocks.ts`) must treat those as code.
+ */
+export function scanComment(
+  source: string,
+  position: number,
+  options: DialectOptions,
+): Token | null {
+  const ch = source[position];
+
+  if (options.lineComments && ch === '-' && source[position + 1] === '-') {
+    // MySQL/MariaDB require a whitespace (or EOF) after `--` for it to
+    // be a comment; otherwise it is the binary subtraction operator
+    // (e.g. `SELECT 1--1` → 2). Other dialects accept `--` regardless.
+    if (options.lineCommentRequiresSpace) {
+      const after = source[position + 2];
+      if (
+        after !== undefined &&
+        after !== ' ' &&
+        after !== '\t' &&
+        after !== '\n' &&
+        after !== '\r'
+      ) {
+        return { kind: 'data', length: 1 };
+      }
+    }
+    let end = position + 2;
+    while (end < source.length && source[end] !== '\n') end++;
+    return { kind: 'lineComment', length: end - position };
+  }
+
+  if (options.hashComments && ch === '#') {
+    // MySQL/MariaDB `#` starts a comment anywhere outside a string,
+    // with no whitespace requirement (unlike `--`).
+    let end = position + 1;
+    while (end < source.length && source[end] !== '\n') end++;
+    return { kind: 'lineComment', length: end - position };
+  }
+
+  if (options.blockComments && ch === '/' && source[position + 1] === '*') {
+    const length = scanBlockCommentLength(
+      source,
+      position,
+      options.nestedBlockComments,
+    );
+    // MySQL/MariaDB conditional comment `/*! ... */` is executable SQL,
+    // not a noop comment. Emit as `data` so it is treated as meaningful
+    // by the splitter and gets its own statement boundary.
+    const isExecutable =
+      options.executableComments && source[position + 2] === '!';
+    return { kind: isExecutable ? 'data' : 'blockComment', length };
+  }
+
+  return null;
 }
 
 function isIdentBoundary(source: string, prevIndex: number): boolean {

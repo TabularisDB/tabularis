@@ -11,6 +11,7 @@
 // `BEGIN` also opens a block right after a `CREATE … PROCEDURE` header.
 
 import type { DialectOptions } from './index';
+import { scanComment } from './tokenizer';
 
 type BlockKind =
   | 'BEGIN'
@@ -206,6 +207,10 @@ function peekWord(
   return { word: match[0].toUpperCase(), end: start + match[0].length };
 }
 
+/**
+ * Skips whitespace and comments with the same comment rules as the
+ * tokenizer, so the look-ahead reads the source the way the splitter does.
+ */
 function skipTrivia(
   source: string,
   position: number,
@@ -214,18 +219,8 @@ function skipTrivia(
   let p = position;
   for (;;) {
     while (p < source.length && /\s/.test(source[p])) p++;
-    const isLineComment =
-      (options.lineComments && source.startsWith('--', p)) ||
-      (options.hashComments && source[p] === '#');
-    if (isLineComment) {
-      while (p < source.length && source[p] !== '\n') p++;
-      continue;
-    }
-    if (options.blockComments && source.startsWith('/*', p)) {
-      const close = source.indexOf('*/', p + 2);
-      p = close === -1 ? source.length : close + 2;
-      continue;
-    }
-    return p;
+    const comment = scanComment(source, p, options);
+    if (comment === null || comment.kind === 'data') return p;
+    p += comment.length;
   }
 }

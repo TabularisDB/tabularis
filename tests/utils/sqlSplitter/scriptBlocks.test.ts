@@ -62,6 +62,41 @@ describe('scriptBlocks', () => {
       expect(isInsideBlock(state)).toBe(false);
     });
 
+    describe('look-ahead follows the tokenizer comment rules', () => {
+      const endIf = (sql: string, options: typeof BQ): number => {
+        const state = createScriptBlockState();
+        scanScriptWord('IF', 0, options, state);
+        return scanScriptWord(sql, 0, options, state);
+      };
+
+      it('skips nested block comments only when the dialect nests them', () => {
+        const sql = 'END /* /* x */ */ IF';
+        expect(endIf(sql, { ...BQ, blockComments: true, nestedBlockComments: true })).toBe(sql.length);
+        // Flat comments end at the first `*/`, so ` */ IF` is code.
+        expect(endIf(sql, { ...BQ, blockComments: true, nestedBlockComments: false })).toBe(3);
+      });
+
+      it('treats `--` without a space as code when the dialect requires one', () => {
+        const sql = 'END --x\nIF';
+        expect(endIf(sql, { ...BQ, lineComments: true, lineCommentRequiresSpace: false })).toBe(sql.length);
+        expect(endIf(sql, { ...BQ, lineComments: true, lineCommentRequiresSpace: true })).toBe(3);
+        const spaced = 'END -- x\nIF';
+        expect(endIf(spaced, { ...BQ, lineComments: true, lineCommentRequiresSpace: true })).toBe(spaced.length);
+      });
+
+      it('skips `#` comments only when the dialect has them', () => {
+        const sql = 'END # c\nIF';
+        expect(endIf(sql, { ...BQ, hashComments: true })).toBe(sql.length);
+        expect(endIf(sql, { ...BQ, hashComments: false })).toBe(3);
+      });
+
+      it('reads BEGIN TRANSACTION past a nested comment like the tokenizer', () => {
+        const state = createScriptBlockState();
+        scanScriptWord('BEGIN /* /* a */ b */ TRANSACTION', 0, { ...BQ, nestedBlockComments: true }, state);
+        expect(isInsideBlock(state)).toBe(false);
+      });
+    });
+
     it('tracks parentheses and resets on delimiters', () => {
       const state = createScriptBlockState();
       onScriptPunctuation(state, '(');
