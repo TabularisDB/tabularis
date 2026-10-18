@@ -19,7 +19,8 @@ pub struct DumpDialect {
     /// String literals treat `\` as an escape character (MySQL dialect), so
     /// backslashes are doubled and NUL is written as `\0`.
     pub backslash_escapes: bool,
-    /// Booleans are written as `TRUE`/`FALSE` rather than `1`/`0`.
+    /// Booleans are written as `TRUE`/`FALSE` rather than `1`/`0` (PostgreSQL
+    /// only).
     pub boolean_keywords: bool,
 }
 
@@ -38,22 +39,16 @@ impl DumpDialect {
         } else {
             caps.identifier_quote.clone()
         };
-        // Engines without a boolean literal (or whose builtin dump always
-        // used integers) keep 1/0; everything else gets the SQL-standard
-        // keywords, which PostgreSQL requires (SQLSTATE 42804 on 1/0).
-        let integer_booleans = !postgres
-            && matches!(
-                caps.sql_dialect,
-                Some(
-                    SqlDialect::Mysql | SqlDialect::Sqlite | SqlDialect::Mssql | SqlDialect::Oracle
-                )
-            );
         Self {
             identifier_quote,
             schema_qualified: caps.schemas,
             postgres,
             backslash_escapes: caps.sql_dialect == Some(SqlDialect::Mysql),
-            boolean_keywords: !integer_booleans,
+            // Only PostgreSQL needs TRUE/FALSE (it rejects 1/0 with SQLSTATE
+            // 42804). Every other engine, including plugins with no or a
+            // generic dialect, keeps the 1/0 the dump has always written, since
+            // an engine we have not verified may not accept the keywords.
+            boolean_keywords: postgres,
         }
     }
 
@@ -86,10 +81,11 @@ impl DumpDialect {
     }
 
     /// A quoted table reference, schema-qualified when the driver has
-    /// schemas and a schema is known: `"public"."users"`, `` `users` ``,
-    /// `` `dataset`.`events` ``.
+    /// schemas (or is PostgreSQL-flavoured) and a schema is known:
+    /// `"public"."users"`, `` `users` ``, `` `dataset`.`events` ``.
     pub fn table_ref(&self, schema: Option<&str>, table: &str) -> String {
-        match schema.filter(|s| self.schema_qualified && !s.is_empty()) {
+        let qualify = self.schema_qualified || self.postgres;
+        match schema.filter(|s| qualify && !s.is_empty()) {
             Some(schema) => format!(
                 "{}.{}",
                 self.quote_identifier(schema),

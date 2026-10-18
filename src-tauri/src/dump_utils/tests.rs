@@ -214,6 +214,99 @@ fn postgresql_plugin_matches_the_legacy_output() {
     }
 }
 
+/// Plugin ids the old command had no special case for; their output came
+/// from its `_` fallback arm.
+const DIALECTLESS_PLUGIN_IDS: &[&str] = &["informix", "duckdb", "custom", "firebird"];
+
+#[test]
+fn dialectless_plugin_literals_match_the_legacy_output() {
+    // A plugin with no `sql_dialect` (or `generic`) gets exactly the literals
+    // the id-based implementation wrote: 1/0 booleans, backslashes kept.
+    for id in DIALECTLESS_PLUGIN_IDS {
+        for sql_dialect in [None, Some(SqlDialect::Generic)] {
+            for (schemas, quote) in [(false, ""), (false, "\""), (true, "`"), (true, "[")] {
+                let caps = DriverCapabilities {
+                    schemas,
+                    identifier_quote: quote.into(),
+                    sql_dialect,
+                    ..Default::default()
+                };
+                let dialect = DumpDialect::from_capabilities(id, &caps);
+                for value in golden_values() {
+                    assert_eq!(
+                        dialect.escape_value(value.clone()),
+                        legacy::escape_sql_value(id, value.clone()),
+                        "{id} {sql_dialect:?} {value}"
+                    );
+                    assert_eq!(
+                        dialect.escape_json_value(value.clone()),
+                        legacy::escape_json_column_value(id, value.clone()),
+                        "{id} {sql_dialect:?} {value}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn dialectless_plugin_with_default_quoting_matches_the_legacy_table_refs() {
+    // Without `schemas` and with the default `"` quote, statements are the
+    // same as before. Only a plugin that declares another quote or schemas
+    // differs, which is the intended fix (see the plugin tests below).
+    for id in DIALECTLESS_PLUGIN_IDS {
+        for quote in ["", "\""] {
+            let caps = DriverCapabilities {
+                identifier_quote: quote.into(),
+                ..Default::default()
+            };
+            let dialect = DumpDialect::from_capabilities(id, &caps);
+            for requested in REQUESTED_SCHEMAS {
+                let legacy_schema = requested.unwrap_or("public");
+                let scoped = dialect
+                    .scoped_schema(dialect.resolve_schema(*requested).as_deref())
+                    .map(str::to_string);
+                for table in TABLES {
+                    assert_eq!(
+                        dumped_table_ref(&dialect, *requested, table),
+                        legacy::format_table_ref(id, legacy_schema, table),
+                        "{id} {requested:?} {table}"
+                    );
+                    assert_eq!(
+                        dialect.drop_table_if_exists(scoped.as_deref(), table),
+                        legacy::drop_table_if_exists(id, legacy_schema, table),
+                    );
+                    assert_eq!(
+                        dialect.insert_into_statement(scoped.as_deref(), table, "(1)"),
+                        legacy::insert_into_statement(id, legacy_schema, table, "(1)"),
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn postgresql_plugin_without_dialect_or_schemas_matches_the_legacy_output() {
+    // An older postgresql manifest with neither `sql_dialect` nor `schemas`
+    // is still recognised by id: qualified with "public", TRUE/FALSE.
+    let dialect = DumpDialect::from_capabilities("postgresql", &DriverCapabilities::default());
+    for requested in REQUESTED_SCHEMAS {
+        for table in TABLES {
+            assert_eq!(
+                dumped_table_ref(&dialect, *requested, table),
+                legacy::format_table_ref("postgresql", requested.unwrap_or("public"), table)
+            );
+        }
+    }
+    for value in golden_values() {
+        assert_eq!(
+            dialect.escape_value(value.clone()),
+            legacy::escape_sql_value("postgresql", value)
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Builtin output, spelled out
 // ---------------------------------------------------------------------------
@@ -329,8 +422,9 @@ fn boolean_literals_follow_the_dialect() {
         DumpDialect::from_capabilities("plugin", &caps).escape_value(json!(true))
     };
     assert_eq!(with(Some(SqlDialect::Postgres)), "TRUE");
-    assert_eq!(with(Some(SqlDialect::Generic)), "TRUE");
-    assert_eq!(with(None), "TRUE");
+    // No or a generic dialect keeps the integers the dump always wrote.
+    assert_eq!(with(Some(SqlDialect::Generic)), "1");
+    assert_eq!(with(None), "1");
     assert_eq!(with(Some(SqlDialect::Mysql)), "1");
     assert_eq!(with(Some(SqlDialect::Sqlite)), "1");
     assert_eq!(with(Some(SqlDialect::Mssql)), "1");

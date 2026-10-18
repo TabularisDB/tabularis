@@ -98,7 +98,7 @@ export function NotebookView({
   const { activeSchema, activeCapabilities, selectedDatabases, activeDriver } =
     useDatabase();
   const variableOptions = useMemo(
-    () => variableOptionsForDriver(activeCapabilities ?? activeDriver),
+    () => variableOptionsForDriver(activeCapabilities ?? activeDriver, activeDriver),
     [activeCapabilities, activeDriver],
   );
   const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
