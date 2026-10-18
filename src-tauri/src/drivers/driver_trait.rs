@@ -36,6 +36,9 @@ pub enum SqlDialect {
     Mssql,
     Sqlite,
     Oracle,
+    /// GoogleSQL (BigQuery): backslash escapes, triple-quoted and raw
+    /// strings, `#` comments and procedural `BEGIN … END` scripts.
+    Bigquery,
     Generic,
 }
 
@@ -182,7 +185,13 @@ pub struct DriverCapabilities {
     /// stays a strict `Option` so security-relevant Rust consumers (the SSL
     /// mode migration, the MCP schema default) can't inherit that default
     /// by accident.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// A dialect this host doesn't know falls back to `Generic` with a
+    /// warning instead of refusing the whole manifest.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::drivers::sql_dialect::deserialize_lenient"
+    )]
     pub sql_dialect: Option<SqlDialect>,
 }
 

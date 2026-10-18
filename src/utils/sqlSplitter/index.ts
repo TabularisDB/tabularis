@@ -7,6 +7,7 @@ export type Dialect =
   | 'mssql'
   | 'sqlite'
   | 'oracle'
+  | 'bigquery'
   | 'generic';
 
 /**
@@ -114,6 +115,19 @@ export interface DialectOptions {
    * of what follows.
    */
   readonly lineCommentRequiresSpace: boolean;
+  /**
+   * GoogleSQL (BigQuery) string literals: triple-quoted `'''…'''` and
+   * `"""…"""` strings that may span lines, plus the raw/bytes prefixes
+   * `r`, `b`, `rb` and `br` (any case) in front of any quote form.
+   */
+  readonly tripleQuotedStrings: boolean;
+  /**
+   * GoogleSQL procedural-language blocks (`BEGIN … END`, `IF … END IF`,
+   * `LOOP`, `WHILE`, `REPEAT`, `FOR … DO`, `CASE … END CASE`, procedure
+   * bodies). A `;` inside an open block does not end the statement, so a
+   * whole block runs as one script.
+   */
+  readonly scriptBlocks: boolean;
 }
 
 const STANDARD_QUOTES: ReadonlyArray<QuoteRule> = [
@@ -136,6 +150,8 @@ const POSTGRES: DialectOptions = {
   executableComments: false,
   nestedBlockComments: true,
   lineCommentRequiresSpace: false,
+  tripleQuotedStrings: false,
+  scriptBlocks: false,
 };
 
 const MYSQL: DialectOptions = {
@@ -157,6 +173,8 @@ const MYSQL: DialectOptions = {
   executableComments: true,
   nestedBlockComments: false,
   lineCommentRequiresSpace: true,
+  tripleQuotedStrings: false,
+  scriptBlocks: false,
 };
 
 const MSSQL: DialectOptions = {
@@ -183,6 +201,8 @@ const MSSQL: DialectOptions = {
   // T-SQL block comments nest (documented behavior).
   nestedBlockComments: true,
   lineCommentRequiresSpace: false,
+  tripleQuotedStrings: false,
+  scriptBlocks: false,
 };
 
 const SQLITE: DialectOptions = {
@@ -205,6 +225,8 @@ const SQLITE: DialectOptions = {
   executableComments: false,
   nestedBlockComments: false,
   lineCommentRequiresSpace: false,
+  tripleQuotedStrings: false,
+  scriptBlocks: false,
 };
 
 const ORACLE: DialectOptions = {
@@ -222,6 +244,33 @@ const ORACLE: DialectOptions = {
   executableComments: false,
   nestedBlockComments: false,
   lineCommentRequiresSpace: false,
+  tripleQuotedStrings: false,
+  scriptBlocks: false,
+};
+
+// GoogleSQL (BigQuery). Strings and quoted identifiers use backslash
+// escapes and no doubled-quote escape; `#` starts a line comment.
+const BIGQUERY: DialectOptions = {
+  quotes: [
+    { open: "'", close: "'", escape: '\\', doubleClose: false },
+    { open: '"', close: '"', escape: '\\', doubleClose: false },
+    { open: '`', close: '`', escape: '\\', doubleClose: false },
+  ],
+  eString: false,
+  dollarQuoting: false,
+  customDelimiter: false,
+  goDelimiter: false,
+  slashDelimiter: false,
+  plsqlBlocks: false,
+  qQuoting: false,
+  lineComments: true,
+  blockComments: true,
+  hashComments: true,
+  executableComments: false,
+  nestedBlockComments: false,
+  lineCommentRequiresSpace: false,
+  tripleQuotedStrings: true,
+  scriptBlocks: true,
 };
 
 const GENERIC: DialectOptions = {
@@ -239,6 +288,8 @@ const GENERIC: DialectOptions = {
   executableComments: false,
   nestedBlockComments: false,
   lineCommentRequiresSpace: false,
+  tripleQuotedStrings: false,
+  scriptBlocks: false,
 };
 
 const DIALECT_TABLE: Readonly<Record<Dialect, DialectOptions>> = {
@@ -247,6 +298,7 @@ const DIALECT_TABLE: Readonly<Record<Dialect, DialectOptions>> = {
   mssql: MSSQL,
   sqlite: SQLITE,
   oracle: ORACLE,
+  bigquery: BIGQUERY,
   generic: GENERIC,
 };
 

@@ -97,6 +97,11 @@ export function scanToken(
     if (qQuoteToken) return qQuoteToken;
   }
 
+  if (options.tripleQuotedStrings) {
+    const googleSqlToken = scanGoogleSqlString(source, position);
+    if (googleSqlToken) return googleSqlToken;
+  }
+
   for (const rule of options.quotes) {
     if (source.startsWith(rule.open, position)) {
       return scanQuoted(source, position, rule);
@@ -218,6 +223,53 @@ function scanDollarQuoted(source: string, position: number): Token | null {
   while (p < source.length) {
     if (source.startsWith(tag, p)) {
       return { kind: 'string', length: p + tag.length - position };
+    }
+    p++;
+  }
+  return { kind: 'string', length: source.length - position };
+}
+
+/**
+ * GoogleSQL string literal with an optional `r` / `b` / `rb` / `br`
+ * prefix (any case) and/or triple quotes. Returns null for a plain
+ * single-quoted or double-quoted literal without prefix, which the
+ * dialect's ordinary quote rules handle.
+ *
+ * A backslash always pairs with the next character while lexing, raw
+ * literals included: in a raw literal the backslash is kept as text
+ * instead of starting an escape sequence, but it still cannot end the
+ * literal (`r'\''` is the two characters `\'`). This is why a raw
+ * literal can't end in an odd number of backslashes.
+ */
+function scanGoogleSqlString(source: string, position: number): Token | null {
+  let p = position;
+  if (!isIdentBoundary(source, position - 1)) {
+    const first = source[p]?.toLowerCase();
+    const second = source[p + 1]?.toLowerCase();
+    if (
+      (first === 'r' && second === 'b') ||
+      (first === 'b' && second === 'r')
+    ) {
+      p += 2;
+    } else if (first === 'r' || first === 'b') {
+      p += 1;
+    }
+  }
+  const quote = source[p];
+  if (quote !== "'" && quote !== '"') return null;
+  const triple = quote.repeat(3);
+  const isTriple = source.startsWith(triple, p);
+  if (p === position && !isTriple) return null;
+
+  const close = isTriple ? triple : quote;
+  p += close.length;
+  while (p < source.length) {
+    if (source[p] === '\\' && p + 1 < source.length) {
+      p += 2;
+      continue;
+    }
+    if (source.startsWith(close, p)) {
+      return { kind: 'string', length: p + close.length - position };
     }
     p++;
   }

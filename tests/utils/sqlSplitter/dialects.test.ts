@@ -44,6 +44,14 @@ describe('dialect canaries', () => {
     expect(splitQueries('SELECT [a;b] FROM t', 'sqlite')).toHaveLength(1);
   });
 
+  it('bigquery keeps a scripting block and a triple-quoted string whole', () => {
+    const sql = "BEGIN SELECT '''a;b'''; END; SELECT `c;d`";
+    expect(splitQueries(sql, 'bigquery')).toEqual([
+      "BEGIN SELECT '''a;b'''; END",
+      'SELECT `c;d`',
+    ]);
+  });
+
   it('generic dialect splits a basic two-statement input', () => {
     expect(splitQueries('SELECT 1; SELECT 2', 'generic')).toEqual([
       'SELECT 1',

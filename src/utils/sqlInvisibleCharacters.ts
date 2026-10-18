@@ -44,7 +44,7 @@ export function getSqlInvisibleCharacterEdits(
   // The action is exposed in notebook and modal editors without a dialect.
   // Default to conservative generic parsing rather than mutating SQL literals.
   const supportedDialects: ReadonlySet<string> = new Set([
-    'postgres', 'mysql', 'mssql', 'sqlite', 'oracle', 'generic',
+    'postgres', 'mysql', 'mssql', 'sqlite', 'oracle', 'bigquery', 'generic',
   ]);
   const cleanupDialect = dialect && supportedDialects.has(dialect) ? dialect : 'generic';
   const nonCodeSpans = scanNonCodeSpans(text, cleanupDialect);

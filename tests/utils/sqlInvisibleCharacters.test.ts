@@ -33,6 +33,12 @@ describe('cleanSqlInvisibleCharacters', () => {
     expect(cleanSqlInvisibleCharacters(sql, 'mysql')).toBe(expected);
   });
 
+  it('keeps GoogleSQL triple-quoted strings, raw strings and # comments intact', () => {
+    const sql = "SELECT '''It\u2019s\u200B''', r'a\u200Bb', \u0060x\u200B\u0060 # \u200B\nFROM t\uFF1B";
+    const expected = sql.replace('\uFF1B', ';');
+    expect(cleanSqlInvisibleCharacters(sql, 'bigquery')).toBe(expected);
+  });
+
   it('reports changes in original document offsets for editor selections', () => {
     const sql = "SELECT 'value\u200B', \u201Cid\u201D, col\u200B;";
     const edits = getSqlInvisibleCharacterEdits(sql, 'postgres');

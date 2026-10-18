@@ -6,6 +6,7 @@ const PG = dialectOptions('postgres');
 const MY = dialectOptions('mysql');
 const MS = dialectOptions('mssql');
 const OR = dialectOptions('oracle');
+const BQ = dialectOptions('bigquery');
 
 const freshState = (): TokenizerState => ({ delimiter: ';', lineLeading: true });
 
@@ -192,6 +193,112 @@ describe('scanToken', () => {
       const src = "colq'[x]'";
       const t = scanToken(src, 3, OR, freshState());
       expect(t).toEqual({ kind: 'data', length: 1 });
+    });
+  });
+
+  describe('bigquery strings and identifiers', () => {
+    it('scans a single-quoted string with a backslash-escaped quote', () => {
+      const src = "'it\\'s;' x";
+      expect(scanToken(src, 0, BQ, freshState())).toEqual({
+        kind: 'string',
+        length: 8,
+      });
+    });
+
+    it('does not treat a doubled quote as an escape', () => {
+      expect(scanToken("'a'' x", 0, BQ, freshState())).toEqual({
+        kind: 'string',
+        length: 3,
+      });
+    });
+
+    it('scans a backtick identifier with a backslash escape', () => {
+      const src = '`a\\`;b` x';
+      expect(scanToken(src, 0, BQ, freshState())).toEqual({
+        kind: 'string',
+        length: 7,
+      });
+    });
+
+    it('scans triple-quoted strings across lines', () => {
+      const single = "'''a;\n'b'\n''' x";
+      expect(scanToken(single, 0, BQ, freshState())).toEqual({
+        kind: 'string',
+        length: 13,
+      });
+      const double = '"""a;\n"b"\n""" x';
+      expect(scanToken(double, 0, BQ, freshState())).toEqual({
+        kind: 'string',
+        length: 13,
+      });
+    });
+
+    it('scans an empty triple-quoted string', () => {
+      expect(scanToken("'''''' x", 0, BQ, freshState())).toEqual({
+        kind: 'string',
+        length: 6,
+      });
+    });
+
+    it('lets a backslash escape a quote inside a triple-quoted string', () => {
+      const src = '"""a\\""""; x';
+      expect(scanToken(src, 0, BQ, freshState())).toEqual({
+        kind: 'string',
+        length: 9,
+      });
+    });
+
+    it('includes raw and bytes prefixes in the string token', () => {
+      for (const prefix of ['r', 'R', 'b', 'B', 'rb', 'RB', 'br', 'bR']) {
+        const src = `${prefix}'a;b' x`;
+        expect(scanToken(src, 0, BQ, freshState())).toEqual({
+          kind: 'string',
+          length: prefix.length + 5,
+        });
+      }
+    });
+
+    it('scans a raw triple-quoted string', () => {
+      const src = 'r"""\\d+;\n""" x';
+      expect(scanToken(src, 0, BQ, freshState())).toEqual({
+        kind: 'string',
+        length: 12,
+      });
+    });
+
+    it('keeps a backslash-quote pair inside a raw literal', () => {
+      // `r'\''` is the two characters `\'`: the backslash is kept but
+      // still prevents the quote from ending the literal.
+      const src = "r'\\''; x";
+      expect(scanToken(src, 0, BQ, freshState())).toEqual({
+        kind: 'string',
+        length: 5,
+      });
+    });
+
+    it('does not read a prefix inside an identifier', () => {
+      expect(scanToken("xr'a'", 1, BQ, freshState())).toEqual({
+        kind: 'data',
+        length: 1,
+      });
+      expect(scanToken('rb_col', 0, BQ, freshState())).toEqual({
+        kind: 'data',
+        length: 1,
+      });
+    });
+
+    it('treats # as a line comment', () => {
+      expect(scanToken('# note; x\nSELECT', 0, BQ, freshState())).toEqual({
+        kind: 'lineComment',
+        length: 9,
+      });
+    });
+
+    it('leaves triple quotes and prefixes alone in other dialects', () => {
+      expect(scanToken("r'a'", 0, PG, freshState())).toEqual({
+        kind: 'data',
+        length: 1,
+      });
     });
   });
 });

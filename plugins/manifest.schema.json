@@ -163,9 +163,9 @@
         },
         "sql_dialect": {
           "type": "string",
-          "enum": ["postgres", "mysql", "mssql", "sqlite", "oracle", "generic"],
+          "enum": ["postgres", "mysql", "mssql", "sqlite", "oracle", "bigquery", "generic"],
           "default": "postgres",
-          "description": "SQL dialect used by Tabularis for statement splitting and query classification. Oracle-like plugins can use oracle."
+          "description": "SQL dialect used by Tabularis for statement splitting and query classification. Oracle-like plugins can use oracle; GoogleSQL (BigQuery) plugins use bigquery. Hosts that predate bigquery refuse it, so pair it with min_runtime_version."
         },
         "alter_primary_key": {
           "type": "boolean",

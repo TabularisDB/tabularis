@@ -47,6 +47,7 @@ const MASK_DIALECTS: readonly SqlDialect[] = [
   "mssql",
   "sqlite",
   "oracle",
+  "bigquery",
   "generic",
 ];
 
