@@ -1526,11 +1526,26 @@ already-ingested manifest after updating the schema.
 
 These methods generate SQL statements. Tabularis may display the SQL to the user before executing it. When `get_tables` / `get_columns` return comments, the host preserves them in generated inspection SQL for MySQL-family dialects and dialects that use `COMMENT ON` (currently PostgreSQL and Oracle). Other dialects continue to receive the existing DDL without comments; no manifest change is required.
 
+**Connection context.** Every DDL generation request carries `params`
+(`ConnectionParams`) with the database the user is browsing already applied:
+in a multi-database connection `params.database` is the selected database (for
+example a project), not the first one saved on the connection. Plugins can use
+it to qualify names (`project.dataset.table`) or pick a dialect variant. The
+field is additive: older plugins that ignore it keep working. Results are an
+array of statements, executed in order.
+
+`ColumnDefinition`:
+
+```json
+{ "name": "email", "data_type": "VARCHAR(255)", "is_nullable": true, "is_pk": false,
+  "is_auto_increment": false, "default_value": null }
+```
+
 #### `get_create_table_sql`
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "table_name": string, "columns": ColumnDefinition[] }`
 
-**Result:** `"CREATE TABLE users (...)"`
+**Result:** `["CREATE TABLE users (...)"]`
 
 ---
 
@@ -1538,31 +1553,42 @@ These methods generate SQL statements. Tabularis may display the SQL to the user
 
 **Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "column": ColumnDefinition }`
 
-**Result:** `"ALTER TABLE users ADD COLUMN ..."`
+**Result:** `["ALTER TABLE users ADD COLUMN ..."]`
 
 ---
 
 #### `get_alter_column_sql`
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "column": ColumnDefinition }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "old_column": ColumnDefinition, "new_column": ColumnDefinition }`
 
-**Result:** `"ALTER TABLE users MODIFY COLUMN ..."`
+**Result:** `["ALTER TABLE users MODIFY COLUMN ..."]`
 
 ---
 
 #### `get_create_index_sql`
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "index": IndexDefinition }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "index_name": string, "columns": string[], "is_unique": boolean }`
 
-**Result:** `"CREATE INDEX idx_email ON users(email)"`
+**Result:** `["CREATE INDEX idx_email ON users(email)"]`
 
 ---
 
 #### `get_create_foreign_key_sql`
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "fk": ForeignKeyDefinition }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "fk_name": string, "column": string, "ref_table": string, "ref_column": string, "on_delete": string | null, "on_update": string | null }`
 
-**Result:** `"ALTER TABLE orders ADD CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id)"`
+**Result:** `["ALTER TABLE orders ADD CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id)"]`
+
+---
+
+#### `routine_create_template`
+
+Optional. Returns the editor template for a new routine. A `-32601` falls back
+to a generic `CREATE PROCEDURE`/`CREATE FUNCTION` skeleton.
+
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "routine_type": "PROCEDURE" | "FUNCTION" }`
+
+**Result:** `"CREATE PROCEDURE my_routine() ..."`
 
 ---
 

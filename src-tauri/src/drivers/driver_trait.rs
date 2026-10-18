@@ -399,6 +399,18 @@ pub trait DatabaseDriver: Send + Sync {
     /// Drop cached discovery results on reconnect. Static drivers do nothing.
     async fn invalidate_connection_metadata(&self, _connection_id: Option<&str>) {}
 
+    /// Bind resolved connection params (with the browsed database already
+    /// applied) to a driver snapshot, so SQL builders whose signature carries
+    /// no params (create table/column/index, routine template) can still
+    /// forward the connection context. Static drivers return `None` and keep
+    /// using the registered instance. No RPC is made.
+    fn bind_connection_params(
+        &self,
+        _params: &ConnectionParams,
+    ) -> Option<std::sync::Arc<dyn DatabaseDriver>> {
+        None
+    }
+
     /// Returns the list of data types supported by this driver.
     fn get_data_types(&self) -> Vec<DataTypeInfo>;
 

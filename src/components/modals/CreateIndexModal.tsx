@@ -79,12 +79,13 @@ export const CreateIndexModal = ({
         columns: selectedColumns,
         isUnique,
         ...(activeSchema ? { schema: activeSchema } : {}),
+        ...(database ? { database } : {}),
       });
       setSqlPreview(stmts.map(s => s + ';').join('\n'));
     } catch (e) {
       setSqlPreview('-- ' + String(e));
     }
-  }, [indexName, isUnique, selectedColumns, connectionId, tableName, activeSchema, t]);
+  }, [indexName, isUnique, selectedColumns, connectionId, tableName, activeSchema, database, t]);
 
   useEffect(() => {
     const timer = setTimeout(generatePreview, 300);
@@ -105,6 +106,7 @@ export const CreateIndexModal = ({
             columns: selectedColumns,
             isUnique,
             ...(activeSchema ? { schema: activeSchema } : {}),
+            ...(database ? { database } : {}),
           });
           for (const sql of stmts) {
             await invoke('execute_query', {

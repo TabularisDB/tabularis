@@ -1291,9 +1291,10 @@ pub async fn get_routine_create_template<R: Runtime>(
     connection_id: String,
     routine_type: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<String, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let (drv, _) = ddl_driver_for_saved(&app, &saved_conn, database).await?;
     drv.routine_create_template(&routine_type, schema.as_deref())
         .await
 }
@@ -4477,6 +4478,33 @@ mod tests {
             vec!["c1".to_string(), "c4".to_string()],
         );
     }
+
+    #[test]
+    fn ddl_database_override_targets_the_browsed_database() {
+        let mut params = base_params();
+        params.database =
+            DatabaseSelection::Multiple(vec!["first".to_string(), "second".to_string()]);
+        apply_ddl_database_override(&mut params, Some("second".to_string()));
+        assert_eq!(
+            params.database,
+            DatabaseSelection::Single("second".to_string())
+        );
+    }
+
+    #[test]
+    fn ddl_database_override_ignores_missing_or_empty_values() {
+        let mut params = base_params();
+        apply_ddl_database_override(&mut params, None);
+        assert_eq!(
+            params.database,
+            DatabaseSelection::Single("testdb".to_string())
+        );
+        apply_ddl_database_override(&mut params, Some(String::new()));
+        assert_eq!(
+            params.database,
+            DatabaseSelection::Single("testdb".to_string())
+        );
+    }
 }
 
 #[tauri::command]
@@ -6594,6 +6622,43 @@ pub async fn map_inferred_column_types<R: Runtime>(
 
 // --- DDL generation commands ---
 
+/// Point `params` at the database the user is browsing (multi-database
+/// layouts, #822). An empty or missing override keeps the saved selection.
+pub(crate) fn apply_ddl_database_override(params: &mut ConnectionParams, database: Option<String>) {
+    if let Some(db) = database.filter(|d| !d.is_empty()) {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
+}
+
+/// Driver and params for the SQL-preview builders. Built-in drivers build SQL
+/// without credentials, so they keep the registered instance and the saved
+/// params, exactly as before. Plugin drivers resolve tunnels and credentials,
+/// apply the browsed `database` and get the params bound, so every builder
+/// RPC carries the connection context (additive `params` field).
+async fn ddl_driver_for_saved<R: Runtime>(
+    app: &AppHandle<R>,
+    saved: &SavedConnection,
+    database: Option<String>,
+) -> Result<
+    (
+        Arc<dyn crate::drivers::driver_trait::DatabaseDriver>,
+        ConnectionParams,
+    ),
+    String,
+> {
+    let driver = driver_for(&saved.params.driver).await?;
+    if driver.manifest().is_builtin {
+        return Ok((driver, saved.params.clone()));
+    }
+    let expanded = expand_ssh_connection_params(app, &saved.params).await?;
+    let expanded = expand_k8s_connection_params(app, &expanded).await?;
+    let mut params = resolve_connection_params_with_id(&expanded, &saved.id)?;
+    apply_ddl_database_override(&mut params, database);
+    let driver = driver_for_params(&params).await?;
+    let driver = driver.bind_connection_params(&params).unwrap_or(driver);
+    Ok((driver, params))
+}
+
 #[tauri::command]
 pub async fn get_create_table_sql<R: Runtime>(
     app: AppHandle<R>,
@@ -6601,9 +6666,10 @@ pub async fn get_create_table_sql<R: Runtime>(
     table_name: String,
     columns: Vec<ColumnDefinition>,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<String>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let (drv, _) = ddl_driver_for_saved(&app, &saved_conn, database).await?;
     drv.get_create_table_sql(&table_name, columns, schema.as_deref())
         .await
 }
@@ -6615,9 +6681,10 @@ pub async fn get_add_column_sql<R: Runtime>(
     table: String,
     column: ColumnDefinition,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<String>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let (drv, _) = ddl_driver_for_saved(&app, &saved_conn, database).await?;
     drv.get_add_column_sql(&table, column, schema.as_deref())
         .await
 }
@@ -6630,9 +6697,10 @@ pub async fn get_alter_column_sql<R: Runtime>(
     old_column: ColumnDefinition,
     new_column: ColumnDefinition,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<String>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let (drv, _) = ddl_driver_for_saved(&app, &saved_conn, database).await?;
     drv.get_alter_column_sql(&table, old_column, new_column, schema.as_deref())
         .await
 }
@@ -6646,9 +6714,10 @@ pub async fn get_create_index_sql<R: Runtime>(
     columns: Vec<String>,
     is_unique: bool,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<String>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let (drv, _) = ddl_driver_for_saved(&app, &saved_conn, database).await?;
     drv.get_create_index_sql(&table, &index_name, columns, is_unique, schema.as_deref())
         .await
 }
@@ -6665,11 +6734,12 @@ pub async fn get_create_foreign_key_sql<R: Runtime>(
     on_delete: Option<String>,
     on_update: Option<String>,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<Vec<String>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for_saved(&app, &saved_conn).await?;
+    let (drv, params) = ddl_driver_for_saved(&app, &saved_conn, database).await?;
     drv.get_create_foreign_key_sql(
-        &saved_conn.params,
+        &params,
         &table,
         &fk_name,
         &column,

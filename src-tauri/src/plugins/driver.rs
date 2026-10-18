@@ -563,8 +563,10 @@ impl RpcDriver {
         })
     }
 
-    /// SQL-building methods historically had no connection parameters. Add
-    /// them only for opted-in snapshots; legacy plugin request shapes stay intact.
+    /// SQL-building methods carry no connection parameters in their trait
+    /// signature. Inject the bound snapshot params (from `for_connection` or
+    /// `bind_connection_params`) as an additive `params` field; a driver with
+    /// nothing bound keeps the legacy request shape.
     async fn call_with_connection(&self, method: &str, arguments: Value) -> Result<Value, String> {
         self.call_with_connection_detailed(method, arguments)
             .await
@@ -706,6 +708,17 @@ impl DatabaseDriver for RpcDriver {
 
     async fn invalidate_connection_metadata(&self, connection_id: Option<&str>) {
         self.metadata_cache.invalidate(connection_id).await;
+    }
+
+    fn bind_connection_params(&self, params: &ConnectionParams) -> Option<Arc<dyn DatabaseDriver>> {
+        Some(Arc::new(Self {
+            manifest: self.manifest.clone(),
+            process: self.process.clone(),
+            data_types: self.data_types.clone(),
+            connection_metadata: self.connection_metadata,
+            metadata_cache: self.metadata_cache.clone(),
+            connection_params: Some(self.with_primary_database(params)),
+        }))
     }
 
     async fn shutdown(&self) {
@@ -3690,3 +3703,7 @@ mod startup_tests;
 #[cfg(test)]
 #[path = "cancel_tests.rs"]
 mod cancel_tests;
+
+#[cfg(test)]
+#[path = "ddl_context_tests.rs"]
+mod ddl_context_tests;

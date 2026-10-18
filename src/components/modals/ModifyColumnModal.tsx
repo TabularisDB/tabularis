@@ -124,6 +124,7 @@ export const ModifyColumnModal = ({
           oldColumn: oldCol,
           newColumn: newCol,
           ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(database ? { database } : {}),
         });
       } else {
         const col = buildColumnDefinition(form);
@@ -132,13 +133,14 @@ export const ModifyColumnModal = ({
           table: tableName,
           column: col,
           ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(database ? { database } : {}),
         });
       }
       setSqlPreview(stmts.map((s) => s + ";").join("\n"));
     } catch (e) {
       setSqlPreview("-- " + String(e));
     }
-  }, [form, isEdit, column, connectionId, tableName, activeSchema, availableTypes, t]);
+  }, [form, isEdit, column, connectionId, tableName, activeSchema, database, availableTypes, t]);
 
   // Debounced preview generation
   useEffect(() => {
@@ -173,6 +175,7 @@ export const ModifyColumnModal = ({
           oldColumn: oldCol,
           newColumn: newCol,
           ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(database ? { database } : {}),
         });
       } else {
         const col = buildColumnDefinition(form);
@@ -181,6 +184,7 @@ export const ModifyColumnModal = ({
           table: tableName,
           column: col,
           ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(database ? { database } : {}),
         });
       }
 

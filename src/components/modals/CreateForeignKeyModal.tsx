@@ -122,12 +122,13 @@ export const CreateForeignKeyModal = ({
         onDelete,
         onUpdate,
         ...(activeSchema ? { schema: activeSchema } : {}),
+        ...(database ? { database } : {}),
       });
       setSqlPreview(stmts.map(s => s + ';').join('\n'));
     } catch (e) {
       setSqlPreview('-- ' + String(e));
     }
-  }, [fkName, localColumn, refTable, refColumn, onDelete, onUpdate, connectionId, tableName, activeSchema, t]);
+  }, [fkName, localColumn, refTable, refColumn, onDelete, onUpdate, connectionId, tableName, activeSchema, database, t]);
 
   useEffect(() => {
     const timer = setTimeout(generatePreview, 300);
@@ -150,6 +151,7 @@ export const CreateForeignKeyModal = ({
             onDelete,
             onUpdate,
             ...(activeSchema ? { schema: activeSchema } : {}),
+            ...(database ? { database } : {}),
           });
           for (const sql of stmts) {
             await invoke('execute_query', {
