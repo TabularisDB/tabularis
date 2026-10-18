@@ -15,7 +15,10 @@ use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
-use crate::drivers::driver_trait::SqlDialect;
+use std::borrow::Cow;
+
+use crate::drivers::driver_trait::{DriverCapabilities, SqlDialect};
+use crate::drivers::sql_syntax::SqlSyntax;
 use crate::paths::get_app_config_dir;
 
 const ACTIVITY_FILENAME: &str = "ai_activity.jsonl";
@@ -385,7 +388,23 @@ pub fn classify_query_kind(sql: &str) -> &'static str {
 /// count. `None`, `Generic`, `Oracle` and any dialect without a dedicated
 /// profile set are lexed under all profiles.
 pub fn classify_query_kind_for_dialect(sql: &str, dialect: Option<SqlDialect>) -> &'static str {
-    for profile in lex_profiles_for(dialect) {
+    classify_with_profiles(sql, lex_profiles_for(dialect))
+}
+
+/// Classify `sql` for a connection whose driver declares `caps`: the
+/// profiles of its `sql_dialect` ([`lex_profiles_for`]) plus, when the driver
+/// declares `sql_syntax`, one profile derived from that syntax
+/// ([`lex_profiles_for_capabilities`]). `None` lexes under every profile.
+pub fn classify_query_kind_for_capabilities(
+    sql: &str,
+    caps: Option<&DriverCapabilities>,
+) -> &'static str {
+    classify_with_profiles(sql, &lex_profiles_for_capabilities(caps))
+}
+
+/// A read only when every profile reads `sql` as exactly one read statement.
+fn classify_with_profiles(sql: &str, profiles: &[LexProfile]) -> &'static str {
+    for profile in profiles {
         let kind = classify_with_profile(sql, profile);
         if kind != "select" {
             return kind;
@@ -835,17 +854,17 @@ pub fn strip_strings_and_comments(sql: &str) -> String {
 /// one pass; because a statement is a read only when every pass of its
 /// dialect agrees (see [`classify_query_kind_for_dialect`]), extra passes make
 /// the classifier stricter, never laxer.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct LexProfile {
     /// `\` escapes the next byte inside `'…'` (MySQL default, PostgreSQL
-    /// with `standard_conforming_strings = off`, BigQuery).
+    /// with `standard_conforming_strings = off`, GoogleSQL).
     backslash_in_single: bool,
     /// `\` escapes the next byte inside `"…"` (MySQL strings without
-    /// `ANSI_QUOTES`, BigQuery).
+    /// `ANSI_QUOTES`, GoogleSQL).
     backslash_in_double: bool,
-    /// `\` escapes the next byte inside `` `…` `` (BigQuery).
+    /// `\` escapes the next byte inside `` `…` `` (GoogleSQL).
     backslash_in_backtick: bool,
-    /// `#` starts a line comment (MySQL, MariaDB, BigQuery).
+    /// `#` starts a line comment (MySQL, MariaDB, GoogleSQL).
     hash_comments: bool,
     /// `--` only starts a comment when followed by whitespace, a control byte
     /// or end of input (MySQL: `1--1` is arithmetic).
@@ -857,10 +876,12 @@ pub(crate) struct LexProfile {
     /// `/*! … */` and `/*M! … */` bodies are executed (MySQL, MariaDB), so
     /// they are scanned as code rather than skipped.
     executable_comments: bool,
-    /// `'''…'''` and `"""…"""` delimit strings (BigQuery).
+    /// `'''…'''` and `"""…"""` delimit strings (GoogleSQL).
     triple_quotes: bool,
-    /// PostgreSQL `E'…'` escape strings and `$tag$…$tag$` dollar quotes.
-    postgres_strings: bool,
+    /// PostgreSQL `E'…'` escape strings.
+    e_strings: bool,
+    /// PostgreSQL `$tag$…$tag$` dollar quotes.
+    dollar_quotes: bool,
     /// `[…]` delimits an identifier (SQL Server, SQLite).
     bracket_identifiers: bool,
 }
@@ -875,21 +896,24 @@ const BASE_PROFILE: LexProfile = LexProfile {
     nested_block_comments: false,
     executable_comments: false,
     triple_quotes: false,
-    postgres_strings: false,
+    e_strings: false,
+    dollar_quotes: false,
     bracket_identifiers: false,
 };
 
 /// The historical single-pass reading: SQL-standard strings, PostgreSQL
 /// escape strings and dollar quotes, non-nesting block comments.
 const LEGACY_STANDARD: LexProfile = LexProfile {
-    postgres_strings: true,
+    e_strings: true,
+    dollar_quotes: true,
     ..BASE_PROFILE
 };
 
 /// [`LEGACY_STANDARD`] with backslash escapes in `'…'`.
 const LEGACY_BACKSLASH: LexProfile = LexProfile {
     backslash_in_single: true,
-    postgres_strings: true,
+    e_strings: true,
+    dollar_quotes: true,
     ..BASE_PROFILE
 };
 
@@ -897,7 +921,8 @@ const LEGACY_BACKSLASH: LexProfile = LexProfile {
 const POSTGRES: LexProfile = LexProfile {
     nested_block_comments: true,
     line_comment_ends_at_cr: true,
-    postgres_strings: true,
+    e_strings: true,
+    dollar_quotes: true,
     ..BASE_PROFILE
 };
 
@@ -945,9 +970,11 @@ const SQLITE: LexProfile = LexProfile {
     ..BASE_PROFILE
 };
 
-/// BigQuery GoogleSQL: `#` comments, backslash escapes in every quote kind
-/// (including backtick identifiers), triple-quoted strings.
-const BIGQUERY: LexProfile = LexProfile {
+/// GoogleSQL-style lexing: `#` comments, backslash escapes in every quote kind
+/// (including backtick identifiers), triple-quoted strings. No built-in
+/// dialect uses it; it is in [`ALL_PROFILES`] so that dialects without a
+/// dedicated set still fail closed against triple-quoted payloads.
+const TRIPLE_QUOTED_BACKSLASH: LexProfile = LexProfile {
     backslash_in_single: true,
     backslash_in_double: true,
     backslash_in_backtick: true,
@@ -975,7 +1002,7 @@ const ALL_PROFILES: &[LexProfile] = &[
     MYSQL_NO_BACKSLASH,
     MSSQL,
     SQLITE,
-    BIGQUERY,
+    TRIPLE_QUOTED_BACKSLASH,
 ];
 
 /// The lexer profiles a statement for `dialect` must be read as a single read
@@ -989,6 +1016,57 @@ pub(crate) fn lex_profiles_for(dialect: Option<SqlDialect>) -> &'static [LexProf
         Some(SqlDialect::Mssql) => MSSQL_PROFILES,
         Some(SqlDialect::Sqlite) => SQLITE_PROFILES,
         _ => ALL_PROFILES,
+    }
+}
+
+/// The lexer profiles for a driver's capabilities: those of its
+/// `sql_dialect` ([`lex_profiles_for`], every profile for `None`, generic,
+/// oracle or an unknown dialect), plus one profile derived from its
+/// `sql_syntax` when it declares one.
+///
+/// The declared profile is added, never substituted: a statement stays a
+/// read only if the dialect's profiles AND the declared syntax all read it as
+/// one read statement. A descriptor can therefore only make the classifier
+/// stricter (it checks how the engine really lexes, e.g. GoogleSQL `#`
+/// comments and backslash escapes in backticks), never looser: a wrong or
+/// hostile descriptor cannot hide a `;` that the legacy profiles see. The cost
+/// is false positives: a triple-quoted literal with an odd quote inside
+/// (`'''it's; ok'''`) is "unknown" for a `mysql`-fallback driver, because the
+/// MySQL profiles end the string early.
+pub(crate) fn lex_profiles_for_capabilities(
+    caps: Option<&DriverCapabilities>,
+) -> Cow<'static, [LexProfile]> {
+    let Some(caps) = caps else {
+        return Cow::Borrowed(ALL_PROFILES);
+    };
+    let base = lex_profiles_for(caps.sql_dialect);
+    if caps.sql_syntax.is_none() {
+        return Cow::Borrowed(base);
+    }
+    let mut profiles = base.to_vec();
+    profiles.push(LexProfile::from_syntax(&SqlSyntax::resolve(caps)));
+    Cow::Owned(profiles)
+}
+
+impl LexProfile {
+    /// The profile that tokenizes like `syntax`. Rules the descriptor cannot
+    /// declare (E-strings, executable comments, CR-terminated `--` comments)
+    /// come from the preset it extends.
+    pub(crate) fn from_syntax(syntax: &SqlSyntax) -> Self {
+        LexProfile {
+            backslash_in_single: syntax.backslash_in("'"),
+            backslash_in_double: syntax.backslash_in("\""),
+            backslash_in_backtick: syntax.backslash_in("`"),
+            hash_comments: syntax.hash_comments,
+            dash_comment_needs_space: syntax.line_comment_requires_space,
+            line_comment_ends_at_cr: syntax.line_comment_ends_at_cr,
+            nested_block_comments: syntax.nested_block_comments,
+            executable_comments: syntax.executable_comments,
+            triple_quotes: syntax.triple_quoted_strings,
+            e_strings: syntax.e_strings,
+            dollar_quotes: syntax.dollar_quoting,
+            bracket_identifiers: syntax.quote("[").is_some(),
+        }
     }
 }
 
@@ -1067,7 +1145,7 @@ pub(crate) fn strip_with_profile(
         // and the string never closes — masking whatever comes after (e.g. a
         // side-effecting `lo_export(…)` call). The `E` must start a token:
         // `xE'…'` is the identifier `xE` followed by a standard string.
-        if p.postgres_strings
+        if p.e_strings
             && (c == b'E' || c == b'e')
             && bytes.get(i + 1) == Some(&b'\'')
             && (i == 0 || !is_ident_continue(bytes[i - 1]))
@@ -1083,7 +1161,7 @@ pub(crate) fn strip_with_profile(
         // `$$'$$, lo_export(…)` hide the call: the `'` inside was read as an
         // ordinary string opener and swallowed the rest of the statement. A
         // `$` inside an identifier (`a$b$`) does not open one.
-        if p.postgres_strings && c == b'$' && (i == 0 || !is_ident_continue(bytes[i - 1])) {
+        if p.dollar_quotes && c == b'$' && (i == 0 || !is_ident_continue(bytes[i - 1])) {
             if let Some(tag_len) = dollar_quote_tag_len(&bytes[i..]) {
                 let delim = &bytes[i..i + tag_len];
                 out.extend(std::iter::repeat(b' ').take(tag_len));
@@ -1100,7 +1178,7 @@ pub(crate) fn strip_with_profile(
                 continue;
             }
         }
-        // Triple-quoted string (BigQuery): ends only at three matching quotes.
+        // Triple-quoted string (GoogleSQL): ends only at three matching quotes.
         if p.triple_quotes
             && (c == b'\'' || c == b'"')
             && bytes.get(i + 1) == Some(&c)

@@ -9,10 +9,13 @@
 #[cfg(test)]
 mod tests {
     use crate::ai_activity::{
-        classify_query_kind, classify_query_kind_for_dialect, has_multiple_statements,
-        strip_strings_and_comments,
+        classify_query_kind, classify_query_kind_for_capabilities, classify_query_kind_for_dialect,
+        has_multiple_statements, lex_profiles_for, lex_profiles_for_capabilities,
+        strip_strings_and_comments, LexProfile,
     };
-    use crate::drivers::driver_trait::SqlDialect;
+    use crate::drivers::driver_trait::{DriverCapabilities, SqlDialect};
+    use crate::drivers::sql_syntax::{SqlSyntax, SqlSyntaxDescriptor};
+    use crate::drivers::sql_syntax_tests::googlesql_capabilities;
 
     const PG: Option<SqlDialect> = Some(SqlDialect::Postgres);
     const MYSQL: Option<SqlDialect> = Some(SqlDialect::Mysql);
@@ -274,5 +277,114 @@ mod tests {
         ));
         assert!(!has_multiple_statements("SELECT $$;$$", PG));
         assert!(has_multiple_statements("SELECT $$;$$", MYSQL));
+    }
+
+    // -----------------------------------------------------------------------
+    // Declared `sql_syntax`
+    // -----------------------------------------------------------------------
+
+    fn caps_with(
+        dialect: Option<SqlDialect>,
+        syntax: Option<SqlSyntaxDescriptor>,
+    ) -> DriverCapabilities {
+        DriverCapabilities {
+            sql_dialect: dialect,
+            sql_syntax: syntax,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn capabilities_without_sql_syntax_use_the_dialect_profiles() {
+        for dialect in [
+            None,
+            PG,
+            MYSQL,
+            MSSQL,
+            SQLITE,
+            GENERIC,
+            Some(SqlDialect::Oracle),
+        ] {
+            let caps = caps_with(dialect, None);
+            assert_eq!(
+                &*lex_profiles_for_capabilities(Some(&caps)),
+                lex_profiles_for(dialect),
+                "{dialect:?}"
+            );
+        }
+        assert_eq!(
+            &*lex_profiles_for_capabilities(None),
+            lex_profiles_for(None)
+        );
+    }
+
+    #[test]
+    fn declared_syntax_adds_one_profile_to_the_dialect_set() {
+        let caps = googlesql_capabilities();
+        let profiles = lex_profiles_for_capabilities(Some(&caps));
+        assert_eq!(profiles.len(), lex_profiles_for(MYSQL).len() + 1);
+        assert_eq!(&profiles[..profiles.len() - 1], lex_profiles_for(MYSQL));
+        assert_eq!(
+            profiles[profiles.len() - 1],
+            LexProfile::from_syntax(&SqlSyntax::resolve(&caps))
+        );
+    }
+
+    #[test]
+    fn declared_syntax_catches_what_the_fallback_dialect_misses() {
+        // A postgres-fallback plugin whose engine reads `#` as a comment:
+        // the postgres profiles alone see one string and call it a read.
+        let sql = "SELECT 1 # '\n; DROP TABLE t; -- '";
+        assert_eq!(classify_query_kind_for_dialect(sql, PG), "select");
+        let caps = caps_with(
+            PG,
+            Some(SqlSyntaxDescriptor {
+                hash_comments: Some(true),
+                ..Default::default()
+            }),
+        );
+        assert_eq!(
+            classify_query_kind_for_capabilities(sql, Some(&caps)),
+            "unknown"
+        );
+    }
+
+    #[test]
+    fn googlesql_reads_pass_only_when_every_profile_agrees() {
+        let caps = googlesql_capabilities();
+        let classify = |sql: &str| classify_query_kind_for_capabilities(sql, Some(&caps));
+        // Every MySQL profile and the GoogleSQL profile see one string.
+        assert_eq!(classify("SELECT '''a;b''' AS x"), "select");
+        assert_eq!(classify("SELECT \"\"\"a;\nb\"\"\" AS x"), "select");
+        assert_eq!(
+            classify("SELECT r'a;b', b'x' FROM `p.d.t` # c ; d"),
+            "select"
+        );
+        // The MySQL profiles end the string at the inner quote: fail closed.
+        assert_eq!(classify("SELECT '''it's; fine''' AS x"), "unknown");
+        // Real second statements are caught.
+        assert_eq!(classify("SELECT 1; DROP TABLE t"), "unknown");
+        assert_eq!(classify("SELECT 1 # '\n; DROP TABLE t"), "unknown");
+        assert_eq!(classify("SELECT '''a'b''' ; DROP TABLE t"), "unknown");
+        assert_eq!(classify("DELETE FROM t WHERE TRUE"), "write");
+    }
+
+    #[test]
+    fn declared_syntax_never_relaxes_generic_drivers() {
+        // A descriptor on a generic / undeclared dialect keeps every profile.
+        let desc = SqlSyntaxDescriptor {
+            extends: Some(SqlDialect::Generic),
+            hash_comments: Some(false),
+            ..Default::default()
+        };
+        for dialect in [None, GENERIC] {
+            let caps = caps_with(dialect, Some(desc.clone()));
+            let profiles = lex_profiles_for_capabilities(Some(&caps));
+            assert_eq!(&profiles[..profiles.len() - 1], lex_profiles_for(None));
+            assert_ne!(
+                classify_query_kind_for_capabilities("SELECT 1 # '\n; DROP TABLE t", Some(&caps)),
+                "select"
+            );
+        }
     }
 }
