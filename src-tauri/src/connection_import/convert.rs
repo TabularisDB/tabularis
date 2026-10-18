@@ -4,6 +4,8 @@
 //! `SshConnection` records linked by `ssh_connection_id`; groups are matched to
 //! existing groups by name or created fresh.
 
+use std::collections::HashMap;
+
 use serde::Deserialize;
 
 use super::driver_map;
@@ -53,6 +55,7 @@ pub fn build_payload(
         ssh_connections: Vec::new(),
         k8s_connections: Vec::new(),
         tags: Vec::new(),
+        plugin_secrets: HashMap::new(),
     };
 
     // Resolve group name -> group id, reusing an existing group when the name
@@ -219,6 +222,7 @@ fn build_connection(
         id: conn_id.to_string(),
         name: conn.name.clone(),
         params,
+        plugin_secret_keys: Vec::new(),
         group_id,
         sort_order: None,
         detect_json_in_text_columns: None,

@@ -105,6 +105,7 @@ pub fn apply(
         // Carried through wholesale so any tag_ids on imported connections
         // keep resolving; the merge in apply_export_payload dedups by id.
         tags: payload.tags.clone(),
+        plugin_secrets: HashMap::new(),
     };
     let mut group_ids: HashMap<String, String> = HashMap::new();
     // Original payload group ids to preserve verbatim (with their ancestor
@@ -161,6 +162,7 @@ pub fn apply(
             original_group.clone()
         };
 
+        let source_connection_id = conn.id.clone();
         let mut new_conn = conn;
         new_conn.id = if res.action == "replace" {
             res.replace_existing_id.clone().unwrap_or_else(new_id)
@@ -169,6 +171,10 @@ pub fn apply(
         };
         new_conn.group_id = group_id;
         new_conn.sort_order = None;
+        if let Some(secrets) = payload.plugin_secrets.get(&source_connection_id) {
+            out.plugin_secrets
+                .insert(new_conn.id.clone(), secrets.clone());
+        }
 
         // Remap the linked SSH record to a fresh id so the copy doesn't share
         // (and later clobber) the original's keychain entry.
@@ -240,6 +246,7 @@ mod tests {
                 database: DatabaseSelection::Single(db.into()),
                 ..Default::default()
             },
+            plugin_secret_keys: Vec::new(),
             group_id: group_id.map(str::to_string),
             sort_order: Some(3),
             detect_json_in_text_columns: None,
@@ -268,6 +275,7 @@ mod tests {
             ssh_connections: Vec::new(),
             k8s_connections: Vec::new(),
             tags: Vec::new(),
+            plugin_secrets: HashMap::new(),
         }
     }
 

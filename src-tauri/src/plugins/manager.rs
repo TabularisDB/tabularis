@@ -8,7 +8,8 @@ use tauri::AppHandle;
 
 use crate::config::PluginConfig;
 use crate::drivers::driver_trait::{
-    DriverCapabilities, ExplainParserManifestEntry, PluginManifest, PluginSettingDefinition,
+    ConnectionFieldOverrides, DriverCapabilities, ExplainParserManifestEntry, PluginManifest,
+    PluginSettingDefinition,
 };
 use crate::models::DataTypeInfo;
 use crate::plugins::driver::RpcDriver;
@@ -91,6 +92,7 @@ pub struct ConfigManifest {
     pub ui_extensions: Option<Vec<crate::drivers::driver_trait::UIExtensionEntry>>,
     #[serde(default)]
     pub explain_parsers: Option<Vec<ExplainParserManifestEntry>>,
+    pub connection_fields: Option<ConnectionFieldOverrides>,
     /// Static type mappings for `map_inferred_type`. Keys are generic inferred
     /// types (e.g. `"DATETIME"`), values are driver-specific types (e.g. `"TIMESTAMP"`).
     #[serde(default)]
@@ -269,6 +271,7 @@ pub async fn load_plugin_from_dir(
         settings: config.settings,
         ui_extensions: config.ui_extensions,
         explain_parsers: config.explain_parsers,
+        connection_fields: config.connection_fields,
         type_mappings: config.type_mappings,
         // External plugins are not deprecated in favour of another plugin;
         // `deprecated` is a built-in-only concept stamped at registration.

@@ -2175,6 +2175,7 @@ impl PostgresDriver {
                 }],
                 ui_extensions: None,
                 explain_parsers: None,
+                connection_fields: None,
                 type_mappings: std::collections::HashMap::new(),
                 // The built-in postgres driver is deprecated in favour of the
                 // standalone `postgresql` plugin; the decision lives in the

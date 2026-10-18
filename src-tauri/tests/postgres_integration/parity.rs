@@ -308,6 +308,7 @@ fn plugin_manifest() -> PluginManifest {
         settings: vec![],
         ui_extensions: None,
         explain_parsers: None,
+        connection_fields: None,
         type_mappings: {
             let mut m = HashMap::new();
             m.insert("DATETIME".to_string(), "TIMESTAMP".to_string());

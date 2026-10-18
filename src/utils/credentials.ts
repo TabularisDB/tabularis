@@ -32,6 +32,7 @@ interface ConnectionParams {
 export interface SavedConnectionWithCredentials {
   id: string;
   name: string;
+  plugin_secret_keys?: string[];
   params: ConnectionParams;
 }
 

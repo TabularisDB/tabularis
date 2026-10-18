@@ -46,6 +46,7 @@ mod tests {
                 save_in_keychain: Some(save_in_keychain),
                 ..ConnectionParams::default()
             },
+            plugin_secret_keys: Vec::new(),
             group_id: None,
             sort_order: None,
             detect_json_in_text_columns: None,
@@ -177,5 +178,44 @@ mod tests {
             0o600
         );
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "new-secret");
+    }
+
+    #[test]
+    fn strips_plugin_secret_values_but_preserves_markers() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("connections.json");
+        let connection = SavedConnection {
+            id: "connection-1".into(),
+            name: "Plugin".into(),
+            params: ConnectionParams {
+                driver: "bigquery".into(),
+                database: crate::models::DatabaseSelection::Single("project".into()),
+                extra: [
+                    ("location".into(), "EU".into()),
+                    ("credential".into(), "private-value".into()),
+                ]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            },
+            plugin_secret_keys: vec!["credential".into()],
+            group_id: None,
+            sort_order: None,
+            detect_json_in_text_columns: None,
+            appearance: None,
+            tag_ids: None,
+            environment: None,
+        };
+        let file = ConnectionsFile {
+            connections: vec![connection],
+            ..Default::default()
+        };
+
+        save_connections_file(&path, &file).expect("save connections");
+        let stored = std::fs::read_to_string(path).expect("read connections");
+        assert!(!stored.contains("private-value"));
+        assert!(stored.contains("credential"));
+        assert!(stored.contains("location"));
+        assert!(stored.contains("EU"));
     }
 }

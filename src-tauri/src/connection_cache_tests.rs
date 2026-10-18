@@ -8,6 +8,7 @@ mod tests {
             id: id.to_string(),
             name: name.to_string(),
             params: ConnectionParams::default(),
+            plugin_secret_keys: Vec::new(),
             group_id: None,
             sort_order: None,
             detect_json_in_text_columns: None,

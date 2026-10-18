@@ -216,6 +216,7 @@ mod tests {
                 database: DatabaseSelection::Single(db.to_string()),
                 ..Default::default()
             },
+            plugin_secret_keys: Vec::new(),
             group_id: None,
             sort_order: None,
             detect_json_in_text_columns: None,

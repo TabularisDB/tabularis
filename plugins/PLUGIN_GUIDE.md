@@ -121,6 +121,7 @@ One manifest tells Tabularis everything about your plugin — and, when you publ
 | `capabilities` | object | Feature flags (see below). |
 | `data_types` | array | List of supported data types (see below). |
 | `type_mappings` | object \| null | Optional map of generic inferred type names to driver-specific types. Used during paste/import to map generic types (e.g. `DATETIME`) to driver-native equivalents (e.g. `TIMESTAMP`). See [Type Mappings](#type-mappings) below. |
+| `connection_fields` | object | Optional hide, label, and placeholder overrides for the common `host`, `port`, `username`, `password`, and `database` fields. Omitted fields preserve the standard UI. See [Connection Fields](#connection-fields) below. |
 
 ### Migrating display names
 
@@ -332,6 +333,38 @@ Since `map_inferred_type()` is a synchronous trait method that cannot issue an R
 
 ---
 
+### Connection Fields
+
+The optional `connection_fields` object adapts the host-owned inputs of the connection modal to a driver that does not use them as-is. Each of `host`, `port`, `username`, `password` and `database` accepts:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `hidden` | boolean | Hide the input for this driver. Defaults to `false`. |
+| `label` | string | Driver-specific label (max 80 characters). |
+| `placeholder` | string | Driver-specific placeholder (max 200 characters). |
+
+**Example for a cloud warehouse addressed by project id:**
+
+```json
+{
+  "connection_fields": {
+    "host": { "hidden": true },
+    "port": { "hidden": true },
+    "username": { "hidden": true },
+    "password": { "hidden": true },
+    "database": { "label": "Project ID", "placeholder": "billing-project" }
+  }
+}
+```
+
+**Rules:**
+- Overrides are presentation only: a hidden input is not rendered, but the value already saved for it is left untouched and still sent to the driver.
+- A hidden `database` input is not required on Test Connection or Save.
+- Hiding `host` also hides the "Load databases" action next to the database input.
+- Use the `connection-modal.extra_fields` slot for the inputs the driver needs instead, and `setSecretField` for credentials (see [SlotContext](#slotcontext)).
+
+---
+
 ## 3. Plugin Settings
 
 Plugins can declare custom configuration fields that Tabularis renders in the **Settings → gear icon** modal for that plugin. Users fill in the values, Tabularis persists them in `config.json`, and passes them to the plugin at startup via an `initialize` RPC call.
@@ -500,7 +533,7 @@ Add an optional `ui_extensions` array to your manifest:
 | `settings.plugin.actions` | Per-plugin actions in Settings modal | `targetPluginId` | Diagnostics, re-auth buttons |
 | `settings.plugin.before_settings` | Content above plugin settings form | `targetPluginId` | OAuth panels, status banners |
 | `connection-modal.connection_content` | Inside the connection form | `driver` | Custom connection fields |
-| `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField`, `credentialFieldsHidden`, `setCredentialFieldsHidden` | Plugin-specific connection fields (e.g. AWS region). `setCredentialFieldsHidden(true)` hides and clears the host username/password inputs for drivers that authenticate without a login; while hidden the host also ignores the login of an imported connection string and drops the stored password on save |
+| `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField`, `credentialFieldsHidden`, `setCredentialFieldsHidden`, `secretFields`, `setSecretField` | Plugin-specific connection fields (e.g. AWS region), including values stored per connection in the OS keychain. `setCredentialFieldsHidden(true)` hides and clears the host username/password inputs for drivers that authenticate without a login; while hidden the host also ignores the login of an imported connection string and drops the stored password on save |
 
 ### SlotContext
 
@@ -519,6 +552,40 @@ interface SlotContext {
   targetPluginId?: string;
 }
 ```
+
+For `connection-modal.extra_fields`, `setSecretField(key, value)` keeps the
+value out of `connections.json` and stores it under the saved connection in the
+OS keychain. Passing an empty value explicitly clears the entry. On edit,
+`secretFields[key]` exposes only `{ value, hasStoredValue, dirty }`: an existing
+secret is represented by `hasStoredValue` and is never returned to plugin UI.
+Keys are 1-64 ASCII letters, digits, `.`, `_` or `-`.
+
+At runtime the host resolves stored values into `params.extra[key]` before
+calling the driver (every RPC method, Test Connection, Load Databases and the
+MCP server), so the JSON-RPC method shapes remain backward compatible. Export
+with credentials and backups carry the values; duplicating a connection copies
+them; deleting it removes them; switching the connection to another driver
+drops them.
+
+A stored secret can be unavailable at runtime: the connections file was synced
+to a machine whose keychain does not have the entry, the keychain was reset, or
+it is locked or denies access. The host never fails the call for that. It logs
+a warning naming the key (never the value) and calls the driver with
+`params.extra[key]` unset, so the plugin must check for the value and return a
+clear error asking the user to set the credential again. Duplicating such a
+connection copies only the values that can be read, and an import skips secret
+keys with an invalid name instead of rejecting the whole file. Imported values
+are written to the keychain only after the connections file has been saved.
+
+Older Tabularis versions do not know `plugin_secret_keys` and drop it when they
+rewrite `connections.json`. After a downgrade (or with an older install sharing
+the same file) the keychain entries stay but are no longer referenced, so the
+plugin sees the secret as unset. Setting it again from the connection modal
+restores it.
+
+Both properties are optional in the public TypeScript contract. A plugin that
+also supports older hosts must guard their presence (for example by falling
+back to the host `password` input when `setSecretField` is undefined).
 
 ### Building UI Extension Bundles
 
