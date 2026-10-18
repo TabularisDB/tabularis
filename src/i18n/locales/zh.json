@@ -1519,6 +1519,7 @@
     "exporting": "导出中...",
     "rowsProcessed": "已处理行数",
     "exportLoadedRowsWarning": "仅导出了总计 {{total}} 行中的 {{loaded}} 行已加载数据。如果需要更多行，请先翻页加载结果或运行范围更窄的查询后再导出。",
+    "exportLoadedHtml": "将已加载的行导出为 HTML…",
     "queryParameters": "查询参数",
     "formatSql": "格式化 SQL",
     "selectCurrentStatement": "选择当前语句",

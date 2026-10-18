@@ -1615,6 +1615,7 @@
     "exporting": "Exporting...",
     "rowsProcessed": "Rows Processed",
     "exportLoadedRowsWarning": "Only {{loaded}} loaded rows were exported out of {{total}} total rows. Page through the result or run a narrower query before exporting if you need more rows.",
+    "exportLoadedHtml": "Export loaded rows as HTML…",
     "queryParameters": "Query Parameters",
     "formatSql": "Format SQL",
     "selectCurrentStatement": "Select current statement",

@@ -1605,6 +1605,7 @@
     "exporting": "Esportazione in corso...",
     "rowsProcessed": "Righe processate",
     "exportLoadedRowsWarning": "Sono state esportate solo {{loaded}} righe caricate su {{total}} righe totali. Scorri le pagine del risultato o esegui una query più mirata prima di esportare se ti servono più righe.",
+    "exportLoadedHtml": "Esporta righe caricate come HTML…",
     "queryParameters": "Parametri Query",
     "formatSql": "Formatta SQL",
     "selectCurrentStatement": "Seleziona istruzione corrente",

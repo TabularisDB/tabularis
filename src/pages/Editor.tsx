@@ -689,8 +689,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     [activeTab?.activeResultId, activeTab?.results],
   );
   const activeExportResult = activeResultEntry?.result ?? activeTab?.result;
+  // A header-only grid can still be saved as HTML. CSV, JSON and Markdown
+  // stay disabled then: with no loaded rows those actions re-run the query.
+  const hasLoadedExportRows = (activeExportResult?.rows.length ?? 0) > 0;
   const canExportActiveResult =
-    !!activeExportResult && activeExportResult.rows.length > 0;
+    hasLoadedExportRows || (activeExportResult?.columns.length ?? 0) > 0;
 
   const activeTabFlatDatabase = isMultiDb
     ? resolveFlatMultiDbTabDatabase(activeTab, selectedDatabases)
@@ -4350,6 +4353,57 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const handleExportJSON = () => handleExportCommon("json");
   const handleExportMarkdown = () => handleExportCommon("markdown");
 
+  // Writes the grid already on screen. Never calls the streaming exporter.
+  const handleExportHtml = async () => {
+    if (!activeTab || !activeConnectionId || !activeExportResult) return;
+
+    try {
+      const loadedRowsLimit = getLoadedRowsExportLimit(activeExportResult);
+      const warningMessage = loadedRowsLimit
+        ? t("editor.exportLoadedRowsWarning", {
+            loaded: loadedRowsLimit.loadedRows.toLocaleString(),
+            total: loadedRowsLimit.totalRows.toLocaleString(),
+          })
+        : undefined;
+
+      const filePath = await saveFileDialog({
+        filters: [{ name: "HTML", extensions: ["html"] }],
+        defaultPath: buildExportFileName({
+          tableName: activeTab.type === "table" ? activeTab.activeTable : null,
+          extension: "html",
+        }),
+      });
+
+      if (!filePath) return;
+
+      setExportState({
+        isOpen: true,
+        status: "exporting",
+        rowsProcessed: activeExportResult.rows.length,
+        fileName: filePath.split(/[/\\]/).pop() || filePath,
+        errorMessage: undefined,
+        warningMessage,
+      });
+      setExportMenuOpen(false);
+
+      await writeTextFile(
+        filePath,
+        formatResultForExport(activeExportResult, "html"),
+      );
+
+      setExportState((prev) => ({
+        ...prev,
+        status: "completed",
+      }));
+    } catch (e) {
+      setExportState((prev) => ({
+        ...prev,
+        status: "error",
+        errorMessage: String(e),
+      }));
+    }
+  };
+
   const handleRunDropdownToggle = useCallback(() => {
     if (!isRunDropdownOpen) {
       // Monaco Editor: split queries from editor
@@ -4969,34 +5023,50 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           {exportMenuOpen && (
             <div
               role="menu"
-              className="absolute top-full right-0 mt-1 w-44 max-w-[calc(100cqw-1rem)] bg-elevated border border-strong rounded-md shadow-xl z-50 flex flex-col py-1 overflow-hidden"
+              className="absolute top-full right-0 mt-1 min-w-44 w-max max-w-[calc(100cqw-1rem)] bg-elevated border border-strong rounded-md shadow-xl z-50 flex flex-col py-1 overflow-hidden"
             >
               <button
+                type="button"
                 role="menuitem"
                 onClick={handleExportCSV}
-                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors"
+                disabled={!hasLoadedExportRows}
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-accent-primary/15 enabled:hover:text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <FileText size={14} className="shrink-0 opacity-80" />
                 <span className="flex-1">CSV</span>
                 <span className="text-xs text-muted">.csv</span>
               </button>
               <button
+                type="button"
                 role="menuitem"
                 onClick={handleExportJSON}
-                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors"
+                disabled={!hasLoadedExportRows}
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-accent-primary/15 enabled:hover:text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <FileJson size={14} className="shrink-0 opacity-80" />
                 <span className="flex-1">JSON</span>
                 <span className="text-xs text-muted">.json</span>
               </button>
               <button
+                type="button"
                 role="menuitem"
                 onClick={handleExportMarkdown}
-                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors"
+                disabled={!hasLoadedExportRows}
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-accent-primary/15 enabled:hover:text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <FileText size={14} className="shrink-0 opacity-80" />
                 <span className="flex-1">Markdown</span>
                 <span className="text-xs text-muted">.md</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleExportHtml}
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+              >
+                <FileCode size={14} className="shrink-0 opacity-80" />
+                <span className="flex-1">{t("editor.exportLoadedHtml")}</span>
+                <span className="text-xs text-muted">.html</span>
               </button>
             </div>
           )}
