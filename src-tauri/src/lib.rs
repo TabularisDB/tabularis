@@ -67,6 +67,7 @@ pub mod sandbox_tests;
 pub mod k8s_tunnel;
 pub mod log_commands;
 pub mod logger;
+pub mod managed;
 pub mod mcp;
 pub mod models;
 #[cfg(test)]
@@ -301,6 +302,15 @@ pub fn run() {
         .manage(results_window::ResultsWindowStore::default())
         .manage(window_placement::WindowPlacementCache::default())
         .manage(query_history::QueryHistoryState::default())
+        .manage(team_share::TeamShareState::default())
+        // The sources that own managed connections (see `managed`). Core only
+        // ever reaches the team share through this registry.
+        .manage(
+            managed::ManagedRegistry::<tauri::Wry>::default().with(
+                team_share::SOURCE_ID,
+                std::sync::Arc::new(team_share::TeamShareSource),
+            ),
+        )
         .setup(move |app| {
             #[cfg(target_os = "linux")]
             system_theme::watch(app.handle().clone());
@@ -652,6 +662,13 @@ pub fn run() {
             storage_location::reset_storage_location,
             storage_location::open_storage_location,
             storage_location::get_app_data_dir,
+            team_share::get_team_share_status,
+            team_share::setup_team_share,
+            team_share::unlock_team_share,
+            team_share::lock_team_share,
+            team_share::sync_team_share,
+            team_share::disable_team_share,
+            team_share::set_connections_shared,
             config::set_ai_key,
             config::delete_ai_key,
             config::check_ai_key,

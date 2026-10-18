@@ -226,7 +226,17 @@ pub async fn set_connection_tags<R: Runtime>(
     let path = get_config_path(&app)?;
     let mut file = persistence::load_connections_file(&path)?;
     set_connection_tags_impl(&mut file, &connection_id, &tag_ids)?;
-    save_connections_and_invalidate(&app, &path, &file)
+    save_connections_and_invalidate(&app, &path, &file)?;
+    // Tags may travel with a managed connection (they do in the team share),
+    // so its source hears about this now rather than at the next sync.
+    crate::managed::notify_managed_change(
+        &app,
+        crate::managed::connection_manager(&file, &connection_id).as_deref(),
+        crate::managed::ManagedKind::Connection,
+        &connection_id,
+        crate::managed::ManagedChange::Saved { secrets: None },
+    );
+    Ok(())
 }
 
 #[cfg(test)]
@@ -245,6 +255,7 @@ mod tests {
             appearance: None,
             tag_ids: tag_ids.map(|v| v.iter().map(|s| s.to_string()).collect()),
             environment: None,
+            managed_by: None,
         }
     }
 
