@@ -62,6 +62,7 @@ export function quoteSqlString(value: string, driver: DriverRef): string {
 function escapeBackslashString(value: string): string {
   return value
     .replace(/[\\']/g, (ch) => `\\${ch}`)
+    .replace(/\0/g, "\\0")
     .replace(/\n/g, "\\n")
     .replace(/\r/g, "\\r");
 }

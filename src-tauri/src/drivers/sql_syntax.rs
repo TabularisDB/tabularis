@@ -107,7 +107,7 @@ impl QuoteRule {
 pub enum StringEscape {
     /// A quote is doubled; a backslash is plain text.
     Standard,
-    /// Quote, backslash and line breaks are backslash-escaped; no doubling.
+    /// Quote, backslash, NUL and line breaks are backslash-escaped; no doubling.
     Backslash,
 }
 
@@ -349,7 +349,7 @@ pub enum LiteralStyle {
     /// `'it''s'` with backslashes doubled and NUL as `\0` (MySQL default
     /// `sql_mode`, where `\` is an escape character).
     Mysql,
-    /// `'it\'s'`: quote, backslash, CR and LF are backslash-escaped.
+    /// `'it\'s'`: quote, backslash, NUL (`\0`), CR and LF are backslash-escaped.
     Backslash,
 }
 
@@ -489,10 +489,7 @@ impl SqlSyntax {
             }
         }
         if let Some(escape) = desc.string_escape {
-            syntax.string_escape = match escape {
-                StringEscape::Standard => LiteralStyle::Standard,
-                StringEscape::Backslash => LiteralStyle::Backslash,
-            };
+            syntax.string_escape = declared_string_escape(escape, syntax.string_escape);
         }
         syntax
     }
@@ -505,6 +502,25 @@ impl SqlSyntax {
     /// Whether a backslash escapes inside the quote opening with `open`.
     pub fn backslash_in(&self, open: &str) -> bool {
         self.quote(open).is_some_and(|q| q.escape.backslash())
+    }
+}
+
+/// The literal style a declared `string_escape` resolves to on top of the
+/// preset's `base` style. A declaration never weakens the base: on the
+/// `mysql` preset a backslash is an escape character on the engine, so
+/// `standard` (backslashes left as is) would let a value ending in `\`
+/// swallow its closing quote. That override is ignored with a warning;
+/// `backslash` escapes backslashes too and is kept.
+fn declared_string_escape(declared: StringEscape, base: LiteralStyle) -> LiteralStyle {
+    match (declared, base) {
+        (StringEscape::Standard, LiteralStyle::Mysql) => {
+            log::warn!(
+                "Ignoring sql_syntax.string_escape \"standard\": the mysql preset needs backslashes escaped"
+            );
+            base
+        }
+        (StringEscape::Standard, _) => LiteralStyle::Standard,
+        (StringEscape::Backslash, _) => LiteralStyle::Backslash,
     }
 }
 
@@ -524,6 +540,7 @@ pub fn quote_string_literal(value: &str, style: LiteralStyle) -> String {
             value
                 .replace('\\', "\\\\")
                 .replace('\'', "\\'")
+                .replace('\0', "\\0")
                 .replace('\n', "\\n")
                 .replace('\r', "\\r")
         ),

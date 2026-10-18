@@ -36,7 +36,9 @@ describe("sqlLiteral", () => {
         ...caps("mysql"),
         sql_syntax: { string_escape: "standard" },
       } as DriverCapabilities;
-      expect(stringEscapeStyle(standardMysql)).toBe("standard");
+      // "standard" would stop doubling backslashes on a MySQL engine: the
+      // mysql preset's style is kept.
+      expect(stringEscapeStyle(standardMysql)).toBe("mysql");
       // An invalid value keeps the preset's style.
       const invalid = { ...caps("mysql"), sql_syntax: { string_escape: "mysql" } } as never;
       expect(stringEscapeStyle(invalid)).toBe("mysql");
@@ -74,6 +76,10 @@ describe("sqlLiteral", () => {
       expect(quoteSqlStringWithStyle("a'\\", "backslash")).toBe("'a\\'\\\\'");
     });
 
+    it("writes NUL as \\0 in a backslash syntax", () => {
+      expect(quoteSqlStringWithStyle("a\0b", "backslash")).toBe("'a\\0b'");
+      expect(quoteSqlStringWithStyle("\\\0", "backslash")).toBe("'\\\\\\0'");
+    });
   });
 
   describe("supportsLikeEscape", () => {

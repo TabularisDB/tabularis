@@ -274,7 +274,7 @@
                 "standard",
                 "backslash"
               ],
-              "description": "How generated string literals are escaped: standard ('') or backslash (\\')."
+              "description": "How generated string literals are escaped: standard ('') or backslash (\\'). On a mysql base, standard is ignored (backslashes stay escaped)."
             },
             "like_escape": {
               "type": "boolean",

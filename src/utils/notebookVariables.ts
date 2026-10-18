@@ -144,7 +144,7 @@ export interface ResolveVariablesOptions {
   /** Double backslashes in string literals (MySQL/MariaDB dialects). */
   escapeBackslashes?: boolean;
   /**
-   * Backslash-escape quotes, backslashes and line breaks instead of doubling
+   * Backslash-escape quotes, backslashes, NUL and line breaks instead of doubling
    * quotes: a declared `sql_syntax.string_escape: "backslash"` (GoogleSQL).
    * Takes precedence over `escapeBackslashes`.
    */

@@ -538,21 +538,49 @@ fn declared_backslash_escape_writes_googlesql_literals() {
 }
 
 #[test]
-fn declared_standard_escape_overrides_the_mysql_preset() {
-    let mut caps = DriverCapabilities {
+fn declared_standard_escape_cannot_weaken_the_mysql_preset() {
+    // A mysql base (sql_dialect, or extends) keeps doubling backslashes even
+    // when the descriptor declares "standard": the engine still reads `\`
+    // as an escape character.
+    let standard = || {
+        Some(crate::drivers::sql_syntax::SqlSyntaxDescriptor {
+            string_escape: Some(crate::drivers::sql_syntax::StringEscape::Standard),
+            ..Default::default()
+        })
+    };
+    let via_dialect = DriverCapabilities {
         sql_dialect: Some(SqlDialect::Mysql),
+        sql_syntax: standard(),
+        ..Default::default()
+    };
+    let via_extends = DriverCapabilities {
+        sql_syntax: Some(crate::drivers::sql_syntax::SqlSyntaxDescriptor {
+            extends: Some(SqlDialect::Mysql),
+            string_escape: Some(crate::drivers::sql_syntax::StringEscape::Standard),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    for caps in [via_dialect, via_extends] {
+        let dialect = DumpDialect::from_capabilities("plugin", &caps);
+        assert_eq!(dialect.escape_value(json!("a\\b")), "'a\\\\b'");
+        assert_eq!(dialect.escape_value(json!("a\u{0}b")), "'a\\0b'");
+    }
+    // On a standard base, "standard" is honoured.
+    let generic = DriverCapabilities {
+        sql_dialect: Some(SqlDialect::Generic),
+        sql_syntax: standard(),
         ..Default::default()
     };
     assert_eq!(
-        DumpDialect::from_capabilities("plugin", &caps).escape_value(json!("a\\b")),
-        "'a\\\\b'"
-    );
-    caps.sql_syntax = Some(crate::drivers::sql_syntax::SqlSyntaxDescriptor {
-        string_escape: Some(crate::drivers::sql_syntax::StringEscape::Standard),
-        ..Default::default()
-    });
-    assert_eq!(
-        DumpDialect::from_capabilities("plugin", &caps).escape_value(json!("a\\b")),
+        DumpDialect::from_capabilities("plugin", &generic).escape_value(json!("a\\b")),
         "'a\\b'"
     );
+}
+
+#[test]
+fn declared_backslash_escape_writes_nul_as_an_escape() {
+    let caps = crate::drivers::sql_syntax_tests::googlesql_capabilities();
+    let dialect = DumpDialect::from_capabilities("bigquery", &caps);
+    assert_eq!(dialect.escape_value(json!("a\u{0}b")), "'a\\0b'");
 }

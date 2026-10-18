@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { supportedDialects } from "sql-formatter";
 import type { DriverCapabilities } from "../../src/types/plugins";
 import {
@@ -171,6 +171,33 @@ describe("sqlSyntax", () => {
       );
       expect(syntax.dialect).toBe("sqlite");
       expect(syntax.options).toEqual({ ...dialectOptions("sqlite"), hashComments: true });
+    });
+
+    it("never weakens the mysql preset's literal escaping", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const viaExtends = resolveSqlSyntax(
+          caps({ sql_syntax: { extends: "mysql", string_escape: "standard" } }),
+        );
+        expect(viaExtends.stringEscape).toBe("mysql");
+        const viaDialect = resolveSqlSyntax(
+          caps({ sql_dialect: "mysql", sql_syntax: { string_escape: "standard" } }),
+        );
+        expect(viaDialect.stringEscape).toBe("mysql");
+        expect(warn).toHaveBeenCalled();
+        // "backslash" escapes backslashes too, so it is kept.
+        expect(
+          resolveSqlSyntax(caps({ sql_dialect: "mysql", sql_syntax: { string_escape: "backslash" } }))
+            .stringEscape,
+        ).toBe("backslash");
+        // A standard base can still declare standard.
+        expect(
+          resolveSqlSyntax(caps({ sql_dialect: "postgres", sql_syntax: { string_escape: "standard" } }))
+            .stringEscape,
+        ).toBe("standard");
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     it("drops invalid fields one by one", () => {

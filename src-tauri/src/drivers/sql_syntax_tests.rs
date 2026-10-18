@@ -152,7 +152,48 @@ fn extends_defaults_to_sql_dialect() {
     assert_eq!(syntax.dialect, Some(SqlDialect::Mysql));
     assert!(syntax.hash_comments);
     assert!(syntax.executable_comments);
-    assert_eq!(syntax.string_escape, LiteralStyle::Standard);
+    // "standard" would stop doubling backslashes on a MySQL engine, so the
+    // preset's style is kept.
+    assert_eq!(syntax.string_escape, LiteralStyle::Mysql);
+}
+
+#[test]
+fn string_escape_never_weakens_the_mysql_preset() {
+    let via_extends = capabilities_from(json!({
+        "sql_syntax": { "extends": "mysql", "string_escape": "standard" }
+    }));
+    assert_eq!(
+        SqlSyntax::resolve(&via_extends).string_escape,
+        LiteralStyle::Mysql
+    );
+    // "backslash" escapes backslashes as well, so it is kept.
+    let backslash = capabilities_from(json!({
+        "sql_dialect": "mysql",
+        "sql_syntax": { "string_escape": "backslash" }
+    }));
+    assert_eq!(
+        SqlSyntax::resolve(&backslash).string_escape,
+        LiteralStyle::Backslash
+    );
+    // On a standard preset "standard" is not a weakening.
+    let postgres = capabilities_from(json!({
+        "sql_dialect": "postgres",
+        "sql_syntax": { "string_escape": "standard" }
+    }));
+    assert_eq!(
+        SqlSyntax::resolve(&postgres).string_escape,
+        LiteralStyle::Standard
+    );
+    // An extends that overrides a mysql sql_dialect is judged on its own
+    // preset.
+    let sqlite_over_mysql = capabilities_from(json!({
+        "sql_dialect": "mysql",
+        "sql_syntax": { "extends": "sqlite", "string_escape": "standard" }
+    }));
+    assert_eq!(
+        SqlSyntax::resolve(&sqlite_over_mysql).string_escape,
+        LiteralStyle::Standard
+    );
 }
 
 #[test]
@@ -288,7 +329,7 @@ fn quote_string_literal_follows_the_style() {
     );
     assert_eq!(
         quote_string_literal(value, LiteralStyle::Backslash),
-        "'O\\'Brien \\\\ a\\r\\nb\0'"
+        "'O\\'Brien \\\\ a\\r\\nb\\0'"
     );
 }
 

@@ -122,7 +122,7 @@ impl DumpDialect {
     /// literally, so doubling them there would corrupt the data instead; only
     /// the single quote needs escaping. A driver declaring
     /// `string_escape: "backslash"` (GoogleSQL) has no doubled-quote escape,
-    /// so quote, backslash and line breaks are backslash-escaped.
+    /// so quote, backslash, NUL and line breaks are backslash-escaped.
     pub fn escape_string(&self, s: &str) -> String {
         quote_string_literal(s, self.string_escape)
     }

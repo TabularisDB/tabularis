@@ -22,7 +22,7 @@ import {
  *   literal backslash is doubled too (the `mysql` preset: MySQL/MariaDB
  *   default sql_mode).
  * - `backslash`: no doubled-quote escape and no raw newline in a literal, so
- *   quote, backslash and line breaks are backslash-escaped (`'O\'Brien'`).
+ *   quote, backslash, NUL and line breaks are backslash-escaped (`'O\'Brien'`).
  *   Declared with `sql_syntax.string_escape: "backslash"` (GoogleSQL).
  */
 export type StringEscapeStyle = "standard" | "mysql" | "backslash";
@@ -157,6 +157,27 @@ export function resolveSqlSyntax(
   return syntax;
 }
 
+/**
+ * The literal style a descriptor's `string_escape` resolves to. A declared
+ * style never weakens the base preset's: on a `mysql` base a backslash is an
+ * escape character on the engine, so `"standard"` (backslashes left as is)
+ * would let a value ending in `\` swallow its closing quote. That override
+ * is ignored with a warning; `"backslash"` escapes backslashes too and is kept.
+ */
+function declaredStringEscape(
+  declared: unknown,
+  base: StringEscapeStyle,
+): StringEscapeStyle {
+  if (declared !== "standard" && declared !== "backslash") return base;
+  if (declared === "standard" && base === "mysql") {
+    console.warn(
+      'Ignoring sql_syntax.string_escape "standard": the mysql preset needs backslashes escaped',
+    );
+    return base;
+  }
+  return declared;
+}
+
 // The backend validates the descriptor when it loads the manifest and logs
 // what it drops; these checks keep the frontend safe on their own and drop
 // an invalid field silently, keeping the preset's rule.
@@ -183,10 +204,7 @@ function applyDescriptor(
     scriptBlocks: flag(descriptor.script_blocks, preset.scriptBlocks),
     dollarQuoting: flag(descriptor.dollar_quoting, preset.dollarQuoting),
   };
-  const stringEscape =
-    descriptor.string_escape === "standard" || descriptor.string_escape === "backslash"
-      ? descriptor.string_escape
-      : base.stringEscape;
+  const stringEscape = declaredStringEscape(descriptor.string_escape, base.stringEscape);
   const formatter = SQL_SYNTAX_FORMATTERS.find((f) => f === descriptor.formatter);
   return {
     dialect: base.dialect,
