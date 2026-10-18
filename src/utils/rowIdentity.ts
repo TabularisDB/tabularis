@@ -31,6 +31,10 @@ const APPROXIMATE_NUMERIC_TYPES = new Set([
 	"double",
 	"double precision",
 	"real",
+	"float32",
+	"float64",
+	"binary_float",
+	"binary_double",
 ]);
 
 function isApproximateNumericType(dataType: string): boolean {
@@ -43,9 +47,27 @@ function isApproximateNumericType(dataType: string): boolean {
 }
 
 /**
+ * Composite and semi-structured types: records/structs, arrays, maps, ranges
+ * and document-like values. The grid shows a serialized form (usually JSON),
+ * which cannot be compared with `=` against the stored value, and several
+ * engines reject equality on these types altogether.
+ */
+const STRUCTURED_TYPE_PREFIX = /^(struct|array|map|row|record|range|tuple|nested)\b/;
+const STRUCTURED_TYPE_NAMES = new Set(["variant", "object", "super"]);
+
+function isStructuredType(dataType: string): boolean {
+	const normalized = dataType.toLowerCase().trim();
+	return (
+		STRUCTURED_TYPE_PREFIX.test(normalized) ||
+		STRUCTURED_TYPE_NAMES.has(normalized) ||
+		normalized.endsWith("[]")
+	);
+}
+
+/**
  * Returns true when a column's value can be safely compared with `=` (or
- * `IS NULL`) in a WHERE clause. Binary, geometric, JSON, hstore and
- * floating-point columns are excluded: the grid holds display/wire
+ * `IS NULL`) in a WHERE clause. Binary, geometric, JSON, hstore, structured
+ * (struct/array/map/record) and floating-point columns are excluded: the grid holds display/wire
  * representations of their values, which would not match the stored value in
  * an equality comparison.
  */
@@ -55,6 +77,7 @@ export function isComparableColumn(column: TableColumn): boolean {
 		!isGeometricType(column.data_type) &&
 		!isJsonColumn(column.data_type) &&
 		!isHstoreColumn(column.data_type) &&
+		!isStructuredType(column.data_type) &&
 		!isApproximateNumericType(column.data_type)
 	);
 }
