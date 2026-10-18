@@ -153,7 +153,10 @@ export type DangerousQueryKind = 'no-where' | 'drop' | 'truncate';
 // comments, string literals, and data-modifying CTEs.
 export const classifyDangerousQuery = (sql: string): DangerousQueryKind | null => {
   const cleaned = stripCommentsAndLiterals(sql);
-  let keyword = leadingKeyword(cleaned);
+  // The dialect is unknown here. No dialect can start a statement with `#`,
+  // so when nothing else precedes the keyword, read a leading `#` line as the
+  // MySQL comment it would be rather than letting it hide a DROP.
+  let keyword = leadingKeyword(cleaned) || leadingKeyword(cleaned, { hashComments: true });
   if (keyword === 'WITH') {
     keyword = finalCteStatementKeyword(cleaned) ?? keyword;
   }

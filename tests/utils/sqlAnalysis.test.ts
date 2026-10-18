@@ -282,6 +282,12 @@ WHERE id = 1`;
   });
 
   describe('classifyDangerousQuery', () => {
+    it('sees a DROP behind a leading # comment (MySQL)', () => {
+      expect(classifyDangerousQuery('# cleanup\nDROP TABLE users')).toBe('drop');
+      expect(classifyDangerousQuery('# cleanup\nDELETE FROM users')).toBe('no-where');
+      expect(classifyDangerousQuery('# note\nSELECT 1')).toBeNull();
+    });
+
     it('classifies DELETE/UPDATE without a WHERE as no-where', () => {
       expect(classifyDangerousQuery('DELETE FROM users')).toBe('no-where');
       expect(classifyDangerousQuery('UPDATE users SET active = 0')).toBe('no-where');
