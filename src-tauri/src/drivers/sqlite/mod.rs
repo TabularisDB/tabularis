@@ -1063,6 +1063,7 @@ impl SqliteDriver {
                     inline_pk: true,
                     table_query_templates: false,
                     column_comments: false,
+                    drop_table_sql: false,
                     alter_column: false,
                     create_foreign_keys: false,
                     no_connection_required: false,

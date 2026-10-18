@@ -125,6 +125,11 @@
           "default": false,
           "description": "The DDL builder RPCs honour ColumnDefinition.comment, so the column editor shows a description field."
         },
+        "drop_table_sql": {
+          "type": "boolean",
+          "default": false,
+          "description": "The explorer's Drop table action asks the optional get_drop_table_sql RPC for the statement. Without it the generic DROP TABLE is used and the RPC is never called."
+        },
         "no_connection_required": {
           "type": "boolean",
           "description": "API-based driver with no host/port/credentials. Hides the connection form entirely."

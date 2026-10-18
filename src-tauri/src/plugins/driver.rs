@@ -48,6 +48,18 @@ fn is_method_not_found(err: &PluginCallError) -> bool {
     }
 }
 
+/// JSON type name of `value`, for log messages about unexpected RPC results.
+fn json_kind(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
+
 /// Read an `execute_query` response in either supported shape.
 ///
 /// A plugin written before session pinning answers with the `QueryResult`
@@ -1624,15 +1636,20 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
-    /// Optional RPC: a -32601 (or a `null` result) keeps the host's generic
-    /// `DROP TABLE`. `database` is the browsed database, also present in
-    /// `params.database`, sent on its own for convenience.
+    /// Optional RPC, only called when the manifest declares
+    /// `capabilities.drop_table_sql`. A -32601, a `null`/blank result or any
+    /// non-string result keeps the host's generic `DROP TABLE`. `database` is
+    /// the browsed database, also present in `params.database`, sent on its
+    /// own for convenience.
     async fn get_drop_table_sql(
         &self,
         params: &ConnectionParams,
         table: &str,
         schema: Option<&str>,
     ) -> Result<Option<String>, String> {
+        if !self.manifest.capabilities.drop_table_sql {
+            return Ok(None);
+        }
         let params = self.with_primary_database(params);
         let database = params.database.primary().to_string();
         let res = self
@@ -1648,9 +1665,16 @@ impl DatabaseDriver for RpcDriver {
             )
             .await;
         match res {
-            Ok(value) => serde_json::from_value::<Option<String>>(value)
-                .map(|sql| sql.filter(|s| !s.trim().is_empty()))
-                .map_err(|e| format!("Invalid drop table statement: {e}")),
+            Ok(Value::String(sql)) => Ok(Some(sql).filter(|s| !s.trim().is_empty())),
+            Ok(Value::Null) => Ok(None),
+            Ok(other) => {
+                log::warn!(
+                    "Plugin '{}' returned a non-string get_drop_table_sql result ({}); using the generic DROP TABLE",
+                    self.manifest.id,
+                    json_kind(&other)
+                );
+                Ok(None)
+            }
             Err(e) if is_method_not_found(&e) => Ok(None),
             Err(e) => Err(e.to_string()),
         }

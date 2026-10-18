@@ -2143,6 +2143,7 @@ impl PostgresDriver {
                     inline_pk: false,
                     table_query_templates: false,
                     column_comments: false,
+                    drop_table_sql: false,
                     alter_column: true,
                     create_foreign_keys: true,
                     no_connection_required: false,

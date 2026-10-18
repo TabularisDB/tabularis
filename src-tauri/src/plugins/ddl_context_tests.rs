@@ -153,16 +153,54 @@ fn method_not_found(method: &str) -> PluginCallError {
     })
 }
 
+/// A plugin that declared `capabilities.drop_table_sql`.
+fn opted_in(mut driver: RpcDriver) -> RpcDriver {
+    driver.manifest.capabilities.drop_table_sql = true;
+    driver
+}
+
+#[test]
+fn drop_table_sql_capability_is_opt_in_and_omitted_when_false() {
+    use crate::drivers::driver_trait::DriverCapabilities;
+    let legacy = json!({ "schemas": true, "views": true, "routines": false, "file_based": false });
+    let capabilities: DriverCapabilities = serde_json::from_value(legacy.clone()).unwrap();
+    assert!(!capabilities.drop_table_sql);
+    assert!(serde_json::to_value(&capabilities)
+        .unwrap()
+        .get("drop_table_sql")
+        .is_none());
+    let mut enabled = legacy;
+    enabled["drop_table_sql"] = json!(true);
+    let capabilities: DriverCapabilities = serde_json::from_value(enabled).unwrap();
+    assert!(capabilities.drop_table_sql);
+    assert_eq!(
+        serde_json::to_value(capabilities).unwrap()["drop_table_sql"],
+        json!(true)
+    );
+}
+
+#[tokio::test]
+async fn drop_table_sql_is_never_called_without_the_capability() {
+    // Legacy plugins may answer unknown methods with a generic error or an
+    // empty array; they must keep the generic DROP TABLE.
+    let driver = test_driver(|request| panic!("unexpected RPC {}", request.method));
+    let sql = driver
+        .get_drop_table_sql(&browsed_params(), "t", Some("s"))
+        .await
+        .unwrap();
+    assert_eq!(sql, None);
+}
+
 #[tokio::test]
 async fn drop_table_sql_forwards_table_schema_database_and_params() {
-    let driver = test_driver(|request| {
+    let driver = opted_in(test_driver(|request| {
         assert_eq!(request.method, "get_drop_table_sql");
         assert_eq!(request.params["table"], "daily_snapshot");
         assert_eq!(request.params["schema"], "sales");
         assert_eq!(request.params["database"], "analytics-project");
         assert_bound(&request);
         json!("DROP SNAPSHOT TABLE `analytics-project.sales.daily_snapshot`")
-    });
+    }));
     let sql = driver
         .get_drop_table_sql(&browsed_params(), "daily_snapshot", Some("sales"))
         .await
@@ -175,7 +213,9 @@ async fn drop_table_sql_forwards_table_schema_database_and_params() {
 
 #[tokio::test]
 async fn drop_table_sql_falls_back_when_plugin_lacks_the_rpc() {
-    let driver = test_driver_detailed(|request| Err(method_not_found(&request.method)));
+    let driver = opted_in(test_driver_detailed(|request| {
+        Err(method_not_found(&request.method))
+    }));
     let sql = driver
         .get_drop_table_sql(&browsed_params(), "t", None)
         .await
@@ -184,9 +224,16 @@ async fn drop_table_sql_falls_back_when_plugin_lacks_the_rpc() {
 }
 
 #[tokio::test]
-async fn drop_table_sql_treats_null_or_blank_results_as_fallback() {
-    for reply in [json!(null), json!("   ")] {
-        let driver = test_driver(move |_| reply.clone());
+async fn drop_table_sql_treats_null_blank_or_non_string_results_as_fallback() {
+    for reply in [
+        json!(null),
+        json!("   "),
+        json!([]),
+        json!({}),
+        json!(42),
+        json!(true),
+    ] {
+        let driver = opted_in(test_driver(move |_| reply.clone()));
         let sql = driver
             .get_drop_table_sql(&browsed_params(), "t", None)
             .await
@@ -197,12 +244,12 @@ async fn drop_table_sql_treats_null_or_blank_results_as_fallback() {
 
 #[tokio::test]
 async fn drop_table_sql_surfaces_other_plugin_errors() {
-    let driver = test_driver_detailed(|_| {
+    let driver = opted_in(test_driver_detailed(|_| {
         Err(PluginCallError::Remote(crate::plugins::rpc::JsonRpcError {
             code: -32000,
             message: "table not found".into(),
         }))
-    });
+    }));
     let err = driver
         .get_drop_table_sql(&browsed_params(), "t", None)
         .await

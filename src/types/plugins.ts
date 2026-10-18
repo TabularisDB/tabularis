@@ -55,6 +55,8 @@ export interface DriverCapabilities {
   table_query_templates?: boolean;
   /** DDL builders honour ColumnDefinition.comment; shows the column description field. Defaults to false. */
   column_comments?: boolean;
+  /** Opts the explorer's Drop table action into the optional get_drop_table_sql RPC. Defaults to false. */
+  drop_table_sql?: boolean;
   // DDL capabilities (optional, default to false when not present)
   alter_column?: boolean;
   create_foreign_keys?: boolean;

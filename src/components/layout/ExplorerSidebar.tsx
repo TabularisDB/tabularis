@@ -3,7 +3,7 @@ import { copyTextToClipboard } from "../../utils/clipboard";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { quoteIdentifier } from "../../utils/identifiers";
-import { resolveDropTableSql } from "../../utils/dropTable";
+import { buildDropTableSql } from "../../utils/dropTable";
 import { formatObjectNameForCopy, type ObjectNameCopyFormat } from "../../utils/objectNameCopy";
 import { isPostgresDriver, triggerFunctionName } from "../../utils/triggerSql";
 import { invoke } from "@tauri-apps/api/core";
@@ -2478,15 +2478,22 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           )
                         ) {
                           try {
-                            const pluginDropSql = await invoke<string | null>("get_drop_table_sql", {
-                              connectionId: activeConnectionId,
-                              table: contextMenu.id,
-                              ...(ctxSchema ? { schema: ctxSchema } : {}),
-                              ...(ctxDatabase ? { database: ctxDatabase } : {}),
-                            });
+                            const dropSql = await buildDropTableSql(
+                              activeCapabilities,
+                              () =>
+                                invoke<unknown>("get_drop_table_sql", {
+                                  connectionId: activeConnectionId,
+                                  table: contextMenu.id,
+                                  ...(ctxSchema ? { schema: ctxSchema } : {}),
+                                  ...(ctxDatabase ? { database: ctxDatabase } : {}),
+                                }),
+                              contextMenu.id,
+                              activeCapabilities ?? activeDriver,
+                              ctxSchema,
+                            );
                             await invoke("execute_query", {
                               connectionId: activeConnectionId,
-                              query: resolveDropTableSql(pluginDropSql, contextMenu.id, activeCapabilities ?? activeDriver, ctxSchema),
+                              query: dropSql,
                               ...(ctxSchema ? { schema: ctxSchema } : {}),
                               ...(ctxDatabase ? { database: ctxDatabase } : {}),
                             });

@@ -6753,8 +6753,9 @@ pub async fn get_create_foreign_key_sql<R: Runtime>(
 }
 
 /// Plugin-provided statement for dropping a table, or `None` to let the
-/// explorer build its generic `DROP TABLE`. Built-in drivers always return
-/// `None` without resolving credentials.
+/// explorer build its generic `DROP TABLE`. Only plugins declaring
+/// `capabilities.drop_table_sql` are asked; every other driver (built-ins
+/// included) returns `None` without resolving credentials or params.
 #[tauri::command]
 pub async fn get_drop_table_sql<R: Runtime>(
     app: AppHandle<R>,
@@ -6764,11 +6765,8 @@ pub async fn get_drop_table_sql<R: Runtime>(
     database: Option<String>,
 ) -> Result<Option<String>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    if driver_for(&saved_conn.params.driver)
-        .await?
-        .manifest()
-        .is_builtin
-    {
+    let driver = driver_for(&saved_conn.params.driver).await?;
+    if driver.manifest().is_builtin || !driver.manifest().capabilities.drop_table_sql {
         return Ok(None);
     }
     let (drv, params) = ddl_driver_for_saved(&app, &saved_conn, database).await?;

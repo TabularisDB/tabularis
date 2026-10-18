@@ -126,6 +126,11 @@ pub struct DriverCapabilities {
     /// editor shows a description field. Omitted/false hides it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub column_comments: bool,
+    /// Opts the explorer's "Drop table" action into the optional
+    /// `get_drop_table_sql` RPC. Omitted/false keeps the generic `DROP TABLE`
+    /// and the RPC is never called.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub drop_table_sql: bool,
     // DDL capabilities
     /// Supports ALTER TABLE MODIFY/ALTER COLUMN on existing tables.
     #[serde(default)]
@@ -987,7 +992,8 @@ pub trait DatabaseDriver: Send + Sync {
 
     /// Statement that drops `table`, for engines where a plain `DROP TABLE`
     /// is wrong for some table kinds (snapshots, external tables, ...).
-    /// `None` means the host builds its generic `DROP TABLE`.
+    /// `None` means the host builds its generic `DROP TABLE`. Only plugins
+    /// declaring `capabilities.drop_table_sql` are asked.
     async fn get_drop_table_sql(
         &self,
         _params: &ConnectionParams,

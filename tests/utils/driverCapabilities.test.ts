@@ -4,6 +4,7 @@ import {
   supportsAlterColumn,
   supportsCreateForeignKeys,
   supportsColumnComments,
+  supportsPluginDropTableSql,
   supportsExplain,
   supportsInMemoryDatabase,
   findDriverManifest,
@@ -98,6 +99,19 @@ describe('driverCapabilities', () => {
     it('should return false when capabilities are null or undefined', () => {
       expect(supportsColumnComments(null)).toBe(false);
       expect(supportsColumnComments(undefined)).toBe(false);
+    });
+  });
+
+  describe('supportsPluginDropTableSql', () => {
+    it('should return true only when a plugin opts into drop_table_sql', () => {
+      expect(supportsPluginDropTableSql(makeCapabilities({ drop_table_sql: true, identifier_quote: '`' }))).toBe(true);
+    });
+
+    it('should return false when drop_table_sql is false, missing or capabilities are absent', () => {
+      expect(supportsPluginDropTableSql(makeCapabilities({ drop_table_sql: false }))).toBe(false);
+      expect(supportsPluginDropTableSql(makeCapabilities())).toBe(false);
+      expect(supportsPluginDropTableSql(null)).toBe(false);
+      expect(supportsPluginDropTableSql(undefined)).toBe(false);
     });
   });
 
