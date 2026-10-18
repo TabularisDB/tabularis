@@ -454,6 +454,22 @@ with credentials and backups carry the values; duplicating a connection copies
 them; deleting it removes them; switching the connection to another driver
 drops them.
 
+A stored secret can be unavailable at runtime: the connections file was synced
+to a machine whose keychain does not have the entry, the keychain was reset, or
+it is locked or denies access. The host never fails the call for that. It logs
+a warning naming the key (never the value) and calls the driver with
+`params.extra[key]` unset, so the plugin must check for the value and return a
+clear error asking the user to set the credential again. Duplicating such a
+connection copies only the values that can be read, and an import skips secret
+keys with an invalid name instead of rejecting the whole file. Imported values
+are written to the keychain only after the connections file has been saved.
+
+Older Tabularis versions do not know `plugin_secret_keys` and drop it when they
+rewrite `connections.json`. After a downgrade (or with an older install sharing
+the same file) the keychain entries stay but are no longer referenced, so the
+plugin sees the secret as unset. Setting it again from the connection modal
+restores it.
+
 Both properties are optional in the public TypeScript contract. A plugin that
 also supports older hosts must guard their presence (for example by falling
 back to the host `password` input when `setSecretField` is undefined).

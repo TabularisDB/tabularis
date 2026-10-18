@@ -311,17 +311,13 @@ async fn resolve_db_params(
     if !conn.plugin_secret_keys.is_empty() {
         conn = tokio::task::spawn_blocking(move || {
             let cache = credential_cache::CredentialCache::default();
-            crate::plugin_secrets::hydrate_connection(&cache, &mut conn).map(|()| conn)
+            crate::plugin_secrets::hydrate_connection(&cache, &mut conn);
+            conn
         })
         .await
         .map_err(|e| JsonRpcError {
             code: -32000,
             message: e.to_string(),
-            data: None,
-        })?
-        .map_err(|message| JsonRpcError {
-            code: -32000,
-            message,
             data: None,
         })?;
     }

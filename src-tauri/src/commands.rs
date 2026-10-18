@@ -979,7 +979,7 @@ pub fn find_connection_by_id<R: Runtime>(
 ) -> Result<SavedConnection, String> {
     let mut conn = find_connection_metadata_by_id(app, id)?;
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    crate::plugin_secrets::hydrate_connection(&cache, &mut conn)?;
+    crate::plugin_secrets::hydrate_connection(&cache, &mut conn);
     Ok(conn)
 }
 
@@ -1916,16 +1916,22 @@ pub async fn duplicate_connection<R: Runtime>(
     let mut original = conn_file.connections[original_idx].clone();
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    let plugin_secret_values = crate::plugin_secrets::load_secret_values(
-        &cache,
+    // Same tolerant read as a driver call: a secret missing from the keychain
+    // is not copied, and the duplicate does not list it.
+    let plugin_secret_changes = crate::plugin_secrets::duplicate_secret_changes(
         &original.id,
-        &original.params.driver,
         &original.plugin_secret_keys,
-    )?;
-    let plugin_secret_changes: crate::plugin_secrets::PluginSecretChanges = plugin_secret_values
-        .into_iter()
-        .map(|(key, value)| (key, Some(value)))
-        .collect();
+        |key| {
+            credential_cache::get_plugin_secret_cached(
+                &cache,
+                &original.id,
+                &original.params.driver,
+                key,
+            )
+        },
+    );
+    let duplicate_plugin_secret_keys =
+        crate::plugin_secrets::next_secret_keys(&[], true, &plugin_secret_changes)?;
 
     // Same IAM-auth guard as `find_connection_by_id`: never copy a stale RDS
     // auth token into a duplicated connection.
@@ -2031,7 +2037,7 @@ pub async fn duplicate_connection<R: Runtime>(
         id: new_id.clone(),
         name: format!("{} (Copy)", original.name),
         params: new_params,
-        plugin_secret_keys: original.plugin_secret_keys.clone(),
+        plugin_secret_keys: duplicate_plugin_secret_keys,
         group_id: original.group_id.clone(), // Copy to same group as original
         sort_order: None,                    // Will be placed at end of group
         detect_json_in_text_columns: original.detect_json_in_text_columns,
@@ -7227,7 +7233,7 @@ pub async fn export_connections_payload<R: Runtime>(
         }
         // A missing keychain entry must not abort the whole export (or a
         // scheduled backup): the connection is exported without that value.
-        let resolved_plugin_secrets = crate::plugin_secrets::load_available_secret_values(
+        let resolved_plugin_secrets = crate::plugin_secrets::load_secret_values(
             &cache,
             &conn.id,
             &conn.params.driver,
@@ -7338,6 +7344,7 @@ pub async fn apply_export_payload<R: Runtime>(
         .inner()
         .clone();
     let mut imported_plugin_secrets = std::mem::take(&mut payload.plugin_secrets);
+    let mut plugin_secret_writes = Vec::new();
 
     // Merge groups (preserves hierarchy; demotes orphaned parent_ids to root)
     merge_groups(&mut current_file.groups, payload.groups);
@@ -7378,10 +7385,6 @@ pub async fn apply_export_payload<R: Runtime>(
         // Hold it to the same rule as a save: keychain or nothing.
         validate_connection_uri_persistence(&new_conn.params)?;
         let declared_plugin_secret_keys = std::mem::take(&mut new_conn.plugin_secret_keys);
-        for key in &declared_plugin_secret_keys {
-            crate::plugin_secrets::validate_secret_key(key)?;
-            new_conn.params.extra.remove(key);
-        }
         let secrets_for_connection = imported_plugin_secrets
             .remove(&new_conn.id)
             .unwrap_or_default();
@@ -7395,46 +7398,16 @@ pub async fn apply_export_payload<R: Runtime>(
                     connection.plugin_secret_keys.clone(),
                 )
             });
-        // Imported values are "set" changes: keys the payload does not carry
-        // keep their stored value (a metadata-only export re-imported over the
-        // same connection must not wipe its secrets), unless the driver
-        // changed, in which case the old driver's secrets are dropped.
-        let kept_keys: Vec<String> = match &previous_plugin_metadata {
-            Some((old_driver, old_keys)) if *old_driver == new_conn.params.driver => {
-                old_keys.clone()
-            }
-            _ => Vec::new(),
-        };
-        let imported_keys = crate::plugin_secrets::next_secret_keys(
-            &kept_keys,
-            true,
-            &secrets_for_connection
-                .iter()
-                .map(|(key, value)| (key.clone(), Some(value.clone())))
-                .collect(),
-        )?;
-        for (key, value) in &secrets_for_connection {
-            new_conn.params.extra.remove(key);
-            keychain_utils::set_plugin_secret(&new_conn.id, &new_conn.params.driver, key, value)?;
-            credential_cache::set_plugin_secret_cached(
-                &cache,
-                &new_conn.id,
-                &new_conn.params.driver,
-                key,
-                value,
-            );
-        }
-        if let Some((old_driver, old_keys)) = previous_plugin_metadata {
-            if old_driver != new_conn.params.driver {
-                crate::plugin_secrets::delete_connection_secrets(
-                    &cache,
-                    &new_conn.id,
-                    &old_driver,
-                    &old_keys,
-                );
-            }
-        }
-        new_conn.plugin_secret_keys = imported_keys;
+        // Keychain writes are deferred until the connections file is saved,
+        // so a failed import never leaves orphaned plugin secrets behind.
+        plugin_secret_writes.extend(crate::plugin_secrets::plan_imported_secrets(
+            &mut new_conn,
+            &declared_plugin_secret_keys,
+            secrets_for_connection,
+            previous_plugin_metadata
+                .as_ref()
+                .map(|(driver, keys)| (driver.as_str(), keys.as_slice())),
+        ));
 
         // Handle passwords in keychain
         if new_conn.params.save_in_keychain.unwrap_or(false) {
@@ -7506,8 +7479,14 @@ pub async fn apply_export_payload<R: Runtime>(
         }
     }
 
-    // Save files
-    save_connections_and_invalidate(&app, &conn_path, &current_file)?;
+    // Save files. Plugin secrets reach the keychain only once the connections
+    // file that lists them has landed.
+    crate::plugin_secrets::commit_secret_writes(
+        &crate::plugin_secrets::KeychainSecretStore,
+        &cache,
+        plugin_secret_writes,
+        || save_connections_and_invalidate(&app, &conn_path, &current_file),
+    )?;
     let ssh_json = serde_json::to_string_pretty(&current_ssh).map_err(|e| e.to_string())?;
     persistence::write_private_file(&ssh_path, ssh_json)?;
 

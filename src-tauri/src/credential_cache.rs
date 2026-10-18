@@ -39,7 +39,7 @@ impl Default for CredentialCache {
     }
 }
 
-fn plugin_secret_cache_key(connection_id: &str, driver: &str, key: &str) -> String {
+pub(crate) fn plugin_secret_cache_key(connection_id: &str, driver: &str, key: &str) -> String {
     format!("{}\0{}\0{}", connection_id, driver, key)
 }
 

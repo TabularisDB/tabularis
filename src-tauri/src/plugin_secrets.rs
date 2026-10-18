@@ -72,72 +72,105 @@ pub fn next_secret_keys(
     Ok(keys)
 }
 
-pub fn hydrate_connection(
-    cache: &CredentialCache,
-    connection: &mut SavedConnection,
-) -> Result<(), String> {
+/// Resolve the stored plugin secrets of `connection` into `params.extra`.
+///
+/// Lenient by design: a key whose keychain entry is missing (connections file
+/// synced to another machine, keychain reset, entry deleted by hand) or cannot
+/// be read (locked keychain, access denied) is logged and left unset, and the
+/// call goes on. The plugin then reports the missing credential itself, which
+/// is a far better failure than every query, dump and MCP call of the
+/// connection erroring out on the host side.
+pub fn hydrate_connection(cache: &CredentialCache, connection: &mut SavedConnection) {
     let values = load_secret_values(
         cache,
         &connection.id,
         &connection.params.driver,
         &connection.plugin_secret_keys,
-    )?;
+    );
     connection.params.extra.extend(values);
-    Ok(())
 }
 
+/// Read the stored values of `keys` through the credential cache. Keys that
+/// are invalid, missing or unreadable are skipped with a warning (see
+/// [`resolve_secret_values`]). This is the single read path shared by driver
+/// calls, Test Connection, export, backups and duplicate.
 pub fn load_secret_values(
     cache: &CredentialCache,
     connection_id: &str,
     driver: &str,
     keys: &[String],
-) -> Result<HashMap<String, String>, String> {
-    let mut values = HashMap::new();
-    for key in keys {
-        validate_secret_key(key)?;
-        let value = credential_cache::get_plugin_secret_cached(cache, connection_id, driver, key)?
-            .ok_or_else(|| format!("Stored plugin secret '{}' is unavailable", key))?;
-        values.insert(key.clone(), value);
-    }
-    Ok(values)
+) -> HashMap<String, String> {
+    resolve_secret_values(connection_id, keys, |key| {
+        credential_cache::get_plugin_secret_cached(cache, connection_id, driver, key)
+    })
+    .values
 }
 
-/// Like [`load_secret_values`], but skips the keys whose value can no longer
-/// be read instead of failing. Used by flows that must not abort because one
-/// connection lost a keychain entry (export, scheduled backups).
-pub fn load_available_secret_values(
-    cache: &CredentialCache,
+/// Plugin secret values read for one connection, plus the keys that could not
+/// be resolved.
+#[derive(Debug, Default)]
+pub struct ResolvedSecrets {
+    pub values: HashMap<String, String>,
+    pub unavailable: Vec<String>,
+}
+
+/// Read `keys` with `read`, never failing. Invalid key names, missing entries
+/// (`Ok(None)`) and read errors are logged by key name (never by value) and
+/// reported in [`ResolvedSecrets::unavailable`].
+pub fn resolve_secret_values(
     connection_id: &str,
-    driver: &str,
     keys: &[String],
-) -> HashMap<String, String> {
-    let mut values = HashMap::new();
+    mut read: impl FnMut(&str) -> Result<Option<String>, String>,
+) -> ResolvedSecrets {
+    let mut resolved = ResolvedSecrets::default();
     for key in keys {
         if validate_secret_key(key).is_err() {
             log::warn!(
-                "Skipping invalid plugin secret key for connection {}",
+                "Skipping invalid plugin secret key of connection {}",
                 connection_id
             );
+            resolved.unavailable.push(key.clone());
             continue;
         }
-        match credential_cache::get_plugin_secret_cached(cache, connection_id, driver, key) {
+        match read(key) {
             Ok(Some(value)) => {
-                values.insert(key.clone(), value);
+                resolved.values.insert(key.clone(), value);
             }
-            Ok(None) => log::warn!(
-                "Plugin secret '{}' of connection {} is missing from the keychain",
-                key,
-                connection_id
-            ),
-            Err(error) => log::warn!(
-                "Failed to read plugin secret '{}' of connection {}: {}",
-                key,
-                connection_id,
-                error
-            ),
+            Ok(None) => {
+                log::warn!(
+                    "Plugin secret '{}' of connection {} is missing from the keychain; leaving it unset",
+                    key,
+                    connection_id
+                );
+                resolved.unavailable.push(key.clone());
+            }
+            Err(error) => {
+                log::warn!(
+                    "Failed to read plugin secret '{}' of connection {}; leaving it unset: {}",
+                    key,
+                    connection_id,
+                    error
+                );
+                resolved.unavailable.push(key.clone());
+            }
         }
     }
-    values
+    resolved
+}
+
+/// Secret changes that give a duplicate of a connection its own copy of every
+/// value that can still be read. Unavailable keys are not carried over, so the
+/// copy never lists a secret it does not have.
+pub fn duplicate_secret_changes(
+    connection_id: &str,
+    keys: &[String],
+    read: impl FnMut(&str) -> Result<Option<String>, String>,
+) -> PluginSecretChanges {
+    resolve_secret_values(connection_id, keys, read)
+        .values
+        .into_iter()
+        .map(|(key, value)| (key, Some(value)))
+        .collect()
 }
 
 /// Resolve the plugin secrets for an ad-hoc driver call made with params sent
@@ -158,7 +191,7 @@ pub fn apply_request_secrets(
                 .filter(|key| !changes.contains_key(*key))
                 .cloned()
                 .collect();
-            load_secret_values(cache, &saved.id, &saved.params.driver, &unresolved)?
+            load_secret_values(cache, &saved.id, &saved.params.driver, &unresolved)
         }
         None => HashMap::new(),
     };
@@ -300,6 +333,201 @@ pub fn persist_secret_changes(
             rollback_errors.join("; ")
         ))
     }
+}
+
+/// A plugin secret write deferred until the connections file is saved.
+#[derive(Clone, PartialEq, Eq)]
+pub enum SecretWrite {
+    Set {
+        connection_id: String,
+        driver: String,
+        key: String,
+        value: String,
+    },
+    Delete {
+        connection_id: String,
+        driver: String,
+        key: String,
+    },
+}
+
+// Hand-written so a secret value never ends up in a log or a test failure.
+impl std::fmt::Debug for SecretWrite {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Set {
+                connection_id,
+                driver,
+                key,
+                ..
+            } => f
+                .debug_struct("Set")
+                .field("connection_id", connection_id)
+                .field("driver", driver)
+                .field("key", key)
+                .finish_non_exhaustive(),
+            Self::Delete {
+                connection_id,
+                driver,
+                key,
+            } => f
+                .debug_struct("Delete")
+                .field("connection_id", connection_id)
+                .field("driver", driver)
+                .field("key", key)
+                .finish(),
+        }
+    }
+}
+
+/// Keychain operations on plugin secrets. The production implementation is
+/// [`KeychainSecretStore`]; tests use an in-memory store.
+pub trait SecretStore {
+    fn set(&self, connection_id: &str, driver: &str, key: &str, value: &str) -> Result<(), String>;
+    fn delete(&self, connection_id: &str, driver: &str, key: &str) -> Result<(), String>;
+}
+
+pub struct KeychainSecretStore;
+
+impl SecretStore for KeychainSecretStore {
+    fn set(&self, connection_id: &str, driver: &str, key: &str, value: &str) -> Result<(), String> {
+        crate::keychain_utils::set_plugin_secret(connection_id, driver, key, value)
+    }
+
+    fn delete(&self, connection_id: &str, driver: &str, key: &str) -> Result<(), String> {
+        crate::keychain_utils::delete_plugin_secret(connection_id, driver, key)
+    }
+}
+
+/// Work out the plugin secret keys and deferred keychain writes of one
+/// imported connection. The payload is untrusted: invalid key names and
+/// oversized values are skipped with a warning instead of aborting the import.
+///
+/// Every declared or imported secret key is removed from `params.extra`, so a
+/// value never lands in `connections.json`. Imported values are "set" changes:
+/// keys the payload does not carry keep their stored value while the driver is
+/// unchanged; when it changed, the previous driver's secrets are deleted.
+pub fn plan_imported_secrets(
+    connection: &mut SavedConnection,
+    declared_keys: &[String],
+    imported_values: HashMap<String, String>,
+    previous: Option<(&str, &[String])>,
+) -> Vec<SecretWrite> {
+    for key in declared_keys {
+        connection.params.extra.remove(key);
+    }
+    let mut changes = PluginSecretChanges::new();
+    for (key, value) in imported_values {
+        connection.params.extra.remove(&key);
+        let change = HashMap::from([(key.clone(), Some(value))]);
+        if validate_secret_changes(&change).is_err() {
+            log::warn!(
+                "Skipping an invalid plugin secret of imported connection {}",
+                connection.id
+            );
+            continue;
+        }
+        changes.extend(change);
+    }
+
+    let driver = connection.params.driver.clone();
+    let kept_keys: Vec<String> = match previous {
+        Some((old_driver, old_keys)) if old_driver == driver => old_keys
+            .iter()
+            .filter(|key| validate_secret_key(key).is_ok())
+            .cloned()
+            .collect(),
+        _ => Vec::new(),
+    };
+    connection.plugin_secret_keys =
+        next_secret_keys(&kept_keys, true, &changes).unwrap_or(kept_keys);
+
+    let mut writes: Vec<SecretWrite> = Vec::new();
+    if let Some((old_driver, old_keys)) = previous {
+        if old_driver != driver {
+            let valid_old_keys = old_keys
+                .iter()
+                .filter(|key| validate_secret_key(key).is_ok());
+            writes.extend(valid_old_keys.map(|key| SecretWrite::Delete {
+                connection_id: connection.id.clone(),
+                driver: old_driver.to_string(),
+                key: key.clone(),
+            }));
+        }
+    }
+    let mut changes: Vec<(String, Option<String>)> = changes.into_iter().collect();
+    changes.sort_by(|a, b| a.0.cmp(&b.0));
+    writes.extend(changes.into_iter().filter_map(|(key, value)| {
+        value.map(|value| SecretWrite::Set {
+            connection_id: connection.id.clone(),
+            driver: driver.clone(),
+            key,
+            value,
+        })
+    }));
+    writes
+}
+
+/// Run `save` (the connections file write) and, only once it succeeded, apply
+/// the deferred plugin secret `writes`. A failed save therefore never leaves
+/// orphaned secrets in the keychain. A keychain write that fails after the
+/// save is logged and skipped: the connection lists the key, and runtime
+/// hydration leaves it unset so the plugin reports the missing credential.
+pub fn commit_secret_writes(
+    store: &impl SecretStore,
+    cache: &CredentialCache,
+    writes: Vec<SecretWrite>,
+    save: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    save()?;
+    for write in writes {
+        match write {
+            SecretWrite::Set {
+                connection_id,
+                driver,
+                key,
+                value,
+            } => match store.set(&connection_id, &driver, &key, &value) {
+                Ok(()) => credential_cache::set_plugin_secret_cached(
+                    cache,
+                    &connection_id,
+                    &driver,
+                    &key,
+                    &value,
+                ),
+                Err(error) => {
+                    credential_cache::invalidate_plugin_secret(
+                        cache,
+                        &connection_id,
+                        &driver,
+                        &key,
+                    );
+                    log::warn!(
+                        "Failed to store imported plugin secret '{}' of connection {}: {}",
+                        key,
+                        connection_id,
+                        error
+                    );
+                }
+            },
+            SecretWrite::Delete {
+                connection_id,
+                driver,
+                key,
+            } => {
+                if let Err(error) = store.delete(&connection_id, &driver, &key) {
+                    log::warn!(
+                        "Failed to delete plugin secret '{}' of connection {}: {}",
+                        key,
+                        connection_id,
+                        error
+                    );
+                }
+                credential_cache::invalidate_plugin_secret(cache, &connection_id, &driver, &key);
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn delete_connection_secrets(
