@@ -835,6 +835,121 @@ describe('DatabaseProvider', () => {
       });
     });
 
+    it('keeps every schema loaded when several are selected at once', async () => {
+      // Each schema resolves at its own pace: the first selected one finishes
+      // first, so a later write built from a stale snapshot would drop it.
+      const tablesBySchema: Record<string, { name: string }[]> = {
+        analytics: [{ name: 'daily_events' }],
+        public: [{ name: 'users' }],
+      };
+      const delayBySchema: Record<string, number> = { analytics: 0, public: 20 };
+      vi.mocked(invoke).mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+        if (cmd === 'get_connections') return Promise.resolve(mockPgConnections);
+        if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+        if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
+        if (cmd === 'get_schemas') return Promise.resolve(mockSchemas);
+        if (cmd === 'get_selected_schemas') return Promise.resolve([]);
+        if (cmd === 'get_tables') {
+          const schema = String(args?.schema);
+          return new Promise((resolve) =>
+            setTimeout(() => resolve(tablesBySchema[schema] ?? []), delayBySchema[schema] ?? 0),
+          );
+        }
+        if (cmd === 'get_views' || cmd === 'get_routines' || cmd === 'get_triggers') {
+          return Promise.resolve([]);
+        }
+        return Promise.resolve(undefined);
+      });
+
+      const { result } = renderHook(() => useDatabase(), { wrapper });
+
+      await act(async () => {
+        await result.current.connect('pg-conn');
+      });
+      await waitFor(() => {
+        expect(result.current.needsSchemaSelection).toBe(true);
+      });
+
+      await act(async () => {
+        await result.current.setSelectedSchemas(['analytics', 'public']);
+      });
+
+      await waitFor(() => {
+        expect(result.current.schemaDataMap.public?.isLoaded).toBe(true);
+      });
+      expect(result.current.schemaDataMap.analytics).toMatchObject({
+        tables: [{ name: 'daily_events' }],
+        isLoaded: true,
+        isLoading: false,
+      });
+      expect(result.current.schemaDataMap.public).toMatchObject({
+        tables: [{ name: 'users' }],
+        isLoaded: true,
+        isLoading: false,
+      });
+    });
+
+    it('keeps other schemas when refreshing schemas concurrently', async () => {
+      const tablesBySchema: Record<string, { name: string }[]> = {
+        public: [{ name: 'users' }],
+        analytics: [{ name: 'daily_events' }],
+      };
+      const delayBySchema: Record<string, number> = { public: 0, analytics: 20 };
+      vi.mocked(invoke).mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+        if (cmd === 'get_connections') return Promise.resolve(mockPgConnections);
+        if (cmd === 'test_connection') return Promise.resolve('Connection successful!');
+        if (cmd === 'get_driver_manifest') return Promise.resolve(mockPostgresManifest);
+        if (cmd === 'get_schemas') return Promise.resolve(mockSchemas);
+        if (cmd === 'get_selected_schemas') return Promise.resolve(['public', 'analytics']);
+        if (cmd === 'get_schema_preference') return Promise.resolve('public');
+        if (cmd === 'get_tables') {
+          const schema = String(args?.schema);
+          return new Promise((resolve) =>
+            setTimeout(() => resolve(tablesBySchema[schema] ?? []), delayBySchema[schema] ?? 0),
+          );
+        }
+        if (cmd === 'get_views' || cmd === 'get_routines' || cmd === 'get_triggers') {
+          return Promise.resolve([]);
+        }
+        return Promise.resolve(undefined);
+      });
+
+      const { result } = renderHook(() => useDatabase(), { wrapper });
+
+      await act(async () => {
+        await result.current.connect('pg-conn');
+      });
+      await waitFor(() => {
+        expect(result.current.schemaDataMap.public?.isLoaded).toBe(true);
+      });
+      // Only the active schema is preloaded on connect; load the other one.
+      await act(async () => {
+        await result.current.loadSchemaData('analytics');
+      });
+      expect(result.current.schemaDataMap.analytics?.isLoaded).toBe(true);
+      expect(result.current.schemaDataMap.public?.isLoaded).toBe(true);
+
+      tablesBySchema.public = [{ name: 'users' }, { name: 'orders' }];
+      tablesBySchema.analytics = [{ name: 'daily_events' }, { name: 'sessions' }];
+      await act(async () => {
+        await Promise.all([
+          result.current.refreshSchemaData('public'),
+          result.current.refreshSchemaData('analytics'),
+        ]);
+      });
+
+      expect(result.current.schemaDataMap.public?.tables).toEqual([
+        { name: 'users' },
+        { name: 'orders' },
+      ]);
+      expect(result.current.schemaDataMap.analytics?.tables).toEqual([
+        { name: 'daily_events' },
+        { name: 'sessions' },
+      ]);
+      expect(result.current.schemaDataMap.public?.isLoading).toBe(false);
+      expect(result.current.schemaDataMap.analytics?.isLoading).toBe(false);
+    });
+
     it('should update activeSchema when removed from selection', async () => {
       vi.mocked(invoke).mockImplementation((cmd: string) => {
         if (cmd === 'get_connections') return Promise.resolve(mockPgConnections);

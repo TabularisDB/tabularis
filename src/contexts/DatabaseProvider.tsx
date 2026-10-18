@@ -12,6 +12,7 @@ import {
   type SavedConnection,
   type ConnectionData,
   type NestedDatabaseData,
+  type SchemaData,
   type ConnectionGroup,
   type ConnectionsFile,
 } from './DatabaseContext';
@@ -52,6 +53,15 @@ const getRoutinesOrEmpty = async (
     onError(error, schema);
     return { routines: [], error: toErrorMessage(error) };
   }
+};
+
+const EMPTY_SCHEMA_DATA: SchemaData = {
+  tables: [],
+  views: [],
+  routines: [],
+  triggers: [],
+  isLoading: false,
+  isLoaded: false,
 };
 
 const EMPTY_NESTED_DATABASE_DATA: NestedDatabaseData = {
@@ -217,6 +227,40 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               ...currentNested,
               ...resolvedPatch,
             },
+          },
+        },
+      };
+    });
+  }, []);
+
+  /**
+   * Applies a patch to one schema's `SchemaData` within a connection's
+   * `schemaDataMap`, reading the current value from the live
+   * `setConnectionDataMap` snapshot rather than a closure-captured
+   * `connectionDataMap`. Loading or refreshing several schemas at once (e.g.
+   * confirming "Select All" in the schema picker) runs one request per schema
+   * concurrently; rebuilding the whole map from a stale closure on each write
+   * made the last response to land drop every other schema's data, so the
+   * first schema showed no tables until it was refreshed. Does nothing when
+   * the connection is gone by the time the write lands.
+   */
+  const updateSchemaData = useCallback((
+    connectionId: string,
+    schema: string,
+    patch: Partial<SchemaData> | ((current: SchemaData) => Partial<SchemaData>),
+  ) => {
+    setConnectionDataMap(prev => {
+      const connData = prev[connectionId];
+      if (!connData) return prev;
+      const current = connData.schemaDataMap[schema] ?? EMPTY_SCHEMA_DATA;
+      const resolvedPatch = typeof patch === 'function' ? patch(current) : patch;
+      return {
+        ...prev,
+        [connectionId]: {
+          ...connData,
+          schemaDataMap: {
+            ...connData.schemaDataMap,
+            [schema]: { ...current, ...resolvedPatch },
           },
         },
       };
@@ -407,12 +451,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const existingSchemaData = currentData.schemaDataMap[schema];
     if (existingSchemaData?.isLoaded || existingSchemaData?.isLoading) return;
 
-    updateConnectionData(connId, {
-      schemaDataMap: {
-        ...currentData.schemaDataMap,
-        [schema]: { tables: [], views: [], routines: [], triggers: [], isLoading: true, isLoaded: false },
-      },
-    });
+    updateSchemaData(connId, schema, { ...EMPTY_SCHEMA_DATA, isLoading: true });
 
     try {
       const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
@@ -425,37 +464,21 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         loadOptionalMetadata(currentData.metadata?.capabilities.triggers, () => invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
       ]);
 
-      const freshData = connectionDataMap[connId];
-      if (freshData) {
-        updateConnectionData(connId, {
-          schemaDataMap: {
-            ...freshData.schemaDataMap,
-            [schema]: {
-              tables: tablesResult,
-              views: viewsResult,
-              materializedViews: materializedViewsResult,
-              routines: routineMetadata.routines,
-              triggers: triggersResult,
-              routineError: routineMetadata.error,
-              isLoading: false,
-              isLoaded: true,
-            },
-          },
-        });
-      }
+      updateSchemaData(connId, schema, {
+        tables: tablesResult,
+        views: viewsResult,
+        materializedViews: materializedViewsResult,
+        routines: routineMetadata.routines,
+        triggers: triggersResult,
+        routineError: routineMetadata.error,
+        isLoading: false,
+        isLoaded: true,
+      });
     } catch (e) {
       console.error(`Failed to load schema data for ${schema}:`, e);
-      const freshData = connectionDataMap[connId];
-      if (freshData) {
-        updateConnectionData(connId, {
-          schemaDataMap: {
-            ...freshData.schemaDataMap,
-            [schema]: { tables: [], views: [], routines: [], triggers: [], isLoading: false, isLoaded: true },
-          },
-        });
-      }
+      updateSchemaData(connId, schema, { ...EMPTY_SCHEMA_DATA, isLoaded: true });
     }
-  }, [activeConnectionId, connectionDataMap, updateConnectionData, handleRoutineMetadataError]);
+  }, [activeConnectionId, connectionDataMap, updateSchemaData, handleRoutineMetadataError]);
 
   const refreshSchemaData = useCallback(async (schema: string, targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
@@ -464,15 +487,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const currentData = connectionDataMap[connId];
     if (!currentData) return;
 
-    updateConnectionData(connId, {
-      schemaDataMap: {
-        ...currentData.schemaDataMap,
-        [schema]: {
-          ...(currentData.schemaDataMap[schema] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
-          isLoading: true
-        },
-      },
-    });
+    updateSchemaData(connId, schema, { isLoading: true });
 
     try {
       const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
@@ -485,40 +500,21 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         loadOptionalMetadata(currentData.metadata?.capabilities.triggers, () => invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]), [] as TriggerInfo[]),
       ]);
 
-      const freshData = connectionDataMap[connId];
-      if (freshData) {
-        updateConnectionData(connId, {
-          schemaDataMap: {
-            ...freshData.schemaDataMap,
-            [schema]: {
-              tables: tablesResult,
-              views: viewsResult,
-              materializedViews: materializedViewsResult,
-              routines: routineMetadata.routines,
-              triggers: triggersResult,
-              routineError: routineMetadata.error,
-              isLoading: false,
-              isLoaded: true,
-            },
-          },
-        });
-      }
+      updateSchemaData(connId, schema, {
+        tables: tablesResult,
+        views: viewsResult,
+        materializedViews: materializedViewsResult,
+        routines: routineMetadata.routines,
+        triggers: triggersResult,
+        routineError: routineMetadata.error,
+        isLoading: false,
+        isLoaded: true,
+      });
     } catch (e) {
       console.error(`Failed to refresh schema data for ${schema}:`, e);
-      const freshData = connectionDataMap[connId];
-      if (freshData) {
-        updateConnectionData(connId, {
-          schemaDataMap: {
-            ...freshData.schemaDataMap,
-            [schema]: {
-              ...(freshData.schemaDataMap[schema] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
-              isLoading: false
-            },
-          },
-        });
-      }
+      updateSchemaData(connId, schema, { isLoading: false });
     }
-  }, [activeConnectionId, connectionDataMap, updateConnectionData, handleRoutineMetadataError]);
+  }, [activeConnectionId, connectionDataMap, updateSchemaData, handleRoutineMetadataError]);
 
   const loadDatabaseData = useCallback(async (database: string, targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
