@@ -6,6 +6,7 @@ import {
   replaceCurrentWord,
   getOperatorsForType,
   buildSingleFilterClause,
+  declaredBooleanFilterLiteral,
   buildStructuredFilterClause,
   isFilterComplete,
   NO_VALUE_OPS,
@@ -89,6 +90,46 @@ describe("filter string literals with backslashes", () => {
     expect(buildSingleFilterClause({ ...filter("a\\"), operator: "BETWEEN", value2: "C:\\new" }, driver))
       .toBe("name BETWEEN 'a\\\\' AND 'C:\\\\new'");
     expect(buildSingleFilterClause(filter("123"), driver)).toBe("name = 123");
+  });
+});
+
+describe("declared boolean_literals filter literals", () => {
+  const filter = (value: string, operator: StructuredFilter["operator"] = "="): StructuredFilter => ({
+    id: "f", column: "active", operator, value,
+  });
+  const numeric = {
+    ...GOOGLESQL_CAPS,
+    sql_syntax: { ...GOOGLESQL_CAPS.sql_syntax, boolean_literals: "numeric" as const },
+  };
+
+  it("writes boolean literals for a BOOL column", () => {
+    expect(buildSingleFilterClause(filter("true"), GOOGLESQL_CAPS, "always", "BOOL")).toBe(
+      "`active` = TRUE",
+    );
+    expect(buildSingleFilterClause(filter("0"), GOOGLESQL_CAPS, "always", "BOOL")).toBe(
+      "`active` = FALSE",
+    );
+    expect(buildSingleFilterClause(filter("'False'"), GOOGLESQL_CAPS, "always", "bool")).toBe(
+      "`active` = FALSE",
+    );
+    expect(buildSingleFilterClause(filter("true, false", "IN"), numeric, "always", "BOOLEAN")).toBe(
+      "`active` IN (1, 0)",
+    );
+  });
+
+  it("leaves other columns, other values and undeclared drivers alone", () => {
+    expect(buildSingleFilterClause(filter("true"), GOOGLESQL_CAPS, "always", "STRING")).toBe(
+      "`active` = 'true'",
+    );
+    expect(buildSingleFilterClause(filter("maybe"), GOOGLESQL_CAPS, "always", "BOOL")).toBe(
+      "`active` = 'maybe'",
+    );
+    for (const driver of ["postgres", "mysql", "sqlite"]) {
+      expect(declaredBooleanFilterLiteral("true", "boolean", driver)).toBeUndefined();
+    }
+    expect(buildSingleFilterClause(filter("true"), "postgres", "always", "boolean")).toBe(
+      `"active" = 'true'`,
+    );
   });
 });
 

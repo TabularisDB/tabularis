@@ -22,6 +22,8 @@ describe("sql_syntax manifest contract", () => {
         { string_prefixes: ["raw"] },
         { string_escape: "mysql" },
         { formatter: "custom" },
+        { boolean_literals: "yes" },
+        { boolean_literals: true },
         { keywords: ["DROP TABLE x;"] },
       ]) {
         expect(validate(invalid), JSON.stringify(invalid)).toBe(false);
@@ -38,6 +40,7 @@ describe("sql_syntax manifest contract", () => {
         SQL_SYNTAX_LIMITS.maxWordLength,
       );
       expect(sqlSyntax.properties.formatter.enum).toEqual([...SQL_SYNTAX_FORMATTERS]);
+      expect(sqlSyntax.properties.boolean_literals.enum).toEqual(["keywords", "numeric"]);
     });
 
     it(`no longer lists bigquery as a dialect in ${name}`, () => {

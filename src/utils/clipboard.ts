@@ -1,6 +1,6 @@
 import { formatCellValue } from './dataGrid';
 import type { DriverCapabilities, PluginManifest } from '../types/plugins';
-import { quoteSqlString, stringEscapeStyle } from './sqlLiteral';
+import { quoteSqlString, sqlBooleanLiteral, stringEscapeStyle } from './sqlLiteral';
 
 /** Driver whose dialect the copied SQL literals follow. */
 type CopyDriver = string | PluginManifest | DriverCapabilities | null;
@@ -211,7 +211,8 @@ export function columnValuesToInClause(
 
 function sqlValue(cell: unknown, driver?: CopyDriver): string {
   if (cell === null || cell === undefined) return "NULL";
-  if (typeof cell === "boolean") return cell ? "TRUE" : "FALSE";
+  // TRUE/FALSE unless the driver declares `sql_syntax.boolean_literals`.
+  if (typeof cell === "boolean") return sqlBooleanLiteral(cell, driver);
   if (typeof cell === "number") return String(cell);
   const str = typeof cell === "object" ? JSON.stringify(cell) : String(cell);
   // A backslash-escape syntax (GoogleSQL) has no doubled-quote escape;

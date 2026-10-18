@@ -2,7 +2,13 @@ import type { NotebookCell } from "../types/notebook";
 import type { QueryResult } from "../types/editor";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { getQuoteChar } from "./identifiers";
-import { quoteSqlStringWithStyle, stringEscapeStyle } from "./sqlLiteral";
+import type { BooleanLiteralStyle } from "../types/plugins";
+import {
+  booleanLiteralWithStyle,
+  declaredBooleanLiterals,
+  quoteSqlStringWithStyle,
+  stringEscapeStyle,
+} from "./sqlLiteral";
 
 const CELL_REF_PATTERN = /\{\{cell_(\d+)\}\}/g;
 
@@ -65,8 +71,9 @@ function resultToCte(
   escapeBackslashes: boolean,
   backslashLiterals: boolean,
   identifierQuote: string,
+  booleanLiterals: BooleanLiteralStyle | undefined,
 ): string {
-  const variantKey = `${escapeBackslashes ? 1 : 0}${backslashLiterals ? 1 : 0}:${identifierQuote}:${alias}`;
+  const variantKey = `${escapeBackslashes ? 1 : 0}${backslashLiterals ? 1 : 0}${booleanLiterals ?? ""}:${identifierQuote}:${alias}`;
   let variants = cteCache.get(result);
   const cached = variants?.get(variantKey);
   if (cached !== undefined) return cached;
@@ -86,6 +93,9 @@ function resultToCte(
           if (val === null || val === undefined) return `NULL AS ${ident}`;
           if (typeof val === "number" && Number.isFinite(val)) {
             return `${val} AS ${ident}`;
+          }
+          if (typeof val === "boolean" && booleanLiterals) {
+            return `${booleanLiteralWithStyle(val, booleanLiterals)} AS ${ident}`;
           }
           const literal = quoteStringLiteral(
             String(val),
@@ -154,6 +164,12 @@ export interface ResolveVariablesOptions {
    * capability. Defaults to `"`.
    */
   identifierQuote?: string;
+  /**
+   * How boolean values are written: the driver's declared
+   * `sql_syntax.boolean_literals`. Omitted, they stay quoted strings
+   * (`'true'`), as before the field existed.
+   */
+  booleanLiterals?: BooleanLiteralStyle;
 }
 
 /**
@@ -173,10 +189,12 @@ export function variableOptionsForDriver(
   driverId?: string | null,
 ): ResolveVariablesOptions {
   const style = stringEscapeStyle(driver, driverId);
+  const booleanLiterals = declaredBooleanLiterals(driver);
   return {
     escapeBackslashes: style !== "standard",
     identifierQuote: getQuoteChar(driver),
     ...(style === "backslash" ? { backslashLiterals: true } : {}),
+    ...(booleanLiterals ? { booleanLiterals } : {}),
   };
 }
 
@@ -213,6 +231,7 @@ export function resolveQueryVariables(
           options?.escapeBackslashes ?? false,
           options?.backslashLiterals ?? false,
           options?.identifierQuote || '"',
+          options?.booleanLiterals,
         ),
       );
     }

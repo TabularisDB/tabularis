@@ -3,8 +3,8 @@
 //! A plugin whose engine lexes SQL differently from every built-in preset
 //! declares how in its manifest: it names a preset to `extends` and overrides
 //! individual rules (quotes, comments, triple-quoted strings, procedural
-//! blocks, how generated string literals are escaped, ...). It is data only,
-//! never code. The same descriptor is resolved by the frontend
+//! blocks, how generated string and boolean literals are written, ...). It is
+//! data only, never code. The same descriptor is resolved by the frontend
 //! (`src/utils/sqlSyntax.ts`), so the limits here mirror the ones there.
 //!
 //! Parsing never fails the manifest: an invalid field is logged and ignored,
@@ -111,6 +111,28 @@ pub enum StringEscape {
     Backslash,
 }
 
+/// How generated boolean literals are written, as declared by a plugin.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BooleanLiterals {
+    /// `TRUE` / `FALSE`.
+    Keywords,
+    /// `1` / `0`.
+    Numeric,
+}
+
+impl BooleanLiterals {
+    /// The SQL literal for `value` in this style.
+    pub fn literal(self, value: bool) -> &'static str {
+        match (self, value) {
+            (BooleanLiterals::Keywords, true) => "TRUE",
+            (BooleanLiterals::Keywords, false) => "FALSE",
+            (BooleanLiterals::Numeric, true) => "1",
+            (BooleanLiterals::Numeric, false) => "0",
+        }
+    }
+}
+
 /// The validated `capabilities.sql_syntax` object. Every field is optional;
 /// `None` keeps the extended preset's rule. Serialized back to the frontend
 /// as sanitized, so it only ever sees fields that passed validation.
@@ -138,6 +160,8 @@ pub struct SqlSyntaxDescriptor {
     pub string_escape: Option<StringEscape>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub like_escape: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub boolean_literals: Option<BooleanLiterals>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub formatter: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -167,6 +191,7 @@ impl SqlSyntaxDescriptor {
             dollar_quoting: field(map, "dollar_quoting", parse_bool),
             string_escape: field(map, "string_escape", parse_string_escape),
             like_escape: field(map, "like_escape", parse_bool),
+            boolean_literals: field(map, "boolean_literals", parse_boolean_literals),
             formatter: field(map, "formatter", parse_formatter),
             keywords: field(map, "keywords", parse_words),
             functions: field(map, "functions", parse_words),
@@ -216,6 +241,11 @@ fn parse_extends(value: &Value) -> Result<SqlDialect, String> {
 fn parse_string_escape(value: &Value) -> Result<StringEscape, String> {
     serde_json::from_value(value.clone())
         .map_err(|_| "expected \"standard\" or \"backslash\"".to_string())
+}
+
+fn parse_boolean_literals(value: &Value) -> Result<BooleanLiterals, String> {
+    serde_json::from_value(value.clone())
+        .map_err(|_| "expected \"keywords\" or \"numeric\"".to_string())
 }
 
 fn parse_formatter(value: &Value) -> Result<String, String> {
@@ -377,6 +407,10 @@ pub struct SqlSyntax {
     pub line_comment_ends_at_cr: bool,
     pub string_escape: LiteralStyle,
     pub like_escape: bool,
+    /// The declared `boolean_literals`. `None` (no declaration, or a preset)
+    /// keeps each generator's historical form: dumps write `TRUE`/`FALSE`
+    /// on PostgreSQL and `1`/`0` elsewhere.
+    pub boolean_literals: Option<BooleanLiterals>,
 }
 
 impl SqlSyntax {
@@ -406,6 +440,7 @@ impl SqlSyntax {
             line_comment_ends_at_cr: false,
             string_escape: LiteralStyle::Standard,
             like_escape: true,
+            boolean_literals: None,
         };
         match dialect.unwrap_or(SqlDialect::Postgres) {
             SqlDialect::Postgres => Self {
@@ -491,6 +526,7 @@ impl SqlSyntax {
         if let Some(escape) = desc.string_escape {
             syntax.string_escape = declared_string_escape(escape, syntax.string_escape);
         }
+        syntax.boolean_literals = desc.boolean_literals;
         syntax
     }
 

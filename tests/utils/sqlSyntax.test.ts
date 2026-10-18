@@ -49,6 +49,7 @@ describe("sqlSyntax", () => {
         expect(syntax.declared).toBe(false);
         expect(syntax.likeEscape).toBe(true);
         expect(syntax.stringEscape).toBe(dialect === "mysql" ? "mysql" : "standard");
+        expect(syntax.booleanLiterals).toBeUndefined();
         expect(syntax.keywords).toEqual([]);
         expect(syntax.functions).toEqual([]);
       }
@@ -123,6 +124,7 @@ describe("sqlSyntax", () => {
       expect(GOOGLESQL.declared).toBe(true);
       expect(GOOGLESQL.stringEscape).toBe("backslash");
       expect(GOOGLESQL.likeEscape).toBe(false);
+      expect(GOOGLESQL.booleanLiterals).toBe("keywords");
       expect(GOOGLESQL.formatter).toBe("bigquery");
       expect(GOOGLESQL.keywords).toEqual(GOOGLESQL_DESCRIPTOR.keywords);
       expect(GOOGLESQL.functions).toEqual(GOOGLESQL_DESCRIPTOR.functions);
@@ -149,6 +151,23 @@ describe("sqlSyntax", () => {
   });
 
   describe("declared overrides", () => {
+    it("reads boolean_literals and drops an invalid value", () => {
+      const resolved = (value: unknown) =>
+        resolveSqlSyntax(
+          caps({ sql_dialect: "mysql", sql_syntax: { boolean_literals: value } as never }),
+        ).booleanLiterals;
+      expect(resolved("keywords")).toBe("keywords");
+      expect(resolved("numeric")).toBe("numeric");
+      for (const invalid of ["KEYWORDS", "words", true, 1, null, ["keywords"]]) {
+        expect(resolved(invalid), JSON.stringify(invalid)).toBeUndefined();
+      }
+      // Declaring other fields only leaves booleans undeclared.
+      expect(
+        resolveSqlSyntax(caps({ sql_dialect: "postgres", sql_syntax: { hash_comments: true } }))
+          .booleanLiterals,
+      ).toBeUndefined();
+    });
+
     it("extends sql_dialect by default and the named preset otherwise", () => {
       const onMysql = resolveSqlSyntax(
         caps({ sql_dialect: "mysql", sql_syntax: { triple_quoted_strings: true } }),

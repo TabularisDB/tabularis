@@ -443,6 +443,28 @@ describe('clipboard utils', () => {
       );
     });
 
+    it('writes booleans in the declared boolean_literals style', () => {
+      const numeric = {
+        ...GOOGLESQL_CAPS,
+        sql_syntax: { ...GOOGLESQL_CAPS.sql_syntax, boolean_literals: 'numeric' as const },
+      };
+      const rows = [[1, true, false]];
+      const cols = ['id', 'a', 'b'];
+      expect(rowsToSqlInsert(rows, cols, 't', GOOGLESQL_CAPS)).toBe(
+        'INSERT INTO `t` (`id`, `a`, `b`) VALUES (1, TRUE, FALSE);',
+      );
+      expect(rowsToSqlInsert(rows, cols, 't', numeric)).toBe(
+        'INSERT INTO `t` (`id`, `a`, `b`) VALUES (1, 1, 0);',
+      );
+      // Built-in drivers keep TRUE/FALSE.
+      for (const driver of ['mysql', 'postgres', 'sqlite', undefined]) {
+        expect(rowsToSqlInsert(rows, cols, 't', driver)).toBe(
+          'INSERT INTO `t` (`id`, `a`, `b`) VALUES (1, TRUE, FALSE);',
+        );
+      }
+      expect(columnValuesToInClause([[true], [false]], 0, numeric)).toBe('1, 0');
+    });
+
     it('passes the driver through formatRowsForCopy and columnValuesForCopy', () => {
       const bq = GOOGLESQL_CAPS;
       expect(

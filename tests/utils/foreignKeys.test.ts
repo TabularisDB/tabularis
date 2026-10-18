@@ -129,6 +129,17 @@ describe("foreignKeys", () => {
       );
     });
 
+    it("writes booleans in the declared boolean_literals style", () => {
+      const numeric = {
+        ...GOOGLESQL_CAPS,
+        sql_syntax: { ...GOOGLESQL_CAPS.sql_syntax, boolean_literals: "numeric" as const },
+      };
+      expect(buildForeignKeyFilterClause(orgFk, true, GOOGLESQL_CAPS)).toBe("`id` = TRUE");
+      expect(buildForeignKeyFilterClause(orgFk, false, numeric)).toBe("`id` = 0");
+      expect(buildForeignKeyFilterClause(orgFk, true, "mysql")).toBe("`id` = TRUE");
+      expect(buildForeignKeyFilterClause(orgFk, false, "postgres")).toBe('"id" = FALSE');
+    });
+
     it("treats bigint values as numeric", () => {
       expect(
         buildForeignKeyFilterClause(orgFk, BigInt("9007199254740993"), "postgres"),

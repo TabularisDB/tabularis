@@ -1,5 +1,6 @@
 import type { SqlLanguage } from "sql-formatter";
 import type {
+  BooleanLiteralStyle,
   DriverCapabilities,
   PluginManifest,
   SqlSyntaxDescriptor,
@@ -38,6 +39,12 @@ export interface SqlSyntax extends SqlSyntaxSource {
   readonly stringEscape: StringEscapeStyle;
   /** `LIKE … ESCAPE '\'` is supported. */
   readonly likeEscape: boolean;
+  /**
+   * The declared `boolean_literals`. Undefined (no declaration, or a preset)
+   * keeps each generator's historical form: `TRUE`/`FALSE` in Copy as
+   * INSERT and filters, a quoted `'true'` in notebook cell references.
+   */
+  readonly booleanLiterals?: BooleanLiteralStyle;
   readonly formatter: SqlLanguage;
   /** Declared autocomplete keywords (empty without `sql_syntax`). */
   readonly keywords: readonly string[];
@@ -206,16 +213,22 @@ function applyDescriptor(
   };
   const stringEscape = declaredStringEscape(descriptor.string_escape, base.stringEscape);
   const formatter = SQL_SYNTAX_FORMATTERS.find((f) => f === descriptor.formatter);
+  const booleanLiterals = parseBooleanLiterals(descriptor.boolean_literals);
   return {
     dialect: base.dialect,
     declared: true,
     options,
     stringEscape,
     likeEscape: flag(descriptor.like_escape, base.likeEscape),
+    ...(booleanLiterals ? { booleanLiterals } : {}),
     formatter: formatter ?? base.formatter,
     keywords: parseWords(descriptor.keywords) ?? NO_WORDS,
     functions: parseWords(descriptor.functions) ?? NO_WORDS,
   };
+}
+
+function parseBooleanLiterals(value: unknown): BooleanLiteralStyle | undefined {
+  return value === "keywords" || value === "numeric" ? value : undefined;
 }
 
 const QUOTE_CLOSE: Readonly<Record<string, string>> = {

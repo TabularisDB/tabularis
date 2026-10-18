@@ -431,6 +431,69 @@ fn boolean_literals_follow_the_dialect() {
     assert_eq!(with(Some(SqlDialect::Oracle)), "1");
 }
 
+#[test]
+fn declared_boolean_literals_override_the_dialect() {
+    let declared = |driver_id: &str, dialect: Option<SqlDialect>, style: &str| {
+        let mut caps = serde_json::to_value(DriverCapabilities {
+            sql_dialect: dialect,
+            ..Default::default()
+        })
+        .unwrap();
+        caps["sql_syntax"] = json!({ "boolean_literals": style });
+        let caps: DriverCapabilities = serde_json::from_value(caps).unwrap();
+        let dump = DumpDialect::from_capabilities(driver_id, &caps);
+        (
+            dump.escape_value(json!(true)),
+            dump.escape_value(json!(false)),
+        )
+    };
+    let keywords = ("TRUE".to_string(), "FALSE".to_string());
+    let numeric = ("1".to_string(), "0".to_string());
+    assert_eq!(
+        declared("plugin", Some(SqlDialect::Mysql), "keywords"),
+        keywords
+    );
+    assert_eq!(
+        declared("plugin", Some(SqlDialect::Generic), "keywords"),
+        keywords
+    );
+    assert_eq!(declared("plugin", None, "keywords"), keywords);
+    assert_eq!(
+        declared("plugin", Some(SqlDialect::Postgres), "numeric"),
+        numeric
+    );
+    assert_eq!(declared("postgresql", None, "numeric"), numeric);
+    // An invalid value is ignored: the dialect's default applies.
+    assert_eq!(declared("plugin", Some(SqlDialect::Mysql), "yes"), numeric);
+    assert_eq!(
+        declared("plugin", Some(SqlDialect::Postgres), "yes"),
+        keywords
+    );
+}
+
+#[test]
+fn googlesql_dump_writes_boolean_keywords() {
+    // GoogleSQL has no implicit INT64 -> BOOL coercion: 1/0 into a BOOL
+    // column fails, so the fixture declares keywords on top of `mysql`.
+    let caps = crate::drivers::sql_syntax_tests::googlesql_capabilities();
+    let dialect = DumpDialect::from_capabilities("bigquery", &caps);
+    assert_eq!(
+        dialect.insert_into_statement(
+            None,
+            "flags",
+            &format!(
+                "({}, {}, {})",
+                dialect.escape_value(json!(true)),
+                dialect.escape_value(json!(false)),
+                dialect.escape_value(json!("it's"))
+            )
+        ),
+        "INSERT INTO `flags` VALUES (TRUE, FALSE, 'it\\'s');"
+    );
+    // JSON columns keep JSON scalars.
+    assert_eq!(dialect.escape_json_value(json!(true)), "'true'");
+}
+
 // ---------------------------------------------------------------------------
 // Literal escaping (moved from dump_commands)
 // ---------------------------------------------------------------------------

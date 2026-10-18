@@ -242,6 +242,11 @@
               "default": true,
               "description": "Whether LIKE … ESCAPE is supported. false: LIKE filters escape wildcards with a backslash and omit ESCAPE."
             },
+            "boolean_literals": {
+              "type": "string",
+              "enum": ["keywords", "numeric"],
+              "description": "How Tabularis writes boolean literals in SQL it generates (dumps, Copy as INSERT, filters, notebook cell references). keywords: TRUE / FALSE. numeric: 1 / 0. Omit to keep each generator's default (dumps: TRUE / FALSE on postgres, 1 / 0 elsewhere). Set keywords for an engine without implicit integer-to-boolean coercion (GoogleSQL)."
+            },
             "formatter": {
               "type": "string",
               "enum": [

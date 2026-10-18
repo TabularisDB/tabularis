@@ -2,7 +2,13 @@ import type { TableColumn } from "../types/editor";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { formatSqlIdentifier, quoteIdentifier, quoteTableRef } from "./identifiers";
 import { formatSqlValueForColumnComparison, isMysqlFloatColumn } from "./foreignKeys";
-import { quoteSqlString, stringEscapeStyle, supportsLikeEscape } from "./sqlLiteral";
+import {
+  booleanLiteralWithStyle,
+  declaredBooleanLiterals,
+  quoteSqlString,
+  stringEscapeStyle,
+  supportsLikeEscape,
+} from "./sqlLiteral";
 
 
 export type FilterOperator =
@@ -225,6 +231,8 @@ export function buildSingleFilterClause(
     if (isMysqlFloatColumn(driver, columnType) && /^-?\d+(\.\d+)?$/.test(value)) {
       return formatSqlValueForColumnComparison(Number(value), driver, columnType);
     }
+    const boolean = declaredBooleanFilterLiteral(value, columnType, driver);
+    if (boolean !== undefined) return boolean;
     // Escape at clause construction, including values the picker already quoted.
     // Stored filter values stay dialect-independent when the picker reopens.
     return quoteIfNeeded(
@@ -293,6 +301,33 @@ function escapeLikePattern(value: string): string {
     .replace(/!/g, "!!")
     .replace(/%/g, "!%")
     .replace(/_/g, "!_");
+}
+
+const BOOLEAN_COLUMN_TYPE = /^\s*bool(?:ean)?\s*$/i;
+const BOOLEAN_FILTER_VALUES: Readonly<Record<string, boolean>> = {
+  true: true,
+  false: false,
+  "1": true,
+  "0": false,
+};
+
+/**
+ * The boolean literal for a filter value on a BOOLEAN column, when the
+ * driver declares `sql_syntax.boolean_literals` (GoogleSQL does not coerce
+ * `'true'` or `1` to BOOL). Undefined otherwise, so built-in drivers and
+ * plugins without the field keep their existing literals.
+ */
+export function declaredBooleanFilterLiteral(
+  value: string,
+  columnType: string | undefined,
+  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+): string | undefined {
+  if (!columnType || !BOOLEAN_COLUMN_TYPE.test(columnType)) return undefined;
+  const style = declaredBooleanLiterals(driver);
+  if (!style) return undefined;
+  const key = value.trim().replace(/^'(.*)'$/, "$1").toLowerCase();
+  if (!Object.hasOwn(BOOLEAN_FILTER_VALUES, key)) return undefined;
+  return booleanLiteralWithStyle(BOOLEAN_FILTER_VALUES[key], style);
 }
 
 /**

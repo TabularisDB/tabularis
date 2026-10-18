@@ -2,8 +2,9 @@ use serde_json::json;
 
 use crate::drivers::driver_trait::{DatabaseDriver, DriverCapabilities, SqlDialect};
 use crate::drivers::sql_syntax::{
-    quote_string_literal, LiteralStyle, QuoteEscape, QuoteKind, SqlSyntax, SqlSyntaxDescriptor,
-    StringEscape, FORMATTER_LANGUAGES, MAX_QUOTES, MAX_STRING_PREFIXES, MAX_WORDS, MAX_WORD_LEN,
+    quote_string_literal, BooleanLiterals, LiteralStyle, QuoteEscape, QuoteKind, SqlSyntax,
+    SqlSyntaxDescriptor, StringEscape, FORMATTER_LANGUAGES, MAX_QUOTES, MAX_STRING_PREFIXES,
+    MAX_WORDS, MAX_WORD_LEN,
 };
 
 /// The GoogleSQL descriptor the BigQuery plugin ships, shared with the
@@ -44,6 +45,7 @@ fn googlesql_descriptor_parses_every_field() {
     assert_eq!(desc.quotes.as_ref().unwrap().len(), 3);
     assert_eq!(desc.string_escape, Some(StringEscape::Backslash));
     assert_eq!(desc.formatter.as_deref(), Some("bigquery"));
+    assert_eq!(desc.boolean_literals, Some(BooleanLiterals::Keywords));
     assert!(desc
         .keywords
         .as_ref()
@@ -66,6 +68,7 @@ fn googlesql_descriptor_parses_every_field() {
     assert!(!syntax.executable_comments);
     assert!(!syntax.line_comment_requires_space);
     assert_eq!(syntax.string_escape, LiteralStyle::Backslash);
+    assert_eq!(syntax.boolean_literals, Some(BooleanLiterals::Keywords));
     assert_eq!(syntax.string_prefixes, ["r", "b", "rb", "br"]);
     for open in ["'", "\"", "`"] {
         assert!(syntax.backslash_in(open), "{open}");
@@ -123,6 +126,8 @@ fn without_sql_syntax_every_preset_resolves_unchanged() {
             LiteralStyle::Standard
         };
         assert_eq!(syntax.string_escape, expected_style);
+        // No declaration: every generator keeps its historical boolean form.
+        assert_eq!(syntax.boolean_literals, None);
     }
 }
 
@@ -227,6 +232,7 @@ fn invalid_fields_are_dropped_one_by_one() {
         "triple_quoted_strings": true,
         "string_escape": "mysql",
         "like_escape": false,
+        "boolean_literals": "words",
         "formatter": "<script>",
         "string_prefixes": ["r", "raw"],
         "keywords": ["OK", "DROP TABLE x;"],
@@ -236,6 +242,7 @@ fn invalid_fields_are_dropped_one_by_one() {
     assert_eq!(desc.triple_quoted_strings, Some(true));
     assert_eq!(desc.string_escape, None);
     assert_eq!(desc.like_escape, Some(false));
+    assert_eq!(desc.boolean_literals, None);
     assert_eq!(desc.formatter, None);
     assert_eq!(desc.string_prefixes, None);
     assert_eq!(desc.keywords, None);
@@ -351,4 +358,45 @@ fn limits_match_the_manifest_schema() {
         json!(MAX_WORD_LEN)
     );
     assert_eq!(props["formatter"]["enum"], json!(FORMATTER_LANGUAGES));
+    assert_eq!(
+        props["boolean_literals"]["enum"],
+        json!(["keywords", "numeric"])
+    );
+}
+
+#[test]
+fn boolean_literals_are_validated_and_resolved() {
+    let resolved = |value: serde_json::Value| {
+        SqlSyntax::resolve(&capabilities_from(json!({
+            "sql_dialect": "mysql",
+            "sql_syntax": { "boolean_literals": value },
+        })))
+        .boolean_literals
+    };
+    assert_eq!(resolved(json!("keywords")), Some(BooleanLiterals::Keywords));
+    assert_eq!(resolved(json!("numeric")), Some(BooleanLiterals::Numeric));
+    for invalid in [
+        json!("KEYWORDS"),
+        json!(true),
+        json!(1),
+        json!(["keywords"]),
+    ] {
+        assert_eq!(resolved(invalid.clone()), None, "{invalid}");
+    }
+    // Null is the same as leaving the field out.
+    assert_eq!(resolved(serde_json::Value::Null), None);
+    // Serialized back to the frontend only when valid.
+    let caps = capabilities_from(json!({ "sql_syntax": { "boolean_literals": "numeric" } }));
+    assert_eq!(
+        serde_json::to_value(&caps).unwrap()["sql_syntax"],
+        json!({ "boolean_literals": "numeric" })
+    );
+}
+
+#[test]
+fn boolean_literal_spells_the_style() {
+    assert_eq!(BooleanLiterals::Keywords.literal(true), "TRUE");
+    assert_eq!(BooleanLiterals::Keywords.literal(false), "FALSE");
+    assert_eq!(BooleanLiterals::Numeric.literal(true), "1");
+    assert_eq!(BooleanLiterals::Numeric.literal(false), "0");
 }

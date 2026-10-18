@@ -4,7 +4,7 @@
 //! back.
 
 use crate::drivers::driver_trait::{DriverCapabilities, SqlDialect};
-use crate::drivers::sql_syntax::{quote_string_literal, LiteralStyle, SqlSyntax};
+use crate::drivers::sql_syntax::{quote_string_literal, BooleanLiterals, LiteralStyle, SqlSyntax};
 
 #[cfg(test)]
 mod tests;
@@ -21,8 +21,8 @@ pub struct DumpDialect {
     /// How string literals are escaped: the driver's resolved syntax
     /// (`sql_syntax.string_escape`, else the `sql_dialect` preset).
     pub string_escape: LiteralStyle,
-    /// Booleans are written as `TRUE`/`FALSE` rather than `1`/`0` (PostgreSQL
-    /// only).
+    /// Booleans are written as `TRUE`/`FALSE` rather than `1`/`0`: the
+    /// declared `sql_syntax.boolean_literals`, else PostgreSQL only.
     pub boolean_keywords: bool,
 }
 
@@ -41,16 +41,23 @@ impl DumpDialect {
         } else {
             caps.identifier_quote.clone()
         };
+        let syntax = SqlSyntax::resolve(caps);
+        // A declared `boolean_literals` wins (GoogleSQL has no implicit
+        // INT64 -> BOOL coercion, so it declares keywords). Otherwise only
+        // PostgreSQL needs TRUE/FALSE (it rejects 1/0 with SQLSTATE 42804).
+        // Every other engine, including plugins with no or a generic
+        // dialect, keeps the 1/0 the dump has always written, since an engine
+        // we have not verified may not accept the keywords.
+        let boolean_keywords = match syntax.boolean_literals {
+            Some(style) => style == BooleanLiterals::Keywords,
+            None => postgres,
+        };
         Self {
             identifier_quote,
             schema_qualified: caps.schemas,
             postgres,
-            string_escape: SqlSyntax::resolve(caps).string_escape,
-            // Only PostgreSQL needs TRUE/FALSE (it rejects 1/0 with SQLSTATE
-            // 42804). Every other engine, including plugins with no or a
-            // generic dialect, keeps the 1/0 the dump has always written, since
-            // an engine we have not verified may not accept the keywords.
-            boolean_keywords: postgres,
+            string_escape: syntax.string_escape,
+            boolean_keywords,
         }
     }
 
@@ -132,12 +139,14 @@ impl DumpDialect {
         match val {
             serde_json::Value::Null => "NULL".to_string(),
             serde_json::Value::Number(n) => n.to_string(),
-            serde_json::Value::Bool(b) => match (self.boolean_keywords, b) {
-                (true, true) => "TRUE".to_string(),
-                (true, false) => "FALSE".to_string(),
-                (false, true) => "1".to_string(),
-                (false, false) => "0".to_string(),
-            },
+            serde_json::Value::Bool(b) => {
+                let style = if self.boolean_keywords {
+                    BooleanLiterals::Keywords
+                } else {
+                    BooleanLiterals::Numeric
+                };
+                style.literal(b).to_string()
+            }
             serde_json::Value::String(s) => self.escape_string(&s),
             // Arrays/objects only reach here from non-JSON columns (e.g.
             // hstore); serialize them and escape the text like any string.

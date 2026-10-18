@@ -1,4 +1,8 @@
-import type { DriverCapabilities, PluginManifest } from "../types/plugins";
+import type {
+  BooleanLiteralStyle,
+  DriverCapabilities,
+  PluginManifest,
+} from "../types/plugins";
 import { resolveSqlSyntax, type StringEscapeStyle } from "./sqlSyntax";
 
 export type { StringEscapeStyle } from "./sqlSyntax";
@@ -40,6 +44,30 @@ export function stringEscapeStyle(
 export function supportsLikeEscape(driver: DriverRef): boolean {
   if (typeof driver !== "object" || driver === null) return true;
   return resolveSqlSyntax(driver).likeEscape;
+}
+
+/**
+ * The boolean literal style a driver declares (`sql_syntax.boolean_literals`),
+ * or undefined when it declares none: callers then keep their historical
+ * form, so built-in drivers and plugins without the field are unchanged.
+ */
+export function declaredBooleanLiterals(driver: DriverRef): BooleanLiteralStyle | undefined {
+  if (typeof driver !== "object" || driver === null) return undefined;
+  return resolveSqlSyntax(driver).booleanLiterals;
+}
+
+/** `TRUE`/`FALSE` or `1`/`0` for `value` in `style`. */
+export function booleanLiteralWithStyle(value: boolean, style: BooleanLiteralStyle): string {
+  if (style === "numeric") return value ? "1" : "0";
+  return value ? "TRUE" : "FALSE";
+}
+
+/**
+ * The boolean literal for `value`: the driver's declared style, else
+ * `TRUE`/`FALSE` (what Copy as INSERT and filters have always written).
+ */
+export function sqlBooleanLiteral(value: boolean, driver: DriverRef): string {
+  return booleanLiteralWithStyle(value, declaredBooleanLiterals(driver) ?? "keywords");
 }
 
 /** Quotes `value` as a single-quoted string literal in `style`. */

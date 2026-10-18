@@ -356,6 +356,30 @@ describe("notebookVariables", () => {
       expect(standard.sql).toContain("'it''s C:\\temp\nnext' AS \"v\"");
     });
 
+    it("should write booleans in the declared boolean_literals style", () => {
+      const cells = [
+        makeCell({
+          type: "sql",
+          result: { columns: ["on", "off"], rows: [[true, false]], affected_rows: 0 },
+        }),
+      ];
+      const sql = (options?: Parameters<typeof resolveQueryVariables>[2]) =>
+        resolveQueryVariables("SELECT * FROM {{cell_1}}", cells, options).sql;
+      expect(sql(variableOptionsForDriver(GOOGLESQL_CAPS))).toContain(
+        "SELECT TRUE AS `on`, FALSE AS `off`",
+      );
+      const numeric = {
+        ...GOOGLESQL_CAPS,
+        sql_syntax: { ...GOOGLESQL_CAPS.sql_syntax, boolean_literals: "numeric" as const },
+      };
+      expect(sql(variableOptionsForDriver(numeric))).toContain("SELECT 1 AS `on`, 0 AS `off`");
+      // Without a declaration booleans stay quoted strings, as before.
+      expect(sql()).toContain(`SELECT 'true' AS "on", 'false' AS "off"`);
+      expect(sql(variableOptionsForDriver("postgres"))).toContain(
+        `SELECT 'true' AS "on", 'false' AS "off"`,
+      );
+    });
+
     it("should escape a backslash-quote sequence safely for MySQL", () => {
       const cells = [
         makeCell({
@@ -501,6 +525,7 @@ describe("notebookVariables", () => {
         escapeBackslashes: true,
         identifierQuote: "`",
         backslashLiterals: true,
+        booleanLiterals: "keywords",
       });
     });
 

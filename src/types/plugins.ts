@@ -103,6 +103,9 @@ export interface SqlSyntaxQuote {
   escape?: "double" | "backslash" | "both" | "none";
 }
 
+/** How generated boolean literals are written (`sql_syntax.boolean_literals`). */
+export type BooleanLiteralStyle = "keywords" | "numeric";
+
 /**
  * `capabilities.sql_syntax`: how a plugin's SQL is lexed and how the host
  * writes SQL for it, as data. Every field is optional and overrides the
@@ -124,6 +127,11 @@ export interface SqlSyntaxDescriptor {
   string_escape?: "standard" | "backslash";
   /** Whether `LIKE … ESCAPE '\'` is supported. Defaults to true. */
   like_escape?: boolean;
+  /**
+   * Generated boolean literals: `keywords` (`TRUE`/`FALSE`) or `numeric`
+   * (`1`/`0`). Omitted, each generator keeps its historical form.
+   */
+  boolean_literals?: BooleanLiteralStyle;
   /** `sql-formatter` language for Format SQL (allowlisted). */
   formatter?: string;
   /** Extra autocomplete keywords (at most 1000, each up to 64 chars). */

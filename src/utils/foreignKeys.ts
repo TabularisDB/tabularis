@@ -1,7 +1,7 @@
 import type { ForeignKey } from "../types/schema";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { isMysqlDialect, isPostgresDialect, quoteIdentifier } from "./identifiers";
-import { quoteSqlString, stringEscapeStyle } from "./sqlLiteral";
+import { quoteSqlString, sqlBooleanLiteral, stringEscapeStyle } from "./sqlLiteral";
 
 const NUMERIC_TYPE_KEYWORDS = [
   "int",
@@ -114,7 +114,8 @@ export function formatSqlValueForFilter(
     return String(value);
   }
   if (typeof value === "boolean") {
-    return value ? "TRUE" : "FALSE";
+    // TRUE/FALSE unless the driver declares `sql_syntax.boolean_literals`.
+    return sqlBooleanLiteral(value, driver);
   }
   const str = String(value);
   if (isNumericColumnType(columnType) && /^-?\d+(\.\d+)?$/.test(str)) {
