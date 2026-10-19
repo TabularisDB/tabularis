@@ -189,4 +189,125 @@ describe("gridUndo", () => {
     expect(cloned).not.toBe(original);
     expect(cloned![pkKey1].changes).not.toBe(original[pkKey1].changes);
   });
+
+  describe("Milestone 2: row insertions, deletions, and composite snapshots", () => {
+    const del1 = { [pkKey1]: row1 };
+    const ins1 = {
+      temp_1: {
+        tempId: "temp_1",
+        displayIndex: 5,
+        data: { name: "New User", age: 22 },
+      },
+    };
+
+    it("records row deletion transition and restores it on undo", () => {
+      let h = createGridHistory();
+      h = recordGridEdit(
+        h,
+        { pendingChanges: undefined, pendingDeletions: undefined },
+        { pendingChanges: undefined, pendingDeletions: del1 },
+        1000,
+      );
+
+      expect(canUndoGrid(h)).toBe(true);
+      const step = undoGridEdit(h, { pendingDeletions: del1 });
+      expect(step).not.toBeNull();
+      expect(step!.pendingDeletions).toBeUndefined();
+
+      const redo = redoGridEdit(step!.history, {
+        pendingDeletions: step!.pendingDeletions,
+      });
+      expect(redo).not.toBeNull();
+      expect(redo!.pendingDeletions).toEqual(del1);
+    });
+
+    it("records row insertion transition and restores it on undo/redo", () => {
+      let h = createGridHistory();
+      h = recordGridEdit(
+        h,
+        { pendingInsertions: undefined },
+        { pendingInsertions: ins1 },
+        1000,
+      );
+
+      expect(canUndoGrid(h)).toBe(true);
+      const step = undoGridEdit(h, { pendingInsertions: ins1 });
+      expect(step).not.toBeNull();
+      expect(step!.pendingInsertions).toBeUndefined();
+
+      const redo = redoGridEdit(step!.history, {
+        pendingInsertions: step!.pendingInsertions,
+      });
+      expect(redo).not.toBeNull();
+      expect(redo!.pendingInsertions).toEqual(ins1);
+    });
+
+    it("records cell edit inside pending insertion and restores previous insertion data", () => {
+      let h = createGridHistory();
+      const ins2 = {
+        temp_1: {
+          tempId: "temp_1",
+          displayIndex: 5,
+          data: { name: "Edited Name", age: 22 },
+        },
+      };
+
+      h = recordGridEdit(
+        h,
+        { pendingInsertions: ins1 },
+        { pendingInsertions: ins2 },
+        1000,
+      );
+
+      const step = undoGridEdit(h, { pendingInsertions: ins2 });
+      expect(step).not.toBeNull();
+      expect(step!.pendingInsertions).toEqual(ins1);
+    });
+
+    it("supports composite interleaved operations: edit -> insert -> delete", () => {
+      let h = createGridHistory();
+      // Step 1: Cell edit
+      const snap1 = { pendingChanges: state1 };
+      h = recordGridEdit(h, undefined, snap1, 1000);
+
+      // Step 2: Add row
+      const snap2 = { pendingChanges: state1, pendingInsertions: ins1 };
+      h = recordGridEdit(h, snap1, snap2, 2000);
+
+      // Step 3: Mark row for deletion
+      const snap3 = {
+        pendingChanges: state1,
+        pendingInsertions: ins1,
+        pendingDeletions: del1,
+      };
+      h = recordGridEdit(h, snap2, snap3, 3000);
+
+      expect(h.past.length).toBe(3);
+
+      // Undo deletion -> snap2
+      const u1 = undoGridEdit(h, snap3);
+      expect(u1!.pendingDeletions).toBeUndefined();
+      expect(u1!.pendingInsertions).toEqual(ins1);
+      expect(u1!.pendingChanges).toEqual(state1);
+
+      // Undo insertion -> snap1
+      const u2 = undoGridEdit(u1!.history, snap2);
+      expect(u2!.pendingInsertions).toBeUndefined();
+      expect(u2!.pendingChanges).toEqual(state1);
+
+      // Undo cell edit -> initial empty
+      const u3 = undoGridEdit(u2!.history, snap1);
+      expect(u3!.pendingChanges).toBeUndefined();
+      expect(canUndoGrid(u3!.history)).toBe(false);
+
+      // Redo all the way forward
+      const r1 = redoGridEdit(u3!.history, undefined);
+      expect(r1!.pendingChanges).toEqual(state1);
+      const r2 = redoGridEdit(r1!.history, snap1);
+      expect(r2!.pendingInsertions).toEqual(ins1);
+      const r3 = redoGridEdit(r2!.history, snap2);
+      expect(r3!.pendingDeletions).toEqual(del1);
+      expect(canRedoGrid(r3!.history)).toBe(false);
+    });
+  });
 });

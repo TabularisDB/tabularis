@@ -1,6 +1,6 @@
 /**
- * Command history for pending cell edits and grouped paste/fill operations
- * in the data grid before commit.
+ * Command history for pending cell edits, row insertions, row deletions,
+ * and grouped paste/fill operations in the data grid before commit.
  */
 
 export type PendingChangesMap = Record<
@@ -8,21 +8,69 @@ export type PendingChangesMap = Record<
   { pkOriginalValue: unknown; changes: Record<string, unknown> }
 >;
 
+export type PendingDeletionsMap = Record<string, unknown>;
+
+export interface PendingInsertion {
+  tempId: string;
+  data: Record<string, unknown>;
+  displayIndex?: number;
+}
+
+export type PendingInsertionsMap = Record<string, PendingInsertion>;
+
+export interface GridPendingSnapshot {
+  pendingChanges?: PendingChangesMap;
+  pendingDeletions?: PendingDeletionsMap;
+  pendingInsertions?: PendingInsertionsMap;
+}
+
 /** Maximum number of undo steps kept in memory per tab. */
 export const GRID_HISTORY_LIMIT = 50;
 
 /** Consecutive edits within this window collapse into a single undo step. */
 export const GRID_COALESCE_MS = 500;
 
+export type GridSnapshotEntry = GridPendingSnapshot | undefined;
+
 export interface GridHistory {
-  past: (PendingChangesMap | undefined)[];
-  future: (PendingChangesMap | undefined)[];
+  past: GridSnapshotEntry[];
+  future: GridSnapshotEntry[];
   /** Timestamp of the last recorded edit, used to coalesce rapid typing / grouped writes. */
   lastEditTime: number;
 }
 
 export function createGridHistory(): GridHistory {
   return { past: [], future: [], lastEditTime: 0 };
+}
+
+function isSnapshot(val: unknown): val is GridPendingSnapshot {
+  if (!val || typeof val !== "object") return false;
+  return (
+    "pendingChanges" in val ||
+    "pendingDeletions" in val ||
+    "pendingInsertions" in val
+  );
+}
+
+export function toGridSnapshot(
+  state: GridPendingSnapshot | PendingChangesMap | undefined,
+): GridPendingSnapshot | undefined {
+  if (!state) return undefined;
+  if (isSnapshot(state)) {
+    if (
+      !state.pendingChanges &&
+      !state.pendingDeletions &&
+      !state.pendingInsertions
+    ) {
+      return undefined;
+    }
+    return {
+      pendingChanges: state.pendingChanges,
+      pendingDeletions: state.pendingDeletions,
+      pendingInsertions: state.pendingInsertions,
+    };
+  }
+  return { pendingChanges: state as PendingChangesMap };
 }
 
 /** Deep clone of the pending changes map to preserve historical snapshots. */
@@ -40,6 +88,55 @@ export function clonePendingChanges(
     }
   }
   return Object.keys(clone).length > 0 ? clone : undefined;
+}
+
+/** Deep clone of the pending deletions map. */
+export function clonePendingDeletions(
+  deletions: PendingDeletionsMap | undefined,
+): PendingDeletionsMap | undefined {
+  if (!deletions) return undefined;
+  const clone: PendingDeletionsMap = {};
+  for (const [key, val] of Object.entries(deletions)) {
+    clone[key] =
+      val && typeof val === "object"
+        ? { ...(val as Record<string, unknown>) }
+        : val;
+  }
+  return Object.keys(clone).length > 0 ? clone : undefined;
+}
+
+/** Deep clone of the pending insertions map. */
+export function clonePendingInsertions(
+  insertions: PendingInsertionsMap | undefined,
+): PendingInsertionsMap | undefined {
+  if (!insertions) return undefined;
+  const clone: PendingInsertionsMap = {};
+  for (const [key, entry] of Object.entries(insertions)) {
+    if (entry) {
+      clone[key] = {
+        tempId: entry.tempId,
+        displayIndex: entry.displayIndex ?? 0,
+        data: { ...entry.data },
+      };
+    }
+  }
+  return Object.keys(clone).length > 0 ? clone : undefined;
+}
+
+/** Deep clone of an entire grid pending snapshot. Returns undefined if empty. */
+export function cloneGridSnapshot(
+  snapshot: GridPendingSnapshot | undefined,
+): GridPendingSnapshot | undefined {
+  if (!snapshot) return undefined;
+  const changes = clonePendingChanges(snapshot.pendingChanges);
+  const deletions = clonePendingDeletions(snapshot.pendingDeletions);
+  const insertions = clonePendingInsertions(snapshot.pendingInsertions);
+  if (!changes && !deletions && !insertions) return undefined;
+  return {
+    pendingChanges: changes,
+    pendingDeletions: deletions,
+    pendingInsertions: insertions,
+  };
 }
 
 /**
@@ -66,19 +163,50 @@ export function pendingChangesSignature(
 }
 
 /**
- * Record a transition between pending changes states.
+ * Deterministic signature of an entire grid snapshot (changes, deletions, insertions).
+ */
+export function gridSnapshotSignature(
+  state: GridPendingSnapshot | PendingChangesMap | undefined,
+): string {
+  if (!state) return "";
+  const snap = toGridSnapshot(state);
+  if (!snap) return "";
+  const changesSig = pendingChangesSignature(snap.pendingChanges);
+
+  const delKeys = Object.keys(snap.pendingDeletions || {}).sort();
+  const delSig = delKeys.length === 0 ? "" : JSON.stringify(delKeys);
+
+  const insKeys = Object.keys(snap.pendingInsertions || {}).sort();
+  let insSig = "";
+  if (insKeys.length > 0) {
+    const norm: Record<string, unknown> = {};
+    for (const key of insKeys) {
+      const ins = snap.pendingInsertions![key];
+      norm[key] = {
+        d: ins.displayIndex,
+        data: ins.data,
+      };
+    }
+    insSig = JSON.stringify(norm);
+  }
+
+  return `${changesSig}::${delSig}::${insSig}`;
+}
+
+/**
+ * Record a transition between grid pending states.
  * - Identical states are ignored.
  * - Edits within {@link GRID_COALESCE_MS} merge into the current step (e.g. multi-cell paste/fill).
  * - A new edit clears the redo (future) branch.
  */
 export function recordGridEdit(
   history: GridHistory = createGridHistory(),
-  prev: PendingChangesMap | undefined,
-  next: PendingChangesMap | undefined,
+  prev: GridPendingSnapshot | PendingChangesMap | undefined,
+  next: GridPendingSnapshot | PendingChangesMap | undefined,
   now: number,
   options?: { coalesce?: boolean },
 ): GridHistory {
-  if (pendingChangesSignature(prev) === pendingChangesSignature(next)) {
+  if (gridSnapshotSignature(prev) === gridSnapshotSignature(next)) {
     return history;
   }
 
@@ -91,7 +219,8 @@ export function recordGridEdit(
     return { ...history, lastEditTime: now };
   }
 
-  const past = [...history.past, clonePendingChanges(prev)];
+  const prevSnap = cloneGridSnapshot(toGridSnapshot(prev));
+  const past = [...history.past, prevSnap];
   if (past.length > GRID_HISTORY_LIMIT) {
     past.shift();
   }
@@ -106,6 +235,8 @@ export function recordGridEdit(
 export interface GridHistoryStep {
   history: GridHistory;
   pendingChanges: PendingChangesMap | undefined;
+  pendingDeletions: PendingDeletionsMap | undefined;
+  pendingInsertions: PendingInsertionsMap | undefined;
 }
 
 /**
@@ -113,7 +244,7 @@ export interface GridHistoryStep {
  */
 export function undoGridEdit(
   history: GridHistory,
-  current: PendingChangesMap | undefined,
+  current: GridPendingSnapshot | PendingChangesMap | undefined,
 ): GridHistoryStep | null {
   if (!history || history.past.length === 0) return null;
   const past = [...history.past];
@@ -121,10 +252,12 @@ export function undoGridEdit(
   return {
     history: {
       past,
-      future: [clonePendingChanges(current), ...history.future],
+      future: [cloneGridSnapshot(toGridSnapshot(current)), ...history.future],
       lastEditTime: 0,
     },
-    pendingChanges: clonePendingChanges(target),
+    pendingChanges: clonePendingChanges(target?.pendingChanges),
+    pendingDeletions: clonePendingDeletions(target?.pendingDeletions),
+    pendingInsertions: clonePendingInsertions(target?.pendingInsertions),
   };
 }
 
@@ -133,17 +266,19 @@ export function undoGridEdit(
  */
 export function redoGridEdit(
   history: GridHistory,
-  current: PendingChangesMap | undefined,
+  current: GridPendingSnapshot | PendingChangesMap | undefined,
 ): GridHistoryStep | null {
   if (!history || history.future.length === 0) return null;
   const [target, ...future] = history.future;
   return {
     history: {
-      past: [...history.past, clonePendingChanges(current)],
+      past: [...history.past, cloneGridSnapshot(toGridSnapshot(current))],
       future,
       lastEditTime: 0,
     },
-    pendingChanges: clonePendingChanges(target),
+    pendingChanges: clonePendingChanges(target?.pendingChanges),
+    pendingDeletions: clonePendingDeletions(target?.pendingDeletions),
+    pendingInsertions: clonePendingInsertions(target?.pendingInsertions),
   };
 }
 
