@@ -2721,4 +2721,68 @@ describe("DataGrid Edit selection context menu (#1000)", () => {
     expect(onRedo).toHaveBeenCalledTimes(2);
     expect(onUndo).not.toHaveBeenCalled();
   });
+
+  it("ignores Ctrl+Z when canUndo is false", async () => {
+    const onUndo = vi.fn();
+    const { container } = renderGrid({
+      onUndo,
+      canUndo: false,
+    });
+
+    fireEvent.mouseDown(container.querySelector("table")!);
+    fireEvent.keyDown(document, { key: "z", ctrlKey: true });
+    expect(onUndo).not.toHaveBeenCalled();
+  });
+
+  it("ignores Ctrl+Z while editing a cell inline", async () => {
+    const onUndo = vi.fn();
+    const { container } = renderGrid({
+      onUndo,
+      canUndo: true,
+      readonly: false,
+    });
+
+    fireEvent.mouseDown(container.querySelector("table")!);
+    const targetCell = cellAt(container, 0, 1);
+    fireEvent.doubleClick(targetCell);
+
+    // Editing cell is active with inline text input
+    fireEvent.keyDown(document, { key: "z", ctrlKey: true });
+    expect(onUndo).not.toHaveBeenCalled();
+  });
+
+  it("ignores Ctrl+Z when an editable text input has focus", async () => {
+    const onUndo = vi.fn();
+    const { container } = renderGrid({
+      onUndo,
+      canUndo: true,
+    });
+
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+
+    fireEvent.keyDown(input, { key: "z", ctrlKey: true });
+    expect(onUndo).not.toHaveBeenCalled();
+
+    document.body.removeChild(input);
+  });
+
+  it("calls onBeginBatchEdit and onEndBatchEdit around batch cell writes", async () => {
+    const onBeginBatchEdit = vi.fn();
+    const onEndBatchEdit = vi.fn();
+    const { container, onPendingChange } = renderGrid({
+      onBeginBatchEdit,
+      onEndBatchEdit,
+    });
+
+    selectColumn(1);
+    fireEvent.contextMenu(cellAt(container, 0, 1));
+    await openEditSelection();
+    fireEvent.click(await screen.findByText("dataGrid.upperCase"));
+
+    expect(onBeginBatchEdit).toHaveBeenCalledTimes(1);
+    expect(onEndBatchEdit).toHaveBeenCalledTimes(1);
+    expect(onPendingChange).toHaveBeenCalledTimes(3);
+  });
 });

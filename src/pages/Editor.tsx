@@ -28,6 +28,10 @@ import {
   redoGridEdit,
   canUndoGrid,
   canRedoGrid,
+  clonePendingChanges,
+  clonePendingDeletions,
+  clonePendingInsertions,
+  type GridPendingSnapshot,
 } from "../utils/gridUndo";
 import { TONE_SOFT_BG_CLASS, TONE_TEXT_CLASS, tint } from "../utils/tones";
 import {
@@ -1013,6 +1017,12 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     activeTab?.pendingDeletions,
     activeTab?.pendingInsertions,
   ]);
+
+  const canRedoGridActiveTab = useMemo(
+    () => canRedoGrid(activeTab?.gridHistory),
+    [activeTab?.gridHistory],
+  );
+  const showPendingChangesBar = hasPendingChanges || canRedoGridActiveTab;
 
   useLayoutEffect(() => {
     tabsRef.current = tabs;
@@ -3107,6 +3117,50 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     ],
   );
 
+  const isBatchingGridEditRef = useRef(false);
+  const batchBeforeSnapshotRef = useRef<GridPendingSnapshot | null>(null);
+
+  const handleBeginBatchEdit = useCallback(() => {
+    if (!activeTabIdRef.current) return;
+    const currentTab = tabsRef.current.find((t) => t.id === activeTabIdRef.current);
+    if (!currentTab) return;
+    isBatchingGridEditRef.current = true;
+    batchBeforeSnapshotRef.current = {
+      pendingChanges: clonePendingChanges(currentTab.pendingChanges),
+      pendingDeletions: clonePendingDeletions(currentTab.pendingDeletions),
+      pendingInsertions: clonePendingInsertions(currentTab.pendingInsertions),
+    };
+  }, []);
+
+  const handleEndBatchEdit = useCallback(() => {
+    if (!activeTabIdRef.current || !isBatchingGridEditRef.current) return;
+    const tabId = activeTabIdRef.current;
+    const beforeSnap = batchBeforeSnapshotRef.current;
+    isBatchingGridEditRef.current = false;
+    batchBeforeSnapshotRef.current = null;
+
+    if (!beforeSnap) return;
+
+    updateTab(tabId, (currentTab) => {
+      const afterSnap: GridPendingSnapshot = {
+        pendingChanges: currentTab.pendingChanges,
+        pendingDeletions: currentTab.pendingDeletions,
+        pendingInsertions: currentTab.pendingInsertions,
+      };
+      const nextGridHistory = recordGridEdit(
+        currentTab.gridHistory,
+        beforeSnap,
+        afterSnap,
+        Date.now(),
+        { coalesce: false },
+      );
+      return {
+        ...currentTab,
+        gridHistory: nextGridHistory,
+      };
+    });
+  }, [updateTab]);
+
   const handlePendingChange = useCallback(
     (pkVal: unknown, colName: string, value: unknown) => {
       if (!activeTabIdRef.current) return;
@@ -3147,20 +3201,22 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
         const nextPendingChanges =
           Object.keys(newPending).length === 0 ? undefined : newPending;
-        const nextGridHistory = recordGridEdit(
-          currentTab.gridHistory,
-          {
-            pendingChanges: currentTab.pendingChanges,
-            pendingDeletions: currentTab.pendingDeletions,
-            pendingInsertions: currentTab.pendingInsertions,
-          },
-          {
-            pendingChanges: nextPendingChanges,
-            pendingDeletions: currentTab.pendingDeletions,
-            pendingInsertions: currentTab.pendingInsertions,
-          },
-          Date.now(),
-        );
+        const nextGridHistory = isBatchingGridEditRef.current
+          ? currentTab.gridHistory
+          : recordGridEdit(
+              currentTab.gridHistory,
+              {
+                pendingChanges: currentTab.pendingChanges,
+                pendingDeletions: currentTab.pendingDeletions,
+                pendingInsertions: currentTab.pendingInsertions,
+              },
+              {
+                pendingChanges: nextPendingChanges,
+                pendingDeletions: currentTab.pendingDeletions,
+                pendingInsertions: currentTab.pendingInsertions,
+              },
+              Date.now(),
+            );
 
         return {
           pendingChanges: nextPendingChanges,
@@ -3361,20 +3417,22 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           },
         };
 
-        const nextGridHistory = recordGridEdit(
-          currentTab.gridHistory,
-          {
-            pendingChanges: currentTab.pendingChanges,
-            pendingDeletions: currentTab.pendingDeletions,
-            pendingInsertions: currentTab.pendingInsertions,
-          },
-          {
-            pendingChanges: currentTab.pendingChanges,
-            pendingDeletions: currentTab.pendingDeletions,
-            pendingInsertions: nextPendingInsertions,
-          },
-          Date.now(),
-        );
+        const nextGridHistory = isBatchingGridEditRef.current
+          ? currentTab.gridHistory
+          : recordGridEdit(
+              currentTab.gridHistory,
+              {
+                pendingChanges: currentTab.pendingChanges,
+                pendingDeletions: currentTab.pendingDeletions,
+                pendingInsertions: currentTab.pendingInsertions,
+              },
+              {
+                pendingChanges: currentTab.pendingChanges,
+                pendingDeletions: currentTab.pendingDeletions,
+                pendingInsertions: nextPendingInsertions,
+              },
+              Date.now(),
+            );
 
         return {
           pendingInsertions: nextPendingInsertions,
@@ -5955,48 +6013,52 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                     </div>
 
                     {/* Separator */}
-                    {hasPendingChanges && (
+                    {showPendingChangesBar && (
                       <div className="w-[1px] h-4 bg-surface-secondary mx-1"></div>
                     )}
 
-                    {hasPendingChanges && (
+                    {showPendingChangesBar && (
                       <div className="ml-auto flex items-center my-1 bg-surface-secondary/30 border border-default rounded-xl overflow-hidden cursor-pointer">
-                        <label className="flex items-center gap-2 px-2.5 @[560px]:px-4 py-2 cursor-pointer select-none group hover:bg-surface-secondary transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={applyToAll}
-                            onChange={(e) => setApplyToAll(e.target.checked)}
-                            className="w-4 h-4 cursor-pointer accent-primary"
-                          />
-                          <span className="text-sm text-primary font-medium whitespace-nowrap">
-                            {t("editor.applyToAll")}
-                          </span>
-                        </label>
-                        <div className="w-px self-stretch bg-default"></div>
-                        <button
-                          onClick={handleSubmitChanges}
-                          disabled={!applyToAll && !selectionHasPending}
-                          className="flex items-center gap-1.5 px-2.5 @[560px]:px-4 py-2 text-accent-success hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
-                          title={t("editor.submitChanges")}
-                        >
-                          <Check size={15} />
-                          <span className="hidden @[480px]:inline">
-                            {t("editor.submit")}
-                          </span>
-                        </button>
-                        <div className="w-px self-stretch bg-default"></div>
-                        <button
-                          onClick={handleRollbackChanges}
-                          disabled={!applyToAll && !selectionHasPending}
-                          className="flex items-center gap-1.5 px-2.5 @[560px]:px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
-                          title={t("editor.rollbackChanges")}
-                        >
-                          <ArrowLeftToLine size={15} />
-                          <span className="hidden @[480px]:inline">
-                            {t("editor.rollback")}
-                          </span>
-                        </button>
-                        <div className="w-px self-stretch bg-default"></div>
+                        {hasPendingChanges && (
+                          <>
+                            <label className="flex items-center gap-2 px-2.5 @[560px]:px-4 py-2 cursor-pointer select-none group hover:bg-surface-secondary transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={applyToAll}
+                                onChange={(e) => setApplyToAll(e.target.checked)}
+                                className="w-4 h-4 cursor-pointer accent-primary"
+                              />
+                              <span className="text-sm text-primary font-medium whitespace-nowrap">
+                                {t("editor.applyToAll")}
+                              </span>
+                            </label>
+                            <div className="w-px self-stretch bg-default"></div>
+                            <button
+                              onClick={handleSubmitChanges}
+                              disabled={!applyToAll && !selectionHasPending}
+                              className="flex items-center gap-1.5 px-2.5 @[560px]:px-4 py-2 text-accent-success hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
+                              title={t("editor.submitChanges")}
+                            >
+                              <Check size={15} />
+                              <span className="hidden @[480px]:inline">
+                                {t("editor.submit")}
+                              </span>
+                            </button>
+                            <div className="w-px self-stretch bg-default"></div>
+                            <button
+                              onClick={handleRollbackChanges}
+                              disabled={!applyToAll && !selectionHasPending}
+                              className="flex items-center gap-1.5 px-2.5 @[560px]:px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
+                              title={t("editor.rollbackChanges")}
+                            >
+                              <ArrowLeftToLine size={15} />
+                              <span className="hidden @[480px]:inline">
+                                {t("editor.rollback")}
+                              </span>
+                            </button>
+                            <div className="w-px self-stretch bg-default"></div>
+                          </>
+                        )}
                         <button
                           onClick={handleUndoGrid}
                           disabled={!canUndoGrid(activeTab.gridHistory)}
@@ -6020,18 +6082,22 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                             {t("editor.redo")}
                           </span>
                         </button>
-                        <div className="w-px self-stretch bg-default"></div>
-                        <span className="px-2.5 @[560px]:px-4 py-2 text-sm font-medium text-accent select-none hover:bg-surface-secondary transition-colors whitespace-nowrap">
-                          {t("editor.pendingCount", {
-                            count:
-                              Object.keys(activeTab.pendingChanges || {})
-                                .length +
-                              Object.keys(activeTab.pendingDeletions || {})
-                                .length +
-                              Object.keys(activeTab.pendingInsertions || {})
-                                .length,
-                          })}
-                        </span>
+                        {hasPendingChanges && (
+                          <>
+                            <div className="w-px self-stretch bg-default"></div>
+                            <span className="px-2.5 @[560px]:px-4 py-2 text-sm font-medium text-accent select-none hover:bg-surface-secondary transition-colors whitespace-nowrap">
+                              {t("editor.pendingCount", {
+                                count:
+                                  Object.keys(activeTab.pendingChanges || {})
+                                    .length +
+                                  Object.keys(activeTab.pendingDeletions || {})
+                                    .length +
+                                  Object.keys(activeTab.pendingInsertions || {})
+                                    .length,
+                              })}
+                            </span>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -6106,6 +6172,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       onRedo={handleRedoGrid}
                       canUndo={canUndoGrid(activeTab.gridHistory)}
                       canRedo={canRedoGrid(activeTab.gridHistory)}
+                      onBeginBatchEdit={handleBeginBatchEdit}
+                      onEndBatchEdit={handleEndBatchEdit}
                     />
                   </div>
                   {activeFkQuery && activeConnectionId && (

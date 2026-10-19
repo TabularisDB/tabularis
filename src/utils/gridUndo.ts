@@ -47,11 +47,17 @@ export function createGridHistory(): GridHistory {
 
 function isSnapshot(val: unknown): val is GridPendingSnapshot {
   if (!val || typeof val !== "object") return false;
-  return (
+  const hasSnapKeys =
     "pendingChanges" in val ||
     "pendingDeletions" in val ||
-    "pendingInsertions" in val
+    "pendingInsertions" in val;
+  if (!hasSnapKeys) return false;
+  const values = Object.values(val as Record<string, unknown>);
+  const hasRowEntries = values.some(
+    (v) =>
+      v && typeof v === "object" && ("changes" in v || "pkOriginalValue" in v),
   );
+  return !hasRowEntries;
 }
 
 export function toGridSnapshot(
@@ -202,6 +208,7 @@ function findModifiedKey(
   const pCh = prev?.pendingChanges || {};
   const nCh = next?.pendingChanges || {};
   for (const k of Object.keys(nCh)) {
+    if (pCh[k] === nCh[k]) continue;
     if (JSON.stringify(pCh[k]) !== JSON.stringify(nCh[k])) return `c:${k}`;
   }
   for (const k of Object.keys(pCh)) {
@@ -211,6 +218,7 @@ function findModifiedKey(
   const pIns = prev?.pendingInsertions || {};
   const nIns = next?.pendingInsertions || {};
   for (const k of Object.keys(nIns)) {
+    if (pIns[k] === nIns[k]) continue;
     if (JSON.stringify(pIns[k]) !== JSON.stringify(nIns[k])) return `i:${k}`;
   }
   for (const k of Object.keys(pIns)) {
@@ -235,12 +243,24 @@ export function recordGridEdit(
   now: number,
   options?: { coalesce?: boolean },
 ): GridHistory {
-  if (gridSnapshotSignature(prev) === gridSnapshotSignature(next)) {
+  if (prev === next) {
     return history;
   }
 
   const prevSnap = cloneGridSnapshot(toGridSnapshot(prev));
   const nextSnap = toGridSnapshot(next);
+
+  if (
+    prevSnap?.pendingChanges === nextSnap?.pendingChanges &&
+    prevSnap?.pendingDeletions === nextSnap?.pendingDeletions &&
+    prevSnap?.pendingInsertions === nextSnap?.pendingInsertions
+  ) {
+    return history;
+  }
+
+  if (gridSnapshotSignature(prevSnap) === gridSnapshotSignature(nextSnap)) {
+    return history;
+  }
   const modifiedKey = findModifiedKey(prevSnap, nextSnap);
   const elapsed = now - history.lastEditTime;
 
