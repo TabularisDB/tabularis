@@ -4479,7 +4479,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       precondition: "tabularisCanStripSqlComments",
       contextMenuGroupId: "9_cutcopypaste",
       contextMenuOrder: 3,
-      run: (ed) => {
+      run: async (ed) => {
         const selection = ed.getSelection();
         const model = ed.getModel();
         const source =
@@ -4488,7 +4488,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             : ed.getValue();
         if (!source) return;
         const stripped = stripSqlComments(source, activeDialectRef.current);
-        void copyTextToClipboard(stripped);
+        try {
+          await copyTextToClipboard(stripped);
+          showToast(t("common.copied"), { kind: "success" });
+        } catch (e) {
+          showAlert(t("common.error") + ": " + e, {
+            title: t("common.error"),
+            kind: "error",
+          });
+        }
       },
     });
   };

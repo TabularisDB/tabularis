@@ -13,18 +13,22 @@ import { scanToken, type TokenizerState } from './sqlSplitter/tokenizer';
 
 /**
  * The lexing rules for `input`, or `undefined` when it declares no SQL
- * dialect: a resolved syntax with neither `sql_dialect` nor `sql_syntax`,
- * an unknown name, or nothing at all. Lexing with guessed quote rules can
- * mistake SQL for a string or comment and strip real code, so those
- * surfaces get no stripping.
+ * dialect: a resolved syntax with no `sql_syntax` and no `sql_dialect` or
+ * only `generic` (unknown dialect names also load as `generic`), the name
+ * `generic`, an unknown name, or nothing at all. Lexing with guessed quote
+ * rules can mistake SQL for a string or comment and strip real code, so
+ * those surfaces get no stripping.
  */
 function declaredOptions(input: DialectInput): DialectOptions | undefined {
   if (typeof input === 'object') {
-    return input.dialect !== undefined || input.declared
+    return input.declared ||
+      (input.dialect !== undefined && input.dialect !== 'generic')
       ? input.options
       : undefined;
   }
-  return isDialect(input) ? dialectOptions(input) : undefined;
+  return isDialect(input) && input !== 'generic'
+    ? dialectOptions(input)
+    : undefined;
 }
 
 /** Whether `stripSqlComments` strips anything for `input`. */

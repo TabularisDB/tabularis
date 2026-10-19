@@ -153,6 +153,51 @@ describe('stripSqlComments', () => {
     expect(canStripSqlComments(undefined)).toBe(false);
   });
 
+  describe('generic dialect (#1211)', () => {
+    // On a backslash-escape engine `'x\'` does not end the string, so the
+    // generic rules would read `-- y' AS a, b FROM t` as a comment.
+    const sql = "SELECT 'x\\' -- y' AS a, b FROM t -- note";
+
+    it('treats a connection that declares only generic as undeclared', () => {
+      const generic = resolveSqlSyntax({ sql_dialect: 'generic' });
+      expect(canStripSqlComments(generic)).toBe(false);
+      expect(stripSqlComments(sql, generic)).toBe(sql);
+    });
+
+    it('treats the generic dialect name as undeclared', () => {
+      expect(canStripSqlComments('generic')).toBe(false);
+      expect(stripSqlComments(sql, 'generic')).toBe(sql);
+    });
+
+    it('strips when generic comes with a declared sql_syntax', () => {
+      const declared = resolveSqlSyntax({
+        sql_dialect: 'generic',
+        sql_syntax: {
+          quotes: [{ open: "'", kind: 'string', escape: 'backslash' }],
+        },
+      });
+      expect(canStripSqlComments(declared)).toBe(true);
+      expect(stripSqlComments(sql, declared)).toBe(
+        "SELECT 'x\\' -- y' AS a, b FROM t ",
+      );
+    });
+
+    it('keeps the action for concrete dialects', () => {
+      for (const dialect of [
+        'postgres',
+        'mysql',
+        'mssql',
+        'sqlite',
+        'oracle',
+      ] as const) {
+        expect(canStripSqlComments(dialect)).toBe(true);
+        expect(
+          canStripSqlComments(resolveSqlSyntax({ sql_dialect: dialect })),
+        ).toBe(true);
+      }
+    });
+  });
+
   it('returns the input unchanged for an unknown dialect', () => {
     const sql = 'SELECT /* note */ 1 -- x';
     expect(stripSqlComments(sql, 'nope')).toBe(sql);
