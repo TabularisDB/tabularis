@@ -1,8 +1,10 @@
 //! Unit tests for scheduled database content backups:
-//! - File naming & parsing
+//! - File naming & parsing with double-dash collision safety
 //! - Retention pruning and preserving last good backup
-//! - IANA timezone boundaries & day transitions
-//! - Concurrency guard
+//! - Prefix matching safety (no-database plans and connection prefix safety)
+//! - Scheduling due-checks (is_backup_due) and next run computation
+//! - IANA timezone boundaries & local timezone resolution
+//! - Concurrency guard RAII semantics
 
 use super::*;
 use chrono::{NaiveDate, TimeZone, Utc};
@@ -18,10 +20,15 @@ fn ts(y: i32, m: u32, d: u32, h: u32, min: u32) -> NaiveDateTime {
 fn file_name_round_trips_through_parse() {
     let now = ts(2026, 10, 19, 14, 30);
     let name = backup_file_name("conn1", Some("prod_db"), now);
-    assert_eq!(name, "tabularis-db-backup-conn1-prod_db-20261019-143000.sql");
+    assert_eq!(name, "tabularis-db-backup-conn1--prod_db--20261019-143000.sql");
 
     let parsed = parse_backup_timestamp(&name);
     assert_eq!(parsed, Some(now));
+
+    // Also verify no-database plan naming
+    let no_db_name = backup_file_name("conn1", None, now);
+    assert_eq!(no_db_name, "tabularis-db-backup-conn1--_all_--20261019-143000.sql");
+    assert_eq!(parse_backup_timestamp(&no_db_name), Some(now));
 }
 
 #[test]
@@ -35,11 +42,11 @@ fn parse_rejects_foreign_files() {
 #[test]
 fn prune_keeps_newest_files_and_ignores_foreign_ones() {
     let names: Vec<String> = [
-        "tabularis-db-backup-c1-db1-20261015-120000.sql",
-        "tabularis-db-backup-c1-db1-20261016-120000.sql",
-        "tabularis-db-backup-c1-db1-20261017-120000.sql",
-        "tabularis-db-backup-c1-db1-20261018-120000.sql",
-        "tabularis-db-backup-c1-db1-20261019-120000.sql",
+        "tabularis-db-backup-c1--db1--20261015-120000.sql",
+        "tabularis-db-backup-c1--db1--20261016-120000.sql",
+        "tabularis-db-backup-c1--db1--20261017-120000.sql",
+        "tabularis-db-backup-c1--db1--20261018-120000.sql",
+        "tabularis-db-backup-c1--db1--20261019-120000.sql",
         "unrelated.sql",
     ]
     .iter()
@@ -50,18 +57,38 @@ fn prune_keeps_newest_files_and_ignores_foreign_ones() {
     assert_eq!(
         pruned,
         vec![
-            "tabularis-db-backup-c1-db1-20261015-120000.sql",
-            "tabularis-db-backup-c1-db1-20261016-120000.sql",
+            "tabularis-db-backup-c1--db1--20261015-120000.sql",
+            "tabularis-db-backup-c1--db1--20261016-120000.sql",
         ]
     );
 }
 
 #[test]
+fn prefix_matching_cannot_delete_other_plans_or_connections() {
+    let names: Vec<String> = [
+        // Target: connection "c1" with no specific database
+        "tabularis-db-backup-c1--_all_--20261015-120000.sql",
+        "tabularis-db-backup-c1--_all_--20261016-120000.sql",
+        // Other plan: connection "c1" with database "mydb"
+        "tabularis-db-backup-c1--mydb--20261015-120000.sql",
+        // Other connection: "c1_staging" (c1 is a prefix of c1_staging)
+        "tabularis-db-backup-c1_staging--_all_--20261015-120000.sql",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+
+    // Pruning connection c1 without database with retention 1
+    let pruned = select_backups_to_prune(&names, "c1", None, 1);
+    assert_eq!(pruned, vec!["tabularis-db-backup-c1--_all_--20261015-120000.sql"]);
+    // Must NOT have pruned c1-mydb or c1_staging!
+    assert!(!pruned.contains(&"tabularis-db-backup-c1--mydb--20261015-120000.sql".to_string()));
+    assert!(!pruned.contains(&"tabularis-db-backup-c1_staging--_all_--20261015-120000.sql".to_string()));
+}
+
+#[test]
 fn failed_runs_do_not_prune_last_good_backup() {
-    // When only 1 successful backup exists and a subsequent run fails,
-    // pruning is not called, but even if evaluated with retention 1,
-    // the single backup is retained.
-    let names = vec!["tabularis-db-backup-c1-db1-20261019-120000.sql".to_string()];
+    let names = vec!["tabularis-db-backup-c1--db1--20261019-120000.sql".to_string()];
     let pruned = select_backups_to_prune(&names, "c1", Some("db1"), 1);
     assert!(pruned.is_empty());
 }
@@ -69,8 +96,8 @@ fn failed_runs_do_not_prune_last_good_backup() {
 #[test]
 fn prune_with_zero_retention_deletes_nothing() {
     let names = vec![
-        "tabularis-db-backup-c1-db1-20261018-120000.sql".to_string(),
-        "tabularis-db-backup-c1-db1-20261019-120000.sql".to_string(),
+        "tabularis-db-backup-c1--db1--20261018-120000.sql".to_string(),
+        "tabularis-db-backup-c1--db1--20261019-120000.sql".to_string(),
     ];
     assert!(select_backups_to_prune(&names, "c1", Some("db1"), 0).is_empty());
 }
@@ -86,6 +113,32 @@ fn parse_time_handles_valid_and_invalid_formats() {
 }
 
 #[test]
+fn is_backup_due_evaluates_schedule_correctly() {
+    let target_time = "14:00";
+    let tz = "UTC";
+
+    // 13:59 UTC: not yet due
+    let before = Utc.with_ymd_and_hms(2026, 10, 19, 13, 59, 0).unwrap();
+    assert!(!is_backup_due(before, target_time, tz, None));
+
+    // 14:00 UTC: due now
+    let at = Utc.with_ymd_and_hms(2026, 10, 19, 14, 0, 0).unwrap();
+    assert!(is_backup_due(at, target_time, tz, None));
+
+    // 14:15 UTC: due if it hasn't run yet today
+    let after = Utc.with_ymd_and_hms(2026, 10, 19, 14, 15, 0).unwrap();
+    assert!(is_backup_due(after, target_time, tz, None));
+
+    // 14:15 UTC: NOT due if it already succeeded today
+    let run_today = Utc.with_ymd_and_hms(2026, 10, 19, 14, 1, 0).unwrap();
+    assert!(!is_backup_due(after, target_time, tz, Some(run_today)));
+
+    // 14:15 UTC: IS due if last success was yesterday
+    let run_yesterday = Utc.with_ymd_and_hms(2026, 10, 18, 14, 0, 0).unwrap();
+    assert!(is_backup_due(after, target_time, tz, Some(run_yesterday)));
+}
+
+#[test]
 fn iana_timezone_boundaries_evaluation() {
     // 10:00 UTC, scheduled for 15:00 UTC
     let now = Utc.with_ymd_and_hms(2026, 10, 19, 10, 0, 0).unwrap();
@@ -97,7 +150,7 @@ fn iana_timezone_boundaries_evaluation() {
     assert_eq!(next_run.hour(), 15);
     assert_eq!(next_run.minute(), 0);
 
-    // 16:00 UTC, scheduled for 15:00 UTC -> should advance to tomorrow
+    // 16:00 UTC, scheduled for 15:00 UTC -> advances to tomorrow
     let late_now = Utc.with_ymd_and_hms(2026, 10, 19, 16, 0, 0).unwrap();
     let next_run_tomorrow = compute_next_run_utc(late_now, "15:00", "UTC", None);
 
@@ -106,11 +159,41 @@ fn iana_timezone_boundaries_evaluation() {
 }
 
 #[test]
-fn concurrency_guard_prevents_concurrent_runs() {
+fn plan_timezone_handles_local_and_invalid_timezones() {
+    // "local" timezone parses as Local
+    let local_ptz = PlanTimezone::parse("local");
+    assert!(matches!(local_ptz, PlanTimezone::Local));
+
+    let empty_ptz = PlanTimezone::parse("");
+    assert!(matches!(empty_ptz, PlanTimezone::Local));
+
+    let invalid_ptz = PlanTimezone::parse("Invalid/NonExistent_Tz");
+    assert!(matches!(invalid_ptz, PlanTimezone::Local));
+
+    let named_ptz = PlanTimezone::parse("America/New_York");
+    assert!(matches!(named_ptz, PlanTimezone::Named(_)));
+}
+
+#[test]
+fn concurrency_guard_prevents_concurrent_runs_and_raii_cleans_up() {
     RUNTIME_STATE.is_running.store(false, Ordering::SeqCst);
+
+    // Simulate starting a run
     assert!(!RUNTIME_STATE.is_running.swap(true, Ordering::SeqCst));
-    // Second swap should see true (already running)
-    assert!(RUNTIME_STATE.is_running.swap(true, Ordering::SeqCst));
-    // Reset
-    RUNTIME_STATE.is_running.store(false, Ordering::SeqCst);
+    // Concurrency check: another run attempt must be blocked
+    assert!(RUNTIME_STATE.is_running.load(Ordering::SeqCst));
+
+    // Simulate RAII guard drop
+    struct TestGuard;
+    impl Drop for TestGuard {
+        fn drop(&mut self) {
+            RUNTIME_STATE.is_running.store(false, Ordering::SeqCst);
+        }
+    }
+    {
+        let _guard = TestGuard;
+    }
+
+    // After drop, lock is released
+    assert!(!RUNTIME_STATE.is_running.load(Ordering::SeqCst));
 }

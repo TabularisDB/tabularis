@@ -1079,6 +1079,8 @@
       "dbBackupTimezoneLocal": "Локальный часовой пояс системы",
       "dbBackupRetention": "Хранимые копии",
       "dbBackupRetentionDesc": "Количество сохраняемых успешных копий. Неудачные попытки не удаляют последнюю успешную копию.",
+      "dbBackupContent": "Содержимое дампа",
+      "dbBackupContentDesc": "Выберите, выгружать ли структуру таблиц, данные или и то, и другое.",
       "dbBackupIncludeStructure": "Включать структуру таблиц (DDL)",
       "dbBackupIncludeData": "Включать данные таблиц (INSERT)",
       "dbBackupStatus": "Статус",

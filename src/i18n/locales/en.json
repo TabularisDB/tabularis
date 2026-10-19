@@ -1152,6 +1152,8 @@
       "dbBackupTimezoneLocal": "Local system timezone",
       "dbBackupRetention": "Backups to keep",
       "dbBackupRetentionDesc": "Number of successful backups retained. Failed runs do not prune the last good one.",
+      "dbBackupContent": "Dump content",
+      "dbBackupContentDesc": "Choose whether to dump table structure, data, or both.",
       "dbBackupIncludeStructure": "Include table structure (DDL)",
       "dbBackupIncludeData": "Include table data (INSERT statements)",
       "dbBackupStatus": "Status",

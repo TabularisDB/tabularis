@@ -31,24 +31,31 @@ pub const TIMESTAMP_FORMAT: &str = "%Y%m%d-%H%M%S";
 
 struct DatabaseBackupRuntimeState {
     is_running: AtomicBool,
+    was_cancelled: AtomicBool,
     last_run_at: Mutex<Option<String>>,
+    last_successful_run_at: Mutex<Option<String>>,
     last_outcome: Mutex<Option<String>>,
     last_error: Mutex<Option<String>>,
     last_backup_file: Mutex<Option<String>>,
+    last_failure_attempt_at: Mutex<Option<DateTime<Utc>>>,
 }
 
 static RUNTIME_STATE: Lazy<DatabaseBackupRuntimeState> = Lazy::new(|| DatabaseBackupRuntimeState {
     is_running: AtomicBool::new(false),
+    was_cancelled: AtomicBool::new(false),
     last_run_at: Mutex::new(None),
+    last_successful_run_at: Mutex::new(None),
     last_outcome: Mutex::new(None),
     last_error: Mutex::new(None),
     last_backup_file: Mutex::new(None),
+    last_failure_attempt_at: Mutex::new(None),
 });
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseBackupStatus {
     pub last_run_at: Option<String>,
+    pub last_successful_run_at: Option<String>,
     pub last_outcome: Option<String>,
     pub last_error: Option<String>,
     pub last_backup_file: Option<String>,
@@ -58,10 +65,13 @@ pub struct DatabaseBackupStatus {
 
 // ---------- Pure helpers (tested in tests.rs) ----------
 
+/// Sanitizes a string into safe alphanumeric characters with underscores.
+/// Hyphens and punctuation are collapsed into single underscores to avoid
+/// delimiter ambiguities with the `--` component separator.
 pub fn sanitize_component(s: &str) -> String {
     let sanitized: String = s
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect();
     let trimmed = sanitized.trim_matches('_');
     if trimmed.is_empty() {
@@ -71,19 +81,22 @@ pub fn sanitize_component(s: &str) -> String {
     }
 }
 
+/// Computes the unique file prefix for a specific plan's connection and database.
+/// Uses `--` delimiters so that a plan with no database (`--_all_--`) or a connection ID
+/// that is a prefix of another connection can never match or prune another plan's backups.
 pub fn plan_file_prefix(connection_id: &str, database: Option<&str>) -> String {
     let safe_conn = sanitize_component(connection_id);
-    if let Some(db) = database.filter(|d| !d.is_empty()) {
-        let safe_db = sanitize_component(db);
-        format!("{FILE_PREFIX}{safe_conn}-{safe_db}-")
-    } else {
-        format!("{FILE_PREFIX}{safe_conn}-")
-    }
+    let safe_db = database
+        .map(|d| d.trim())
+        .filter(|d| !d.is_empty())
+        .map(sanitize_component)
+        .unwrap_or_else(|| "_all_".to_string());
+    format!("{FILE_PREFIX}{safe_conn}--{safe_db}--")
 }
 
-pub fn backup_file_name(connection_id: &str, database: Option<&str>, now: NaiveDateTime) -> String {
+pub fn backup_file_name(connection_id: &str, database: Option<&str>, now_utc: NaiveDateTime) -> String {
     let prefix = plan_file_prefix(connection_id, database);
-    format!("{}{}{FILE_SUFFIX}", prefix, now.format(TIMESTAMP_FORMAT))
+    format!("{}{}{FILE_SUFFIX}", prefix, now_utc.format(TIMESTAMP_FORMAT))
 }
 
 pub fn parse_backup_timestamp(file_name: &str) -> Option<NaiveDateTime> {
@@ -137,71 +150,129 @@ pub fn parse_time_hh_mm(s: &str) -> Option<(u32, u32)> {
     }
 }
 
+/// Evaluates plan scheduling in either the local OS timezone or an IANA named timezone.
+#[derive(Debug, Clone, Copy)]
+pub enum PlanTimezone {
+    Local,
+    Named(Tz),
+}
+
+impl PlanTimezone {
+    pub fn parse(tz_str: &str) -> Self {
+        if tz_str.eq_ignore_ascii_case("local") || tz_str.trim().is_empty() {
+            PlanTimezone::Local
+        } else {
+            match Tz::from_str(tz_str.trim()) {
+                Ok(tz) => PlanTimezone::Named(tz),
+                Err(_) => {
+                    log::warn!("Invalid timezone '{tz_str}', falling back to local system timezone");
+                    PlanTimezone::Local
+                }
+            }
+        }
+    }
+
+    pub fn current_date(&self, now_utc: DateTime<Utc>) -> NaiveDate {
+        match self {
+            PlanTimezone::Local => now_utc.with_timezone(&chrono::Local).date_naive(),
+            PlanTimezone::Named(tz) => now_utc.with_timezone(tz).date_naive(),
+        }
+    }
+
+    pub fn date_of(&self, dt_utc: DateTime<Utc>) -> NaiveDate {
+        match self {
+            PlanTimezone::Local => dt_utc.with_timezone(&chrono::Local).date_naive(),
+            PlanTimezone::Named(tz) => dt_utc.with_timezone(tz).date_naive(),
+        }
+    }
+
+    pub fn target_utc(&self, date: NaiveDate, hour: u32, minute: u32) -> Option<DateTime<Utc>> {
+        let naive = date.and_hms_opt(hour, minute, 0)?;
+        match self {
+            PlanTimezone::Local => match chrono::Local.from_local_datetime(&naive) {
+                chrono::LocalResult::Single(dt) => Some(dt.with_timezone(&Utc)),
+                chrono::LocalResult::Ambiguous(earliest, _) => Some(earliest.with_timezone(&Utc)),
+                chrono::LocalResult::None => chrono::Local
+                    .from_local_datetime(&(naive + Duration::hours(1)))
+                    .single()
+                    .map(|dt| dt.with_timezone(&Utc)),
+            },
+            PlanTimezone::Named(tz) => match tz.from_local_datetime(&naive) {
+                chrono::LocalResult::Single(dt) => Some(dt.with_timezone(&Utc)),
+                chrono::LocalResult::Ambiguous(earliest, _) => Some(earliest.with_timezone(&Utc)),
+                chrono::LocalResult::None => tz
+                    .from_local_datetime(&(naive + Duration::hours(1)))
+                    .single()
+                    .map(|dt| dt.with_timezone(&Utc)),
+            },
+        }
+    }
+}
+
 pub fn resolve_tz(tz_str: &str) -> Tz {
     if tz_str.eq_ignore_ascii_case("local") || tz_str.trim().is_empty() {
-        // Fall back to UTC for standard server-side evaluation when unspecified
         Tz::UTC
     } else {
         Tz::from_str(tz_str).unwrap_or(Tz::UTC)
     }
 }
 
+/// Checks if a daily backup is currently due.
+/// A backup is due when:
+/// 1. The current time is at or past today's target time in the plan's timezone, AND
+/// 2. No successful backup has already run today in that timezone.
+pub fn is_backup_due(
+    now_utc: DateTime<Utc>,
+    time_str: &str,
+    timezone_str: &str,
+    last_successful_run_at: Option<DateTime<Utc>>,
+) -> bool {
+    let ptz = PlanTimezone::parse(timezone_str);
+    let (target_h, target_m) = parse_time_hh_mm(time_str).unwrap_or((2, 0));
+    let today_date = ptz.current_date(now_utc);
+    let Some(today_target_utc) = ptz.target_utc(today_date, target_h, target_m) else {
+        return false;
+    };
+
+    if now_utc < today_target_utc {
+        return false;
+    }
+
+    if let Some(last_success) = last_successful_run_at {
+        if ptz.date_of(last_success) == today_date {
+            return false;
+        }
+    }
+
+    true
+}
+
+/// Computes the next scheduled run instant in UTC for display and status reporting.
 pub fn compute_next_run_utc(
     now_utc: DateTime<Utc>,
     time_str: &str,
     timezone_str: &str,
-    last_run_at: Option<DateTime<Utc>>,
+    last_successful_run_at: Option<DateTime<Utc>>,
 ) -> DateTime<Utc> {
-    let tz = resolve_tz(timezone_str);
-    let now_tz = now_utc.with_timezone(&tz);
+    let ptz = PlanTimezone::parse(timezone_str);
+    let (target_h, target_m) = parse_time_hh_mm(time_str).unwrap_or((2, 0));
+    let today_date = ptz.current_date(now_utc);
+    let today_target_utc = ptz
+        .target_utc(today_date, target_h, target_m)
+        .unwrap_or(now_utc);
 
-    let (target_hour, target_minute) = parse_time_hh_mm(time_str).unwrap_or((2, 0));
-
-    let today_date = now_tz.date_naive();
-    let today_target_naive = today_date.and_hms_opt(target_hour, target_minute, 0)
-        .unwrap_or_else(|| today_date.and_hms_opt(0, 0, 0).unwrap());
-
-    // Map naive date-time to timezone handling DST gaps and folds
-    let today_target_tz = match tz.from_local_datetime(&today_target_naive) {
-        chrono::LocalResult::Single(dt) => dt,
-        chrono::LocalResult::Ambiguous(earliest, _) => earliest,
-        chrono::LocalResult::None => {
-            // Spring-forward gap: push ahead 1 hour
-            tz.from_local_datetime(&(today_target_naive + Duration::hours(1)))
-                .single()
-                .unwrap_or(now_tz)
-        }
-    };
-    let today_target_utc = today_target_tz.with_timezone(&Utc);
-
-    let already_run_today = if let Some(last_run) = last_run_at {
-        let last_tz = last_run.with_timezone(&tz);
-        last_tz.date_naive() == today_date
-    } else {
-        false
+    let already_ran_today = match last_successful_run_at {
+        Some(last_success) => ptz.date_of(last_success) == today_date,
+        None => false,
     };
 
-    if now_utc < today_target_utc && !already_run_today {
+    if !already_ran_today && now_utc < today_target_utc {
         today_target_utc
     } else {
         let tomorrow_date = today_date + Duration::days(1);
-        let tomorrow_target_naive = tomorrow_date.and_hms_opt(target_hour, target_minute, 0)
-            .unwrap_or_else(|| tomorrow_date.and_hms_opt(0, 0, 0).unwrap());
-        let tomorrow_target_tz = match tz.from_local_datetime(&tomorrow_target_naive) {
-            chrono::LocalResult::Single(dt) => dt,
-            chrono::LocalResult::Ambiguous(earliest, _) => earliest,
-            chrono::LocalResult::None => {
-                tz.from_local_datetime(&(tomorrow_target_naive + Duration::hours(1)))
-                    .single()
-                    .unwrap_or_else(|| now_tz + Duration::days(1))
-            }
-        };
-        tomorrow_target_tz.with_timezone(&Utc)
+        ptz.target_utc(tomorrow_date, target_h, target_m)
+            .unwrap_or_else(|| today_target_utc + Duration::days(1))
     }
-}
-
-pub fn is_backup_due(now_utc: DateTime<Utc>, next_run_utc: DateTime<Utc>) -> bool {
-    now_utc >= next_run_utc
 }
 
 fn list_directory_files(dir: &Path) -> Vec<String> {
@@ -213,6 +284,20 @@ fn list_directory_files(dir: &Path) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// Finds the newest existing backup on disk matching the plan's prefix.
+pub fn find_newest_backup(dest_dir: &Path, connection_id: &str, database: Option<&str>) -> Option<(String, NaiveDateTime)> {
+    let prefix = plan_file_prefix(connection_id, database);
+    let files = list_directory_files(dest_dir);
+    let mut matching: Vec<(String, NaiveDateTime)> = files
+        .into_iter()
+        .filter(|n| n.starts_with(&prefix) && n.ends_with(FILE_SUFFIX))
+        .filter_map(|n| parse_backup_timestamp(&n).map(|ts| (n, ts)))
+        .collect();
+
+    matching.sort_by_key(|(_, ts)| *ts);
+    matching.pop()
 }
 
 // ---------- Execution ----------
@@ -234,6 +319,9 @@ pub async fn run_database_backup<R: Runtime>(
     }
     let _guard = Guard;
 
+    // Reset cancellation state before new run
+    RUNTIME_STATE.was_cancelled.store(false, Ordering::SeqCst);
+
     let config = crate::config::load_config_internal(&app);
     let plan = config
         .database_backup_plan
@@ -250,8 +338,9 @@ pub async fn run_database_backup<R: Runtime>(
             .map_err(|e| format!("Failed to create destination directory: {e}"))?;
     }
 
-    let now_naive = chrono::Local::now().naive_local();
-    let file_name = backup_file_name(&plan.connection_id, plan.database.as_deref(), now_naive);
+    // Unambiguous UTC timestamp across DST folds
+    let now_utc = Utc::now();
+    let file_name = backup_file_name(&plan.connection_id, plan.database.as_deref(), now_utc.naive_utc());
     let target_file_path = dest_dir.join(&file_name);
     let target_file_str = target_file_path.display().to_string();
 
@@ -306,10 +395,12 @@ pub async fn run_database_backup<R: Runtime>(
                 }
             }
 
-            *RUNTIME_STATE.last_run_at.lock().unwrap() = Some(now_iso);
+            *RUNTIME_STATE.last_run_at.lock().unwrap() = Some(now_iso.clone());
+            *RUNTIME_STATE.last_successful_run_at.lock().unwrap() = Some(now_iso);
             *RUNTIME_STATE.last_outcome.lock().unwrap() = Some("success".to_string());
             *RUNTIME_STATE.last_error.lock().unwrap() = None;
             *RUNTIME_STATE.last_backup_file.lock().unwrap() = Some(target_file_str.clone());
+            *RUNTIME_STATE.last_failure_attempt_at.lock().unwrap() = None;
 
             log::info!("Database backup completed successfully: {target_file_str}");
             Ok(target_file_str)
@@ -320,15 +411,18 @@ pub async fn run_database_backup<R: Runtime>(
                 let _ = fs::remove_file(&target_file_path);
             }
 
-            let outcome = if err.contains("cancelled") || err.contains("Cancelled") {
+            let was_cancelled = RUNTIME_STATE.was_cancelled.load(Ordering::SeqCst) || err == "Dump cancelled";
+            let outcome = if was_cancelled {
                 "cancelled"
             } else {
                 "error"
             };
 
             *RUNTIME_STATE.last_run_at.lock().unwrap() = Some(now_iso);
+            // Notice: last_successful_run_at is NOT touched on failure so the previous successful run is retained
             *RUNTIME_STATE.last_outcome.lock().unwrap() = Some(outcome.to_string());
             *RUNTIME_STATE.last_error.lock().unwrap() = Some(err.clone());
+            *RUNTIME_STATE.last_failure_attempt_at.lock().unwrap() = Some(Utc::now());
 
             log::warn!("Database backup ({trigger}) failed: {err}");
             Err(err)
@@ -354,17 +448,39 @@ pub fn spawn_database_backup_scheduler(app: AppHandle) {
             }
 
             let now_utc = Utc::now();
-            let last_run_utc = RUNTIME_STATE
-                .last_run_at
+
+            // Populate last_successful_run_at from disk if not yet loaded in memory
+            let last_success_utc = {
+                let mut guard = RUNTIME_STATE.last_successful_run_at.lock().unwrap();
+                if guard.is_none() {
+                    let dest_path = Path::new(&plan.destination_directory);
+                    if let Some((file_name, ts)) = find_newest_backup(dest_path, &plan.connection_id, plan.database.as_deref()) {
+                        let dt_utc = DateTime::<Utc>::from_naive_utc_and_offset(ts, Utc);
+                        *guard = Some(dt_utc.to_rfc3339());
+                        let mut file_guard = RUNTIME_STATE.last_backup_file.lock().unwrap();
+                        if file_guard.is_none() {
+                            *file_guard = Some(dest_path.join(file_name).display().to_string());
+                        }
+                    }
+                }
+                guard
+                    .as_deref()
+                    .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+                    .map(|dt| dt.with_timezone(&Utc))
+            };
+
+            // Don't hammer the database if an attempt failed recently (back off for 15 minutes)
+            let recently_failed = RUNTIME_STATE
+                .last_failure_attempt_at
                 .lock()
                 .unwrap()
-                .as_deref()
-                .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
-                .map(|dt| dt.with_timezone(&Utc));
+                .map(|t| now_utc.signed_duration_since(t) < Duration::minutes(15))
+                .unwrap_or(false);
 
-            let next_run_utc = compute_next_run_utc(now_utc, &plan.time, &plan.timezone, last_run_utc);
-
-            if is_backup_due(now_utc, next_run_utc) && !RUNTIME_STATE.is_running.load(Ordering::SeqCst) {
+            if is_backup_due(now_utc, &plan.time, &plan.timezone, last_success_utc)
+                && !recently_failed
+                && !RUNTIME_STATE.is_running.load(Ordering::SeqCst)
+            {
                 let app_clone = app.clone();
                 tauri::async_runtime::spawn(async move {
                     let _ = run_database_backup(app_clone, "scheduled").await;
@@ -384,18 +500,36 @@ pub async fn get_database_backup_status<R: Runtime>(
     let plan = config.database_backup_plan;
 
     let now_utc = Utc::now();
+
+    // Check disk on first query if last_successful_run_at is empty
+    if let Some(ref p) = plan {
+        let mut guard = RUNTIME_STATE.last_successful_run_at.lock().unwrap();
+        if guard.is_none() && !p.destination_directory.trim().is_empty() {
+            let dest_path = Path::new(&p.destination_directory);
+            if let Some((file_name, ts)) = find_newest_backup(dest_path, &p.connection_id, p.database.as_deref()) {
+                let dt_utc = DateTime::<Utc>::from_naive_utc_and_offset(ts, Utc);
+                *guard = Some(dt_utc.to_rfc3339());
+                let mut file_guard = RUNTIME_STATE.last_backup_file.lock().unwrap();
+                if file_guard.is_none() {
+                    *file_guard = Some(dest_path.join(file_name).display().to_string());
+                }
+            }
+        }
+    }
+
     let last_run_at = RUNTIME_STATE.last_run_at.lock().unwrap().clone();
+    let last_successful_run_at = RUNTIME_STATE.last_successful_run_at.lock().unwrap().clone();
     let last_outcome = RUNTIME_STATE.last_outcome.lock().unwrap().clone();
     let last_error = RUNTIME_STATE.last_error.lock().unwrap().clone();
     let last_backup_file = RUNTIME_STATE.last_backup_file.lock().unwrap().clone();
     let is_running = RUNTIME_STATE.is_running.load(Ordering::SeqCst);
 
     let next_run_at = if let Some(p) = plan.filter(|p| p.enabled && !p.connection_id.is_empty()) {
-        let last_utc = last_run_at
+        let last_success_utc = last_successful_run_at
             .as_deref()
             .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
             .map(|dt| dt.with_timezone(&Utc));
-        let next_utc = compute_next_run_utc(now_utc, &p.time, &p.timezone, last_utc);
+        let next_utc = compute_next_run_utc(now_utc, &p.time, &p.timezone, last_success_utc);
         Some(next_utc.to_rfc3339())
     } else {
         None
@@ -403,6 +537,7 @@ pub async fn get_database_backup_status<R: Runtime>(
 
     Ok(DatabaseBackupStatus {
         last_run_at,
+        last_successful_run_at,
         last_outcome,
         last_error,
         last_backup_file,
@@ -421,6 +556,7 @@ pub async fn cancel_database_backup(
     state: tauri::State<'_, DumpCancellationState>,
     connection_id: String,
 ) -> Result<(), String> {
+    RUNTIME_STATE.was_cancelled.store(true, Ordering::SeqCst);
     let slot_key = db_backup_slot_key(&connection_id);
     let entries = {
         let mut handles = state.handles.lock().unwrap();
@@ -432,6 +568,7 @@ pub async fn cancel_database_backup(
     for handle in entries {
         handle.abort();
     }
-    RUNTIME_STATE.is_running.store(false, Ordering::SeqCst);
+    // Note: Do NOT reset RUNTIME_STATE.is_running here. The RAII Guard inside
+    // run_database_backup will automatically clear is_running when the aborted task cleans up.
     Ok(())
 }

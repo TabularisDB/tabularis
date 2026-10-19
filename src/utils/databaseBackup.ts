@@ -32,10 +32,10 @@ export const COMMON_IANA_TIMEZONES = [
 export function sanitizeFileNameComponent(raw: string): string {
   return raw
     .trim()
-    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .replace(/[^a-zA-Z0-9]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "")
-    .slice(0, 64);
+    .slice(0, 64) || "default";
 }
 
 /**
@@ -94,7 +94,8 @@ export function isDriverDumpCapable(
     dialect === "mysql" ||
     dialect === "sqlite";
 
-  if (isBuiltinRelational || isDialectRelational || caps?.manage_tables !== false) {
+  // Explicit boolean check for manage_tables to avoid treating undefined as true
+  if (isBuiltinRelational || isDialectRelational || caps?.manage_tables === true) {
     return { capable: true };
   }
 
@@ -119,6 +120,20 @@ export function formatBackupTimestamp(date: Date): string {
 }
 
 /**
+ * Computes unique plan file prefix using double-dash delimiter.
+ */
+export function formatDatabaseBackupPrefix(
+  connectionId: string,
+  databaseName?: string | null,
+): string {
+  const safeConn = sanitizeFileNameComponent(connectionId);
+  const safeDb = databaseName?.trim()
+    ? sanitizeFileNameComponent(databaseName)
+    : "_all_";
+  return `${DATABASE_BACKUP_PREFIX}${safeConn}--${safeDb}--`;
+}
+
+/**
  * Generates the standardized file name for a scheduled database backup.
  */
 export function formatDatabaseBackupFileName(
@@ -126,11 +141,9 @@ export function formatDatabaseBackupFileName(
   databaseName?: string | null,
   date: Date = new Date(),
 ): string {
-  const safeConn = sanitizeFileNameComponent(connectionId) || "connection";
-  const safeDb = databaseName ? sanitizeFileNameComponent(databaseName) : "";
-  const dbPart = safeDb ? `-${safeDb}` : "";
+  const prefix = formatDatabaseBackupPrefix(connectionId, databaseName);
   const timestamp = formatBackupTimestamp(date);
-  return `${DATABASE_BACKUP_PREFIX}${safeConn}${dbPart}-${timestamp}${DATABASE_BACKUP_SUFFIX}`;
+  return `${prefix}${timestamp}${DATABASE_BACKUP_SUFFIX}`;
 }
 
 /**
@@ -150,11 +163,31 @@ export function parseDatabaseBackupFileName(fileName: string): {
     fileName.length - DATABASE_BACKUP_SUFFIX.length,
   );
 
+  // Preferred double-dash format: conn--db--timestamp
+  const doubleDashParts = stem.split("--");
+  if (doubleDashParts.length === 3) {
+    const [connectionSlug, dbPart, stampStr] = doubleDashParts;
+    const year = parseInt(stampStr.slice(0, 4), 10);
+    const month = parseInt(stampStr.slice(4, 6), 10) - 1;
+    const day = parseInt(stampStr.slice(6, 8), 10);
+    const hour = parseInt(stampStr.slice(9, 11), 10);
+    const minute = parseInt(stampStr.slice(11, 13), 10);
+    const second = parseInt(stampStr.slice(13, 15), 10);
+    const timestamp = new Date(year, month, day, hour, minute, second);
+    if (isNaN(timestamp.getTime())) return null;
+    return {
+      connectionSlug,
+      databaseSlug: dbPart === "_all_" ? undefined : dbPart,
+      timestamp,
+    };
+  }
+
+  // Fallback for legacy single-dash format
   const match = stem.match(TIMESTAMP_REGEX);
   if (!match) return null;
 
   const stampStr = match[1]; // YYYYMMDD-HHMMSS
-  const prefix = stem.slice(0, stem.length - stampStr.length - 1); // remove trailing '-'
+  const prefix = stem.slice(0, stem.length - stampStr.length - 1);
 
   const year = parseInt(stampStr.slice(0, 4), 10);
   const month = parseInt(stampStr.slice(4, 6), 10) - 1;
@@ -187,7 +220,7 @@ export function selectDatabaseBackupsToPrune(
   if (retention <= 0) return [];
 
   const safeConn = sanitizeFileNameComponent(connectionId);
-  const safeDb = databaseName ? sanitizeFileNameComponent(databaseName) : undefined;
+  const safeDb = databaseName?.trim() ? sanitizeFileNameComponent(databaseName) : undefined;
 
   // Filter files that belong to this specific plan
   const matchingFiles = fileNames
@@ -200,8 +233,9 @@ export function selectDatabaseBackupsToPrune(
       if (item.connectionSlug !== safeConn) return false;
       if (safeDb) {
         return item.databaseSlug === safeDb;
+      } else {
+        return item.databaseSlug === undefined || item.databaseSlug === "_all_";
       }
-      return true;
     });
 
   // Sort chronologically ascending (oldest first)
@@ -323,17 +357,107 @@ export function computeNextRun(
     runDay = nextDayDate.getUTCDate();
   }
 
-  // We convert the wall-clock components in `tz` back to a UTC Date instant.
-  // Approximation by calculating the offset of `tz` at the target date:
+  // Convert wall-clock components in `tz` back to a UTC Date instant
   const pad = (n: number) => n.toString().padStart(2, "0");
   const isoString = `${runYear}-${pad(runMonth)}-${pad(runDay)}T${pad(targetHour)}:${pad(targetMinute)}:00`;
 
-  // Use Intl to find exact offset at that target instant
   const targetUtcEstimate = new Date(`${isoString}Z`);
   const offsetDiffMinutes = getTimezoneOffsetMinutes(tz, targetUtcEstimate);
   const finalTimeMs = targetUtcEstimate.getTime() - offsetDiffMinutes * 60_000;
 
   return new Date(finalTimeMs);
+}
+
+/**
+ * Checks whether a daily backup is currently due.
+ */
+export function isBackupDue(
+  dailyTime: string,
+  timezone: string,
+  now: Date = new Date(),
+  lastSuccessfulRunAt?: string | null,
+): boolean {
+  const [hourStr, minuteStr] = (dailyTime || "02:00").split(":");
+  const targetHour = parseInt(hourStr ?? "2", 10) || 0;
+  const targetMinute = parseInt(minuteStr ?? "0", 10) || 0;
+
+  let tz = timezone || "local";
+  if (tz === "local") {
+    try {
+      tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    } catch {
+      tz = "UTC";
+    }
+  }
+
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hour12: false,
+    });
+    parts = formatter.formatToParts(now);
+  } catch {
+    tz = "UTC";
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hour12: false,
+    }).formatToParts(now);
+  }
+
+  const getPart = (type: string) => {
+    const p = parts.find((pt) => pt.type === type);
+    return p ? parseInt(p.value, 10) : 0;
+  };
+
+  const currentYear = getPart("year");
+  const currentMonth = getPart("month");
+  const currentDay = getPart("day");
+  const currentHour = getPart("hour") % 24;
+  const currentMinute = getPart("minute");
+
+  const isPastToday =
+    currentHour > targetHour ||
+    (currentHour === targetHour && currentMinute >= targetMinute);
+
+  if (!isPastToday) return false;
+
+  if (lastSuccessfulRunAt) {
+    try {
+      const lastRunDate = new Date(lastSuccessfulRunAt);
+      if (!isNaN(lastRunDate.getTime())) {
+        const lastParts = new Intl.DateTimeFormat("en-US", {
+          timeZone: tz,
+          year: "numeric",
+          month: "numeric",
+          day: "numeric",
+          hour12: false,
+        }).formatToParts(lastRunDate);
+        const lYear = parseInt(lastParts.find((p) => p.type === "year")?.value || "0", 10);
+        const lMonth = parseInt(lastParts.find((p) => p.type === "month")?.value || "0", 10);
+        const lDay = parseInt(lastParts.find((p) => p.type === "day")?.value || "0", 10);
+        if (lYear === currentYear && lMonth === currentMonth && lDay === currentDay) {
+          return false;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return true;
 }
 
 /**

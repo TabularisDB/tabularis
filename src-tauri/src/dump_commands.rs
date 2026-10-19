@@ -72,6 +72,10 @@ pub async fn dump_database_with_handles<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(app, &expanded_params).await?;
     let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    // Scope the dump to the selected database on connections that expose multiple
+    // databases (e.g. MySQL/MariaDB). Without this the connection pool stays bound
+    // to the primary database, so unqualified statements such as `SHOW CREATE TABLE`
+    // and `SELECT * FROM table` run against the wrong database.
     if let Some(db) = database.filter(|d| !d.is_empty()) {
         params.database = crate::models::DatabaseSelection::Single(db);
     }
@@ -90,8 +94,16 @@ pub async fn dump_database_with_handles<R: Runtime>(
 
         // Get tables
         let drv = crate::drivers::registry::get_connection_driver(&params).await?;
+        // Quoting, schema qualification and literal syntax follow the
+        // driver's capabilities, so plugin drivers (backtick quoting,
+        // datasets as schemas, ...) get statements their engine accepts.
         let dialect = DumpDialect::from_capabilities(&driver, &drv.manifest().capabilities);
         let schema = dialect.resolve_schema(schema.as_deref());
+        // Schema-based drivers use `schema` to scope the listing to a
+        // specific schema within the database. Flat multi-db drivers (MySQL,
+        // SQLite) pass None — they ignore the schema arg and use
+        // params.database to determine which tables to list, avoiding a
+        // confusing `WHERE table_schema = 'public'` on a MySQL connection.
         let scoped_schema = dialect.scoped_schema(schema.as_deref());
         let all_tables = drv.get_tables(&params, scoped_schema).await?;
 
@@ -109,6 +121,25 @@ pub async fn dump_database_with_handles<R: Runtime>(
                     dialect.table_ref(scoped_schema, &table)
                 )
                 .map_err(|e| e.to_string())?;
+                // A plugin that doesn't implement get_table_ddl must not
+                // abort the whole dump over one table's missing structure —
+                // the data step below still runs for it, and every other
+                // table's structure/data is unaffected. Composing an
+                // approximate CREATE TABLE from generic column/FK/index
+                // metadata was considered and rejected: a dump file is meant
+                // to be restored, and a plausible-looking but subtly wrong
+                // DDL statement (missed default, generated column, check
+                // constraint) is worse than a visible, honest gap.
+                //
+                // The DROP TABLE IF EXISTS is written only when DDL is
+                // available, not unconditionally before the DDL fetch: writing
+                // the DROP first then failing to emit a CREATE TABLE produces a
+                // dump file whose import deletes the restore target with no way
+                // to recreate it (the builtin drivers wrap import in a
+                // transaction that rolls back, but plugin drivers execute each
+                // statement independently — the DROP commits and the table is
+                // gone). Skipping both when DDL fails leaves the existing table
+                // intact.
                 match drv.get_table_ddl(&params, &table, scoped_schema).await {
                     Ok(ddl) => {
                         writeln!(

@@ -103,6 +103,17 @@ export function BackupTab() {
         [settings.databaseBackupPlan],
     );
 
+    const [localDatabase, setLocalDatabase] = useState(plan.database ?? '');
+    const [localSchema, setLocalSchema] = useState(plan.schema ?? '');
+
+    useEffect(() => {
+        setLocalDatabase(plan.database ?? '');
+    }, [plan.database]);
+
+    useEffect(() => {
+        setLocalSchema(plan.schema ?? '');
+    }, [plan.schema]);
+
     const updatePlan = useCallback(
         async (partial: Partial<DatabaseBackupPlan>) => {
             const updated: DatabaseBackupPlan = {...plan, ...partial};
@@ -705,8 +716,14 @@ export function BackupTab() {
                     <input
                         autoComplete="off"
                         type="text"
-                        value={plan.database ?? ''}
-                        onChange={(e) => void updatePlan({database: e.target.value.trim()})}
+                        value={localDatabase}
+                        onChange={(e) => setLocalDatabase(e.target.value)}
+                        onBlur={(e) => {
+                            const trimmed = e.target.value.trim();
+                            if (trimmed !== (plan.database ?? '')) {
+                                void updatePlan({database: trimmed || undefined});
+                            }
+                        }}
                         placeholder="e.g. production_db"
                         spellCheck={false}
                         autoCorrect="off"
@@ -724,8 +741,14 @@ export function BackupTab() {
                     <input
                         autoComplete="off"
                         type="text"
-                        value={plan.schema ?? ''}
-                        onChange={(e) => void updatePlan({schema: e.target.value.trim()})}
+                        value={localSchema}
+                        onChange={(e) => setLocalSchema(e.target.value)}
+                        onBlur={(e) => {
+                            const trimmed = e.target.value.trim();
+                            if (trimmed !== (plan.schema ?? '')) {
+                                void updatePlan({schema: trimmed || undefined});
+                            }
+                        }}
                         placeholder="e.g. public"
                         spellCheck={false}
                         autoCorrect="off"
@@ -805,8 +828,8 @@ export function BackupTab() {
 
                 {/* Dump Content Options (Structure & Data) */}
                 <SettingRow
-                    label={t('settings.backup.destination')}
-                    description={t('settings.backup.dbBackupIncludeStructure')}
+                    label={t('settings.backup.dbBackupContent')}
+                    description={t('settings.backup.dbBackupContentDesc')}
                 >
                     <div className="flex items-center gap-6">
                         <button
