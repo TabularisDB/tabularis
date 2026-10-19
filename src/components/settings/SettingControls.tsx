@@ -34,7 +34,7 @@ const SettingRowContext = createContext<{labelId: string; descriptionId?: string
 
 interface SettingRowProps {
     label: string;
-    description?: string;
+    description?: ReactNode;
     children: ReactNode;
     vertical?: boolean;
 }

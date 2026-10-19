@@ -1,19 +1,42 @@
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {invoke} from '@tauri-apps/api/core';
 import {open} from '@tauri-apps/plugin-dialog';
-import {FolderOpen, Loader2, Pencil, Save} from 'lucide-react';
-import {useSettings} from '@/hooks/useSettings';
-import {useAlert} from '@/hooks/useAlert';
-import {DEFAULT_SETTINGS} from '@/contexts/SettingsContext';
-import {toErrorMessage} from '@/utils/errors';
-import {PasswordInput} from '@/components/ui/PasswordInput';
+import {
+    AlertCircle,
+    CheckCircle2,
+    Clock,
+    Database,
+    FolderOpen,
+    Info,
+    Loader2,
+    Pencil,
+    Save,
+    Square,
+    CheckSquare,
+    StopCircle,
+} from 'lucide-react';
+import {useSettings} from '../../hooks/useSettings';
+import {useAlert} from '../../hooks/useAlert';
+import {DEFAULT_SETTINGS} from '../../contexts/SettingsContext';
+import {toErrorMessage} from '../../utils/errors';
+import {PasswordInput} from '../ui/PasswordInput';
 import {
     SettingSection,
     SettingRow,
     SettingButtonGroup,
     SettingNumberInput,
+    SettingToggle,
 } from './SettingControls';
+import type {SavedConnection} from '../../contexts/DatabaseContext';
+import type {PluginManifest} from '../../types/plugins';
+import type {DatabaseBackupPlan, DatabaseBackupStatus} from '../../types/databaseBackup';
+import {
+    COMMON_IANA_TIMEZONES,
+    computeNextRun,
+    isDriverDumpCapable,
+    validateDatabaseBackupPlan,
+} from '../../utils/databaseBackup';
 
 interface BackupStatus {
     passwordSet: boolean;
@@ -26,10 +49,25 @@ const INTERVAL_PRESETS = [360, 720, 1440, 10080];
 const textInputClass =
     'w-64 px-3 py-2 bg-base border border-strong rounded-lg text-sm text-primary placeholder:text-muted focus:border-focus focus:outline-none transition-colors';
 
+const DEFAULT_PLAN: DatabaseBackupPlan = {
+    enabled: false,
+    connectionId: '',
+    database: '',
+    schema: '',
+    time: '02:00',
+    timezone: 'local',
+    destinationDirectory: '',
+    retention: 7,
+    includeStructure: true,
+    includeData: true,
+};
+
 export function BackupTab() {
     const {t} = useTranslation();
     const {settings, updateSetting} = useSettings();
     const {showAlert} = useAlert();
+
+    // ---------- Connection profiles backup state ----------
     const [status, setStatus] = useState<BackupStatus | null>(null);
     const [password, setPassword] = useState('');
     const [webdavPassword, setWebdavPassword] = useState('');
@@ -50,25 +88,109 @@ export function BackupTab() {
             ? new Date(new Date(status.lastBackupAt).getTime() + interval * 60_000)
             : null;
 
+    // ---------- Database content backup state (Milestone 1) ----------
+    const [connections, setConnections] = useState<SavedConnection[]>([]);
+    const [driverManifests, setDriverManifests] = useState<PluginManifest[]>([]);
+    const [dbStatus, setDbStatus] = useState<DatabaseBackupStatus | null>(null);
+    const [runningDbBackup, setRunningDbBackup] = useState(false);
+    const [cancellingDbBackup, setCancellingDbBackup] = useState(false);
+
+    const plan: DatabaseBackupPlan = useMemo(
+        () => ({
+            ...DEFAULT_PLAN,
+            ...(settings.databaseBackupPlan ?? {}),
+        }),
+        [settings.databaseBackupPlan],
+    );
+
+    const updatePlan = useCallback(
+        async (partial: Partial<DatabaseBackupPlan>) => {
+            const updated: DatabaseBackupPlan = {...plan, ...partial};
+            await updateSetting('databaseBackupPlan', updated);
+        },
+        [plan, updateSetting],
+    );
+
     const refreshStatus = useCallback(async () => {
         try {
             setStatus(await invoke<BackupStatus>('get_connections_backup_status'));
         } catch (e) {
-            console.error('Failed to load backup status:', e);
+            console.error('Failed to load connection backup status:', e);
         }
     }, []);
 
-    // Status (stored credential, newest backup) is per target, so re-fetch it
-    // when the user switches the destination.
+    const refreshDbStatus = useCallback(async () => {
+        try {
+            setDbStatus(await invoke<DatabaseBackupStatus>('get_database_backup_status'));
+        } catch (e) {
+            console.error('Failed to load database backup status:', e);
+        }
+    }, []);
+
+    const loadConnectionsAndDrivers = useCallback(async () => {
+        try {
+            const [conns, drivers] = await Promise.all([
+                invoke<SavedConnection[]>('get_connections'),
+                invoke<PluginManifest[]>('get_registered_drivers').catch(() => []),
+            ]);
+            setConnections(conns);
+            setDriverManifests(drivers);
+        } catch (e) {
+            console.error('Failed to load connections or drivers:', e);
+        }
+    }, []);
+
     useEffect(() => {
         void refreshStatus();
     }, [refreshStatus, target]);
+
+    useEffect(() => {
+        void refreshDbStatus();
+        void loadConnectionsAndDrivers();
+    }, [refreshDbStatus, loadConnectionsAndDrivers]);
+
+    // Selected connection capability check
+    const selectedConnection = useMemo(
+        () => connections.find((c) => c.id === plan.connectionId),
+        [connections, plan.connectionId],
+    );
+
+    const selectedManifest = useMemo(
+        () => driverManifests.find((m) => m.id === selectedConnection?.params.driver),
+        [driverManifests, selectedConnection?.params.driver],
+    );
+
+    const driverCapability = useMemo(
+        () =>
+            selectedConnection
+                ? isDriverDumpCapable(selectedConnection.params.driver, selectedManifest)
+                : {capable: true},
+        [selectedConnection, selectedManifest],
+    );
+
+    const planValidation = useMemo(
+        () => validateDatabaseBackupPlan(plan, selectedConnection, selectedManifest),
+        [plan, selectedConnection, selectedManifest],
+    );
+
+    const computedNextRun = useMemo(() => {
+        if (!plan.enabled || !plan.connectionId) return null;
+        return computeNextRun(plan.time, plan.timezone, new Date(), dbStatus?.lastRunAt);
+    }, [plan.enabled, plan.connectionId, plan.time, plan.timezone, dbStatus?.lastRunAt]);
 
     const handlePickDirectory = async () => {
         const selected = await open({multiple: false, directory: true});
         if (typeof selected === 'string') {
             await updateSetting('backupDirectory', selected);
             void refreshStatus();
+        }
+    };
+
+    const handlePickDbDirectory = async () => {
+        const selected = await open({multiple: false, directory: true});
+        if (typeof selected === 'string') {
+            await updatePlan({destinationDirectory: selected});
+            void refreshDbStatus();
         }
     };
 
@@ -119,15 +241,57 @@ export function BackupTab() {
         }
     };
 
+    const handleRunDatabaseBackupNow = async () => {
+        if (!planValidation.isValid && planValidation.errorKey) {
+            showAlert(t(planValidation.errorKey), {kind: 'error'});
+            return;
+        }
+        setRunningDbBackup(true);
+        try {
+            const path = await invoke<string>('run_database_backup_now');
+            await refreshDbStatus();
+            showAlert(t('settings.backup.dbBackupDone', {path}));
+        } catch (e) {
+            showAlert(toErrorMessage(e), {kind: 'error'});
+            await refreshDbStatus();
+        } finally {
+            setRunningDbBackup(false);
+        }
+    };
+
+    const handleCancelDatabaseBackup = async () => {
+        if (!plan.connectionId) return;
+        setCancellingDbBackup(true);
+        try {
+            await invoke('cancel_database_backup', {
+                connectionId: plan.connectionId,
+            });
+            await refreshDbStatus();
+            showAlert(t('settings.backup.dbBackupCancelled'));
+        } catch (e) {
+            showAlert(toErrorMessage(e));
+        } finally {
+            setCancellingDbBackup(false);
+        }
+    };
+
     const configured =
         status?.passwordSet === true &&
         (target === 'webdav'
             ? Boolean(settings.backupWebdavUrl) && status?.targetPasswordSet === true
             : Boolean(settings.backupDirectory));
 
+    const isDbBackupActive = dbStatus?.isRunning || runningDbBackup;
+
     return (
         <div>
-            <SettingSection title={t('settings.backup.destination')}>
+            {/* ───────────────────────────────────────────────────────────────── */}
+            {/* Section 1: Connection Profiles Backup                             */}
+            {/* ───────────────────────────────────────────────────────────────── */}
+            <SettingSection
+                title={t('settings.backup.connectionProfilesSection')}
+                description={t('settings.backup.connectionProfilesDesc')}
+            >
                 <SettingRow
                     label={t('settings.backup.target')}
                     description={t('settings.backup.targetDesc')}
@@ -266,9 +430,7 @@ export function BackupTab() {
                         </SettingRow>
                     </>
                 )}
-            </SettingSection>
 
-            <SettingSection title={t('settings.backup.title')}>
                 <SettingRow
                     label={t('settings.backup.mode')}
                     description={t('settings.backup.modeDesc')}
@@ -412,6 +574,7 @@ export function BackupTab() {
                         fallback={DEFAULT_SETTINGS.backupRetention ?? 10}
                     />
                 </SettingRow>
+
                 <SettingRow
                     label={t('settings.backup.backupNow')}
                     description={
@@ -437,6 +600,347 @@ export function BackupTab() {
                         {runningBackup && <Loader2 size={14} className="animate-spin" />}
                         {t('settings.backup.backupNow')}
                     </button>
+                </SettingRow>
+            </SettingSection>
+
+            {/* ───────────────────────────────────────────────────────────────── */}
+            {/* Section 2: Scheduled Database Content Backups (Milestone 1)       */}
+            {/* ───────────────────────────────────────────────────────────────── */}
+            <SettingSection
+                title={t('settings.backup.databaseContentSection')}
+                description={t('settings.backup.databaseContentDesc')}
+                icon={<Database size={16} className="text-accent" />}
+            >
+                {/* App-Open Execution Boundary Notification */}
+                <div className="flex items-start gap-2.5 p-3 mb-4 rounded-lg bg-surface-secondary/40 border border-default text-xs text-secondary">
+                    <Info size={16} className="text-accent shrink-0 mt-0.5" />
+                    <div>
+                        <p className="font-medium text-primary">
+                            {t('settings.backup.databaseContentDesc')}
+                        </p>
+                        <p className="mt-0.5 text-muted">
+                            {t('settings.backup.dbBackupAppOpenNotice')}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Enable Plan Switch */}
+                <SettingRow
+                    label={t('settings.backup.dbBackupEnable')}
+                    description={t('settings.backup.dbBackupEnableDesc')}
+                >
+                    <SettingToggle
+                        checked={plan.enabled}
+                        disabled={!driverCapability.capable && Boolean(plan.connectionId)}
+                        onChange={(checked) => {
+                            if (checked && !driverCapability.capable) {
+                                showAlert(
+                                    driverCapability.reason ||
+                                        t('settings.backup.databaseBackupErrorUnsupportedDriver'),
+                                    {kind: 'error'},
+                                );
+                                return;
+                            }
+                            void updatePlan({enabled: checked});
+                        }}
+                    />
+                </SettingRow>
+
+                {/* Database Connection Selector */}
+                <SettingRow
+                    label={t('settings.backup.dbBackupConnection')}
+                    description={t('settings.backup.dbBackupConnectionDesc')}
+                >
+                    <div className="flex flex-col items-end gap-1.5">
+                        <select
+                            value={plan.connectionId}
+                            onChange={(e) => {
+                                const connId = e.target.value;
+                                const conn = connections.find((c) => c.id === connId);
+                                const manifest = driverManifests.find(
+                                    (m) => m.id === conn?.params.driver,
+                                );
+                                const cap = conn
+                                    ? isDriverDumpCapable(conn.params.driver, manifest)
+                                    : {capable: true};
+                                void updatePlan({
+                                    connectionId: connId,
+                                    // If unsupported driver, automatically disable schedule
+                                    enabled: cap.capable ? plan.enabled : false,
+                                });
+                            }}
+                            aria-label={t('settings.backup.dbBackupConnection')}
+                            className="w-64 px-3 py-2 bg-base border border-strong rounded-lg text-sm text-primary focus:border-focus focus:outline-none transition-colors"
+                        >
+                            <option value="">
+                                {t('settings.backup.dbBackupSelectConnectionPlaceholder')}
+                            </option>
+                            {connections.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.name} ({c.params.driver})
+                                </option>
+                            ))}
+                        </select>
+
+                        {/* Unsupported driver explanation banner */}
+                        {!driverCapability.capable && (
+                            <div className="flex items-center gap-1.5 p-2 rounded bg-accent-warning/10 border border-accent-warning/30 text-xs text-accent-warning max-w-sm">
+                                <AlertCircle size={14} className="shrink-0" />
+                                <span>
+                                    {driverCapability.reason ||
+                                        t('settings.backup.dbBackupUnsupportedDriverNotice', {
+                                            driver: selectedConnection?.params.driver,
+                                        })}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </SettingRow>
+
+                {/* Database / Catalog Name (optional for single-db connections) */}
+                <SettingRow
+                    label={t('settings.backup.dbBackupDatabase')}
+                    description={t('settings.backup.dbBackupDatabaseDesc')}
+                >
+                    <input
+                        autoComplete="off"
+                        type="text"
+                        value={plan.database ?? ''}
+                        onChange={(e) => void updatePlan({database: e.target.value.trim()})}
+                        placeholder="e.g. production_db"
+                        spellCheck={false}
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        aria-label={t('settings.backup.dbBackupDatabase')}
+                        className={textInputClass}
+                    />
+                </SettingRow>
+
+                {/* Schema (optional for PostgreSQL / schema-capable engines) */}
+                <SettingRow
+                    label={t('settings.backup.dbBackupSchema')}
+                    description={t('settings.backup.dbBackupSchemaDesc')}
+                >
+                    <input
+                        autoComplete="off"
+                        type="text"
+                        value={plan.schema ?? ''}
+                        onChange={(e) => void updatePlan({schema: e.target.value.trim()})}
+                        placeholder="e.g. public"
+                        spellCheck={false}
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        aria-label={t('settings.backup.dbBackupSchema')}
+                        className={textInputClass}
+                    />
+                </SettingRow>
+
+                {/* Destination Directory */}
+                <SettingRow
+                    label={t('settings.backup.dbBackupDirectory')}
+                    description={
+                        plan.destinationDirectory || t('settings.backup.dbBackupDirectoryDesc')
+                    }
+                >
+                    <button
+                        onClick={() => void handlePickDbDirectory()}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-accent hover:border-accent-primary/50 transition-colors"
+                    >
+                        <FolderOpen size={14} />
+                        {t('settings.backup.chooseDirectory')}
+                    </button>
+                </SettingRow>
+
+                {/* Daily Run Time (24h clock) */}
+                <SettingRow
+                    label={t('settings.backup.dbBackupTime')}
+                    description={t('settings.backup.dbBackupTimeDesc')}
+                >
+                    <input
+                        type="time"
+                        value={plan.time || '02:00'}
+                        onChange={(e) => void updatePlan({time: e.target.value})}
+                        aria-label={t('settings.backup.dbBackupTime')}
+                        className="w-40 px-3 py-2 bg-base border border-strong rounded-lg text-sm text-primary font-mono focus:border-focus focus:outline-none transition-colors"
+                    />
+                </SettingRow>
+
+                {/* IANA Timezone Selection */}
+                <SettingRow
+                    label={t('settings.backup.dbBackupTimezone')}
+                    description={t('settings.backup.dbBackupTimezoneDesc')}
+                >
+                    <select
+                        value={plan.timezone || 'local'}
+                        onChange={(e) => void updatePlan({timezone: e.target.value})}
+                        aria-label={t('settings.backup.dbBackupTimezone')}
+                        className="w-64 px-3 py-2 bg-base border border-strong rounded-lg text-sm text-primary focus:border-focus focus:outline-none transition-colors"
+                    >
+                        <option value="local">
+                            {t('settings.backup.dbBackupTimezoneLocal')} (
+                            {Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'})
+                        </option>
+                        {COMMON_IANA_TIMEZONES.map((tz) => (
+                            <option key={tz} value={tz}>
+                                {tz}
+                            </option>
+                        ))}
+                    </select>
+                </SettingRow>
+
+                {/* Retention Limit */}
+                <SettingRow
+                    label={t('settings.backup.dbBackupRetention')}
+                    description={t('settings.backup.dbBackupRetentionDesc')}
+                >
+                    <SettingNumberInput
+                        value={plan.retention ?? 7}
+                        onChange={(v) => void updatePlan({retention: Math.max(1, v)})}
+                        min={1}
+                        max={100}
+                        suffix={t('settings.backup.files')}
+                        fallback={7}
+                    />
+                </SettingRow>
+
+                {/* Dump Content Options (Structure & Data) */}
+                <SettingRow
+                    label={t('settings.backup.destination')}
+                    description={t('settings.backup.dbBackupIncludeStructure')}
+                >
+                    <div className="flex items-center gap-6">
+                        <button
+                            type="button"
+                            onClick={() =>
+                                void updatePlan({
+                                    includeStructure: !plan.includeStructure,
+                                })
+                            }
+                            className="flex items-center gap-2 text-sm text-primary hover:text-accent transition-colors"
+                        >
+                            {plan.includeStructure ? (
+                                <CheckSquare size={16} className="text-accent" />
+                            ) : (
+                                <Square size={16} className="text-muted" />
+                            )}
+                            <span>{t('settings.backup.dbBackupIncludeStructure')}</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                void updatePlan({
+                                    includeData: !plan.includeData,
+                                })
+                            }
+                            className="flex items-center gap-2 text-sm text-primary hover:text-accent transition-colors"
+                        >
+                            {plan.includeData ? (
+                                <CheckSquare size={16} className="text-accent" />
+                            ) : (
+                                <Square size={16} className="text-muted" />
+                            )}
+                            <span>{t('settings.backup.dbBackupIncludeData')}</span>
+                        </button>
+                    </div>
+                </SettingRow>
+
+                {/* Status Dashboard & Action Buttons */}
+                <SettingRow
+                    label={t('settings.backup.dbBackupStatus')}
+                    description={
+                        <span className="flex flex-col gap-1 text-xs">
+                            {/* Outcome / Last Run */}
+                            <span className="flex items-center gap-1.5">
+                                <Clock size={13} className="text-muted shrink-0" />
+                                <span>{t('settings.backup.dbBackupLastRun')}: </span>
+                                {dbStatus?.lastRunAt ? (
+                                    <span className="font-mono text-primary">
+                                        {new Date(dbStatus.lastRunAt).toLocaleString()}
+                                    </span>
+                                ) : (
+                                    <span className="text-muted">
+                                        {t('settings.backup.dbBackupNeverRun')}
+                                    </span>
+                                )}
+                                {dbStatus?.lastOutcome === 'success' && (
+                                    <span className="inline-flex items-center gap-1 text-accent-success font-medium ml-1">
+                                        <CheckCircle2 size={13} />
+                                        {t('settings.backup.dbBackupOutcomeSuccess')}
+                                    </span>
+                                )}
+                                {dbStatus?.lastOutcome === 'error' && (
+                                    <span
+                                        className="inline-flex items-center gap-1 text-accent-error font-medium ml-1"
+                                        title={dbStatus.lastError ?? ''}
+                                    >
+                                        <AlertCircle size={13} />
+                                        {t('settings.backup.dbBackupOutcomeFailed', {
+                                            error: dbStatus.lastError ?? '',
+                                        })}
+                                    </span>
+                                )}
+                                {dbStatus?.lastOutcome === 'cancelled' && (
+                                    <span className="inline-flex items-center gap-1 text-accent-warning font-medium ml-1">
+                                        <StopCircle size={13} />
+                                        {t('settings.backup.dbBackupOutcomeCancelled')}
+                                    </span>
+                                )}
+                            </span>
+
+                            {/* Next Scheduled Run */}
+                            {computedNextRun && plan.enabled && (
+                                <span className="flex items-center gap-1.5 text-muted">
+                                    <span>{t('settings.backup.dbBackupNextRun')}: </span>
+                                    <span className="font-mono text-primary">
+                                        {computedNextRun.toLocaleString()}
+                                    </span>
+                                    <span>({plan.timezone || 'local'})</span>
+                                </span>
+                            )}
+                        </span>
+                    }
+                >
+                    <div className="flex items-center gap-2">
+                        {isDbBackupActive && (
+                            <button
+                                type="button"
+                                onClick={() => void handleCancelDatabaseBackup()}
+                                disabled={cancellingDbBackup}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-accent-error text-sm text-accent-error hover:bg-accent-error/10 transition-colors"
+                            >
+                                {cancellingDbBackup ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                    <StopCircle size={14} />
+                                )}
+                                {t('settings.backup.dbBackupCancel')}
+                            </button>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={() => void handleRunDatabaseBackupNow()}
+                            disabled={
+                                isDbBackupActive ||
+                                !planValidation.isValid ||
+                                !driverCapability.capable
+                            }
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-inverse text-sm transition-colors shadow-sm"
+                        >
+                            {isDbBackupActive ? (
+                                <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    {t('settings.backup.dbBackupStatusRunning')}
+                                </>
+                            ) : (
+                                <>
+                                    <Database size={14} />
+                                    {t('settings.backup.dbBackupRunNow')}
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </SettingRow>
             </SettingSection>
         </div>

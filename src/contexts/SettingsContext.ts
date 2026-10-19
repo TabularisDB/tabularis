@@ -1,8 +1,8 @@
 import {createContext} from 'react';
-import type {AppLanguage} from '@/i18n/config';
-import {DEFAULT_MASKING_PATTERNS} from '@/utils/columnMasking';
-import type {AutocompleteKeywordCase} from '@/utils/autocomplete';
-import type {GlobalProxySettings, ProxyOverride} from '@/types/proxy';
+import type {AppLanguage} from '../i18n/config';
+import {DEFAULT_MASKING_PATTERNS} from '../utils/columnMasking';
+import type {AutocompleteKeywordCase} from '../utils/autocomplete';
+import type {GlobalProxySettings, ProxyOverride} from '../types/proxy';
 
 export type {AppLanguage};
 export type CopyFormat = 'csv' | 'json' | 'sql-insert' | 'markdown';
@@ -160,6 +160,9 @@ export interface Settings {
     backupWebdavUrl?: string;
     /** WebDAV username; the password lives in the OS keychain. */
     backupWebdavUsername?: string;
+    // Scheduled database content backup
+    /** Daily scheduled backup plan for database contents (Milestone 1). */
+    databaseBackupPlan?: import('../types/databaseBackup').DatabaseBackupPlan;
     // Privacy
     /** Mask values of sensitive columns in the results grid (display only). Default: true. */
     columnMaskingEnabled?: boolean;
@@ -286,6 +289,18 @@ export const DEFAULT_SETTINGS: Settings = {
     backupDirectory: '',
     backupIntervalMinutes: 1440,
     backupRetention: 10,
+    databaseBackupPlan: {
+        enabled: false,
+        connectionId: '',
+        database: '',
+        schema: '',
+        time: '02:00',
+        timezone: 'local',
+        destinationDirectory: '',
+        retention: 7,
+        includeStructure: true,
+        includeData: true,
+    },
     columnMaskingEnabled: true,
     columnMaskingPatterns: DEFAULT_MASKING_PATTERNS,
     columnMaskingOverrides: {},
