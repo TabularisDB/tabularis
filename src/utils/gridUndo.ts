@@ -27,7 +27,10 @@ export interface GridPendingSnapshot {
 /** Maximum number of undo steps kept in memory per tab. */
 export const GRID_HISTORY_LIMIT = 50;
 
-/** Consecutive edits within this window collapse into a single undo step. */
+/** Consecutive rapid burst writes (e.g. multi-cell paste/fill) collapse into a single step. */
+export const GRID_BURST_COALESCE_MS = 150;
+
+/** Consecutive edits to the same row collapse into a single undo step within this window. */
 export const GRID_COALESCE_MS = 500;
 
 export type GridSnapshotEntry = GridPendingSnapshot | undefined;
@@ -37,10 +40,12 @@ export interface GridHistory {
   future: GridSnapshotEntry[];
   /** Timestamp of the last recorded edit, used to coalesce rapid typing / grouped writes. */
   lastEditTime: number;
+  /** Key of the last modified row/entity, used to distinguish same-cell vs distinct-cell edits. */
+  lastModifiedKey?: string | null;
 }
 
 export function createGridHistory(): GridHistory {
-  return { past: [], future: [], lastEditTime: 0 };
+  return { past: [], future: [], lastEditTime: 0, lastModifiedKey: null };
 }
 
 function isSnapshot(val: unknown): val is GridPendingSnapshot {
@@ -193,10 +198,37 @@ export function gridSnapshotSignature(
   return `${changesSig}::${delSig}::${insSig}`;
 }
 
+function findModifiedKey(
+  prev: GridPendingSnapshot | undefined,
+  next: GridPendingSnapshot | undefined,
+): string | null {
+  const pCh = prev?.pendingChanges || {};
+  const nCh = next?.pendingChanges || {};
+  for (const k of Object.keys(nCh)) {
+    if (JSON.stringify(pCh[k]) !== JSON.stringify(nCh[k])) return `c:${k}`;
+  }
+  for (const k of Object.keys(pCh)) {
+    if (!nCh[k]) return `c:${k}`;
+  }
+
+  const pIns = prev?.pendingInsertions || {};
+  const nIns = next?.pendingInsertions || {};
+  for (const k of Object.keys(nIns)) {
+    if (JSON.stringify(pIns[k]) !== JSON.stringify(nIns[k])) return `i:${k}`;
+  }
+  for (const k of Object.keys(pIns)) {
+    if (!nIns[k]) return `i:${k}`;
+  }
+
+  return null;
+}
+
 /**
  * Record a transition between grid pending states.
  * - Identical states are ignored.
- * - Edits within {@link GRID_COALESCE_MS} merge into the current step (e.g. multi-cell paste/fill).
+ * - Rapid burst operations (< 150ms) collapse into a single undo step (paste / fill / bulk transform).
+ * - Successive edits to the same entity within 500ms collapse into a single undo step.
+ * - Edits to distinct entities across human intervals (> 150ms) remain independent undo steps.
  * - A new edit clears the redo (future) branch.
  */
 export function recordGridEdit(
@@ -210,16 +242,24 @@ export function recordGridEdit(
     return history;
   }
 
+  const prevSnap = cloneGridSnapshot(toGridSnapshot(prev));
+  const nextSnap = toGridSnapshot(next);
+  const modifiedKey = findModifiedKey(prevSnap, nextSnap);
+  const elapsed = now - history.lastEditTime;
+
+  const isSameEntity = !!modifiedKey && modifiedKey === history.lastModifiedKey;
+  const isBurstOperation = elapsed < GRID_BURST_COALESCE_MS;
+  const isSameEntityQuickEdit = isSameEntity && elapsed < GRID_COALESCE_MS;
+
   const shouldCoalesce =
     options?.coalesce !== false &&
-    now - history.lastEditTime < GRID_COALESCE_MS &&
-    history.past.length > 0;
+    history.past.length > 0 &&
+    (isBurstOperation || isSameEntityQuickEdit);
 
   if (shouldCoalesce) {
-    return { ...history, lastEditTime: now };
+    return { ...history, lastEditTime: now, lastModifiedKey: modifiedKey };
   }
 
-  const prevSnap = cloneGridSnapshot(toGridSnapshot(prev));
   const past = [...history.past, prevSnap];
   if (past.length > GRID_HISTORY_LIMIT) {
     past.shift();
@@ -229,6 +269,7 @@ export function recordGridEdit(
     past,
     future: [],
     lastEditTime: now,
+    lastModifiedKey: modifiedKey,
   };
 }
 
@@ -254,6 +295,7 @@ export function undoGridEdit(
       past,
       future: [cloneGridSnapshot(toGridSnapshot(current)), ...history.future],
       lastEditTime: 0,
+      lastModifiedKey: null,
     },
     pendingChanges: clonePendingChanges(target?.pendingChanges),
     pendingDeletions: clonePendingDeletions(target?.pendingDeletions),
@@ -275,6 +317,7 @@ export function redoGridEdit(
       past: [...history.past, cloneGridSnapshot(toGridSnapshot(current))],
       future,
       lastEditTime: 0,
+      lastModifiedKey: null,
     },
     pendingChanges: clonePendingChanges(target?.pendingChanges),
     pendingDeletions: clonePendingDeletions(target?.pendingDeletions),

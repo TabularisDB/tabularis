@@ -96,6 +96,30 @@ describe("gridUndo", () => {
     expect(canRedoGrid(step!.history)).toBe(true);
   });
 
+  it("keeps edits to distinct rows across human intervals (>150ms) as separate undo steps", () => {
+    let h = createGridHistory();
+    // Edit row 1 at t0
+    h = recordGridEdit(h, state0, state1, 1000);
+    expect(h.past.length).toBe(1);
+
+    // Edit row 2 at t0 + 300ms (distinct row, human typing interval)
+    const row2State: PendingChangesMap = {
+      ...state1,
+      '{"id":2}': { pkOriginalValue: { id: 2 }, changes: { role: "admin" } },
+    };
+    h = recordGridEdit(h, state1, row2State, 1300);
+    // Must NOT coalesce because it's a different row and elapsed > 150ms
+    expect(h.past.length).toBe(2);
+
+    // First undo reverts only row 2 edit
+    const step1 = undoGridEdit(h, row2State);
+    expect(step1?.pendingChanges).toEqual(state1);
+
+    // Second undo reverts row 1 edit
+    const step2 = undoGridEdit(step1!.history, step1!.pendingChanges);
+    expect(step2?.pendingChanges).toBeUndefined();
+  });
+
   it("supports multi-step undo and redo", () => {
     let h = createGridHistory();
     h = recordGridEdit(h, state0, state1, 1000);

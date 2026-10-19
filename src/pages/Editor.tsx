@@ -1360,12 +1360,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           pendingChanges: preservePendingChanges?.pendingChanges,
           pendingDeletions: preservePendingChanges?.pendingDeletions,
           pendingInsertions: preservePendingChanges?.pendingInsertions,
-          gridHistory:
-            preservePendingChanges?.pendingChanges ||
-            preservePendingChanges?.pendingDeletions ||
-            preservePendingChanges?.pendingInsertions
-              ? targetTab.gridHistory
-              : undefined,
+          // Submitting changes or running queries establishes a clean history boundary
+          gridHistory: undefined,
           selectedRows: [],
         });
         // A fresh query's result set can be a different size (or empty), so an
