@@ -3,6 +3,9 @@ import {
     buildCellValueFilterClause,
     combineFilterClauses,
     getCellValueFilterOperators,
+    isNumericClipboardValue,
+    parseClipboardInList,
+    MAX_CLIPBOARD_FILTER_VALUES,
 } from '@/utils/cellValueFilter';
 
 describe('cellValueFilter', () => {
@@ -319,6 +322,96 @@ describe('cellValueFilter', () => {
                 ]);
             }
             expect(getCellValueFilterOperators('abc', {masked: false})).toEqual(['=', '<>']);
+        });
+    });
+
+    describe('parseClipboardInList', () => {
+        it('splits lines, ignores blank lines and a trailing newline, and trims', () => {
+            expect(parseClipboardInList('  1 \n\n2\r\n3\n').values).toEqual(['1', '2', '3']);
+        });
+
+        it('deduplicates and keeps the first occurrence', () => {
+            const {values, truncated} = parseClipboardInList('a\nb\na\nb\n');
+            expect(values).toEqual(['a', 'b']);
+            expect(truncated).toBe(false);
+        });
+
+        it('returns an empty list for empty or whitespace-only text', () => {
+            expect(parseClipboardInList('').values).toEqual([]);
+            expect(parseClipboardInList('  \n \r\n').values).toEqual([]);
+        });
+
+        it('caps values at the limit and reports truncation', () => {
+            const text = Array.from(
+                {length: MAX_CLIPBOARD_FILTER_VALUES + 5},
+                (_, i) => `v${i}`,
+            ).join('\n');
+            const {values, truncated} = parseClipboardInList(text);
+            expect(values).toHaveLength(MAX_CLIPBOARD_FILTER_VALUES);
+            expect(truncated).toBe(true);
+        });
+
+        it('does not count duplicates towards the cap', () => {
+            const text = Array.from({length: MAX_CLIPBOARD_FILTER_VALUES + 50}, () => 'same').join(
+                '\n',
+            );
+            const {values, truncated} = parseClipboardInList(text);
+            expect(values).toEqual(['same']);
+            expect(truncated).toBe(false);
+        });
+
+        it('drops a copied spreadsheet header from a numeric column and counts it', () => {
+            // Common case: copying a spreadsheet column includes the header row.
+            const result = parseClipboardInList('user_id\n1\n2\n', {columnType: 'integer'});
+            expect(result.values).toEqual(['1', '2']);
+            expect(result.nonNumericDropped).toBe(1);
+            expect(result.truncated).toBe(false);
+        });
+
+        it('keeps negatives and decimals, and drops non-numeric lines in a numeric column', () => {
+            const result = parseClipboardInList('price\n-1.5\n0\nabc\n2.0\n', {
+                columnType: 'DECIMAL(10,2)',
+            });
+            expect(result.values).toEqual(['-1.5', '0', '2.0']);
+            expect(result.nonNumericDropped).toBe(2);
+        });
+
+        it('returns an empty list when every line is non-numeric for a numeric column', () => {
+            const result = parseClipboardInList('user_id\nname\n', {columnType: 'bigint'});
+            expect(result.values).toEqual([]);
+            expect(result.nonNumericDropped).toBe(2);
+        });
+
+        it('counts a duplicate non-numeric header only once', () => {
+            const result = parseClipboardInList('id\nid\n1\n', {columnType: 'integer'});
+            expect(result.values).toEqual(['1']);
+            expect(result.nonNumericDropped).toBe(1);
+        });
+
+        it('keeps non-numeric lines for non-numeric columns', () => {
+            const result = parseClipboardInList('name\nAlice\n', {columnType: 'varchar(255)'});
+            expect(result.values).toEqual(['name', 'Alice']);
+            expect(result.nonNumericDropped).toBe(0);
+        });
+
+        it('keeps non-numeric lines when no column type is given', () => {
+            const result = parseClipboardInList('user_id\n1\n2\n');
+            expect(result.values).toEqual(['user_id', '1', '2']);
+            expect(result.nonNumericDropped).toBe(0);
+        });
+    });
+
+    describe('isNumericClipboardValue', () => {
+        it('accepts integers, negatives and decimals', () => {
+            for (const v of ['0', '42', '-7', '19.99', '-0.001', '  1  ']) {
+                expect(isNumericClipboardValue(v)).toBe(true);
+            }
+        });
+
+        it('rejects headers, blanks and other non-numeric text', () => {
+            for (const v of ['user_id', '', '1,000', '1e3', 'abc', '12px']) {
+                expect(isNumericClipboardValue(v)).toBe(false);
+            }
         });
     });
 });
