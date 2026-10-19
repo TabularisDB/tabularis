@@ -2758,6 +2758,7 @@ describe("DataGrid Edit selection context menu (#1000)", () => {
       canUndo: true,
     });
 
+    fireEvent.mouseDown(container.querySelector("table")!);
     const input = document.createElement("input");
     document.body.appendChild(input);
     input.focus();

@@ -1756,27 +1756,51 @@ export const DataGrid = React.memo(
     ]);
 
     const deleteRowsByIndices = useCallback((indicesToDelete: number[]) => {
-      const pkVals: unknown[] = [];
-      for (const idx of indicesToDelete) {
-        const mergedRow = mergedRows[idx];
-        if (!mergedRow) continue;
+      const shouldBatch =
+        indicesToDelete.length > 1 &&
+        typeof onBeginBatchEdit === "function" &&
+        typeof onEndBatchEdit === "function";
 
-        if (mergedRow.type === "insertion" && mergedRow.tempId && onDiscardInsertion) {
-          onDiscardInsertion(mergedRow.tempId);
-        } else if (mergedRow.type === "existing" && pkColumns && pkIndexMaps.length > 0) {
-          pkVals.push(buildPkMap(pkColumns, mergedRow.rowData, pkIndexMaps));
-        }
+      if (shouldBatch) {
+        onBeginBatchEdit();
       }
 
-      // Use batch handler to avoid stale-closure overwrites when called per-row.
-      if (pkVals.length > 0) {
-        if (onMarkMultipleForDeletion) {
-          onMarkMultipleForDeletion(pkVals);
-        } else if (onMarkForDeletion) {
-          pkVals.forEach((v) => onMarkForDeletion(v));
+      try {
+        const pkVals: unknown[] = [];
+        for (const idx of indicesToDelete) {
+          const mergedRow = mergedRows[idx];
+          if (!mergedRow) continue;
+
+          if (mergedRow.type === "insertion" && mergedRow.tempId && onDiscardInsertion) {
+            onDiscardInsertion(mergedRow.tempId);
+          } else if (mergedRow.type === "existing" && pkColumns && pkIndexMaps.length > 0) {
+            pkVals.push(buildPkMap(pkColumns, mergedRow.rowData, pkIndexMaps));
+          }
+        }
+
+        // Use batch handler to avoid stale-closure overwrites when called per-row.
+        if (pkVals.length > 0) {
+          if (onMarkMultipleForDeletion) {
+            onMarkMultipleForDeletion(pkVals);
+          } else if (onMarkForDeletion) {
+            pkVals.forEach((v) => onMarkForDeletion(v));
+          }
+        }
+      } finally {
+        if (shouldBatch) {
+          onEndBatchEdit();
         }
       }
-    }, [mergedRows, onDiscardInsertion, onMarkForDeletion, onMarkMultipleForDeletion, pkColumns, pkIndexMaps]);
+    }, [
+      mergedRows,
+      onDiscardInsertion,
+      onMarkForDeletion,
+      onMarkMultipleForDeletion,
+      pkColumns,
+      pkIndexMaps,
+      onBeginBatchEdit,
+      onEndBatchEdit,
+    ]);
 
     const deleteSelectedRow = useCallback(() => {
       if (!contextMenu) return;

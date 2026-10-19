@@ -748,7 +748,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   // Define updateActiveTab first to be used in handleQueryChange
   const updateActiveTab = useCallback(
-    (partial: Partial<Tab> | ((tab: Tab) => Partial<Tab>)) => {
+    (partial: Partial<Tab>) => {
       if (activeTabId) updateTab(activeTabId, partial);
     },
     [activeTabId, updateTab],
@@ -1018,11 +1018,16 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     activeTab?.pendingInsertions,
   ]);
 
+  const canUndoGridActiveTab = useMemo(
+    () => canUndoGrid(activeTab?.gridHistory),
+    [activeTab?.gridHistory],
+  );
   const canRedoGridActiveTab = useMemo(
     () => canRedoGrid(activeTab?.gridHistory),
     [activeTab?.gridHistory],
   );
-  const showPendingChangesBar = hasPendingChanges || canRedoGridActiveTab;
+  const showPendingChangesBar =
+    hasPendingChanges || canUndoGridActiveTab || canRedoGridActiveTab;
 
   useLayoutEffect(() => {
     tabsRef.current = tabs;
@@ -3165,6 +3170,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     (pkVal: unknown, colName: string, value: unknown) => {
       if (!activeTabIdRef.current) return;
       const tabId = activeTabIdRef.current;
+      const isBatching = isBatchingGridEditRef.current;
 
       // Functional update: rapid successive calls (e.g. a multi-cell paste)
       // must each see the previous call's result, not a stale snapshot.
@@ -3201,7 +3207,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
         const nextPendingChanges =
           Object.keys(newPending).length === 0 ? undefined : newPending;
-        const nextGridHistory = isBatchingGridEditRef.current
+        const nextGridHistory = isBatching
           ? currentTab.gridHistory
           : recordGridEdit(
               currentTab.gridHistory,
@@ -3394,6 +3400,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     (tempId: string, colName: string, value: unknown) => {
       if (!activeTabIdRef.current) return;
       const tabId = activeTabIdRef.current;
+      const isBatching = isBatchingGridEditRef.current;
 
       // Functional update: rapid successive calls (e.g. a multi-cell paste)
       // must each see the previous call's result, not a stale snapshot.
@@ -3417,7 +3424,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           },
         };
 
-        const nextGridHistory = isBatchingGridEditRef.current
+        const nextGridHistory = isBatching
           ? currentTab.gridHistory
           : recordGridEdit(
               currentTab.gridHistory,
@@ -3447,6 +3454,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     (tempId: string) => {
       if (!activeTabIdRef.current) return;
       const tabId = activeTabIdRef.current;
+      const isBatching = isBatchingGridEditRef.current;
+
       updateTab(tabId, (currentTab) => {
         if (!currentTab?.pendingInsertions) return {};
 
@@ -3457,21 +3466,23 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             ? newPendingInsertions
             : undefined;
 
-        const nextGridHistory = recordGridEdit(
-          currentTab.gridHistory,
-          {
-            pendingChanges: currentTab.pendingChanges,
-            pendingDeletions: currentTab.pendingDeletions,
-            pendingInsertions: currentTab.pendingInsertions,
-          },
-          {
-            pendingChanges: currentTab.pendingChanges,
-            pendingDeletions: currentTab.pendingDeletions,
-            pendingInsertions: nextPendingInsertions,
-          },
-          Date.now(),
-          { coalesce: false },
-        );
+        const nextGridHistory = isBatching
+          ? currentTab.gridHistory
+          : recordGridEdit(
+              currentTab.gridHistory,
+              {
+                pendingChanges: currentTab.pendingChanges,
+                pendingDeletions: currentTab.pendingDeletions,
+                pendingInsertions: currentTab.pendingInsertions,
+              },
+              {
+                pendingChanges: currentTab.pendingChanges,
+                pendingDeletions: currentTab.pendingDeletions,
+                pendingInsertions: nextPendingInsertions,
+              },
+              Date.now(),
+              { coalesce: false },
+            );
 
         return {
           pendingInsertions: nextPendingInsertions,
@@ -3486,6 +3497,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     (pkVal: unknown) => {
       if (!activeTabIdRef.current) return;
       const tabId = activeTabIdRef.current;
+      const isBatching = isBatchingGridEditRef.current;
       updateTab(tabId, (currentTab) => {
         if (!currentTab?.pendingDeletions) return {};
 
@@ -3497,21 +3509,23 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             ? newPendingDeletions
             : undefined;
 
-        const nextGridHistory = recordGridEdit(
-          currentTab.gridHistory,
-          {
-            pendingChanges: currentTab.pendingChanges,
-            pendingDeletions: currentTab.pendingDeletions,
-            pendingInsertions: currentTab.pendingInsertions,
-          },
-          {
-            pendingChanges: currentTab.pendingChanges,
-            pendingDeletions: nextPendingDeletions,
-            pendingInsertions: currentTab.pendingInsertions,
-          },
-          Date.now(),
-          { coalesce: false },
-        );
+        const nextGridHistory = isBatching
+          ? currentTab.gridHistory
+          : recordGridEdit(
+              currentTab.gridHistory,
+              {
+                pendingChanges: currentTab.pendingChanges,
+                pendingDeletions: currentTab.pendingDeletions,
+                pendingInsertions: currentTab.pendingInsertions,
+              },
+              {
+                pendingChanges: currentTab.pendingChanges,
+                pendingDeletions: nextPendingDeletions,
+                pendingInsertions: currentTab.pendingInsertions,
+              },
+              Date.now(),
+              { coalesce: false },
+            );
 
         return {
           pendingDeletions: nextPendingDeletions,
@@ -3526,6 +3540,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     (pkVal: unknown) => {
       if (!activeTabIdRef.current) return;
       const tabId = activeTabIdRef.current;
+      const isBatching = isBatchingGridEditRef.current;
       updateTab(tabId, (currentTab) => {
         const pkKey = serializePkKey(pkVal as Record<string, unknown>);
         const currentPendingDeletions = currentTab.pendingDeletions || {};
@@ -3534,21 +3549,23 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           [pkKey]: pkVal,
         };
 
-        const nextGridHistory = recordGridEdit(
-          currentTab.gridHistory,
-          {
-            pendingChanges: currentTab.pendingChanges,
-            pendingDeletions: currentTab.pendingDeletions,
-            pendingInsertions: currentTab.pendingInsertions,
-          },
-          {
-            pendingChanges: currentTab.pendingChanges,
-            pendingDeletions: newPendingDeletions,
-            pendingInsertions: currentTab.pendingInsertions,
-          },
-          Date.now(),
-          { coalesce: false },
-        );
+        const nextGridHistory = isBatching
+          ? currentTab.gridHistory
+          : recordGridEdit(
+              currentTab.gridHistory,
+              {
+                pendingChanges: currentTab.pendingChanges,
+                pendingDeletions: currentTab.pendingDeletions,
+                pendingInsertions: currentTab.pendingInsertions,
+              },
+              {
+                pendingChanges: currentTab.pendingChanges,
+                pendingDeletions: newPendingDeletions,
+                pendingInsertions: currentTab.pendingInsertions,
+              },
+              Date.now(),
+              { coalesce: false },
+            );
 
         return {
           pendingDeletions: newPendingDeletions,
@@ -3563,27 +3580,30 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     (pkVals: unknown[]) => {
       if (!activeTabIdRef.current) return;
       const tabId = activeTabIdRef.current;
+      const isBatching = isBatchingGridEditRef.current;
       updateTab(tabId, (currentTab) => {
         const newPendingDeletions = { ...(currentTab.pendingDeletions || {}) };
         for (const pkVal of pkVals) {
           newPendingDeletions[serializePkKey(pkVal as Record<string, unknown>)] = pkVal;
         }
 
-        const nextGridHistory = recordGridEdit(
-          currentTab.gridHistory,
-          {
-            pendingChanges: currentTab.pendingChanges,
-            pendingDeletions: currentTab.pendingDeletions,
-            pendingInsertions: currentTab.pendingInsertions,
-          },
-          {
-            pendingChanges: currentTab.pendingChanges,
-            pendingDeletions: newPendingDeletions,
-            pendingInsertions: currentTab.pendingInsertions,
-          },
-          Date.now(),
-          { coalesce: false },
-        );
+        const nextGridHistory = isBatching
+          ? currentTab.gridHistory
+          : recordGridEdit(
+              currentTab.gridHistory,
+              {
+                pendingChanges: currentTab.pendingChanges,
+                pendingDeletions: currentTab.pendingDeletions,
+                pendingInsertions: currentTab.pendingInsertions,
+              },
+              {
+                pendingChanges: currentTab.pendingChanges,
+                pendingDeletions: newPendingDeletions,
+                pendingInsertions: currentTab.pendingInsertions,
+              },
+              Date.now(),
+              { coalesce: false },
+            );
 
         return {
           pendingDeletions: newPendingDeletions,
@@ -4238,11 +4258,23 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
     // If applyToAll is true OR no selection, rollback everything
     if (applyToAll || !selectedRows || selectedRows.length === 0) {
+      const beforeSnap: GridPendingSnapshot = {
+        pendingChanges,
+        pendingDeletions,
+        pendingInsertions,
+      };
+      const nextGridHistory = recordGridEdit(
+        activeTab.gridHistory,
+        beforeSnap,
+        undefined,
+        Date.now(),
+        { coalesce: false },
+      );
       updateActiveTab({
         pendingChanges: undefined,
         pendingDeletions: undefined,
         pendingInsertions: undefined,
-        gridHistory: undefined,
+        gridHistory: nextGridHistory,
       });
       return;
     }
@@ -4289,20 +4321,42 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       insertionIndex++;
     }
 
+    const nextPendingChanges =
+      Object.keys(newPendingChanges).length > 0
+        ? newPendingChanges
+        : undefined;
+    const nextPendingDeletions =
+      Object.keys(newPendingDeletions).length > 0
+        ? newPendingDeletions
+        : undefined;
+    const nextPendingInsertions =
+      Object.keys(newPendingInsertions).length > 0
+        ? newPendingInsertions
+        : undefined;
+
+    const beforeSnap: GridPendingSnapshot = {
+      pendingChanges,
+      pendingDeletions,
+      pendingInsertions,
+    };
+    const afterSnap: GridPendingSnapshot = {
+      pendingChanges: nextPendingChanges,
+      pendingDeletions: nextPendingDeletions,
+      pendingInsertions: nextPendingInsertions,
+    };
+    const nextGridHistory = recordGridEdit(
+      activeTab.gridHistory,
+      beforeSnap,
+      afterSnap,
+      Date.now(),
+      { coalesce: false },
+    );
+
     updateActiveTab({
-      pendingChanges:
-        Object.keys(newPendingChanges).length > 0
-          ? newPendingChanges
-          : undefined,
-      pendingDeletions:
-        Object.keys(newPendingDeletions).length > 0
-          ? newPendingDeletions
-          : undefined,
-      pendingInsertions:
-        Object.keys(newPendingInsertions).length > 0
-          ? newPendingInsertions
-          : undefined,
-      gridHistory: undefined,
+      pendingChanges: nextPendingChanges,
+      pendingDeletions: nextPendingDeletions,
+      pendingInsertions: nextPendingInsertions,
+      gridHistory: nextGridHistory,
     });
   }, [activeTab, updateActiveTab, applyToAll, rowIdentity]);
 

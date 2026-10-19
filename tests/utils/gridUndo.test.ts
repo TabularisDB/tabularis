@@ -7,9 +7,11 @@ import {
   canUndoGrid,
   canRedoGrid,
   clonePendingChanges,
+  cloneGridSnapshot,
   pendingChangesSignature,
   GRID_HISTORY_LIMIT,
   type PendingChangesMap,
+  type GridPendingSnapshot,
 } from "../../src/utils/gridUndo";
 
 describe("gridUndo", () => {
@@ -332,6 +334,83 @@ describe("gridUndo", () => {
       const r3 = redoGridEdit(r2!.history, snap2);
       expect(r3!.pendingDeletions).toEqual(del1);
       expect(canRedoGrid(r3!.history)).toBe(false);
+    });
+
+    it("coalesces multiple queued batch mutations into a single history entry without phantom steps", () => {
+      const isBatchingRef = { current: false };
+      let beforeSnapshot: GridPendingSnapshot | null = null;
+      let history = createGridHistory();
+      let state: GridPendingSnapshot = {
+        pendingChanges: undefined,
+        pendingDeletions: undefined,
+        pendingInsertions: undefined,
+      };
+
+      // Simulating React deferred state updater queue
+      type Updater = (prev: GridPendingSnapshot) => GridPendingSnapshot;
+      const updaterQueue: Updater[] = [];
+
+      const dispatchCellEdit = (colName: string, val: unknown) => {
+        // Capture batch flag at call time before dispatching/queuing
+        const isBatching = isBatchingRef.current;
+        updaterQueue.push((prev) => {
+          const newChanges = {
+            ...(prev.pendingChanges || {}),
+            [pkKey1]: {
+              pkOriginalValue: row1,
+              changes: {
+                ...(prev.pendingChanges?.[pkKey1]?.changes || {}),
+                [colName]: val,
+              },
+            },
+          };
+          const nextSnap: GridPendingSnapshot = {
+            ...prev,
+            pendingChanges: newChanges,
+          };
+          if (!isBatching) {
+            history = recordGridEdit(history, prev, nextSnap, Date.now());
+          }
+          return nextSnap;
+        });
+      };
+
+      // 1. Begin batch
+      isBatchingRef.current = true;
+      beforeSnapshot = cloneGridSnapshot(state) || {};
+
+      // 2. Dispatch multiple edits in quick succession (e.g. multi-cell paste)
+      dispatchCellEdit("name", "Alice");
+      dispatchCellEdit("age", 30);
+      dispatchCellEdit("city", "London");
+
+      // 3. Batch ends synchronously before React renders/processes queued updaters
+      isBatchingRef.current = false;
+
+      // 4. React drains queued updaters
+      while (updaterQueue.length > 0) {
+        const updater = updaterQueue.shift()!;
+        state = updater(state);
+      }
+
+      // 5. Batch completion records single diff from beforeSnapshot to final state
+      history = recordGridEdit(
+        history,
+        beforeSnapshot,
+        state,
+        Date.now(),
+        { coalesce: false },
+      );
+
+      // Verify exactly 1 history entry was pushed; no intermediate phantom steps
+      expect(history.past.length).toBe(1);
+      expect(canUndoGrid(history)).toBe(true);
+
+      // Undo restores the initial clean state
+      const undone = undoGridEdit(history, state);
+      expect(undone).not.toBeNull();
+      expect(undone!.pendingChanges).toBeUndefined();
+      expect(canUndoGrid(undone!.history)).toBe(false);
     });
   });
 });

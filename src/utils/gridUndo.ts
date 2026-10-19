@@ -247,7 +247,7 @@ export function recordGridEdit(
     return history;
   }
 
-  const prevSnap = cloneGridSnapshot(toGridSnapshot(prev));
+  const prevSnap = toGridSnapshot(prev);
   const nextSnap = toGridSnapshot(next);
 
   if (
@@ -277,7 +277,7 @@ export function recordGridEdit(
     return { ...history, lastEditTime: now, lastModifiedKey: modifiedKey };
   }
 
-  const past = [...history.past, prevSnap];
+  const past = [...history.past, cloneGridSnapshot(prevSnap)];
   if (past.length > GRID_HISTORY_LIMIT) {
     past.shift();
   }
