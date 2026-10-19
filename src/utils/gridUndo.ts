@@ -10,11 +10,8 @@ export type PendingChangesMap = Record<
 
 export type PendingDeletionsMap = Record<string, unknown>;
 
-export interface PendingInsertion {
-  tempId: string;
-  data: Record<string, unknown>;
-  displayIndex?: number;
-}
+import type { PendingInsertion } from "../types/editor";
+export type { PendingInsertion };
 
 export type PendingInsertionsMap = Record<string, PendingInsertion>;
 
