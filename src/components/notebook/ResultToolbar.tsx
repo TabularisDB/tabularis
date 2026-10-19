@@ -3,8 +3,9 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Download } from "lucide-react";
 import type { QueryResult } from "../../types/editor";
-import { resultToCsv, resultToJson } from "../../utils/notebookExport";
+import { formatResultForExport } from "../../utils/resultExport";
 import { useAlert } from "../../hooks/useAlert";
+import { useSettings } from "../../hooks/useSettings";
 
 interface ResultToolbarProps {
   result: QueryResult;
@@ -18,6 +19,7 @@ interface ResultToolbarProps {
 export function ResultToolbar({ result, executionTime }: ResultToolbarProps) {
   const { t } = useTranslation();
   const { showAlert } = useAlert();
+  const { settings } = useSettings();
 
   const handleExport = async (format: "csv" | "json") => {
     try {
@@ -26,10 +28,13 @@ export function ResultToolbar({ result, executionTime }: ResultToolbarProps) {
         filters: [{ name: format.toUpperCase(), extensions: [format] }],
       });
       if (!filePath) return;
-      const content = (() => {
-        if (format === "json") return resultToJson(result);
-        return resultToCsv(result);
-      })();
+      // Same formatter as the editor export, so a notebook cell and the editor
+      // write identical files (NULL sentinel, JSON values, CSV delimiter).
+      const content = formatResultForExport(
+        result,
+        format,
+        settings.csvDelimiter ?? ",",
+      );
       await writeTextFile(filePath, content);
       showAlert(t("editor.notebook.resultExportSuccess"), { kind: "info" });
     } catch (e) {

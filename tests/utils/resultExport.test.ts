@@ -75,6 +75,37 @@ describe("resultExport", () => {
     expect(formatResultForExport(carriageResult, "csv")).toBe('id,note\n1,"hello\rworld"');
   });
 
+  it("writes object and array values as JSON text, not [object Object]", () => {
+    const withJson: QueryResult = {
+      columns: ["id", "doc", "tags"],
+      rows: [[1, { a: 1, b: [true, null] }, ["x", "y"]]],
+      affected_rows: 0,
+    };
+
+    expect(formatResultForExport(withJson, "csv")).toBe(
+      'id,doc,tags\n1,"{""a"":1,""b"":[true,null]}","[""x"",""y""]"',
+    );
+  });
+
+  it("treats undefined like NULL in CSV and JSON", () => {
+    const sparse: QueryResult = {
+      columns: ["a", "b"],
+      rows: [[undefined, 1]],
+      affected_rows: 0,
+    };
+
+    expect(formatResultForExport(sparse, "csv")).toBe("a,b\nNULL,1");
+    expect(JSON.parse(formatResultForExport(sparse, "json"))).toEqual([
+      { a: null, b: 1 },
+    ]);
+  });
+
+  it("writes only the header for an empty result", () => {
+    expect(
+      formatResultForExport({ columns: ["a"], rows: [], affected_rows: 0 }, "csv"),
+    ).toBe("a");
+  });
+
   it("formats loaded result rows as pretty JSON", () => {
     expect(formatResultForExport(result, "json")).toBe(
       JSON.stringify(
