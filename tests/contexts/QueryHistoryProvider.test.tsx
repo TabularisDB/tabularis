@@ -148,10 +148,10 @@ describe("QueryHistoryProvider pause and resume capture", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "sidebar.resumeHistoryCapture",
+        name: "sidebar.pauseHistoryCapture",
         pressed: true,
       }),
-    ).toHaveAttribute("aria-pressed", "true");
+    ).toBe(pauseButton);
     expect(screen.getByRole("status")).toHaveTextContent(
       "sidebar.historyCapturePausedNotice",
     );
@@ -170,9 +170,10 @@ describe("QueryHistoryProvider pause and resume capture", () => {
 
     // Resume capture and run subsequent query — only SELECT 3 is recorded
     fireEvent.click(
-      screen.getAllByRole("button", { name: "sidebar.resumeHistoryCapture" })[0],
+      screen.getByRole("button", { name: "sidebar.resumeHistoryCapture" }),
     );
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(pauseButton).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
 
     fireEvent.click(screen.getByText("run-select-3"));
     await waitFor(() =>

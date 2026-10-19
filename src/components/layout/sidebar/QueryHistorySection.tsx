@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, Trash2, Loader2, Database, AlertTriangle, X, ChevronDown, Pause, Play } from "lucide-react";
+import { Search, Trash2, Loader2, Database, AlertTriangle, X, ChevronDown, Pause } from "lucide-react";
 import { groupByDate, formatHistoryTime } from "../../../utils/dateGroups";
 import { SqlHighlight } from "../../ui/SqlHighlight";
 import { formatSqlPreview } from "../../../utils/sqlHighlight";
@@ -63,8 +63,7 @@ export function QueryHistorySection({
 }: QueryHistorySectionProps) {
   const { t } = useTranslation();
   const { settings } = useSettings();
-  const paused = isPaused;
-  const handleTogglePaused = onTogglePaused;
+  const pauseToggleRef = useRef<HTMLButtonElement>(null);
 
   // Session-only: search and the new filters reset when the section unmounts
   // (same as the existing search field; nothing is persisted).
@@ -97,47 +96,60 @@ export function QueryHistorySection({
     return `${(ms / 1000).toFixed(1)}s`;
   };
 
-  const pauseToggleLabel = paused
-    ? t("sidebar.resumeHistoryCapture")
-    : t("sidebar.pauseHistoryCapture");
-
-  const pauseToggleButton = handleTogglePaused ? (
+  // A toggle with a constant name: the pressed state, not the label, says
+  // whether capture is paused (#1212).
+  const pauseToggleButton = onTogglePaused ? (
     <button
+      ref={pauseToggleRef}
       type="button"
-      onClick={handleTogglePaused}
-      aria-pressed={paused}
+      onClick={onTogglePaused}
+      aria-pressed={isPaused}
       className={`p-1 rounded transition-colors shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
-        paused
+        isPaused
           ? "text-accent-warning bg-accent-warning/15 hover:bg-accent-warning/25"
           : "text-muted hover:text-primary"
       }`}
-      title={pauseToggleLabel}
-      aria-label={pauseToggleLabel}
+      title={t("sidebar.pauseHistoryCapture")}
+      aria-label={t("sidebar.pauseHistoryCapture")}
     >
-      {paused ? <Play size={13} /> : <Pause size={13} />}
+      <Pause size={13} />
     </button>
   ) : null;
 
-  const pausedBanner = paused ? (
+  // The banner's resume link disappears with the banner, so hand focus to the
+  // toggle, which then reads as not pressed.
+  const resumeFromBanner = () => {
+    onTogglePaused?.();
+    pauseToggleRef.current?.focus();
+  };
+
+  // The live region stays mounted and only its text changes: some screen
+  // readers skip a status region inserted together with its content.
+  const pausedBanner = (
     <div
-      role="status"
-      className="mx-2 mb-1.5 px-2.5 py-1.5 bg-accent-warning/10 border border-accent-warning/40 rounded flex items-center justify-between gap-2 text-[11px] text-accent-warning"
+      className={
+        isPaused
+          ? "mx-2 mb-1.5 px-2.5 py-1.5 bg-accent-warning/10 border border-accent-warning/40 rounded flex items-center justify-between gap-2 text-[11px] text-accent-warning"
+          : "sr-only"
+      }
     >
       <div className="flex items-center gap-1.5 min-w-0">
-        <Pause size={12} className="shrink-0 text-accent-warning" />
-        <span className="truncate">{t("sidebar.historyCapturePausedNotice")}</span>
+        {isPaused && <Pause size={12} className="shrink-0 text-accent-warning" />}
+        <span role="status" className="truncate">
+          {isPaused ? t("sidebar.historyCapturePausedNotice") : ""}
+        </span>
       </div>
-      {handleTogglePaused && (
+      {isPaused && onTogglePaused && (
         <button
           type="button"
-          onClick={handleTogglePaused}
+          onClick={resumeFromBanner}
           className="shrink-0 font-medium underline hover:text-accent-warning/80 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
         >
           {t("sidebar.resumeHistoryCapture")}
         </button>
       )}
     </div>
-  ) : null;
+  );
 
   const recoveryBanner = recoveryNotice ? (
     <div className="m-2 p-2.5 bg-accent-warning/10 border border-accent-warning/40 rounded text-[11px] text-accent-warning leading-snug">
@@ -183,7 +195,7 @@ export function QueryHistorySection({
     return (
       <div>
         {recoveryBanner}
-        {handleTogglePaused && (
+        {onTogglePaused && (
           <div className="px-2 pb-1.5 flex items-center justify-end">
             {pauseToggleButton}
           </div>
