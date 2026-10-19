@@ -2686,4 +2686,39 @@ describe("DataGrid Edit selection context menu (#1000)", () => {
       reason,
     });
   });
+
+  it("triggers onUndo when Cmd/Ctrl+Z is pressed and canUndo is true", async () => {
+    const onUndo = vi.fn();
+    const onRedo = vi.fn();
+    const { container } = renderGrid({
+      onUndo,
+      onRedo,
+      canUndo: true,
+      canRedo: false,
+    });
+
+    fireEvent.mouseDown(container.querySelector("table")!);
+    fireEvent.keyDown(document, { key: "z", ctrlKey: true });
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(onRedo).not.toHaveBeenCalled();
+  });
+
+  it("triggers onRedo when Cmd/Ctrl+Shift+Z or Ctrl+Y is pressed and canRedo is true", async () => {
+    const onUndo = vi.fn();
+    const onRedo = vi.fn();
+    const { container } = renderGrid({
+      onUndo,
+      onRedo,
+      canUndo: false,
+      canRedo: true,
+    });
+
+    fireEvent.mouseDown(container.querySelector("table")!);
+    fireEvent.keyDown(document, { key: "z", ctrlKey: true, shiftKey: true });
+    expect(onRedo).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(document, { key: "y", ctrlKey: true });
+    expect(onRedo).toHaveBeenCalledTimes(2);
+    expect(onUndo).not.toHaveBeenCalled();
+  });
 });

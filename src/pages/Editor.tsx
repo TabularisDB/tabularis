@@ -21,6 +21,14 @@ import {
   getLoadedRowsExportLimit,
 } from "../utils/resultExport";
 import { serializePkKey, buildPkMap } from "../utils/dataGrid";
+import {
+  createGridHistory,
+  recordGridEdit,
+  undoGridEdit,
+  redoGridEdit,
+  canUndoGrid,
+  canRedoGrid,
+} from "../utils/gridUndo";
 import { TONE_SOFT_BG_CLASS, TONE_TEXT_CLASS, tint } from "../utils/tones";
 import {
   buildKeylessUpdatePlan,
@@ -78,6 +86,7 @@ import {
   XCircle,
   Trash2,
   Undo2,
+  Redo2,
   Check,
   BookOpen,
   UsersRound,
@@ -1351,6 +1360,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           pendingChanges: preservePendingChanges?.pendingChanges,
           pendingDeletions: preservePendingChanges?.pendingDeletions,
           pendingInsertions: preservePendingChanges?.pendingInsertions,
+          gridHistory: preservePendingChanges?.pendingChanges
+            ? targetTab.gridHistory
+            : undefined,
           selectedRows: [],
         });
         // A fresh query's result set can be a different size (or empty), so an
@@ -3134,11 +3146,55 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           };
         }
 
-        return { pendingChanges: newPending };
+        const nextPendingChanges =
+          Object.keys(newPending).length === 0 ? undefined : newPending;
+        const nextGridHistory = recordGridEdit(
+          currentTab.gridHistory,
+          currentTab.pendingChanges,
+          nextPendingChanges,
+          Date.now(),
+        );
+
+        return {
+          pendingChanges: nextPendingChanges,
+          gridHistory: nextGridHistory,
+        };
       });
     },
     [updateTab],
   );
+
+  const handleUndoGrid = useCallback(() => {
+    if (!activeTabIdRef.current) return;
+    const tabId = activeTabIdRef.current;
+    updateTab(tabId, (currentTab) => {
+      const step = undoGridEdit(
+        currentTab.gridHistory ?? createGridHistory(),
+        currentTab.pendingChanges,
+      );
+      if (!step) return {};
+      return {
+        pendingChanges: step.pendingChanges,
+        gridHistory: step.history,
+      };
+    });
+  }, [updateTab]);
+
+  const handleRedoGrid = useCallback(() => {
+    if (!activeTabIdRef.current) return;
+    const tabId = activeTabIdRef.current;
+    updateTab(tabId, (currentTab) => {
+      const step = redoGridEdit(
+        currentTab.gridHistory ?? createGridHistory(),
+        currentTab.pendingChanges,
+      );
+      if (!step) return {};
+      return {
+        pendingChanges: step.pendingChanges,
+        gridHistory: step.history,
+      };
+    });
+  }, [updateTab]);
 
   const handleSelectionChange = useCallback(
     (indices: Set<number>) => {
@@ -3951,6 +4007,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         pendingChanges: undefined,
         pendingDeletions: undefined,
         pendingInsertions: undefined,
+        gridHistory: undefined,
       });
       return;
     }
@@ -4010,6 +4067,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         Object.keys(newPendingInsertions).length > 0
           ? newPendingInsertions
           : undefined,
+      gridHistory: undefined,
     });
   }, [activeTab, updateActiveTab, applyToAll, rowIdentity]);
 
@@ -5762,6 +5820,30 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                           </span>
                         </button>
                         <div className="w-px self-stretch bg-default"></div>
+                        <button
+                          onClick={handleUndoGrid}
+                          disabled={!canUndoGrid(activeTab.gridHistory)}
+                          className="flex items-center gap-1.5 px-2.5 @[560px]:px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
+                          title={t("editor.undoGridEdit")}
+                        >
+                          <Undo2 size={15} />
+                          <span className="hidden @[480px]:inline">
+                            {t("editor.undo")}
+                          </span>
+                        </button>
+                        <div className="w-px self-stretch bg-default"></div>
+                        <button
+                          onClick={handleRedoGrid}
+                          disabled={!canRedoGrid(activeTab.gridHistory)}
+                          className="flex items-center gap-1.5 px-2.5 @[560px]:px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
+                          title={t("editor.redoGridEdit")}
+                        >
+                          <Redo2 size={15} />
+                          <span className="hidden @[480px]:inline">
+                            {t("editor.redo")}
+                          </span>
+                        </button>
+                        <div className="w-px self-stretch bg-default"></div>
                         <span className="px-2.5 @[560px]:px-4 py-2 text-sm font-medium text-accent select-none hover:bg-surface-secondary transition-colors whitespace-nowrap">
                           {t("editor.pendingCount", {
                             count:
@@ -5843,6 +5925,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       )}
                       onScrollTopChange={handleScrollTopChange}
                       scrollToNewInsertion={scrollToNewInsertion}
+                      onUndo={handleUndoGrid}
+                      onRedo={handleRedoGrid}
+                      canUndo={canUndoGrid(activeTab.gridHistory)}
+                      canRedo={canRedoGrid(activeTab.gridHistory)}
                     />
                   </div>
                   {activeFkQuery && activeConnectionId && (

@@ -216,6 +216,10 @@ interface DataGridProps {
   onDuplicateRow?: (rowData: Record<string, unknown>) => void;
   selectedRows?: Set<number>;
   onSelectionChange?: (indices: Set<number>) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
   copyFormat?: "csv" | "json" | "sql-insert" | "markdown";
   csvDelimiter?: string;
   csvIncludeHeaders?: boolean;
@@ -339,6 +343,10 @@ export const DataGrid = React.memo(
     onDuplicateRow,
     selectedRows: externalSelectedRows,
     onSelectionChange,
+    onUndo,
+    onRedo,
+    canUndo,
+    canRedo,
     copyFormat,
     csvDelimiter = ",",
     csvIncludeHeaders = true,
@@ -2881,6 +2889,33 @@ export const DataGrid = React.memo(
           }
         }
 
+        // CMD/CTRL + Z / CMD/CTRL + SHIFT + Z (and CTRL + Y) — Undo / Redo pending grid edits
+        if (
+          (e.metaKey || e.ctrlKey) &&
+          (e.key === "z" || e.key === "Z" || e.key === "y")
+        ) {
+          if (
+            !editingCell &&
+            !isEditableTarget &&
+            !readonlyProp &&
+            isActiveGridRef.current
+          ) {
+            const isRedo =
+              e.key === "y" || (e.shiftKey && (e.key === "z" || e.key === "Z"));
+            if (isRedo) {
+              if (onRedo && canRedo) {
+                e.preventDefault();
+                onRedo();
+              }
+            } else {
+              if (onUndo && canUndo) {
+                e.preventDefault();
+                onUndo();
+              }
+            }
+          }
+        }
+
         // Delete / Backspace — delete selected rows
         if ((e.key === "Delete" || e.key === "Backspace") && !editingCell && !isEditableTarget && !readonlyProp && selectedRowIndices.size > 0) {
           e.preventDefault();
@@ -2890,7 +2925,7 @@ export const DataGrid = React.memo(
 
       document.addEventListener("keydown", handleKeyDown);
       return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [editingCell, selectedRowIndices, selectedColIndices, cellRange, focusedCell, copyCellValue, copySelectedCells, copySelectedColumns, copyCellRange, pasteFromClipboard, readonlyProp, deleteRowsByIndices, handleSelectAll]);
+    }, [editingCell, selectedRowIndices, selectedColIndices, cellRange, focusedCell, copyCellValue, copySelectedCells, copySelectedColumns, copyCellRange, pasteFromClipboard, readonlyProp, deleteRowsByIndices, handleSelectAll, onUndo, onRedo, canUndo, canRedo]);
 
     // Sensitive-column reveal actions (#485). Column toggling uses
     // toggleSetValue like the other Set-based grid state.

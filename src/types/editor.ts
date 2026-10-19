@@ -1,4 +1,5 @@
 import type { ForeignKey } from "./schema";
+import type { GridHistory } from "../utils/gridUndo";
 
 export type { ForeignKey };
 
@@ -115,6 +116,7 @@ export interface Tab {
     string,
     { pkOriginalValue: unknown; changes: Record<string, unknown> }
   >;
+  gridHistory?: GridHistory;
   pendingDeletions?: Record<string, unknown>; // Map of stringified PK -> original PK value
   pendingInsertions?: Record<string, PendingInsertion>; // Map of tempId -> pending insertion
   selectedRows?: number[]; // Selected row indices
