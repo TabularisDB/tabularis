@@ -16,6 +16,7 @@ import type { ComponentProps } from "react";
 // can drive it directly, exercising the real `runToolbarQuery` callback
 // without rendering the filter-value picker UI.
 let capturedRunToolbarQuery: ((sql: string) => Promise<QueryResult>) | undefined;
+let capturedRefresh: (() => void) | undefined;
 // Same for the DataGrid's column statistics loader (issue #1001).
 type LoadColumnStats = NonNullable<ComponentProps<typeof DataGridType>["onLoadColumnStats"]>;
 let capturedLoadColumnStats: LoadColumnStats | undefined;
@@ -112,9 +113,16 @@ vi.mock("../../src/components/ui/SqlEditorWrapper", () => ({
 // The filter-value picker UI is too deep to drive in a unit test; capturing
 // the prop lets us call the callback directly and verify the invoke payload.
 vi.mock("../../src/components/ui/TableToolbar", () => ({
-  TableToolbar: ({ onRunQuery }: { onRunQuery?: (sql: string) => Promise<QueryResult> }) => {
+  TableToolbar: ({
+    onRunQuery,
+    onRefresh,
+  }: {
+    onRunQuery?: (sql: string) => Promise<QueryResult>;
+    onRefresh?: () => void;
+  }) => {
     useLayoutEffect(() => {
       capturedRunToolbarQuery = onRunQuery;
+      capturedRefresh = onRefresh;
     });
     return null;
   },
@@ -406,6 +414,7 @@ describe("column statistics loader (#1001)", () => {
 
 describe("focus after filtering by a grid value (#1138)", () => {
   let finish: (value: QueryResult) => void = () => {};
+  let fail: (reason: unknown) => void = () => {};
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -415,7 +424,7 @@ describe("focus after filtering by a grid value (#1138)", () => {
     vi.mocked(invoke).mockReset();
     vi.mocked(invoke).mockImplementation((command) =>
       command === "execute_query"
-        ? new Promise((resolve) => { finish = resolve; })
+        ? new Promise((resolve, reject) => { finish = resolve; fail = reject; })
         : Promise.resolve([]),
     );
   });
@@ -461,5 +470,24 @@ describe("focus after filtering by a grid value (#1138)", () => {
     } finally {
       elsewhere.remove();
     }
+  });
+
+  it("drops the focus request when the filtered query fails", async () => {
+    await filterFromGrid();
+    await act(async () => {
+      fail("syntax error");
+    });
+    expect(document.body).toHaveFocus();
+
+    // An unrelated refresh succeeds later: it must not pull focus to the grid.
+    await act(async () => {
+      capturedRefresh?.();
+    });
+    await act(async () => {
+      finish({ ...initialResult, rows: [[9]] });
+    });
+
+    expect(screen.getByTestId("grid")).toHaveTextContent("[[9]]");
+    expect(document.body).toHaveFocus();
   });
 });

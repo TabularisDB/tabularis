@@ -3051,6 +3051,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const gridFocusRequestRef = useRef<{
     tabId: string;
     staleResult: QueryResult | null | undefined;
+    sawLoading: boolean;
   } | null>(null);
 
   const handleFilterByValue = useCallback(
@@ -3067,6 +3068,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       gridFocusRequestRef.current = {
         tabId: currentTab.id,
         staleResult: currentTab.result,
+        sawLoading: false,
       };
 
       const sourceType =
@@ -3099,7 +3101,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     }
     // Wait for the filtered rows: the grid also remounts as soon as the
     // filter changes, still showing the old ones, before the loading state.
-    if (activeIsLoading || !activeResult || activeResult === request.staleResult) {
+    if (activeIsLoading) {
+      request.sawLoading = true;
+      return;
+    }
+    if (!activeResult || activeResult === request.staleResult) {
+      // The query finished without new rows (it failed): drop the request so
+      // a later unrelated result does not steal focus.
+      if (request.sawLoading) gridFocusRequestRef.current = null;
       return;
     }
     gridFocusRequestRef.current = null;
