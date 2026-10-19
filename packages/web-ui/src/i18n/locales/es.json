@@ -1514,7 +1514,8 @@
     "revealCell": "Mostrar celda",
     "maskCell": "Enmascarar celda",
     "revealColumn": "Mostrar columna",
-    "maskColumn": "Enmascarar columna"
+    "maskColumn": "Enmascarar columna",
+    "resizeColumn": "Redimensionar columna {{col}}"
   },
   "editRow": {
     "title": "Editar Fila",

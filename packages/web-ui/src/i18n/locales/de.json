@@ -1492,7 +1492,8 @@
     "revealCell": "Zelle anzeigen",
     "maskCell": "Zelle maskieren",
     "revealColumn": "Spalte anzeigen",
-    "maskColumn": "Spalte maskieren"
+    "maskColumn": "Spalte maskieren",
+    "resizeColumn": "Breite der Spalte {{col}} ändern"
   },
   "editRow": {
     "title": "Zeile bearbeiten",

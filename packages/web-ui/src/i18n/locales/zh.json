@@ -1467,7 +1467,8 @@
     "revealCell": "显示单元格",
     "maskCell": "掩码单元格",
     "revealColumn": "显示列",
-    "maskColumn": "掩码列"
+    "maskColumn": "掩码列",
+    "resizeColumn": "调整列 {{col}} 的宽度"
   },
   "editRow": {
     "title": "编辑行",

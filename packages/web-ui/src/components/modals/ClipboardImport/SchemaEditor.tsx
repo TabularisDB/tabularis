@@ -4,7 +4,7 @@ import {useTranslation} from 'react-i18next';
 import {Select} from '@/components/ui/Select';
 import type {DataTypeInfo} from '@/types/dataTypes';
 import {useColumnResize} from '@/hooks/useColumnResize';
-import {ColumnResizeHandle} from './ColumnResizeHandle';
+import {ColumnResizeHandle} from '@/components/ui/ColumnResizeHandle';
 
 export interface SchemaColumn {
     name: string;

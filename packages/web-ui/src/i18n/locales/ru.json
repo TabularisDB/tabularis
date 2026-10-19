@@ -1494,7 +1494,8 @@
     "revealCell": "Показать ячейку",
     "maskCell": "Скрыть ячейку",
     "revealColumn": "Показать столбец",
-    "maskColumn": "Скрыть столбец"
+    "maskColumn": "Скрыть столбец",
+    "resizeColumn": "Изменить ширину столбца {{col}}"
   },
   "editRow": {
     "title": "Изменить строку",

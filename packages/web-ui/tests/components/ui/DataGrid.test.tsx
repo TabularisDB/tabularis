@@ -3066,3 +3066,218 @@ describe('DataGrid copy column names as SQL list', () => {
         await waitFor(() => expect(writeText).toHaveBeenCalledWith('"col1", "col2"'));
     });
 });
+
+describe('DataGrid column resizing (#1151)', () => {
+    const columns = ['id', 'name', 'email'];
+    const data = [
+        [1, 'Alice', 'alice@example.com'],
+        [2, 'Bob', 'bob@example.com'],
+    ];
+    // Every measured header cell (the row-number column included) is 100px.
+    const MEASURED = 100;
+    let frames: FrameRequestCallback[];
+    let clientWidthDescriptor: PropertyDescriptor | undefined;
+    const originalRaf = window.requestAnimationFrame;
+    const originalCancelRaf = window.cancelAnimationFrame;
+
+    const flushFrames = () =>
+        act(() => {
+            const pending = frames;
+            frames = [];
+            pending.forEach((cb) => cb(0));
+        });
+
+    beforeEach(() => {
+        frames = [];
+        // Frames run only when a test flushes them, like a real browser would.
+        window.requestAnimationFrame = (cb: FrameRequestCallback) => {
+            frames.push(cb);
+            return frames.length;
+        };
+        window.cancelAnimationFrame = vi.fn();
+        // JSDOM has no layout: give the grid a viewport and the headers a width
+        // so the widths get measured and locked like in the app (#844).
+        clientWidthDescriptor = Object.getOwnPropertyDescriptor(
+            HTMLElement.prototype,
+            'clientWidth',
+        );
+        Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+            configurable: true,
+            get: () => 800,
+        });
+        vi.spyOn(HTMLTableCellElement.prototype, 'getBoundingClientRect').mockReturnValue({
+            width: MEASURED,
+        } as DOMRect);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        window.requestAnimationFrame = originalRaf;
+        window.cancelAnimationFrame = originalCancelRaf;
+        if (clientWidthDescriptor) {
+            Object.defineProperty(HTMLElement.prototype, 'clientWidth', clientWidthDescriptor);
+        } else {
+            delete (HTMLElement.prototype as {clientWidth?: number}).clientWidth;
+        }
+    });
+
+    const renderGrid = (props: Partial<ComponentProps<typeof DataGrid>> = {}) => {
+        const onSort = vi.fn();
+        const utils = render(
+            <DataGrid
+                columns={columns}
+                data={data}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                onSort={onSort}
+                readonly
+                {...props}
+            />,
+        );
+        const table = utils.container.querySelector('table')!;
+        const col = (index: number) => table.querySelectorAll('col')[index] as HTMLTableColElement;
+        return {...utils, onSort, table, col};
+    };
+
+    const separators = () => screen.getAllByRole('separator');
+
+    it('adds a focusable, labelled resize separator to each data column', () => {
+        renderGrid();
+
+        expect(separators()).toHaveLength(columns.length);
+        const handle = separators()[1];
+        expect(handle).toHaveAttribute('tabindex', '0');
+        expect(handle).toHaveAttribute('aria-orientation', 'vertical');
+        expect(handle).toHaveAttribute('aria-valuenow', String(MEASURED));
+        expect(handle).toHaveAttribute('aria-valuemin', '48');
+        expect(handle).toHaveAttribute('aria-valuemax', '2000');
+        expect(handle).toHaveAttribute('aria-label', 'dataGrid.resizeColumn');
+        expect(translationMock).toHaveBeenCalledWith('dataGrid.resizeColumn', {
+            col: 'name',
+        });
+        expect(handle.className).toContain('cursor-col-resize');
+        expect(handle.className).toContain('focus-visible:outline-focus');
+    });
+
+    it('drags only the target column wider and narrower', () => {
+        const {col, table} = renderGrid();
+        expect(table.style.width).toBe('');
+
+        fireEvent.mouseDown(separators()[1], {button: 0, clientX: 300});
+        fireEvent.mouseMove(window, {clientX: 360});
+        flushFrames();
+        // Painted straight to the column while dragging.
+        expect(col(2).style.width).toBe('160px');
+        fireEvent.mouseUp(window);
+
+        expect(col(2).style.width).toBe('160px');
+        expect(separators()[1]).toHaveAttribute('aria-valuenow', '160');
+        expect(col(0).style.width).toBe(`${MEASURED}px`);
+        expect(col(1).style.width).toBe(`${MEASURED}px`);
+        expect(col(3).style.width).toBe(`${MEASURED}px`);
+        // The table is exactly as wide as its columns, so the others keep theirs.
+        expect(table.style.width).toBe('460px');
+
+        fireEvent.mouseDown(separators()[1], {button: 0, clientX: 300});
+        fireEvent.mouseMove(window, {clientX: 220});
+        fireEvent.mouseUp(window);
+        expect(col(2).style.width).toBe('80px');
+        expect(table.style.width).toBe('380px');
+    });
+
+    it('keeps a drag within the minimum and maximum widths', () => {
+        const {col} = renderGrid();
+
+        fireEvent.mouseDown(separators()[0], {button: 0, clientX: 300});
+        fireEvent.mouseMove(window, {clientX: -1000});
+        fireEvent.mouseUp(window);
+        expect(col(1).style.width).toBe('48px');
+
+        fireEvent.mouseDown(separators()[0], {button: 0, clientX: 0});
+        fireEvent.mouseMove(window, {clientX: 9000});
+        fireEvent.mouseUp(window);
+        expect(col(1).style.width).toBe('2000px');
+    });
+
+    it('does not sort or select the column while resizing', () => {
+        const {container, onSort} = renderGrid();
+        const handle = separators()[0];
+
+        fireEvent.mouseDown(handle, {button: 0, clientX: 300});
+        fireEvent.mouseMove(window, {clientX: 340});
+        fireEvent.mouseUp(handle);
+        fireEvent.click(handle);
+        fireEvent.doubleClick(handle);
+
+        expect(onSort).not.toHaveBeenCalled();
+        expect(container.querySelectorAll('th')[1]).not.toHaveClass('bg-accent-primary/20');
+    });
+
+    it('resizes from the keyboard in steps, Shift for larger steps, Home/End for the limits', () => {
+        const {col} = renderGrid();
+        const handle = () => separators()[2];
+
+        fireEvent.keyDown(handle(), {key: 'ArrowRight'});
+        expect(col(3).style.width).toBe('110px');
+        expect(handle()).toHaveAttribute('aria-valuenow', '110');
+
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft', shiftKey: true});
+        expect(col(3).style.width).toBe('60px');
+
+        fireEvent.keyDown(handle(), {key: 'Home'});
+        expect(handle()).toHaveAttribute('aria-valuenow', '48');
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        expect(handle()).toHaveAttribute('aria-valuenow', '48');
+
+        fireEvent.keyDown(handle(), {key: 'End'});
+        expect(handle()).toHaveAttribute('aria-valuenow', '2000');
+        expect(col(1).style.width).toBe(`${MEASURED}px`);
+    });
+
+    it("keeps keys on the separator away from the grid's keyboard model", () => {
+        const onSelectionChange = vi.fn();
+        const {container} = renderGrid({onSelectionChange});
+        fireEvent.click(container.querySelector('td[data-col-index="0"]')!);
+        const focusedBefore = container.querySelector('.ring-accent-primary');
+        expect(focusedBefore).toHaveAttribute('data-col-index', '0');
+        onSelectionChange.mockClear();
+
+        // Arrow keys resize instead of moving the focused cell, and Shift+Space
+        // does not select the focused cell's row.
+        fireEvent.keyDown(separators()[0], {key: 'ArrowRight'});
+        fireEvent.keyDown(separators()[0], {key: ' ', shiftKey: true});
+
+        expect(container.querySelector('.ring-accent-primary')).toBe(focusedBefore);
+        expect(onSelectionChange).not.toHaveBeenCalled();
+    });
+
+    it('keeps the resized widths while rows change and re-measures for new columns', () => {
+        const {col, rerender} = renderGrid();
+        fireEvent.keyDown(separators()[0], {key: 'ArrowRight', shiftKey: true});
+        expect(col(1).style.width).toBe('150px');
+
+        // More rows for the same columns (scrolling, paging, refreshing).
+        rerender(
+            <DataGrid
+                columns={columns}
+                data={[...data, [3, 'Carol', 'carol@example.com']]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+        expect(col(1).style.width).toBe('150px');
+
+        rerender(
+            <DataGrid
+                columns={['sku', 'price']}
+                data={[['a', 1]]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+        expect(col(1).style.width).toBe(`${MEASURED}px`);
+        expect(separators()).toHaveLength(2);
+    });
+});

@@ -1504,7 +1504,8 @@
     "revealCell": "セルを表示",
     "maskCell": "セルをマスク",
     "revealColumn": "列を表示",
-    "maskColumn": "列をマスク"
+    "maskColumn": "列をマスク",
+    "resizeColumn": "列 {{col}} のサイズを変更"
   },
   "editRow": {
     "title": "行を編集",

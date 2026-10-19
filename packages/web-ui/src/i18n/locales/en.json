@@ -1562,7 +1562,8 @@
     "revealCell": "Reveal cell",
     "maskCell": "Mask cell",
     "revealColumn": "Reveal column",
-    "maskColumn": "Mask column"
+    "maskColumn": "Mask column",
+    "resizeColumn": "Resize column {{col}}"
   },
   "editRow": {
     "title": "Edit Row",

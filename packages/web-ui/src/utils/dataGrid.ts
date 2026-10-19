@@ -15,6 +15,12 @@ export const USE_DEFAULT_SENTINEL = '__USE_DEFAULT__';
 /** Fixed height of a grid row, shared by the row markup and the virtualizer. */
 export const DATA_GRID_ROW_HEIGHT = 35;
 
+/** Narrowest a data column can be resized to: its padding plus a few characters. */
+export const DATA_GRID_MIN_COLUMN_WIDTH = 48;
+
+/** Widest a data column can be resized to. */
+export const DATA_GRID_MAX_COLUMN_WIDTH = 2000;
+
 /** Whether a database column stores UUID values supported by the grid. */
 export function isUuidColumnType(dataType: string): boolean {
     const normalizedType = dataType.trim().toLowerCase();
@@ -798,6 +804,8 @@ export function computePasteTargets(
 export interface LockedColumnWidths {
     key: string;
     widths: number[];
+    /** Set once the user resized a column of this layout (#1151). */
+    resized?: boolean;
 }
 
 /**
@@ -822,4 +830,36 @@ export function resolveLockedColumnWidths(
     if (!locked || locked.key !== key) return null;
     if (locked.widths.length !== columnCount) return null;
     return locked.widths;
+}
+
+/**
+ * The locked widths with one column set to `width` (rounded to whole pixels)
+ * and marked as resized. Every other column keeps its width.
+ */
+export function resizeLockedColumn(
+    locked: LockedColumnWidths,
+    index: number,
+    width: number,
+): LockedColumnWidths {
+    if (index < 0 || index >= locked.widths.length) return locked;
+    return {
+        ...locked,
+        widths: locked.widths.map((w, i) => (i === index ? Math.round(width) : w)),
+        resized: true,
+    };
+}
+
+/**
+ * The explicit table width for a resized layout: the sum of its columns.
+ * A fixed-layout table stretched to the container would hand any width a
+ * column gives up to the other columns, so once the user resizes, the table
+ * is exactly as wide as its columns. Before that it keeps filling the
+ * container (undefined).
+ */
+export function getResizedTableWidth(
+    locked: LockedColumnWidths | null,
+    widths: readonly number[] | null,
+): number | undefined {
+    if (!locked?.resized || !widths) return undefined;
+    return widths.reduce((sum, w) => sum + w, 0);
 }

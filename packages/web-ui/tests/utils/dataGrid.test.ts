@@ -23,6 +23,8 @@ import {
     createDataGridResultCommands,
     getColumnLayoutKey,
     resolveLockedColumnWidths,
+    resizeLockedColumn,
+    getResizedTableWidth,
     isUuidColumnType,
     isOriginalCellValue,
 } from '@/utils/dataGrid';
@@ -1386,5 +1388,48 @@ describe('isOriginalCellValue', () => {
         expect(isOriginalCellValue(settings, settings)).toBe(true);
         expect(isOriginalCellValue({theme: 'light'}, settings)).toBe(false);
         expect(isOriginalCellValue('[object Object]', settings)).toBe(false);
+    });
+});
+
+describe('resizeLockedColumn', () => {
+    const locked = {key: 'k', widths: [50, 80.4, 200]};
+
+    it('should change only the target column and mark the layout resized', () => {
+        expect(resizeLockedColumn(locked, 2, 260)).toEqual({
+            key: 'k',
+            widths: [50, 80.4, 260],
+            resized: true,
+        });
+    });
+
+    it('should round the new width to whole pixels', () => {
+        expect(resizeLockedColumn(locked, 1, 120.6).widths).toEqual([50, 121, 200]);
+    });
+
+    it('should not mutate the previous widths', () => {
+        resizeLockedColumn(locked, 0, 90);
+        expect(locked.widths).toEqual([50, 80.4, 200]);
+    });
+
+    it('should ignore an index outside the layout', () => {
+        expect(resizeLockedColumn(locked, 3, 90)).toBe(locked);
+        expect(resizeLockedColumn(locked, -1, 90)).toBe(locked);
+    });
+});
+
+describe('getResizedTableWidth', () => {
+    it('should be undefined until a column was resized', () => {
+        expect(getResizedTableWidth({key: 'k', widths: [50, 100]}, [50, 100])).toBeUndefined();
+        expect(getResizedTableWidth(null, null)).toBeUndefined();
+    });
+
+    it('should be the sum of the column widths once resized', () => {
+        expect(
+            getResizedTableWidth({key: 'k', widths: [50, 100, 75], resized: true}, [50, 100, 75]),
+        ).toBe(225);
+    });
+
+    it('should be undefined when the widths belong to another layout', () => {
+        expect(getResizedTableWidth({key: 'k', widths: [50], resized: true}, null)).toBeUndefined();
     });
 });

@@ -1523,7 +1523,8 @@
     "revealCell": "Ipakita ang cell",
     "maskCell": "I-mask ang cell",
     "revealColumn": "Ipakita ang column",
-    "maskColumn": "I-mask ang column"
+    "maskColumn": "I-mask ang column",
+    "resizeColumn": "Baguhin ang laki ng column na {{col}}"
   },
   "editRow": {
     "title": "I-edit ang Row",

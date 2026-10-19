@@ -1467,7 +1467,8 @@
     "revealCell": "셀 표시",
     "maskCell": "셀 마스킹",
     "revealColumn": "열 표시",
-    "maskColumn": "열 마스킹"
+    "maskColumn": "열 마스킹",
+    "resizeColumn": "{{col}} 열 크기 조정"
   },
   "editRow": {
     "title": "행 편집",

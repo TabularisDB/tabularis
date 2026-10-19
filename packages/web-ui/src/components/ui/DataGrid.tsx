@@ -59,6 +59,8 @@ import {useToast} from '@/hooks/useToast';
 import {
     USE_DEFAULT_SENTINEL,
     DATA_GRID_ROW_HEIGHT,
+    DATA_GRID_MIN_COLUMN_WIDTH,
+    DATA_GRID_MAX_COLUMN_WIDTH,
     formatCellValue,
     getColumnSortState,
     calculateSelectionRange,
@@ -80,6 +82,8 @@ import {
     moveCellPosition,
     getColumnLayoutKey,
     resolveLockedColumnWidths,
+    resizeLockedColumn,
+    getResizedTableWidth,
     isUuidColumnType,
     type LockedColumnWidths,
     createDataGridResultCommands,
@@ -130,6 +134,8 @@ import {DEFAULT_MASKING_PATTERNS, isColumnMasked} from '@/utils/columnMasking';
 import type {PendingInsertion, TableColumn, ForeignKey} from '@/types/editor';
 import type {ResultCommands} from '@/types/commands';
 import {MemoRow, type RowCtx} from './DataGridRow';
+import {ColumnResizeHandle} from './ColumnResizeHandle';
+import {useLockedColumnResize} from '@/hooks/useLockedColumnResize';
 import {JumpToColumnModal} from '@/components/modals/JumpToColumnModal';
 import {SetCellsValueModal} from '@/components/modals/SetCellsValueModal';
 import {KeybindingsContext} from '@/contexts/KeybindingsContext';
@@ -1405,7 +1411,7 @@ export const DataGrid = React.memo(function DataGrid({
                                 role="button"
                                 tabIndex={0}
                                 aria-label={t('dataGrid.selectColumn')}
-                                className="relative flex items-center gap-2 select-none group/header cursor-pointer"
+                                className="relative flex min-w-0 items-center gap-2 select-none group/header cursor-pointer"
                                 onClick={(e) => {
                                     // Plain click selects the column, Cmd/Ctrl toggles it,
                                     // Shift range-selects from the anchor.
@@ -1424,11 +1430,11 @@ export const DataGrid = React.memo(function DataGrid({
                                 }}
                                 title={hasMetadataTooltip ? undefined : t('dataGrid.selectColumn')}
                             >
-                                <span>{colName}</span>
+                                <span className="truncate">{colName}</span>
                                 {onSort && (
                                     <button
                                         type="button"
-                                        className="flex flex-col items-center justify-center cursor-pointer"
+                                        className="flex shrink-0 flex-col items-center justify-center cursor-pointer"
                                         aria-label={sortButtonLabel}
                                         title={
                                             // Suppress the native sort-hint title while the type
@@ -1591,6 +1597,21 @@ export const DataGrid = React.memo(function DataGrid({
         );
         setLockedColumnWidths({key: columnLayoutKey, widths});
     }, [columnWidths, columnLayoutKey, parentViewportWidth, tableRows.length, hasRenderedRows]);
+
+    // Manual column resizing (#1151) adjusts the locked widths above, for this
+    // grid instance only: a new column layout measures afresh.
+    const tableRef = useRef<HTMLTableElement>(null);
+    const resizeColumn = useCallback((index: number, width: number) => {
+        setLockedColumnWidths((prev) => (prev ? resizeLockedColumn(prev, index, width) : prev));
+    }, []);
+    const {startResize, onResizeKeyDown} = useLockedColumnResize({
+        tableRef,
+        widths: columnWidths,
+        minWidth: DATA_GRID_MIN_COLUMN_WIDTH,
+        maxWidth: DATA_GRID_MAX_COLUMN_WIDTH,
+        onResize: resizeColumn,
+    });
+    const resizedTableWidth = getResizedTableWidth(lockedColumnWidths, columnWidths);
 
     const handleContextMenu = useCallback(
         (
@@ -2536,7 +2557,10 @@ export const DataGrid = React.memo(function DataGrid({
             // focusable controls living inside cells and headers (FK/BLOB buttons,
             // sortable column headers) — Enter must still activate those.
             const target = e.target as HTMLElement;
-            if (isTypingTarget(target) || Boolean(target.closest?.("button, [role='button']"))) {
+            if (
+                isTypingTarget(target) ||
+                Boolean(target.closest?.("button, [role='button'], [role='separator']"))
+            ) {
                 return;
             }
 
@@ -3046,8 +3070,11 @@ export const DataGrid = React.memo(function DataGrid({
                 className="h-full overflow-auto border border-default rounded bg-elevated relative focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
             >
                 <table
+                    ref={tableRef}
                     className="w-full text-left border-collapse"
-                    style={columnWidths ? {tableLayout: 'fixed'} : undefined}
+                    style={
+                        columnWidths ? {tableLayout: 'fixed', width: resizedTableWidth} : undefined
+                    }
                 >
                     {columnWidths && (
                         <colgroup>
@@ -3076,7 +3103,7 @@ export const DataGrid = React.memo(function DataGrid({
                                     <th
                                         key={header.id}
                                         data-col-index={headerColIndex}
-                                        className={`px-4 py-2 text-xs font-semibold tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap ${
+                                        className={`relative px-4 py-2 text-xs font-semibold tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap ${
                                             selectedColIndices.has(headerColIndex)
                                                 ? 'text-primary bg-accent-primary/20'
                                                 : 'text-secondary'
@@ -3128,6 +3155,22 @@ export const DataGrid = React.memo(function DataGrid({
                                                 </button>
                                             )}
                                         </div>
+                                        {columnWidths && (
+                                            <ColumnResizeHandle
+                                                // Widths include the row-number column first.
+                                                index={headerColIndex + 1}
+                                                width={Math.round(columnWidths[headerColIndex + 1])}
+                                                minWidth={DATA_GRID_MIN_COLUMN_WIDTH}
+                                                maxWidth={DATA_GRID_MAX_COLUMN_WIDTH}
+                                                label={t('dataGrid.resizeColumn', {
+                                                    col:
+                                                        columns[headerColIndex] ||
+                                                        headerColIndex + 1,
+                                                })}
+                                                onMouseDown={startResize}
+                                                onKeyDown={onResizeKeyDown}
+                                            />
+                                        )}
                                     </th>
                                 ))}
                             </tr>
