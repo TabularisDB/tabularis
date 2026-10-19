@@ -61,6 +61,13 @@ describe("scaffold", () => {
     });
   });
 
+  describe("generated README", () => {
+    it("documents the minimum just version", () => {
+      const readme = readFileSync(join(scaffoldPlugin(false), "README.md"), "utf8");
+      expect(readme).toContain("`just` 1.44 or newer");
+    });
+  });
+
   describe("dev-install recipes", () => {
     it("configures justfile to copy locales in Linux, macOS, and Windows recipes", () => {
       const dir = scaffoldPlugin(true);
