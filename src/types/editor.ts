@@ -72,6 +72,9 @@ export interface QueryResultEntry {
   page: number;
   activeTable: string | null;
   pkColumns: string[] | null;
+  /** Set on entries split from one statement's several result sets (e.g. a
+   * MySQL `CALL`): re-running `query` would not yield this set alone. */
+  fromResultSets?: boolean;
 }
 
 import type { NotebookState } from "./notebook";

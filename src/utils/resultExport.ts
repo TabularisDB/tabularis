@@ -3,6 +3,42 @@ import { csvField, rowsToHtmlTable, rowsToMarkdown } from "./clipboard";
 
 export type ResultExportFormat = "csv" | "json" | "ndjson" | "markdown" | "html";
 
+/**
+ * Which rows an export writes: every row of the query, streamed by the
+ * backend (`export_query_to_file`), or only the rows loaded in the grid.
+ */
+export type ExportScope = "all" | "loaded";
+
+/**
+ * Whether the grid holds fewer rows than the query returns: fewer loaded rows
+ * than the known total, or an unknown total with more pages to fetch. Only
+ * then do the two export scopes differ, so the scope selector is shown.
+ */
+export function hasUnloadedRows(result: QueryResult): boolean {
+  if (getLoadedRowsExportLimit(result)) return true;
+  const totalRows = result.pagination?.total_rows;
+  const totalKnown = typeof totalRows === "number" && Number.isFinite(totalRows);
+  return !totalKnown && result.pagination?.has_more === true;
+}
+
+/**
+ * Picks the scope an export actually runs with. The requested scope only
+ * applies when the grid is missing rows. Otherwise "all" is implied and goes
+ * through the backend, except when there is nothing to stream: an empty,
+ * fully loaded result is written from the grid so the file keeps its column
+ * header. `canStream` is false for result sets that cannot be re-run on their
+ * own (e.g. the extra sets of a MySQL `CALL`), which always use the grid.
+ */
+export function resolveExportScope(
+  result: QueryResult,
+  requested: ExportScope,
+  canStream: boolean,
+): ExportScope {
+  if (!canStream) return "loaded";
+  if (hasUnloadedRows(result)) return requested;
+  return result.rows.length > 0 ? "all" : "loaded";
+}
+
 export function getLoadedRowsExportLimit(
   result: QueryResult,
 ): { loadedRows: number; totalRows: number } | null {

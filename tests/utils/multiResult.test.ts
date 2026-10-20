@@ -118,6 +118,7 @@ describe("multiResult", () => {
       );
       expect(entries).toHaveLength(3);
       expect(entries[0].id).toBe("tab-1-result-0");
+      expect(entries.every((e) => e.fromResultSets)).toBe(true);
       expect(entries[0].result?.rows).toEqual([["First result"]]);
       expect(entries[1].result?.rows).toEqual([["Second result"]]);
       expect(entries[2].result?.rows).toEqual([["Third result"]]);

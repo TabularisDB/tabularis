@@ -4,7 +4,9 @@ use serde_json::Value;
 pub enum ExportFormat {
     Csv,
     Json,
+    Ndjson,
     Markdown,
+    Html,
 }
 
 impl ExportFormat {
@@ -12,7 +14,9 @@ impl ExportFormat {
         match s.trim().to_ascii_lowercase().as_str() {
             "csv" => Ok(Self::Csv),
             "json" => Ok(Self::Json),
+            "ndjson" => Ok(Self::Ndjson),
             "markdown" | "md" => Ok(Self::Markdown),
+            "html" => Ok(Self::Html),
             other => Err(format!("Unsupported export format: {}", other)),
         }
     }

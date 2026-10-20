@@ -68,6 +68,7 @@ export function createEntriesFromResultSets(
     page: 1,
     activeTable: null,
     pkColumns: null,
+    fromResultSets: true,
   }));
 }
 
