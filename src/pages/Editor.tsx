@@ -499,7 +499,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const [showNewRowModal, setShowNewRowModal] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const [exportScope, setExportScope] = useState<ExportScope>("all");
+  const [exportScopeChoice, setExportScopeChoice] = useState<{
+    target: string;
+    scope: ExportScope;
+  } | null>(null);
   const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
   const [editorHeight, setEditorHeight] = useState(300);
   const editorHeightRef = useRef(300);
@@ -728,6 +731,14 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     !!activeExportResult &&
     canStreamActiveResult &&
     hasUnloadedRows(activeExportResult);
+  // The scope choice belongs to the tab and result it was made on. Anywhere
+  // else the export falls back to "All rows", so a "Current results" pick
+  // never silently truncates another result's export.
+  const exportScopeTarget = `${activeTab?.id ?? ""}:${activeResultEntry?.id ?? ""}`;
+  const exportScope: ExportScope =
+    exportScopeChoice?.target === exportScopeTarget
+      ? exportScopeChoice.scope
+      : "all";
 
   const activeTabFlatDatabase = isMultiDb
     ? resolveFlatMultiDbTabDatabase(activeTab, selectedDatabases)
@@ -5520,7 +5531,9 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
                       type="button"
                       role="menuitemradio"
                       aria-checked={exportScope === scope}
-                      onClick={() => setExportScope(scope)}
+                      onClick={() =>
+                        setExportScopeChoice({ target: exportScopeTarget, scope })
+                      }
                       className={clsx(
                         "flex-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus",
                         exportScope === scope
