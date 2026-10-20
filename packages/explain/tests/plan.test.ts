@@ -13,8 +13,11 @@ import {
     getMaxCost,
     getMaxTime,
     getRowEstimateRatio,
+    getRowEstimateGap,
+    getExplainTableRow,
     getExplainTableRows,
 } from '../src/plan';
+import {computeExplainMetrics} from '../src/metrics';
 import type {ExplainNode, ExplainPlan} from '../src/types';
 
 // ---------------------------------------------------------------------------
@@ -258,6 +261,22 @@ describe('plan', () => {
         });
     });
 
+    describe('getRowEstimateGap', () => {
+        it('should return the ratio when more rows came back than estimated', () => {
+            expect(getRowEstimateGap(makeNode({plan_rows: 10, actual_rows: 40}))).toBe(4);
+        });
+
+        it('should return the inverse ratio when fewer rows came back than estimated', () => {
+            expect(getRowEstimateGap(makeNode({plan_rows: 40, actual_rows: 10}))).toBe(4);
+        });
+
+        it('should return null when either side is missing or zero', () => {
+            expect(getRowEstimateGap(makeNode({plan_rows: null, actual_rows: 10}))).toBeNull();
+            expect(getRowEstimateGap(makeNode({plan_rows: 10, actual_rows: null}))).toBeNull();
+            expect(getRowEstimateGap(makeNode({plan_rows: 10, actual_rows: 0}))).toBeNull();
+        });
+    });
+
     describe('getExplainPlanSummary', () => {
         it('should compute highest cost, slowest node, mismatch, and operation counts', () => {
             const child = makeNode({
@@ -390,7 +409,8 @@ describe('plan', () => {
             expect(rows).toHaveLength(1);
             const row = rows[0];
 
-            expect(row.cost).toBe('10.5 - 25');
+            expect(row.startupCost).toBe(10.5);
+            expect(row.totalCost).toBe(25);
             expect(row.planRows).toBe(1000);
             expect(row.actualRows).toBeNull();
             expect(row.exclusiveTimeMs).toBeNull();
@@ -434,6 +454,65 @@ describe('plan', () => {
             expect(rows[1].actualRows).toBe(250);
             expect(rows[1].planRows).toBe(50);
             expect(rows[1].estimateGap).toBe(5);
+        });
+    });
+    describe('getExplainTableRow', () => {
+        it('should keep costs as raw numbers, null when not reported', () => {
+            const row = getExplainTableRow(
+                makeNode({startup_cost: null, total_cost: 12.75}),
+                false,
+            );
+
+            expect(row.startupCost).toBeNull();
+            expect(row.totalCost).toBe(12.75);
+        });
+
+        it('should hide measured values when the plan has no ANALYZE data', () => {
+            const node = makeNode({actual_rows: 5, actual_time_ms: 3, actual_loops: 1});
+            const plan = makePlan({root: node, has_analyze_data: true});
+            const nodeMetrics = computeExplainMetrics(plan).byId.get(node.id);
+
+            const estimated = getExplainTableRow(node, false, nodeMetrics);
+            const analyzed = getExplainTableRow(node, true, nodeMetrics);
+
+            expect(estimated.actualRows).toBeNull();
+            expect(estimated.exclusiveTimeMs).toBeNull();
+            expect(analyzed.actualRows).toBe(5);
+            expect(analyzed.exclusiveTimeMs).toBe(3);
+        });
+
+        it('should take index and depth from metrics and fall back without them', () => {
+            const child = makeNode({id: 'child'});
+            const plan = makePlan({root: makeNode({id: 'root', children: [child]})});
+            const nodeMetrics = computeExplainMetrics(plan).byId.get('child');
+
+            expect(getExplainTableRow(child, false, nodeMetrics)).toMatchObject({
+                index: 2,
+                depth: 1,
+            });
+            expect(getExplainTableRow(child, false, undefined, 7)).toMatchObject({
+                index: 7,
+                depth: 0,
+            });
+        });
+
+        it('should match the row getExplainTableRows builds for the same node', () => {
+            const child = makeNode({
+                id: 'child',
+                plan_rows: 50,
+                actual_rows: 10,
+                total_cost: 4,
+                filter: 'id > 1',
+            });
+            const plan = makePlan({
+                root: makeNode({id: 'root', children: [child]}),
+                has_analyze_data: true,
+            });
+            const metrics = computeExplainMetrics(plan);
+
+            expect(getExplainTableRows(plan, metrics)[1]).toEqual(
+                getExplainTableRow(child, true, metrics.byId.get('child')),
+            );
         });
     });
 });

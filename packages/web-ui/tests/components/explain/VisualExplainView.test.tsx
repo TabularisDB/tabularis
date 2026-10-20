@@ -6,6 +6,8 @@ import {writeFile} from '@tauri-apps/plugin-fs';
 import {VisualExplainView} from '@/components/explain/VisualExplainView';
 import {AlertContext} from '@/contexts/AlertContext';
 import type {AlertContextType} from '@/contexts/AlertContext';
+import {ToastContext} from '@/contexts/ToastContext';
+import type {ToastContextType} from '@/contexts/ToastContext';
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({save: vi.fn()}));
 vi.mock('@tauri-apps/plugin-fs', () => ({writeFile: vi.fn(), readFile: vi.fn()}));
@@ -37,6 +39,7 @@ const mockSave = vi.mocked(save);
 const mockWriteFile = vi.mocked(writeFile);
 const encode = (text: string) => new TextEncoder().encode(text);
 const showAlert = vi.fn<AlertContextType['showAlert']>();
+const showToast = vi.fn<ToastContextType['showToast']>();
 
 function createTestPlan(rawOutput?: string): ExplainPlan {
     const plan = parseExplain('[{"Plan":{"Node Type":"Seq Scan","Relation Name":"users"}}]');
@@ -255,5 +258,114 @@ describe('VisualExplainView raw plan save', () => {
             kind: 'error',
         });
         expect(console.error).toHaveBeenCalled();
+    });
+});
+
+describe('VisualExplainView table CSV export', () => {
+    beforeEach(() => {
+        mockSave.mockReset();
+        mockWriteFile.mockReset();
+        showAlert.mockReset();
+        showToast.mockReset();
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    function renderTableView() {
+        render(
+            <AlertContext.Provider value={{showAlert}}>
+                <ToastContext.Provider value={{showToast}}>
+                    <VisualExplainView
+                        plan={createTestPlan()}
+                        isLoading={false}
+                        error={null}
+                        viewMode="table"
+                        onViewModeChange={vi.fn()}
+                        selectedNodeId={null}
+                        onSelectNode={vi.fn()}
+                        aiEnabled={false}
+                    />
+                </ToastContext.Provider>
+            </AlertContext.Provider>,
+        );
+
+        return screen.getByRole('button', {
+            name: 'editor.visualExplain.exportCsv',
+        });
+    }
+
+    it('shows a success toast, not a modal alert, once the file is written', async () => {
+        mockSave.mockResolvedValue('/path/to/plan.csv');
+        mockWriteFile.mockResolvedValue(undefined);
+        const button = renderTableView();
+
+        await act(async () => {
+            fireEvent.click(button);
+        });
+
+        expect(mockSave).toHaveBeenCalledWith(
+            expect.objectContaining({
+                defaultPath: 'explain-plan.csv',
+                filters: [{name: 'CSV', extensions: ['csv']}],
+            }),
+        );
+        expect(mockWriteFile).toHaveBeenCalledTimes(1);
+        const [path, bytes] = mockWriteFile.mock.calls[0];
+        expect(path).toBe('/path/to/plan.csv');
+        expect(new TextDecoder().decode(bytes as Uint8Array)).toMatch(
+            /^index,depth,node_type,relation,startup_cost,total_cost,/,
+        );
+        expect(showToast).toHaveBeenCalledWith('editor.visualExplain.exportCsvSuccess', {
+            kind: 'success',
+        });
+        expect(showAlert).not.toHaveBeenCalled();
+    });
+
+    it('shows no feedback when the save dialog is cancelled', async () => {
+        mockSave.mockResolvedValue(null);
+        const button = renderTableView();
+
+        await act(async () => {
+            fireEvent.click(button);
+        });
+
+        expect(mockSave).toHaveBeenCalled();
+        expect(mockWriteFile).not.toHaveBeenCalled();
+        expect(showToast).not.toHaveBeenCalled();
+        expect(showAlert).not.toHaveBeenCalled();
+    });
+
+    it('includes the underlying reason in a persistent error toast when the write fails', async () => {
+        mockSave.mockResolvedValue('/read-only/plan.csv');
+        mockWriteFile.mockRejectedValue(new Error('permission denied'));
+        const button = renderTableView();
+
+        await act(async () => {
+            fireEvent.click(button);
+        });
+
+        expect(showToast).toHaveBeenCalledWith('permission denied', {
+            title: 'editor.visualExplain.exportCsvError',
+            kind: 'error',
+            duration: 0,
+        });
+        expect(showAlert).not.toHaveBeenCalled();
+        expect(console.error).toHaveBeenCalled();
+        // The button is usable again for a retry.
+        expect(button).not.toBeDisabled();
+    });
+
+    it('reports a plain string rejection from Tauri as the reason', async () => {
+        mockSave.mockResolvedValue('/path/to/plan.csv');
+        mockWriteFile.mockRejectedValue('forbidden path: /path/to/plan.csv');
+        const button = renderTableView();
+
+        await act(async () => {
+            fireEvent.click(button);
+        });
+
+        expect(showToast).toHaveBeenCalledWith(
+            'forbidden path: /path/to/plan.csv',
+            expect.objectContaining({kind: 'error'}),
+        );
     });
 });
