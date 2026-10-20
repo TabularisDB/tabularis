@@ -40,20 +40,50 @@ pub fn db_backup_slot_key(connection_id: &str) -> String {
     format!("{}_db_backup", connection_id)
 }
 
+/// Error returned by a dump whose task was aborted through its slot.
+pub const DUMP_CANCELLED: &str = "Dump cancelled";
+
+/// Aborts every task registered under `slot_key`. Returns `false` when
+/// nothing was running there.
+pub(crate) fn abort_slot(handles: &Mutex<AbortHandleMap>, slot_key: &str) -> bool {
+    let entries = {
+        let mut handles = handles.lock().unwrap();
+        handles.remove(slot_key).unwrap_or_default()
+    };
+    for handle in &entries {
+        handle.abort();
+    }
+    !entries.is_empty()
+}
+
+/// Registers `task` under `slot_key` so `abort_slot` can stop it, then waits
+/// for it. An aborted task yields [`DUMP_CANCELLED`].
+pub(crate) async fn await_cancellable_dump(
+    handles: &Mutex<AbortHandleMap>,
+    slot_key: String,
+    task: tokio::task::JoinHandle<Result<(), String>>,
+) -> Result<(), String> {
+    let abort_handle = Arc::new(task.abort_handle());
+    register_abort_handle(handles, slot_key.clone(), abort_handle.clone());
+
+    let result = task.await;
+
+    unregister_abort_handle(handles, &slot_key, &abort_handle);
+
+    match result {
+        Ok(res) => res,
+        Err(e) if e.is_cancelled() => Err(DUMP_CANCELLED.into()),
+        Err(e) => Err(format!("Dump task failed: {e}")),
+    }
+}
+
 #[tauri::command]
 pub async fn cancel_dump(
     state: State<'_, DumpCancellationState>,
     connection_id: String,
 ) -> Result<(), String> {
-    let entries = {
-        let mut handles = state.handles.lock().unwrap();
-        handles.remove(&connection_id).unwrap_or_default()
-    };
-    if entries.is_empty() {
+    if !abort_slot(&state.handles, &connection_id) {
         return Err("No active dump process found".into());
-    }
-    for handle in entries {
-        handle.abort();
     }
     Ok(())
 }
@@ -187,17 +217,7 @@ pub async fn dump_database_with_handles<R: Runtime>(
         Ok::<(), String>(())
     });
 
-    let abort_handle = Arc::new(task.abort_handle());
-    register_abort_handle(handles, slot_key.clone(), abort_handle.clone());
-
-    let result = task.await;
-
-    unregister_abort_handle(handles, &slot_key, &abort_handle);
-
-    match result {
-        Ok(res) => res,
-        Err(_) => Err("Dump cancelled".into()),
-    }
+    await_cancellable_dump(handles, slot_key, task).await
 }
 
 #[tauri::command]

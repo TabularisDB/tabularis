@@ -1,10 +1,5 @@
 import type { DatabaseBackupPlan, DriverDumpCapability } from "../types/databaseBackup";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import type { SavedConnection } from "../contexts/DatabaseContext";
-
-export const DATABASE_BACKUP_PREFIX = "tabularis-db-backup-";
-export const DATABASE_BACKUP_SUFFIX = ".sql";
-export const TIMESTAMP_REGEX = /(\d{8}-\d{6})$/;
 
 export const COMMON_IANA_TIMEZONES = [
   "UTC",
@@ -27,480 +22,56 @@ export const COMMON_IANA_TIMEZONES = [
 ];
 
 /**
- * Normalizes an identifier string so it is safe to use in file names on all OSes.
- */
-export function sanitizeFileNameComponent(raw: string): string {
-  return raw
-    .trim()
-    .replace(/[^a-zA-Z0-9]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 64) || "default";
-}
-
-/**
- * Checks whether a driver supports database dumps based on its capabilities.
- * Built-in drivers (PostgreSQL, MySQL, SQLite) and plugin drivers with relational
- * table support are capable; purely in-memory, folder-based, or non-relational
- * drivers return an explanatory reason.
+ * Decides whether scheduled backups can run for a driver, from its
+ * capabilities only (`.rules/plugins.md` #2). The backup reuses the dump
+ * pipeline, which writes SQL in the driver's declared `sql_dialect`, so a
+ * driver is dump-capable when it explicitly declares one and talks to a real
+ * database (not an API or a folder of files). Plugin drivers follow the same
+ * rule as the builtin ones.
+ *
+ * `reasonKey` is an i18n key explaining why the driver is not capable.
  */
 export function isDriverDumpCapable(
-  driverId: string | null | undefined,
-  capabilities?: DriverCapabilities | PluginManifest | null,
+  driver: DriverCapabilities | PluginManifest | null | undefined,
 ): DriverDumpCapability {
-  if (!driverId) {
-    return { capable: false, reason: "No database driver selected." };
-  }
-
-  const caps: DriverCapabilities | undefined =
-    capabilities && "capabilities" in capabilities
-      ? (capabilities.capabilities as DriverCapabilities)
-      : (capabilities as DriverCapabilities | undefined);
-
-  if (caps?.no_connection_required) {
+  if (!driver) {
     return {
       capable: false,
-      reason: "API-based connections do not support SQL database dumps.",
+      reasonKey: "settings.backup.dbBackupReasonUnknownDriver",
     };
   }
 
-  if (caps?.in_memory || caps?.inMemory) {
+  const caps = "capabilities" in driver ? driver.capabilities : driver;
+
+  if (caps.no_connection_required) {
+    return { capable: false, reasonKey: "settings.backup.dbBackupReasonApi" };
+  }
+
+  if (caps.folder_based) {
     return {
       capable: false,
-      reason: "In-memory databases live only in memory and cannot be scheduled for dumps.",
+      reasonKey: "settings.backup.dbBackupReasonFolder",
     };
   }
 
-  if (caps?.folder_based) {
+  if (!caps.sql_dialect) {
     return {
       capable: false,
-      reason: "Folder-based document/file stores do not support standard SQL dumps.",
+      reasonKey: "settings.backup.dbBackupReasonNoDialect",
     };
   }
 
-  // Built-in drivers and standard SQL dialects
-  const normalizedId = driverId.toLowerCase();
-  const dialect = caps?.sql_dialect?.toLowerCase();
-
-  const isBuiltinRelational =
-    normalizedId === "postgres" ||
-    normalizedId === "postgresql" ||
-    normalizedId === "mysql" ||
-    normalizedId === "mariadb" ||
-    normalizedId === "sqlite";
-
-  const isDialectRelational =
-    dialect === "postgres" ||
-    dialect === "mysql" ||
-    dialect === "sqlite";
-
-  // Explicit boolean check for manage_tables to avoid treating undefined as true
-  if (isBuiltinRelational || isDialectRelational || caps?.manage_tables === true) {
-    return { capable: true };
-  }
-
-  return {
-    capable: false,
-    reason: `Driver "${driverId}" does not advertise SQL dump capabilities.`,
-  };
+  return { capable: true };
 }
 
 /**
- * Formats a timestamp into YYYYMMDD-HHMMSS format.
- */
-export function formatBackupTimestamp(date: Date): string {
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  const y = date.getFullYear();
-  const m = pad(date.getMonth() + 1);
-  const d = pad(date.getDate());
-  const h = pad(date.getHours());
-  const min = pad(date.getMinutes());
-  const s = pad(date.getSeconds());
-  return `${y}${m}${d}-${h}${min}${s}`;
-}
-
-/**
- * Computes unique plan file prefix using double-dash delimiter.
- */
-export function formatDatabaseBackupPrefix(
-  connectionId: string,
-  databaseName?: string | null,
-): string {
-  const safeConn = sanitizeFileNameComponent(connectionId);
-  const safeDb = databaseName?.trim()
-    ? sanitizeFileNameComponent(databaseName)
-    : "_all_";
-  return `${DATABASE_BACKUP_PREFIX}${safeConn}--${safeDb}--`;
-}
-
-/**
- * Generates the standardized file name for a scheduled database backup.
- */
-export function formatDatabaseBackupFileName(
-  connectionId: string,
-  databaseName?: string | null,
-  date: Date = new Date(),
-): string {
-  const prefix = formatDatabaseBackupPrefix(connectionId, databaseName);
-  const timestamp = formatBackupTimestamp(date);
-  return `${prefix}${timestamp}${DATABASE_BACKUP_SUFFIX}`;
-}
-
-/**
- * Parses timestamp and components from a backup file name.
- */
-export function parseDatabaseBackupFileName(fileName: string): {
-  connectionSlug: string;
-  databaseSlug?: string;
-  timestamp: Date;
-} | null {
-  if (!fileName.startsWith(DATABASE_BACKUP_PREFIX) || !fileName.endsWith(DATABASE_BACKUP_SUFFIX)) {
-    return null;
-  }
-
-  const stem = fileName.slice(
-    DATABASE_BACKUP_PREFIX.length,
-    fileName.length - DATABASE_BACKUP_SUFFIX.length,
-  );
-
-  // Preferred double-dash format: conn--db--timestamp
-  const doubleDashParts = stem.split("--");
-  if (doubleDashParts.length === 3) {
-    const [connectionSlug, dbPart, stampStr] = doubleDashParts;
-    const year = parseInt(stampStr.slice(0, 4), 10);
-    const month = parseInt(stampStr.slice(4, 6), 10) - 1;
-    const day = parseInt(stampStr.slice(6, 8), 10);
-    const hour = parseInt(stampStr.slice(9, 11), 10);
-    const minute = parseInt(stampStr.slice(11, 13), 10);
-    const second = parseInt(stampStr.slice(13, 15), 10);
-    const timestamp = new Date(year, month, day, hour, minute, second);
-    if (isNaN(timestamp.getTime())) return null;
-    return {
-      connectionSlug,
-      databaseSlug: dbPart === "_all_" ? undefined : dbPart,
-      timestamp,
-    };
-  }
-
-  // Fallback for legacy single-dash format
-  const match = stem.match(TIMESTAMP_REGEX);
-  if (!match) return null;
-
-  const stampStr = match[1]; // YYYYMMDD-HHMMSS
-  const prefix = stem.slice(0, stem.length - stampStr.length - 1);
-
-  const year = parseInt(stampStr.slice(0, 4), 10);
-  const month = parseInt(stampStr.slice(4, 6), 10) - 1;
-  const day = parseInt(stampStr.slice(6, 8), 10);
-  const hour = parseInt(stampStr.slice(9, 11), 10);
-  const minute = parseInt(stampStr.slice(11, 13), 10);
-  const second = parseInt(stampStr.slice(13, 15), 10);
-
-  const timestamp = new Date(year, month, day, hour, minute, second);
-  if (isNaN(timestamp.getTime())) return null;
-
-  const parts = prefix.split("-");
-  const connectionSlug = parts[0] || "";
-  const databaseSlug = parts.length > 1 ? parts.slice(1).join("-") : undefined;
-
-  return { connectionSlug, databaseSlug, timestamp };
-}
-
-/**
- * Selects backup file names that exceed the retention count for a specific
- * connection and database, sorted oldest first. Only valid backups matching the
- * plan are considered. Failed/foreign files are never returned or pruned.
- */
-export function selectDatabaseBackupsToPrune(
-  fileNames: string[],
-  connectionId: string,
-  databaseName: string | null | undefined,
-  retention: number,
-): string[] {
-  if (retention <= 0) return [];
-
-  const safeConn = sanitizeFileNameComponent(connectionId);
-  const safeDb = databaseName?.trim() ? sanitizeFileNameComponent(databaseName) : undefined;
-
-  // Filter files that belong to this specific plan
-  const matchingFiles = fileNames
-    .map((name) => {
-      const parsed = parseDatabaseBackupFileName(name);
-      return parsed ? { name, ...parsed } : null;
-    })
-    .filter((item): item is NonNullable<typeof item> => {
-      if (!item) return false;
-      if (item.connectionSlug !== safeConn) return false;
-      if (safeDb) {
-        return item.databaseSlug === safeDb;
-      } else {
-        return item.databaseSlug === undefined || item.databaseSlug === "_all_";
-      }
-    });
-
-  // Sort chronologically ascending (oldest first)
-  matchingFiles.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-  if (matchingFiles.length <= retention) {
-    return [];
-  }
-
-  const excessCount = matchingFiles.length - retention;
-  return matchingFiles.slice(0, excessCount).map((f) => f.name);
-}
-
-/**
- * Computes the next scheduled execution time for a daily plan in the specified
- * IANA timezone, handling day transitions and timezone boundaries.
- */
-export function computeNextRun(
-  dailyTime: string, // "HH:mm"
-  timezone: string,
-  now: Date = new Date(),
-  lastRunAt?: string | null,
-): Date {
-  const [hourStr, minuteStr] = (dailyTime || "02:00").split(":");
-  const targetHour = parseInt(hourStr ?? "2", 10) || 0;
-  const targetMinute = parseInt(minuteStr ?? "0", 10) || 0;
-
-  // Validate timezone or fall back to system
-  let tz = timezone || "local";
-  if (tz === "local") {
-    try {
-      tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    } catch {
-      tz = "UTC";
-    }
-  }
-
-  // Get current wall clock in the target IANA timezone
-  let parts: Intl.DateTimeFormatPart[];
-  try {
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-      second: "numeric",
-      hour12: false,
-    });
-    parts = formatter.formatToParts(now);
-  } catch {
-    // If timezone is unknown or invalid, fall back to UTC
-    tz = "UTC";
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: "UTC",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-      second: "numeric",
-      hour12: false,
-    });
-    parts = formatter.formatToParts(now);
-  }
-
-  const getPart = (type: string) => {
-    const p = parts.find((pt) => pt.type === type);
-    return p ? parseInt(p.value, 10) : 0;
-  };
-
-  const currentYear = getPart("year");
-  const currentMonth = getPart("month"); // 1-12
-  const currentDay = getPart("day");
-  const currentHour = getPart("hour") % 24;
-  const currentMinute = getPart("minute");
-
-  // Determine whether today's time has already passed
-  const isPastToday =
-    currentHour > targetHour ||
-    (currentHour === targetHour && currentMinute >= targetMinute);
-
-  // Check if today was already executed in this timezone
-  let alreadyRunToday = false;
-  if (lastRunAt) {
-    try {
-      const lastRunDate = new Date(lastRunAt);
-      if (!isNaN(lastRunDate.getTime())) {
-        const lastParts = new Intl.DateTimeFormat("en-US", {
-          timeZone: tz,
-          year: "numeric",
-          month: "numeric",
-          day: "numeric",
-          hour12: false,
-        }).formatToParts(lastRunDate);
-        const lYear = parseInt(lastParts.find((p) => p.type === "year")?.value || "0", 10);
-        const lMonth = parseInt(lastParts.find((p) => p.type === "month")?.value || "0", 10);
-        const lDay = parseInt(lastParts.find((p) => p.type === "day")?.value || "0", 10);
-        if (lYear === currentYear && lMonth === currentMonth && lDay === currentDay) {
-          alreadyRunToday = true;
-        }
-      }
-    } catch {
-      // ignore parse errors
-    }
-  }
-
-  // Construct target date
-  let runYear = currentYear;
-  let runMonth = currentMonth;
-  let runDay = currentDay;
-
-  if (isPastToday || alreadyRunToday) {
-    // Advance to next day
-    const nextDayDate = new Date(Date.UTC(currentYear, currentMonth - 1, currentDay + 1));
-    runYear = nextDayDate.getUTCFullYear();
-    runMonth = nextDayDate.getUTCMonth() + 1;
-    runDay = nextDayDate.getUTCDate();
-  }
-
-  // Convert wall-clock components in `tz` back to a UTC Date instant
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  const isoString = `${runYear}-${pad(runMonth)}-${pad(runDay)}T${pad(targetHour)}:${pad(targetMinute)}:00`;
-
-  const targetUtcEstimate = new Date(`${isoString}Z`);
-  const offsetDiffMinutes = getTimezoneOffsetMinutes(tz, targetUtcEstimate);
-  const finalTimeMs = targetUtcEstimate.getTime() - offsetDiffMinutes * 60_000;
-
-  return new Date(finalTimeMs);
-}
-
-/**
- * Checks whether a daily backup is currently due.
- */
-export function isBackupDue(
-  dailyTime: string,
-  timezone: string,
-  now: Date = new Date(),
-  lastSuccessfulRunAt?: string | null,
-): boolean {
-  const [hourStr, minuteStr] = (dailyTime || "02:00").split(":");
-  const targetHour = parseInt(hourStr ?? "2", 10) || 0;
-  const targetMinute = parseInt(minuteStr ?? "0", 10) || 0;
-
-  let tz = timezone || "local";
-  if (tz === "local") {
-    try {
-      tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    } catch {
-      tz = "UTC";
-    }
-  }
-
-  let parts: Intl.DateTimeFormatPart[];
-  try {
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-      second: "numeric",
-      hour12: false,
-    });
-    parts = formatter.formatToParts(now);
-  } catch {
-    tz = "UTC";
-    parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "UTC",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-      second: "numeric",
-      hour12: false,
-    }).formatToParts(now);
-  }
-
-  const getPart = (type: string) => {
-    const p = parts.find((pt) => pt.type === type);
-    return p ? parseInt(p.value, 10) : 0;
-  };
-
-  const currentYear = getPart("year");
-  const currentMonth = getPart("month");
-  const currentDay = getPart("day");
-  const currentHour = getPart("hour") % 24;
-  const currentMinute = getPart("minute");
-
-  const isPastToday =
-    currentHour > targetHour ||
-    (currentHour === targetHour && currentMinute >= targetMinute);
-
-  if (!isPastToday) return false;
-
-  if (lastSuccessfulRunAt) {
-    try {
-      const lastRunDate = new Date(lastSuccessfulRunAt);
-      if (!isNaN(lastRunDate.getTime())) {
-        const lastParts = new Intl.DateTimeFormat("en-US", {
-          timeZone: tz,
-          year: "numeric",
-          month: "numeric",
-          day: "numeric",
-          hour12: false,
-        }).formatToParts(lastRunDate);
-        const lYear = parseInt(lastParts.find((p) => p.type === "year")?.value || "0", 10);
-        const lMonth = parseInt(lastParts.find((p) => p.type === "month")?.value || "0", 10);
-        const lDay = parseInt(lastParts.find((p) => p.type === "day")?.value || "0", 10);
-        if (lYear === currentYear && lMonth === currentMonth && lDay === currentDay) {
-          return false;
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  return true;
-}
-
-/**
- * Calculates the offset in minutes between UTC and a specified timezone at a given instant.
- */
-function getTimezoneOffsetMinutes(timeZone: string, date: Date): number {
-  try {
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-      second: "numeric",
-      hour12: false,
-    });
-    const parts = formatter.formatToParts(date);
-    const getPart = (type: string) => {
-      const p = parts.find((pt) => pt.type === type);
-      return p ? parseInt(p.value, 10) : 0;
-    };
-    const y = getPart("year");
-    const m = getPart("month");
-    const d = getPart("day");
-    const h = getPart("hour") % 24;
-    const min = getPart("minute");
-    const s = getPart("second");
-
-    const asUtc = Date.UTC(y, m - 1, d, h, min, s);
-    return Math.round((asUtc - date.getTime()) / 60_000);
-  } catch {
-    return 0;
-  }
-}
-
-/**
- * Validates a database backup plan.
+ * Validates a database backup plan. `driver` is the selected connection's
+ * driver manifest, `null` when that driver is not registered, or omitted to
+ * skip the driver check (no connection selected yet).
  */
 export function validateDatabaseBackupPlan(
   plan: DatabaseBackupPlan,
-  connection?: SavedConnection | null,
-  capabilities?: DriverCapabilities | PluginManifest | null,
+  driver?: DriverCapabilities | PluginManifest | null,
 ): { isValid: boolean; errorKey?: string } {
   if (!plan.enabled) {
     return { isValid: true };
@@ -522,8 +93,8 @@ export function validateDatabaseBackupPlan(
     return { isValid: false, errorKey: "settings.backup.databaseBackupErrorInvalidTime" };
   }
 
-  if (connection) {
-    const capability = isDriverDumpCapable(connection.params.driver, capabilities);
+  if (driver !== undefined) {
+    const capability = isDriverDumpCapable(driver);
     if (!capability.capable) {
       return { isValid: false, errorKey: "settings.backup.databaseBackupErrorUnsupportedDriver" };
     }

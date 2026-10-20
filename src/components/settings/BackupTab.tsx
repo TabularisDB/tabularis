@@ -33,7 +33,6 @@ import type {PluginManifest} from '../../types/plugins';
 import type {DatabaseBackupPlan, DatabaseBackupStatus} from '../../types/databaseBackup';
 import {
     COMMON_IANA_TIMEZONES,
-    computeNextRun,
     isDriverDumpCapable,
     validateDatabaseBackupPlan,
 } from '../../utils/databaseBackup';
@@ -103,24 +102,9 @@ export function BackupTab() {
         [settings.databaseBackupPlan],
     );
 
-    const [localDatabase, setLocalDatabase] = useState(plan.database ?? '');
-    const [localSchema, setLocalSchema] = useState(plan.schema ?? '');
-
-    useEffect(() => {
-        setLocalDatabase(plan.database ?? '');
-    }, [plan.database]);
-
-    useEffect(() => {
-        setLocalSchema(plan.schema ?? '');
-    }, [plan.schema]);
-
-    const updatePlan = useCallback(
-        async (partial: Partial<DatabaseBackupPlan>) => {
-            const updated: DatabaseBackupPlan = {...plan, ...partial};
-            await updateSetting('databaseBackupPlan', updated);
-        },
-        [plan, updateSetting],
-    );
+    // In-progress edits of the free-text fields; `null` shows the saved value.
+    const [databaseDraft, setDatabaseDraft] = useState<string | null>(null);
+    const [schemaDraft, setSchemaDraft] = useState<string | null>(null);
 
     const refreshStatus = useCallback(async () => {
         try {
@@ -137,6 +121,16 @@ export function BackupTab() {
             console.error('Failed to load database backup status:', e);
         }
     }, []);
+
+    const updatePlan = useCallback(
+        async (partial: Partial<DatabaseBackupPlan>) => {
+            const updated: DatabaseBackupPlan = {...plan, ...partial};
+            await updateSetting('databaseBackupPlan', updated);
+            // The backend computes the next run from the saved plan.
+            void refreshDbStatus();
+        },
+        [plan, updateSetting, refreshDbStatus],
+    );
 
     const loadConnectionsAndDrivers = useCallback(async () => {
         try {
@@ -171,23 +165,44 @@ export function BackupTab() {
         [driverManifests, selectedConnection?.params.driver],
     );
 
+    // `null` when the connection's driver is not registered (e.g. a removed
+    // plugin), which is reported as not dump-capable.
+    const selectedDriver = selectedConnection ? (selectedManifest ?? null) : undefined;
+
     const driverCapability = useMemo(
         () =>
-            selectedConnection
-                ? isDriverDumpCapable(selectedConnection.params.driver, selectedManifest)
-                : {capable: true},
-        [selectedConnection, selectedManifest],
+            selectedDriver === undefined ? {capable: true} : isDriverDumpCapable(selectedDriver),
+        [selectedDriver],
     );
 
     const planValidation = useMemo(
-        () => validateDatabaseBackupPlan(plan, selectedConnection, selectedManifest),
-        [plan, selectedConnection, selectedManifest],
+        () => validateDatabaseBackupPlan(plan, selectedDriver),
+        [plan, selectedDriver],
     );
 
-    const computedNextRun = useMemo(() => {
-        if (!plan.enabled || !plan.connectionId) return null;
-        return computeNextRun(plan.time, plan.timezone, new Date(), dbStatus?.lastRunAt);
-    }, [plan.enabled, plan.connectionId, plan.time, plan.timezone, dbStatus?.lastRunAt]);
+    const driverReason = driverCapability.reasonKey
+        ? t(driverCapability.reasonKey, {
+              driver: selectedConnection?.params.driver,
+          })
+        : t('settings.backup.dbBackupUnsupportedDriverNotice', {
+              driver: selectedConnection?.params.driver,
+          });
+
+    // Shown in the plan's timezone so it matches the label next to it.
+    const nextRunLabel = useMemo(() => {
+        if (!plan.enabled || !dbStatus?.nextRunAt) return null;
+        const timeZone = plan.timezone && plan.timezone !== 'local' ? plan.timezone : undefined;
+        try {
+            return new Intl.DateTimeFormat(undefined, {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+                timeZone,
+            }).format(new Date(dbStatus.nextRunAt));
+        } catch {
+            // Unknown IANA zone: the backend falls back to local time as well.
+            return new Date(dbStatus.nextRunAt).toLocaleString();
+        }
+    }, [plan.enabled, plan.timezone, dbStatus?.nextRunAt]);
 
     const handlePickDirectory = async () => {
         const selected = await open({multiple: false, directory: true});
@@ -645,11 +660,7 @@ export function BackupTab() {
                         disabled={!driverCapability.capable && Boolean(plan.connectionId)}
                         onChange={(checked) => {
                             if (checked && !driverCapability.capable) {
-                                showAlert(
-                                    driverCapability.reason ||
-                                        t('settings.backup.databaseBackupErrorUnsupportedDriver'),
-                                    {kind: 'error'},
-                                );
+                                showAlert(driverReason, {kind: 'error'});
                                 return;
                             }
                             void updatePlan({enabled: checked});
@@ -672,7 +683,7 @@ export function BackupTab() {
                                     (m) => m.id === conn?.params.driver,
                                 );
                                 const cap = conn
-                                    ? isDriverDumpCapable(conn.params.driver, manifest)
+                                    ? isDriverDumpCapable(manifest ?? null)
                                     : {capable: true};
                                 void updatePlan({
                                     connectionId: connId,
@@ -697,12 +708,7 @@ export function BackupTab() {
                         {!driverCapability.capable && (
                             <div className="flex items-center gap-1.5 p-2 rounded bg-accent-warning/10 border border-accent-warning/30 text-xs text-accent-warning max-w-sm">
                                 <AlertCircle size={14} className="shrink-0" />
-                                <span>
-                                    {driverCapability.reason ||
-                                        t('settings.backup.dbBackupUnsupportedDriverNotice', {
-                                            driver: selectedConnection?.params.driver,
-                                        })}
-                                </span>
+                                <span>{driverReason}</span>
                             </div>
                         )}
                     </div>
@@ -716,15 +722,16 @@ export function BackupTab() {
                     <input
                         autoComplete="off"
                         type="text"
-                        value={localDatabase}
-                        onChange={(e) => setLocalDatabase(e.target.value)}
+                        value={databaseDraft ?? plan.database ?? ''}
+                        onChange={(e) => setDatabaseDraft(e.target.value)}
                         onBlur={(e) => {
                             const trimmed = e.target.value.trim();
+                            setDatabaseDraft(null);
                             if (trimmed !== (plan.database ?? '')) {
                                 void updatePlan({database: trimmed || undefined});
                             }
                         }}
-                        placeholder="e.g. production_db"
+                        placeholder={t('settings.backup.dbBackupDatabasePlaceholder')}
                         spellCheck={false}
                         autoCorrect="off"
                         autoCapitalize="off"
@@ -741,15 +748,16 @@ export function BackupTab() {
                     <input
                         autoComplete="off"
                         type="text"
-                        value={localSchema}
-                        onChange={(e) => setLocalSchema(e.target.value)}
+                        value={schemaDraft ?? plan.schema ?? ''}
+                        onChange={(e) => setSchemaDraft(e.target.value)}
                         onBlur={(e) => {
                             const trimmed = e.target.value.trim();
+                            setSchemaDraft(null);
                             if (trimmed !== (plan.schema ?? '')) {
                                 void updatePlan({schema: trimmed || undefined});
                             }
                         }}
-                        placeholder="e.g. public"
+                        placeholder={t('settings.backup.dbBackupSchemaPlaceholder')}
                         spellCheck={false}
                         autoCorrect="off"
                         autoCapitalize="off"
@@ -912,12 +920,10 @@ export function BackupTab() {
                             </span>
 
                             {/* Next Scheduled Run */}
-                            {computedNextRun && plan.enabled && (
+                            {nextRunLabel && (
                                 <span className="flex items-center gap-1.5 text-muted">
                                     <span>{t('settings.backup.dbBackupNextRun')}: </span>
-                                    <span className="font-mono text-primary">
-                                        {computedNextRun.toLocaleString()}
-                                    </span>
+                                    <span className="font-mono text-primary">{nextRunLabel}</span>
                                     <span>({plan.timezone || 'local'})</span>
                                 </span>
                             )}
