@@ -38,7 +38,7 @@ const formats = [
     format: "csv",
     label: "CSV",
     output:
-      'id,name,active,note\n1,"Ada, ""Lovelace""",true,NULL\n2,"Grace\nHopper",false,',
+      'id,name,active,note\n1,"Ada, ""Lovelace""",true,NULL\n2,"Grace\nHopper",false,\n',
   },
   {
     format: "json",
@@ -188,7 +188,7 @@ describe("ResultToolbar CSV delimiter", () => {
 
     expect(mockWriteTextFile).toHaveBeenCalledExactlyOnceWith(
       "/exports/result.csv",
-      'id;name;active;note\n1;"Ada, ""Lovelace""";true;NULL\n2;"Grace\nHopper";false;',
+      'id;name;active;note\n1;"Ada, ""Lovelace""";true;NULL\n2;"Grace\nHopper";false;\n',
     );
   });
 });

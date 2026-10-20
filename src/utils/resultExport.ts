@@ -56,7 +56,16 @@ function resultToCsv(result: QueryResult, delimiter: string): string {
   const rows = result.rows.map((row) =>
     row.map((value) => csvValue(value, delimiter)).join(delimiter),
   );
-  return [header, ...rows].join("\n");
+  return toLineFile([header, ...rows]);
+}
+
+/**
+ * Joins line-based records into file content where every record, the last
+ * one included, ends with a newline. This is what the streaming exporter's
+ * `csv::Writer` writes, and what NDJSON requires.
+ */
+function toLineFile(lines: string[]): string {
+  return lines.map((line) => `${line}\n`).join("");
 }
 
 const HTML_DOCUMENT_STYLE = [
@@ -102,9 +111,11 @@ export function formatResultForExport(
   }
 
   if (format === "ndjson") {
-    return result.rows
-      .map((row) => JSON.stringify(rowToResultObject(result.columns, row)))
-      .join("\n");
+    return toLineFile(
+      result.rows.map((row) =>
+        JSON.stringify(rowToResultObject(result.columns, row)),
+      ),
+    );
   }
 
   if (format === "markdown") {
