@@ -1,16 +1,12 @@
-import type {
-  BooleanLiteralStyle,
-  DriverCapabilities,
-  PluginManifest,
-} from "../types/plugins";
-import { resolveSqlSyntax, type StringEscapeStyle } from "./sqlSyntax";
+import type {BooleanLiteralStyle, DriverCapabilities, PluginManifest} from '@/types/plugins';
+import {resolveSqlSyntax, type StringEscapeStyle} from './sqlSyntax';
 
-export type { StringEscapeStyle } from "./sqlSyntax";
+export type {StringEscapeStyle} from './sqlSyntax';
 
 type DriverRef = string | PluginManifest | DriverCapabilities | null | undefined;
 
 /** Driver ids whose literals were MySQL-escaped before capabilities existed. */
-const MYSQL_ESCAPE_DRIVER_IDS = new Set(["mysql", "mariadb"]);
+const MYSQL_ESCAPE_DRIVER_IDS = new Set(['mysql', 'mariadb']);
 
 /**
  * Resolves the string-literal escape style of a driver from its resolved SQL
@@ -22,19 +18,15 @@ const MYSQL_ESCAPE_DRIVER_IDS = new Set(["mysql", "mariadb"]);
  * That keeps a `mariadb` plugin without a dialect doubling backslashes as it
  * did before capabilities were consulted.
  */
-export function stringEscapeStyle(
-  driver: DriverRef,
-  driverId?: string | null,
-): StringEscapeStyle {
-  const byId = (id: string | null | undefined): StringEscapeStyle =>
-    id && MYSQL_ESCAPE_DRIVER_IDS.has(id) ? "mysql" : "standard";
-  if (typeof driver === "string") return byId(driver);
-  if (!driver) return byId(driverId);
-  const caps = "capabilities" in driver ? driver.capabilities : driver;
-  const declared =
-    !!caps?.sql_syntax || (!!caps?.sql_dialect && caps.sql_dialect !== "generic");
-  if (declared) return resolveSqlSyntax(caps).stringEscape;
-  return byId(driverId ?? ("id" in driver ? driver.id : undefined));
+export function stringEscapeStyle(driver: DriverRef, driverId?: string | null): StringEscapeStyle {
+    const byId = (id: string | null | undefined): StringEscapeStyle =>
+        id && MYSQL_ESCAPE_DRIVER_IDS.has(id) ? 'mysql' : 'standard';
+    if (typeof driver === 'string') return byId(driver);
+    if (!driver) return byId(driverId);
+    const caps = 'capabilities' in driver ? driver.capabilities : driver;
+    const declared = !!caps?.sql_syntax || (!!caps?.sql_dialect && caps.sql_dialect !== 'generic');
+    if (declared) return resolveSqlSyntax(caps).stringEscape;
+    return byId(driverId ?? ('id' in driver ? driver.id : undefined));
 }
 
 /**
@@ -42,8 +34,8 @@ export function stringEscapeStyle(
  * declared `sql_syntax` says `like_escape: false`.
  */
 export function supportsLikeEscape(driver: DriverRef): boolean {
-  if (typeof driver !== "object" || driver === null) return true;
-  return resolveSqlSyntax(driver).likeEscape;
+    if (typeof driver !== 'object' || driver === null) return true;
+    return resolveSqlSyntax(driver).likeEscape;
 }
 
 /**
@@ -52,14 +44,14 @@ export function supportsLikeEscape(driver: DriverRef): boolean {
  * form, so built-in drivers and plugins without the field are unchanged.
  */
 export function declaredBooleanLiterals(driver: DriverRef): BooleanLiteralStyle | undefined {
-  if (typeof driver !== "object" || driver === null) return undefined;
-  return resolveSqlSyntax(driver).booleanLiterals;
+    if (typeof driver !== 'object' || driver === null) return undefined;
+    return resolveSqlSyntax(driver).booleanLiterals;
 }
 
 /** `TRUE`/`FALSE` or `1`/`0` for `value` in `style`. */
 export function booleanLiteralWithStyle(value: boolean, style: BooleanLiteralStyle): string {
-  if (style === "numeric") return value ? "1" : "0";
-  return value ? "TRUE" : "FALSE";
+    if (style === 'numeric') return value ? '1' : '0';
+    return value ? 'TRUE' : 'FALSE';
 }
 
 /**
@@ -67,30 +59,30 @@ export function booleanLiteralWithStyle(value: boolean, style: BooleanLiteralSty
  * `TRUE`/`FALSE` (what Copy as INSERT and filters have always written).
  */
 export function sqlBooleanLiteral(value: boolean, driver: DriverRef): string {
-  return booleanLiteralWithStyle(value, declaredBooleanLiterals(driver) ?? "keywords");
+    return booleanLiteralWithStyle(value, declaredBooleanLiterals(driver) ?? 'keywords');
 }
 
 /** Quotes `value` as a single-quoted string literal in `style`. */
 export function quoteSqlStringWithStyle(value: string, style: StringEscapeStyle): string {
-  switch (style) {
-    case "backslash":
-      return `'${escapeBackslashString(value)}'`;
-    case "mysql":
-      return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "''").replace(/\0/g, "\\0")}'`;
-    default:
-      return `'${value.replace(/'/g, "''")}'`;
-  }
+    switch (style) {
+        case 'backslash':
+            return `'${escapeBackslashString(value)}'`;
+        case 'mysql':
+            return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "''").replace(/\0/g, '\\0')}'`;
+        default:
+            return `'${value.replace(/'/g, "''")}'`;
+    }
 }
 
 /** Quotes `value` as a single-quoted string literal for the driver's syntax. */
 export function quoteSqlString(value: string, driver: DriverRef): string {
-  return quoteSqlStringWithStyle(value, stringEscapeStyle(driver));
+    return quoteSqlStringWithStyle(value, stringEscapeStyle(driver));
 }
 
 function escapeBackslashString(value: string): string {
-  return value
-    .replace(/[\\']/g, (ch) => `\\${ch}`)
-    .replace(/\0/g, "\\0")
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "\\r");
+    return value
+        .replace(/[\\']/g, (ch) => `\\${ch}`)
+        .replace(/\0/g, '\\0')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r');
 }

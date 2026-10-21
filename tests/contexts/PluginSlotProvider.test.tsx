@@ -1,210 +1,269 @@
-import { describe, it, expect } from "vitest";
-import { render, act } from "@testing-library/react";
-import { useContext } from "react";
-import { PluginSlotProvider } from "../../src/contexts/PluginSlotProvider";
-import { PluginSlotContext } from "../../src/contexts/PluginSlotContext";
-import { SettingsContext, DEFAULT_SETTINGS } from "../../src/contexts/SettingsContext";
-import type { PluginSlotRegistryType } from "../../src/contexts/PluginSlotContext";
-import type { SlotContribution, SlotComponentProps } from "../../src/types/pluginSlots";
+import {describe, it, expect} from 'vitest';
+import {render, act} from '@testing-library/react';
+import {useContext} from 'react';
+import {PluginSlotProvider} from '@/contexts/PluginSlotProvider';
+import {PluginSlotContext} from '@/contexts/PluginSlotContext';
+import {SettingsContext, DEFAULT_SETTINGS} from '@/contexts/SettingsContext';
+import type {PluginSlotRegistryType} from '@/contexts/PluginSlotContext';
+import type {SlotContribution, SlotComponentProps} from '@/types/pluginSlots';
 
-const TestComponent = ({ context: _ctx, pluginId }: SlotComponentProps) => (
-  <span data-testid="slot-component">{pluginId}</span>
+const TestComponent = ({context: _ctx, pluginId}: SlotComponentProps) => (
+    <span data-testid="slot-component">{pluginId}</span>
 );
 
-function RegistryConsumer({ onRegistry }: { onRegistry: (r: PluginSlotRegistryType) => void }) {
-  const registry = useContext(PluginSlotContext);
-  if (registry) onRegistry(registry);
-  return null;
+function RegistryConsumer({onRegistry}: {onRegistry: (r: PluginSlotRegistryType) => void}) {
+    const registry = useContext(PluginSlotContext);
+    if (registry) onRegistry(registry);
+    return null;
 }
 
 const settingsValue = {
-  settings: DEFAULT_SETTINGS,
-  updateSetting: () => {},
-  isLoading: false,
+    settings: DEFAULT_SETTINGS,
+    updateSetting: () => {},
+    isLoading: false,
 };
 
 const renderWithSettings = (ui: React.ReactNode) =>
-  render(
-    <SettingsContext.Provider value={settingsValue}>
-      {ui}
-    </SettingsContext.Provider>,
-  );
+    render(<SettingsContext.Provider value={settingsValue}>{ui}</SettingsContext.Provider>);
 
-describe("PluginSlotProvider", () => {
-  it("should provide a registry with no contributions initially", () => {
-    let registry: PluginSlotRegistryType | undefined;
+describe('PluginSlotProvider', () => {
+    it('should provide a registry with no contributions initially', () => {
+        let registry: PluginSlotRegistryType | undefined;
 
-    renderWithSettings(
-      <PluginSlotProvider>
-        <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-      </PluginSlotProvider>,
-    );
+        renderWithSettings(
+            <PluginSlotProvider>
+                <RegistryConsumer
+                    onRegistry={(r) => {
+                        registry = r;
+                    }}
+                />
+            </PluginSlotProvider>,
+        );
 
-    expect(registry).toBeDefined();
-    expect(registry!.contributions).toHaveLength(0);
-  });
-
-  it("should register and unregister a contribution", () => {
-    let registry: PluginSlotRegistryType | undefined;
-
-    const { rerender } = renderWithSettings(
-      <PluginSlotProvider>
-        <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-      </PluginSlotProvider>,
-    );
-
-    const contribution: SlotContribution = {
-      pluginId: "test-plugin",
-      slot: "sidebar.footer.actions",
-      component: TestComponent,
-      order: 50,
-    };
-
-    let unregister: (() => void) | undefined;
-    act(() => {
-      unregister = registry!.register(contribution);
+        expect(registry).toBeDefined();
+        expect(registry!.contributions).toHaveLength(0);
     });
 
-    rerender(
-      <SettingsContext.Provider value={settingsValue}>
-        <PluginSlotProvider>
-          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-        </PluginSlotProvider>
-      </SettingsContext.Provider>,
-    );
+    it('should register and unregister a contribution', () => {
+        let registry: PluginSlotRegistryType | undefined;
 
-    expect(registry!.contributions).toHaveLength(1);
+        const {rerender} = renderWithSettings(
+            <PluginSlotProvider>
+                <RegistryConsumer
+                    onRegistry={(r) => {
+                        registry = r;
+                    }}
+                />
+            </PluginSlotProvider>,
+        );
 
-    act(() => {
-      unregister!();
+        const contribution: SlotContribution = {
+            pluginId: 'test-plugin',
+            slot: 'sidebar.footer.actions',
+            component: TestComponent,
+            order: 50,
+        };
+
+        let unregister: (() => void) | undefined;
+        act(() => {
+            unregister = registry!.register(contribution);
+        });
+
+        rerender(
+            <SettingsContext.Provider value={settingsValue}>
+                <PluginSlotProvider>
+                    <RegistryConsumer
+                        onRegistry={(r) => {
+                            registry = r;
+                        }}
+                    />
+                </PluginSlotProvider>
+            </SettingsContext.Provider>,
+        );
+
+        expect(registry!.contributions).toHaveLength(1);
+
+        act(() => {
+            unregister!();
+        });
+
+        rerender(
+            <SettingsContext.Provider value={settingsValue}>
+                <PluginSlotProvider>
+                    <RegistryConsumer
+                        onRegistry={(r) => {
+                            registry = r;
+                        }}
+                    />
+                </PluginSlotProvider>
+            </SettingsContext.Provider>,
+        );
+
+        expect(registry!.contributions).toHaveLength(0);
     });
 
-    rerender(
-      <SettingsContext.Provider value={settingsValue}>
-        <PluginSlotProvider>
-          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-        </PluginSlotProvider>
-      </SettingsContext.Provider>,
-    );
+    it('should getSlotContributions filtered by slot name and sorted by order', () => {
+        let registry: PluginSlotRegistryType | undefined;
 
-    expect(registry!.contributions).toHaveLength(0);
-  });
+        const {rerender} = renderWithSettings(
+            <PluginSlotProvider>
+                <RegistryConsumer
+                    onRegistry={(r) => {
+                        registry = r;
+                    }}
+                />
+            </PluginSlotProvider>,
+        );
 
-  it("should getSlotContributions filtered by slot name and sorted by order", () => {
-    let registry: PluginSlotRegistryType | undefined;
+        act(() => {
+            registry!.registerAll([
+                {
+                    pluginId: 'b',
+                    slot: 'sidebar.footer.actions',
+                    component: TestComponent,
+                    order: 200,
+                },
+                {
+                    pluginId: 'a',
+                    slot: 'sidebar.footer.actions',
+                    component: TestComponent,
+                    order: 10,
+                },
+                {
+                    pluginId: 'c',
+                    slot: 'data-grid.toolbar.actions',
+                    component: TestComponent,
+                    order: 100,
+                },
+            ]);
+        });
 
-    const { rerender } = renderWithSettings(
-      <PluginSlotProvider>
-        <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-      </PluginSlotProvider>,
-    );
+        rerender(
+            <SettingsContext.Provider value={settingsValue}>
+                <PluginSlotProvider>
+                    <RegistryConsumer
+                        onRegistry={(r) => {
+                            registry = r;
+                        }}
+                    />
+                </PluginSlotProvider>
+            </SettingsContext.Provider>,
+        );
 
-    act(() => {
-      registry!.registerAll([
-        { pluginId: "b", slot: "sidebar.footer.actions", component: TestComponent, order: 200 },
-        { pluginId: "a", slot: "sidebar.footer.actions", component: TestComponent, order: 10 },
-        { pluginId: "c", slot: "data-grid.toolbar.actions", component: TestComponent, order: 100 },
-      ]);
+        const sidebarSlots = registry!.getSlotContributions('sidebar.footer.actions', {});
+        expect(sidebarSlots).toHaveLength(2);
+        expect(sidebarSlots[0].pluginId).toBe('a'); // order 10 first
+        expect(sidebarSlots[1].pluginId).toBe('b'); // order 200 second
+
+        const toolbarSlots = registry!.getSlotContributions('data-grid.toolbar.actions', {});
+        expect(toolbarSlots).toHaveLength(1);
+        expect(toolbarSlots[0].pluginId).toBe('c');
     });
 
-    rerender(
-      <SettingsContext.Provider value={settingsValue}>
-        <PluginSlotProvider>
-          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-        </PluginSlotProvider>
-      </SettingsContext.Provider>,
-    );
+    it('should filter contributions by when predicate', () => {
+        let registry: PluginSlotRegistryType | undefined;
 
-    const sidebarSlots = registry!.getSlotContributions("sidebar.footer.actions", {});
-    expect(sidebarSlots).toHaveLength(2);
-    expect(sidebarSlots[0].pluginId).toBe("a"); // order 10 first
-    expect(sidebarSlots[1].pluginId).toBe("b"); // order 200 second
+        const {rerender} = renderWithSettings(
+            <PluginSlotProvider>
+                <RegistryConsumer
+                    onRegistry={(r) => {
+                        registry = r;
+                    }}
+                />
+            </PluginSlotProvider>,
+        );
 
-    const toolbarSlots = registry!.getSlotContributions("data-grid.toolbar.actions", {});
-    expect(toolbarSlots).toHaveLength(1);
-    expect(toolbarSlots[0].pluginId).toBe("c");
-  });
+        act(() => {
+            registry!.registerAll([
+                {
+                    pluginId: 'postgres-only',
+                    slot: 'sidebar.footer.actions',
+                    component: TestComponent,
+                    when: (ctx) => ctx.driver === 'postgres',
+                },
+                {
+                    pluginId: 'always',
+                    slot: 'sidebar.footer.actions',
+                    component: TestComponent,
+                },
+            ]);
+        });
 
-  it("should filter contributions by when predicate", () => {
-    let registry: PluginSlotRegistryType | undefined;
+        rerender(
+            <SettingsContext.Provider value={settingsValue}>
+                <PluginSlotProvider>
+                    <RegistryConsumer
+                        onRegistry={(r) => {
+                            registry = r;
+                        }}
+                    />
+                </PluginSlotProvider>
+            </SettingsContext.Provider>,
+        );
 
-    const { rerender } = renderWithSettings(
-      <PluginSlotProvider>
-        <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-      </PluginSlotProvider>,
-    );
+        const withPostgres = registry!.getSlotContributions('sidebar.footer.actions', {
+            driver: 'postgres',
+        });
+        expect(withPostgres).toHaveLength(2);
 
-    act(() => {
-      registry!.registerAll([
-        {
-          pluginId: "postgres-only",
-          slot: "sidebar.footer.actions",
-          component: TestComponent,
-          when: (ctx) => ctx.driver === "postgres",
-        },
-        {
-          pluginId: "always",
-          slot: "sidebar.footer.actions",
-          component: TestComponent,
-        },
-      ]);
+        const withMysql = registry!.getSlotContributions('sidebar.footer.actions', {
+            driver: 'mysql',
+        });
+        expect(withMysql).toHaveLength(1);
+        expect(withMysql[0].pluginId).toBe('always');
     });
 
-    rerender(
-      <SettingsContext.Provider value={settingsValue}>
-        <PluginSlotProvider>
-          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-        </PluginSlotProvider>
-      </SettingsContext.Provider>,
-    );
+    it('should registerAll and unregister all at once', () => {
+        let registry: PluginSlotRegistryType | undefined;
 
-    const withPostgres = registry!.getSlotContributions("sidebar.footer.actions", { driver: "postgres" });
-    expect(withPostgres).toHaveLength(2);
+        const {rerender} = renderWithSettings(
+            <PluginSlotProvider>
+                <RegistryConsumer
+                    onRegistry={(r) => {
+                        registry = r;
+                    }}
+                />
+            </PluginSlotProvider>,
+        );
 
-    const withMysql = registry!.getSlotContributions("sidebar.footer.actions", { driver: "mysql" });
-    expect(withMysql).toHaveLength(1);
-    expect(withMysql[0].pluginId).toBe("always");
-  });
+        let unregisterAll: (() => void) | undefined;
+        act(() => {
+            unregisterAll = registry!.registerAll([
+                {pluginId: 'a', slot: 'sidebar.footer.actions', component: TestComponent},
+                {pluginId: 'b', slot: 'sidebar.footer.actions', component: TestComponent},
+            ]);
+        });
 
-  it("should registerAll and unregister all at once", () => {
-    let registry: PluginSlotRegistryType | undefined;
+        rerender(
+            <SettingsContext.Provider value={settingsValue}>
+                <PluginSlotProvider>
+                    <RegistryConsumer
+                        onRegistry={(r) => {
+                            registry = r;
+                        }}
+                    />
+                </PluginSlotProvider>
+            </SettingsContext.Provider>,
+        );
 
-    const { rerender } = renderWithSettings(
-      <PluginSlotProvider>
-        <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-      </PluginSlotProvider>,
-    );
+        expect(registry!.contributions).toHaveLength(2);
 
-    let unregisterAll: (() => void) | undefined;
-    act(() => {
-      unregisterAll = registry!.registerAll([
-        { pluginId: "a", slot: "sidebar.footer.actions", component: TestComponent },
-        { pluginId: "b", slot: "sidebar.footer.actions", component: TestComponent },
-      ]);
+        act(() => {
+            unregisterAll!();
+        });
+
+        rerender(
+            <SettingsContext.Provider value={settingsValue}>
+                <PluginSlotProvider>
+                    <RegistryConsumer
+                        onRegistry={(r) => {
+                            registry = r;
+                        }}
+                    />
+                </PluginSlotProvider>
+            </SettingsContext.Provider>,
+        );
+
+        expect(registry!.contributions).toHaveLength(0);
     });
-
-    rerender(
-      <SettingsContext.Provider value={settingsValue}>
-        <PluginSlotProvider>
-          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-        </PluginSlotProvider>
-      </SettingsContext.Provider>,
-    );
-
-    expect(registry!.contributions).toHaveLength(2);
-
-    act(() => {
-      unregisterAll!();
-    });
-
-    rerender(
-      <SettingsContext.Provider value={settingsValue}>
-        <PluginSlotProvider>
-          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-        </PluginSlotProvider>
-      </SettingsContext.Provider>,
-    );
-
-    expect(registry!.contributions).toHaveLength(0);
-  });
 });

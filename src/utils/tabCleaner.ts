@@ -1,33 +1,33 @@
-import type { Tab } from '../types/editor';
-import { normalizeAutoRefreshInterval } from './autoRefresh';
+import type {Tab} from '@/types/editor';
+import {normalizeAutoRefreshInterval} from './autoRefresh';
 
 /**
  * Interface representing a cleaned tab with only persistent data
  */
 export interface CleanedTab {
-  id: string;
-  title: string;
-  type: 'console' | 'table' | 'query_builder' | 'notebook' | 'users';
-  query: string;
-  page: number;
-  activeTable: string | null;
-  pkColumns: string[] | null;
-  connectionId: string;
-  database?: string;
-  flowState?: Tab['flowState'];
-  isEditorOpen?: boolean;
-  filterClause?: string;
-  sortClause?: string;
-  limitClause?: number;
-  pageSize?: number;
-  autoRefreshIntervalMs?: Tab['autoRefreshIntervalMs'];
-  queryParams?: Record<string, string>;
-  notebookId?: string;
-  schema?: string;
-  readOnly?: boolean;
-  sourceFilePath?: string;
-  sourceFileContent?: string;
-  sourceFileDirty?: boolean;
+    id: string;
+    title: string;
+    type: 'console' | 'table' | 'query_builder' | 'notebook' | 'users';
+    query: string;
+    page: number;
+    activeTable: string | null;
+    pkColumns: string[] | null;
+    connectionId: string;
+    database?: string;
+    flowState?: Tab['flowState'];
+    isEditorOpen?: boolean;
+    filterClause?: string;
+    sortClause?: string;
+    limitClause?: number;
+    pageSize?: number;
+    autoRefreshIntervalMs?: Tab['autoRefreshIntervalMs'];
+    queryParams?: Record<string, string>;
+    notebookId?: string;
+    schema?: string;
+    readOnly?: boolean;
+    sourceFilePath?: string;
+    sourceFileContent?: string;
+    sourceFileDirty?: boolean;
 }
 
 /**
@@ -39,31 +39,31 @@ export interface CleanedTab {
  * @returns A cleaned tab with only persistent data
  */
 export function cleanTabForStorage(tab: Tab): CleanedTab {
-  return {
-    id: tab.id,
-    title: tab.title,
-    type: tab.type,
-    query: tab.query,
-    page: tab.page,
-    activeTable: tab.activeTable,
-    pkColumns: tab.pkColumns,
-    connectionId: tab.connectionId,
-    database: tab.database,
-    flowState: tab.flowState,
-    isEditorOpen: tab.isEditorOpen,
-    filterClause: tab.filterClause,
-    sortClause: tab.sortClause,
-    limitClause: tab.limitClause,
-    pageSize: tab.pageSize,
-    autoRefreshIntervalMs: normalizeAutoRefreshInterval(tab.autoRefreshIntervalMs),
-    queryParams: tab.queryParams,
-    notebookId: tab.notebookId,
-    schema: tab.schema,
-    readOnly: tab.readOnly,
-    sourceFilePath: tab.sourceFilePath,
-    sourceFileContent: tab.sourceFileContent,
-    sourceFileDirty: tab.sourceFileDirty,
-  };
+    return {
+        id: tab.id,
+        title: tab.title,
+        type: tab.type,
+        query: tab.query,
+        page: tab.page,
+        activeTable: tab.activeTable,
+        pkColumns: tab.pkColumns,
+        connectionId: tab.connectionId,
+        database: tab.database,
+        flowState: tab.flowState,
+        isEditorOpen: tab.isEditorOpen,
+        filterClause: tab.filterClause,
+        sortClause: tab.sortClause,
+        limitClause: tab.limitClause,
+        pageSize: tab.pageSize,
+        autoRefreshIntervalMs: normalizeAutoRefreshInterval(tab.autoRefreshIntervalMs),
+        queryParams: tab.queryParams,
+        notebookId: tab.notebookId,
+        schema: tab.schema,
+        readOnly: tab.readOnly,
+        sourceFilePath: tab.sourceFilePath,
+        sourceFileContent: tab.sourceFileContent,
+        sourceFileDirty: tab.sourceFileDirty,
+    };
 }
 
 /**
@@ -73,28 +73,28 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
  * @returns A full tab with default values for temporary fields
  */
 export function restoreTabFromStorage(cleanedTab: Partial<Tab>): Tab {
-  return {
-    ...cleanedTab,
-    id: cleanedTab.id || '',
-    title: cleanedTab.title || 'Untitled',
-    type: cleanedTab.type || 'console',
-    query: cleanedTab.query || '',
-    page: cleanedTab.page || 1,
-    activeTable: cleanedTab.activeTable || null,
-    pkColumns: cleanedTab.pkColumns || null,
-    connectionId: cleanedTab.connectionId || '',
-    result: null,
-    error: '',
-    executionTime: null,
-    isLoading: false,
-    autoRefreshIntervalMs: normalizeAutoRefreshInterval(cleanedTab.autoRefreshIntervalMs),
-    isAutoRefreshing: false,
-    autoRefreshError: '',
-    pendingChanges: undefined,
-    pendingInsertions: undefined,
-    pendingDeletions: undefined,
-    selectedRows: undefined,
-    notebookId: cleanedTab.notebookId,
-    notebookState: undefined,
-  };
+    return {
+        ...cleanedTab,
+        id: cleanedTab.id || '',
+        title: cleanedTab.title || 'Untitled',
+        type: cleanedTab.type || 'console',
+        query: cleanedTab.query || '',
+        page: cleanedTab.page || 1,
+        activeTable: cleanedTab.activeTable || null,
+        pkColumns: cleanedTab.pkColumns || null,
+        connectionId: cleanedTab.connectionId || '',
+        result: null,
+        error: '',
+        executionTime: null,
+        isLoading: false,
+        autoRefreshIntervalMs: normalizeAutoRefreshInterval(cleanedTab.autoRefreshIntervalMs),
+        isAutoRefreshing: false,
+        autoRefreshError: '',
+        pendingChanges: undefined,
+        pendingInsertions: undefined,
+        pendingDeletions: undefined,
+        selectedRows: undefined,
+        notebookId: cleanedTab.notebookId,
+        notebookState: undefined,
+    };
 }

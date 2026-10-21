@@ -1,7 +1,7 @@
 <br />
 <p align="center">
-  <img src=".github/assets/banner-light.ru.png#gh-light-mode-only" alt="Tabularis" width="100%">
-  <img src=".github/assets/banner-dark.ru.png#gh-dark-mode-only" alt="Tabularis" width="100%">
+  <img src="../../.github/assets/banner-light.ru.png#gh-light-mode-only" alt="Tabularis" width="100%">
+  <img src="../../.github/assets/banner-dark.ru.png#gh-dark-mode-only" alt="Tabularis" width="100%">
 </p>
 
 # Tabularis
@@ -12,7 +12,7 @@ Tabularis представляет собой настольную среду д
   <b><a href="https://tabularis.dev">Сайт</a></b> ·
   <b><a href="https://tabularis.dev/wiki">Документация</a></b> ·
   <b><a href="https://tabularis.dev/download">Скачать</a></b> ·
-  <b><a href="./CHANGELOG.md">Список изменений</a></b>
+  <b><a href="../../CHANGELOG.md">Список изменений</a></b>
 </p>
 
 <br />
@@ -37,7 +37,7 @@ Tabularis представляет собой настольную среду д
 
 <p align="center">
   <sub>
-    <a href="./README.md">English</a> ·
+    <a href="../../README.md">English</a> ·
     <a href="./README.it.md">Italiano</a> ·
     <a href="./README.es.md">Español</a> ·
     <a href="./README.zh-CN.md">中文</a> ·
@@ -52,7 +52,7 @@ Tabularis представляет собой настольную среду д
 </p>
 
 > [!NOTE]
-> Это переведённая версия документации. Актуальный и официальный источник: [README на английском](./README.md).
+> Это переведённая версия документации. Актуальный и официальный источник: [README на английском](../../README.md).
 
 <br />
 
@@ -282,8 +282,8 @@ yay -S tabularis-bin
 
 - Внешняя система плагинов на JSON-RPC 2.0 через stdin/stdout.
 - Установка драйверов сообщества без перезапуска.
-- Официальный реестр: [`plugins/registry.json`](./plugins/registry.json).
-- Руководство для разработчиков: [`plugins/PLUGIN_GUIDE.md`](./plugins/PLUGIN_GUIDE.md).
+- Официальный реестр: [`plugins/registry.json`](../../plugins/registry.json).
+- Руководство для разработчиков: [`plugins/PLUGIN_GUIDE.md`](../../plugins/PLUGIN_GUIDE.md).
 
 ## Настройки
 
@@ -372,18 +372,18 @@ pnpm tauri build
 
 ## Дорожная карта
 
-Дорожная карта формируется автоматически из GitHub Issues. Актуальное состояние смотрите в [README на английском](./README.md#roadmap).
+Дорожная карта формируется автоматически из GitHub Issues. Актуальное состояние смотрите в [README на английском](../../README.md#roadmap).
 
 ## Участие в разработке
 
-Вклад в проект приветствуется, см. [CONTRIBUTING.md](./CONTRIBUTING.md). С чего можно начать:
+Вклад в проект приветствуется, см. [CONTRIBUTING.md](../../CONTRIBUTING.md). С чего можно начать:
 
 - [Дизайн-система UI и визуальная идентичность: приглашение контрибьюторов](https://github.com/TabularisDB/tabularis/issues/195)
-- Напишите плагин-драйвер на любом языке с помощью [руководства по плагинам](./plugins/PLUGIN_GUIDE.md)
+- Напишите плагин-драйвер на любом языке с помощью [руководства по плагинам](../../plugins/PLUGIN_GUIDE.md)
 
 ## Спонсоры и сторонники
 
-Tabularis поддерживают замечательные спонсоры и сторонники. Полный список смотрите в [README на английском](./README.md#sponsors-and-supporters) и на [tabularis.dev/sponsors](https://tabularis.dev/sponsors).
+Tabularis поддерживают замечательные спонсоры и сторонники. Полный список смотрите в [README на английском](../../README.md#sponsors-and-supporters) и на [tabularis.dev/sponsors](https://tabularis.dev/sponsors).
 
 ## История проекта
 
@@ -391,7 +391,7 @@ Tabularis начинался как эксперимент: как далеко 
 
 ## Лицензия
 
-[Apache License 2.0](./LICENSE)
+[Apache License 2.0](../../LICENSE)
 
 ---
 

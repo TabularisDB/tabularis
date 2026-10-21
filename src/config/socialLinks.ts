@@ -1,23 +1,18 @@
-import type { ComponentType } from "react";
-import { Github } from "lucide-react";
-import { LINKS } from "./links";
-import { DiscordIcon } from "../components/icons/DiscordIcon";
-import {
-  XIcon,
-  BlueskyIcon,
-  MastodonIcon,
-  LinkedInIcon,
-} from "../components/icons/BrandIcons";
+import type {ComponentType} from 'react';
+import {Github} from 'lucide-react';
+import {LINKS} from './links';
+import {DiscordIcon} from '@/components/icons/DiscordIcon';
+import {XIcon, BlueskyIcon, MastodonIcon, LinkedInIcon} from '@/components/icons/BrandIcons';
 
 interface SocialIconProps {
-  size?: number;
-  className?: string;
+    size?: number;
+    className?: string;
 }
 
 export interface SocialLink {
-  label: string;
-  href: string;
-  Icon: ComponentType<SocialIconProps>;
+    label: string;
+    href: string;
+    Icon: ComponentType<SocialIconProps>;
 }
 
 /**
@@ -25,10 +20,10 @@ export interface SocialLink {
  * URLs come from the auto-generated src/config/links.ts (see scripts/sync-links.js).
  */
 export const SOCIAL_LINKS: SocialLink[] = [
-  { label: "GitHub", href: LINKS.GITHUB, Icon: Github },
-  { label: "Discord", href: LINKS.DISCORD, Icon: DiscordIcon },
-  { label: "X", href: LINKS.X, Icon: XIcon },
-  { label: "Bluesky", href: LINKS.BLUESKY, Icon: BlueskyIcon },
-  { label: "Mastodon", href: LINKS.MASTODON, Icon: MastodonIcon },
-  { label: "LinkedIn", href: LINKS.LINKEDIN, Icon: LinkedInIcon },
+    {label: 'GitHub', href: LINKS.GITHUB, Icon: Github},
+    {label: 'Discord', href: LINKS.DISCORD, Icon: DiscordIcon},
+    {label: 'X', href: LINKS.X, Icon: XIcon},
+    {label: 'Bluesky', href: LINKS.BLUESKY, Icon: BlueskyIcon},
+    {label: 'Mastodon', href: LINKS.MASTODON, Icon: MastodonIcon},
+    {label: 'LinkedIn', href: LINKS.LINKEDIN, Icon: LinkedInIcon},
 ];

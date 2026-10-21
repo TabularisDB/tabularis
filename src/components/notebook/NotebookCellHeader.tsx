@@ -1,363 +1,387 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { useTranslation } from "react-i18next";
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {createPortal} from 'react-dom';
+import {useTranslation} from 'react-i18next';
 import {
-  ChevronUp,
-  ChevronDown,
-  ChevronRight,
-  Trash2,
-  Play,
-  Eye,
-  Pencil,
-  Loader2,
-  Database,
-  GripVertical,
-  Zap,
-  History,
-  Network,
-} from "lucide-react";
-import type { NotebookCellType } from "../../types/notebook";
-import { CellNameAiButton } from "./CellNameAiButton";
-import { useEscapeKey } from "../../hooks/useEscapeKey";
+    ChevronUp,
+    ChevronDown,
+    ChevronRight,
+    Trash2,
+    Play,
+    Eye,
+    Pencil,
+    Loader2,
+    Database,
+    GripVertical,
+    Zap,
+    History,
+    Network,
+} from 'lucide-react';
+import type {NotebookCellType} from '@/types/notebook';
+import {CellNameAiButton} from './CellNameAiButton';
+import {useEscapeKey} from '@/hooks/useEscapeKey';
 
 interface NotebookCellHeaderProps {
-  cellType: NotebookCellType;
-  index: number;
-  totalCells: number;
-  isPreview?: boolean;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onDelete: () => void;
-  onRun?: () => void;
-  onTogglePreview?: () => void;
-  isLoading?: boolean;
-  activeSchema?: string;
-  selectedDatabases?: string[];
-  onSchemaChange?: (schema: string) => void;
-  dragHandleProps?: {
-    onDragStart: (e: React.DragEvent) => void;
-    onDragEnd: (e: React.DragEvent) => void;
-    draggable: boolean;
-  };
-  isParallel?: boolean;
-  onToggleParallel?: () => void;
-  historyCount?: number;
-  onToggleHistory?: () => void;
-  isQueryPlanVisible?: boolean;
-  onToggleQueryPlan?: () => void;
-  isCollapsed?: boolean;
-  onToggleCollapse: () => void;
-  cellName?: string;
-  onNameChange: (name: string) => void;
-  cellContent?: string;
+    cellType: NotebookCellType;
+    index: number;
+    totalCells: number;
+    isPreview?: boolean;
+    onMoveUp: () => void;
+    onMoveDown: () => void;
+    onDelete: () => void;
+    onRun?: () => void;
+    onTogglePreview?: () => void;
+    isLoading?: boolean;
+    activeSchema?: string;
+    selectedDatabases?: string[];
+    onSchemaChange?: (schema: string) => void;
+    dragHandleProps?: {
+        onDragStart: (e: React.DragEvent) => void;
+        onDragEnd: (e: React.DragEvent) => void;
+        draggable: boolean;
+    };
+    isParallel?: boolean;
+    onToggleParallel?: () => void;
+    historyCount?: number;
+    onToggleHistory?: () => void;
+    isQueryPlanVisible?: boolean;
+    onToggleQueryPlan?: () => void;
+    isCollapsed?: boolean;
+    onToggleCollapse: () => void;
+    cellName?: string;
+    onNameChange: (name: string) => void;
+    cellContent?: string;
 }
 
-function CellTypeBadge({ cellType }: { cellType: NotebookCellType }) {
-  const { t } = useTranslation();
+function CellTypeBadge({cellType}: {cellType: NotebookCellType}) {
+    const {t} = useTranslation();
 
-  if (cellType === "sql") {
+    if (cellType === 'sql') {
+        return (
+            <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-accent-success/15 text-accent-success">
+                {t('editor.notebook.sqlCell')}
+            </span>
+        );
+    }
+
     return (
-      <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-accent-success/15 text-accent-success">
-        {t("editor.notebook.sqlCell")}
-      </span>
+        <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-accent-primary/15 text-accent">
+            {t('editor.notebook.markdownCell')}
+        </span>
     );
-  }
-
-  return (
-    <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-accent-primary/15 text-accent">
-      {t("editor.notebook.markdownCell")}
-    </span>
-  );
 }
 
 function ActionButton({
-  onClick,
-  disabled,
-  title,
-  children,
+    onClick,
+    disabled,
+    title,
+    children,
 }: {
-  onClick: () => void;
-  disabled?: boolean;
-  title: string;
-  children: React.ReactNode;
+    onClick: () => void;
+    disabled?: boolean;
+    title: string;
+    children: React.ReactNode;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className="p-1 text-muted hover:text-primary hover:bg-surface-secondary rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-    >
-      {children}
-    </button>
-  );
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            title={title}
+            className="p-1 text-muted hover:text-primary hover:bg-surface-secondary rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+            {children}
+        </button>
+    );
 }
 
 export function NotebookCellHeader({
-  cellType,
-  index,
-  totalCells,
-  isPreview,
-  onMoveUp,
-  onMoveDown,
-  onDelete,
-  onRun,
-  onTogglePreview,
-  isLoading,
-  activeSchema,
-  selectedDatabases,
-  onSchemaChange,
-  dragHandleProps,
-  isParallel,
-  onToggleParallel,
-  historyCount,
-  onToggleHistory,
-  isQueryPlanVisible,
-  onToggleQueryPlan,
-  isCollapsed,
-  onToggleCollapse,
-  cellName,
-  onNameChange,
-  cellContent,
+    cellType,
+    index,
+    totalCells,
+    isPreview,
+    onMoveUp,
+    onMoveDown,
+    onDelete,
+    onRun,
+    onTogglePreview,
+    isLoading,
+    activeSchema,
+    selectedDatabases,
+    onSchemaChange,
+    dragHandleProps,
+    isParallel,
+    onToggleParallel,
+    historyCount,
+    onToggleHistory,
+    isQueryPlanVisible,
+    onToggleQueryPlan,
+    isCollapsed,
+    onToggleCollapse,
+    cellName,
+    onNameChange,
+    cellContent,
 }: NotebookCellHeaderProps) {
-  const { t } = useTranslation();
-  const [isDbOpen, setIsDbOpen] = useState(false);
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState(cellName ?? "");
-  const dbButtonRef = useRef<HTMLButtonElement>(null);
-  const [dbDropdownPosition, setDbDropdownPosition] = useState({ top: 0, left: 0 });
-  const closeDbDropdown = useCallback(() => setIsDbOpen(false), []);
-  useEscapeKey(isDbOpen, closeDbDropdown);
-  const showDbSelector = cellType === "sql" && selectedDatabases && selectedDatabases.length >= 1 && activeSchema && onSchemaChange;
-  const queryPlanToggleLabel = t(
-    isQueryPlanVisible ? "editor.notebook.hideQueryPlan" : "editor.notebook.toggleQueryPlan",
-  );
+    const {t} = useTranslation();
+    const [isDbOpen, setIsDbOpen] = useState(false);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [nameInput, setNameInput] = useState(cellName ?? '');
+    const dbButtonRef = useRef<HTMLButtonElement>(null);
+    const [dbDropdownPosition, setDbDropdownPosition] = useState({top: 0, left: 0});
+    const closeDbDropdown = useCallback(() => setIsDbOpen(false), []);
+    useEscapeKey(isDbOpen, closeDbDropdown);
+    const showDbSelector =
+        cellType === 'sql' &&
+        selectedDatabases &&
+        selectedDatabases.length >= 1 &&
+        activeSchema &&
+        onSchemaChange;
+    const queryPlanToggleLabel = t(
+        isQueryPlanVisible ? 'editor.notebook.hideQueryPlan' : 'editor.notebook.toggleQueryPlan',
+    );
 
-  const updateDbDropdownPosition = useCallback(() => {
-    if (dbButtonRef.current) {
-      const rect = dbButtonRef.current.getBoundingClientRect();
-      setDbDropdownPosition({ top: rect.bottom + 4, left: rect.left });
-    }
-  }, []);
+    const updateDbDropdownPosition = useCallback(() => {
+        if (dbButtonRef.current) {
+            const rect = dbButtonRef.current.getBoundingClientRect();
+            setDbDropdownPosition({top: rect.bottom + 4, left: rect.left});
+        }
+    }, []);
 
-  useEffect(() => {
-    if (!isDbOpen) return;
-    updateDbDropdownPosition();
-    const handle = () => updateDbDropdownPosition();
-    window.addEventListener("scroll", handle, true);
-    window.addEventListener("resize", handle);
-    return () => {
-      window.removeEventListener("scroll", handle, true);
-      window.removeEventListener("resize", handle);
-    };
-  }, [isDbOpen, updateDbDropdownPosition]);
+    useEffect(() => {
+        if (!isDbOpen) return;
+        updateDbDropdownPosition();
+        const handle = () => updateDbDropdownPosition();
+        window.addEventListener('scroll', handle, true);
+        window.addEventListener('resize', handle);
+        return () => {
+            window.removeEventListener('scroll', handle, true);
+            window.removeEventListener('resize', handle);
+        };
+    }, [isDbOpen, updateDbDropdownPosition]);
 
-  return (
-    <div className="flex items-center justify-between px-3 py-1.5 bg-elevated border-b border-default relative z-10">
-      <div className="flex items-center gap-2">
-        {dragHandleProps && (
-          <div
-            className="cursor-grab active:cursor-grabbing text-muted hover:text-secondary transition-colors"
-            draggable={dragHandleProps.draggable}
-            onDragStart={dragHandleProps.onDragStart}
-            onDragEnd={dragHandleProps.onDragEnd}
-          >
-            <GripVertical size={14} />
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          className="p-0.5 text-muted hover:text-primary transition-colors rounded"
-          title={t(isCollapsed ? "editor.notebook.expandCell" : "editor.notebook.collapseCell")}
-        >
-          <ChevronRight
-            size={14}
-            className={`transition-transform ${isCollapsed ? "" : "rotate-90"}`}
-          />
-        </button>
-        <CellTypeBadge cellType={cellType} />
-        <span className="text-[10px] text-muted">#{index + 1}</span>
-        {isEditingName ? (
-          <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
-            type="text"
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            onBlur={() => {
-              onNameChange(nameInput.trim());
-              setIsEditingName(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                onNameChange(nameInput.trim());
-                setIsEditingName(false);
-              }
-              if (e.key === "Escape") {
-                setNameInput(cellName ?? "");
-                setIsEditingName(false);
-              }
-            }}
-            className="text-[10px] text-secondary bg-base border border-strong rounded px-1 py-0.5 outline-none focus:border-focus w-32"
-            placeholder={t("editor.notebook.cellNamePlaceholder")}
-            autoFocus
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setNameInput(cellName ?? "");
-              setIsEditingName(true);
-            }}
-            className="text-[10px] text-muted hover:text-secondary transition-colors truncate max-w-[200px]"
-            title={t("editor.notebook.editCellName")}
-          >
-            {cellName || t("editor.notebook.cellNamePlaceholder")}
-          </button>
-        )}
-        {cellContent && (
-          <CellNameAiButton content={cellContent} onNameGenerated={onNameChange} />
-        )}
-        {showDbSelector && (
-          <div className="relative">
-            <button
-              ref={dbButtonRef}
-              type="button"
-              onClick={() => {
-                if (!isDbOpen) updateDbDropdownPosition();
-                setIsDbOpen((v) => !v);
-              }}
-              aria-expanded={isDbOpen}
-              className="flex items-center gap-1 px-1.5 py-0.5 bg-surface-secondary border border-strong rounded text-[10px] text-secondary hover:text-primary hover:bg-surface transition-colors"
-              title={t("editor.activeDatabase")}
-            >
-              <Database size={10} className="text-muted shrink-0" />
-              <span className="max-w-[100px] truncate">{activeSchema}</span>
-              <ChevronDown size={10} className="text-muted shrink-0" />
-            </button>
-            {isDbOpen &&
-              createPortal(
-                <>
-                  <div
-                    role="presentation"
-                    className="fixed inset-0 z-[150]"
-                    onClick={closeDbDropdown}
-                  />
-                  <div
-                    className="fixed min-w-[120px] max-h-[230px] overflow-y-auto bg-surface-secondary border border-strong rounded shadow-xl z-[200] flex flex-col py-1"
-                    style={{ top: dbDropdownPosition.top, left: dbDropdownPosition.left }}
-                  >
-                    {selectedDatabases.map((db) => (
-                      <button
-                        key={db}
+    return (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-elevated border-b border-default relative z-10">
+            <div className="flex items-center gap-2">
+                {dragHandleProps && (
+                    <div
+                        className="cursor-grab active:cursor-grabbing text-muted hover:text-secondary transition-colors"
+                        draggable={dragHandleProps.draggable}
+                        onDragStart={dragHandleProps.onDragStart}
+                        onDragEnd={dragHandleProps.onDragEnd}
+                    >
+                        <GripVertical size={14} />
+                    </div>
+                )}
+                <button
+                    type="button"
+                    onClick={onToggleCollapse}
+                    className="p-0.5 text-muted hover:text-primary transition-colors rounded"
+                    title={t(
+                        isCollapsed ? 'editor.notebook.expandCell' : 'editor.notebook.collapseCell',
+                    )}
+                >
+                    <ChevronRight
+                        size={14}
+                        className={`transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                    />
+                </button>
+                <CellTypeBadge cellType={cellType} />
+                <span className="text-[10px] text-muted">#{index + 1}</span>
+                {isEditingName ? (
+                    <input
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        autoComplete="off"
+                        spellCheck={false}
+                        type="text"
+                        value={nameInput}
+                        onChange={(e) => setNameInput(e.target.value)}
+                        onBlur={() => {
+                            onNameChange(nameInput.trim());
+                            setIsEditingName(false);
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                onNameChange(nameInput.trim());
+                                setIsEditingName(false);
+                            }
+                            if (e.key === 'Escape') {
+                                setNameInput(cellName ?? '');
+                                setIsEditingName(false);
+                            }
+                        }}
+                        className="text-[10px] text-secondary bg-base border border-strong rounded px-1 py-0.5 outline-none focus:border-focus w-32"
+                        placeholder={t('editor.notebook.cellNamePlaceholder')}
+                        autoFocus
+                    />
+                ) : (
+                    <button
                         type="button"
                         onClick={() => {
-                          onSchemaChange(db);
-                          setIsDbOpen(false);
+                            setNameInput(cellName ?? '');
+                            setIsEditingName(true);
                         }}
-                        className={`text-left px-2.5 py-1 text-[11px] hover:bg-surface transition-colors flex items-center gap-1.5 ${
-                          activeSchema === db
-                            ? "text-primary font-medium"
-                            : "text-secondary"
+                        className="text-[10px] text-muted hover:text-secondary transition-colors truncate max-w-[200px]"
+                        title={t('editor.notebook.editCellName')}
+                    >
+                        {cellName || t('editor.notebook.cellNamePlaceholder')}
+                    </button>
+                )}
+                {cellContent && (
+                    <CellNameAiButton content={cellContent} onNameGenerated={onNameChange} />
+                )}
+                {showDbSelector && (
+                    <div className="relative">
+                        <button
+                            ref={dbButtonRef}
+                            type="button"
+                            onClick={() => {
+                                if (!isDbOpen) updateDbDropdownPosition();
+                                setIsDbOpen((v) => !v);
+                            }}
+                            aria-expanded={isDbOpen}
+                            className="flex items-center gap-1 px-1.5 py-0.5 bg-surface-secondary border border-strong rounded text-[10px] text-secondary hover:text-primary hover:bg-surface transition-colors"
+                            title={t('editor.activeDatabase')}
+                        >
+                            <Database size={10} className="text-muted shrink-0" />
+                            <span className="max-w-[100px] truncate">{activeSchema}</span>
+                            <ChevronDown size={10} className="text-muted shrink-0" />
+                        </button>
+                        {isDbOpen &&
+                            createPortal(
+                                <>
+                                    <div
+                                        role="presentation"
+                                        className="fixed inset-0 z-[150]"
+                                        onClick={closeDbDropdown}
+                                    />
+                                    <div
+                                        className="fixed min-w-[120px] max-h-[230px] overflow-y-auto bg-surface-secondary border border-strong rounded shadow-xl z-[200] flex flex-col py-1"
+                                        style={{
+                                            top: dbDropdownPosition.top,
+                                            left: dbDropdownPosition.left,
+                                        }}
+                                    >
+                                        {selectedDatabases.map((db) => (
+                                            <button
+                                                key={db}
+                                                type="button"
+                                                onClick={() => {
+                                                    onSchemaChange(db);
+                                                    setIsDbOpen(false);
+                                                }}
+                                                className={`text-left px-2.5 py-1 text-[11px] hover:bg-surface transition-colors flex items-center gap-1.5 ${
+                                                    activeSchema === db
+                                                        ? 'text-primary font-medium'
+                                                        : 'text-secondary'
+                                                }`}
+                                            >
+                                                <Database
+                                                    size={10}
+                                                    className="text-muted shrink-0"
+                                                />
+                                                {db}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>,
+                                document.body,
+                            )}
+                    </div>
+                )}
+            </div>
+
+            <div className="flex items-center gap-0.5">
+                {cellType === 'sql' && onRun && (
+                    <ActionButton
+                        onClick={onRun}
+                        title={t('editor.notebook.runCell')}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? (
+                            <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                            <Play size={14} />
+                        )}
+                    </ActionButton>
+                )}
+
+                {cellType === 'sql' && onToggleParallel && (
+                    <button
+                        type="button"
+                        onClick={onToggleParallel}
+                        title={t('editor.notebook.parallelExecution')}
+                        className={`p-1 rounded transition-colors ${
+                            isParallel
+                                ? 'text-accent-warning bg-accent-warning/15'
+                                : 'text-muted hover:text-primary hover:bg-surface-secondary'
                         }`}
-                      >
-                        <Database size={10} className="text-muted shrink-0" />
-                        {db}
-                      </button>
-                    ))}
-                  </div>
-                </>,
-                document.body,
-              )}
-          </div>
-        )}
-      </div>
+                    >
+                        <Zap size={14} />
+                    </button>
+                )}
 
-      <div className="flex items-center gap-0.5">
-        {cellType === "sql" && onRun && (
-          <ActionButton onClick={onRun} title={t("editor.notebook.runCell")} disabled={isLoading}>
-            {isLoading ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Play size={14} />
-            )}
-          </ActionButton>
-        )}
+                {cellType === 'sql' && onToggleQueryPlan && (
+                    <button
+                        type="button"
+                        onClick={onToggleQueryPlan}
+                        title={queryPlanToggleLabel}
+                        aria-label={queryPlanToggleLabel}
+                        aria-pressed={!!isQueryPlanVisible}
+                        className={`p-1 rounded transition-colors ${
+                            isQueryPlanVisible
+                                ? 'text-accent bg-accent-primary/15'
+                                : 'text-muted hover:text-primary hover:bg-surface-secondary'
+                        }`}
+                    >
+                        <Network size={14} />
+                    </button>
+                )}
 
-        {cellType === "sql" && onToggleParallel && (
-          <button
-            type="button"
-            onClick={onToggleParallel}
-            title={t("editor.notebook.parallelExecution")}
-            className={`p-1 rounded transition-colors ${
-              isParallel
-                ? "text-accent-warning bg-accent-warning/15"
-                : "text-muted hover:text-primary hover:bg-surface-secondary"
-            }`}
-          >
-            <Zap size={14} />
-          </button>
-        )}
+                {cellType === 'sql' && onToggleHistory && (
+                    <button
+                        type="button"
+                        onClick={onToggleHistory}
+                        title={t('editor.notebook.executionHistory')}
+                        className="p-1 text-muted hover:text-primary hover:bg-surface-secondary rounded transition-colors relative"
+                    >
+                        <History size={14} />
+                        {historyCount != null && historyCount > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 text-[8px] bg-accent-primary text-inverse rounded-full w-3 h-3 flex items-center justify-center leading-none">
+                                {historyCount > 9 ? '+' : historyCount}
+                            </span>
+                        )}
+                    </button>
+                )}
 
-        {cellType === "sql" && onToggleQueryPlan && (
-          <button
-            type="button"
-            onClick={onToggleQueryPlan}
-            title={queryPlanToggleLabel}
-            aria-label={queryPlanToggleLabel}
-            aria-pressed={!!isQueryPlanVisible}
-            className={`p-1 rounded transition-colors ${
-              isQueryPlanVisible
-                ? "text-accent bg-accent-primary/15"
-                : "text-muted hover:text-primary hover:bg-surface-secondary"
-            }`}
-          >
-            <Network size={14} />
-          </button>
-        )}
+                {cellType === 'markdown' && onTogglePreview && (
+                    <ActionButton
+                        onClick={onTogglePreview}
+                        title={t('editor.notebook.togglePreview')}
+                    >
+                        {isPreview ? <Pencil size={14} /> : <Eye size={14} />}
+                    </ActionButton>
+                )}
 
-        {cellType === "sql" && onToggleHistory && (
-          <button
-            type="button"
-            onClick={onToggleHistory}
-            title={t("editor.notebook.executionHistory")}
-            className="p-1 text-muted hover:text-primary hover:bg-surface-secondary rounded transition-colors relative"
-          >
-            <History size={14} />
-            {historyCount != null && historyCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 text-[8px] bg-accent-primary text-inverse rounded-full w-3 h-3 flex items-center justify-center leading-none">
-                {historyCount > 9 ? "+" : historyCount}
-              </span>
-            )}
-          </button>
-        )}
+                <ActionButton
+                    onClick={onMoveUp}
+                    disabled={index === 0}
+                    title={t('editor.notebook.moveCellUp')}
+                >
+                    <ChevronUp size={14} />
+                </ActionButton>
 
-        {cellType === "markdown" && onTogglePreview && (
-          <ActionButton onClick={onTogglePreview} title={t("editor.notebook.togglePreview")}>
-            {isPreview ? <Pencil size={14} /> : <Eye size={14} />}
-          </ActionButton>
-        )}
+                <ActionButton
+                    onClick={onMoveDown}
+                    disabled={index === totalCells - 1}
+                    title={t('editor.notebook.moveCellDown')}
+                >
+                    <ChevronDown size={14} />
+                </ActionButton>
 
-        <ActionButton
-          onClick={onMoveUp}
-          disabled={index === 0}
-          title={t("editor.notebook.moveCellUp")}
-        >
-          <ChevronUp size={14} />
-        </ActionButton>
-
-        <ActionButton
-          onClick={onMoveDown}
-          disabled={index === totalCells - 1}
-          title={t("editor.notebook.moveCellDown")}
-        >
-          <ChevronDown size={14} />
-        </ActionButton>
-
-        <ActionButton onClick={onDelete} title={t("editor.notebook.deleteCell")}>
-          <Trash2 size={14} />
-        </ActionButton>
-      </div>
-    </div>
-  );
+                <ActionButton onClick={onDelete} title={t('editor.notebook.deleteCell')}>
+                    <Trash2 size={14} />
+                </ActionButton>
+            </div>
+        </div>
+    );
 }

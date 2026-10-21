@@ -1,24 +1,26 @@
-import type { DriverCapabilities } from '../types/plugins';
+import type {DriverCapabilities} from '@/types/plugins';
 
 export interface TableDataChangeScope {
-  schema?: string;
-  database?: string;
+    schema?: string;
+    database?: string;
 }
 
 /**
  * Returns true when a driver supports cross-database access from a single connection
  * (e.g. MySQL). Postgres uses schemas; SQLite/DuckDB are file-based or folder-based.
  */
-export function isMultiDatabaseCapable(capabilities: DriverCapabilities | null | undefined): boolean {
-  if (!capabilities) return false;
-  if (capabilities.no_connection_required) return false;
-  // A flat single-database store (e.g. Meilisearch) has nothing to select.
-  if (capabilities.single_database) return false;
-  return (
-    capabilities.file_based === false &&
-    !capabilities.folder_based &&
-    capabilities.schemas === false
-  );
+export function isMultiDatabaseCapable(
+    capabilities: DriverCapabilities | null | undefined,
+): boolean {
+    if (!capabilities) return false;
+    if (capabilities.no_connection_required) return false;
+    // A flat single-database store (e.g. Meilisearch) has nothing to select.
+    if (capabilities.single_database) return false;
+    return (
+        capabilities.file_based === false &&
+        !capabilities.folder_based &&
+        capabilities.schemas === false
+    );
 }
 
 /**
@@ -30,12 +32,16 @@ export function isMultiDatabaseCapable(capabilities: DriverCapabilities | null |
  * connection dialog's database picker should be offered at all.
  */
 export function isSchemaBasedMultiDbCapable(
-  capabilities: DriverCapabilities | null | undefined,
+    capabilities: DriverCapabilities | null | undefined,
 ): boolean {
-  if (!capabilities) return false;
-  if (capabilities.no_connection_required) return false;
-  if (capabilities.single_database) return false;
-  return capabilities.file_based === false && !capabilities.folder_based && capabilities.schemas === true;
+    if (!capabilities) return false;
+    if (capabilities.no_connection_required) return false;
+    if (capabilities.single_database) return false;
+    return (
+        capabilities.file_based === false &&
+        !capabilities.folder_based &&
+        capabilities.schemas === true
+    );
 }
 
 /**
@@ -58,14 +64,14 @@ export function isSchemaBasedMultiDbCapable(
  * database this connection always pointed at."
  */
 export function hasOptedIntoDatabaseSelection(
-  capabilities: DriverCapabilities | null | undefined,
-  dbParam: string | string[],
+    capabilities: DriverCapabilities | null | undefined,
+    dbParam: string | string[],
 ): boolean {
-  if (isMultiDatabaseCapable(capabilities)) return true;
-  if (isSchemaBasedMultiDbCapable(capabilities)) {
-    return Array.isArray(dbParam) || dbParam === '';
-  }
-  return false;
+    if (isMultiDatabaseCapable(capabilities)) return true;
+    if (isSchemaBasedMultiDbCapable(capabilities)) {
+        return Array.isArray(dbParam) || dbParam === '';
+    }
+    return false;
 }
 
 /**
@@ -80,10 +86,10 @@ export function hasOptedIntoDatabaseSelection(
  * using today's flat schema-only layout untouched.
  */
 export function isSchemaBasedMultiDb(
-  capabilities: DriverCapabilities | null | undefined,
-  selectedDatabases: string[],
+    capabilities: DriverCapabilities | null | undefined,
+    selectedDatabases: string[],
 ): boolean {
-  return isSchemaBasedMultiDbCapable(capabilities) && selectedDatabases.length >= 1;
+    return isSchemaBasedMultiDbCapable(capabilities) && selectedDatabases.length >= 1;
 }
 
 /**
@@ -106,20 +112,20 @@ export function isSchemaBasedMultiDb(
  * database, not the primary.
  */
 export function resolveHistoryDatabase(
-  tab: { database?: string | null; schema?: string | null },
-  isMultiDb: boolean,
-  activeDatabaseName: string | null | undefined,
+    tab: {database?: string | null; schema?: string | null},
+    isMultiDb: boolean,
+    activeDatabaseName: string | null | undefined,
 ): string | undefined {
-  if (tab.database) return tab.database;
-  if (isMultiDb) {
-    return tab.schema ?? activeDatabaseName ?? undefined;
-  }
-  return undefined;
+    if (tab.database) return tab.database;
+    if (isMultiDb) {
+        return tab.schema ?? activeDatabaseName ?? undefined;
+    }
+    return undefined;
 }
 
 interface TabDatabaseTarget {
-  schema?: string | null;
-  database?: string | null;
+    schema?: string | null;
+    database?: string | null;
 }
 
 /**
@@ -133,10 +139,10 @@ interface TabDatabaseTarget {
  * tab with neither falls back to the first selected database.
  */
 export function resolveFlatMultiDbTabDatabase(
-  tab: TabDatabaseTarget | null | undefined,
-  selectedDatabases: string[],
+    tab: TabDatabaseTarget | null | undefined,
+    selectedDatabases: string[],
 ): string | undefined {
-  return tab?.schema || tab?.database || selectedDatabases[0] || undefined;
+    return tab?.schema || tab?.database || selectedDatabases[0] || undefined;
 }
 
 /**
@@ -145,10 +151,10 @@ export function resolveFlatMultiDbTabDatabase(
  * override (from a saved query) cannot keep the next run on the old database.
  */
 export function selectFlatMultiDbTabDatabase(database: string): {
-  schema: string;
-  database: undefined;
+    schema: string;
+    database: undefined;
 } {
-  return { schema: database, database: undefined };
+    return {schema: database, database: undefined};
 }
 
 /**
@@ -161,39 +167,39 @@ export function selectFlatMultiDbTabDatabase(database: string): {
  * a schema-based multi-db tab keeps `database` and `schema` side by side.
  */
 export function toFlatMultiDbTabTarget<T extends TabDatabaseTarget>(
-  input: T,
-  isMultiDb: boolean,
+    input: T,
+    isMultiDb: boolean,
 ): T {
-  if (!isMultiDb || !input.database || input.schema) return input;
-  return { ...input, schema: input.database, database: undefined };
+    if (!isMultiDb || !input.database || input.schema) return input;
+    return {...input, schema: input.database, database: undefined};
 }
 
 export function getTableDataChangeScope(
-  capabilities: DriverCapabilities | null | undefined,
-  tabSchema: string | null | undefined,
-  activeSchema: string | null | undefined,
-  tabDatabase?: string | null,
+    capabilities: DriverCapabilities | null | undefined,
+    tabSchema: string | null | undefined,
+    activeSchema: string | null | undefined,
+    tabDatabase?: string | null,
 ): TableDataChangeScope {
-  if (capabilities?.schemas === true && tabDatabase) {
-    // Schema-based multi-db (nested): the database pool AND the Postgres
-    // schema are both needed at once, unlike the flat/schema-only branches
-    // below which only ever resolve one qualifier. A plain single-database
-    // Postgres tab never has `tabDatabase` set, so it keeps falling through
-    // to the schemas-only branch unchanged.
-    const schema = tabSchema ?? activeSchema;
-    return schema ? { database: tabDatabase, schema } : { database: tabDatabase };
-  }
+    if (capabilities?.schemas === true && tabDatabase) {
+        // Schema-based multi-db (nested): the database pool AND the Postgres
+        // schema are both needed at once, unlike the flat/schema-only branches
+        // below which only ever resolve one qualifier. A plain single-database
+        // Postgres tab never has `tabDatabase` set, so it keeps falling through
+        // to the schemas-only branch unchanged.
+        const schema = tabSchema ?? activeSchema;
+        return schema ? {database: tabDatabase, schema} : {database: tabDatabase};
+    }
 
-  if (isMultiDatabaseCapable(capabilities) && tabSchema) {
-    return { database: tabSchema };
-  }
+    if (isMultiDatabaseCapable(capabilities) && tabSchema) {
+        return {database: tabSchema};
+    }
 
-  if (capabilities?.schemas === true) {
-    const schema = tabSchema ?? activeSchema;
-    return schema ? { schema } : {};
-  }
+    if (capabilities?.schemas === true) {
+        const schema = tabSchema ?? activeSchema;
+        return schema ? {schema} : {};
+    }
 
-  return {};
+    return {};
 }
 
 /**
@@ -206,17 +212,17 @@ export function getTableDataChangeScope(
  * database, which still have no default schema and need qualified queries.
  */
 export function usesMultiDatabaseLayout(
-  capabilities: DriverCapabilities | null | undefined,
-  selectedDatabases: string[],
+    capabilities: DriverCapabilities | null | undefined,
+    selectedDatabases: string[],
 ): boolean {
-  return isMultiDatabaseCapable(capabilities) && selectedDatabases.length >= 1;
+    return isMultiDatabaseCapable(capabilities) && selectedDatabases.length >= 1;
 }
 
 /**
  * Returns true when the database param is an array (multi-database selection).
  */
 export function isMultiDatabaseSelection(db: string | string[]): db is string[] {
-  return Array.isArray(db);
+    return Array.isArray(db);
 }
 
 /**
@@ -224,10 +230,10 @@ export function isMultiDatabaseSelection(db: string | string[]): db is string[] 
  * An empty string or empty array returns an empty array.
  */
 export function getDatabaseList(db: string | string[]): string[] {
-  if (Array.isArray(db)) {
-    return db;
-  }
-  return db ? [db] : [];
+    if (Array.isArray(db)) {
+        return db;
+    }
+    return db ? [db] : [];
 }
 
 /**
@@ -235,10 +241,10 @@ export function getDatabaseList(db: string | string[]): string[] {
  * Falls back to '' when the array is empty or the string is empty.
  */
 export function getEffectiveDatabase(db: string | string[]): string {
-  if (Array.isArray(db)) {
-    return db[0] ?? '';
-  }
-  return db;
+    if (Array.isArray(db)) {
+        return db[0] ?? '';
+    }
+    return db;
 }
 
 /**
@@ -247,18 +253,18 @@ export function getEffectiveDatabase(db: string | string[]): string {
  * exist are reported in `removed` so callers can persist the pruned list.
  */
 export function reconcileDatabaseSelection(
-  saved: string[],
-  available: string[],
-): { selection: string[]; removed: string[] } {
-  const availableSet = new Set(available);
-  const selection: string[] = [];
-  const removed: string[] = [];
-  for (const db of saved) {
-    if (availableSet.has(db)) {
-      selection.push(db);
-    } else {
-      removed.push(db);
+    saved: string[],
+    available: string[],
+): {selection: string[]; removed: string[]} {
+    const availableSet = new Set(available);
+    const selection: string[] = [];
+    const removed: string[] = [];
+    for (const db of saved) {
+        if (availableSet.has(db)) {
+            selection.push(db);
+        } else {
+            removed.push(db);
+        }
     }
-  }
-  return { selection, removed };
+    return {selection, removed};
 }

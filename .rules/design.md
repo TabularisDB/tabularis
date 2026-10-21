@@ -1,6 +1,6 @@
 # Design Token Rules
 
-The full contract is in [DESIGN.md](../DESIGN.md). In short:
+The full contract is in [DESIGN.md](../docs/DESIGN.md). In short:
 
 1. **Colors only through theme tokens.** Use `bg-base`, `bg-elevated`, `bg-surface-*`, `text-primary/secondary/muted/accent/inverse`, `border-default/strong/focus`, `bg-/border-/ring-accent-primary/secondary/success/warning/error/info` (with `/opacity` for tints) and the `semantic-*` utilities. NEVER write Tailwind palette classes (`text-blue-400`, `bg-red-900/20`, `accent-blue-500`), hex codes, `rgb()`/`hsl()` or inline color literals in components.
 2. **Meaning picks the token.** Primary action fills: `bg-accent-primary`; links, accent labels and icons: `text-accent` (never `text-accent-primary`); focus states: `focus:border-focus`, `focus-visible:ring-focus`. Danger: `accent-error`. Success and run: `accent-success`. Attention: `accent-warning`. Tools, schema changes, themes: `accent-secondary`. Row states and keys in data views: `semantic-modified/new/deleted` and `semantic-pk/fk/index`. Status chips: `src/utils/tones.ts`.

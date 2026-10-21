@@ -15,8 +15,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint . && node scripts/check-theme-tokens.mjs",
+    "lint": "eslint . && prettier --check . && node scripts/check-theme-tokens.mjs",
     "lint:theme": "node scripts/check-theme-tokens.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test:contrast": "vitest run tests/utils/themeContrast.test.ts",
     "preview": "vite preview",
     "test": "vitest",
@@ -34,7 +36,7 @@
     "roadmap": "node scripts/update-roadmap.js",
     "sync-links": "node scripts/sync-links.js",
     "sync-sponsors": "node scripts/sync-sponsors.js",
-    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md -s && git add README*.md CHANGELOG.md src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock src/version.ts"
+    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md -s && git add README.md docs/translations/README.*.md CHANGELOG.md src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock src/version.ts"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -48,7 +50,6 @@
     "@tauri-apps/plugin-fs": "^2.4.5",
     "@tauri-apps/plugin-notification": "^2.3.1",
     "@tauri-apps/plugin-opener": "^2.5.3",
-    "@tauri-apps/plugin-updater": "~2.10.0",
     "@types/dagre": "^0.7.54",
     "@xyflow/react": "^12.10.2",
     "ajv": "^8.20.0",
@@ -101,6 +102,7 @@
     "globals": "^16.5.0",
     "jsdom": "^28.1.0",
     "postcss": "^8.5.8",
+    "prettier": "^3.9.10",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.58.0",

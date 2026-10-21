@@ -1,77 +1,75 @@
-import { useEffect, useRef } from "react";
-import type { DiffOnMount } from "@monaco-editor/react";
-import { MonacoDiffEditor as DiffEditor } from "./LazyMonaco";
-import type * as MonacoTypes from "monaco-editor";
-import { useEditorTheme } from "../../hooks/useEditorTheme";
-import { loadMonacoTheme } from "../../themes/themeUtils";
-import { getMonacoThemeId } from "../../themes/themeRuntime";
+import {useEffect, useRef} from 'react';
+import type {DiffOnMount} from '@monaco-editor/react';
+import {MonacoDiffEditor as DiffEditor} from './LazyMonaco';
+import type * as MonacoTypes from 'monaco-editor';
+import {useEditorTheme} from '@/hooks/useEditorTheme';
+import {loadMonacoTheme} from '@/themes/themeUtils';
+import {getMonacoThemeId} from '@/themes/themeRuntime';
 
 interface CellDiffEditorProps {
-  original: string;
-  modified: string;
-  onChange?: (next: string) => void;
-  height?: string | number;
-  readOnly?: boolean;
-  renderSideBySide?: boolean;
-  language?: "json" | "plaintext";
+    original: string;
+    modified: string;
+    onChange?: (next: string) => void;
+    height?: string | number;
+    readOnly?: boolean;
+    renderSideBySide?: boolean;
+    language?: 'json' | 'plaintext';
 }
 
 export const CellDiffEditor = ({
-  original,
-  modified,
-  onChange,
-  height = "100%",
-  readOnly = false,
-  renderSideBySide = false,
-  language = "json",
+    original,
+    modified,
+    onChange,
+    height = '100%',
+    readOnly = false,
+    renderSideBySide = false,
+    language = 'json',
 }: CellDiffEditorProps) => {
-  const editorTheme = useEditorTheme();
-  const monacoRef = useRef<typeof MonacoTypes | null>(null);
-  const editorRef = useRef<MonacoTypes.editor.IStandaloneDiffEditor | null>(
-    null,
-  );
+    const editorTheme = useEditorTheme();
+    const monacoRef = useRef<typeof MonacoTypes | null>(null);
+    const editorRef = useRef<MonacoTypes.editor.IStandaloneDiffEditor | null>(null);
 
-  useEffect(() => {
-    if (monacoRef.current) {
-      loadMonacoTheme(editorTheme, monacoRef.current);
-    }
-  }, [editorTheme]);
+    useEffect(() => {
+        if (monacoRef.current) {
+            loadMonacoTheme(editorTheme, monacoRef.current);
+        }
+    }, [editorTheme]);
 
-  const handleMount: DiffOnMount = (editor, monaco) => {
-    monacoRef.current = monaco;
-    editorRef.current = editor;
-    loadMonacoTheme(editorTheme, monaco);
+    const handleMount: DiffOnMount = (editor, monaco) => {
+        monacoRef.current = monaco;
+        editorRef.current = editor;
+        loadMonacoTheme(editorTheme, monaco);
 
-    editor.getOriginalEditor().updateOptions({ readOnly: true });
-    editor.getModifiedEditor().updateOptions({ readOnly });
-    if (onChange) {
-      editor.getModifiedEditor().onDidChangeModelContent(() => {
-        onChange(editor.getModifiedEditor().getValue());
-      });
-    }
-  };
+        editor.getOriginalEditor().updateOptions({readOnly: true});
+        editor.getModifiedEditor().updateOptions({readOnly});
+        if (onChange) {
+            editor.getModifiedEditor().onDidChangeModelContent(() => {
+                onChange(editor.getModifiedEditor().getValue());
+            });
+        }
+    };
 
-  return (
-    <DiffEditor
-      key={renderSideBySide ? "sbs" : "inline"}
-      height={height}
-      language={language}
-      theme={getMonacoThemeId(editorTheme.id)}
-      original={original}
-      modified={modified}
-      onMount={handleMount}
-      options={{
-        renderSideBySide,
-        useInlineViewWhenSpaceIsLimited: false,
-        minimap: { enabled: false },
-        lineNumbers: "on",
-        automaticLayout: true,
-        scrollBeyondLastLine: false,
-        wordWrap: "on",
-        wrappingIndent: "indent",
-        diffWordWrap: "on",
-        renderOverviewRuler: false,
-      }}
-    />
-  );
+    return (
+        <DiffEditor
+            key={renderSideBySide ? 'sbs' : 'inline'}
+            height={height}
+            language={language}
+            theme={getMonacoThemeId(editorTheme.id)}
+            original={original}
+            modified={modified}
+            onMount={handleMount}
+            options={{
+                renderSideBySide,
+                useInlineViewWhenSpaceIsLimited: false,
+                minimap: {enabled: false},
+                lineNumbers: 'on',
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+                wrappingIndent: 'indent',
+                diffWordWrap: 'on',
+                renderOverviewRuler: false,
+            }}
+        />
+    );
 };

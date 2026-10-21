@@ -1,7 +1,7 @@
 <br />
 <p align="center">
-  <img src=".github/assets/banner-light.pt-BR.png#gh-light-mode-only" alt="Tabularis" width="100%">
-  <img src=".github/assets/banner-dark.pt-BR.png#gh-dark-mode-only" alt="Tabularis" width="100%">
+  <img src="../../.github/assets/banner-light.pt-BR.png#gh-light-mode-only" alt="Tabularis" width="100%">
+  <img src="../../.github/assets/banner-dark.pt-BR.png#gh-dark-mode-only" alt="Tabularis" width="100%">
 </p>
 
 # Tabularis
@@ -12,7 +12,7 @@ Tabularis é um workspace SQL de desktop, de código aberto, com 3 drivers de ba
   <b><a href="https://tabularis.dev">Site</a></b> ·
   <b><a href="https://tabularis.dev/wiki">Documentação</a></b> ·
   <b><a href="https://tabularis.dev/download">Download</a></b> ·
-  <b><a href="./CHANGELOG.md">Changelog</a></b>
+  <b><a href="../../CHANGELOG.md">Changelog</a></b>
 </p>
 
 <br />
@@ -37,7 +37,7 @@ Tabularis é um workspace SQL de desktop, de código aberto, com 3 drivers de ba
 
 <p align="center">
   <sub>
-    <a href="./README.md">English</a> ·
+    <a href="../../README.md">English</a> ·
     <a href="./README.it.md">Italiano</a> ·
     <a href="./README.es.md">Español</a> ·
     <a href="./README.zh-CN.md">中文</a> ·
@@ -52,7 +52,7 @@ Tabularis é um workspace SQL de desktop, de código aberto, com 3 drivers de ba
 </p>
 
 > [!NOTE]
-> Este é um documento traduzido. Para a versão mais atual e oficial, consulte o [README em inglês](./README.md).
+> Este é um documento traduzido. Para a versão mais atual e oficial, consulte o [README em inglês](../../README.md).
 
 <br />
 
@@ -282,8 +282,8 @@ Veja a galeria completa em [tabularis.dev](https://tabularis.dev).
 
 - Sistema de plugins externo via JSON-RPC 2.0 pelo stdin/stdout.
 - Drivers da comunidade instaláveis sem reiniciar.
-- Registro oficial: [`plugins/registry.json`](./plugins/registry.json).
-- Guia do desenvolvedor: [`plugins/PLUGIN_GUIDE.md`](./plugins/PLUGIN_GUIDE.md).
+- Registro oficial: [`plugins/registry.json`](../../plugins/registry.json).
+- Guia do desenvolvedor: [`plugins/PLUGIN_GUIDE.md`](../../plugins/PLUGIN_GUIDE.md).
 
 ## Configuração
 
@@ -372,18 +372,18 @@ pnpm tauri build
 
 ## Roadmap
 
-O roadmap é gerado automaticamente a partir das issues do GitHub. Veja o estado atual no [README em inglês](./README.md#roadmap).
+O roadmap é gerado automaticamente a partir das issues do GitHub. Veja o estado atual no [README em inglês](../../README.md#roadmap).
 
 ## Contribuindo
 
-Contribuições são bem-vindas, veja [CONTRIBUTING.md](./CONTRIBUTING.md). Bons pontos de partida:
+Contribuições são bem-vindas, veja [CONTRIBUTING.md](../../CONTRIBUTING.md). Bons pontos de partida:
 
 - [Sistema de design da UI e identidade visual: chamada para contribuidores](https://github.com/TabularisDB/tabularis/issues/195)
-- Escreva um plugin de driver em qualquer linguagem com o [Guia de Plugins](./plugins/PLUGIN_GUIDE.md)
+- Escreva um plugin de driver em qualquer linguagem com o [Guia de Plugins](../../plugins/PLUGIN_GUIDE.md)
 
 ## Patrocinadores e apoiadores
 
-O Tabularis é apoiado por patrocinadores e apoiadores incríveis. Veja a lista completa no [README em inglês](./README.md#sponsors-and-supporters) e em [tabularis.dev/sponsors](https://tabularis.dev/sponsors).
+O Tabularis é apoiado por patrocinadores e apoiadores incríveis. Veja a lista completa no [README em inglês](../../README.md#sponsors-and-supporters) e em [tabularis.dev/sponsors](https://tabularis.dev/sponsors).
 
 ## História de Origem
 
@@ -391,7 +391,7 @@ O Tabularis começou como um experimento: até onde o desenvolvimento assistido 
 
 ## Licença
 
-[Apache License 2.0](./LICENSE)
+[Apache License 2.0](../../LICENSE)
 
 ---
 

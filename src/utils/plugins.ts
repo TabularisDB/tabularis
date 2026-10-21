@@ -1,20 +1,20 @@
-export function parseAuthor(author: string): { name: string; url?: string } {
-  const match = author.match(/^(.+?)\s*<(.+?)>$/);
-  if (match) {
-    return { name: match[1].trim(), url: match[2].trim() };
-  }
-  return { name: author };
+export function parseAuthor(author: string): {name: string; url?: string} {
+    const match = author.match(/^(.+?)\s*<(.+?)>$/);
+    if (match) {
+        return {name: match[1].trim(), url: match[2].trim()};
+    }
+    return {name: author};
 }
 
 /** The registry facts an update offer depends on. */
 export interface UpdatablePlugin {
-  latest_version: string;
-  update_available?: boolean;
-  releases: {
-    version: string;
-    platform_supported: boolean;
-    min_tabularis_version?: string | null;
-  }[];
+    latest_version: string;
+    update_available?: boolean;
+    releases: {
+        version: string;
+        platform_supported: boolean;
+        min_tabularis_version?: string | null;
+    }[];
 }
 
 /**
@@ -24,51 +24,48 @@ export interface UpdatablePlugin {
  * or the offer would fail on install.
  */
 export function canUpdateToLatest(
-  plugin: UpdatablePlugin | undefined,
-  appVersion: string,
+    plugin: UpdatablePlugin | undefined,
+    appVersion: string,
 ): boolean {
-  if (!plugin?.update_available) return false;
-  const latest = plugin.releases.find((r) => r.version === plugin.latest_version);
-  if (!latest?.platform_supported) return false;
-  return (
-    !latest.min_tabularis_version ||
-    versionGte(appVersion, latest.min_tabularis_version)
-  );
+    if (!plugin?.update_available) return false;
+    const latest = plugin.releases.find((r) => r.version === plugin.latest_version);
+    if (!latest?.platform_supported) return false;
+    return !latest.min_tabularis_version || versionGte(appVersion, latest.min_tabularis_version);
 }
 
 /** Returns true if versionA >= versionB (semver comparison) */
 export function versionGte(versionA: string, versionB: string): boolean {
-  const parse = (v: string) => v.split(".").map((n) => parseInt(n, 10) || 0);
-  const a = parse(versionA);
-  const b = parse(versionB);
-  const len = Math.max(a.length, b.length);
-  for (let i = 0; i < len; i++) {
-    const diff = (a[i] ?? 0) - (b[i] ?? 0);
-    if (diff !== 0) return diff > 0;
-  }
-  return true;
+    const parse = (v: string) => v.split('.').map((n) => parseInt(n, 10) || 0);
+    const a = parse(versionA);
+    const b = parse(versionB);
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+        const diff = (a[i] ?? 0) - (b[i] ?? 0);
+        if (diff !== 0) return diff > 0;
+    }
+    return true;
 }
 
 /** Registry kind buckets offered by the Plugin Center's kind filter. */
-export type PluginKind = "driver" | "theme";
-export type PluginKindFilter = "all" | PluginKind;
+export type PluginKind = 'driver' | 'theme';
+export type PluginKindFilter = 'all' | PluginKind;
 
 /**
  * Registry kind bucket of a plugin. Tabularium folds the kind into tags and the
  * registry classifies it; an absent kind is the legacy rule for a driver.
  */
-export function pluginKind(plugin: { kind?: string | null }): PluginKind {
-  return plugin.kind === "theme" ? "theme" : "driver";
+export function pluginKind(plugin: {kind?: string | null}): PluginKind {
+    return plugin.kind === 'theme' ? 'theme' : 'driver';
 }
 
 export function matchesPluginKind(
-  plugin: { kind?: string | null },
-  filter: PluginKindFilter,
+    plugin: {kind?: string | null},
+    filter: PluginKindFilter,
 ): boolean {
-  return filter === "all" || pluginKind(plugin) === filter;
+    return filter === 'all' || pluginKind(plugin) === filter;
 }
 
 /** Narrows a URL query value to a kind filter; anything else means "all". */
 export function parsePluginKindFilter(value: string | null): PluginKindFilter {
-  return value === "driver" || value === "theme" ? value : "all";
+    return value === 'driver' || value === 'theme' ? value : 'all';
 }

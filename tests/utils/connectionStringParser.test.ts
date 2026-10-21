@@ -1,864 +1,811 @@
-import { describe, it, expect } from "vitest";
+import {describe, it, expect} from 'vitest';
 import {
-  parseConnectionString,
-  toConnectionParams,
-  looksLikeConnectionString,
-  getSupportedConnectionStringProtocols,
-  type ParsedConnectionString,
-  type ConnectionStringDriver,
-} from "../../src/utils/connectionStringParser";
+    parseConnectionString,
+    toConnectionParams,
+    looksLikeConnectionString,
+    getSupportedConnectionStringProtocols,
+    type ParsedConnectionString,
+    type ConnectionStringDriver,
+} from '@/utils/connectionStringParser';
 
-function createRemoteDriver(
-  id: string,
-  example: string,
-): ConnectionStringDriver {
-  return {
-    id,
-    capabilities: {
-      schemas: id === "postgres",
-      views: true,
-      routines: true,
-      file_based: false,
-      folder_based: false,
-      connection_string: true,
-      connection_string_example: example,
-      identifier_quote: id === "mysql" ? "`" : '"',
-      alter_primary_key: true,
-    },
-  };
+function createRemoteDriver(id: string, example: string): ConnectionStringDriver {
+    return {
+        id,
+        capabilities: {
+            schemas: id === 'postgres',
+            views: true,
+            routines: true,
+            file_based: false,
+            folder_based: false,
+            connection_string: true,
+            connection_string_example: example,
+            identifier_quote: id === 'mysql' ? '`' : '"',
+            alter_primary_key: true,
+        },
+    };
 }
 
 // Mirrors the real builtin driver capabilities (postgres:// and mysql://
 // examples) so alias coverage below exercises the alias expansion, not the
 // example-derived protocol.
 const CAPABILITY_DRIVERS: ConnectionStringDriver[] = [
-  createRemoteDriver("postgres", "postgres://user:pass@localhost:5432/db"),
-  createRemoteDriver("mysql", "mysql://user:pass@localhost:3306/db"),
-  {
-    id: "sqlite",
-    capabilities: {
-      schemas: false,
-      views: true,
-      routines: false,
-      file_based: true,
-      folder_based: false,
-      connection_string: false,
-      identifier_quote: '"',
-      alter_primary_key: true,
+    createRemoteDriver('postgres', 'postgres://user:pass@localhost:5432/db'),
+    createRemoteDriver('mysql', 'mysql://user:pass@localhost:3306/db'),
+    {
+        id: 'sqlite',
+        capabilities: {
+            schemas: false,
+            views: true,
+            routines: false,
+            file_based: true,
+            folder_based: false,
+            connection_string: false,
+            identifier_quote: '"',
+            alter_primary_key: true,
+        },
     },
-  },
 ];
 
 // A plugin driver that takes the raw URI verbatim and registers an extra
 // scheme, mirroring a MongoDB plugin that supports `mongodb+srv://`.
 const URI_PASSTHROUGH_DRIVERS: ConnectionStringDriver[] = [
-  ...CAPABILITY_DRIVERS,
-  {
-    id: "mongodb",
-    capabilities: {
-      schemas: false,
-      views: false,
-      routines: false,
-      file_based: false,
-      folder_based: false,
-      connection_string: true,
-      connection_string_example: "mongodb://user:pass@localhost:27017/db",
-      connection_uri: true,
-      connection_uri_schemes: ["mongodb+srv"],
-      identifier_quote: '"',
-      alter_primary_key: false,
-    },
-  },
-];
-
-const JDBC_DRIVER: ConnectionStringDriver = {
-  id: "jdbc",
-  capabilities: {
-    schemas: false,
-    views: false,
-    routines: false,
-    file_based: false,
-    folder_based: false,
-    connection_string: true,
-    connection_string_example: "jdbc:h2:tcp://localhost/~/test",
-    connection_uri: true,
-    identifier_quote: '"',
-    alter_primary_key: false,
-  },
-};
-
-const ATLAS_URI =
-  "mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/?tls=true&retryWrites=true&w=majority&appName=Cluster0";
-
-describe("connectionStringParser", () => {
-  describe("parseConnectionString", () => {
-    it("should parse MySQL connection string", () => {
-      const result = parseConnectionString(
-        "mysql://root:password@localhost:3306/mydb",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("mysql");
-        expect(result.params.host).toBe("localhost");
-        expect(result.params.port).toBe(3306);
-        expect(result.params.username).toBe("root");
-        expect(result.params.password).toBe("password");
-        expect(result.params.database).toBe("mydb");
-      }
-    });
-
-    it("should parse MySQL connection string without port", () => {
-      const result = parseConnectionString(
-        "mysql://root@localhost/mydb",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("mysql");
-        expect(result.params.host).toBe("localhost");
-        expect(result.params.port).toBeUndefined();
-        expect(result.params.username).toBe("root");
-        expect(result.params.password).toBeUndefined();
-        expect(result.params.database).toBe("mydb");
-      }
-    });
-
-    it("should parse MySQL connection string without credentials", () => {
-      const result = parseConnectionString(
-        "mysql://localhost/mydb",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("mysql");
-        expect(result.params.host).toBe("localhost");
-        expect(result.params.username).toBeUndefined();
-        expect(result.params.password).toBeUndefined();
-        expect(result.params.database).toBe("mydb");
-      }
-    });
-
-    it("should parse PostgreSQL connection string", () => {
-      const result = parseConnectionString(
-        "postgres://user:pass@db.example.com:5432/mydb",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("postgres");
-        expect(result.params.host).toBe("db.example.com");
-        expect(result.params.port).toBe(5432);
-        expect(result.params.username).toBe("user");
-        expect(result.params.password).toBe("pass");
-        expect(result.params.database).toBe("mydb");
-      }
-    });
-
-    it("should parse postgresql:// as postgres via protocol alias", () => {
-      const result = parseConnectionString(
-        "postgresql://user:pass@localhost:5432/mydb",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("postgres");
-        expect(result.params.host).toBe("localhost");
-        expect(result.params.port).toBe(5432);
-        expect(result.params.username).toBe("user");
-        expect(result.params.password).toBe("pass");
-        expect(result.params.database).toBe("mydb");
-      }
-    });
-
-    it("should parse mariadb:// as mysql via protocol alias", () => {
-      const result = parseConnectionString(
-        "mariadb://user@host/db",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("mysql");
-      }
-    });
-
-    it("should resolve aliases against builtin drivers when no drivers are provided", () => {
-      const postgresql = parseConnectionString(
-        "postgresql://user@host/db",
-      );
-      expect(postgresql.success).toBe(true);
-      if (postgresql.success) {
-        expect(postgresql.params.driver).toBe("postgres");
-      }
-
-      const mariadb = parseConnectionString("mariadb://user@host/db");
-      expect(mariadb.success).toBe(true);
-      if (mariadb.success) {
-        expect(mariadb.params.driver).toBe("mysql");
-      }
-    });
-
-    it("should parse sqlite3:// as sqlite via protocol alias", () => {
-      const result = parseConnectionString(
-        "sqlite3:///path/to/database.db",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("sqlite");
-        expect(result.params.database).toBe("path/to/database.db");
-      }
-    });
-
-    it("should not let an alias override an explicitly registered protocol", () => {
-      const drivers: ConnectionStringDriver[] = [
-        createRemoteDriver("mysql", "mysql://user:pass@localhost:3306/db"),
-        createRemoteDriver(
-          "mariadb-plugin",
-          "mariadb://user:pass@localhost:3306/db",
-        ),
-      ];
-
-      const result = parseConnectionString("mariadb://user@host/db", drivers);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("mariadb-plugin");
-      }
-    });
-
-    it("should parse SQLite connection string", () => {
-      const result = parseConnectionString(
-        "sqlite:///path/to/database.db",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("sqlite");
-        expect(result.params.database).toBe("path/to/database.db");
-        expect(result.params.host).toBeUndefined();
-        expect(result.params.port).toBeUndefined();
-      }
-    });
-
-    it("should parse SQLite with absolute path", () => {
-      const result = parseConnectionString(
-        "sqlite:////absolute/path/db.sqlite",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("sqlite");
-        expect(result.params.database).toBe("/absolute/path/db.sqlite");
-      }
-    });
-
-    it("should decode URL-encoded characters in credentials", () => {
-      const result = parseConnectionString(
-        "mysql://user%40domain:password%23123@host/db",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.username).toBe("user@domain");
-        expect(result.params.password).toBe("password#123");
-      }
-    });
-
-    it("should decode URL-encoded characters in database name", () => {
-      const result = parseConnectionString(
-        "mysql://localhost/my%20database",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.database).toBe("my database");
-      }
-    });
-
-    it("should handle IPv4 addresses", () => {
-      const result = parseConnectionString(
-        "mysql://user@192.168.1.100:3306/db",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.host).toBe("192.168.1.100");
-      }
-    });
-
-    it("should handle connection string with query parameters", () => {
-      const result = parseConnectionString(
-        "mysql://user:pass@localhost:3306/db?ssl_mode=require",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.database).toBe("db");
-      }
-    });
-
-    it("should fail for empty string", () => {
-      const result = parseConnectionString("", CAPABILITY_DRIVERS);
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toBe("Connection string is empty");
-      }
-    });
-
-    it("should fail for whitespace-only string", () => {
-      const result = parseConnectionString("   ", CAPABILITY_DRIVERS);
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toBe("Connection string is empty");
-      }
-    });
-
-    it("should fail for invalid URL format", () => {
-      const result = parseConnectionString(
-        "not-a-valid-url",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toBe("Invalid connection string format");
-      }
-    });
-
-    it("should fail for unsupported driver", () => {
-      const result = parseConnectionString(
-        "oracle://user@host/db",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toContain("Unsupported database driver");
-      }
-    });
-
-    it("should fail for SQLite without path", () => {
-      const result = parseConnectionString("sqlite://", CAPABILITY_DRIVERS);
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toContain("must include a database path");
-      }
-    });
-
-    it("should fail for remote database without database name", () => {
-      const result = parseConnectionString(
-        "mysql://user@localhost",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toContain("Database name is required");
-      }
-    });
-
-    it("should parse database name for capability-driven multi-database drivers", () => {
-      const result = parseConnectionString(
-        "postgresql://user:pass@db.example.com:5432/analytics",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("postgres");
-        expect(result.params.database).toBe("analytics");
-      }
-    });
-  });
-
-  describe("JDBC connection strings and URL options", () => {
-    it("parses JDBC PostgreSQL and MySQL URLs like their standard forms", () => {
-      const postgres = parseConnectionString(
-        "jdbc:postgresql://db.example.com:5432/app?user=alice&password=secret",
-        CAPABILITY_DRIVERS,
-      );
-      const mysql = parseConnectionString(
-        "jdbc:mysql://mysql.example.com:3306/app",
-        CAPABILITY_DRIVERS,
-      );
-      expect(postgres).toEqual(parseConnectionString(
-        "postgresql://db.example.com:5432/app?user=alice&password=secret",
-        CAPABILITY_DRIVERS,
-      ));
-      expect(mysql).toEqual(parseConnectionString(
-        "mysql://mysql.example.com:3306/app",
-        CAPABILITY_DRIVERS,
-      ));
-      expect(postgres.success && postgres.params.username).toBe("alice");
-      expect(postgres.success && postgres.params.password).toBe("secret");
-      expect(mysql.success && mysql.params.driver).toBe("mysql");
-    });
-
-    it("reads URL query credentials when the authority contains none", () => {
-      const result = parseConnectionString(
-        "mysql://db.example.com/app?username=a%2Bb&password=p%26q",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.username).toBe("a+b");
-        expect(result.params.password).toBe("p&q");
-      }
-    });
-
-    it("does not mix query credentials with authority credentials", () => {
-      const result = parseConnectionString(
-        "postgres://authority@host/db?user=query&password=querypass",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.username).toBe("authority");
-        expect(result.params.password).toBeUndefined();
-      }
-    });
-
-    it("parses PostgreSQL sslmode and ssl-mode into connection parameters", () => {
-      const result = parseConnectionString(
-        "jdbc:postgresql://host/app?user=alice&sslmode=require",
-        CAPABILITY_DRIVERS,
-      );
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.ssl_mode).toBe("require");
-        expect(toConnectionParams(result.params).ssl_mode).toBe("require");
-      }
-      const verify = parseConnectionString(
-        "postgres://host/app?ssl-mode=verify-full",
-        CAPABILITY_DRIVERS,
-      );
-      expect(verify.success && verify.params.ssl_mode).toBe("verify-full");
-    });
-
-    it("maps MySQL TLS options to the connection form's supported values", () => {
-      const required = parseConnectionString(
-        "jdbc:mysql://host/app?ssl-mode=require",
-        CAPABILITY_DRIVERS,
-      );
-      expect(required.success && required.params.ssl_mode).toBe("required");
-      const ca = parseConnectionString(
-        "mysql://host/app?sslmode=verify-ca",
-        CAPABILITY_DRIVERS,
-      );
-      expect(ca.success && ca.params.ssl_mode).toBe("verify_ca");
-      const identity = parseConnectionString(
-        "mysql://host/app?ssl-mode=verify-identity",
-        CAPABILITY_DRIVERS,
-      );
-      expect(identity.success && identity.params.ssl_mode).toBe("verify_identity");
-      const invalid = parseConnectionString(
-        "postgres://host/app?sslmode=unknown",
-        CAPABILITY_DRIVERS,
-      );
-      expect(invalid.success && invalid.params.ssl_mode).toBeUndefined();
-    });
-
-    it("honors case-insensitive JDBC sslMode keys without weakening MySQL verification", () => {
-      for (const [parameter, expected] of [
-        ["sslMode=VERIFY_IDENTITY", "verify_identity"],
-        ["SSLMode=verify_ca", "verify_ca"],
-        ["sslMode=DISABLED", "disabled"],
-      ]) {
-        const parsed = parseConnectionString(
-          `jdbc:mysql://127.0.0.1:3306/app?${parameter}`,
-          CAPABILITY_DRIVERS,
-        );
-        expect(parsed.success && parsed.params.ssl_mode).toBe(expected);
-      }
-      // Canonical sslMode outranks a conflicting ssl-mode even when it
-      // appears later in the URL. Do not accidentally weaken TLS.
-      const conflict = parseConnectionString(
-        "jdbc:mysql://host/app?ssl-mode=DISABLED&sslMode=VERIFY_IDENTITY",
-        CAPABILITY_DRIVERS,
-      );
-      expect(conflict.success && conflict.params.ssl_mode).toBe("verify_identity");
-
-      const pg = parseConnectionString(
-        "jdbc:postgresql://host/app?SSLMode=VERIFY-FULL",
-        CAPABILITY_DRIVERS,
-      );
-      expect(pg.success && pg.params.ssl_mode).toBe("verify-full");
-    });
-
-    it("recognizes only supported JDBC URLs, preserving opaque JDBC plugin URLs", () => {
-      expect(looksLikeConnectionString(
-        "jdbc:postgresql://host/app",
-        CAPABILITY_DRIVERS,
-      )).toBe(true);
-      expect(looksLikeConnectionString(
-        "jdbc:mysql://host/app",
-        CAPABILITY_DRIVERS,
-      )).toBe(true);
-      expect(looksLikeConnectionString(
-        "jdbc:oracle://host/app",
-        CAPABILITY_DRIVERS,
-      )).toBe(false);
-      const opaque = "jdbc:h2:mem:test";
-      const result = parseConnectionString(opaque, [JDBC_DRIVER]);
-      expect(result.success && result.params.connection_uri).toBe(opaque);
-
-      // A separately installed JDBC passthrough driver remains authoritative
-      // even when its URI uses a PostgreSQL-like nested scheme.
-      const nested = "jdbc:postgresql://host/app";
-      const nestedResult = parseConnectionString(nested, [JDBC_DRIVER, ...CAPABILITY_DRIVERS]);
-      expect(nestedResult.success && nestedResult.params.driver).toBe("jdbc");
-      expect(nestedResult.success && nestedResult.params.connection_uri).toBe(nested);
-    });
-
-    it("does not rewrite passthrough MongoDB URIs or their credentials", () => {
-      const result = parseConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.connection_uri).toBe(ATLAS_URI);
-        expect(result.params.ssl_mode).toBeUndefined();
-      }
-    });
-  });
-
-  describe("toConnectionParams", () => {
-    it("should convert parsed result to ConnectionParams", () => {
-      const parsed: ParsedConnectionString = {
-        driver: "mysql",
-        host: "localhost",
-        port: 3306,
-        username: "root",
-        password: "pass",
-        database: "mydb",
-      };
-
-      const params = toConnectionParams(parsed);
-      expect(params.driver).toBe("mysql");
-      expect(params.host).toBe("localhost");
-      expect(params.port).toBe(3306);
-      expect(params.username).toBe("root");
-      expect(params.password).toBe("pass");
-      expect(params.database).toBe("mydb");
-    });
-
-    it("should handle optional fields", () => {
-      const parsed: ParsedConnectionString = {
-        driver: "sqlite",
-        database: "/path/to/db.sqlite",
-      };
-
-      const params = toConnectionParams(parsed);
-      expect(params.driver).toBe("sqlite");
-      expect(params.database).toBe("/path/to/db.sqlite");
-      expect(params.host).toBeUndefined();
-      expect(params.port).toBeUndefined();
-      expect(params.username).toBeUndefined();
-      expect(params.password).toBeUndefined();
-    });
-  });
-
-  describe("looksLikeConnectionString", () => {
-    it("should return true for mysql://", () => {
-      expect(
-        looksLikeConnectionString("mysql://user@host/db", CAPABILITY_DRIVERS),
-      ).toBe(true);
-    });
-
-    it("should return true for mariadb://", () => {
-      expect(
-        looksLikeConnectionString("mariadb://user@host/db", CAPABILITY_DRIVERS),
-      ).toBe(true);
-    });
-
-    it("should return true for postgres://", () => {
-      expect(
-        looksLikeConnectionString(
-          "postgres://user@host/db",
-          CAPABILITY_DRIVERS,
-        ),
-      ).toBe(true);
-    });
-
-    it("should return true for postgresql://", () => {
-      expect(
-        looksLikeConnectionString(
-          "postgresql://user@host/db",
-          CAPABILITY_DRIVERS,
-        ),
-      ).toBe(true);
-    });
-
-    it("should return true for sqlite://", () => {
-      expect(
-        looksLikeConnectionString("sqlite:///path/to/db", CAPABILITY_DRIVERS),
-      ).toBe(true);
-    });
-
-    it("should return false for empty string", () => {
-      expect(looksLikeConnectionString("", CAPABILITY_DRIVERS)).toBe(false);
-    });
-
-    it("should return false for regular string", () => {
-      expect(looksLikeConnectionString("localhost", CAPABILITY_DRIVERS)).toBe(
-        false,
-      );
-    });
-
-    it("should return false for arbitrary URL", () => {
-      expect(
-        looksLikeConnectionString("https://example.com", CAPABILITY_DRIVERS),
-      ).toBe(false);
-    });
-
-    it("should accept aliases for drivers whose example uses the canonical protocol", () => {
-      const realisticDrivers: ConnectionStringDriver[] = [
-        createRemoteDriver("postgres", "postgres://user:pass@localhost:5432/db"),
-      ];
-
-      expect(
-        looksLikeConnectionString(
-          "postgresql://user@host/db",
-          realisticDrivers,
-        ),
-      ).toBe(true);
-    });
-
-    it("should use provided driver capabilities to validate protocols", () => {
-      const restrictedDrivers: ConnectionStringDriver[] = [
-        createRemoteDriver(
-          "postgres",
-          "postgresql://user:pass@localhost:5432/db",
-        ),
-      ];
-
-      expect(
-        looksLikeConnectionString(
-          "postgresql://user@host/db",
-          restrictedDrivers,
-        ),
-      ).toBe(true);
-      expect(
-        looksLikeConnectionString("mysql://user@host/db", restrictedDrivers),
-      ).toBe(false);
-    });
-
-    it("should return true for sqlite3:// alias", () => {
-      expect(
-        looksLikeConnectionString("sqlite3:///path/to/db", CAPABILITY_DRIVERS),
-      ).toBe(true);
-    });
-
-    it("should be case insensitive for protocol", () => {
-      expect(
-        looksLikeConnectionString("MYSQL://user@host/db", CAPABILITY_DRIVERS),
-      ).toBe(true);
-      expect(
-        looksLikeConnectionString(
-          "PostgreSQL://user@host/db",
-          CAPABILITY_DRIVERS,
-        ),
-      ).toBe(true);
-    });
-  });
-
-  describe("getSupportedConnectionStringProtocols", () => {
-    it("should include aliases alongside canonical protocols", () => {
-      const protocols = getSupportedConnectionStringProtocols(
-        CAPABILITY_DRIVERS,
-      );
-      expect(protocols).toContain("postgres");
-      expect(protocols).toContain("postgresql");
-      expect(protocols).toContain("mysql");
-      expect(protocols).toContain("mariadb");
-      expect(protocols).toContain("sqlite");
-      expect(protocols).toContain("sqlite3");
-    });
-
-    it("should include aliases for builtin drivers when no drivers are provided", () => {
-      const protocols = getSupportedConnectionStringProtocols();
-      expect(protocols).toContain("postgresql");
-      expect(protocols).toContain("mariadb");
-    });
-  });
-  describe("URI passthrough drivers", () => {
-    it.each(["mongodb:", "mongodb:foo", "mongodb:foo://bar", "mongodb+srv:foo"])(
-      "rejects an opaque MongoDB URI (%s)",
-      (uri) => {
-        expect(parseConnectionString(uri, URI_PASSTHROUGH_DRIVERS)).toEqual({
-          success: false,
-          error: "Invalid connection string format",
-        });
-        expect(looksLikeConnectionString(uri, URI_PASSTHROUGH_DRIVERS)).toBe(false);
-      },
-    );
-
-    it.each([
-      "jdbc:h2:mem:test",
-      "jdbc:h2:./data/test",
-      "jdbc:h2:tcp://localhost/~/test",
-      "jdbc:h2:ssl://localhost/~/test",
-    ])("preserves an H2 connection string (%s)", (uri) => {
-      const result = parseConnectionString(uri, [JDBC_DRIVER]);
-      expect(result.success).toBe(true);
-      expect(looksLikeConnectionString(uri, [JDBC_DRIVER])).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("jdbc");
-        expect(result.params.connection_uri).toBe(uri);
-      }
-    });
-
-    it("should accept a plugin-declared extra scheme", () => {
-      expect(
-        getSupportedConnectionStringProtocols(URI_PASSTHROUGH_DRIVERS),
-      ).toContain("mongodb+srv");
-      expect(
-        looksLikeConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS),
-      ).toBe(true);
-    });
-
-    it("should not let a declared scheme displace another driver", () => {
-      // Drivers reach the parser sorted by id, so a plugin sorting after
-      // `postgres` must not capture connection strings meant for it.
-      const shadowing: ConnectionStringDriver[] = [
-        ...CAPABILITY_DRIVERS,
-        {
-          id: "zz-shadow" as ConnectionStringDriver["id"],
-          capabilities: {
+    ...CAPABILITY_DRIVERS,
+    {
+        id: 'mongodb',
+        capabilities: {
             schemas: false,
             views: false,
             routines: false,
             file_based: false,
             folder_based: false,
             connection_string: true,
-            connection_string_example: "zz-shadow://user:pass@localhost/db",
+            connection_string_example: 'mongodb://user:pass@localhost:27017/db',
             connection_uri: true,
-            connection_uri_schemes: ["postgres"],
+            connection_uri_schemes: ['mongodb+srv'],
             identifier_quote: '"',
             alter_primary_key: false,
-          },
         },
-      ];
+    },
+];
 
-      const result = parseConnectionString(
-        "postgres://user:pass@localhost:5432/mydb",
-        shadowing,
-      );
+const JDBC_DRIVER: ConnectionStringDriver = {
+    id: 'jdbc',
+    capabilities: {
+        schemas: false,
+        views: false,
+        routines: false,
+        file_based: false,
+        folder_based: false,
+        connection_string: true,
+        connection_string_example: 'jdbc:h2:tcp://localhost/~/test',
+        connection_uri: true,
+        identifier_quote: '"',
+        alter_primary_key: false,
+    },
+};
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("postgres");
-        // The built-in driver is not passthrough, so the URI must stay
-        // decomposed rather than being handed over verbatim.
-        expect(result.params.connection_uri).toBeUndefined();
-        expect(result.params.password).toBe("pass");
-      }
+const ATLAS_URI =
+    'mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/?tls=true&retryWrites=true&w=majority&appName=Cluster0';
+
+describe('connectionStringParser', () => {
+    describe('parseConnectionString', () => {
+        it('should parse MySQL connection string', () => {
+            const result = parseConnectionString(
+                'mysql://root:password@localhost:3306/mydb',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('mysql');
+                expect(result.params.host).toBe('localhost');
+                expect(result.params.port).toBe(3306);
+                expect(result.params.username).toBe('root');
+                expect(result.params.password).toBe('password');
+                expect(result.params.database).toBe('mydb');
+            }
+        });
+
+        it('should parse MySQL connection string without port', () => {
+            const result = parseConnectionString('mysql://root@localhost/mydb', CAPABILITY_DRIVERS);
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('mysql');
+                expect(result.params.host).toBe('localhost');
+                expect(result.params.port).toBeUndefined();
+                expect(result.params.username).toBe('root');
+                expect(result.params.password).toBeUndefined();
+                expect(result.params.database).toBe('mydb');
+            }
+        });
+
+        it('should parse MySQL connection string without credentials', () => {
+            const result = parseConnectionString('mysql://localhost/mydb', CAPABILITY_DRIVERS);
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('mysql');
+                expect(result.params.host).toBe('localhost');
+                expect(result.params.username).toBeUndefined();
+                expect(result.params.password).toBeUndefined();
+                expect(result.params.database).toBe('mydb');
+            }
+        });
+
+        it('should parse PostgreSQL connection string', () => {
+            const result = parseConnectionString(
+                'postgres://user:pass@db.example.com:5432/mydb',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('postgres');
+                expect(result.params.host).toBe('db.example.com');
+                expect(result.params.port).toBe(5432);
+                expect(result.params.username).toBe('user');
+                expect(result.params.password).toBe('pass');
+                expect(result.params.database).toBe('mydb');
+            }
+        });
+
+        it('should parse postgresql:// as postgres via protocol alias', () => {
+            const result = parseConnectionString(
+                'postgresql://user:pass@localhost:5432/mydb',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('postgres');
+                expect(result.params.host).toBe('localhost');
+                expect(result.params.port).toBe(5432);
+                expect(result.params.username).toBe('user');
+                expect(result.params.password).toBe('pass');
+                expect(result.params.database).toBe('mydb');
+            }
+        });
+
+        it('should parse mariadb:// as mysql via protocol alias', () => {
+            const result = parseConnectionString('mariadb://user@host/db', CAPABILITY_DRIVERS);
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('mysql');
+            }
+        });
+
+        it('should resolve aliases against builtin drivers when no drivers are provided', () => {
+            const postgresql = parseConnectionString('postgresql://user@host/db');
+            expect(postgresql.success).toBe(true);
+            if (postgresql.success) {
+                expect(postgresql.params.driver).toBe('postgres');
+            }
+
+            const mariadb = parseConnectionString('mariadb://user@host/db');
+            expect(mariadb.success).toBe(true);
+            if (mariadb.success) {
+                expect(mariadb.params.driver).toBe('mysql');
+            }
+        });
+
+        it('should parse sqlite3:// as sqlite via protocol alias', () => {
+            const result = parseConnectionString(
+                'sqlite3:///path/to/database.db',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('sqlite');
+                expect(result.params.database).toBe('path/to/database.db');
+            }
+        });
+
+        it('should not let an alias override an explicitly registered protocol', () => {
+            const drivers: ConnectionStringDriver[] = [
+                createRemoteDriver('mysql', 'mysql://user:pass@localhost:3306/db'),
+                createRemoteDriver('mariadb-plugin', 'mariadb://user:pass@localhost:3306/db'),
+            ];
+
+            const result = parseConnectionString('mariadb://user@host/db', drivers);
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('mariadb-plugin');
+            }
+        });
+
+        it('should parse SQLite connection string', () => {
+            const result = parseConnectionString(
+                'sqlite:///path/to/database.db',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('sqlite');
+                expect(result.params.database).toBe('path/to/database.db');
+                expect(result.params.host).toBeUndefined();
+                expect(result.params.port).toBeUndefined();
+            }
+        });
+
+        it('should parse SQLite with absolute path', () => {
+            const result = parseConnectionString(
+                'sqlite:////absolute/path/db.sqlite',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('sqlite');
+                expect(result.params.database).toBe('/absolute/path/db.sqlite');
+            }
+        });
+
+        it('should decode URL-encoded characters in credentials', () => {
+            const result = parseConnectionString(
+                'mysql://user%40domain:password%23123@host/db',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.username).toBe('user@domain');
+                expect(result.params.password).toBe('password#123');
+            }
+        });
+
+        it('should decode URL-encoded characters in database name', () => {
+            const result = parseConnectionString(
+                'mysql://localhost/my%20database',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.database).toBe('my database');
+            }
+        });
+
+        it('should handle IPv4 addresses', () => {
+            const result = parseConnectionString(
+                'mysql://user@192.168.1.100:3306/db',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.host).toBe('192.168.1.100');
+            }
+        });
+
+        it('should handle connection string with query parameters', () => {
+            const result = parseConnectionString(
+                'mysql://user:pass@localhost:3306/db?ssl_mode=require',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.database).toBe('db');
+            }
+        });
+
+        it('should fail for empty string', () => {
+            const result = parseConnectionString('', CAPABILITY_DRIVERS);
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                expect(result.error).toBe('Connection string is empty');
+            }
+        });
+
+        it('should fail for whitespace-only string', () => {
+            const result = parseConnectionString('   ', CAPABILITY_DRIVERS);
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                expect(result.error).toBe('Connection string is empty');
+            }
+        });
+
+        it('should fail for invalid URL format', () => {
+            const result = parseConnectionString('not-a-valid-url', CAPABILITY_DRIVERS);
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                expect(result.error).toBe('Invalid connection string format');
+            }
+        });
+
+        it('should fail for unsupported driver', () => {
+            const result = parseConnectionString('oracle://user@host/db', CAPABILITY_DRIVERS);
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                expect(result.error).toContain('Unsupported database driver');
+            }
+        });
+
+        it('should fail for SQLite without path', () => {
+            const result = parseConnectionString('sqlite://', CAPABILITY_DRIVERS);
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                expect(result.error).toContain('must include a database path');
+            }
+        });
+
+        it('should fail for remote database without database name', () => {
+            const result = parseConnectionString('mysql://user@localhost', CAPABILITY_DRIVERS);
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                expect(result.error).toContain('Database name is required');
+            }
+        });
+
+        it('should parse database name for capability-driven multi-database drivers', () => {
+            const result = parseConnectionString(
+                'postgresql://user:pass@db.example.com:5432/analytics',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('postgres');
+                expect(result.params.database).toBe('analytics');
+            }
+        });
     });
 
-    it("should preserve an Atlas URI verbatim, query parameters included", () => {
-      const result = parseConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS);
+    describe('JDBC connection strings and URL options', () => {
+        it('parses JDBC PostgreSQL and MySQL URLs like their standard forms', () => {
+            const postgres = parseConnectionString(
+                'jdbc:postgresql://db.example.com:5432/app?user=alice&password=secret',
+                CAPABILITY_DRIVERS,
+            );
+            const mysql = parseConnectionString(
+                'jdbc:mysql://mysql.example.com:3306/app',
+                CAPABILITY_DRIVERS,
+            );
+            expect(postgres).toEqual(
+                parseConnectionString(
+                    'postgresql://db.example.com:5432/app?user=alice&password=secret',
+                    CAPABILITY_DRIVERS,
+                ),
+            );
+            expect(mysql).toEqual(
+                parseConnectionString('mysql://mysql.example.com:3306/app', CAPABILITY_DRIVERS),
+            );
+            expect(postgres.success && postgres.params.username).toBe('alice');
+            expect(postgres.success && postgres.params.password).toBe('secret');
+            expect(mysql.success && mysql.params.driver).toBe('mysql');
+        });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("mongodb");
-        expect(result.params.connection_uri).toBe(ATLAS_URI);
-        expect(toConnectionParams(result.params).connection_uri).toBe(
-          ATLAS_URI,
+        it('reads URL query credentials when the authority contains none', () => {
+            const result = parseConnectionString(
+                'mysql://db.example.com/app?username=a%2Bb&password=p%26q',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.username).toBe('a+b');
+                expect(result.params.password).toBe('p&q');
+            }
+        });
+
+        it('does not mix query credentials with authority credentials', () => {
+            const result = parseConnectionString(
+                'postgres://authority@host/db?user=query&password=querypass',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.username).toBe('authority');
+                expect(result.params.password).toBeUndefined();
+            }
+        });
+
+        it('parses PostgreSQL sslmode and ssl-mode into connection parameters', () => {
+            const result = parseConnectionString(
+                'jdbc:postgresql://host/app?user=alice&sslmode=require',
+                CAPABILITY_DRIVERS,
+            );
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.ssl_mode).toBe('require');
+                expect(toConnectionParams(result.params).ssl_mode).toBe('require');
+            }
+            const verify = parseConnectionString(
+                'postgres://host/app?ssl-mode=verify-full',
+                CAPABILITY_DRIVERS,
+            );
+            expect(verify.success && verify.params.ssl_mode).toBe('verify-full');
+        });
+
+        it("maps MySQL TLS options to the connection form's supported values", () => {
+            const required = parseConnectionString(
+                'jdbc:mysql://host/app?ssl-mode=require',
+                CAPABILITY_DRIVERS,
+            );
+            expect(required.success && required.params.ssl_mode).toBe('required');
+            const ca = parseConnectionString(
+                'mysql://host/app?sslmode=verify-ca',
+                CAPABILITY_DRIVERS,
+            );
+            expect(ca.success && ca.params.ssl_mode).toBe('verify_ca');
+            const identity = parseConnectionString(
+                'mysql://host/app?ssl-mode=verify-identity',
+                CAPABILITY_DRIVERS,
+            );
+            expect(identity.success && identity.params.ssl_mode).toBe('verify_identity');
+            const invalid = parseConnectionString(
+                'postgres://host/app?sslmode=unknown',
+                CAPABILITY_DRIVERS,
+            );
+            expect(invalid.success && invalid.params.ssl_mode).toBeUndefined();
+        });
+
+        it('honors case-insensitive JDBC sslMode keys without weakening MySQL verification', () => {
+            for (const [parameter, expected] of [
+                ['sslMode=VERIFY_IDENTITY', 'verify_identity'],
+                ['SSLMode=verify_ca', 'verify_ca'],
+                ['sslMode=DISABLED', 'disabled'],
+            ]) {
+                const parsed = parseConnectionString(
+                    `jdbc:mysql://127.0.0.1:3306/app?${parameter}`,
+                    CAPABILITY_DRIVERS,
+                );
+                expect(parsed.success && parsed.params.ssl_mode).toBe(expected);
+            }
+            // Canonical sslMode outranks a conflicting ssl-mode even when it
+            // appears later in the URL. Do not accidentally weaken TLS.
+            const conflict = parseConnectionString(
+                'jdbc:mysql://host/app?ssl-mode=DISABLED&sslMode=VERIFY_IDENTITY',
+                CAPABILITY_DRIVERS,
+            );
+            expect(conflict.success && conflict.params.ssl_mode).toBe('verify_identity');
+
+            const pg = parseConnectionString(
+                'jdbc:postgresql://host/app?SSLMode=VERIFY-FULL',
+                CAPABILITY_DRIVERS,
+            );
+            expect(pg.success && pg.params.ssl_mode).toBe('verify-full');
+        });
+
+        it('recognizes only supported JDBC URLs, preserving opaque JDBC plugin URLs', () => {
+            expect(
+                looksLikeConnectionString('jdbc:postgresql://host/app', CAPABILITY_DRIVERS),
+            ).toBe(true);
+            expect(looksLikeConnectionString('jdbc:mysql://host/app', CAPABILITY_DRIVERS)).toBe(
+                true,
+            );
+            expect(looksLikeConnectionString('jdbc:oracle://host/app', CAPABILITY_DRIVERS)).toBe(
+                false,
+            );
+            const opaque = 'jdbc:h2:mem:test';
+            const result = parseConnectionString(opaque, [JDBC_DRIVER]);
+            expect(result.success && result.params.connection_uri).toBe(opaque);
+
+            // A separately installed JDBC passthrough driver remains authoritative
+            // even when its URI uses a PostgreSQL-like nested scheme.
+            const nested = 'jdbc:postgresql://host/app';
+            const nestedResult = parseConnectionString(nested, [
+                JDBC_DRIVER,
+                ...CAPABILITY_DRIVERS,
+            ]);
+            expect(nestedResult.success && nestedResult.params.driver).toBe('jdbc');
+            expect(nestedResult.success && nestedResult.params.connection_uri).toBe(nested);
+        });
+
+        it('does not rewrite passthrough MongoDB URIs or their credentials', () => {
+            const result = parseConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS);
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.connection_uri).toBe(ATLAS_URI);
+                expect(result.params.ssl_mode).toBeUndefined();
+            }
+        });
+    });
+
+    describe('toConnectionParams', () => {
+        it('should convert parsed result to ConnectionParams', () => {
+            const parsed: ParsedConnectionString = {
+                driver: 'mysql',
+                host: 'localhost',
+                port: 3306,
+                username: 'root',
+                password: 'pass',
+                database: 'mydb',
+            };
+
+            const params = toConnectionParams(parsed);
+            expect(params.driver).toBe('mysql');
+            expect(params.host).toBe('localhost');
+            expect(params.port).toBe(3306);
+            expect(params.username).toBe('root');
+            expect(params.password).toBe('pass');
+            expect(params.database).toBe('mydb');
+        });
+
+        it('should handle optional fields', () => {
+            const parsed: ParsedConnectionString = {
+                driver: 'sqlite',
+                database: '/path/to/db.sqlite',
+            };
+
+            const params = toConnectionParams(parsed);
+            expect(params.driver).toBe('sqlite');
+            expect(params.database).toBe('/path/to/db.sqlite');
+            expect(params.host).toBeUndefined();
+            expect(params.port).toBeUndefined();
+            expect(params.username).toBeUndefined();
+            expect(params.password).toBeUndefined();
+        });
+    });
+
+    describe('looksLikeConnectionString', () => {
+        it('should return true for mysql://', () => {
+            expect(looksLikeConnectionString('mysql://user@host/db', CAPABILITY_DRIVERS)).toBe(
+                true,
+            );
+        });
+
+        it('should return true for mariadb://', () => {
+            expect(looksLikeConnectionString('mariadb://user@host/db', CAPABILITY_DRIVERS)).toBe(
+                true,
+            );
+        });
+
+        it('should return true for postgres://', () => {
+            expect(looksLikeConnectionString('postgres://user@host/db', CAPABILITY_DRIVERS)).toBe(
+                true,
+            );
+        });
+
+        it('should return true for postgresql://', () => {
+            expect(looksLikeConnectionString('postgresql://user@host/db', CAPABILITY_DRIVERS)).toBe(
+                true,
+            );
+        });
+
+        it('should return true for sqlite://', () => {
+            expect(looksLikeConnectionString('sqlite:///path/to/db', CAPABILITY_DRIVERS)).toBe(
+                true,
+            );
+        });
+
+        it('should return false for empty string', () => {
+            expect(looksLikeConnectionString('', CAPABILITY_DRIVERS)).toBe(false);
+        });
+
+        it('should return false for regular string', () => {
+            expect(looksLikeConnectionString('localhost', CAPABILITY_DRIVERS)).toBe(false);
+        });
+
+        it('should return false for arbitrary URL', () => {
+            expect(looksLikeConnectionString('https://example.com', CAPABILITY_DRIVERS)).toBe(
+                false,
+            );
+        });
+
+        it('should accept aliases for drivers whose example uses the canonical protocol', () => {
+            const realisticDrivers: ConnectionStringDriver[] = [
+                createRemoteDriver('postgres', 'postgres://user:pass@localhost:5432/db'),
+            ];
+
+            expect(looksLikeConnectionString('postgresql://user@host/db', realisticDrivers)).toBe(
+                true,
+            );
+        });
+
+        it('should use provided driver capabilities to validate protocols', () => {
+            const restrictedDrivers: ConnectionStringDriver[] = [
+                createRemoteDriver('postgres', 'postgresql://user:pass@localhost:5432/db'),
+            ];
+
+            expect(looksLikeConnectionString('postgresql://user@host/db', restrictedDrivers)).toBe(
+                true,
+            );
+            expect(looksLikeConnectionString('mysql://user@host/db', restrictedDrivers)).toBe(
+                false,
+            );
+        });
+
+        it('should return true for sqlite3:// alias', () => {
+            expect(looksLikeConnectionString('sqlite3:///path/to/db', CAPABILITY_DRIVERS)).toBe(
+                true,
+            );
+        });
+
+        it('should be case insensitive for protocol', () => {
+            expect(looksLikeConnectionString('MYSQL://user@host/db', CAPABILITY_DRIVERS)).toBe(
+                true,
+            );
+            expect(looksLikeConnectionString('PostgreSQL://user@host/db', CAPABILITY_DRIVERS)).toBe(
+                true,
+            );
+        });
+    });
+
+    describe('getSupportedConnectionStringProtocols', () => {
+        it('should include aliases alongside canonical protocols', () => {
+            const protocols = getSupportedConnectionStringProtocols(CAPABILITY_DRIVERS);
+            expect(protocols).toContain('postgres');
+            expect(protocols).toContain('postgresql');
+            expect(protocols).toContain('mysql');
+            expect(protocols).toContain('mariadb');
+            expect(protocols).toContain('sqlite');
+            expect(protocols).toContain('sqlite3');
+        });
+
+        it('should include aliases for builtin drivers when no drivers are provided', () => {
+            const protocols = getSupportedConnectionStringProtocols();
+            expect(protocols).toContain('postgresql');
+            expect(protocols).toContain('mariadb');
+        });
+    });
+    describe('URI passthrough drivers', () => {
+        it.each(['mongodb:', 'mongodb:foo', 'mongodb:foo://bar', 'mongodb+srv:foo'])(
+            'rejects an opaque MongoDB URI (%s)',
+            (uri) => {
+                expect(parseConnectionString(uri, URI_PASSTHROUGH_DRIVERS)).toEqual({
+                    success: false,
+                    error: 'Invalid connection string format',
+                });
+                expect(looksLikeConnectionString(uri, URI_PASSTHROUGH_DRIVERS)).toBe(false);
+            },
         );
-      }
+
+        it.each([
+            'jdbc:h2:mem:test',
+            'jdbc:h2:./data/test',
+            'jdbc:h2:tcp://localhost/~/test',
+            'jdbc:h2:ssl://localhost/~/test',
+        ])('preserves an H2 connection string (%s)', (uri) => {
+            const result = parseConnectionString(uri, [JDBC_DRIVER]);
+            expect(result.success).toBe(true);
+            expect(looksLikeConnectionString(uri, [JDBC_DRIVER])).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('jdbc');
+                expect(result.params.connection_uri).toBe(uri);
+            }
+        });
+
+        it('should accept a plugin-declared extra scheme', () => {
+            expect(getSupportedConnectionStringProtocols(URI_PASSTHROUGH_DRIVERS)).toContain(
+                'mongodb+srv',
+            );
+            expect(looksLikeConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS)).toBe(true);
+        });
+
+        it('should not let a declared scheme displace another driver', () => {
+            // Drivers reach the parser sorted by id, so a plugin sorting after
+            // `postgres` must not capture connection strings meant for it.
+            const shadowing: ConnectionStringDriver[] = [
+                ...CAPABILITY_DRIVERS,
+                {
+                    id: 'zz-shadow' as ConnectionStringDriver['id'],
+                    capabilities: {
+                        schemas: false,
+                        views: false,
+                        routines: false,
+                        file_based: false,
+                        folder_based: false,
+                        connection_string: true,
+                        connection_string_example: 'zz-shadow://user:pass@localhost/db',
+                        connection_uri: true,
+                        connection_uri_schemes: ['postgres'],
+                        identifier_quote: '"',
+                        alter_primary_key: false,
+                    },
+                },
+            ];
+
+            const result = parseConnectionString(
+                'postgres://user:pass@localhost:5432/mydb',
+                shadowing,
+            );
+
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('postgres');
+                // The built-in driver is not passthrough, so the URI must stay
+                // decomposed rather than being handed over verbatim.
+                expect(result.params.connection_uri).toBeUndefined();
+                expect(result.params.password).toBe('pass');
+            }
+        });
+
+        it('should preserve an Atlas URI verbatim, query parameters included', () => {
+            const result = parseConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS);
+
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('mongodb');
+                expect(result.params.connection_uri).toBe(ATLAS_URI);
+                expect(toConnectionParams(result.params).connection_uri).toBe(ATLAS_URI);
+            }
+        });
+
+        it('should accept a MongoDB replica-set URI with multiple hosts', () => {
+            const uri =
+                'mongodb://user:pass@server1.example.com:27017,server2.example.com:27018,server3.example.com:27019/mydatabase?replicaSet=rs0&authSource=admin';
+            const result = parseConnectionString(uri, URI_PASSTHROUGH_DRIVERS);
+
+            expect(result.success).toBe(true);
+            expect(looksLikeConnectionString(uri, URI_PASSTHROUGH_DRIVERS)).toBe(true);
+            if (result.success) {
+                expect(result.params.driver).toBe('mongodb');
+                expect(result.params.host).toBe('server1.example.com');
+                expect(result.params.port).toBe(27017);
+                expect(result.params.username).toBe('user');
+                expect(result.params.database).toBe('mydatabase');
+                expect(result.params.password).toBeUndefined();
+                expect(result.params.connection_uri).toBe(uri);
+            }
+        });
+
+        it('should not require a database path', () => {
+            const result = parseConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS);
+
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.database).toBe('');
+            }
+        });
+
+        it('should surface host and username for display without dropping the URI', () => {
+            const result = parseConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS);
+
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.host).toBe('cluster0.xxxxx.mongodb.net');
+                expect(result.params.username).toBe('user');
+                // The URI is the only copy of the password: never mirrored into a
+                // field that could be persisted in plaintext.
+                expect(result.params.password).toBeUndefined();
+            }
+        });
+
+        it('should keep the exact URI when it already carries a database', () => {
+            const uri = 'mongodb+srv://user:pass@cluster0.example.net/app?w=majority';
+            const result = parseConnectionString(uri, URI_PASSTHROUGH_DRIVERS);
+
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.connection_uri).toBe(uri);
+                expect(result.params.database).toBe('app');
+            }
+        });
+
+        it('should still require a database for non-passthrough drivers', () => {
+            const result = parseConnectionString(
+                'postgres://user:pass@localhost:5432/',
+                URI_PASSTHROUGH_DRIVERS,
+            );
+
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                expect(result.error).toBe('Database name is required in connection string');
+            }
+            expect(
+                parseConnectionString(
+                    'postgres://user:pass@localhost:5432/appdb',
+                    URI_PASSTHROUGH_DRIVERS,
+                ).success,
+            ).toBe(true);
+        });
+
+        it('should not set connection_uri for non-passthrough drivers', () => {
+            const result = parseConnectionString(
+                'postgres://user:pass@localhost:5432/appdb',
+                URI_PASSTHROUGH_DRIVERS,
+            );
+
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.params.connection_uri).toBeUndefined();
+                expect(toConnectionParams(result.params).connection_uri).toBeUndefined();
+            }
+        });
+
+        it('should still reject an unknown scheme with the existing error shape', () => {
+            const result = parseConnectionString(
+                'cassandra://user:pass@localhost:9042/db',
+                URI_PASSTHROUGH_DRIVERS,
+            );
+
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                expect(result.error).toMatch(
+                    /^Unsupported database driver: cassandra\. Supported: /,
+                );
+                expect(result.error).toContain('mongodb+srv');
+            }
+        });
     });
-
-    it("should accept a MongoDB replica-set URI with multiple hosts", () => {
-      const uri =
-        "mongodb://user:pass@server1.example.com:27017,server2.example.com:27018,server3.example.com:27019/mydatabase?replicaSet=rs0&authSource=admin";
-      const result = parseConnectionString(uri, URI_PASSTHROUGH_DRIVERS);
-
-      expect(result.success).toBe(true);
-      expect(looksLikeConnectionString(uri, URI_PASSTHROUGH_DRIVERS)).toBe(true);
-      if (result.success) {
-        expect(result.params.driver).toBe("mongodb");
-        expect(result.params.host).toBe("server1.example.com");
-        expect(result.params.port).toBe(27017);
-        expect(result.params.username).toBe("user");
-        expect(result.params.database).toBe("mydatabase");
-        expect(result.params.password).toBeUndefined();
-        expect(result.params.connection_uri).toBe(uri);
-      }
-    });
-
-    it("should not require a database path", () => {
-      const result = parseConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.database).toBe("");
-      }
-    });
-
-    it("should surface host and username for display without dropping the URI", () => {
-      const result = parseConnectionString(ATLAS_URI, URI_PASSTHROUGH_DRIVERS);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.host).toBe("cluster0.xxxxx.mongodb.net");
-        expect(result.params.username).toBe("user");
-        // The URI is the only copy of the password: never mirrored into a
-        // field that could be persisted in plaintext.
-        expect(result.params.password).toBeUndefined();
-      }
-    });
-
-    it("should keep the exact URI when it already carries a database", () => {
-      const uri = "mongodb+srv://user:pass@cluster0.example.net/app?w=majority";
-      const result = parseConnectionString(uri, URI_PASSTHROUGH_DRIVERS);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.connection_uri).toBe(uri);
-        expect(result.params.database).toBe("app");
-      }
-    });
-
-    it("should still require a database for non-passthrough drivers", () => {
-      const result = parseConnectionString(
-        "postgres://user:pass@localhost:5432/",
-        URI_PASSTHROUGH_DRIVERS,
-      );
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toBe(
-          "Database name is required in connection string",
-        );
-      }
-      expect(
-        parseConnectionString(
-          "postgres://user:pass@localhost:5432/appdb",
-          URI_PASSTHROUGH_DRIVERS,
-        ).success,
-      ).toBe(true);
-    });
-
-    it("should not set connection_uri for non-passthrough drivers", () => {
-      const result = parseConnectionString(
-        "postgres://user:pass@localhost:5432/appdb",
-        URI_PASSTHROUGH_DRIVERS,
-      );
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.params.connection_uri).toBeUndefined();
-        expect(toConnectionParams(result.params).connection_uri).toBeUndefined();
-      }
-    });
-
-    it("should still reject an unknown scheme with the existing error shape", () => {
-      const result = parseConnectionString(
-        "cassandra://user:pass@localhost:9042/db",
-        URI_PASSTHROUGH_DRIVERS,
-      );
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toMatch(
-          /^Unsupported database driver: cassandra\. Supported: /,
-        );
-        expect(result.error).toContain("mongodb+srv");
-      }
-    });
-  });
 });

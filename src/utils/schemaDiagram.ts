@@ -7,9 +7,9 @@
  * Connection parameters parsed from URL
  */
 export interface ConnectionParams {
-  connectionId: string | null;
-  connectionName: string;
-  databaseName: string;
+    connectionId: string | null;
+    connectionName: string;
+    databaseName: string;
 }
 
 /**
@@ -18,11 +18,11 @@ export interface ConnectionParams {
  * @returns Parsed connection parameters
  */
 export function parseConnectionParams(searchParams: URLSearchParams): ConnectionParams {
-  return {
-    connectionId: searchParams.get('connectionId'),
-    connectionName: searchParams.get('connectionName') || 'Unknown',
-    databaseName: searchParams.get('databaseName') || 'Unknown',
-  };
+    return {
+        connectionId: searchParams.get('connectionId'),
+        connectionName: searchParams.get('connectionName') || 'Unknown',
+        databaseName: searchParams.get('databaseName') || 'Unknown',
+    };
 }
 
 /**
@@ -41,12 +41,12 @@ export function parseConnectionParams(searchParams: URLSearchParams): Connection
  * @returns The schema/database to request, or undefined to use the backend default
  */
 export function resolveDiagramSchema(
-  schema: string | undefined,
-  databaseName: string | undefined,
+    schema: string | undefined,
+    databaseName: string | undefined,
 ): string | undefined {
-  if (schema) return schema;
-  if (databaseName && databaseName !== 'Unknown') return databaseName;
-  return undefined;
+    if (schema) return schema;
+    if (databaseName && databaseName !== 'Unknown') return databaseName;
+    return undefined;
 }
 
 /**
@@ -56,7 +56,7 @@ export function resolveDiagramSchema(
  * @returns Formatted title string
  */
 export function formatDiagramTitle(databaseName: string, connectionName: string): string {
-  return `${databaseName} (${connectionName})`;
+    return `${databaseName} (${connectionName})`;
 }
 
 /**
@@ -64,8 +64,8 @@ export function formatDiagramTitle(databaseName: string, connectionName: string)
  * @returns True if document is in fullscreen mode
  */
 export function isFullscreenActive(): boolean {
-  if (typeof document === 'undefined') return false;
-  return !!document.fullscreenElement;
+    if (typeof document === 'undefined') return false;
+    return !!document.fullscreenElement;
 }
 
 /**
@@ -73,11 +73,11 @@ export function isFullscreenActive(): boolean {
  * @returns Promise that resolves when fullscreen is entered
  */
 export async function enterFullscreen(): Promise<void> {
-  if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined') return;
 
-  if (!document.fullscreenElement) {
-    await document.documentElement.requestFullscreen();
-  }
+    if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+    }
 }
 
 /**
@@ -85,11 +85,11 @@ export async function enterFullscreen(): Promise<void> {
  * @returns Promise that resolves when fullscreen is exited
  */
 export async function exitFullscreen(): Promise<void> {
-  if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined') return;
 
-  if (document.fullscreenElement) {
-    await document.exitFullscreen();
-  }
+    if (document.fullscreenElement) {
+        await document.exitFullscreen();
+    }
 }
 
 /**
@@ -97,11 +97,11 @@ export async function exitFullscreen(): Promise<void> {
  * @returns Promise that resolves when toggle is complete
  */
 export async function toggleFullscreen(): Promise<void> {
-  if (isFullscreenActive()) {
-    await exitFullscreen();
-  } else {
-    await enterFullscreen();
-  }
+    if (isFullscreenActive()) {
+        await exitFullscreen();
+    } else {
+        await enterFullscreen();
+    }
 }
 
 /**
@@ -110,8 +110,8 @@ export async function toggleFullscreen(): Promise<void> {
  * @returns True if minimap should be displayed
  */
 export function shouldShowMinimap(tableCount: number): boolean {
-  // Show minimap for medium-sized schemas (10-100 tables)
-  return tableCount >= 10 && tableCount <= 100;
+    // Show minimap for medium-sized schemas (10-100 tables)
+    return tableCount >= 10 && tableCount <= 100;
 }
 
 /**
@@ -120,6 +120,6 @@ export function shouldShowMinimap(tableCount: number): boolean {
  * @returns True if animations should be enabled
  */
 export function shouldAnimateEdges(edgeCount: number): boolean {
-  // Only animate first 50 edges to prevent performance issues
-  return edgeCount <= 50;
+    // Only animate first 50 edges to prevent performance issues
+    return edgeCount <= 50;
 }

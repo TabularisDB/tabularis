@@ -1,521 +1,600 @@
-import React, { useState, useEffect } from "react";
-import { supportsManageTables } from "../../../utils/driverCapabilities";
-import { useTranslation } from "react-i18next";
+import React, {useState, useEffect} from 'react';
+import {supportsManageTables} from '@/utils/driverCapabilities';
+import {useTranslation} from 'react-i18next';
 import {
-  Loader2,
-  ChevronDown,
-  ChevronRight,
-  Database,
-  Plus,
-  RefreshCw,
-  Download,
-  Upload,
-  Network,
-  Search,
-  X,
-} from "lucide-react";
-import { Accordion } from "./Accordion";
-import { MetadataErrorIndicator } from "./MetadataErrorIndicator";
-import { SidebarTableItem } from "./SidebarTableItem";
-import { SidebarViewItem } from "./SidebarViewItem";
-import { SidebarRoutineItem } from "./SidebarRoutineItem";
-import { SidebarRoutineGroupHeader } from "./SidebarRoutineGroupHeader";
-import { SidebarTriggerItem } from "./SidebarTriggerItem";
-import type { SchemaData, RoutineInfo, TriggerInfo } from "../../../contexts/DatabaseContext";
-import type { TableColumn } from "../../../types/schema";
-import type { ContextMenuData } from "../../../types/sidebar";
-import type { DriverCapabilities } from "../../../types/plugins";
-import { groupRoutinesByType, routineLabel } from "../../../utils/routines";
-import { formatObjectCount } from "../../../utils/schema";
-import { fuzzyFilter } from "../../../utils/fuzzy";
-import { onActivationKey } from "../../../utils/keyboardEvents";
+    Loader2,
+    ChevronDown,
+    ChevronRight,
+    Database,
+    Plus,
+    RefreshCw,
+    Download,
+    Upload,
+    Network,
+    Search,
+    X,
+} from 'lucide-react';
+import {Accordion} from './Accordion';
+import {MetadataErrorIndicator} from './MetadataErrorIndicator';
+import {SidebarTableItem} from './SidebarTableItem';
+import {SidebarViewItem} from './SidebarViewItem';
+import {SidebarRoutineItem} from './SidebarRoutineItem';
+import {SidebarRoutineGroupHeader} from './SidebarRoutineGroupHeader';
+import {SidebarTriggerItem} from './SidebarTriggerItem';
+import type {SchemaData, RoutineInfo, TriggerInfo} from '@/contexts/DatabaseContext';
+import type {TableColumn} from '@/types/schema';
+import type {ContextMenuData} from '@/types/sidebar';
+import type {DriverCapabilities} from '@/types/plugins';
+import {groupRoutinesByType, routineLabel} from '@/utils/routines';
+import {formatObjectCount} from '@/utils/schema';
+import {fuzzyFilter} from '@/utils/fuzzy';
+import {onActivationKey} from '@/utils/keyboardEvents';
 
 interface SidebarDatabaseItemProps {
-  databaseName: string;
-  databaseData: SchemaData | undefined;
-  activeTable: string | null;
-  activeSchema: string | null;
-  connectionId: string;
-  driver: string;
-  schemaVersion: number;
-  onLoadDatabase: (database: string) => void;
-  onRefreshDatabase: (database: string) => void;
-  onTableClick: (name: string, database: string) => void;
-  onTableDoubleClick: (name: string, database: string) => void;
-  onViewClick: (name: string) => void;
-  onViewDoubleClick: (name: string, database: string) => void;
-  onRoutineDoubleClick: (routine: RoutineInfo, database: string) => void;
-  onTriggerDoubleClick: (trigger: TriggerInfo, database: string) => void;
-  onContextMenu: (
-    e: React.MouseEvent,
-    type: string,
-    id: string,
-    label: string,
-    data?: ContextMenuData,
-  ) => void;
-  onAddColumn: (tableName: string) => void;
-  onEditColumn: (tableName: string, col: TableColumn) => void;
-  onAddIndex: (tableName: string) => void;
-  onDropIndex: (tableName: string, indexName: string) => void;
-  onAddForeignKey: (tableName: string) => void;
-  onDropForeignKey: (tableName: string, fkName: string) => void;
-  onCreateTable: () => void;
-  onCreateView: () => void;
-  onCreateTrigger: (schema: string) => void;
-  /** Omitted when the driver cannot manage routines. */
-  onCreateRoutine?: (e: React.MouseEvent, database: string) => void;
-  onDump?: (database: string) => void;
-  onImport?: (database: string) => void;
-  onViewDiagram?: (database: string) => void;
-  capabilities?: DriverCapabilities | null;
+    databaseName: string;
+    databaseData: SchemaData | undefined;
+    activeTable: string | null;
+    activeSchema: string | null;
+    connectionId: string;
+    driver: string;
+    schemaVersion: number;
+    onLoadDatabase: (database: string) => void;
+    onRefreshDatabase: (database: string) => void;
+    onTableClick: (name: string, database: string) => void;
+    onTableDoubleClick: (name: string, database: string) => void;
+    onViewClick: (name: string) => void;
+    onViewDoubleClick: (name: string, database: string) => void;
+    onRoutineDoubleClick: (routine: RoutineInfo, database: string) => void;
+    onTriggerDoubleClick: (trigger: TriggerInfo, database: string) => void;
+    onContextMenu: (
+        e: React.MouseEvent,
+        type: string,
+        id: string,
+        label: string,
+        data?: ContextMenuData,
+    ) => void;
+    onAddColumn: (tableName: string) => void;
+    onEditColumn: (tableName: string, col: TableColumn) => void;
+    onAddIndex: (tableName: string) => void;
+    onDropIndex: (tableName: string, indexName: string) => void;
+    onAddForeignKey: (tableName: string) => void;
+    onDropForeignKey: (tableName: string, fkName: string) => void;
+    onCreateTable: () => void;
+    onCreateView: () => void;
+    onCreateTrigger: (schema: string) => void;
+    /** Omitted when the driver cannot manage routines. */
+    onCreateRoutine?: (e: React.MouseEvent, database: string) => void;
+    onDump?: (database: string) => void;
+    onImport?: (database: string) => void;
+    onViewDiagram?: (database: string) => void;
+    capabilities?: DriverCapabilities | null;
 }
 
 export const SidebarDatabaseItem = ({
-  databaseName,
-  databaseData,
-  activeTable,
-  activeSchema,
-  connectionId,
-  driver,
-  schemaVersion,
-  onLoadDatabase,
-  onRefreshDatabase,
-  onTableClick,
-  onTableDoubleClick,
-  onViewClick,
-  onViewDoubleClick,
-  onRoutineDoubleClick,
-  onTriggerDoubleClick,
-  onContextMenu,
-  onAddColumn,
-  onEditColumn,
-  onAddIndex,
-  onDropIndex,
-  onAddForeignKey,
-  onDropForeignKey,
-  onCreateTable,
-  onCreateView,
-  onCreateTrigger,
-  onCreateRoutine,
-  onDump,
-  onImport,
-  onViewDiagram,
-  capabilities,
+    databaseName,
+    databaseData,
+    activeTable,
+    activeSchema,
+    connectionId,
+    driver,
+    schemaVersion,
+    onLoadDatabase,
+    onRefreshDatabase,
+    onTableClick,
+    onTableDoubleClick,
+    onViewClick,
+    onViewDoubleClick,
+    onRoutineDoubleClick,
+    onTriggerDoubleClick,
+    onContextMenu,
+    onAddColumn,
+    onEditColumn,
+    onAddIndex,
+    onDropIndex,
+    onAddForeignKey,
+    onDropForeignKey,
+    onCreateTable,
+    onCreateView,
+    onCreateTrigger,
+    onCreateRoutine,
+    onDump,
+    onImport,
+    onViewDiagram,
+    capabilities,
 }: SidebarDatabaseItemProps) => {
-  const { t } = useTranslation();
+    const {t} = useTranslation();
 
-  const [isExpanded, setIsExpanded] = useState(activeSchema === databaseName);
-  const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
-  const [tablesOpen, setTablesOpen] = useState(true);
-  const [viewsOpen, setViewsOpen] = useState(true);
-  const [routinesOpen, setRoutinesOpen] = useState(false);
-  const [triggersOpen, setTriggersOpen] = useState(false);
-  const [functionsOpen, setFunctionsOpen] = useState(true);
-  const [proceduresOpen, setProceduresOpen] = useState(true);
-  const [tableFilter, setTableFilter] = useState("");
-  const [triggerFilter, setTriggerFilter] = useState("");
+    const [isExpanded, setIsExpanded] = useState(activeSchema === databaseName);
+    const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
+    const [tablesOpen, setTablesOpen] = useState(true);
+    const [viewsOpen, setViewsOpen] = useState(true);
+    const [routinesOpen, setRoutinesOpen] = useState(false);
+    const [triggersOpen, setTriggersOpen] = useState(false);
+    const [functionsOpen, setFunctionsOpen] = useState(true);
+    const [proceduresOpen, setProceduresOpen] = useState(true);
+    const [tableFilter, setTableFilter] = useState('');
+    const [triggerFilter, setTriggerFilter] = useState('');
 
-  const tables = databaseData?.tables ?? [];
-  const filteredTables = fuzzyFilter(tables, tableFilter, (t) => t.name);
-  const views = databaseData?.views ?? [];
-  const routines = databaseData?.routines ?? [];
-  const routineError = databaseData?.routineError;
-  const routineErrorIndicator = routineError ? (
-    <MetadataErrorIndicator error={routineError} title={t("sidebar.routineMetadataErrorTitle")} />
-  ) : undefined;
-  const triggers = databaseData?.triggers ?? [];
-  const filteredTriggers = fuzzyFilter(triggers, triggerFilter, (tr) => tr.name);
-  const isLoading = databaseData?.isLoading ?? false;
-  const isLoaded = databaseData?.isLoaded ?? false;
+    const tables = databaseData?.tables ?? [];
+    const filteredTables = fuzzyFilter(tables, tableFilter, (t) => t.name);
+    const views = databaseData?.views ?? [];
+    const routines = databaseData?.routines ?? [];
+    const routineError = databaseData?.routineError;
+    const routineErrorIndicator = routineError ? (
+        <MetadataErrorIndicator
+            error={routineError}
+            title={t('sidebar.routineMetadataErrorTitle')}
+        />
+    ) : undefined;
+    const triggers = databaseData?.triggers ?? [];
+    const filteredTriggers = fuzzyFilter(triggers, triggerFilter, (tr) => tr.name);
+    const isLoading = databaseData?.isLoading ?? false;
+    const isLoaded = databaseData?.isLoaded ?? false;
 
-  // Auto-expand this database when it becomes the active one, e.g. after
-  // picking a table from the Quick Navigator. Mirrors SidebarSchemaItem; done
-  // during render (same-component setState) so the table item is mounted in
-  // time for the scroll-into-view in ExplorerSidebar.
-  if (activeSchema !== prevActiveSchema) {
-    setPrevActiveSchema(activeSchema);
-    if (activeSchema === databaseName) {
-      setIsExpanded(true);
+    // Auto-expand this database when it becomes the active one, e.g. after
+    // picking a table from the Quick Navigator. Mirrors SidebarSchemaItem; done
+    // during render (same-component setState) so the table item is mounted in
+    // time for the scroll-into-view in ExplorerSidebar.
+    if (activeSchema !== prevActiveSchema) {
+        setPrevActiveSchema(activeSchema);
+        if (activeSchema === databaseName) {
+            setIsExpanded(true);
+        }
     }
-  }
 
-  // Lazily load the tables once this database is expanded but not yet loaded.
-  useEffect(() => {
-    if (isExpanded && !isLoaded && !isLoading) {
-      onLoadDatabase(databaseName);
-    }
-  }, [isExpanded, isLoaded, isLoading, databaseName, onLoadDatabase]);
+    // Lazily load the tables once this database is expanded but not yet loaded.
+    useEffect(() => {
+        if (isExpanded && !isLoaded && !isLoading) {
+            onLoadDatabase(databaseName);
+        }
+    }, [isExpanded, isLoaded, isLoading, databaseName, onLoadDatabase]);
 
-  const groupedRoutines = routines.length > 0
-    ? groupRoutinesByType(routines)
-    : { procedures: [], functions: [] };
+    const groupedRoutines =
+        routines.length > 0 ? groupRoutinesByType(routines) : {procedures: [], functions: []};
 
-  const handleToggle = () => {
-    setIsExpanded((current) => !current);
-  };
+    const handleToggle = () => {
+        setIsExpanded((current) => !current);
+    };
 
-  const itemCount = isLoaded
-    ? formatObjectCount(tables.length, views.length, routines.length, triggers.length)
-    : "";
+    const itemCount = isLoaded
+        ? formatObjectCount(tables.length, views.length, routines.length, triggers.length)
+        : '';
 
-  return (
-    <div className="flex flex-col">
-      {/* Database header */}
-      <div
-        role="button"
-        tabIndex={0}
-        aria-expanded={isExpanded}
-        className="flex items-center justify-between px-2 py-1.5 group/db cursor-pointer hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
-        onClick={handleToggle}
-        onKeyDown={onActivationKey(handleToggle)}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          onContextMenu(e, "database", databaseName, databaseName);
-        }}
-      >
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          {isExpanded ? (
-            <ChevronDown size={14} className="text-muted shrink-0" />
-          ) : (
-            <ChevronRight size={14} className="text-muted shrink-0" />
-          )}
-          <Database
-            size={14}
-            className={
-              activeSchema === databaseName
-                ? "text-accent shrink-0"
-                : "text-muted group-hover/db:text-accent shrink-0"
-            }
-          />
-          <span className="text-sm font-medium text-secondary truncate">
-            {databaseName}
-          </span>
-          {isLoaded && (
-            <span className="ml-1 text-[10px] text-muted opacity-60 shrink-0">
-              {itemCount}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-0.5 shrink-0">
-          {onImport && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onImport(databaseName); }}
-              className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-accent-success transition-colors"
-              title={t("dump.importDatabase")}
-              aria-label={t("dump.importDatabase")}
+    return (
+        <div className="flex flex-col">
+            {/* Database header */}
+            <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={isExpanded}
+                className="flex items-center justify-between px-2 py-1.5 group/db cursor-pointer hover:bg-surface-secondary transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                onClick={handleToggle}
+                onKeyDown={onActivationKey(handleToggle)}
+                onContextMenu={(e) => {
+                    e.preventDefault();
+                    onContextMenu(e, 'database', databaseName, databaseName);
+                }}
             >
-              <Upload size={13} />
-            </button>
-          )}
-          {onDump && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onDump(databaseName); }}
-              className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-accent transition-colors"
-              title={t("dump.dumpDatabase")}
-              aria-label={t("dump.dumpDatabase")}
-            >
-              <Download size={13} />
-            </button>
-          )}
-          {onViewDiagram && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onViewDiagram(databaseName); }}
-              className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-accent-warning transition-colors"
-              title={t("sidebar.viewERDiagram")}
-              aria-label={t("sidebar.viewERDiagram")}
-            >
-              <Network size={13} className="rotate-90" />
-            </button>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); onRefreshDatabase(databaseName); }}
-            className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-            title={t("sidebar.refreshTables")}
-            aria-label={t("sidebar.refreshTables")}
-          >
-            <RefreshCw size={13} />
-          </button>
-        </div>
-      </div>
-
-      {/* Database contents */}
-      {isExpanded && (
-        <div className="ml-3 border-l border-default">
-          {isLoading && !isLoaded ? (
-            <div className="flex items-center gap-2 p-2 text-xs text-muted">
-              <Loader2 size={12} className="animate-spin" />
-              {t("sidebar.loadingSchema")}
-            </div>
-          ) : (
-            <>
-              {/* Tables */}
-              <Accordion
-                title={`${t("sidebar.tables")} (${tables.length})`}
-                isOpen={tablesOpen}
-                onToggle={() => setTablesOpen(!tablesOpen)}
-                actions={
-                  supportsManageTables(capabilities) ? (
-                  <div className="flex items-center gap-1 mr-2.5">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onCreateTable();
-                      }}
-                      className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                      title="Create New Table"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                  ) : undefined
-                }
-              >
-                {tables.length > 0 && (
-                  <div className="px-2 py-1">
-                    <div className="relative flex items-center">
-                      <Search size={11} className="absolute left-2 text-muted pointer-events-none" />
-                      <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
-                        type="text"
-                        data-table-filter
-                        value={tableFilter}
-                        onChange={(e) => setTableFilter(e.target.value)}
-                        placeholder={t("sidebar.filterTables")}
-                        className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-focus/50"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      {tableFilter && (
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    {isExpanded ? (
+                        <ChevronDown size={14} className="text-muted shrink-0" />
+                    ) : (
+                        <ChevronRight size={14} className="text-muted shrink-0" />
+                    )}
+                    <Database
+                        size={14}
+                        className={
+                            activeSchema === databaseName
+                                ? 'text-accent shrink-0'
+                                : 'text-muted group-hover/db:text-accent shrink-0'
+                        }
+                    />
+                    <span className="text-sm font-medium text-secondary truncate">
+                        {databaseName}
+                    </span>
+                    {isLoaded && (
+                        <span className="ml-1 text-[10px] text-muted opacity-60 shrink-0">
+                            {itemCount}
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center gap-0.5 shrink-0">
+                    {onImport && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); setTableFilter(""); }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded hover:bg-surface-secondary"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onImport(databaseName);
+                            }}
+                            className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-accent-success transition-colors"
+                            title={t('dump.importDatabase')}
+                            aria-label={t('dump.importDatabase')}
                         >
-                          <X size={11} />
+                            <Upload size={13} />
                         </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {filteredTables.length === 0 ? (
-                  <div className="text-center p-2 text-xs text-muted italic">
-                    {tableFilter ? t("sidebar.noTablesMatch") : t("sidebar.noTables")}
-                  </div>
-                ) : (
-                  <div>
-                    {filteredTables.map((table) => (
-                      <SidebarTableItem
-                        key={table.name}
-                        table={table}
-                        activeTable={activeSchema === databaseName ? activeTable : null}
-                        onTableClick={(name) => onTableClick(name, databaseName)}
-                        onTableDoubleClick={(name) => onTableDoubleClick(name, databaseName)}
-                        onContextMenu={onContextMenu}
-                        connectionId={connectionId}
-                        driver={driver}
-                        canManage={supportsManageTables(capabilities)}
-                        onAddColumn={onAddColumn}
-                        onEditColumn={onEditColumn}
-                        onAddIndex={onAddIndex}
-                        onDropIndex={onDropIndex}
-                        onAddForeignKey={onAddForeignKey}
-                        onDropForeignKey={onDropForeignKey}
-                        schemaVersion={schemaVersion}
-                        schema={databaseName}
-                      />
-                    ))}
-                  </div>
-                )}
-              </Accordion>
-
-              {/* Views */}
-              {capabilities?.views !== false && (
-              <Accordion
-                title={`${t("sidebar.views")} (${views.length})`}
-                isOpen={viewsOpen}
-                onToggle={() => setViewsOpen(!viewsOpen)}
-                actions={
-                  <div className="flex items-center gap-1 mr-2.5">
+                    )}
+                    {onDump && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDump(databaseName);
+                            }}
+                            className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-accent transition-colors"
+                            title={t('dump.dumpDatabase')}
+                            aria-label={t('dump.dumpDatabase')}
+                        >
+                            <Download size={13} />
+                        </button>
+                    )}
+                    {onViewDiagram && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onViewDiagram(databaseName);
+                            }}
+                            className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-accent-warning transition-colors"
+                            title={t('sidebar.viewERDiagram')}
+                            aria-label={t('sidebar.viewERDiagram')}
+                        >
+                            <Network size={13} className="rotate-90" />
+                        </button>
+                    )}
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onCreateView();
-                      }}
-                      className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                      title={t("sidebar.createView") || "Create New View"}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onRefreshDatabase(databaseName);
+                        }}
+                        className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                        title={t('sidebar.refreshTables')}
+                        aria-label={t('sidebar.refreshTables')}
                     >
-                      <Plus size={14} />
+                        <RefreshCw size={13} />
                     </button>
-                  </div>
-                }
-              >
-                {views.length === 0 ? (
-                  <div className="text-center p-2 text-xs text-muted italic">
-                    {t("sidebar.noViews")}
-                  </div>
-                ) : (
-                  <div>
-                    {views.map((view) => (
-                      <SidebarViewItem
-                        key={view.name}
-                        view={view}
-                        activeView={null}
-                        onViewClick={onViewClick}
-                        onViewDoubleClick={(name) => onViewDoubleClick(name, databaseName)}
-                        onContextMenu={onContextMenu}
-                        connectionId={connectionId}
-                        driver={driver}
-                        schema={databaseName}
-                      />
-                    ))}
-                  </div>
-                )}
-              </Accordion>
-              )}
+                </div>
+            </div>
 
-              {/* Triggers */}
-              {capabilities?.triggers === true && (
-                <Accordion
-                  title={`${t("sidebar.triggers")} (${triggers.length})`}
-                  isOpen={triggersOpen}
-                  onToggle={() => setTriggersOpen(!triggersOpen)}
-                  actions={
-                    <div className="flex items-center gap-1 mr-2.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCreateTrigger(databaseName);
-                        }}
-                        className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                        title={t("sidebar.createTrigger") || "Create New Trigger"}
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  }
-                >
-                  {triggers.length > 0 && (
-                    <div className="px-2 py-1">
-                      <div className="relative flex items-center">
-                        <Search size={11} className="absolute left-2 text-muted pointer-events-none" />
-                        <input autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
-                          type="text"
-                          value={triggerFilter}
-                          onChange={(e) => setTriggerFilter(e.target.value)}
-                          placeholder={t("sidebar.filterTriggers")}
-                          className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-focus/50"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        {triggerFilter && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setTriggerFilter(""); }}
-                            className="absolute right-1.5 text-muted hover:text-primary"
-                          >
-                            <X size={11} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {filteredTriggers.length === 0 ? (
-                    <div className="text-center p-2 text-xs text-muted italic">
-                      {triggerFilter ? t("sidebar.noTriggersMatch") : t("sidebar.noTriggers")}
-                    </div>
-                  ) : (
-                    <div>
-                      {filteredTriggers.map((trigger) => (
-                        <SidebarTriggerItem
-                          key={trigger.name}
-                          trigger={trigger}
-                          connectionId={connectionId}
-                          onContextMenu={onContextMenu}
-                          onDoubleClick={(tr) => onTriggerDoubleClick(tr, databaseName)}
-                          schema={databaseName}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </Accordion>
-              )}
+            {/* Database contents */}
+            {isExpanded && (
+                <div className="ml-3 border-l border-default">
+                    {isLoading && !isLoaded ? (
+                        <div className="flex items-center gap-2 p-2 text-xs text-muted">
+                            <Loader2 size={12} className="animate-spin" />
+                            {t('sidebar.loadingSchema')}
+                        </div>
+                    ) : (
+                        <>
+                            {/* Tables */}
+                            <Accordion
+                                title={`${t('sidebar.tables')} (${tables.length})`}
+                                isOpen={tablesOpen}
+                                onToggle={() => setTablesOpen(!tablesOpen)}
+                                actions={
+                                    supportsManageTables(capabilities) ? (
+                                        <div className="flex items-center gap-1 mr-2.5">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onCreateTable();
+                                                }}
+                                                className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                                                title="Create New Table"
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                    ) : undefined
+                                }
+                            >
+                                {tables.length > 0 && (
+                                    <div className="px-2 py-1">
+                                        <div className="relative flex items-center">
+                                            <Search
+                                                size={11}
+                                                className="absolute left-2 text-muted pointer-events-none"
+                                            />
+                                            <input
+                                                autoCorrect="off"
+                                                autoCapitalize="off"
+                                                autoComplete="off"
+                                                spellCheck={false}
+                                                type="text"
+                                                data-table-filter
+                                                value={tableFilter}
+                                                onChange={(e) => setTableFilter(e.target.value)}
+                                                placeholder={t('sidebar.filterTables')}
+                                                className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-focus/50"
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                            {tableFilter && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setTableFilter('');
+                                                    }}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded hover:bg-surface-secondary"
+                                                >
+                                                    <X size={11} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                                {filteredTables.length === 0 ? (
+                                    <div className="text-center p-2 text-xs text-muted italic">
+                                        {tableFilter
+                                            ? t('sidebar.noTablesMatch')
+                                            : t('sidebar.noTables')}
+                                    </div>
+                                ) : (
+                                    <div>
+                                        {filteredTables.map((table) => (
+                                            <SidebarTableItem
+                                                key={table.name}
+                                                table={table}
+                                                activeTable={
+                                                    activeSchema === databaseName
+                                                        ? activeTable
+                                                        : null
+                                                }
+                                                onTableClick={(name) =>
+                                                    onTableClick(name, databaseName)
+                                                }
+                                                onTableDoubleClick={(name) =>
+                                                    onTableDoubleClick(name, databaseName)
+                                                }
+                                                onContextMenu={onContextMenu}
+                                                connectionId={connectionId}
+                                                driver={driver}
+                                                canManage={supportsManageTables(capabilities)}
+                                                onAddColumn={onAddColumn}
+                                                onEditColumn={onEditColumn}
+                                                onAddIndex={onAddIndex}
+                                                onDropIndex={onDropIndex}
+                                                onAddForeignKey={onAddForeignKey}
+                                                onDropForeignKey={onDropForeignKey}
+                                                schemaVersion={schemaVersion}
+                                                schema={databaseName}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </Accordion>
 
-              {/* Routines */}
-              {capabilities?.routines === true && (
-              <Accordion
-                title={`${t("sidebar.routines")} (${routines.length})`}
-                isOpen={routinesOpen}
-                onToggle={() => setRoutinesOpen(!routinesOpen)}
-                actions={
-                  onCreateRoutine ? (
-                    <div className="flex items-center gap-1 mr-2.5">
-                      {routineErrorIndicator}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCreateRoutine(e, databaseName);
-                        }}
-                        className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                        title={t("routines.newRoutine")}
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    routineErrorIndicator
-                  )
-                }
-              >
-                {routines.length === 0 ? (
-                  <div className="text-center p-2 text-xs text-muted italic">
-                    {t("sidebar.noRoutines")}
-                  </div>
-                ) : (
-                  <div className="flex flex-col">
-                    {groupedRoutines.functions.length > 0 && (
-                      <div className="mb-2">
-                        <SidebarRoutineGroupHeader
-                          label={t("sidebar.functions")}
-                          count={groupedRoutines.functions.length}
-                          isOpen={functionsOpen}
-                          onToggle={() => setFunctionsOpen(!functionsOpen)}
-                        />
-                        {functionsOpen && groupedRoutines.functions.map((routine) => (
-                          <SidebarRoutineItem
-                            key={routineLabel(routine.name, routine.identity_args)}
-                            routine={routine}
-                            connectionId={connectionId}
-                            onContextMenu={onContextMenu}
-                            onDoubleClick={(r) => onRoutineDoubleClick(r, databaseName)}
-                            schema={databaseName}
-                          />
-                        ))}
-                      </div>
+                            {/* Views */}
+                            {capabilities?.views !== false && (
+                                <Accordion
+                                    title={`${t('sidebar.views')} (${views.length})`}
+                                    isOpen={viewsOpen}
+                                    onToggle={() => setViewsOpen(!viewsOpen)}
+                                    actions={
+                                        <div className="flex items-center gap-1 mr-2.5">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onCreateView();
+                                                }}
+                                                className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                                                title={t('sidebar.createView') || 'Create New View'}
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                    }
+                                >
+                                    {views.length === 0 ? (
+                                        <div className="text-center p-2 text-xs text-muted italic">
+                                            {t('sidebar.noViews')}
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            {views.map((view) => (
+                                                <SidebarViewItem
+                                                    key={view.name}
+                                                    view={view}
+                                                    activeView={null}
+                                                    onViewClick={onViewClick}
+                                                    onViewDoubleClick={(name) =>
+                                                        onViewDoubleClick(name, databaseName)
+                                                    }
+                                                    onContextMenu={onContextMenu}
+                                                    connectionId={connectionId}
+                                                    driver={driver}
+                                                    schema={databaseName}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                </Accordion>
+                            )}
+
+                            {/* Triggers */}
+                            {capabilities?.triggers === true && (
+                                <Accordion
+                                    title={`${t('sidebar.triggers')} (${triggers.length})`}
+                                    isOpen={triggersOpen}
+                                    onToggle={() => setTriggersOpen(!triggersOpen)}
+                                    actions={
+                                        <div className="flex items-center gap-1 mr-2.5">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onCreateTrigger(databaseName);
+                                                }}
+                                                className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                                                title={
+                                                    t('sidebar.createTrigger') ||
+                                                    'Create New Trigger'
+                                                }
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                    }
+                                >
+                                    {triggers.length > 0 && (
+                                        <div className="px-2 py-1">
+                                            <div className="relative flex items-center">
+                                                <Search
+                                                    size={11}
+                                                    className="absolute left-2 text-muted pointer-events-none"
+                                                />
+                                                <input
+                                                    autoCorrect="off"
+                                                    autoCapitalize="off"
+                                                    autoComplete="off"
+                                                    spellCheck={false}
+                                                    type="text"
+                                                    value={triggerFilter}
+                                                    onChange={(e) =>
+                                                        setTriggerFilter(e.target.value)
+                                                    }
+                                                    placeholder={t('sidebar.filterTriggers')}
+                                                    className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-focus/50"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                />
+                                                {triggerFilter && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setTriggerFilter('');
+                                                        }}
+                                                        className="absolute right-1.5 text-muted hover:text-primary"
+                                                    >
+                                                        <X size={11} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {filteredTriggers.length === 0 ? (
+                                        <div className="text-center p-2 text-xs text-muted italic">
+                                            {triggerFilter
+                                                ? t('sidebar.noTriggersMatch')
+                                                : t('sidebar.noTriggers')}
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            {filteredTriggers.map((trigger) => (
+                                                <SidebarTriggerItem
+                                                    key={trigger.name}
+                                                    trigger={trigger}
+                                                    connectionId={connectionId}
+                                                    onContextMenu={onContextMenu}
+                                                    onDoubleClick={(tr) =>
+                                                        onTriggerDoubleClick(tr, databaseName)
+                                                    }
+                                                    schema={databaseName}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                </Accordion>
+                            )}
+
+                            {/* Routines */}
+                            {capabilities?.routines === true && (
+                                <Accordion
+                                    title={`${t('sidebar.routines')} (${routines.length})`}
+                                    isOpen={routinesOpen}
+                                    onToggle={() => setRoutinesOpen(!routinesOpen)}
+                                    actions={
+                                        onCreateRoutine ? (
+                                            <div className="flex items-center gap-1 mr-2.5">
+                                                {routineErrorIndicator}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onCreateRoutine(e, databaseName);
+                                                    }}
+                                                    className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                                                    title={t('routines.newRoutine')}
+                                                >
+                                                    <Plus size={14} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            routineErrorIndicator
+                                        )
+                                    }
+                                >
+                                    {routines.length === 0 ? (
+                                        <div className="text-center p-2 text-xs text-muted italic">
+                                            {t('sidebar.noRoutines')}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col">
+                                            {groupedRoutines.functions.length > 0 && (
+                                                <div className="mb-2">
+                                                    <SidebarRoutineGroupHeader
+                                                        label={t('sidebar.functions')}
+                                                        count={groupedRoutines.functions.length}
+                                                        isOpen={functionsOpen}
+                                                        onToggle={() =>
+                                                            setFunctionsOpen(!functionsOpen)
+                                                        }
+                                                    />
+                                                    {functionsOpen &&
+                                                        groupedRoutines.functions.map((routine) => (
+                                                            <SidebarRoutineItem
+                                                                key={routineLabel(
+                                                                    routine.name,
+                                                                    routine.identity_args,
+                                                                )}
+                                                                routine={routine}
+                                                                connectionId={connectionId}
+                                                                onContextMenu={onContextMenu}
+                                                                onDoubleClick={(r) =>
+                                                                    onRoutineDoubleClick(
+                                                                        r,
+                                                                        databaseName,
+                                                                    )
+                                                                }
+                                                                schema={databaseName}
+                                                            />
+                                                        ))}
+                                                </div>
+                                            )}
+
+                                            {groupedRoutines.procedures.length > 0 && (
+                                                <div>
+                                                    <SidebarRoutineGroupHeader
+                                                        label={t('sidebar.procedures')}
+                                                        count={groupedRoutines.procedures.length}
+                                                        isOpen={proceduresOpen}
+                                                        onToggle={() =>
+                                                            setProceduresOpen(!proceduresOpen)
+                                                        }
+                                                    />
+                                                    {proceduresOpen &&
+                                                        groupedRoutines.procedures.map(
+                                                            (routine) => (
+                                                                <SidebarRoutineItem
+                                                                    key={routineLabel(
+                                                                        routine.name,
+                                                                        routine.identity_args,
+                                                                    )}
+                                                                    routine={routine}
+                                                                    connectionId={connectionId}
+                                                                    onContextMenu={onContextMenu}
+                                                                    onDoubleClick={(r) =>
+                                                                        onRoutineDoubleClick(
+                                                                            r,
+                                                                            databaseName,
+                                                                        )
+                                                                    }
+                                                                    schema={databaseName}
+                                                                />
+                                                            ),
+                                                        )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </Accordion>
+                            )}
+                        </>
                     )}
-
-                    {groupedRoutines.procedures.length > 0 && (
-                      <div>
-                        <SidebarRoutineGroupHeader
-                          label={t("sidebar.procedures")}
-                          count={groupedRoutines.procedures.length}
-                          isOpen={proceduresOpen}
-                          onToggle={() => setProceduresOpen(!proceduresOpen)}
-                        />
-                        {proceduresOpen && groupedRoutines.procedures.map((routine) => (
-                          <SidebarRoutineItem
-                            key={routineLabel(routine.name, routine.identity_args)}
-                            routine={routine}
-                            connectionId={connectionId}
-                            onContextMenu={onContextMenu}
-                            onDoubleClick={(r) => onRoutineDoubleClick(r, databaseName)}
-                            schema={databaseName}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </Accordion>
-              )}
-            </>
-          )}
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 };

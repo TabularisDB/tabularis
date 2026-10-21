@@ -1,4 +1,4 @@
-import type { Tab } from "../types/editor";
+import type {Tab} from '@/types/editor';
 
 /**
  * Move a tab belonging to `connectionId` to a gap-based insertion point
@@ -11,25 +11,25 @@ import type { Tab } from "../types/editor";
  * means "after the last".
  */
 export function moveTab(
-  tabs: Tab[],
-  connectionId: string,
-  fromTabId: string,
-  insertAt: number,
+    tabs: Tab[],
+    connectionId: string,
+    fromTabId: string,
+    insertAt: number,
 ): Tab[] {
-  const connectionTabs = tabs.filter((t) => t.connectionId === connectionId);
-  const fromIndex = connectionTabs.findIndex((t) => t.id === fromTabId);
-  if (fromIndex === -1) return tabs;
-  if (insertAt < 0 || insertAt > connectionTabs.length) return tabs;
-  if (insertAt === fromIndex || insertAt === fromIndex + 1) return tabs;
+    const connectionTabs = tabs.filter((t) => t.connectionId === connectionId);
+    const fromIndex = connectionTabs.findIndex((t) => t.id === fromTabId);
+    if (fromIndex === -1) return tabs;
+    if (insertAt < 0 || insertAt > connectionTabs.length) return tabs;
+    if (insertAt === fromIndex || insertAt === fromIndex + 1) return tabs;
 
-  const reordered = [...connectionTabs];
-  const [moved] = reordered.splice(fromIndex, 1);
-  // After removing the tab, gaps past it shift left by one.
-  const target = insertAt > fromIndex ? insertAt - 1 : insertAt;
-  reordered.splice(target, 0, moved);
+    const reordered = [...connectionTabs];
+    const [moved] = reordered.splice(fromIndex, 1);
+    // After removing the tab, gaps past it shift left by one.
+    const target = insertAt > fromIndex ? insertAt - 1 : insertAt;
+    reordered.splice(target, 0, moved);
 
-  let i = 0;
-  return tabs.map((t) => (t.connectionId === connectionId ? reordered[i++] : t));
+    let i = 0;
+    return tabs.map((t) => (t.connectionId === connectionId ? reordered[i++] : t));
 }
 
 /**
@@ -39,14 +39,14 @@ export function moveTab(
  * trailing gap.
  */
 export function getAdjacentTabGap(
-  tabs: Tab[],
-  connectionId: string,
-  tabId: string,
-  direction: "left" | "right",
+    tabs: Tab[],
+    connectionId: string,
+    tabId: string,
+    direction: 'left' | 'right',
 ): number | null {
-  const connectionTabs = tabs.filter((t) => t.connectionId === connectionId);
-  const index = connectionTabs.findIndex((t) => t.id === tabId);
-  if (index === -1) return null;
-  const gap = direction === "left" ? index - 1 : index + 2;
-  return gap < 0 || gap > connectionTabs.length ? null : gap;
+    const connectionTabs = tabs.filter((t) => t.connectionId === connectionId);
+    const index = connectionTabs.findIndex((t) => t.id === tabId);
+    if (index === -1) return null;
+    const gap = direction === 'left' ? index - 1 : index + 2;
+    return gap < 0 || gap > connectionTabs.length ? null : gap;
 }

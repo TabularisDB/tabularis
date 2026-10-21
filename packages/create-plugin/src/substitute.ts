@@ -9,10 +9,10 @@
  *   that contain safe content (slugs, version strings, booleans).
  */
 export function substitute(source: string, vars: Record<string, string>): string {
-  return source.replace(/\$\{([A-Z_][A-Z0-9_]*)\}/g, (match, name: string) => {
-    const value = vars[name];
-    return value === undefined ? match : value;
-  });
+    return source.replace(/\$\{([A-Z_][A-Z0-9_]*)\}/g, (match, name: string) => {
+        const value = vars[name];
+        return value === undefined ? match : value;
+    });
 }
 
 /**
@@ -21,10 +21,10 @@ export function substitute(source: string, vars: Record<string, string>): string
  * `.json.tmpl` file and may contain special characters.
  */
 export function jsonEscape(value: string): string {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "\\r")
-    .replace(/\t/g, "\\t");
+    return value
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+        .replace(/\t/g, '\\t');
 }

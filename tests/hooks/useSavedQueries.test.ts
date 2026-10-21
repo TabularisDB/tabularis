@@ -1,120 +1,134 @@
-import { describe, it, expect, vi } from 'vitest';
-import { useSavedQueries } from '../../src/hooks/useSavedQueries';
-import { SavedQueriesContext, type SavedQueriesContextType, type SavedQuery } from '../../src/contexts/SavedQueriesContext';
-import { renderHook } from '@testing-library/react';
-import React, { type ReactNode } from 'react';
+import {describe, it, expect, vi} from 'vitest';
+import {useSavedQueries} from '@/hooks/useSavedQueries';
+import {
+    SavedQueriesContext,
+    type SavedQueriesContextType,
+    type SavedQuery,
+} from '@/contexts/SavedQueriesContext';
+import {renderHook} from '@testing-library/react';
+import React, {type ReactNode} from 'react';
 
 describe('useSavedQueries', () => {
-  it('should throw error when used outside SavedQueriesProvider', () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    
-    expect(() => {
-      renderHook(() => useSavedQueries());
-    }).toThrow('useSavedQueries must be used within a SavedQueriesProvider');
-    
-    consoleSpy.mockRestore();
-  });
+    it('should throw error when used outside SavedQueriesProvider', () => {
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-  it('should return context value when used within SavedQueriesProvider', () => {
-    const mockQueries: SavedQuery[] = [
-      { id: 'query-1', name: 'All Users', sql: 'SELECT * FROM users', connection_id: 'conn-123' },
-      { id: 'query-2', name: 'Active Orders', sql: 'SELECT * FROM orders WHERE status = "active"', connection_id: 'conn-123' },
-    ];
+        expect(() => {
+            renderHook(() => useSavedQueries());
+        }).toThrow('useSavedQueries must be used within a SavedQueriesProvider');
 
-    const mockContextValue: SavedQueriesContextType = {
-      queries: mockQueries,
-      folders: [],
-      isLoading: false,
-      saveQuery: vi.fn(),
-      updateQuery: vi.fn(),
-      deleteQuery: vi.fn(),
-      createFolder: vi.fn(),
-      renameFolder: vi.fn(),
-      deleteFolder: vi.fn(),
-      moveQuery: vi.fn(),
-      refreshQueries: vi.fn(),
-    };
+        consoleSpy.mockRestore();
+    });
 
-    const wrapper = ({ children }: { children: ReactNode }) => 
-      React.createElement(SavedQueriesContext.Provider, { value: mockContextValue }, children);
+    it('should return context value when used within SavedQueriesProvider', () => {
+        const mockQueries: SavedQuery[] = [
+            {
+                id: 'query-1',
+                name: 'All Users',
+                sql: 'SELECT * FROM users',
+                connection_id: 'conn-123',
+            },
+            {
+                id: 'query-2',
+                name: 'Active Orders',
+                sql: 'SELECT * FROM orders WHERE status = "active"',
+                connection_id: 'conn-123',
+            },
+        ];
 
-    const { result } = renderHook(() => useSavedQueries(), { wrapper });
+        const mockContextValue: SavedQueriesContextType = {
+            queries: mockQueries,
+            folders: [],
+            isLoading: false,
+            saveQuery: vi.fn(),
+            updateQuery: vi.fn(),
+            deleteQuery: vi.fn(),
+            createFolder: vi.fn(),
+            renameFolder: vi.fn(),
+            deleteFolder: vi.fn(),
+            moveQuery: vi.fn(),
+            refreshQueries: vi.fn(),
+        };
 
-    expect(result.current.queries).toHaveLength(2);
-    expect(result.current.queries[0].name).toBe('All Users');
-    expect(result.current.queries[1].sql).toBe('SELECT * FROM orders WHERE status = "active"');
-    expect(result.current.isLoading).toBe(false);
-  });
+        const wrapper = ({children}: {children: ReactNode}) =>
+            React.createElement(SavedQueriesContext.Provider, {value: mockContextValue}, children);
 
-  it('should handle empty queries', () => {
-    const mockContextValue: SavedQueriesContextType = {
-      queries: [],
-      folders: [],
-      isLoading: false,
-      saveQuery: vi.fn(),
-      updateQuery: vi.fn(),
-      deleteQuery: vi.fn(),
-      createFolder: vi.fn(),
-      renameFolder: vi.fn(),
-      deleteFolder: vi.fn(),
-      moveQuery: vi.fn(),
-      refreshQueries: vi.fn(),
-    };
+        const {result} = renderHook(() => useSavedQueries(), {wrapper});
 
-    const wrapper = ({ children }: { children: ReactNode }) => 
-      React.createElement(SavedQueriesContext.Provider, { value: mockContextValue }, children);
+        expect(result.current.queries).toHaveLength(2);
+        expect(result.current.queries[0].name).toBe('All Users');
+        expect(result.current.queries[1].sql).toBe('SELECT * FROM orders WHERE status = "active"');
+        expect(result.current.isLoading).toBe(false);
+    });
 
-    const { result } = renderHook(() => useSavedQueries(), { wrapper });
+    it('should handle empty queries', () => {
+        const mockContextValue: SavedQueriesContextType = {
+            queries: [],
+            folders: [],
+            isLoading: false,
+            saveQuery: vi.fn(),
+            updateQuery: vi.fn(),
+            deleteQuery: vi.fn(),
+            createFolder: vi.fn(),
+            renameFolder: vi.fn(),
+            deleteFolder: vi.fn(),
+            moveQuery: vi.fn(),
+            refreshQueries: vi.fn(),
+        };
 
-    expect(result.current.queries).toHaveLength(0);
-  });
+        const wrapper = ({children}: {children: ReactNode}) =>
+            React.createElement(SavedQueriesContext.Provider, {value: mockContextValue}, children);
 
-  it('should handle loading state', () => {
-    const mockContextValue: SavedQueriesContextType = {
-      queries: [],
-      folders: [],
-      isLoading: true,
-      saveQuery: vi.fn(),
-      updateQuery: vi.fn(),
-      deleteQuery: vi.fn(),
-      createFolder: vi.fn(),
-      renameFolder: vi.fn(),
-      deleteFolder: vi.fn(),
-      moveQuery: vi.fn(),
-      refreshQueries: vi.fn(),
-    };
+        const {result} = renderHook(() => useSavedQueries(), {wrapper});
 
-    const wrapper = ({ children }: { children: ReactNode }) => 
-      React.createElement(SavedQueriesContext.Provider, { value: mockContextValue }, children);
+        expect(result.current.queries).toHaveLength(0);
+    });
 
-    const { result } = renderHook(() => useSavedQueries(), { wrapper });
+    it('should handle loading state', () => {
+        const mockContextValue: SavedQueriesContextType = {
+            queries: [],
+            folders: [],
+            isLoading: true,
+            saveQuery: vi.fn(),
+            updateQuery: vi.fn(),
+            deleteQuery: vi.fn(),
+            createFolder: vi.fn(),
+            renameFolder: vi.fn(),
+            deleteFolder: vi.fn(),
+            moveQuery: vi.fn(),
+            refreshQueries: vi.fn(),
+        };
 
-    expect(result.current.isLoading).toBe(true);
-  });
+        const wrapper = ({children}: {children: ReactNode}) =>
+            React.createElement(SavedQueriesContext.Provider, {value: mockContextValue}, children);
 
-  it('should provide all query management functions', () => {
-    const mockContextValue: SavedQueriesContextType = {
-      queries: [],
-      folders: [],
-      isLoading: false,
-      saveQuery: vi.fn(),
-      updateQuery: vi.fn(),
-      deleteQuery: vi.fn(),
-      createFolder: vi.fn(),
-      renameFolder: vi.fn(),
-      deleteFolder: vi.fn(),
-      moveQuery: vi.fn(),
-      refreshQueries: vi.fn(),
-    };
+        const {result} = renderHook(() => useSavedQueries(), {wrapper});
 
-    const wrapper = ({ children }: { children: ReactNode }) => 
-      React.createElement(SavedQueriesContext.Provider, { value: mockContextValue }, children);
+        expect(result.current.isLoading).toBe(true);
+    });
 
-    const { result } = renderHook(() => useSavedQueries(), { wrapper });
+    it('should provide all query management functions', () => {
+        const mockContextValue: SavedQueriesContextType = {
+            queries: [],
+            folders: [],
+            isLoading: false,
+            saveQuery: vi.fn(),
+            updateQuery: vi.fn(),
+            deleteQuery: vi.fn(),
+            createFolder: vi.fn(),
+            renameFolder: vi.fn(),
+            deleteFolder: vi.fn(),
+            moveQuery: vi.fn(),
+            refreshQueries: vi.fn(),
+        };
 
-    expect(typeof result.current.saveQuery).toBe('function');
-    expect(typeof result.current.updateQuery).toBe('function');
-    expect(typeof result.current.deleteQuery).toBe('function');
-    expect(typeof result.current.refreshQueries).toBe('function');
-  });
+        const wrapper = ({children}: {children: ReactNode}) =>
+            React.createElement(SavedQueriesContext.Provider, {value: mockContextValue}, children);
+
+        const {result} = renderHook(() => useSavedQueries(), {wrapper});
+
+        expect(typeof result.current.saveQuery).toBe('function');
+        expect(typeof result.current.updateQuery).toBe('function');
+        expect(typeof result.current.deleteQuery).toBe('function');
+        expect(typeof result.current.refreshQueries).toBe('function');
+    });
 });

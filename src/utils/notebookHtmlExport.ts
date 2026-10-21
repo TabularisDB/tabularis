@@ -1,75 +1,70 @@
-import type { NotebookCell } from "../types/notebook";
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+import type {NotebookCell} from '@/types/notebook';
+import {escapeHtml} from './escape';
 
 function renderMarkdownCell(content: string): string {
-  // Basic markdown to HTML: headings, bold, italic, code, lists
-  let html = escapeHtml(content);
+    // Basic markdown to HTML: headings, bold, italic, code, lists
+    let html = escapeHtml(content);
 
-  // Headings
-  html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
-  html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
-  html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+    // Headings
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
 
-  // Bold and italic
-  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+    // Bold and italic
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-  // Blockquotes
-  html = html.replace(/^&gt; (.+)$/gm, "<blockquote>$1</blockquote>");
+    // Blockquotes
+    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
 
-  // Unordered lists
-  html = html.replace(/^- (.+)$/gm, "<li>$1</li>");
-  html = html.replace(/((?:<li>.+<\/li>\n?)+)/g, "<ul>$1</ul>");
+    // Unordered lists
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/((?:<li>.+<\/li>\n?)+)/g, '<ul>$1</ul>');
 
-  // Horizontal rules
-  html = html.replace(/^---$/gm, "<hr>");
+    // Horizontal rules
+    html = html.replace(/^---$/gm, '<hr>');
 
-  // Line breaks for remaining text
-  html = html.replace(/\n\n/g, "</p><p>");
-  html = `<p>${html}</p>`;
-  html = html.replace(/<p><(h[1-3]|ul|hr|blockquote)/g, "<$1");
-  html = html.replace(/<\/(h[1-3]|ul|hr|blockquote)><\/p>/g, "</$1>");
+    // Line breaks for remaining text
+    html = html.replace(/\n\n/g, '</p><p>');
+    html = `<p>${html}</p>`;
+    html = html.replace(/<p><(h[1-3]|ul|hr|blockquote)/g, '<$1');
+    html = html.replace(/<\/(h[1-3]|ul|hr|blockquote)><\/p>/g, '</$1>');
 
-  return `<div class="markdown-cell">${html}</div>`;
+    return `<div class="markdown-cell">${html}</div>`;
 }
 
 function renderSqlCell(cell: NotebookCell, index: number): string {
-  let html = `<div class="sql-cell">`;
-  const schemaLabel = cell.schema ? ` · <span style="color:#79c0ff">${escapeHtml(cell.schema)}</span>` : "";
-  html += `<div class="cell-header">SQL Cell #${index + 1}${schemaLabel}</div>`;
-  html += `<pre class="sql-code"><code>${escapeHtml(cell.content)}</code></pre>`;
+    let html = `<div class="sql-cell">`;
+    const schemaLabel = cell.schema
+        ? ` · <span style="color:#79c0ff">${escapeHtml(cell.schema)}</span>`
+        : '';
+    html += `<div class="cell-header">SQL Cell #${index + 1}${schemaLabel}</div>`;
+    html += `<pre class="sql-code"><code>${escapeHtml(cell.content)}</code></pre>`;
 
-  if (cell.error) {
-    html += `<div class="cell-error">${escapeHtml(cell.error)}</div>`;
-  }
-
-  if (cell.result && cell.result.rows.length > 0) {
-    html += `<div class="cell-meta">${cell.result.rows.length} rows`;
-    if (cell.executionTime != null) {
-      html += ` · ${Math.round(cell.executionTime)}ms`;
+    if (cell.error) {
+        html += `<div class="cell-error">${escapeHtml(cell.error)}</div>`;
     }
+
+    if (cell.result && cell.result.rows.length > 0) {
+        html += `<div class="cell-meta">${cell.result.rows.length} rows`;
+        if (cell.executionTime != null) {
+            html += ` · ${Math.round(cell.executionTime)}ms`;
+        }
+        html += `</div>`;
+        html += `<table class="result-table">`;
+        html += `<thead><tr>${cell.result.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>`;
+        html += `<tbody>`;
+        for (const row of cell.result.rows) {
+            html += `<tr>${row.map((v) => `<td>${v === null ? '<em>NULL</em>' : escapeHtml(String(v))}</td>`).join('')}</tr>`;
+        }
+        html += `</tbody></table>`;
+    }
+
     html += `</div>`;
-    html += `<table class="result-table">`;
-    html += `<thead><tr>${cell.result.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr></thead>`;
-    html += `<tbody>`;
-    for (const row of cell.result.rows) {
-      html += `<tr>${row.map((v) => `<td>${v === null ? "<em>NULL</em>" : escapeHtml(String(v))}</td>`).join("")}</tr>`;
-    }
-    html += `</tbody></table>`;
-  }
-
-  html += `</div>`;
-  return html;
+    return html;
 }
 
 const CSS = `
@@ -97,20 +92,17 @@ const CSS = `
   strong { color: #f0f6fc; }
 `;
 
-export function exportNotebookToHtml(
-  title: string,
-  cells: NotebookCell[],
-): string {
-  let body = "";
-  cells.forEach((cell, index) => {
-    if (cell.type === "markdown") {
-      body += renderMarkdownCell(cell.content);
-    } else {
-      body += renderSqlCell(cell, index);
-    }
-  });
+export function exportNotebookToHtml(title: string, cells: NotebookCell[]): string {
+    let body = '';
+    cells.forEach((cell, index) => {
+        if (cell.type === 'markdown') {
+            body += renderMarkdownCell(cell.content);
+        } else {
+            body += renderSqlCell(cell, index);
+        }
+    });
 
-  return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">

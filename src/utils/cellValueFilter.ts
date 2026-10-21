@@ -1,24 +1,13 @@
-import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { quoteIdentifier } from "./identifiers";
-import {
-  formatSqlValueForColumnComparison,
-  isNumericColumnType,
-} from "./foreignKeys";
-import { buildLiteralLikeClause } from "./filterBar";
-import { getDateInputMode } from "./dateInput";
-import { isGeometricType } from "./geometry";
-import { isTextColumn } from "./text";
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import {quoteIdentifier} from './identifiers';
+import {formatSqlValueForColumnComparison, isNumericColumnType} from './foreignKeys';
+import {buildLiteralLikeClause} from './filterBar';
+import {getDateInputMode} from './dateInput';
+import {isGeometricType} from './geometry';
+import {isTextColumn} from './text';
 
 export type CellValueFilterOperator =
-  | "="
-  | "<>"
-  | ">"
-  | ">="
-  | "<"
-  | "<="
-  | "contains"
-  | "IS NULL"
-  | "IS NOT NULL";
+    '=' | '<>' | '>' | '>=' | '<' | '<=' | 'contains' | 'IS NULL' | 'IS NOT NULL';
 
 /**
  * Build a WHERE-clause fragment that filters the current table by a cell value.
@@ -34,19 +23,19 @@ export type CellValueFilterOperator =
  * the same on MySQL, PostgreSQL and SQLite.
  */
 export function buildCellValueFilterClause(
-  column: string,
-  operator: CellValueFilterOperator,
-  value: unknown,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
-  columnType?: string,
+    column: string,
+    operator: CellValueFilterOperator,
+    value: unknown,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    columnType?: string,
 ): string {
-  const col = quoteIdentifier(column, driver);
-  if (operator === "IS NULL") return `${col} IS NULL`;
-  if (operator === "IS NOT NULL") return `${col} IS NOT NULL`;
-  if (operator === "contains") {
-    return buildLiteralLikeClause(col, String(value), "contains", driver);
-  }
-  return `${col} ${operator} ${formatSqlValueForColumnComparison(value, driver, columnType)}`;
+    const col = quoteIdentifier(column, driver);
+    if (operator === 'IS NULL') return `${col} IS NULL`;
+    if (operator === 'IS NOT NULL') return `${col} IS NOT NULL`;
+    if (operator === 'contains') {
+        return buildLiteralLikeClause(col, String(value), 'contains', driver);
+    }
+    return `${col} ${operator} ${formatSqlValueForColumnComparison(value, driver, columnType)}`;
 }
 
 /**
@@ -54,13 +43,10 @@ export function buildCellValueFilterClause(
  * existing clause is parenthesised so a filter that already contains OR keeps
  * its meaning when AND-ed with the new condition.
  */
-export function combineFilterClauses(
-  existing: string | undefined | null,
-  added: string,
-): string {
-  const trimmed = existing?.trim();
-  if (!trimmed) return added;
-  return `(${trimmed}) AND ${added}`;
+export function combineFilterClauses(existing: string | undefined | null, added: string): string {
+    const trimmed = existing?.trim();
+    if (!trimmed) return added;
+    return `(${trimmed}) AND ${added}`;
 }
 
 /**
@@ -75,20 +61,20 @@ export function combineFilterClauses(
  * the masked cell holds.
  */
 export function getCellValueFilterOperators(
-  value: unknown,
-  options: { masked?: boolean; columnType?: string } = {},
+    value: unknown,
+    options: {masked?: boolean; columnType?: string} = {},
 ): CellValueFilterOperator[] {
-  if (options.masked || value === null || value === undefined) {
-    return ["IS NULL", "IS NOT NULL"];
-  }
-  const columnType = options.columnType ?? "";
-  if (isComparableColumnType(columnType)) {
-    return ["=", "<>", ">", ">=", "<", "<="];
-  }
-  if (isTextColumn(columnType) && String(value) !== "") {
-    return ["=", "<>", "contains"];
-  }
-  return ["=", "<>"];
+    if (options.masked || value === null || value === undefined) {
+        return ['IS NULL', 'IS NOT NULL'];
+    }
+    const columnType = options.columnType ?? '';
+    if (isComparableColumnType(columnType)) {
+        return ['=', '<>', '>', '>=', '<', '<='];
+    }
+    if (isTextColumn(columnType) && String(value) !== '') {
+        return ['=', '<>', 'contains'];
+    }
+    return ['=', '<>'];
 }
 
 /**
@@ -97,11 +83,9 @@ export function getCellValueFilterOperators(
  * numeric check would otherwise match.
  */
 export function isComparableColumnType(columnType: string): boolean {
-  if (!columnType || isGeometricType(columnType)) return false;
-  // Drop precision such as `datetime(3)` / `timestamp(6) with time zone`:
-  // getDateInputMode matches bare type names only.
-  const baseType = columnType.replace(/\([^)]*\)/g, "").replace(/\s+/g, " ");
-  return (
-    isNumericColumnType(columnType) || getDateInputMode(baseType) !== null
-  );
+    if (!columnType || isGeometricType(columnType)) return false;
+    // Drop precision such as `datetime(3)` / `timestamp(6) with time zone`:
+    // getDateInputMode matches bare type names only.
+    const baseType = columnType.replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ');
+    return isNumericColumnType(columnType) || getDateInputMode(baseType) !== null;
 }

@@ -1,294 +1,295 @@
-import { useTranslation } from "react-i18next";
-import { useSettings } from "../../hooks/useSettings";
+import {useTranslation} from 'react-i18next';
+import {useSettings} from '@/hooks/useSettings';
 import {
-  DEFAULT_SETTINGS,
-  type CopyFormat,
-  type ERDiagramLayout,
-  type WindowDecorationsMode,
-} from "../../contexts/SettingsContext";
+    DEFAULT_SETTINGS,
+    type CopyFormat,
+    type ERDiagramLayout,
+    type WindowDecorationsMode,
+} from '@/contexts/SettingsContext';
 import {
-  SettingSection,
-  SettingRow,
-  SettingToggle,
-  SettingButtonGroup,
-  SettingNumberInput,
-} from "./SettingControls";
-import { DEFAULT_NOTIFY_THRESHOLD_SEC } from "../../utils/queryNotification";
+    SettingSection,
+    SettingRow,
+    SettingToggle,
+    SettingButtonGroup,
+    SettingNumberInput,
+} from './SettingControls';
+import {DEFAULT_NOTIFY_THRESHOLD_SEC} from '@/utils/queryNotification';
 
 export function GeneralTab() {
-  const { t } = useTranslation();
-  const { settings, updateSetting } = useSettings();
+    const {t} = useTranslation();
+    const {settings, updateSetting} = useSettings();
 
-  return (
-    <div>
-      <SettingSection title={t("settings.startup")}>
-        <SettingRow
-          label={t("settings.showWelcome")}
-          description={t("settings.showWelcomeDesc")}
-        >
-          <SettingToggle
-            checked={settings.showWelcome !== false}
-            onChange={(v) => updateSetting("showWelcome", v)}
-          />
-        </SettingRow>
+    return (
+        <div>
+            <SettingSection title={t('settings.startup')}>
+                <SettingRow
+                    label={t('settings.showWelcome')}
+                    description={t('settings.showWelcomeDesc')}
+                >
+                    <SettingToggle
+                        checked={settings.showWelcome !== false}
+                        onChange={(v) => updateSetting('showWelcome', v)}
+                    />
+                </SettingRow>
 
-        <SettingRow
-          label={t("settings.autoConnectLastConnection")}
-          description={t("settings.autoConnectLastConnectionDesc")}
-        >
-          <SettingToggle
-            checked={settings.autoConnectLastConnection !== false}
-            onChange={(v) => updateSetting("autoConnectLastConnection", v)}
-          />
-        </SettingRow>
+                <SettingRow
+                    label={t('settings.autoConnectLastConnection')}
+                    description={t('settings.autoConnectLastConnectionDesc')}
+                >
+                    <SettingToggle
+                        checked={settings.autoConnectLastConnection !== false}
+                        onChange={(v) => updateSetting('autoConnectLastConnection', v)}
+                    />
+                </SettingRow>
 
-        <SettingRow
-          label={t("settings.startMaximized")}
-          description={t("settings.startMaximizedDesc")}
-        >
-          <SettingToggle
-            checked={settings.startMaximized === true}
-            onChange={(v) => updateSetting("startMaximized", v)}
-          />
-        </SettingRow>
+                <SettingRow
+                    label={t('settings.startMaximized')}
+                    description={t('settings.startMaximizedDesc')}
+                >
+                    <SettingToggle
+                        checked={settings.startMaximized === true}
+                        onChange={(v) => updateSetting('startMaximized', v)}
+                    />
+                </SettingRow>
 
-        <SettingRow
-          label={t("settings.windowDecorations")}
-          description={t("settings.windowDecorationsDesc")}
-        >
-          <SettingButtonGroup<WindowDecorationsMode>
-            value={
-              settings.windowDecorations ??
-              DEFAULT_SETTINGS.windowDecorations ??
-              "automatic"
-            }
-            onChange={(value) => updateSetting("windowDecorations", value)}
-            options={[
-              {
-                value: "automatic",
-                label: t("settings.windowDecorationsAutomatic"),
-              },
-              {
-                value: "alwaysShow",
-                label: t("settings.windowDecorationsAlwaysShow"),
-              },
-              {
-                value: "alwaysHide",
-                label: t("settings.windowDecorationsAlwaysHide"),
-              },
-            ]}
-          />
-        </SettingRow>
-      </SettingSection>
+                <SettingRow
+                    label={t('settings.windowDecorations')}
+                    description={t('settings.windowDecorationsDesc')}
+                >
+                    <SettingButtonGroup<WindowDecorationsMode>
+                        value={
+                            settings.windowDecorations ??
+                            DEFAULT_SETTINGS.windowDecorations ??
+                            'automatic'
+                        }
+                        onChange={(value) => updateSetting('windowDecorations', value)}
+                        options={[
+                            {
+                                value: 'automatic',
+                                label: t('settings.windowDecorationsAutomatic'),
+                            },
+                            {
+                                value: 'alwaysShow',
+                                label: t('settings.windowDecorationsAlwaysShow'),
+                            },
+                            {
+                                value: 'alwaysHide',
+                                label: t('settings.windowDecorationsAlwaysHide'),
+                            },
+                        ]}
+                    />
+                </SettingRow>
+            </SettingSection>
 
-      <SettingSection title={t("settings.sidebarSection")}>
-        <SettingRow
-          label={t("settings.groupSidebarConnectionsByFolder")}
-          description={t("settings.groupSidebarConnectionsByFolderDesc")}
-        >
-          <SettingToggle
-            checked={settings.groupSidebarConnectionsByFolder === true}
-            onChange={(v) => updateSetting("groupSidebarConnectionsByFolder", v)}
-          />
-        </SettingRow>
-      </SettingSection>
+            <SettingSection title={t('settings.sidebarSection')}>
+                <SettingRow
+                    label={t('settings.groupSidebarConnectionsByFolder')}
+                    description={t('settings.groupSidebarConnectionsByFolderDesc')}
+                >
+                    <SettingToggle
+                        checked={settings.groupSidebarConnectionsByFolder === true}
+                        onChange={(v) => updateSetting('groupSidebarConnectionsByFolder', v)}
+                    />
+                </SettingRow>
+            </SettingSection>
 
-      <SettingSection title={t("settings.dataEditor")}>
-        <SettingRow
-          label={t("settings.pageSize")}
-          description={t("settings.pageSizeDesc")}
-        >
-          <SettingNumberInput
-            value={settings.resultPageSize ?? DEFAULT_SETTINGS.resultPageSize}
-            onChange={(v) =>
-              updateSetting("resultPageSize", v || DEFAULT_SETTINGS.resultPageSize)
-            }
-            min={0}
-            suffix={t("settings.rows")}
-            fallback={DEFAULT_SETTINGS.resultPageSize}
-          />
-        </SettingRow>
+            <SettingSection title={t('settings.dataEditor')}>
+                <SettingRow label={t('settings.pageSize')} description={t('settings.pageSizeDesc')}>
+                    <SettingNumberInput
+                        value={settings.resultPageSize ?? DEFAULT_SETTINGS.resultPageSize}
+                        onChange={(v) =>
+                            updateSetting('resultPageSize', v || DEFAULT_SETTINGS.resultPageSize)
+                        }
+                        min={0}
+                        suffix={t('settings.rows')}
+                        fallback={DEFAULT_SETTINGS.resultPageSize}
+                    />
+                </SettingRow>
 
-        <SettingRow
-          label={t("settings.copyFormat")}
-          description={t("settings.copyFormatDesc")}
-        >
-          <SettingButtonGroup<CopyFormat>
-            value={(settings.copyFormat ?? DEFAULT_SETTINGS.copyFormat) as CopyFormat}
-            onChange={(v) => updateSetting("copyFormat", v)}
-            options={[
-              { value: "csv", label: "CSV" },
-              { value: "json", label: "JSON" },
-              { value: "sql-insert", label: "SQL INSERT" },
-              { value: "markdown", label: "Markdown" },
-            ]}
-          />
-        </SettingRow>
+                <SettingRow
+                    label={t('settings.copyFormat')}
+                    description={t('settings.copyFormatDesc')}
+                >
+                    <SettingButtonGroup<CopyFormat>
+                        value={(settings.copyFormat ?? DEFAULT_SETTINGS.copyFormat) as CopyFormat}
+                        onChange={(v) => updateSetting('copyFormat', v)}
+                        options={[
+                            {value: 'csv', label: 'CSV'},
+                            {value: 'json', label: 'JSON'},
+                            {value: 'sql-insert', label: 'SQL INSERT'},
+                            {value: 'markdown', label: 'Markdown'},
+                        ]}
+                    />
+                </SettingRow>
 
-        <SettingRow
-          label={t("settings.csvDelimiter")}
-          description={t("settings.csvDelimiterDesc")}
-        >
-          <SettingButtonGroup
-            value={settings.csvDelimiter ?? ","}
-            onChange={(v) => updateSetting("csvDelimiter", v)}
-            options={[
-              { value: ",", label: t("settings.delimiterComma") },
-              { value: ";", label: t("settings.delimiterSemicolon") },
-              { value: "\t", label: t("settings.delimiterTab") },
-              { value: "|", label: t("settings.delimiterPipe") },
-            ]}
-          />
-        </SettingRow>
+                <SettingRow
+                    label={t('settings.csvDelimiter')}
+                    description={t('settings.csvDelimiterDesc')}
+                >
+                    <SettingButtonGroup
+                        value={settings.csvDelimiter ?? ','}
+                        onChange={(v) => updateSetting('csvDelimiter', v)}
+                        options={[
+                            {value: ',', label: t('settings.delimiterComma')},
+                            {value: ';', label: t('settings.delimiterSemicolon')},
+                            {value: '\t', label: t('settings.delimiterTab')},
+                            {value: '|', label: t('settings.delimiterPipe')},
+                        ]}
+                    />
+                </SettingRow>
 
-        <SettingRow
-          label={t("settings.csvIncludeHeaders")}
-          description={t("settings.csvIncludeHeadersDesc")}
-        >
-          <SettingToggle
-            checked={
-              settings.csvIncludeHeaders ??
-              DEFAULT_SETTINGS.csvIncludeHeaders ??
-              true
-            }
-            onChange={(v) => updateSetting("csvIncludeHeaders", v)}
-          />
-        </SettingRow>
+                <SettingRow
+                    label={t('settings.csvIncludeHeaders')}
+                    description={t('settings.csvIncludeHeadersDesc')}
+                >
+                    <SettingToggle
+                        checked={
+                            settings.csvIncludeHeaders ?? DEFAULT_SETTINGS.csvIncludeHeaders ?? true
+                        }
+                        onChange={(v) => updateSetting('csvIncludeHeaders', v)}
+                    />
+                </SettingRow>
 
-        <SettingRow
-          label={t("settings.rowEditorFollowSelection")}
-          description={t("settings.rowEditorFollowSelectionDesc")}
-        >
-          <SettingToggle
-            checked={settings.rowEditorFollowSelection ?? true}
-            onChange={(v) => updateSetting("rowEditorFollowSelection", v)}
-          />
-        </SettingRow>
+                <SettingRow
+                    label={t('settings.rowEditorFollowSelection')}
+                    description={t('settings.rowEditorFollowSelectionDesc')}
+                >
+                    <SettingToggle
+                        checked={settings.rowEditorFollowSelection ?? true}
+                        onChange={(v) => updateSetting('rowEditorFollowSelection', v)}
+                    />
+                </SettingRow>
 
-        <SettingRow
-          label={t("settings.cellDoubleClickAction")}
-          description={t("settings.cellDoubleClickActionDesc")}
-        >
-          <SettingButtonGroup
-            value={settings.cellDoubleClickAction ?? "inline"}
-            onChange={(v) => updateSetting("cellDoubleClickAction", v)}
-            options={[
-              { value: "inline", label: t("settings.cellDoubleClickInline") },
-              { value: "sidebar", label: t("settings.cellDoubleClickSidebar") },
-              { value: "both", label: t("settings.cellDoubleClickBoth") },
-            ]}
-          />
-        </SettingRow>
+                <SettingRow
+                    label={t('settings.cellDoubleClickAction')}
+                    description={t('settings.cellDoubleClickActionDesc')}
+                >
+                    <SettingButtonGroup
+                        value={settings.cellDoubleClickAction ?? 'inline'}
+                        onChange={(v) => updateSetting('cellDoubleClickAction', v)}
+                        options={[
+                            {value: 'inline', label: t('settings.cellDoubleClickInline')},
+                            {value: 'sidebar', label: t('settings.cellDoubleClickSidebar')},
+                            {value: 'both', label: t('settings.cellDoubleClickBoth')},
+                        ]}
+                    />
+                </SettingRow>
+            </SettingSection>
 
-      </SettingSection>
+            <SettingSection title={t('settings.queryExecution')}>
+                <SettingRow
+                    label={t('settings.runStatementUnderCursor')}
+                    description={t('settings.runStatementUnderCursorDesc')}
+                >
+                    <SettingToggle
+                        checked={settings.runStatementUnderCursor !== false}
+                        onChange={(v) => updateSetting('runStatementUnderCursor', v)}
+                    />
+                </SettingRow>
 
-      <SettingSection title={t("settings.queryExecution")}>
-        <SettingRow
-          label={t("settings.runStatementUnderCursor")}
-          description={t("settings.runStatementUnderCursorDesc")}
-        >
-          <SettingToggle
-            checked={settings.runStatementUnderCursor !== false}
-            onChange={(v) => updateSetting("runStatementUnderCursor", v)}
-          />
-        </SettingRow>
+                <SettingRow
+                    label={t('settings.safetyConfirmationDelay')}
+                    description={t('settings.safetyConfirmationDelayDesc')}
+                >
+                    <SettingToggle
+                        checked={settings.safetyConfirmationDelayEnabled === true}
+                        onChange={(v) => updateSetting('safetyConfirmationDelayEnabled', v)}
+                    />
+                </SettingRow>
 
-        <SettingRow
-          label={t("settings.safetyConfirmationDelay")}
-          description={t("settings.safetyConfirmationDelayDesc")}
-        >
-          <SettingToggle
-            checked={settings.safetyConfirmationDelayEnabled === true}
-            onChange={(v) =>
-              updateSetting("safetyConfirmationDelayEnabled", v)
-            }
-          />
-        </SettingRow>
+                <SettingRow
+                    label={t('settings.notifyLongQueries')}
+                    description={t('settings.notifyLongQueriesDesc')}
+                >
+                    <SettingToggle
+                        checked={settings.notifyLongQueries !== false}
+                        onChange={(v) => updateSetting('notifyLongQueries', v)}
+                    />
+                </SettingRow>
 
-        <SettingRow
-          label={t("settings.notifyLongQueries")}
-          description={t("settings.notifyLongQueriesDesc")}
-        >
-          <SettingToggle
-            checked={settings.notifyLongQueries !== false}
-            onChange={(v) => updateSetting("notifyLongQueries", v)}
-          />
-        </SettingRow>
+                <SettingRow
+                    label={t('settings.notifyLongQueriesThreshold')}
+                    description={t('settings.notifyLongQueriesThresholdDesc')}
+                >
+                    <SettingNumberInput
+                        value={
+                            settings.notifyLongQueriesThresholdSec ?? DEFAULT_NOTIFY_THRESHOLD_SEC
+                        }
+                        onChange={(v) =>
+                            updateSetting(
+                                'notifyLongQueriesThresholdSec',
+                                v ?? DEFAULT_NOTIFY_THRESHOLD_SEC,
+                            )
+                        }
+                        min={1}
+                        max={3600}
+                        suffix={t('settings.seconds')}
+                        fallback={DEFAULT_NOTIFY_THRESHOLD_SEC}
+                    />
+                </SettingRow>
+            </SettingSection>
 
-        <SettingRow
-          label={t("settings.notifyLongQueriesThreshold")}
-          description={t("settings.notifyLongQueriesThresholdDesc")}
-        >
-          <SettingNumberInput
-            value={
-              settings.notifyLongQueriesThresholdSec ??
-              DEFAULT_NOTIFY_THRESHOLD_SEC
-            }
-            onChange={(v) =>
-              updateSetting(
-                "notifyLongQueriesThresholdSec",
-                v ?? DEFAULT_NOTIFY_THRESHOLD_SEC,
-              )
-            }
-            min={1}
-            max={3600}
-            suffix={t("settings.seconds")}
-            fallback={DEFAULT_NOTIFY_THRESHOLD_SEC}
-          />
-        </SettingRow>
-      </SettingSection>
+            <SettingSection title={t('settings.connectionHealthCheck')}>
+                <SettingRow
+                    label={t('settings.pingInterval')}
+                    description={t('settings.pingIntervalDesc')}
+                >
+                    <SettingNumberInput
+                        value={settings.pingInterval ?? DEFAULT_SETTINGS.pingInterval ?? 30}
+                        onChange={(v) =>
+                            updateSetting('pingInterval', v ?? DEFAULT_SETTINGS.pingInterval ?? 30)
+                        }
+                        min={0}
+                        max={120}
+                        suffix={t('settings.seconds')}
+                        fallback={DEFAULT_SETTINGS.pingInterval ?? 30}
+                    />
+                </SettingRow>
+            </SettingSection>
 
-      <SettingSection title={t("settings.connectionHealthCheck")}>
-        <SettingRow
-          label={t("settings.pingInterval")}
-          description={t("settings.pingIntervalDesc")}
-        >
-          <SettingNumberInput
-            value={settings.pingInterval ?? DEFAULT_SETTINGS.pingInterval ?? 30}
-            onChange={(v) =>
-              updateSetting("pingInterval", v ?? DEFAULT_SETTINGS.pingInterval ?? 30)
-            }
-            min={0}
-            max={120}
-            suffix={t("settings.seconds")}
-            fallback={DEFAULT_SETTINGS.pingInterval ?? 30}
-          />
-        </SettingRow>
-      </SettingSection>
+            <SettingSection title={t('settings.queryHistory')}>
+                <SettingRow
+                    label={t('settings.queryHistoryMaxEntries')}
+                    description={t('settings.queryHistoryMaxEntriesDesc')}
+                >
+                    <SettingNumberInput
+                        value={
+                            settings.queryHistoryMaxEntries ??
+                            DEFAULT_SETTINGS.queryHistoryMaxEntries ??
+                            500
+                        }
+                        onChange={(v) =>
+                            updateSetting(
+                                'queryHistoryMaxEntries',
+                                v ?? DEFAULT_SETTINGS.queryHistoryMaxEntries ?? 500,
+                            )
+                        }
+                        min={50}
+                        max={5000}
+                        suffix={t('settings.entries')}
+                        fallback={DEFAULT_SETTINGS.queryHistoryMaxEntries ?? 500}
+                    />
+                </SettingRow>
+            </SettingSection>
 
-      <SettingSection title={t("settings.queryHistory")}>
-        <SettingRow
-          label={t("settings.queryHistoryMaxEntries")}
-          description={t("settings.queryHistoryMaxEntriesDesc")}
-        >
-          <SettingNumberInput
-            value={settings.queryHistoryMaxEntries ?? DEFAULT_SETTINGS.queryHistoryMaxEntries ?? 500}
-            onChange={(v) =>
-              updateSetting("queryHistoryMaxEntries", v ?? DEFAULT_SETTINGS.queryHistoryMaxEntries ?? 500)
-            }
-            min={50}
-            max={5000}
-            suffix={t("settings.entries")}
-            fallback={DEFAULT_SETTINGS.queryHistoryMaxEntries ?? 500}
-          />
-        </SettingRow>
-      </SettingSection>
-
-      <SettingSection title={t("settings.erDiagram")}>
-        <SettingRow
-          label={t("settings.erDiagramDefaultLayout")}
-          description={t("settings.erDiagramDefaultLayoutDesc")}
-        >
-          <SettingButtonGroup<ERDiagramLayout>
-            value={(settings.erDiagramDefaultLayout ?? DEFAULT_SETTINGS.erDiagramDefaultLayout) as ERDiagramLayout}
-            onChange={(v) => updateSetting("erDiagramDefaultLayout", v)}
-            options={[
-              { value: "LR", label: t("erDiagram.horizontal") },
-              { value: "TB", label: t("erDiagram.vertical") },
-            ]}
-          />
-        </SettingRow>
-      </SettingSection>
-    </div>
-  );
+            <SettingSection title={t('settings.erDiagram')}>
+                <SettingRow
+                    label={t('settings.erDiagramDefaultLayout')}
+                    description={t('settings.erDiagramDefaultLayoutDesc')}
+                >
+                    <SettingButtonGroup<ERDiagramLayout>
+                        value={
+                            (settings.erDiagramDefaultLayout ??
+                                DEFAULT_SETTINGS.erDiagramDefaultLayout) as ERDiagramLayout
+                        }
+                        onChange={(v) => updateSetting('erDiagramDefaultLayout', v)}
+                        options={[
+                            {value: 'LR', label: t('erDiagram.horizontal')},
+                            {value: 'TB', label: t('erDiagram.vertical')},
+                        ]}
+                    />
+                </SettingRow>
+            </SettingSection>
+        </div>
+    );
 }

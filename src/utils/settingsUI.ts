@@ -3,7 +3,7 @@
  * Extracted from Settings.tsx for testability
  */
 
-import type { AiProvider } from '../contexts/SettingsContext';
+import type {AiProvider} from '@/contexts/SettingsContext';
 
 /**
  * Font size bounds
@@ -17,7 +17,7 @@ export const MAX_FONT_SIZE = 20;
  * @returns True if font size is valid
  */
 export function validateFontSize(size: number): boolean {
-  return Number.isInteger(size) && size >= MIN_FONT_SIZE && size <= MAX_FONT_SIZE;
+    return Number.isInteger(size) && size >= MIN_FONT_SIZE && size <= MAX_FONT_SIZE;
 }
 
 /**
@@ -26,26 +26,26 @@ export function validateFontSize(size: number): boolean {
  * @returns Display label
  */
 export function getProviderLabel(id: AiProvider): string {
-  switch (id) {
-    case 'chatgpt':
-      return 'ChatGPT';
-    case 'openai':
-      return 'OpenAI';
-    case 'anthropic':
-      return 'Anthropic';
-    case 'openrouter':
-      return 'OpenRouter';
-    case 'requesty':
-      return 'Requesty';
-    case 'ollama':
-      return 'Ollama';
-    case 'custom-openai':
-      return 'OpenAI Compatible';
-    case 'minimax':
-      return 'MiniMax';
-    default:
-      return String(id).charAt(0).toUpperCase() + String(id).slice(1);
-  }
+    switch (id) {
+        case 'chatgpt':
+            return 'ChatGPT';
+        case 'openai':
+            return 'OpenAI';
+        case 'anthropic':
+            return 'Anthropic';
+        case 'openrouter':
+            return 'OpenRouter';
+        case 'requesty':
+            return 'Requesty';
+        case 'ollama':
+            return 'Ollama';
+        case 'custom-openai':
+            return 'OpenAI Compatible';
+        case 'minimax':
+            return 'MiniMax';
+        default:
+            return String(id).charAt(0).toUpperCase() + String(id).slice(1);
+    }
 }
 
 /**
@@ -55,10 +55,10 @@ export function getProviderLabel(id: AiProvider): string {
  * @returns True if font is a preset
  */
 export function isPresetFont(
-  fontFamily: string,
-  availableFonts: ReadonlyArray<{ name: string; label: string }>
+    fontFamily: string,
+    availableFonts: ReadonlyArray<{name: string; label: string}>,
 ): boolean {
-  return availableFonts.some((f) => f.name === fontFamily);
+    return availableFonts.some((f) => f.name === fontFamily);
 }
 
 /**
@@ -67,9 +67,9 @@ export function isPresetFont(
  * @returns True if key appears valid
  */
 export function isValidApiKeyFormat(key: string): boolean {
-  const trimmed = key.trim();
-  // API keys should be at least 10 characters and contain alphanumeric/special chars
-  return trimmed.length >= 10 && /^[A-Za-z0-9_\-:.]+$/.test(trimmed);
+    const trimmed = key.trim();
+    // API keys should be at least 10 characters and contain alphanumeric/special chars
+    return trimmed.length >= 10 && /^[A-Za-z0-9_\-:.]+$/.test(trimmed);
 }
 
 /**
@@ -78,14 +78,17 @@ export function isValidApiKeyFormat(key: string): boolean {
  * @param done - Whether the feature is completed
  * @returns Formatted display object
  */
-export function formatRoadmapFeature(label: string, done: boolean): {
-  label: string;
-  status: 'completed' | 'pending';
-  icon: '✓' | '○';
+export function formatRoadmapFeature(
+    label: string,
+    done: boolean,
+): {
+    label: string;
+    status: 'completed' | 'pending';
+    icon: '✓' | '○';
 } {
-  return {
-    label,
-    status: done ? 'completed' : 'pending',
-    icon: done ? '✓' : '○',
-  };
+    return {
+        label,
+        status: done ? 'completed' : 'pending',
+        icon: done ? '✓' : '○',
+    };
 }

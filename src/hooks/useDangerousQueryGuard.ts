@@ -1,36 +1,30 @@
-import { useCallback, useRef, useState } from "react";
-import {
-  classifyDangerousQuery,
-  type DangerousQueryKind,
-} from "../utils/sqlAnalysis";
+import {useCallback, useRef, useState} from 'react';
+import {classifyDangerousQuery, type DangerousQueryKind} from '@/utils/sqlAnalysis';
 
 /** Details about the dangerous statement that triggered a confirmation. */
 export interface DangerousQueryInfo {
-  /** Why the statement was flagged — drives the dialog copy. */
-  kind: DangerousQueryKind;
-  /** The flagged statement itself, shown to the user as a preview. */
-  sql: string;
-  /** How many statements in the batch were flagged (>= 1). */
-  count: number;
+    /** Why the statement was flagged — drives the dialog copy. */
+    kind: DangerousQueryKind;
+    /** The flagged statement itself, shown to the user as a preview. */
+    sql: string;
+    /** How many statements in the batch were flagged (>= 1). */
+    count: number;
 }
 
 /** i18n key pairs for each danger kind, shared by every consumer of the guard. */
-export const DANGEROUS_QUERY_I18N: Record<
-  DangerousQueryKind,
-  { title: string; message: string }
-> = {
-  "no-where": {
-    title: "editor.dangerousQueryTitle",
-    message: "editor.dangerousQueryMessage",
-  },
-  drop: {
-    title: "editor.dangerousQueryDropTitle",
-    message: "editor.dangerousQueryDropMessage",
-  },
-  truncate: {
-    title: "editor.dangerousQueryTruncateTitle",
-    message: "editor.dangerousQueryTruncateMessage",
-  },
+export const DANGEROUS_QUERY_I18N: Record<DangerousQueryKind, {title: string; message: string}> = {
+    'no-where': {
+        title: 'editor.dangerousQueryTitle',
+        message: 'editor.dangerousQueryMessage',
+    },
+    drop: {
+        title: 'editor.dangerousQueryDropTitle',
+        message: 'editor.dangerousQueryDropMessage',
+    },
+    truncate: {
+        title: 'editor.dangerousQueryTruncateTitle',
+        message: 'editor.dangerousQueryTruncateMessage',
+    },
 };
 
 /**
@@ -43,48 +37,43 @@ export const DANGEROUS_QUERY_I18N: Record<
  * disable this guard when a higher-priority safety prompt handles the action.
  */
 export function useDangerousQueryGuard(enabled = true) {
-  const [pending, setPending] = useState<DangerousQueryInfo | null>(null);
-  const resolverRef = useRef<((confirmed: boolean) => void) | null>(null);
+    const [pending, setPending] = useState<DangerousQueryInfo | null>(null);
+    const resolverRef = useRef<((confirmed: boolean) => void) | null>(null);
 
-  const requestConfirmation = useCallback(
-    (info: DangerousQueryInfo): Promise<boolean> => {
-      if (resolverRef.current) return Promise.resolve(false);
-      return new Promise((resolve) => {
-        resolverRef.current = resolve;
-        setPending(info);
-      });
-    },
-    [],
-  );
+    const requestConfirmation = useCallback((info: DangerousQueryInfo): Promise<boolean> => {
+        if (resolverRef.current) return Promise.resolve(false);
+        return new Promise((resolve) => {
+            resolverRef.current = resolve;
+            setPending(info);
+        });
+    }, []);
 
-  const resolve = useCallback((confirmed: boolean) => {
-    resolverRef.current?.(confirmed);
-    resolverRef.current = null;
-    setPending(null);
-  }, []);
+    const resolve = useCallback((confirmed: boolean) => {
+        resolverRef.current?.(confirmed);
+        resolverRef.current = null;
+        setPending(null);
+    }, []);
 
-  const guardQuery = useCallback(
-    (sqlOrQueries: string | string[]): Promise<boolean> => {
-      if (!enabled) return Promise.resolve(true);
+    const guardQuery = useCallback(
+        (sqlOrQueries: string | string[]): Promise<boolean> => {
+            if (!enabled) return Promise.resolve(true);
 
-      const statements = Array.isArray(sqlOrQueries)
-        ? sqlOrQueries
-        : [sqlOrQueries];
+            const statements = Array.isArray(sqlOrQueries) ? sqlOrQueries : [sqlOrQueries];
 
-      let first: DangerousQueryInfo | null = null;
-      let count = 0;
-      for (const sql of statements) {
-        const kind = classifyDangerousQuery(sql);
-        if (!kind) continue;
-        count++;
-        if (!first) first = { kind, sql, count: 0 };
-      }
+            let first: DangerousQueryInfo | null = null;
+            let count = 0;
+            for (const sql of statements) {
+                const kind = classifyDangerousQuery(sql);
+                if (!kind) continue;
+                count++;
+                if (!first) first = {kind, sql, count: 0};
+            }
 
-      if (!first) return Promise.resolve(true);
-      return requestConfirmation({ ...first, count });
-    },
-    [enabled, requestConfirmation],
-  );
+            if (!first) return Promise.resolve(true);
+            return requestConfirmation({...first, count});
+        },
+        [enabled, requestConfirmation],
+    );
 
-  return { pending, isPending: pending !== null, guardQuery, resolve };
+    return {pending, isPending: pending !== null, guardQuery, resolve};
 }

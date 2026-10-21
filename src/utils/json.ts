@@ -2,14 +2,14 @@
  * Utility functions for handling JSON data types in MySQL, PostgreSQL, and SQLite.
  */
 
-const JSON_TYPES = ["JSON", "JSONB"];
+const JSON_TYPES = ['JSON', 'JSONB'];
 
 /**
  * Returns true if the column data type is a JSON/JSONB type.
  */
 export function isJsonColumn(dataType: string): boolean {
-  if (!dataType) return false;
-  return JSON_TYPES.includes(dataType.toUpperCase());
+    if (!dataType) return false;
+    return JSON_TYPES.includes(dataType.toUpperCase());
 }
 
 /**
@@ -18,7 +18,7 @@ export function isJsonColumn(dataType: string): boolean {
  * type name (udt_name), so hstore columns report their data_type as "hstore".
  */
 export function isHstoreColumn(dataType?: string | null): boolean {
-  return dataType?.toLowerCase() === "hstore";
+    return dataType?.toLowerCase() === 'hstore';
 }
 
 /**
@@ -26,36 +26,36 @@ export function isHstoreColumn(dataType?: string | null): boolean {
  * Objects/arrays are pretty-printed; primitives and strings are returned as-is.
  */
 export function formatJsonForEditor(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "object") {
-    try {
-      return JSON.stringify(value, null, 2);
-    } catch {
-      return String(value);
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'object') {
+        try {
+            return JSON.stringify(value, null, 2);
+        } catch {
+            return String(value);
+        }
     }
-  }
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      return value;
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            return JSON.stringify(parsed, null, 2);
+        } catch {
+            return value;
+        }
     }
-  }
-  return String(value);
+    return String(value);
 }
 
 /**
  * Validates a JSON string. Returns null if valid, or an error message if invalid.
  */
 export function validateJson(text: string): string | null {
-  if (text.trim() === "") return null;
-  try {
-    JSON.parse(text);
-    return null;
-  } catch (e) {
-    return e instanceof SyntaxError ? e.message : "Invalid JSON";
-  }
+    if (text.trim() === '') return null;
+    try {
+        JSON.parse(text);
+        return null;
+    } catch (e) {
+        return e instanceof SyntaxError ? e.message : 'Invalid JSON';
+    }
 }
 
 /**
@@ -63,12 +63,12 @@ export function validateJson(text: string): string | null {
  * Returns the parsed object/array/primitive, or the raw string if parsing fails.
  */
 export function parseJsonEditorValue(text: string): unknown {
-  if (text.trim() === "") return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
+    if (text.trim() === '') return null;
+    try {
+        return JSON.parse(text);
+    } catch {
+        return text;
+    }
 }
 
 /**
@@ -79,7 +79,7 @@ export function parseJsonEditorValue(text: string): unknown {
  * was available.
  */
 export function isStructuredValue(value: unknown): boolean {
-  return typeof value === "object" && value !== null;
+    return typeof value === 'object' && value !== null;
 }
 
 /**
@@ -89,15 +89,15 @@ export function isStructuredValue(value: unknown): boolean {
  * affordances in non-typed columns.
  */
 export function isJsonContent(value: unknown): boolean {
-  if (typeof value !== "string") return false;
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-  const first = trimmed[0];
-  if (first !== "{" && first !== "[") return false;
-  try {
-    JSON.parse(trimmed);
-    return true;
-  } catch {
-    return false;
-  }
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    const first = trimmed[0];
+    if (first !== '{' && first !== '[') return false;
+    try {
+        JSON.parse(trimmed);
+        return true;
+    } catch {
+        return false;
+    }
 }

@@ -14,32 +14,32 @@
  * Mirrors `sanitize_local_file_path` in `src-tauri/src/fs_path.rs`.
  */
 export function sanitizeLocalFilePath(raw: string): string {
-  const withoutInvisible = Array.from(raw)
-    .filter((c) => !isInvisiblePathNoise(c))
-    .join("");
-  const unquoted = peelOuterQuotes(withoutInvisible);
-  const fromUri = fileUriToPath(unquoted);
-  return fromUri === null ? unquoted : peelOuterQuotes(fromUri);
+    const withoutInvisible = Array.from(raw)
+        .filter((c) => !isInvisiblePathNoise(c))
+        .join('');
+    const unquoted = peelOuterQuotes(withoutInvisible);
+    const fromUri = fileUriToPath(unquoted);
+    return fromUri === null ? unquoted : peelOuterQuotes(fromUri);
 }
 
 /** Normalize a connection database field when it stores a local file/folder path. */
 export function normalizeLocalDatabasePath(
-  database: string | string[] | undefined | null,
+    database: string | string[] | undefined | null,
 ): string | string[] | undefined | null {
-  if (database == null) return database;
-  if (typeof database === "string") return sanitizeLocalFilePath(database);
-  return database.map((entry) => sanitizeLocalFilePath(entry));
+    if (database == null) return database;
+    if (typeof database === 'string') return sanitizeLocalFilePath(database);
+    return database.map((entry) => sanitizeLocalFilePath(entry));
 }
 
 function isInvisiblePathNoise(c: string): boolean {
-  return (
-    c === "\uFEFF" ||
-    c === "\u200B" ||
-    c === "\u200C" ||
-    c === "\u200D" ||
-    c === "\u2060" ||
-    c === "\u00AD"
-  );
+    return (
+        c === '\uFEFF' ||
+        c === '\u200B' ||
+        c === '\u200C' ||
+        c === '\u200D' ||
+        c === '\u2060' ||
+        c === '\u00AD'
+    );
 }
 
 /**
@@ -48,60 +48,60 @@ function isInvisiblePathNoise(c: string): boolean {
  * (→ `//server/share/p`), Windows drive letters and percent-encoding.
  */
 export function fileUriToPath(value: string): string | null {
-  if (!value.toLowerCase().startsWith("file:")) return null;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return null;
-  }
-  let path: string;
-  try {
-    path = decodeURIComponent(url.pathname);
-  } catch {
-    path = url.pathname;
-  }
-  const drive = /^\/([a-zA-Z])[:|](.*)$/.exec(path);
-  if (drive) return `${drive[1]}:${drive[2]}`;
-  return url.hostname ? `//${url.hostname}${path}` : path;
+    if (!value.toLowerCase().startsWith('file:')) return null;
+    let url: URL;
+    try {
+        url = new URL(value);
+    } catch {
+        return null;
+    }
+    let path: string;
+    try {
+        path = decodeURIComponent(url.pathname);
+    } catch {
+        path = url.pathname;
+    }
+    const drive = /^\/([a-zA-Z])[:|](.*)$/.exec(path);
+    if (drive) return `${drive[1]}:${drive[2]}`;
+    return url.hostname ? `//${url.hostname}${path}` : path;
 }
 
 function matchingQuoteClose(open: string): string | undefined {
-  switch (open) {
-    case '"':
-    case "'":
-    case "`":
-      return open;
-    case "\u201C":
-      return "\u201D";
-    case "\u2018":
-      return "\u2019";
-    case "\u201F":
-      return "\u201D";
-    case "\u201B":
-      return "\u2019";
-    case "\uFF02":
-      return "\uFF02";
-    case "\uFF07":
-      return "\uFF07";
-    case "\u00AB":
-      return "\u00BB";
-    case "\u2039":
-      return "\u203A";
-    default:
-      return undefined;
-  }
+    switch (open) {
+        case '"':
+        case "'":
+        case '`':
+            return open;
+        case '\u201C':
+            return '\u201D';
+        case '\u2018':
+            return '\u2019';
+        case '\u201F':
+            return '\u201D';
+        case '\u201B':
+            return '\u2019';
+        case '\uFF02':
+            return '\uFF02';
+        case '\uFF07':
+            return '\uFF07';
+        case '\u00AB':
+            return '\u00BB';
+        case '\u2039':
+            return '\u203A';
+        default:
+            return undefined;
+    }
 }
 
 function peelOuterQuotes(raw: string): string {
-  let current = raw.trim();
-  while (current.length >= 2) {
-    const open = current[0];
-    const closeExpected = matchingQuoteClose(open);
-    if (!closeExpected) break;
-    const close = current[current.length - 1];
-    if (close !== closeExpected) break;
-    current = current.slice(open.length, current.length - close.length).trim();
-  }
-  return current;
+    let current = raw.trim();
+    while (current.length >= 2) {
+        const open = current[0];
+        const closeExpected = matchingQuoteClose(open);
+        if (!closeExpected) break;
+        const close = current[current.length - 1];
+        if (close !== closeExpected) break;
+        current = current.slice(open.length, current.length - close.length).trim();
+    }
+    return current;
 }

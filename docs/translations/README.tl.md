@@ -1,7 +1,7 @@
 <br />
 <p align="center">
-  <img src=".github/assets/banner-light.tl.png#gh-light-mode-only" alt="Tabularis" width="100%">
-  <img src=".github/assets/banner-dark.tl.png#gh-dark-mode-only" alt="Tabularis" width="100%">
+  <img src="../../.github/assets/banner-light.tl.png#gh-light-mode-only" alt="Tabularis" width="100%">
+  <img src="../../.github/assets/banner-dark.tl.png#gh-dark-mode-only" alt="Tabularis" width="100%">
 </p>
 
 # Tabularis
@@ -12,7 +12,7 @@ Ang Tabularis ay isang open-source na desktop SQL workspace na may 3 built-in na
   <b><a href="https://tabularis.dev">Website</a></b> ·
   <b><a href="https://tabularis.dev/wiki">Dokumentasyon</a></b> ·
   <b><a href="https://tabularis.dev/download">I-download</a></b> ·
-  <b><a href="./CHANGELOG.md">Changelog</a></b>
+  <b><a href="../../CHANGELOG.md">Changelog</a></b>
 </p>
 
 <br />
@@ -37,7 +37,7 @@ Ang Tabularis ay isang open-source na desktop SQL workspace na may 3 built-in na
 
 <p align="center">
   <sub>
-    <a href="./README.md">English</a> ·
+    <a href="../../README.md">English</a> ·
     <a href="./README.it.md">Italiano</a> ·
     <a href="./README.es.md">Español</a> ·
     <a href="./README.zh-CN.md">中文</a> ·
@@ -52,7 +52,7 @@ Ang Tabularis ay isang open-source na desktop SQL workspace na may 3 built-in na
 </p>
 
 > [!NOTE]
-> Ito ay isinalin na bersyon ng dokumentasyon. Ang pinakabago at opisyal na pinagmulan ay ang [README sa Ingles](./README.md).
+> Ito ay isinalin na bersyon ng dokumentasyon. Ang pinakabago at opisyal na pinagmulan ay ang [README sa Ingles](../../README.md).
 
 <br />
 
@@ -282,8 +282,8 @@ Makikita ang buong gallery sa [tabularis.dev](https://tabularis.dev).
 
 - External plugin system gamit ang JSON-RPC 2.0 sa stdin/stdout.
 - Mag-install ng community drivers nang walang restart.
-- Opisyal na registry: [`plugins/registry.json`](./plugins/registry.json).
-- Gabay para sa developer: [`plugins/PLUGIN_GUIDE.md`](./plugins/PLUGIN_GUIDE.md).
+- Opisyal na registry: [`plugins/registry.json`](../../plugins/registry.json).
+- Gabay para sa developer: [`plugins/PLUGIN_GUIDE.md`](../../plugins/PLUGIN_GUIDE.md).
 
 ## Mga setting
 
@@ -372,18 +372,18 @@ pnpm tauri build
 
 ## Roadmap
 
-Awtomatikong binubuo ang roadmap mula sa mga GitHub issue. Tingnan ang kasalukuyang estado nito sa [README sa Ingles](./README.md#roadmap).
+Awtomatikong binubuo ang roadmap mula sa mga GitHub issue. Tingnan ang kasalukuyang estado nito sa [README sa Ingles](../../README.md#roadmap).
 
 ## Pag-contribute
 
-Malugod na tinatanggap ang mga kontribusyon, tingnan ang [CONTRIBUTING.md](./CONTRIBUTING.md). Maaari kang magsimula sa:
+Malugod na tinatanggap ang mga kontribusyon, tingnan ang [CONTRIBUTING.md](../../CONTRIBUTING.md). Maaari kang magsimula sa:
 
 - [UI design system at visual identity: call for contributors](https://github.com/TabularisDB/tabularis/issues/195)
-- Sumulat ng driver plugin sa anumang wika gamit ang [Plugin Guide](./plugins/PLUGIN_GUIDE.md)
+- Sumulat ng driver plugin sa anumang wika gamit ang [Plugin Guide](../../plugins/PLUGIN_GUIDE.md)
 
 ## Mga sponsor at tagasuporta
 
-Sinusuportahan ang Tabularis ng mahuhusay na sponsor at tagasuporta. Tingnan ang buong listahan sa [README sa Ingles](./README.md#sponsors-and-supporters) at sa [tabularis.dev/sponsors](https://tabularis.dev/sponsors).
+Sinusuportahan ang Tabularis ng mahuhusay na sponsor at tagasuporta. Tingnan ang buong listahan sa [README sa Ingles](../../README.md#sponsors-and-supporters) at sa [tabularis.dev/sponsors](https://tabularis.dev/sponsors).
 
 ## Kwento ng proyekto
 
@@ -391,7 +391,7 @@ Nagsimula ang Tabularis bilang eksperimento: hanggang saan makakarating ang AI-a
 
 ## Lisensya
 
-[Apache License 2.0](./LICENSE)
+[Apache License 2.0](../../LICENSE)
 
 ---
 

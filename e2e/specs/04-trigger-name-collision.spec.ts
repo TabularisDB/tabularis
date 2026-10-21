@@ -16,54 +16,61 @@
 //
 // Idempotent: beforeSession re-seeds normalize_fn back to its original body
 // ('from A'); the DELETE/INSERT cleanup at the end handles the 7777 test row.
-import { closeDbClients, querySecondary } from "../helpers/db";
-import { waitForApp, openMultiDbConnection } from "../helpers/navigation";
+import {closeDbClients, querySecondary} from '../helpers/db';
+import {waitForApp, openMultiDbConnection} from '../helpers/navigation';
 
-describe("trigger edit updates real function, not a convention-named orphan", () => {
-  it("updates normalize_fn in place when editing trigger_a's normalize trigger", async () => {
-    await waitForApp();
-    await openMultiDbConnection();
+describe('trigger edit updates real function, not a convention-named orphan', () => {
+    it("updates normalize_fn in place when editing trigger_a's normalize trigger", async () => {
+        await waitForApp();
+        await openMultiDbConnection();
 
-    // Clean up any stale test rows.
-    await querySecondary("DELETE FROM review.trigger_a WHERE id = 7777");
+        // Clean up any stale test rows.
+        await querySecondary('DELETE FROM review.trigger_a WHERE id = 7777');
 
-    // Open the TriggerEditorModal for trigger_a's `normalize` trigger.
-    await browser.execute(() => {
-      (window as any).__e2e_open_trigger_editor("normalize", "trigger_a", "review", "tabularis_test_secondary");
+        // Open the TriggerEditorModal for trigger_a's `normalize` trigger.
+        await browser.execute(() => {
+            (window as any).__e2e_open_trigger_editor(
+                'normalize',
+                'trigger_a',
+                'review',
+                'tabularis_test_secondary',
+            );
+        });
+        await browser.pause(3000);
+
+        // Save with a new body. With the fix, this updates `normalize_fn`
+        // (the real function) — not `trigger_a_normalize_fn` (the convention name).
+        await browser.execute(async () => {
+            try {
+                await (window as any).__e2e_save_trigger_with_body(
+                    "  NEW.note := 'updated by fix4';\n  RETURN NEW;",
+                );
+            } catch (e) {
+                // Swallow any thrown errors so the test can assert the DB state.
+            }
+        });
+        await browser.pause(2000);
+
+        // Insert a fresh row — the trigger fires and sets note via normalize_fn.
+        await querySecondary('INSERT INTO review.trigger_a (id) VALUES (7777)');
+        const rows = await querySecondary<{note: string}>(
+            'SELECT note FROM review.trigger_a WHERE id = 7777',
+        );
+        const note = rows[0]?.note ?? '';
+
+        // With the fix, normalize_fn was updated in place to 'updated by fix4',
+        // and the trigger still calls it — so the inserted row has the new body.
+        expect(note).toBe('updated by fix4');
+
+        // Verify normalize_fn was updated (not a second convention-named function
+        // created alongside it).
+        const conventionFn = await querySecondary<{exists: boolean}>(
+            'SELECT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace ' +
+                "WHERE n.nspname = 'review' AND p.proname = 'trigger_a_normalize_fn') AS exists",
+        );
+        expect(conventionFn[0]?.exists).toBe(false);
+
+        await querySecondary('DELETE FROM review.trigger_a WHERE id = 7777');
+        await closeDbClients();
     });
-    await browser.pause(3000);
-
-    // Save with a new body. With the fix, this updates `normalize_fn`
-    // (the real function) — not `trigger_a_normalize_fn` (the convention name).
-    await browser.execute(async () => {
-      try {
-        await (window as any).__e2e_save_trigger_with_body("  NEW.note := 'updated by fix4';\n  RETURN NEW;");
-      } catch (e) {
-        // Swallow any thrown errors so the test can assert the DB state.
-      }
-    });
-    await browser.pause(2000);
-
-    // Insert a fresh row — the trigger fires and sets note via normalize_fn.
-    await querySecondary("INSERT INTO review.trigger_a (id) VALUES (7777)");
-    const rows = await querySecondary<{ note: string }>(
-      "SELECT note FROM review.trigger_a WHERE id = 7777"
-    );
-    const note = rows[0]?.note ?? "";
-
-    // With the fix, normalize_fn was updated in place to 'updated by fix4',
-    // and the trigger still calls it — so the inserted row has the new body.
-    expect(note).toBe("updated by fix4");
-
-    // Verify normalize_fn was updated (not a second convention-named function
-    // created alongside it).
-    const conventionFn = await querySecondary<{ exists: boolean }>(
-      "SELECT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace " +
-      "WHERE n.nspname = 'review' AND p.proname = 'trigger_a_normalize_fn') AS exists"
-    );
-    expect(conventionFn[0]?.exists).toBe(false);
-
-    await querySecondary("DELETE FROM review.trigger_a WHERE id = 7777");
-    await closeDbClients();
-  });
 });

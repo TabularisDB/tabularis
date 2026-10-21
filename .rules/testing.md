@@ -43,33 +43,31 @@ project-root/
 
 ## Import Conventions
 
+`@/` is an alias for `src/` (`tsconfig.app.json`, `vite.config.ts`, `vitest.config.ts`).
+
 ### In Source Files
-Use standard relative or absolute imports:
+Import from the same folder with `./`; import anything else through `@/`. Never use `../`:
 
 ```typescript
 // From a component
-import { formatCellValue } from "../../utils/dataGrid";
+import { formatCellValue } from "@/utils/dataGrid";
 
-// From another util
+// From another util in the same folder
 import { hexToRgb } from "./colorUtils";
-
-// Using path alias
-import { splitQueries } from "@/utils/sql";
 ```
 
 ### In Test Files
-Always use relative imports from `tests/` to `src/`:
+Always import the code under test through `@/`:
 
 ```typescript
 // Correct - from tests/utils/dataGrid.test.ts
-import { formatCellValue } from "../../src/utils/dataGrid";
+import { formatCellValue } from "@/utils/dataGrid";
 
-// Correct - from tests/themes/colorUtils.test.ts  
-import { hexToRgb } from "../../src/themes/colorUtils";
-
-// Incorrect - relative to same directory (would fail after move)
-~~import { formatCellValue } from "./dataGrid";~~
+// Incorrect - relative paths break when a test or a module moves
+~~import { formatCellValue } from "../../src/utils/dataGrid";~~
 ```
+
+Tests live only under `tests/`: Vitest does not collect `*.test.*` files placed in `src/`.
 
 ## Test File Naming
 
@@ -110,7 +108,7 @@ export function formatCellValue(value: unknown, nullLabel = "NULL"): string {
 }
 
 // In DataGrid.tsx
-import { formatCellValue } from "../../utils/dataGrid";
+import { formatCellValue } from "@/utils/dataGrid";
 ```
 
 ## Test Organization

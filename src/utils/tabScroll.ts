@@ -1,39 +1,41 @@
 export interface ScrollState {
-  canScrollLeft: boolean;
-  canScrollRight: boolean;
+    canScrollLeft: boolean;
+    canScrollRight: boolean;
 }
 
 export interface TabLike {
-  id: string;
+    id: string;
 }
 
 /** Keep live history entries first, then append tabs not visited this session. */
 export function getRecentTabIds(tabs: TabLike[], history: readonly string[]): string[] {
-  const open = new Set(tabs.map((tab) => tab.id));
-  return [...new Set([...history, ...tabs.map((tab) => tab.id)])].filter((id) => open.has(id));
+    const open = new Set(tabs.map((tab) => tab.id));
+    return [...new Set([...history, ...tabs.map((tab) => tab.id)])].filter((id) => open.has(id));
 }
 
 /** Resolve a step in a frozen MRU order without changing the history. */
 export function resolveRecentTabId(
-  order: readonly string[],
-  activeTabId: string | null,
-  backwards = false,
+    order: readonly string[],
+    activeTabId: string | null,
+    backwards = false,
 ): string | null {
-  if (order.length === 0) return null;
-  const index = order.indexOf(activeTabId ?? "");
-  if (index === -1) return order[backwards ? order.length - 1 : 0];
-  return order[(index + (backwards ? -1 : 1) + order.length) % order.length];
+    if (order.length === 0) return null;
+    const index = order.indexOf(activeTabId ?? '');
+    if (index === -1) return order[backwards ? order.length - 1 : 0];
+    return order[(index + (backwards ? -1 : 1) + order.length) % order.length];
 }
 
 /**
  * Computes whether the scroll container can scroll left or right
  * based on its current scroll position and dimensions.
  */
-export function getTabScrollState(element: Pick<HTMLElement, 'scrollLeft' | 'clientWidth' | 'scrollWidth'>): ScrollState {
-  return {
-    canScrollLeft: element.scrollLeft > 0,
-    canScrollRight: element.scrollLeft + element.clientWidth < element.scrollWidth - 1,
-  };
+export function getTabScrollState(
+    element: Pick<HTMLElement, 'scrollLeft' | 'clientWidth' | 'scrollWidth'>,
+): ScrollState {
+    return {
+        canScrollLeft: element.scrollLeft > 0,
+        canScrollRight: element.scrollLeft + element.clientWidth < element.scrollWidth - 1,
+    };
 }
 
 /**
@@ -42,18 +44,18 @@ export function getTabScrollState(element: Pick<HTMLElement, 'scrollLeft' | 'cli
  * When circular=false returns null at the boundary.
  */
 export function getAdjacentTabIndex(
-  currentIndex: number,
-  tabCount: number,
-  direction: 'left' | 'right',
-  circular = false,
+    currentIndex: number,
+    tabCount: number,
+    direction: 'left' | 'right',
+    circular = false,
 ): number | null {
-  if (tabCount === 0) return null;
-  if (direction === 'left') {
-    if (currentIndex > 0) return currentIndex - 1;
-    return circular ? tabCount - 1 : null;
-  }
-  if (currentIndex < tabCount - 1) return currentIndex + 1;
-  return circular ? 0 : null;
+    if (tabCount === 0) return null;
+    if (direction === 'left') {
+        if (currentIndex > 0) return currentIndex - 1;
+        return circular ? tabCount - 1 : null;
+    }
+    if (currentIndex < tabCount - 1) return currentIndex + 1;
+    return circular ? 0 : null;
 }
 
 /**
@@ -61,11 +63,11 @@ export function getAdjacentTabIndex(
  * Returns null if tabs is empty.
  */
 export function resolveNextTabId(tabs: TabLike[], activeTabId: string | null): string | null {
-  if (tabs.length === 0) return null;
-  const currentIndex = tabs.findIndex((t) => t.id === activeTabId);
-  const nextIndex = getAdjacentTabIndex(currentIndex, tabs.length, 'right', true);
-  if (nextIndex === null) return null;
-  return tabs[nextIndex].id;
+    if (tabs.length === 0) return null;
+    const currentIndex = tabs.findIndex((t) => t.id === activeTabId);
+    const nextIndex = getAdjacentTabIndex(currentIndex, tabs.length, 'right', true);
+    if (nextIndex === null) return null;
+    return tabs[nextIndex].id;
 }
 
 /**
@@ -74,17 +76,17 @@ export function resolveNextTabId(tabs: TabLike[], activeTabId: string | null): s
  * In single mode (explorerConnectionId === null) always returns true.
  */
 export function isFocusedPane(
-  explorerConnectionId: string | null,
-  activeConnectionId: string | null,
+    explorerConnectionId: string | null,
+    activeConnectionId: string | null,
 ): boolean {
-  return explorerConnectionId === null || explorerConnectionId === activeConnectionId;
+    return explorerConnectionId === null || explorerConnectionId === activeConnectionId;
 }
 
 /**
  * Returns the CSS class string for a tab row in the switcher modal.
  */
 export function getTabSwitcherRowClassName(isActive: boolean): string {
-  const base = 'flex items-center gap-3 px-4 py-2.5 cursor-pointer group transition-colors';
-  if (isActive) return `${base} bg-surface-secondary text-primary`;
-  return `${base} text-secondary hover:bg-surface-secondary hover:text-primary`;
+    const base = 'flex items-center gap-3 px-4 py-2.5 cursor-pointer group transition-colors';
+    if (isActive) return `${base} bg-surface-secondary text-primary`;
+    return `${base} text-secondary hover:bg-surface-secondary hover:text-primary`;
 }

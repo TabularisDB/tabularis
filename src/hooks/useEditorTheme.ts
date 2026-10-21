@@ -1,6 +1,6 @@
-import { useTheme } from "./useTheme";
-import { useSettings } from "./useSettings";
-import type { Theme } from "../types/theme";
+import {useTheme} from './useTheme';
+import {useSettings} from './useSettings';
+import type {Theme} from '@/types/theme';
 
 /**
  * Resolves the effective Monaco editor theme: the dedicated editor theme
@@ -11,10 +11,10 @@ import type { Theme } from "../types/theme";
  * otherwise mounting one editor switches the colors of all the others.
  */
 export function useEditorTheme(): Theme {
-  const { currentTheme, allThemes } = useTheme();
-  const { settings } = useSettings();
+    const {currentTheme, allThemes} = useTheme();
+    const {settings} = useSettings();
 
-  return settings.editorTheme
-    ? (allThemes.find((t) => t.id === settings.editorTheme) ?? currentTheme)
-    : currentTheme;
+    return settings.editorTheme
+        ? (allThemes.find((t) => t.id === settings.editorTheme) ?? currentTheme)
+        : currentTheme;
 }

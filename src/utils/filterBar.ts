@@ -1,77 +1,76 @@
-import type { TableColumn } from "../types/editor";
-import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { formatSqlIdentifier, quoteIdentifier, quoteTableRef } from "./identifiers";
-import { formatSqlValueForColumnComparison, isMysqlFloatColumn } from "./foreignKeys";
+import type {TableColumn} from '@/types/editor';
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import {formatSqlIdentifier, quoteIdentifier, quoteTableRef} from './identifiers';
+import {formatSqlValueForColumnComparison, isMysqlFloatColumn} from './foreignKeys';
 import {
-  booleanLiteralWithStyle,
-  declaredBooleanLiterals,
-  quoteSqlString,
-  stringEscapeStyle,
-  supportsLikeEscape,
-} from "./sqlLiteral";
-
+    booleanLiteralWithStyle,
+    declaredBooleanLiterals,
+    quoteSqlString,
+    stringEscapeStyle,
+    supportsLikeEscape,
+} from './sqlLiteral';
 
 export type FilterOperator =
-  | "="
-  | "!="
-  | ">"
-  | "<"
-  | ">="
-  | "<="
-  | "LIKE"
-  | "NOT LIKE"
-  | "contains"
-  | "starts with"
-  | "ends with"
-  | "is empty"
-  | "is not empty"
-  | "IS NULL"
-  | "IS NOT NULL"
-  | "IN"
-  | "NOT IN"
-  | "BETWEEN";
+    | '='
+    | '!='
+    | '>'
+    | '<'
+    | '>='
+    | '<='
+    | 'LIKE'
+    | 'NOT LIKE'
+    | 'contains'
+    | 'starts with'
+    | 'ends with'
+    | 'is empty'
+    | 'is not empty'
+    | 'IS NULL'
+    | 'IS NOT NULL'
+    | 'IN'
+    | 'NOT IN'
+    | 'BETWEEN';
 
-export type FilterMode = "sql" | "structured";
+export type FilterMode = 'sql' | 'structured';
 
-export type FilterCombinator = "AND" | "OR";
+export type FilterCombinator = 'AND' | 'OR';
 
 export interface StructuredFilter {
-  id: string;
-  column: string;
-  operator: FilterOperator;
-  value: string;
-  value2?: string; // for BETWEEN only
-  enabled?: boolean; // defaults to true when building clause
+    id: string;
+    column: string;
+    operator: FilterOperator;
+    value: string;
+    value2?: string; // for BETWEEN only
+    enabled?: boolean; // defaults to true when building clause
 }
 
 const NUMERIC_TYPES = [
-  "int",
-  "integer",
-  "bigint",
-  "smallint",
-  "tinyint",
-  "mediumint",
-  "float",
-  "double",
-  "decimal",
-  "numeric",
-  "real",
-  "number",
-  "serial",
-  "bigserial",
+    'int',
+    'integer',
+    'bigint',
+    'smallint',
+    'tinyint',
+    'mediumint',
+    'float',
+    'double',
+    'decimal',
+    'numeric',
+    'real',
+    'number',
+    'serial',
+    'bigserial',
 ];
 
 const STRING_TYPES = [
-  "char",
-  "varchar",
-  "text",
-  "tinytext",
-  "mediumtext",
-  "longtext",
-  "nchar",
-  "nvarchar",
-  "clob",
-  "string",
+    'char',
+    'varchar',
+    'text',
+    'tinytext',
+    'mediumtext',
+    'longtext',
+    'nchar',
+    'nvarchar',
+    'clob',
+    'string',
 ];
 
 const MAX_AUTOCOMPLETE_SUGGESTIONS = 10;
@@ -79,96 +78,84 @@ const MAX_AUTOCOMPLETE_SUGGESTIONS = 10;
 /**
  * Returns column suggestions matching the given prefix (case-insensitive, max 10).
  */
-export function filterColumnSuggestions(
-  columns: TableColumn[],
-  prefix: string
-): TableColumn[] {
-  if (!columns || columns.length === 0) return [];
-  const lowerPrefix = prefix.toLowerCase();
-  const filtered = lowerPrefix
-    ? columns.filter((c) => c.name.toLowerCase().startsWith(lowerPrefix))
-    : columns;
-  return filtered.slice(0, MAX_AUTOCOMPLETE_SUGGESTIONS);
+export function filterColumnSuggestions(columns: TableColumn[], prefix: string): TableColumn[] {
+    if (!columns || columns.length === 0) return [];
+    const lowerPrefix = prefix.toLowerCase();
+    const filtered = lowerPrefix
+        ? columns.filter((c) => c.name.toLowerCase().startsWith(lowerPrefix))
+        : columns;
+    return filtered.slice(0, MAX_AUTOCOMPLETE_SUGGESTIONS);
 }
 
 /**
  * Extracts the word (identifier token) being typed at the given cursor position.
  * Identifier characters: a-z, A-Z, 0-9, underscore.
  */
-export function getCurrentWordPrefix(
-  input: string,
-  cursorPos: number
-): string {
-  const before = input.slice(0, cursorPos);
-  const match = before.match(/[a-zA-Z0-9_]+$/);
-  return match ? match[0] : "";
+export function getCurrentWordPrefix(input: string, cursorPos: number): string {
+    const before = input.slice(0, cursorPos);
+    const match = before.match(/[a-zA-Z0-9_]+$/);
+    return match ? match[0] : '';
 }
 
 /**
  * Replaces the word at cursorPos with the given replacement string.
  * Returns the new input string.
  */
-export function replaceCurrentWord(
-  input: string,
-  cursorPos: number,
-  replacement: string
-): string {
-  const before = input.slice(0, cursorPos);
-  const after = input.slice(cursorPos);
-  const wordMatch = before.match(/[a-zA-Z0-9_]+$/);
-  const wordStart = wordMatch
-    ? cursorPos - wordMatch[0].length
-    : cursorPos;
-  const afterWordMatch = after.match(/^[a-zA-Z0-9_]*/);
-  const wordEnd = cursorPos + (afterWordMatch ? afterWordMatch[0].length : 0);
-  return input.slice(0, wordStart) + replacement + input.slice(wordEnd);
+export function replaceCurrentWord(input: string, cursorPos: number, replacement: string): string {
+    const before = input.slice(0, cursorPos);
+    const after = input.slice(cursorPos);
+    const wordMatch = before.match(/[a-zA-Z0-9_]+$/);
+    const wordStart = wordMatch ? cursorPos - wordMatch[0].length : cursorPos;
+    const afterWordMatch = after.match(/^[a-zA-Z0-9_]*/);
+    const wordEnd = cursorPos + (afterWordMatch ? afterWordMatch[0].length : 0);
+    return input.slice(0, wordStart) + replacement + input.slice(wordEnd);
 }
 
 /**
  * Returns the list of applicable filter operators for a given SQL data type.
  */
 export function getOperatorsForType(dataType: string): FilterOperator[] {
-  const lower = dataType.toLowerCase();
-  const isNumeric = NUMERIC_TYPES.some((t) => lower.includes(t));
-  const isString = STRING_TYPES.some((t) => lower.includes(t));
+    const lower = dataType.toLowerCase();
+    const isNumeric = NUMERIC_TYPES.some((t) => lower.includes(t));
+    const isString = STRING_TYPES.some((t) => lower.includes(t));
 
-  const base: FilterOperator[] = ["=", "!=", "IS NULL", "IS NOT NULL"];
+    const base: FilterOperator[] = ['=', '!=', 'IS NULL', 'IS NOT NULL'];
 
-  if (isNumeric) {
-    return [...base, ">", "<", ">=", "<=", "BETWEEN", "IN", "NOT IN"];
-  }
+    if (isNumeric) {
+        return [...base, '>', '<', '>=', '<=', 'BETWEEN', 'IN', 'NOT IN'];
+    }
 
-  if (isString) {
+    if (isString) {
+        return [
+            ...base,
+            'LIKE',
+            'NOT LIKE',
+            'contains',
+            'starts with',
+            'ends with',
+            'is empty',
+            'is not empty',
+            'IN',
+            'NOT IN',
+        ];
+    }
+
+    // Default: all operators
     return [
-      ...base,
-      "LIKE",
-      "NOT LIKE",
-      "contains",
-      "starts with",
-      "ends with",
-      "is empty",
-      "is not empty",
-      "IN",
-      "NOT IN",
+        '=',
+        '!=',
+        '>',
+        '<',
+        '>=',
+        '<=',
+        'LIKE',
+        'NOT LIKE',
+        'IS NULL',
+        'IS NOT NULL',
+        'IN',
+        'NOT IN',
+        'BETWEEN',
     ];
-  }
-
-  // Default: all operators
-  return [
-    "=",
-    "!=",
-    ">",
-    "<",
-    ">=",
-    "<=",
-    "LIKE",
-    "NOT LIKE",
-    "IS NULL",
-    "IS NOT NULL",
-    "IN",
-    "NOT IN",
-    "BETWEEN",
-  ];
 }
 
 /**
@@ -176,75 +163,75 @@ export function getOperatorsForType(dataType: string): FilterOperator[] {
  * String values are single-quoted. IS NULL / IS NOT NULL ignore the value.
  * BETWEEN uses value AND value2. IN/NOT IN parse comma-separated values.
  */
-export type FilterQuoteMode = "auto" | "always";
+export type FilterQuoteMode = 'auto' | 'always';
 
 export function buildSingleFilterClause(
-  filter: StructuredFilter,
-  driver?: string | PluginManifest | DriverCapabilities | null,
-  quoteMode: FilterQuoteMode = "auto",
-  columnType?: string,
+    filter: StructuredFilter,
+    driver?: string | PluginManifest | DriverCapabilities | null,
+    quoteMode: FilterQuoteMode = 'auto',
+    columnType?: string,
 ): string {
-  const col =
-    quoteMode === "always"
-      ? quoteIdentifier(filter.column, driver)
-      : formatSqlIdentifier(filter.column, driver);
-  const op = filter.operator;
+    const col =
+        quoteMode === 'always'
+            ? quoteIdentifier(filter.column, driver)
+            : formatSqlIdentifier(filter.column, driver);
+    const op = filter.operator;
 
-  if (op === "IS NULL") {
-    return `${col} IS NULL`;
-  }
-
-  if (op === "IS NOT NULL") {
-    return `${col} IS NOT NULL`;
-  }
-
-  if (op === "is empty") {
-    return `(${col} IS NULL OR ${col} = '')`;
-  }
-
-  if (op === "is not empty") {
-    return `NOT (${col} IS NULL OR ${col} = '')`;
-  }
-
-  if (op === "contains" || op === "starts with" || op === "ends with") {
-    return buildLiteralLikeClause(col, filter.value, op, driver);
-  }
-
-  if (op === "BETWEEN") {
-    const v1 = quoteValue(filter.value);
-    const v2 = quoteValue(filter.value2 ?? "");
-    return `${col} BETWEEN ${v1} AND ${v2}`;
-  }
-
-  if (op === "IN" || op === "NOT IN") {
-    const values = splitFilterValues(filter.value)
-      .filter((v) => v !== "")
-      .map((value) => quoteValue(value, true))
-      .join(", ");
-    return `${col} ${op} (${values})`;
-  }
-
-  const val = quoteValue(filter.value);
-  return `${col} ${op} ${val}`;
-
-  function quoteValue(value: string, doubleQuotedValue = false): string {
-    if (isMysqlFloatColumn(driver, columnType) && /^-?\d+(\.\d+)?$/.test(value)) {
-      return formatSqlValueForColumnComparison(Number(value), driver, columnType);
+    if (op === 'IS NULL') {
+        return `${col} IS NULL`;
     }
-    const boolean = declaredBooleanFilterLiteral(value, columnType, driver);
-    if (boolean !== undefined) return boolean;
-    // Escape at clause construction, including values the picker already quoted.
-    // Stored filter values stay dialect-independent when the picker reopens.
-    return quoteIfNeeded(
-      usesBackslashStringEscapes(driver) ? value.replace(/\\/g, "\\\\") : value,
-      driver,
-      doubleQuotedValue,
-    );
-  }
+
+    if (op === 'IS NOT NULL') {
+        return `${col} IS NOT NULL`;
+    }
+
+    if (op === 'is empty') {
+        return `(${col} IS NULL OR ${col} = '')`;
+    }
+
+    if (op === 'is not empty') {
+        return `NOT (${col} IS NULL OR ${col} = '')`;
+    }
+
+    if (op === 'contains' || op === 'starts with' || op === 'ends with') {
+        return buildLiteralLikeClause(col, filter.value, op, driver);
+    }
+
+    if (op === 'BETWEEN') {
+        const v1 = quoteValue(filter.value);
+        const v2 = quoteValue(filter.value2 ?? '');
+        return `${col} BETWEEN ${v1} AND ${v2}`;
+    }
+
+    if (op === 'IN' || op === 'NOT IN') {
+        const values = splitFilterValues(filter.value)
+            .filter((v) => v !== '')
+            .map((value) => quoteValue(value, true))
+            .join(', ');
+        return `${col} ${op} (${values})`;
+    }
+
+    const val = quoteValue(filter.value);
+    return `${col} ${op} ${val}`;
+
+    function quoteValue(value: string, doubleQuotedValue = false): string {
+        if (isMysqlFloatColumn(driver, columnType) && /^-?\d+(\.\d+)?$/.test(value)) {
+            return formatSqlValueForColumnComparison(Number(value), driver, columnType);
+        }
+        const boolean = declaredBooleanFilterLiteral(value, columnType, driver);
+        if (boolean !== undefined) return boolean;
+        // Escape at clause construction, including values the picker already quoted.
+        // Stored filter values stay dialect-independent when the picker reopens.
+        return quoteIfNeeded(
+            usesBackslashStringEscapes(driver) ? value.replace(/\\/g, '\\\\') : value,
+            driver,
+            doubleQuotedValue,
+        );
+    }
 }
 
 /** Where a literal LIKE match may sit inside the column value. */
-export type LikeMatchMode = "contains" | "starts with" | "ends with";
+export type LikeMatchMode = 'contains' | 'starts with' | 'ends with';
 
 /**
  * Builds `col LIKE '<pattern>' ESCAPE '!'` that matches `value` literally:
@@ -253,33 +240,31 @@ export type LikeMatchMode = "contains" | "starts with" | "ends with";
  * `col` must already be a quoted/formatted identifier.
  */
 export function buildLiteralLikeClause(
-  col: string,
-  value: string,
-  mode: LikeMatchMode,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    col: string,
+    value: string,
+    mode: LikeMatchMode,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string {
-  // A syntax without `LIKE … ESCAPE` (declared `like_escape: false`, e.g.
-  // GoogleSQL) escapes `%`, `_` and backslash itself with a backslash, its
-  // default LIKE escape; the literal then gets the syntax's own escaping.
-  const noEscapeClause = !supportsLikeEscape(driver);
-  const escaped = noEscapeClause
-    ? value.replace(/[\\%_]/g, (ch) => `\\${ch}`)
-    : escapeLikePattern(value);
-  let pattern: string;
-  if (mode === "contains") {
-    pattern = `%${escaped}%`;
-  } else if (mode === "starts with") {
-    pattern = `${escaped}%`;
-  } else {
-    pattern = `%${escaped}`;
-  }
-  if (noEscapeClause) return `${col} LIKE ${quoteSqlString(pattern, driver)}`;
-  // MySQL/MariaDB (default sql_mode) treat backslash as an escape inside
-  // string literals, so a literal backslash must be doubled to survive.
-  const literal = usesBackslashStringEscapes(driver)
-    ? pattern.replace(/\\/g, "\\\\")
-    : pattern;
-  return `${col} LIKE ${quoteLiteral(literal, driver)} ESCAPE '${LIKE_ESCAPE}'`;
+    // A syntax without `LIKE … ESCAPE` (declared `like_escape: false`, e.g.
+    // GoogleSQL) escapes `%`, `_` and backslash itself with a backslash, its
+    // default LIKE escape; the literal then gets the syntax's own escaping.
+    const noEscapeClause = !supportsLikeEscape(driver);
+    const escaped = noEscapeClause
+        ? value.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+        : escapeLikePattern(value);
+    let pattern: string;
+    if (mode === 'contains') {
+        pattern = `%${escaped}%`;
+    } else if (mode === 'starts with') {
+        pattern = `${escaped}%`;
+    } else {
+        pattern = `%${escaped}`;
+    }
+    if (noEscapeClause) return `${col} LIKE ${quoteSqlString(pattern, driver)}`;
+    // MySQL/MariaDB (default sql_mode) treat backslash as an escape inside
+    // string literals, so a literal backslash must be doubled to survive.
+    const literal = usesBackslashStringEscapes(driver) ? pattern.replace(/\\/g, '\\\\') : pattern;
+    return `${col} LIKE ${quoteLiteral(literal, driver)} ESCAPE '${LIKE_ESCAPE}'`;
 }
 
 /**
@@ -288,7 +273,7 @@ export function buildLiteralLikeClause(
  * the default sql_mode (the backslash escapes the closing quote), while `!`
  * has no special meaning inside string literals on any supported dialect.
  */
-const LIKE_ESCAPE = "!";
+const LIKE_ESCAPE = '!';
 
 /**
  * Escapes LIKE wildcards and the escape character so the value matches literally.
@@ -297,18 +282,15 @@ const LIKE_ESCAPE = "!";
  * matched literally. Do not reorder unless the input contract changes.
  */
 function escapeLikePattern(value: string): string {
-  return value
-    .replace(/!/g, "!!")
-    .replace(/%/g, "!%")
-    .replace(/_/g, "!_");
+    return value.replace(/!/g, '!!').replace(/%/g, '!%').replace(/_/g, '!_');
 }
 
 const BOOLEAN_COLUMN_TYPE = /^\s*bool(?:ean)?\s*$/i;
 const BOOLEAN_FILTER_VALUES: Readonly<Record<string, boolean>> = {
-  true: true,
-  false: false,
-  "1": true,
-  "0": false,
+    true: true,
+    false: false,
+    '1': true,
+    '0': false,
 };
 
 /**
@@ -318,16 +300,19 @@ const BOOLEAN_FILTER_VALUES: Readonly<Record<string, boolean>> = {
  * plugins without the field keep their existing literals.
  */
 export function declaredBooleanFilterLiteral(
-  value: string,
-  columnType: string | undefined,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    value: string,
+    columnType: string | undefined,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string | undefined {
-  if (!columnType || !BOOLEAN_COLUMN_TYPE.test(columnType)) return undefined;
-  const style = declaredBooleanLiterals(driver);
-  if (!style) return undefined;
-  const key = value.trim().replace(/^'(.*)'$/, "$1").toLowerCase();
-  if (!Object.hasOwn(BOOLEAN_FILTER_VALUES, key)) return undefined;
-  return booleanLiteralWithStyle(BOOLEAN_FILTER_VALUES[key], style);
+    if (!columnType || !BOOLEAN_COLUMN_TYPE.test(columnType)) return undefined;
+    const style = declaredBooleanLiterals(driver);
+    if (!style) return undefined;
+    const key = value
+        .trim()
+        .replace(/^'(.*)'$/, '$1')
+        .toLowerCase();
+    if (!Object.hasOwn(BOOLEAN_FILTER_VALUES, key)) return undefined;
+    return booleanLiteralWithStyle(BOOLEAN_FILTER_VALUES[key], style);
 }
 
 /**
@@ -335,9 +320,9 @@ export function declaredBooleanFilterLiteral(
  * character by default (MySQL and MariaDB without NO_BACKSLASH_ESCAPES).
  */
 function usesBackslashStringEscapes(
-  driver: string | PluginManifest | DriverCapabilities | null | undefined
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): boolean {
-  return stringEscapeStyle(driver) === "mysql";
+    return stringEscapeStyle(driver) === 'mysql';
 }
 
 /**
@@ -347,11 +332,11 @@ function usesBackslashStringEscapes(
  * before this runs.
  */
 function quoteLiteral(
-  value: string,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    value: string,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string {
-  if (stringEscapeStyle(driver) === "backslash") return quoteSqlString(value, driver);
-  return `'${value.replace(/'/g, "''")}'`;
+    if (stringEscapeStyle(driver) === 'backslash') return quoteSqlString(value, driver);
+    return `'${value.replace(/'/g, "''")}'`;
 }
 
 /**
@@ -360,65 +345,65 @@ function quoteLiteral(
  * Preserve quoted empty strings ('') while ignoring empty list entries.
  */
 function splitFilterValues(input: string): string[] {
-  const values: string[] = [];
-  let start = 0;
-  let quote: "'" | '"' | null = null;
+    const values: string[] = [];
+    let start = 0;
+    let quote: "'" | '"' | null = null;
 
-  for (let i = 0; i < input.length; i++) {
-    const char = input[i];
-    if (quote) {
-      if (char === quote) {
-        if (input[i + 1] === quote) {
-          i++; // doubled quote belongs to the literal
-        } else {
-          quote = null;
+    for (let i = 0; i < input.length; i++) {
+        const char = input[i];
+        if (quote) {
+            if (char === quote) {
+                if (input[i + 1] === quote) {
+                    i++; // doubled quote belongs to the literal
+                } else {
+                    quote = null;
+                }
+            }
+        } else if (char === "'" || char === '"') {
+            // Apostrophes and inch marks inside an unquoted value are data, not
+            // delimiters for the rest of the list.
+            if (input.slice(start, i).trim() === '') quote = char;
+        } else if (char === ',') {
+            values.push(input.slice(start, i).trim());
+            start = i + 1;
         }
-      }
-    } else if (char === "'" || char === '"') {
-      // Apostrophes and inch marks inside an unquoted value are data, not
-      // delimiters for the rest of the list.
-      if (input.slice(start, i).trim() === "") quote = char;
-    } else if (char === ",") {
-      values.push(input.slice(start, i).trim());
-      start = i + 1;
     }
-  }
-  values.push(input.slice(start).trim());
-  return values;
+    values.push(input.slice(start).trim());
+    return values;
 }
 
 function quoteIfNeeded(
-  value: string,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
-  doubleQuotedValue = false,
+    value: string,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    doubleQuotedValue = false,
 ): string {
-  if (value === "") return "''";
-  // If it's a pure number (integer or decimal), don't quote
-  if (/^-?\d+(\.\d+)?$/.test(value)) return value;
-  // Single-quoted SQL literals are already escaped by the user. For IN lists,
-  // interpret double-quoted items as values; other operators keep their
-  // existing identifier behavior. A pre-quoted literal uses the standard
-  // doubled-quote escape, which a backslash-escape syntax lacks, so it is
-  // re-quoted there.
-  if (value.startsWith("'") && value.endsWith("'")) {
-    return stringEscapeStyle(driver) === "backslash" && value.length >= 2
-      ? quoteLiteral(value.slice(1, -1).replace(/''/g, "'"), driver)
-      : value;
-  }
-  if (doubleQuotedValue && value.startsWith('"') && value.endsWith('"')) {
-    return quoteLiteral(value.slice(1, -1).replace(/""/g, '"'), driver);
-  }
-  if (value.startsWith('"') && value.endsWith('"')) return value;
-  // Escape single quotes inside the value
-  return quoteLiteral(value, driver);
+    if (value === '') return "''";
+    // If it's a pure number (integer or decimal), don't quote
+    if (/^-?\d+(\.\d+)?$/.test(value)) return value;
+    // Single-quoted SQL literals are already escaped by the user. For IN lists,
+    // interpret double-quoted items as values; other operators keep their
+    // existing identifier behavior. A pre-quoted literal uses the standard
+    // doubled-quote escape, which a backslash-escape syntax lacks, so it is
+    // re-quoted there.
+    if (value.startsWith("'") && value.endsWith("'")) {
+        return stringEscapeStyle(driver) === 'backslash' && value.length >= 2
+            ? quoteLiteral(value.slice(1, -1).replace(/''/g, "'"), driver)
+            : value;
+    }
+    if (doubleQuotedValue && value.startsWith('"') && value.endsWith('"')) {
+        return quoteLiteral(value.slice(1, -1).replace(/""/g, '"'), driver);
+    }
+    if (value.startsWith('"') && value.endsWith('"')) return value;
+    // Escape single quotes inside the value
+    return quoteLiteral(value, driver);
 }
 
 /** Operators that take no value: the value input is hidden and never read. */
 export const NO_VALUE_OPS: FilterOperator[] = [
-  "IS NULL",
-  "IS NOT NULL",
-  "is empty",
-  "is not empty",
+    'IS NULL',
+    'IS NOT NULL',
+    'is empty',
+    'is not empty',
 ];
 
 /**
@@ -428,16 +413,16 @@ export const NO_VALUE_OPS: FilterOperator[] = [
  * made only of whitespace count as empty.
  */
 export function isFilterComplete(filter: StructuredFilter): boolean {
-  if (NO_VALUE_OPS.includes(filter.operator)) return true;
-  switch (filter.operator) {
-    case "BETWEEN":
-      return filter.value.trim() !== "" && (filter.value2 ?? "").trim() !== "";
-    case "IN":
-    case "NOT IN":
-      return splitFilterValues(filter.value).some((v) => v !== "");
-    default:
-      return filter.value.trim() !== "";
-  }
+    if (NO_VALUE_OPS.includes(filter.operator)) return true;
+    switch (filter.operator) {
+        case 'BETWEEN':
+            return filter.value.trim() !== '' && (filter.value2 ?? '').trim() !== '';
+        case 'IN':
+        case 'NOT IN':
+            return splitFilterValues(filter.value).some((v) => v !== '');
+        default:
+            return filter.value.trim() !== '';
+    }
 }
 
 /**
@@ -448,40 +433,40 @@ export function isFilterComplete(filter: StructuredFilter): boolean {
  * Returns empty string if there is no active filter.
  */
 export function buildStructuredFilterClause(
-  filters: StructuredFilter[],
-  driver?: string | PluginManifest | DriverCapabilities | null,
-  combinator: FilterCombinator = "AND",
-  quoteMode: FilterQuoteMode = "auto",
-  columns?: readonly TableColumn[],
+    filters: StructuredFilter[],
+    driver?: string | PluginManifest | DriverCapabilities | null,
+    combinator: FilterCombinator = 'AND',
+    quoteMode: FilterQuoteMode = 'auto',
+    columns?: readonly TableColumn[],
 ): string {
-  const clauses = filters
-    .filter((f) => f.column && f.enabled !== false && isFilterComplete(f))
-    .map((f) =>
-      buildSingleFilterClause(
-        f,
-        driver,
-        quoteMode,
-        columns?.find((c) => c.name === f.column)?.data_type,
-      ),
-    );
-  const joined = clauses.join(` ${combinator} `);
-  return combinator === "OR" && clauses.length > 1 ? `(${joined})` : joined;
+    const clauses = filters
+        .filter((f) => f.column && f.enabled !== false && isFilterComplete(f))
+        .map((f) =>
+            buildSingleFilterClause(
+                f,
+                driver,
+                quoteMode,
+                columns?.find((c) => c.name === f.column)?.data_type,
+            ),
+        );
+    const joined = clauses.join(` ${combinator} `);
+    return combinator === 'OR' && clauses.length > 1 ? `(${joined})` : joined;
 }
 
 /**
  * Creates a new empty StructuredFilter with the first available column.
  */
 export function createEmptyFilter(columns: TableColumn[]): StructuredFilter {
-  const firstColumn = columns.length > 0 ? columns[0].name : "";
-  const firstType = columns.length > 0 ? columns[0].data_type : "";
-  const operators = getOperatorsForType(firstType);
-  return {
-    id: `filter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    column: firstColumn,
-    operator: operators[0],
-    value: "",
-    enabled: true,
-  };
+    const firstColumn = columns.length > 0 ? columns[0].name : '';
+    const firstType = columns.length > 0 ? columns[0].data_type : '';
+    const operators = getOperatorsForType(firstType);
+    return {
+        id: `filter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        column: firstColumn,
+        operator: operators[0],
+        value: '',
+        enabled: true,
+    };
 }
 
 /**
@@ -492,35 +477,35 @@ export function createEmptyFilter(columns: TableColumn[]): StructuredFilter {
  * explicitly quoted empty string (`''`) is kept.
  */
 export function splitInList(value: string): string[] {
-  const items: string[] = [];
-  let current = "";
-  let quote: string | null = null;
-  for (let i = 0; i < value.length; i++) {
-    const ch = value[i];
-    if (quote) {
-      current += ch;
-      if (ch === quote) {
-        // A doubled quote is an escaped quote inside the literal.
-        if (value[i + 1] === quote) {
-          current += value[++i];
+    const items: string[] = [];
+    let current = '';
+    let quote: string | null = null;
+    for (let i = 0; i < value.length; i++) {
+        const ch = value[i];
+        if (quote) {
+            current += ch;
+            if (ch === quote) {
+                // A doubled quote is an escaped quote inside the literal.
+                if (value[i + 1] === quote) {
+                    current += value[++i];
+                } else {
+                    quote = null;
+                }
+            }
+        } else if ((ch === "'" || ch === '"') && current.trim() === '') {
+            // Only a quote that opens an item starts a literal, so an apostrophe
+            // inside an unquoted value (O'Hare) is kept as typed.
+            quote = ch;
+            current += ch;
+        } else if (ch === ',') {
+            items.push(current);
+            current = '';
         } else {
-          quote = null;
+            current += ch;
         }
-      }
-    } else if ((ch === "'" || ch === '"') && current.trim() === "") {
-      // Only a quote that opens an item starts a literal, so an apostrophe
-      // inside an unquoted value (O'Hare) is kept as typed.
-      quote = ch;
-      current += ch;
-    } else if (ch === ",") {
-      items.push(current);
-      current = "";
-    } else {
-      current += ch;
     }
-  }
-  items.push(current);
-  return items.map((v) => v.trim()).filter((v) => v !== "");
+    items.push(current);
+    return items.map((v) => v.trim()).filter((v) => v !== '');
 }
 
 // ─── Value picker (issue #869) ────────────────────────────────────────────────
@@ -530,12 +515,12 @@ export const VALUE_PICKER_LIMIT = 100;
 
 /** One distinct column value and how many rows hold it. */
 export interface DistinctValue {
-  value: string;
-  count: number;
+    value: string;
+    count: number;
 }
 
 /** Binary and document types whose values can't be picked from a list. */
-const NON_PICKABLE_TYPES = ["blob", "bytea", "binary", "json", "image"];
+const NON_PICKABLE_TYPES = ['blob', 'bytea', 'binary', 'json', 'image'];
 
 /**
  * Nested and repeated container types, written the way engines with
@@ -545,9 +530,9 @@ const NON_PICKABLE_TYPES = ["blob", "bytea", "binary", "json", "image"];
  * arrays support `=` and `GROUP BY`.
  */
 const NESTED_TYPE_PATTERNS: readonly RegExp[] = [
-  /^\s*(?:array|struct|map)\s*</i,
-  /^\s*(?:struct|record)\s*$/i,
-  /\brepeated\b/i,
+    /^\s*(?:array|struct|map)\s*</i,
+    /^\s*(?:struct|record)\s*$/i,
+    /\brepeated\b/i,
 ];
 
 /**
@@ -556,8 +541,8 @@ const NESTED_TYPE_PATTERNS: readonly RegExp[] = [
  * compare them with `=`, and their values don't read as a list entry.
  */
 export function isNestedColumnType(dataType: string | null | undefined): boolean {
-  const type = dataType ?? "";
-  return NESTED_TYPE_PATTERNS.some((re) => re.test(type));
+    const type = dataType ?? '';
+    return NESTED_TYPE_PATTERNS.some((re) => re.test(type));
 }
 
 /**
@@ -567,19 +552,19 @@ export function isNestedColumnType(dataType: string | null | undefined): boolean
  * with `=` on every dialect.
  */
 export function isValuePickerSupported(dataType: string): boolean {
-  if (isNestedColumnType(dataType)) return false;
-  const lower = dataType.toLowerCase();
-  return !NON_PICKABLE_TYPES.some((t) => lower.includes(t));
+    if (isNestedColumnType(dataType)) return false;
+    const lower = dataType.toLowerCase();
+    return !NON_PICKABLE_TYPES.some((t) => lower.includes(t));
 }
 
 export interface DistinctValuesQueryOptions {
-  table: string;
-  schema?: string | null;
-  column: string;
-  driver?: string | PluginManifest | DriverCapabilities | null;
-  /** WHERE clause (without the keyword) that narrows the counted rows. */
-  where?: string;
-  limit?: number;
+    table: string;
+    schema?: string | null;
+    column: string;
+    driver?: string | PluginManifest | DriverCapabilities | null;
+    /** WHERE clause (without the keyword) that narrows the counted rows. */
+    where?: string;
+    limit?: number;
 }
 
 /**
@@ -594,20 +579,20 @@ export interface DistinctValuesQueryOptions {
  * or `IN`, and the IS NULL operator already covers them.
  */
 export function buildDistinctValuesQuery({
-  table,
-  schema,
-  column,
-  driver,
-  where,
-  limit = VALUE_PICKER_LIMIT,
+    table,
+    schema,
+    column,
+    driver,
+    where,
+    limit = VALUE_PICKER_LIMIT,
 }: DistinctValuesQueryOptions): string {
-  const col = quoteIdentifier(column, driver);
-  const conditions = [`${col} IS NOT NULL`];
-  if (where && where.trim()) conditions.push(`(${where.trim()})`);
-  return (
-    `SELECT ${col}, COUNT(*) FROM ${quoteTableRef(table, driver, schema)} ` +
-    `WHERE ${conditions.join(" AND ")} GROUP BY ${col} ORDER BY 2 DESC, 1 LIMIT ${limit}`
-  );
+    const col = quoteIdentifier(column, driver);
+    const conditions = [`${col} IS NOT NULL`];
+    if (where && where.trim()) conditions.push(`(${where.trim()})`);
+    return (
+        `SELECT ${col}, COUNT(*) FROM ${quoteTableRef(table, driver, schema)} ` +
+        `WHERE ${conditions.join(' AND ')} GROUP BY ${col} ORDER BY 2 DESC, 1 LIMIT ${limit}`
+    );
 }
 
 /**
@@ -616,42 +601,42 @@ export function buildDistinctValuesQuery({
  * widen the result instead of narrowing it, so nothing is applied.
  */
 export function buildValuePickerWhere(
-  filters: StructuredFilter[],
-  excludeId: string,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
-  combinator: FilterCombinator,
-  columns?: readonly TableColumn[],
+    filters: StructuredFilter[],
+    excludeId: string,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    combinator: FilterCombinator,
+    columns?: readonly TableColumn[],
 ): string {
-  if (combinator === "OR") return "";
-  const others = filters.filter((f) => f.id !== excludeId);
-  // Always quote columns so the WHERE matches buildDistinctValuesQuery
-  // (quoteIdentifier), including MySQL reserved words like `order` / `group`.
-  return buildStructuredFilterClause(others, driver, "AND", "always", columns);
+    if (combinator === 'OR') return '';
+    const others = filters.filter((f) => f.id !== excludeId);
+    // Always quote columns so the WHERE matches buildDistinctValuesQuery
+    // (quoteIdentifier), including MySQL reserved words like `order` / `group`.
+    return buildStructuredFilterClause(others, driver, 'AND', 'always', columns);
 }
 
 function stringifyCell(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
 }
 
 /** Converts `[value, count]` result rows into picker entries, skipping NULLs. */
 export function parseDistinctValues(rows: unknown[][]): DistinctValue[] {
-  const values: DistinctValue[] = [];
-  for (const row of rows) {
-    if (!Array.isArray(row) || row.length < 2) continue;
-    const [value, count] = row;
-    if (value === null || value === undefined) continue;
-    values.push({ value: stringifyCell(value), count: Number(count) || 0 });
-  }
-  return values;
+    const values: DistinctValue[] = [];
+    for (const row of rows) {
+        if (!Array.isArray(row) || row.length < 2) continue;
+        const [value, count] = row;
+        if (value === null || value === undefined) continue;
+        values.push({value: stringifyCell(value), count: Number(count) || 0});
+    }
+    return values;
 }
 
 /** Case-insensitive substring search over picker entries. */
 export function filterDistinctValues(values: DistinctValue[], search: string): DistinctValue[] {
-  const needle = search.trim().toLowerCase();
-  if (!needle) return values;
-  return values.filter((v) => v.value.toLowerCase().includes(needle));
+    const needle = search.trim().toLowerCase();
+    if (!needle) return values;
+    return values.filter((v) => v.value.toLowerCase().includes(needle));
 }
 
 /**
@@ -662,16 +647,16 @@ export function filterDistinctValues(values: DistinctValue[], search: string): D
  * characters (a wrapped value would be taken as already quoted).
  */
 export function formatPickedValue(value: string, dataType: string): string {
-  const isString = STRING_TYPES.some((t) => dataType.toLowerCase().includes(t));
-  const needsQuotes =
-    value === "" ||
-    value !== value.trim() ||
-    value.includes(",") ||
-    /['"]/.test(value) ||
-    (isString && /^-?\d+(\.\d+)?$/.test(value));
-  // Stored in the dialect-independent standard form; the clause builder
-  // converts it for the active dialect.
-  return needsQuotes ? quoteLiteral(value, null) : value;
+    const isString = STRING_TYPES.some((t) => dataType.toLowerCase().includes(t));
+    const needsQuotes =
+        value === '' ||
+        value !== value.trim() ||
+        value.includes(',') ||
+        /['"]/.test(value) ||
+        (isString && /^-?\d+(\.\d+)?$/.test(value));
+    // Stored in the dialect-independent standard form; the clause builder
+    // converts it for the active dialect.
+    return needsQuotes ? quoteLiteral(value, null) : value;
 }
 
 /**
@@ -680,29 +665,30 @@ export function formatPickedValue(value: string, dataType: string): string {
  * Picking nothing leaves the filter untouched.
  */
 export function applyPickedValues(
-  filter: StructuredFilter,
-  values: string[],
-  dataType: string,
+    filter: StructuredFilter,
+    values: string[],
+    dataType: string,
 ): StructuredFilter {
-  if (values.length === 0) return filter;
-  const negated = filter.operator === "!=" || filter.operator === "NOT IN";
-  const single = values.length === 1;
-  const operator: FilterOperator = single
-    ? negated ? "!=" : "="
-    : negated ? "NOT IN" : "IN";
-  return {
-    ...filter,
-    operator,
-    value: values.map((v) => formatPickedValue(v, dataType)).join(", "),
-  };
+    if (values.length === 0) return filter;
+    const negated = filter.operator === '!=' || filter.operator === 'NOT IN';
+    const single = values.length === 1;
+    const operator: FilterOperator = single ? (negated ? '!=' : '=') : negated ? 'NOT IN' : 'IN';
+    return {
+        ...filter,
+        operator,
+        value: values.map((v) => formatPickedValue(v, dataType)).join(', '),
+    };
 }
 
 function unquote(item: string): string {
-  const q = item[0];
-  if (item.length >= 2 && (q === "'" || q === '"') && item.endsWith(q)) {
-    return item.slice(1, -1).split(q + q).join(q);
-  }
-  return item;
+    const q = item[0];
+    if (item.length >= 2 && (q === "'" || q === '"') && item.endsWith(q)) {
+        return item
+            .slice(1, -1)
+            .split(q + q)
+            .join(q);
+    }
+    return item;
 }
 
 /**
@@ -710,12 +696,12 @@ function unquote(item: string): string {
  * so the picker can open with them already ticked.
  */
 export function getPickedValues(filter: StructuredFilter): string[] {
-  if (filter.value === "") return [];
-  if (filter.operator === "=" || filter.operator === "!=") {
-    return [unquote(filter.value)];
-  }
-  if (filter.operator === "IN" || filter.operator === "NOT IN") {
-    return splitInList(filter.value).map(unquote);
-  }
-  return [];
+    if (filter.value === '') return [];
+    if (filter.operator === '=' || filter.operator === '!=') {
+        return [unquote(filter.value)];
+    }
+    if (filter.operator === 'IN' || filter.operator === 'NOT IN') {
+        return splitInList(filter.value).map(unquote);
+    }
+    return [];
 }

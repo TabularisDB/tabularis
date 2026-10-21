@@ -6,10 +6,10 @@
  * Falls back to the full path if no separator is found.
  */
 export function getExplainFileName(path: string): string {
-  if (!path) return "";
-  const normalized = path.replace(/\\/g, "/");
-  const idx = normalized.lastIndexOf("/");
-  return idx >= 0 ? normalized.slice(idx + 1) : normalized;
+    if (!path) return '';
+    const normalized = path.replace(/\\/g, '/');
+    const idx = normalized.lastIndexOf('/');
+    return idx >= 0 ? normalized.slice(idx + 1) : normalized;
 }
 
 /**
@@ -17,11 +17,11 @@ export function getExplainFileName(path: string): string {
  * Returns `null` when missing, empty, or whitespace-only.
  */
 export function parseExplainFileParam(search: string): string | null {
-  const params = new URLSearchParams(search);
-  const raw = params.get("file");
-  if (!raw) return null;
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : null;
+    const params = new URLSearchParams(search);
+    const raw = params.get('file');
+    if (!raw) return null;
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : null;
 }
 
 /**
@@ -30,6 +30,6 @@ export function parseExplainFileParam(search: string): string | null {
  * Rust side remains the source of truth.
  */
 export function looksLikePostgresExplainJson(raw: string): boolean {
-  const trimmed = raw.trimStart();
-  return trimmed.startsWith("[") || trimmed.startsWith("{");
+    const trimmed = raw.trimStart();
+    return trimmed.startsWith('[') || trimmed.startsWith('{');
 }

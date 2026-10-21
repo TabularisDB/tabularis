@@ -1,59 +1,40 @@
-import { useMemo } from "react";
-import { useTranslation } from "react-i18next";
-import { Sparkles, Ban, Eraser, FileDigit } from "lucide-react";
-import { GeometryInput } from "./GeometryInput";
-import { BlobInput } from "./BlobInput";
-import { BlobHexInput } from "./BlobHexInput";
-import { DateInput } from "./DateInput";
-import { JsonInput } from "./JsonInput";
-import { TextInput } from "./TextInput";
-import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
-import {
-  isEnumType,
-  parseEnumValues,
-  isSetType,
-  parseSetValues,
-} from "../../utils/columnTypes";
-import { EnumSetInput } from "./EnumSetInput";
-import {
-  blobValueToEditableHex,
-  isBlobColumn,
-  isBlobWireFormat,
-} from "../../utils/blob";
-import {
-  isJsonColumn,
-  isJsonContent,
-  isHstoreColumn,
-  isStructuredValue,
-} from "../../utils/json";
-import {
-  isLongTextValue,
-  isTextColumn,
-  isVectorColumn,
-  supportsEmptyString,
-} from "../../utils/text";
-import { getDateInputMode } from "../../utils/dateInput";
-import { USE_DEFAULT_SENTINEL } from "../../utils/dataGrid";
+import {useMemo} from 'react';
+import {useTranslation} from 'react-i18next';
+import {Sparkles, Ban, Eraser, FileDigit} from 'lucide-react';
+import {GeometryInput} from './GeometryInput';
+import {BlobInput} from './BlobInput';
+import {BlobHexInput} from './BlobHexInput';
+import {DateInput} from './DateInput';
+import {JsonInput} from './JsonInput';
+import {TextInput} from './TextInput';
+import {isGeometricType, formatGeometricValue} from '@/utils/geometry';
+import {isEnumType, parseEnumValues, isSetType, parseSetValues} from '@/utils/columnTypes';
+import {EnumSetInput} from './EnumSetInput';
+import {blobValueToEditableHex, isBlobColumn, isBlobWireFormat} from '@/utils/blob';
+import {isJsonColumn, isJsonContent, isHstoreColumn, isStructuredValue} from '@/utils/json';
+import {isLongTextValue, isTextColumn, isVectorColumn, supportsEmptyString} from '@/utils/text';
+import {getDateInputMode} from '@/utils/dateInput';
+import {USE_DEFAULT_SENTINEL} from '@/utils/dataGrid';
 
 export interface FieldEditorProps {
-  name: string;
-  type?: string;
-  characterMaximumLength?: number;
-  value: unknown;
-  onChange: (value: unknown) => void;
-  placeholder?: string;
-  className?: string;
-  isInsertion?: boolean;
-  isAutoIncrement?: boolean;
-  hasDefault?: boolean;
-  isNullable?: boolean;
-  originalValue?: unknown;
-  detectJsonInTextColumns?: boolean;
-  connectionId?: string | null;
-  tableName?: string | null;
-  pkMap?: Record<string, unknown> | null;
-  schema?: string | null;
-  database?: string | null;
+    name: string;
+    type?: string;
+    characterMaximumLength?: number;
+    value: unknown;
+    onChange: (value: unknown) => void;
+    placeholder?: string;
+    className?: string;
+    isInsertion?: boolean;
+    isAutoIncrement?: boolean;
+    hasDefault?: boolean;
+    isNullable?: boolean;
+    originalValue?: unknown;
+    detectJsonInTextColumns?: boolean;
+    connectionId?: string | null;
+    tableName?: string | null;
+    pkMap?: Record<string, unknown> | null;
+    schema?: string | null;
+    database?: string | null;
 }
 
 /**
@@ -61,204 +42,203 @@ export interface FieldEditorProps {
  * Automatically selects the appropriate input type based on field type
  */
 export const FieldEditor = ({
-  name,
-  type,
-  characterMaximumLength,
-  value,
-  onChange,
-  placeholder,
-  className = "",
-  isInsertion = false,
-  isAutoIncrement = false,
-  hasDefault = false,
-  isNullable = false,
-  originalValue,
-  detectJsonInTextColumns = false,
-  connectionId,
-  tableName,
-  pkMap,
-  schema,
-  database,
+    name,
+    type,
+    characterMaximumLength,
+    value,
+    onChange,
+    placeholder,
+    className = '',
+    isInsertion = false,
+    isAutoIncrement = false,
+    hasDefault = false,
+    isNullable = false,
+    originalValue,
+    detectJsonInTextColumns = false,
+    connectionId,
+    tableName,
+    pkMap,
+    schema,
+    database,
 }: FieldEditorProps) => {
-  const { t } = useTranslation();
-  const isGeometric = type && isGeometricType(type);
-  const isBlob =
-    type &&
-    (isBlobColumn(type, characterMaximumLength) || isBlobWireFormat(value));
-  const editableBlobHex = isBlob ? blobValueToEditableHex(value) : null;
-  const isJsonByType = !!(type && (isJsonColumn(type) || isHstoreColumn(type)));
-  const detectedJson =
-    !isBlob &&
-    !isGeometric &&
-    (isStructuredValue(value) ||
-      isStructuredValue(originalValue) ||
-      (detectJsonInTextColumns &&
-        (isJsonContent(value) || isJsonContent(originalValue))));
-  const isJson = isJsonByType || detectedJson;
-  const dateMode = !isJson && type ? getDateInputMode(type) : null;
-  const isEnum =
-    !isBlob && !isGeometric && !isJson && !dateMode && type
-      ? isEnumType(type)
-      : false;
-  const enumValues = isEnum && type ? parseEnumValues(type) : [];
-  const isSet =
-    !isBlob && !isGeometric && !isJson && !dateMode && !isEnum && type
-      ? isSetType(type)
-      : false;
-  const setValues = isSet && type ? parseSetValues(type) : [];
-  const isLongText =
-    !isBlob &&
-    !isGeometric &&
-    !isJson &&
-    !dateMode &&
-    !isEnum &&
-    !isSet &&
-    (isTextColumn(type) || isVectorColumn(type)) &&
-    (isLongTextValue(value) || isLongTextValue(originalValue));
+    const {t} = useTranslation();
+    const isGeometric = type && isGeometricType(type);
+    const isBlob = type && (isBlobColumn(type, characterMaximumLength) || isBlobWireFormat(value));
+    const editableBlobHex = isBlob ? blobValueToEditableHex(value) : null;
+    const isJsonByType = !!(type && (isJsonColumn(type) || isHstoreColumn(type)));
+    const detectedJson =
+        !isBlob &&
+        !isGeometric &&
+        (isStructuredValue(value) ||
+            isStructuredValue(originalValue) ||
+            (detectJsonInTextColumns && (isJsonContent(value) || isJsonContent(originalValue))));
+    const isJson = isJsonByType || detectedJson;
+    const dateMode = !isJson && type ? getDateInputMode(type) : null;
+    const isEnum =
+        !isBlob && !isGeometric && !isJson && !dateMode && type ? isEnumType(type) : false;
+    const enumValues = isEnum && type ? parseEnumValues(type) : [];
+    const isSet =
+        !isBlob && !isGeometric && !isJson && !dateMode && !isEnum && type
+            ? isSetType(type)
+            : false;
+    const setValues = isSet && type ? parseSetValues(type) : [];
+    const isLongText =
+        !isBlob &&
+        !isGeometric &&
+        !isJson &&
+        !dateMode &&
+        !isEnum &&
+        !isSet &&
+        (isTextColumn(type) || isVectorColumn(type)) &&
+        (isLongTextValue(value) || isLongTextValue(originalValue));
 
-  const defaultPlaceholder = placeholder || t("rowEditor.enterValue");
+    const defaultPlaceholder = placeholder || t('rowEditor.enterValue');
 
-  // Determine if we should show quick action buttons
-  const showQuickActions = isAutoIncrement || hasDefault || isNullable;
+    // Determine if we should show quick action buttons
+    const showQuickActions = isAutoIncrement || hasDefault || isNullable;
 
-  // For geometric columns, format WKB to WKT for display (same as DataGrid)
-  const displayValue = useMemo(() => {
-    if (isGeometric && value !== null && value !== undefined && value !== "") {
-      return formatGeometricValue(value);
+    // For geometric columns, format WKB to WKT for display (same as DataGrid)
+    const displayValue = useMemo(() => {
+        if (isGeometric && value !== null && value !== undefined && value !== '') {
+            return formatGeometricValue(value);
+        }
+        return String(value ?? '');
+    }, [isGeometric, value]);
+
+    const inputElement = isBlob ? (
+        <div className={`${className}`}>
+            {editableBlobHex !== null ? (
+                <BlobHexInput
+                    key={String(value)}
+                    value={value}
+                    onChange={(newValue) => onChange(newValue)}
+                />
+            ) : (
+                <BlobInput
+                    value={value}
+                    dataType={type}
+                    onChange={(newValue) => onChange(newValue)}
+                    placeholder={defaultPlaceholder}
+                    connectionId={connectionId}
+                    tableName={tableName}
+                    pkMap={pkMap}
+                    colName={name}
+                    schema={schema}
+                    database={database}
+                />
+            )}
+        </div>
+    ) : isGeometric ? (
+        <div className={`bg-base border border-strong rounded-lg p-3 ${className}`}>
+            <GeometryInput
+                value={displayValue}
+                dataType={type}
+                onChange={(newValue) => onChange(newValue)}
+                placeholder={defaultPlaceholder}
+                className="w-full bg-transparent text-primary border-none outline-none p-0 m-0 font-mono"
+            />
+        </div>
+    ) : isJson ? (
+        <JsonInput
+            value={value}
+            originalValue={originalValue}
+            onChange={(newValue) => onChange(newValue)}
+            placeholder={defaultPlaceholder}
+            className={className}
+        />
+    ) : dateMode ? (
+        <DateInput
+            value={String(value ?? '')}
+            mode={dateMode}
+            onChange={(newValue) => onChange(newValue)}
+            className={className}
+        />
+    ) : isEnum || isSet ? (
+        <EnumSetInput
+            variant="inline"
+            multiple={isSet}
+            value={value === null || value === undefined ? null : String(value)}
+            options={isSet ? setValues : enumValues}
+            isNullable={isNullable}
+            onChange={(newValue) => onChange(newValue)}
+            className={className}
+        />
+    ) : isLongText ? (
+        <TextInput
+            value={value}
+            originalValue={originalValue}
+            onChange={(newValue) => onChange(newValue)}
+            placeholder={defaultPlaceholder}
+            className={className}
+        />
+    ) : (
+        <textarea
+            autoCorrect="off"
+            autoCapitalize="off"
+            autoComplete="off"
+            spellCheck={false}
+            value={String(value ?? '')}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={defaultPlaceholder}
+            className={`w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary font-mono resize-none min-h-[80px] focus:border-focus focus:outline-none ${className}`}
+        />
+    );
+
+    if (!showQuickActions) {
+        return inputElement;
     }
-    return String(value ?? "");
-  }, [isGeometric, value]);
 
-  const inputElement = isBlob ? (
-    <div className={`${className}`}>
-      {editableBlobHex !== null ? (
-        <BlobHexInput
-          key={String(value)}
-          value={value}
-          onChange={(newValue) => onChange(newValue)}
-        />
-      ) : (
-        <BlobInput
-          value={value}
-          dataType={type}
-          onChange={(newValue) => onChange(newValue)}
-          placeholder={defaultPlaceholder}
-          connectionId={connectionId}
-          tableName={tableName}
-          pkMap={pkMap}
-          colName={name}
-          schema={schema}
-          database={database}
-        />
-      )}
-    </div>
-  ) : isGeometric ? (
-    <div className={`bg-base border border-strong rounded-lg p-3 ${className}`}>
-      <GeometryInput
-        value={displayValue}
-        dataType={type}
-        onChange={(newValue) => onChange(newValue)}
-        placeholder={defaultPlaceholder}
-        className="w-full bg-transparent text-primary border-none outline-none p-0 m-0 font-mono"
-      />
-    </div>
-  ) : isJson ? (
-    <JsonInput
-      value={value}
-      originalValue={originalValue}
-      onChange={(newValue) => onChange(newValue)}
-      placeholder={defaultPlaceholder}
-      className={className}
-    />
-  ) : dateMode ? (
-    <DateInput
-      value={String(value ?? "")}
-      mode={dateMode}
-      onChange={(newValue) => onChange(newValue)}
-      className={className}
-    />
-  ) : isEnum || isSet ? (
-    <EnumSetInput
-      variant="inline"
-      multiple={isSet}
-      value={value === null || value === undefined ? null : String(value)}
-      options={isSet ? setValues : enumValues}
-      isNullable={isNullable}
-      onChange={(newValue) => onChange(newValue)}
-      className={className}
-    />
-  ) : isLongText ? (
-    <TextInput
-      value={value}
-      originalValue={originalValue}
-      onChange={(newValue) => onChange(newValue)}
-      placeholder={defaultPlaceholder}
-      className={className}
-    />
-  ) : (
-    <textarea autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
-      value={String(value ?? "")}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={defaultPlaceholder}
-      className={`w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary font-mono resize-none min-h-[80px] focus:border-focus focus:outline-none ${className}`}
-    />
-  );
+    return (
+        <div className="space-y-2">
+            {inputElement}
 
-  if (!showQuickActions) {
-    return inputElement;
-  }
-
-  return (
-    <div className="space-y-2">
-      {inputElement}
-
-      {/* Quick Action Buttons */}
-      <div className="flex gap-2 flex-wrap">
-        {isAutoIncrement && isInsertion && (
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            className="px-2 py-1 text-xs bg-accent-secondary/10 text-accent-secondary rounded border border-accent-secondary/25 hover:bg-accent-secondary/15 transition-colors flex items-center gap-1"
-            title={t("dataGrid.setGenerate")}
-          >
-            <Sparkles size={12} />
-            {t("dataGrid.setGenerate")}
-          </button>
-        )}
-        {isNullable && (
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            className="px-2 py-1 text-xs bg-surface-secondary text-muted rounded border border-default hover:bg-surface-tertiary transition-colors flex items-center gap-1"
-            title={t("dataGrid.setNull")}
-          >
-            <Ban size={12} />
-            {t("dataGrid.setNull")}
-          </button>
-        )}
-        {hasDefault && (
-          <button
-            type="button"
-            onClick={() => onChange(isInsertion ? null : USE_DEFAULT_SENTINEL)}
-            className="px-2 py-1 text-xs bg-accent-primary/10 text-accent rounded border border-accent-primary/25 hover:bg-accent-primary/15 transition-colors flex items-center gap-1"
-            title={t("dataGrid.setDefault")}
-          >
-            <FileDigit size={12} />
-            {t("dataGrid.setDefault")}
-          </button>
-        )}
-        {supportsEmptyString(type) && (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="px-2 py-1 text-xs bg-surface-secondary text-secondary rounded border border-default hover:bg-surface-tertiary transition-colors flex items-center gap-1"
-            title={t("dataGrid.setEmpty")}
-          >
-            <Eraser size={12} />
-            {t("dataGrid.setEmpty")}
-          </button>
-        )}
-      </div>
-    </div>
-  );
+            {/* Quick Action Buttons */}
+            <div className="flex gap-2 flex-wrap">
+                {isAutoIncrement && isInsertion && (
+                    <button
+                        type="button"
+                        onClick={() => onChange(null)}
+                        className="px-2 py-1 text-xs bg-accent-secondary/10 text-accent-secondary rounded border border-accent-secondary/25 hover:bg-accent-secondary/15 transition-colors flex items-center gap-1"
+                        title={t('dataGrid.setGenerate')}
+                    >
+                        <Sparkles size={12} />
+                        {t('dataGrid.setGenerate')}
+                    </button>
+                )}
+                {isNullable && (
+                    <button
+                        type="button"
+                        onClick={() => onChange(null)}
+                        className="px-2 py-1 text-xs bg-surface-secondary text-muted rounded border border-default hover:bg-surface-tertiary transition-colors flex items-center gap-1"
+                        title={t('dataGrid.setNull')}
+                    >
+                        <Ban size={12} />
+                        {t('dataGrid.setNull')}
+                    </button>
+                )}
+                {hasDefault && (
+                    <button
+                        type="button"
+                        onClick={() => onChange(isInsertion ? null : USE_DEFAULT_SENTINEL)}
+                        className="px-2 py-1 text-xs bg-accent-primary/10 text-accent rounded border border-accent-primary/25 hover:bg-accent-primary/15 transition-colors flex items-center gap-1"
+                        title={t('dataGrid.setDefault')}
+                    >
+                        <FileDigit size={12} />
+                        {t('dataGrid.setDefault')}
+                    </button>
+                )}
+                {supportsEmptyString(type) && (
+                    <button
+                        type="button"
+                        onClick={() => onChange('')}
+                        className="px-2 py-1 text-xs bg-surface-secondary text-secondary rounded border border-default hover:bg-surface-tertiary transition-colors flex items-center gap-1"
+                        title={t('dataGrid.setEmpty')}
+                    >
+                        <Eraser size={12} />
+                        {t('dataGrid.setEmpty')}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
 };

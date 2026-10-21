@@ -32,7 +32,7 @@ All types of contributions are encouraged and valued. See the [Table of Contents
 ## Code of Conduct
 
 This project and everyone participating in it is governed by the
-[tabularis Code of Conduct](https://github.com/TabularisDB/tabularis/blob/main/CODE_OF_CONDUCT.md).
+[tabularis Code of Conduct](https://github.com/TabularisDB/tabularis/blob/main/.github/CODE_OF_CONDUCT.md).
 By participating, you are expected to uphold this code. Please report unacceptable behavior
 to <andrea@debbaweb.it>.
 
@@ -204,7 +204,8 @@ If your task touches pure frontend helpers in `src/utils/`, data transformations
    ```
 4. **Validate code formatting, theme tokens, and types:**
    ```bash
-   pnpm lint          # ESLint + checks design token usage
+   pnpm lint          # ESLint + Prettier check + design token usage
+   pnpm format        # Apply Prettier to the whole repository
    pnpm exec tsc -b   # TypeScript typecheck across workspaces
    ```
 

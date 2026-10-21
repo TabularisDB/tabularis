@@ -41,7 +41,7 @@ export async function renderWithSlotProbe(children: ReactNode, slots: SlotName[]
       updateSetting: vi.fn(), isLoading: false,
     }}>
       <PluginSlotProvider>{children}</PluginSlotProvider>
-    </SettingsContext.Provider>,
+    </SettingsContext.Provider>
   );
   return render(children, { wrapper });
 }

@@ -1,150 +1,178 @@
-import { useState, useEffect, useId } from 'react';
-import { X, Save } from 'lucide-react';
-import type { BeforeMount } from "@monaco-editor/react";
-import { MonacoEditor } from "../ui/LazyMonaco";
-import { useTranslation } from 'react-i18next';
-import { useEditorTheme } from '../../hooks/useEditorTheme';
-import { loadMonacoTheme } from '../../themes/themeUtils';
-import { getMonacoThemeId } from '../../themes/themeRuntime';
-import { Modal } from '../ui/Modal';
-import { Select } from '../ui/Select';
+import {useState, useEffect, useId} from 'react';
+import {X, Save} from 'lucide-react';
+import type {BeforeMount} from '@monaco-editor/react';
+import {MonacoEditor} from '@/components/ui/LazyMonaco';
+import {useTranslation} from 'react-i18next';
+import {useEditorTheme} from '@/hooks/useEditorTheme';
+import {loadMonacoTheme} from '@/themes/themeUtils';
+import {getMonacoThemeId} from '@/themes/themeRuntime';
+import {Modal} from '@/components/ui/Modal';
+import {Select} from '@/components/ui/Select';
 
 interface QueryModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (name: string, sql: string, database?: string | null) => Promise<void>;
-  initialName?: string;
-  initialSql?: string;
-  initialDatabase?: string | null;
-  databases?: string[];
-  title?: string;
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (name: string, sql: string, database?: string | null) => Promise<void>;
+    initialName?: string;
+    initialSql?: string;
+    initialDatabase?: string | null;
+    databases?: string[];
+    title?: string;
 }
 
-export const QueryModal = ({ isOpen, onClose, onSave, initialName = '', initialSql = '', initialDatabase, databases, title = 'Save Query' }: QueryModalProps) => {
-  const { t } = useTranslation();
-  const [name, setName] = useState(initialName);
-  const nameId = useId();
-  const [sql, setSql] = useState(initialSql);
-  const [database, setDatabase] = useState<string | null>(initialDatabase ?? null);
-  const [error, setError] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const editorTheme = useEditorTheme();
+export const QueryModal = ({
+    isOpen,
+    onClose,
+    onSave,
+    initialName = '',
+    initialSql = '',
+    initialDatabase,
+    databases,
+    title = 'Save Query',
+}: QueryModalProps) => {
+    const {t} = useTranslation();
+    const [name, setName] = useState(initialName);
+    const nameId = useId();
+    const [sql, setSql] = useState(initialSql);
+    const [database, setDatabase] = useState<string | null>(initialDatabase ?? null);
+    const [error, setError] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const editorTheme = useEditorTheme();
 
-  const handleBeforeMount: BeforeMount = (monaco) => {
-    loadMonacoTheme(editorTheme, monaco);
-  };
+    const handleBeforeMount: BeforeMount = (monaco) => {
+        loadMonacoTheme(editorTheme, monaco);
+    };
 
-  useEffect(() => {
-    if (isOpen) {
-        setName(initialName);
-        setSql(initialSql);
-        setDatabase(initialDatabase ?? null);
-        setError('');
-    }
-  }, [isOpen, initialName, initialSql, initialDatabase]);
+    useEffect(() => {
+        if (isOpen) {
+            setName(initialName);
+            setSql(initialSql);
+            setDatabase(initialDatabase ?? null);
+            setError('');
+        }
+    }, [isOpen, initialName, initialSql, initialDatabase]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-        setError('Name is required');
-        return;
-    }
-    if (!sql.trim()) {
-        setError('SQL content is required');
-        return;
-    }
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!name.trim()) {
+            setError('Name is required');
+            return;
+        }
+        if (!sql.trim()) {
+            setError('SQL content is required');
+            return;
+        }
 
-    setIsSaving(true);
-    try {
-        await onSave(name, sql, database);
-        onClose();
-    } catch (err) {
-        setError(String(err));
-    } finally {
-        setIsSaving(false);
-    }
-  };
+        setIsSaving(true);
+        try {
+            await onSave(name, sql, database);
+            onClose();
+        } catch (err) {
+            setError(String(err));
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-elevated border border-default rounded-xl shadow-2xl w-full max-w-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-primary">{title}</h3>
-          <button onClick={onClose} className="text-secondary hover:text-primary transition-colors">
-            <X size={20} />
-          </button>
-        </div>
+    return (
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+        >
+            <div className="bg-elevated border border-default rounded-xl shadow-2xl w-full max-w-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-primary">{title}</h3>
+                    <button
+                        onClick={onClose}
+                        className="text-secondary hover:text-primary transition-colors"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor={nameId} className="block text-sm font-medium text-secondary mb-1">Name</label>
-            <input id={nameId} autoCorrect="off" autoCapitalize="off" autoComplete="off" spellCheck={false}
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-base border border-strong rounded px-3 py-2 text-primary focus:outline-none focus:border-focus"
-              placeholder="My Query"
-              autoFocus
-            />
-          </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label
+                            htmlFor={nameId}
+                            className="block text-sm font-medium text-secondary mb-1"
+                        >
+                            Name
+                        </label>
+                        <input
+                            id={nameId}
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            autoComplete="off"
+                            spellCheck={false}
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full bg-base border border-strong rounded px-3 py-2 text-primary focus:outline-none focus:border-focus"
+                            placeholder="My Query"
+                            autoFocus
+                        />
+                    </div>
 
-          {databases && databases.length > 1 && (
-            <div>
-              <label className="block text-sm font-medium text-secondary mb-1">{t("queryModal.database")}</label>
-              <Select
-                value={database}
-                options={databases}
-                onChange={(val) => setDatabase(val)}
-                placeholder={t("queryModal.noDatabase")}
-                searchable={databases.length > 5}
-              />
+                    {databases && databases.length > 1 && (
+                        <div>
+                            <label className="block text-sm font-medium text-secondary mb-1">
+                                {t('queryModal.database')}
+                            </label>
+                            <Select
+                                value={database}
+                                options={databases}
+                                onChange={(val) => setDatabase(val)}
+                                placeholder={t('queryModal.noDatabase')}
+                                searchable={databases.length > 5}
+                            />
+                        </div>
+                    )}
+
+                    <div>
+                        <div className="block text-sm font-medium text-secondary mb-1">SQL</div>
+                        <div className="h-64 w-full border border-strong rounded overflow-hidden">
+                            <MonacoEditor
+                                height="100%"
+                                defaultLanguage="sql"
+                                theme={getMonacoThemeId(editorTheme.id)}
+                                beforeMount={handleBeforeMount}
+                                value={sql}
+                                onChange={(val) => setSql(val || '')}
+                                options={{
+                                    minimap: {enabled: false},
+                                    fontSize: 13,
+                                    lineNumbers: 'on',
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    padding: {top: 8},
+                                    wordWrap: 'on',
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    {error && <div className="text-accent-error text-sm">{error}</div>}
+
+                    <div className="flex justify-end gap-2 pt-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary rounded transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isSaving}
+                            className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded font-medium disabled:opacity-50 transition-colors"
+                        >
+                            <Save size={16} />
+                            {isSaving ? 'Saving...' : 'Save'}
+                        </button>
+                    </div>
+                </form>
             </div>
-          )}
-
-          <div>
-            <div className="block text-sm font-medium text-secondary mb-1">SQL</div>
-            <div className="h-64 w-full border border-strong rounded overflow-hidden">
-                <MonacoEditor
-                    height="100%"
-                    defaultLanguage="sql"
-                    theme={getMonacoThemeId(editorTheme.id)}
-                    beforeMount={handleBeforeMount}
-                    value={sql}
-                    onChange={(val) => setSql(val || '')}
-                    options={{
-                        minimap: { enabled: false },
-                        fontSize: 13,
-                        lineNumbers: 'on',
-                        scrollBeyondLastLine: false,
-                        automaticLayout: true,
-                        padding: { top: 8 },
-                        wordWrap: 'on',
-                    }}
-                />
-            </div>
-          </div>
-
-          {error && <div className="text-accent-error text-sm">{error}</div>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary rounded transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-inverse rounded font-medium disabled:opacity-50 transition-colors"
-            >
-              <Save size={16} />
-              {isSaving ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </Modal>
-  );
+        </Modal>
+    );
 };

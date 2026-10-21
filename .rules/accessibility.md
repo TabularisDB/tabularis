@@ -9,4 +9,4 @@ ESLint runs the `jsx-a11y` recommended rules on every `.tsx` file (`no-autofocus
 5. **Every control has a name.** Form fields are tied to their label (`htmlFor` + `useId()`, or nested); icon-only buttons have a translated `aria-label`.
 6. **Focus is visible.** New focusable elements use `focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus` (never `accent-primary`, see [design.md](./design.md)).
 7. **`eslint-disable` for a jsx-a11y rule needs a one-line reason** and is the last resort, not the default fix.
-8. **Color contrast** is covered by the theme contract: see "Contrast" in [DESIGN.md](../DESIGN.md) and `pnpm test:contrast`.
+8. **Color contrast** is covered by the theme contract: see "Contrast" in [DESIGN.md](../docs/DESIGN.md) and `pnpm test:contrast`.

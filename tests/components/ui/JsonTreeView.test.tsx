@@ -1,388 +1,346 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
-import type { JsonEditorProps, NodeData } from "json-edit-react";
+import {describe, it, expect, vi, beforeEach} from 'vitest';
+import {render, screen, fireEvent} from '@testing-library/react';
+import type {JsonEditorProps, NodeData} from 'json-edit-react';
 
 type CapturedProps = JsonEditorProps & {
-  restrictEdit?: boolean;
-  restrictAdd?: boolean;
-  restrictDelete?: boolean;
-  restrictTypeSelection?: boolean;
+    restrictEdit?: boolean;
+    restrictAdd?: boolean;
+    restrictDelete?: boolean;
+    restrictTypeSelection?: boolean;
 };
 
-const lastProps: { current: CapturedProps | null } = { current: null };
+const lastProps: {current: CapturedProps | null} = {current: null};
 
-vi.mock("json-edit-react", () => ({
-  JsonEditor: (props: CapturedProps) => {
-    lastProps.current = props;
-    return (
-      <div data-testid="mock-json-editor">
-        {JSON.stringify(props.data)}
-      </div>
-    );
-  },
-  defaultTheme: { displayName: "default", styles: {} },
-  githubDarkTheme: { displayName: "githubDark", styles: {} },
-  githubLightTheme: { displayName: "githubLight", styles: {} },
+vi.mock('json-edit-react', () => ({
+    JsonEditor: (props: CapturedProps) => {
+        lastProps.current = props;
+        return <div data-testid="mock-json-editor">{JSON.stringify(props.data)}</div>;
+    },
+    defaultTheme: {displayName: 'default', styles: {}},
+    githubDarkTheme: {displayName: 'githubDark', styles: {}},
+    githubLightTheme: {displayName: 'githubLight', styles: {}},
 }));
 
 // eslint-disable-next-line import/first
-import { JsonTreeView } from "../../../src/components/ui/JsonTreeView";
+import {JsonTreeView} from '@/components/ui/JsonTreeView';
 
-describe("JsonTreeView", () => {
-  beforeEach(() => {
-    lastProps.current = null;
-  });
-
-  it("renders nested data through the underlying JSON editor", () => {
-    const data = { name: "Alice", nested: { count: 3 } };
-    render(<JsonTreeView value={data} onChange={() => {}} />);
-
-    expect(screen.getByTestId("mock-json-editor")).toBeInTheDocument();
-    expect(lastProps.current).not.toBeNull();
-    expect(lastProps.current!.data).toEqual(data);
-  });
-
-  it("allows leaf edits but restricts structural mutations when onChange is provided", () => {
-    render(<JsonTreeView value={{ a: 1 }} onChange={() => {}} />);
-
-    expect(lastProps.current!.restrictEdit).toBe(false);
-    expect(lastProps.current!.restrictAdd).toBe(true);
-    expect(lastProps.current!.restrictDelete).toBe(true);
-    expect(lastProps.current!.restrictTypeSelection).toBe(true);
-  });
-
-  it("is view-only when readOnly is true", () => {
-    render(
-      <JsonTreeView value={{ a: 1 }} onChange={() => {}} readOnly />,
-    );
-
-    expect(lastProps.current!.restrictEdit).toBe(true);
-    expect(lastProps.current!.restrictAdd).toBe(true);
-    expect(lastProps.current!.restrictDelete).toBe(true);
-    expect(lastProps.current!.restrictTypeSelection).toBe(true);
-  });
-
-  it("is view-only when onChange is omitted", () => {
-    render(<JsonTreeView value={{ a: 1 }} />);
-
-    expect(lastProps.current!.restrictEdit).toBe(true);
-    expect(lastProps.current!.restrictAdd).toBe(true);
-    expect(lastProps.current!.restrictDelete).toBe(true);
-    expect(lastProps.current!.restrictTypeSelection).toBe(true);
-  });
-
-  it("emits onChange when the underlying editor reports updated data", () => {
-    const onChange = vi.fn();
-    render(<JsonTreeView value={{ a: 1 }} onChange={onChange} />);
-
-    const setData = lastProps.current!.setData;
-    expect(setData).toBeTypeOf("function");
-    setData!({ a: 2 });
-
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith({ a: 2 });
-  });
-
-  it("does not provide setData when in read-only mode", () => {
-    render(<JsonTreeView value={{ a: 1 }} readOnly onChange={() => {}} />);
-    expect(lastProps.current!.setData).toBeUndefined();
-  });
-
-  it("forwards searchQuery to the editor's searchText prop", () => {
-    render(<JsonTreeView value={{ a: 1 }} searchQuery="needle" />);
-    expect(lastProps.current!.searchText).toBe("needle");
-  });
-
-  it("wires onCopy through the editor's enableClipboard callback", () => {
-    const onCopy = vi.fn();
-    render(<JsonTreeView value={{ a: 1 }} onCopy={onCopy} />);
-
-    const clipboard = lastProps.current!.enableClipboard;
-    expect(typeof clipboard).toBe("function");
-
-    if (typeof clipboard === "function") {
-      clipboard({
-        success: true,
-        errorMessage: null,
-        key: "a",
-        path: ["a"],
-        value: 1,
-        stringValue: "1",
-        type: "value",
-      });
-    }
-
-    expect(onCopy).toHaveBeenCalledWith("1");
-  });
-
-  it("provides a theme object to the underlying editor", () => {
-    render(<JsonTreeView value={{ a: 1 }} />);
-    expect(lastProps.current!.theme).toBeDefined();
-  });
-
-  describe("leaf editing", () => {
-    it("emits onChange with updated root when a string leaf is edited", () => {
-      const onChange = vi.fn();
-      render(
-        <JsonTreeView
-          value={{ name: "Alice", age: 30 }}
-          onChange={onChange}
-        />,
-      );
-
-      lastProps.current!.setData!({ name: "Bob", age: 30 });
-
-      expect(onChange).toHaveBeenCalledTimes(1);
-      expect(onChange).toHaveBeenCalledWith({ name: "Bob", age: 30 });
+describe('JsonTreeView', () => {
+    beforeEach(() => {
+        lastProps.current = null;
     });
 
-    it("emits onChange with updated root when a numeric leaf is edited", () => {
-      const onChange = vi.fn();
-      render(<JsonTreeView value={{ count: 1 }} onChange={onChange} />);
+    it('renders nested data through the underlying JSON editor', () => {
+        const data = {name: 'Alice', nested: {count: 3}};
+        render(<JsonTreeView value={data} onChange={() => {}} />);
 
-      lastProps.current!.setData!({ count: 42 });
-
-      expect(onChange).toHaveBeenCalledTimes(1);
-      expect(onChange).toHaveBeenCalledWith({ count: 42 });
+        expect(screen.getByTestId('mock-json-editor')).toBeInTheDocument();
+        expect(lastProps.current).not.toBeNull();
+        expect(lastProps.current!.data).toEqual(data);
     });
 
-    it("emits onChange with updated root when a boolean leaf is toggled", () => {
-      const onChange = vi.fn();
-      render(
-        <JsonTreeView value={{ active: false }} onChange={onChange} />,
-      );
+    it('allows leaf edits but restricts structural mutations when onChange is provided', () => {
+        render(<JsonTreeView value={{a: 1}} onChange={() => {}} />);
 
-      lastProps.current!.setData!({ active: true });
-
-      expect(onChange).toHaveBeenCalledTimes(1);
-      expect(onChange).toHaveBeenCalledWith({ active: true });
+        expect(lastProps.current!.restrictEdit).toBe(false);
+        expect(lastProps.current!.restrictAdd).toBe(true);
+        expect(lastProps.current!.restrictDelete).toBe(true);
+        expect(lastProps.current!.restrictTypeSelection).toBe(true);
     });
 
-    it("disallows adding new keys via restrictAdd and restrictTypeSelection", () => {
-      render(<JsonTreeView value={{ a: 1 }} onChange={() => {}} />);
+    it('is view-only when readOnly is true', () => {
+        render(<JsonTreeView value={{a: 1}} onChange={() => {}} readOnly />);
 
-      expect(lastProps.current!.restrictAdd).toBe(true);
-      expect(lastProps.current!.restrictTypeSelection).toBe(true);
+        expect(lastProps.current!.restrictEdit).toBe(true);
+        expect(lastProps.current!.restrictAdd).toBe(true);
+        expect(lastProps.current!.restrictDelete).toBe(true);
+        expect(lastProps.current!.restrictTypeSelection).toBe(true);
     });
 
-    it("does not call onChange when no onChange prop is provided", () => {
-      render(<JsonTreeView value={{ a: 1 }} />);
+    it('is view-only when onChange is omitted', () => {
+        render(<JsonTreeView value={{a: 1}} />);
 
-      expect(lastProps.current!.setData).toBeUndefined();
-    });
-  });
-
-  describe("search", () => {
-    it("renders a controlled search input when no external searchQuery is provided", () => {
-      render(<JsonTreeView value={{ a: 1 }} />);
-      const input = screen.getByPlaceholderText("jsonInput.search");
-      expect(input).toBeInTheDocument();
-      expect((input as HTMLInputElement).value).toBe("");
+        expect(lastProps.current!.restrictEdit).toBe(true);
+        expect(lastProps.current!.restrictAdd).toBe(true);
+        expect(lastProps.current!.restrictDelete).toBe(true);
+        expect(lastProps.current!.restrictTypeSelection).toBe(true);
     });
 
-    it("does not render the internal search input when searchQuery is provided", () => {
-      render(<JsonTreeView value={{ a: 1 }} searchQuery="" />);
-      expect(
-        screen.queryByPlaceholderText("jsonInput.search"),
-      ).not.toBeInTheDocument();
-    });
-
-    it("forwards typed text from the internal input to the editor's searchText", () => {
-      render(<JsonTreeView value={{ name: "Alice", nested: { count: 3 } }} />);
-      const input = screen.getByPlaceholderText(
-        "jsonInput.search",
-      ) as HTMLInputElement;
-
-      fireEvent.change(input, { target: { value: "Alice" } });
-      expect(input.value).toBe("Alice");
-      expect(lastProps.current!.searchText).toBe("Alice");
-    });
-
-    it("clears the editor's searchText when the internal input is cleared", () => {
-      render(<JsonTreeView value={{ name: "Alice" }} />);
-      const input = screen.getByPlaceholderText(
-        "jsonInput.search",
-      ) as HTMLInputElement;
-
-      fireEvent.change(input, { target: { value: "Alice" } });
-      expect(lastProps.current!.searchText).toBe("Alice");
-
-      fireEvent.change(input, { target: { value: "" } });
-      expect(input.value).toBe("");
-      expect(lastProps.current!.searchText).toBe("");
-    });
-
-    it("forwards the user's text verbatim so the library can do case-insensitive matching", () => {
-      render(<JsonTreeView value={{ Name: "Alice" }} />);
-      const input = screen.getByPlaceholderText(
-        "jsonInput.search",
-      ) as HTMLInputElement;
-
-      fireEvent.change(input, { target: { value: "alice" } });
-      expect(lastProps.current!.searchText).toBe("alice");
-
-      fireEvent.change(input, { target: { value: "ALICE" } });
-      expect(lastProps.current!.searchText).toBe("ALICE");
-    });
-
-    it("configures searchFilter to match both keys and values", () => {
-      render(<JsonTreeView value={{ a: 1 }} />);
-      expect(lastProps.current!.searchFilter).toBe("all");
-    });
-
-    it("prefers the external searchQuery over the internal input state", () => {
-      const { rerender } = render(
-        <JsonTreeView value={{ a: 1 }} searchQuery="external" />,
-      );
-      expect(lastProps.current!.searchText).toBe("external");
-
-      rerender(<JsonTreeView value={{ a: 1 }} searchQuery="updated" />);
-      expect(lastProps.current!.searchText).toBe("updated");
-    });
-  });
-
-  describe("customNodeDefinitions (links and colors)", () => {
-    it("passes customNodeDefinitions with link and color conditions", () => {
-      render(<JsonTreeView value={{ url: "https://example.com", color: "#1e90ff" }} />);
-
-      const defs = lastProps.current!.customNodeDefinitions;
-      expect(defs).toBeDefined();
-      expect(defs!.length).toBe(2);
-
-      const [linkDef, colorDef] = defs!;
-
-      // Link condition matches URLs and mailto
-      expect(linkDef.condition({ value: "https://example.com" } as unknown as NodeData)).toBe(true);
-      expect(linkDef.condition({ value: "mailto:support@tabularis.dev" } as unknown as NodeData)).toBe(true);
-      expect(linkDef.condition({ value: "not-a-link" } as unknown as NodeData)).toBe(false);
-
-      // Color condition matches hex, rgb, hsl
-      expect(colorDef.condition({ value: "#1e90ff" } as unknown as NodeData)).toBe(true);
-      expect(colorDef.condition({ value: "rgb(255, 0, 0)" } as unknown as NodeData)).toBe(true);
-      expect(colorDef.condition({ value: "not-a-color" } as unknown as NodeData)).toBe(false);
-
-      // Does not interfere with editing
-      expect(linkDef.showOnEdit).toBe(false);
-      expect(colorDef.showOnEdit).toBe(false);
-    });
-  });
-
-  describe("expand all / collapse all", () => {
-    const nested = { a: { b: [1, { c: "x" }] }, d: [[1], [2]] };
-    const variants = [
-      { name: "compact view-only", props: {} },
-      { name: "compact editable", props: { onChange: () => {} } },
-      { name: "full-height view-only", props: { fillHeight: true } },
-      {
-        name: "full-height editable",
-        props: { fillHeight: true, onChange: () => {} },
-      },
-    ];
-
-    it.each(variants)("renders accessible buttons ($name)", ({ props }) => {
-      render(<JsonTreeView value={nested} {...props} />);
-      expect(
-        screen.getByRole("button", { name: "jsonInput.expandAll" }),
-      ).toBeEnabled();
-      expect(
-        screen.getByRole("button", { name: "jsonInput.collapseAll" }),
-      ).toBeEnabled();
-    });
-
-    it.each(variants)(
-      "triggers the library collapse API without changing data ($name)",
-      ({ props }) => {
+    it('emits onChange when the underlying editor reports updated data', () => {
         const onChange = vi.fn();
-        render(
-          <JsonTreeView
-            value={nested}
-            {...props}
-            {...("onChange" in props ? { onChange } : {})}
-          />,
-        );
-        expect(lastProps.current!.externalTriggers).toBeUndefined();
+        render(<JsonTreeView value={{a: 1}} onChange={onChange} />);
 
-        fireEvent.click(
-          screen.getByRole("button", { name: "jsonInput.collapseAll" }),
-        );
-        expect(lastProps.current!.externalTriggers).toEqual({
-          collapse: { path: [], collapsed: true, includeChildren: true },
+        const setData = lastProps.current!.setData;
+        expect(setData).toBeTypeOf('function');
+        setData!({a: 2});
+
+        expect(onChange).toHaveBeenCalledTimes(1);
+        expect(onChange).toHaveBeenCalledWith({a: 2});
+    });
+
+    it('does not provide setData when in read-only mode', () => {
+        render(<JsonTreeView value={{a: 1}} readOnly onChange={() => {}} />);
+        expect(lastProps.current!.setData).toBeUndefined();
+    });
+
+    it("forwards searchQuery to the editor's searchText prop", () => {
+        render(<JsonTreeView value={{a: 1}} searchQuery="needle" />);
+        expect(lastProps.current!.searchText).toBe('needle');
+    });
+
+    it("wires onCopy through the editor's enableClipboard callback", () => {
+        const onCopy = vi.fn();
+        render(<JsonTreeView value={{a: 1}} onCopy={onCopy} />);
+
+        const clipboard = lastProps.current!.enableClipboard;
+        expect(typeof clipboard).toBe('function');
+
+        if (typeof clipboard === 'function') {
+            clipboard({
+                success: true,
+                errorMessage: null,
+                key: 'a',
+                path: ['a'],
+                value: 1,
+                stringValue: '1',
+                type: 'value',
+            });
+        }
+
+        expect(onCopy).toHaveBeenCalledWith('1');
+    });
+
+    it('provides a theme object to the underlying editor', () => {
+        render(<JsonTreeView value={{a: 1}} />);
+        expect(lastProps.current!.theme).toBeDefined();
+    });
+
+    describe('leaf editing', () => {
+        it('emits onChange with updated root when a string leaf is edited', () => {
+            const onChange = vi.fn();
+            render(<JsonTreeView value={{name: 'Alice', age: 30}} onChange={onChange} />);
+
+            lastProps.current!.setData!({name: 'Bob', age: 30});
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange).toHaveBeenCalledWith({name: 'Bob', age: 30});
         });
 
-        fireEvent.click(
-          screen.getByRole("button", { name: "jsonInput.expandAll" }),
-        );
-        expect(lastProps.current!.externalTriggers).toEqual({
-          collapse: { path: [], collapsed: false, includeChildren: true },
+        it('emits onChange with updated root when a numeric leaf is edited', () => {
+            const onChange = vi.fn();
+            render(<JsonTreeView value={{count: 1}} onChange={onChange} />);
+
+            lastProps.current!.setData!({count: 42});
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange).toHaveBeenCalledWith({count: 42});
         });
 
-        expect(lastProps.current!.data).toBe(nested);
-        expect(onChange).not.toHaveBeenCalled();
-      },
-    );
+        it('emits onChange with updated root when a boolean leaf is toggled', () => {
+            const onChange = vi.fn();
+            render(<JsonTreeView value={{active: false}} onChange={onChange} />);
 
-    it("issues a new trigger object on repeated clicks", () => {
-      render(<JsonTreeView value={nested} />);
-      const button = screen.getByRole("button", {
-        name: "jsonInput.collapseAll",
-      });
-      fireEvent.click(button);
-      const first = lastProps.current!.externalTriggers;
-      fireEvent.click(button);
-      expect(lastProps.current!.externalTriggers).not.toBe(first);
+            lastProps.current!.setData!({active: true});
+
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange).toHaveBeenCalledWith({active: true});
+        });
+
+        it('disallows adding new keys via restrictAdd and restrictTypeSelection', () => {
+            render(<JsonTreeView value={{a: 1}} onChange={() => {}} />);
+
+            expect(lastProps.current!.restrictAdd).toBe(true);
+            expect(lastProps.current!.restrictTypeSelection).toBe(true);
+        });
+
+        it('does not call onChange when no onChange prop is provided', () => {
+            render(<JsonTreeView value={{a: 1}} />);
+
+            expect(lastProps.current!.setData).toBeUndefined();
+        });
     });
 
-    it("keeps the search text when toggling", () => {
-      render(<JsonTreeView value={nested} />);
-      fireEvent.change(screen.getByPlaceholderText("jsonInput.search"), {
-        target: { value: "x" },
-      });
-      fireEvent.click(
-        screen.getByRole("button", { name: "jsonInput.collapseAll" }),
-      );
-      expect(lastProps.current!.searchText).toBe("x");
-      expect(lastProps.current!.searchFilter).toBe("all");
+    describe('search', () => {
+        it('renders a controlled search input when no external searchQuery is provided', () => {
+            render(<JsonTreeView value={{a: 1}} />);
+            const input = screen.getByPlaceholderText('jsonInput.search');
+            expect(input).toBeInTheDocument();
+            expect((input as HTMLInputElement).value).toBe('');
+        });
+
+        it('does not render the internal search input when searchQuery is provided', () => {
+            render(<JsonTreeView value={{a: 1}} searchQuery="" />);
+            expect(screen.queryByPlaceholderText('jsonInput.search')).not.toBeInTheDocument();
+        });
+
+        it("forwards typed text from the internal input to the editor's searchText", () => {
+            render(<JsonTreeView value={{name: 'Alice', nested: {count: 3}}} />);
+            const input = screen.getByPlaceholderText('jsonInput.search') as HTMLInputElement;
+
+            fireEvent.change(input, {target: {value: 'Alice'}});
+            expect(input.value).toBe('Alice');
+            expect(lastProps.current!.searchText).toBe('Alice');
+        });
+
+        it("clears the editor's searchText when the internal input is cleared", () => {
+            render(<JsonTreeView value={{name: 'Alice'}} />);
+            const input = screen.getByPlaceholderText('jsonInput.search') as HTMLInputElement;
+
+            fireEvent.change(input, {target: {value: 'Alice'}});
+            expect(lastProps.current!.searchText).toBe('Alice');
+
+            fireEvent.change(input, {target: {value: ''}});
+            expect(input.value).toBe('');
+            expect(lastProps.current!.searchText).toBe('');
+        });
+
+        it("forwards the user's text verbatim so the library can do case-insensitive matching", () => {
+            render(<JsonTreeView value={{Name: 'Alice'}} />);
+            const input = screen.getByPlaceholderText('jsonInput.search') as HTMLInputElement;
+
+            fireEvent.change(input, {target: {value: 'alice'}});
+            expect(lastProps.current!.searchText).toBe('alice');
+
+            fireEvent.change(input, {target: {value: 'ALICE'}});
+            expect(lastProps.current!.searchText).toBe('ALICE');
+        });
+
+        it('configures searchFilter to match both keys and values', () => {
+            render(<JsonTreeView value={{a: 1}} />);
+            expect(lastProps.current!.searchFilter).toBe('all');
+        });
+
+        it('prefers the external searchQuery over the internal input state', () => {
+            const {rerender} = render(<JsonTreeView value={{a: 1}} searchQuery="external" />);
+            expect(lastProps.current!.searchText).toBe('external');
+
+            rerender(<JsonTreeView value={{a: 1}} searchQuery="updated" />);
+            expect(lastProps.current!.searchText).toBe('updated');
+        });
     });
 
-    it("still shows controls when an external searchQuery hides the search box", () => {
-      render(<JsonTreeView value={nested} searchQuery="x" />);
-      expect(
-        screen.getByRole("button", { name: "jsonInput.expandAll" }),
-      ).toBeInTheDocument();
-      expect(lastProps.current!.searchText).toBe("x");
+    describe('customNodeDefinitions (links and colors)', () => {
+        it('passes customNodeDefinitions with link and color conditions', () => {
+            render(<JsonTreeView value={{url: 'https://example.com', color: '#1e90ff'}} />);
+
+            const defs = lastProps.current!.customNodeDefinitions;
+            expect(defs).toBeDefined();
+            expect(defs!.length).toBe(2);
+
+            const [linkDef, colorDef] = defs!;
+
+            // Link condition matches URLs and mailto
+            expect(linkDef.condition({value: 'https://example.com'} as unknown as NodeData)).toBe(
+                true,
+            );
+            expect(
+                linkDef.condition({value: 'mailto:support@tabularis.dev'} as unknown as NodeData),
+            ).toBe(true);
+            expect(linkDef.condition({value: 'not-a-link'} as unknown as NodeData)).toBe(false);
+
+            // Color condition matches hex, rgb, hsl
+            expect(colorDef.condition({value: '#1e90ff'} as unknown as NodeData)).toBe(true);
+            expect(colorDef.condition({value: 'rgb(255, 0, 0)'} as unknown as NodeData)).toBe(true);
+            expect(colorDef.condition({value: 'not-a-color'} as unknown as NodeData)).toBe(false);
+
+            // Does not interfere with editing
+            expect(linkDef.showOnEdit).toBe(false);
+            expect(colorDef.showOnEdit).toBe(false);
+        });
     });
 
-    it("works for arrays and nested containers", () => {
-      render(<JsonTreeView value={[[1, [2]], { a: [] }]} />);
-      fireEvent.click(
-        screen.getByRole("button", { name: "jsonInput.expandAll" }),
-      );
-      expect(lastProps.current!.externalTriggers?.collapse).toMatchObject({
-        path: [],
-        includeChildren: true,
-      });
-    });
+    describe('expand all / collapse all', () => {
+        const nested = {a: {b: [1, {c: 'x'}]}, d: [[1], [2]]};
+        const variants = [
+            {name: 'compact view-only', props: {}},
+            {name: 'compact editable', props: {onChange: () => {}}},
+            {name: 'full-height view-only', props: {fillHeight: true}},
+            {
+                name: 'full-height editable',
+                props: {fillHeight: true, onChange: () => {}},
+            },
+        ];
 
-    it.each(["text", 42, true, null])(
-      "disables controls for scalar root %s",
-      (value) => {
-        render(<JsonTreeView value={value} />);
-        expect(
-          screen.getByRole("button", { name: "jsonInput.expandAll" }),
-        ).toBeDisabled();
-        expect(
-          screen.getByRole("button", { name: "jsonInput.collapseAll" }),
-        ).toBeDisabled();
-      },
-    );
+        it.each(variants)('renders accessible buttons ($name)', ({props}) => {
+            render(<JsonTreeView value={nested} {...props} />);
+            expect(screen.getByRole('button', {name: 'jsonInput.expandAll'})).toBeEnabled();
+            expect(screen.getByRole('button', {name: 'jsonInput.collapseAll'})).toBeEnabled();
+        });
 
-    it("does not remount the editor when toggling", () => {
-      render(<JsonTreeView value={nested} />);
-      const editor = screen.getByTestId("mock-json-editor");
-      fireEvent.click(
-        screen.getByRole("button", { name: "jsonInput.collapseAll" }),
-      );
-      expect(screen.getByTestId("mock-json-editor")).toBe(editor);
+        it.each(variants)(
+            'triggers the library collapse API without changing data ($name)',
+            ({props}) => {
+                const onChange = vi.fn();
+                render(
+                    <JsonTreeView
+                        value={nested}
+                        {...props}
+                        {...('onChange' in props ? {onChange} : {})}
+                    />,
+                );
+                expect(lastProps.current!.externalTriggers).toBeUndefined();
+
+                fireEvent.click(screen.getByRole('button', {name: 'jsonInput.collapseAll'}));
+                expect(lastProps.current!.externalTriggers).toEqual({
+                    collapse: {path: [], collapsed: true, includeChildren: true},
+                });
+
+                fireEvent.click(screen.getByRole('button', {name: 'jsonInput.expandAll'}));
+                expect(lastProps.current!.externalTriggers).toEqual({
+                    collapse: {path: [], collapsed: false, includeChildren: true},
+                });
+
+                expect(lastProps.current!.data).toBe(nested);
+                expect(onChange).not.toHaveBeenCalled();
+            },
+        );
+
+        it('issues a new trigger object on repeated clicks', () => {
+            render(<JsonTreeView value={nested} />);
+            const button = screen.getByRole('button', {
+                name: 'jsonInput.collapseAll',
+            });
+            fireEvent.click(button);
+            const first = lastProps.current!.externalTriggers;
+            fireEvent.click(button);
+            expect(lastProps.current!.externalTriggers).not.toBe(first);
+        });
+
+        it('keeps the search text when toggling', () => {
+            render(<JsonTreeView value={nested} />);
+            fireEvent.change(screen.getByPlaceholderText('jsonInput.search'), {
+                target: {value: 'x'},
+            });
+            fireEvent.click(screen.getByRole('button', {name: 'jsonInput.collapseAll'}));
+            expect(lastProps.current!.searchText).toBe('x');
+            expect(lastProps.current!.searchFilter).toBe('all');
+        });
+
+        it('still shows controls when an external searchQuery hides the search box', () => {
+            render(<JsonTreeView value={nested} searchQuery="x" />);
+            expect(screen.getByRole('button', {name: 'jsonInput.expandAll'})).toBeInTheDocument();
+            expect(lastProps.current!.searchText).toBe('x');
+        });
+
+        it('works for arrays and nested containers', () => {
+            render(<JsonTreeView value={[[1, [2]], {a: []}]} />);
+            fireEvent.click(screen.getByRole('button', {name: 'jsonInput.expandAll'}));
+            expect(lastProps.current!.externalTriggers?.collapse).toMatchObject({
+                path: [],
+                includeChildren: true,
+            });
+        });
+
+        it.each(['text', 42, true, null])('disables controls for scalar root %s', (value) => {
+            render(<JsonTreeView value={value} />);
+            expect(screen.getByRole('button', {name: 'jsonInput.expandAll'})).toBeDisabled();
+            expect(screen.getByRole('button', {name: 'jsonInput.collapseAll'})).toBeDisabled();
+        });
+
+        it('does not remount the editor when toggling', () => {
+            render(<JsonTreeView value={nested} />);
+            const editor = screen.getByTestId('mock-json-editor');
+            fireEvent.click(screen.getByRole('button', {name: 'jsonInput.collapseAll'}));
+            expect(screen.getByTestId('mock-json-editor')).toBe(editor);
+        });
     });
-  });
 });

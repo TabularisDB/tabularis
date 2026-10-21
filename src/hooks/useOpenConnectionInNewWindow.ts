@@ -1,7 +1,7 @@
-import { useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { useDatabase } from "./useDatabase";
-import type { SavedConnection } from "../contexts/DatabaseContext";
+import {useCallback} from 'react';
+import {invoke} from '@tauri-apps/api/core';
+import {useDatabase} from './useDatabase';
+import type {SavedConnection} from '@/contexts/DatabaseContext';
 
 /**
  * Open a connection in its own dedicated window.
@@ -17,31 +17,31 @@ import type { SavedConnection } from "../contexts/DatabaseContext";
  * stays alive and is reused by the new window, which disconnects it on close).
  */
 export function useOpenConnectionInNewWindow() {
-  const { detachConnection, isConnectionOpen, isConnectionOpenAnywhere } = useDatabase();
+    const {detachConnection, isConnectionOpen, isConnectionOpenAnywhere} = useDatabase();
 
-  return useCallback(
-    async (connectionId: string, name?: string | null) => {
-      // Validate connectivity before spawning the window, unless the connection
-      // is already open somewhere (then it's known-good and the window either
-      // reuses the warm pool or just gets focused).
-      if (!isConnectionOpenAnywhere(connectionId)) {
-        const connections = await invoke<SavedConnection[]>("get_connections");
-        const conn = connections.find((c) => c.id === connectionId);
-        if (!conn) throw new Error("Connection not found");
-        await invoke<string>("test_connection", {
-          request: { params: conn.params, connection_id: connectionId },
-        });
-      }
+    return useCallback(
+        async (connectionId: string, name?: string | null) => {
+            // Validate connectivity before spawning the window, unless the connection
+            // is already open somewhere (then it's known-good and the window either
+            // reuses the warm pool or just gets focused).
+            if (!isConnectionOpenAnywhere(connectionId)) {
+                const connections = await invoke<SavedConnection[]>('get_connections');
+                const conn = connections.find((c) => c.id === connectionId);
+                if (!conn) throw new Error('Connection not found');
+                await invoke<string>('test_connection', {
+                    request: {params: conn.params, connection_id: connectionId},
+                });
+            }
 
-      await invoke("open_connection_window", {
-        connectionId,
-        title: name ?? null,
-      });
+            await invoke('open_connection_window', {
+                connectionId,
+                title: name ?? null,
+            });
 
-      if (isConnectionOpen(connectionId)) {
-        detachConnection(connectionId);
-      }
-    },
-    [detachConnection, isConnectionOpen, isConnectionOpenAnywhere],
-  );
+            if (isConnectionOpen(connectionId)) {
+                detachConnection(connectionId);
+            }
+        },
+        [detachConnection, isConnectionOpen, isConnectionOpenAnywhere],
+    );
 }

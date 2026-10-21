@@ -1,6 +1,6 @@
 # Modal Styling Rules
 
-This document defines the standard styling and structural patterns for all modal components in Tabularis. Colors, radii and fonts follow the theme tokens in [DESIGN.md](../DESIGN.md) and [design.md](./design.md); never use Tailwind palette classes or `text-white`.
+This document defines the standard styling and structural patterns for all modal components in Tabularis. Colors, radii and fonts follow the theme tokens in [DESIGN.md](../docs/DESIGN.md) and [design.md](./design.md); never use Tailwind palette classes or `text-white`.
 
 ## File Location
 
@@ -28,7 +28,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2 } from "lucide-react";  // Close icon + loading spinner
 import { invoke } from "@tauri-apps/api/core";  // If using Tauri commands
-import { useAlert } from "../../hooks/useAlert";  // For notifications (showAlert)
+import { useAlert } from "@/hooks/useAlert";  // For notifications (showAlert)
 ```
 
 ### 3. Render Pattern

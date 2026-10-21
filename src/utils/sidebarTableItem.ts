@@ -9,29 +9,29 @@
  * table only re-renders the two affected items instead of all of them.
  */
 
-import type { DriverCapabilities } from "../types/plugins";
+import type {DriverCapabilities} from '@/types/plugins';
 
 /** Subset of the table item props that actually affect its rendered output. */
 export interface TableItemComparableProps {
-  table: { name: string };
-  activeTable: string | null;
-  connectionId: string;
-  driver: string;
-  /** Drives identifier quoting in the nested `SidebarColumnItem` (issue
-   * #614) — must be compared, or a capabilities-only update (e.g. the
-   * driver's manifest finishes resolving after mount) would be silently
-   * skipped by memo and the item would keep quoting as if no capabilities
-   * were available. */
-  capabilities?: DriverCapabilities | null;
-  canManage?: boolean;
-  schemaVersion: number;
-  schema?: string;
-  /** Scopes the column/foreign-key/index fetches to a non-primary database
-   * in a nested multi-db tree (see SidebarNestedDatabaseItem). Must be
-   * compared for the same reason as `capabilities` above — otherwise a
-   * database-only prop change would be silently skipped by memo and the
-   * item would keep fetching metadata for the wrong database. */
-  database?: string;
+    table: {name: string};
+    activeTable: string | null;
+    connectionId: string;
+    driver: string;
+    /** Drives identifier quoting in the nested `SidebarColumnItem` (issue
+     * #614) — must be compared, or a capabilities-only update (e.g. the
+     * driver's manifest finishes resolving after mount) would be silently
+     * skipped by memo and the item would keep quoting as if no capabilities
+     * were available. */
+    capabilities?: DriverCapabilities | null;
+    canManage?: boolean;
+    schemaVersion: number;
+    schema?: string;
+    /** Scopes the column/foreign-key/index fetches to a non-primary database
+     * in a nested multi-db tree (see SidebarNestedDatabaseItem). Must be
+     * compared for the same reason as `capabilities` above — otherwise a
+     * database-only prop change would be silently skipped by memo and the
+     * item would keep fetching metadata for the wrong database. */
+    database?: string;
 }
 
 /**
@@ -45,27 +45,27 @@ export interface TableItemComparableProps {
  * active one, which only flips for the item gaining and the item losing focus.
  */
 export function areTableItemPropsEqual(
-  prev: TableItemComparableProps,
-  next: TableItemComparableProps,
+    prev: TableItemComparableProps,
+    next: TableItemComparableProps,
 ): boolean {
-  const wasActive = prev.activeTable === prev.table.name;
-  const isActive = next.activeTable === next.table.name;
-  return (
-    prev.table.name === next.table.name &&
-    wasActive === isActive &&
-    prev.connectionId === next.connectionId &&
-    prev.driver === next.driver &&
-    prev.capabilities === next.capabilities &&
-    prev.canManage === next.canManage &&
-    prev.schemaVersion === next.schemaVersion &&
-    prev.schema === next.schema &&
-    prev.database === next.database
-  );
+    const wasActive = prev.activeTable === prev.table.name;
+    const isActive = next.activeTable === next.table.name;
+    return (
+        prev.table.name === next.table.name &&
+        wasActive === isActive &&
+        prev.connectionId === next.connectionId &&
+        prev.driver === next.driver &&
+        prev.capabilities === next.capabilities &&
+        prev.canManage === next.canManage &&
+        prev.schemaVersion === next.schemaVersion &&
+        prev.schema === next.schema &&
+        prev.database === next.database
+    );
 }
 
 /** Escape a string for safe use inside a double-quoted CSS attribute selector. */
 function escapeAttributeValue(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 /**
@@ -76,11 +76,8 @@ function escapeAttributeValue(value: string): string {
  * string). Values are escaped so table or schema names containing quotes or
  * backslashes don't produce an invalid selector.
  */
-export function buildTableItemSelector(
-  tableName: string,
-  schema?: string | null,
-): string {
-  const name = escapeAttributeValue(tableName);
-  const sch = escapeAttributeValue(schema ?? "");
-  return `[data-table-name="${name}"][data-schema="${sch}"]`;
+export function buildTableItemSelector(tableName: string, schema?: string | null): string {
+    const name = escapeAttributeValue(tableName);
+    const sch = escapeAttributeValue(schema ?? '');
+    return `[data-table-name="${name}"][data-schema="${sch}"]`;
 }

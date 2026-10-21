@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext } from "react";
-import { useDatabase } from "./useDatabase";
-import { isReadOnlyQuery } from "../utils/sqlAnalysis";
+import {createContext, useCallback, useContext} from 'react';
+import {useDatabase} from './useDatabase';
+import {isReadOnlyQuery} from '@/utils/sqlAnalysis';
 
 /**
  * Confirmation gate for writes against production connections.
@@ -14,9 +14,9 @@ import { isReadOnlyQuery } from "../utils/sqlAnalysis";
  */
 
 export type GuardRequest = (
-  connectionId: string,
-  connectionName: string,
-  sql?: string,
+    connectionId: string,
+    connectionName: string,
+    sql?: string,
 ) => Promise<boolean>;
 
 export const ProductionGuardContext = createContext<GuardRequest | null>(null);
@@ -25,23 +25,20 @@ export const ProductionGuardContext = createContext<GuardRequest | null>(null);
 export const snoozedConnectionIds = new Set<string>();
 
 export function useProductionGuard() {
-  const { connections } = useDatabase();
-  const request = useContext(ProductionGuardContext);
+    const {connections} = useDatabase();
+    const request = useContext(ProductionGuardContext);
 
-  return useCallback(
-    async (
-      connectionId: string | null | undefined,
-      sql?: string,
-    ): Promise<boolean> => {
-      if (!connectionId) return true;
-      const conn = connections.find((c) => c.id === connectionId);
-      if (conn?.environment !== "production") return true;
-      if (sql !== undefined && isReadOnlyQuery(sql)) return true;
-      if (snoozedConnectionIds.has(connectionId)) return true;
-      // No provider in this window: don't silently block the operation.
-      if (!request) return true;
-      return request(connectionId, conn.name, sql);
-    },
-    [connections, request],
-  );
+    return useCallback(
+        async (connectionId: string | null | undefined, sql?: string): Promise<boolean> => {
+            if (!connectionId) return true;
+            const conn = connections.find((c) => c.id === connectionId);
+            if (conn?.environment !== 'production') return true;
+            if (sql !== undefined && isReadOnlyQuery(sql)) return true;
+            if (snoozedConnectionIds.has(connectionId)) return true;
+            // No provider in this window: don't silently block the operation.
+            if (!request) return true;
+            return request(connectionId, conn.name, sql);
+        },
+        [connections, request],
+    );
 }
