@@ -1,5 +1,6 @@
 import {useCallback, useRef, useState} from 'react';
-import {clampColumnWidth, getKeyboardColumnWidth, isColumnResizeKey} from '@/utils/columnResize';
+import {getKeyboardColumnWidth, isColumnResizeKey} from '@/utils/columnResize';
+import {clamp} from '@/utils/number';
 
 /**
  * Manages column widths for a resizable HTML table used with `<colgroup>`/`<col>`.
@@ -56,7 +57,7 @@ export function useColumnResize(
                 const state = resizing.current;
                 if (!state) return;
                 const delta = ev.clientX - state.startX;
-                const next = clampColumnWidth(state.startWidth + delta, minWidth, maxWidth);
+                const next = clamp(state.startWidth + delta, minWidth, maxWidth);
                 setWidths((prev) => prev.map((w, i) => (i === state.index ? next : w)));
             };
 

@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef} from 'react';
-import {clampColumnWidth, getKeyboardColumnWidth, isColumnResizeKey} from '@/utils/columnResize';
+import {getKeyboardColumnWidth, isColumnResizeKey} from '@/utils/columnResize';
+import {clamp} from '@/utils/number';
 
 interface LockedColumnResizeOptions {
     /** The `<table>` whose `<colgroup>` holds one `<col>` per width. */
@@ -66,9 +67,7 @@ export function useLockedColumnResize({
                 paint(width, `${otherColumnsWidth + width}px`);
             };
             const onMove = (ev: MouseEvent) => {
-                width = Math.round(
-                    clampColumnWidth(startWidth + ev.clientX - startX, minWidth, maxWidth),
-                );
+                width = Math.round(clamp(startWidth + ev.clientX - startX, minWidth, maxWidth));
                 if (!frame) frame = requestAnimationFrame(onFrame);
             };
             const end = () => {

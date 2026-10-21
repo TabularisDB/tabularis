@@ -1,3 +1,5 @@
+import {clamp} from '@/utils/number';
+
 /** Arrow-key step for a focused column resize handle (px). */
 export const COLUMN_RESIZE_STEP = 10;
 /** Arrow-key step while Shift is held (px). */
@@ -8,11 +10,6 @@ const RESIZE_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
 /** Whether a key press on a focused resize handle changes the width. */
 export function isColumnResizeKey(key: string): boolean {
     return RESIZE_KEYS.has(key);
-}
-
-/** Keeps a column width within `[minWidth, maxWidth]`. */
-export function clampColumnWidth(width: number, minWidth: number, maxWidth: number): number {
-    return Math.min(maxWidth, Math.max(minWidth, width));
 }
 
 /**
@@ -31,9 +28,9 @@ export function getKeyboardColumnWidth(
     const step = shiftKey ? COLUMN_RESIZE_STEP_LARGE : COLUMN_RESIZE_STEP;
     switch (key) {
         case 'ArrowLeft':
-            return clampColumnWidth(width - step, minWidth, maxWidth);
+            return clamp(width - step, minWidth, maxWidth);
         case 'ArrowRight':
-            return clampColumnWidth(width + step, minWidth, maxWidth);
+            return clamp(width + step, minWidth, maxWidth);
         case 'Home':
             return minWidth;
         case 'End':
