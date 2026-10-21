@@ -1322,7 +1322,8 @@
     "defaultDatabase": "Default database",
     "defaultDatabaseHint": "New query tabs use this database. If you remove it from the selection, the next selected database becomes the default.",
     "selectDatabasesHint": "Select the databases to include in this connection.",
-    "loadDatabasesHint": "Click Load Databases to fetch available databases."
+    "loadDatabasesHint": "Click Load Databases to fetch available databases.",
+    "sshKeyFileVarsHint": "Environment variables are resolved when connecting: %USERPROFILE%\\keys\\id_ed25519, $HOME/.ssh/id_rsa, ~/.ssh/id_rsa. Use ~ to keep the path working on every machine."
   },
   "sshConnections": {
     "title": "SSH Connections",
