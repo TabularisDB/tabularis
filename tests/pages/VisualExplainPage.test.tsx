@@ -2,10 +2,10 @@ import {StrictMode} from 'react';
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
 import {open as openDialog} from '@tauri-apps/plugin-dialog';
-import {parseExplain, type ExplainQueryOutput} from '@tabularis/explain';
+import {parsePostgresJson, type ExplainQueryOutput} from '@tabularis/explain';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {VisualExplainPage, type VisualExplainPageProps} from '@/pages/VisualExplainPage';
-import type {VisualExplainViewProps} from '@/components/explain/VisualExplainView';
+import {VisualExplainPage, type VisualExplainPageProps} from '../../src/pages/VisualExplainPage';
+import type {VisualExplainViewProps} from '../../src/components/explain/VisualExplainView';
 
 const mocks = vi.hoisted(() => ({search: ''}));
 
@@ -14,7 +14,7 @@ vi.mock('react-i18next', () => {
     const t = (key: string) => key;
     return {useTranslation: () => ({t})};
 });
-vi.mock('@/hooks/useSettings', () => ({
+vi.mock('../../src/hooks/useSettings', () => ({
     useSettings: () => ({settings: {aiEnabled: true}}),
 }));
 vi.mock('lucide-react', () => ({
@@ -23,7 +23,7 @@ vi.mock('lucide-react', () => ({
     Loader2: () => null,
     RefreshCw: () => null,
 }));
-vi.mock('@/components/explain/VisualExplainView', () => ({
+vi.mock('../../src/components/explain/VisualExplainView', () => ({
     VisualExplainView: ({plan, error, selectedNodeId, aiEnabled}: VisualExplainViewProps) => (
         <div data-testid="explain-view" data-ai-enabled={String(aiEnabled)}>
             <div data-testid="plan">{plan?.root.node_type}</div>
@@ -76,7 +76,7 @@ describe('VisualExplainPage', () => {
         'uses the embedded plan without invoking, compact=%s',
         async (compactMode) => {
             mocks.search = `${deepLink()}&file=%2Ftmp%2Fignored.json`;
-            const initialPlan = parseExplain(makeFile('embedded').content);
+            const initialPlan = parsePostgresJson(makeFile('embedded').content);
             renderPage({initialPlan, compactMode});
             await act(async () => {
                 await Promise.resolve();
@@ -113,7 +113,7 @@ describe('VisualExplainPage', () => {
 
     it('prefers a deep link over a file and preserves safe invoke options', async () => {
         mocks.search = `${deepLink('SELECT * FROM users')}&file=%2Ftmp%2Fignored.json&analyze=true&schema=private`;
-        const plan = parseExplain(makeFile('deep link').content);
+        const plan = parsePostgresJson(makeFile('deep link').content);
         vi.mocked(invoke).mockResolvedValue({kind: 'plan', plan});
         renderPage();
         await waitFor(() => expect(screen.getByTestId('plan')).toHaveTextContent('deep link'));
@@ -187,7 +187,7 @@ describe('VisualExplainPage', () => {
     it.each([{selection: null}, {selection: '   '}, {selection: ['/tmp/ignored.json']}])(
         'ignores a cancelled or invalid picker selection: $selection',
         async ({selection}) => {
-            const initialPlan = parseExplain(makeFile('existing').content);
+            const initialPlan = parsePostgresJson(makeFile('existing').content);
             renderPage({initialPlan});
             vi.mocked(openDialog).mockResolvedValue(selection);
             await act(async () => {
@@ -307,7 +307,10 @@ describe('VisualExplainPage', () => {
             await waitFor(() => expect(screen.getByTestId('plan')).toHaveTextContent('chosen'));
             await act(async () => {
                 if (outcome === 'resolve')
-                    old.resolve({kind: 'plan', plan: parseExplain(makeFile('obsolete').content)});
+                    old.resolve({
+                        kind: 'plan',
+                        plan: parsePostgresJson(makeFile('obsolete').content),
+                    });
                 else old.reject(new Error('obsolete explain failure'));
             });
             expect(screen.getByTestId('plan')).toHaveTextContent('chosen');
@@ -325,7 +328,7 @@ describe('VisualExplainPage', () => {
         mocks.search = deepLink('SELECT 2');
         vi.mocked(invoke).mockResolvedValue({
             kind: 'plan',
-            plan: parseExplain(makeFile('new deep link').content),
+            plan: parsePostgresJson(makeFile('new deep link').content),
         });
         rerender(
             <StrictMode>
@@ -344,7 +347,7 @@ describe('VisualExplainPage', () => {
         'discards a stale picker %s after a newer file selection',
         async (outcome) => {
             const old = createDeferred<string | null>();
-            const initialPlan = parseExplain(makeFile('initial').content);
+            const initialPlan = parsePostgresJson(makeFile('initial').content);
             renderPage({initialPlan});
             vi.mocked(openDialog)
                 .mockReturnValueOnce(old.promise)

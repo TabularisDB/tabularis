@@ -54,7 +54,7 @@ export const VisualExplainPage = ({
                     'load_explain_from_file',
                     {path},
                 );
-                return withSourceLabel(parseExplain(file.content), file.display_name);
+                return withSourceLabel(await parseExplain(file.content), file.display_name);
             }),
         [loadPlan],
     );

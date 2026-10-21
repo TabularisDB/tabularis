@@ -4,6 +4,22 @@ import {cleanup} from '@testing-library/react';
 import {afterEach} from 'vitest';
 import {vi} from 'vitest';
 
+class MockResizeObserver implements ResizeObserver {
+    constructor(_callback: ResizeObserverCallback) {}
+
+    observe(_target: Element): void {}
+
+    unobserve(_target: Element): void {}
+
+    disconnect(): void {}
+}
+
+Object.defineProperty(globalThis, 'ResizeObserver', {
+    configurable: true,
+    writable: true,
+    value: MockResizeObserver,
+});
+
 // Node's native storage globals can prevent Vitest from installing jsdom's.
 // Bind both APIs before test modules load, using this worker's real DOM storage.
 for (const name of ['localStorage', 'sessionStorage'] as const) {
@@ -30,6 +46,9 @@ Object.defineProperty(document, 'execCommand', {
 // Mock Tauri APIs
 vi.mock('@tauri-apps/api/core', () => ({
     invoke: vi.fn(),
+    convertFileSrc: vi.fn(
+        (path: string, protocol?: string) => `${protocol ?? 'asset'}://localhost/${path}`,
+    ),
 }));
 
 vi.mock('@tauri-apps/api/window', () => ({
@@ -93,6 +112,7 @@ vi.mock('react-i18next', () => ({
         i18n: {
             language: 'en',
             changeLanguage: vi.fn(),
+            getResourceBundle: vi.fn(() => ({})),
         },
     }),
     initReactI18next: {

@@ -3,27 +3,27 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {parseExplain, type ExplainPlan} from '@tabularis/explain';
 import {save} from '@tauri-apps/plugin-dialog';
 import {writeTextFile} from '@tauri-apps/plugin-fs';
-import {VisualExplainView} from '@/components/explain/VisualExplainView';
-import {AlertContext} from '@/contexts/AlertContext';
-import type {AlertContextType} from '@/contexts/AlertContext';
+import {VisualExplainView} from '../../../src/components/explain/VisualExplainView';
+import {AlertContext} from '../../../src/contexts/AlertContext';
+import type {AlertContextType} from '../../../src/contexts/AlertContext';
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({save: vi.fn()}));
 vi.mock('@tauri-apps/plugin-fs', () => ({writeTextFile: vi.fn()}));
 vi.mock('lucide-react', () => vi.importActual('lucide-react'));
 
-vi.mock('@/themes/themeUtils', () => ({
+vi.mock('../../../src/themes/themeUtils', () => ({
     loadMonacoTheme: vi.fn(),
 }));
 
-vi.mock('@/themes/themeRuntime', () => ({
+vi.mock('../../../src/themes/themeRuntime', () => ({
     getMonacoThemeId: vi.fn().mockReturnValue('vs-dark'),
 }));
 
-vi.mock('@/hooks/useEditorTheme', () => ({
+vi.mock('../../../src/hooks/useEditorTheme', () => ({
     useEditorTheme: () => ({id: 'dark'}),
 }));
 
-vi.mock('@/components/ui/LazyMonaco', () => ({
+vi.mock('../../../src/components/ui/LazyMonaco', () => ({
     MonacoEditor: ({value, language}: {value: string; language: string}) => (
         <div data-testid="monaco-editor" data-language={language}>
             {value}
@@ -35,8 +35,8 @@ const mockSave = vi.mocked(save);
 const mockWriteTextFile = vi.mocked(writeTextFile);
 const showAlert = vi.fn<AlertContextType['showAlert']>();
 
-function createTestPlan(rawOutput?: string): ExplainPlan {
-    const plan = parseExplain('[{"Plan":{"Node Type":"Seq Scan","Relation Name":"users"}}]');
+async function createTestPlan(rawOutput?: string): Promise<ExplainPlan> {
+    const plan = await parseExplain('[{"Plan":{"Node Type":"Seq Scan","Relation Name":"users"}}]');
     return {
         ...plan,
         raw_output: rawOutput,
@@ -51,8 +51,8 @@ describe('VisualExplainView raw plan save', () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
     });
 
-    it('renders Save raw plan button and disables it when raw_output is absent', () => {
-        const plan = createTestPlan(undefined);
+    it('renders Save raw plan button and disables it when raw_output is absent', async () => {
+        const plan = await createTestPlan(undefined);
         render(
             <AlertContext.Provider value={{showAlert}}>
                 <VisualExplainView
@@ -78,7 +78,7 @@ describe('VisualExplainView raw plan save', () => {
 
     it('enables button and writes original raw content when dialog succeeds', async () => {
         const rawContent = '{"query_block":{"cost":42}}';
-        const plan = createTestPlan(rawContent);
+        const plan = await createTestPlan(rawContent);
         mockSave.mockResolvedValue('/path/to/plan.json');
         mockWriteTextFile.mockResolvedValue(undefined);
 
@@ -121,7 +121,7 @@ describe('VisualExplainView raw plan save', () => {
 
     it('captures plan snapshot before awaiting dialog so later plan replacement does not alter saved content', async () => {
         const initialRaw = '{"plan": "initial"}';
-        const initialPlan = createTestPlan(initialRaw);
+        const initialPlan = await createTestPlan(initialRaw);
 
         let resolveSave!: (path: string | null) => void;
         mockSave.mockReturnValue(
@@ -156,7 +156,7 @@ describe('VisualExplainView raw plan save', () => {
         });
 
         // While awaiting dialog, the parent rerenders with a new plan
-        const updatedPlan = createTestPlan('{"plan": "replaced_by_new_query"}');
+        const updatedPlan = await createTestPlan('{"plan": "replaced_by_new_query"}');
         rerender(
             <AlertContext.Provider value={{showAlert}}>
                 <VisualExplainView
@@ -186,7 +186,7 @@ describe('VisualExplainView raw plan save', () => {
 
     it('handles dialog cancellation cleanly without writing or alerting', async () => {
         const rawContent = 'Seq Scan on users (cost=0.00..10.00)';
-        const plan = createTestPlan(rawContent);
+        const plan = await createTestPlan(rawContent);
         mockSave.mockResolvedValue(null);
 
         render(
@@ -219,7 +219,7 @@ describe('VisualExplainView raw plan save', () => {
 
     it('handles write failure by logging error and showing error alert', async () => {
         const rawContent = '{"cost": 100}';
-        const plan = createTestPlan(rawContent);
+        const plan = await createTestPlan(rawContent);
         mockSave.mockResolvedValue('/path/to/file.json');
         mockWriteTextFile.mockRejectedValue(new Error('disk full'));
 

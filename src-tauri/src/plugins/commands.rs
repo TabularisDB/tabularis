@@ -1,5 +1,3 @@
-use std::fs;
-
 use crate::drivers::driver_trait::PluginManifest;
 use crate::plugins::installer::{self, InstalledPluginInfo};
 use crate::plugins::manager::ConfigManifest;
@@ -462,13 +460,9 @@ pub async fn fetch_plugin_readme(
 /// The `file_path` must be a relative path with no `..` components.
 #[tauri::command]
 pub fn read_plugin_file(plugin_id: String, file_path: String) -> Result<String, String> {
-    if file_path.contains("..") || file_path.starts_with('/') || file_path.starts_with('\\') {
-        return Err(
-            "Invalid file path: must be relative and contain no '..' components".to_string(),
-        );
-    }
-    let full_path = installer::resolve_plugin_dir(&plugin_id)?.join(&file_path);
-    fs::read_to_string(&full_path).map_err(|e| {
+    let bytes =
+        crate::plugins::sandbox_protocol::read_plugin_file_confined(&plugin_id, &file_path)?;
+    String::from_utf8(bytes).map_err(|e| {
         format!(
             "Failed to read '{}' from plugin '{}': {}",
             file_path, plugin_id, e

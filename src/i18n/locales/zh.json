@@ -410,6 +410,12 @@
     "import": "导入连接",
     "exportTitle": "导出连接",
     "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。",
+    "exportSecretsConfirmation": {
+      "title": "确认导出机密信息",
+      "message": "要以明文导出已保存的密码、SSH 密钥和连接 URI 吗？",
+      "export": "导出",
+      "cancel": "取消"
+    },
     "exportModal": {
       "title": "导出连接",
       "subtitle": "选择导出连接的方式",
@@ -827,6 +833,7 @@
       "enabled": "已启用",
       "disabled": "已禁用",
       "openFolder": "打开插件文件夹",
+      "legacyGoogleSheetsOAuthHint": "请更新 Google Sheets 插件，以在此 Tabularis 版本中恢复 Google 登录。",
       "installError": {
         "title": "安装失败",
         "subtitle": "安装插件时发生错误。请参阅下面的详细信息。",

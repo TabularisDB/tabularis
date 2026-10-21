@@ -1,10 +1,10 @@
 import {StrictMode, type ComponentProps} from 'react';
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
-import {parseExplain, type ExplainPlan, type ExplainQueryOutput} from '@tabularis/explain';
+import {parsePostgresJson, type ExplainPlan, type ExplainQueryOutput} from '@tabularis/explain';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {VisualExplainModal} from '@/components/modals/VisualExplainModal';
-import type {VisualExplainViewProps} from '@/components/explain/VisualExplainView';
+import {VisualExplainModal} from '../../../src/components/modals/VisualExplainModal';
+import type {VisualExplainViewProps} from '../../../src/components/explain/VisualExplainView';
 
 const database = vi.hoisted(() => ({getConnectionData: vi.fn()}));
 vi.mock('react-i18next', () => {
@@ -12,17 +12,17 @@ vi.mock('react-i18next', () => {
     return {useTranslation: () => ({t})};
 });
 vi.mock('lucide-react', () => vi.importActual('lucide-react'));
-vi.mock('@/hooks/useDatabase', () => ({
+vi.mock('../../../src/hooks/useDatabase', () => ({
     useDatabase: () => ({...database, connections: []}),
 }));
-vi.mock('@/hooks/useSettings', () => ({
+vi.mock('../../../src/hooks/useSettings', () => ({
     useSettings: () => ({settings: {aiEnabled: true}}),
 }));
-vi.mock('@/hooks/useDrivers', () => ({
+vi.mock('../../../src/hooks/useDrivers', () => ({
     useDrivers: () => ({allDrivers: [{id: 'postgres', name: 'PostgreSQL'}]}),
 }));
-vi.mock('@/utils/driverUI', () => ({getConnectionIcon: () => null}));
-vi.mock('@/components/explain/VisualExplainView', () => ({
+vi.mock('../../../src/utils/driverUI', () => ({getConnectionIcon: () => null}));
+vi.mock('../../../src/components/explain/VisualExplainView', () => ({
     VisualExplainView: (props: VisualExplainViewProps) => (
         <section data-testid="explain-view">
             {props.plan && <div data-testid="plan">{props.plan.original_query}</div>}
@@ -47,7 +47,7 @@ const defaults: Props = {
 const mockInvoke = vi.mocked(invoke);
 
 function makePlan(id = 'resolved'): ExplainPlan {
-    const plan = parseExplain('[{"Plan":{"Node Type":"Result"}}]');
+    const plan = parsePostgresJson('[{"Plan":{"Node Type":"Result"}}]');
     return {...plan, original_query: id, root: {...plan.root, id}};
 }
 

@@ -535,8 +535,8 @@ Add an optional `ui_extensions` array to your manifest:
 | `sidebar.footer.actions` | Explorer sidebar footer | `connectionId`, `driver` | Status indicators, quick actions |
 | `settings.plugin.actions` | Per-plugin actions in Settings modal | `targetPluginId` | Diagnostics, re-auth buttons |
 | `settings.plugin.before_settings` | Content above plugin settings form | `targetPluginId` | OAuth panels, status banners |
-| `connection-modal.connection_content` | Inside the connection form | `driver` | Custom connection fields |
-| `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField`, `credentialFieldsHidden`, `setCredentialFieldsHidden`, `secretFields`, `setSecretField` | Plugin-specific connection fields (e.g. AWS region), including values stored per connection in the OS keychain. `setCredentialFieldsHidden(true)` hides and clears the host username/password inputs for drivers that authenticate without a login; while hidden the host also ignores the login of an imported connection string and drops the stored password on save |
+| `connection-modal.connection_content` | Inside the connection form | `driver`, `database`, `connectionName`, `onDatabaseChange` | Custom connection fields; the callback is bridged over host RPC |
+| `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField`, `credentialFieldsHidden`, `setCredentialFieldsHidden`, `secretFields`, `setSecretField` | Plugin-specific connection fields (e.g. AWS region), including values stored per connection in the OS keychain. `setCredentialFieldsHidden(true)` hides and clears the host username/password inputs for drivers that authenticate without a login; while hidden the host also ignores the login of an imported connection string and drops the stored password on save. These callbacks are host RPC methods; callback functions are not cloned into the guest context. |
 
 ### SlotContext
 
@@ -683,20 +683,33 @@ export default function FieldPreview({ context }: SlotComponentProps) {
 
 Slot components can import these hooks from `@tabularis/plugin-api`:
 
+The iframe boundary, RPC capability list, and migration contract are described
+in [`UI_SANDBOX_DESIGN.md`](./UI_SANDBOX_DESIGN.md).
+
 | Hook | Returns | Purpose |
 |------|---------|---------|
-| `usePluginQuery()` | `(query: string) => Promise<{ columns, rows }>` | Execute read-only queries on the active connection |
+| `usePluginQuery()` | `(query: string) => Promise<{ columns, rows }>` | Execute classified read-only SQL through a database-enforced read-only mode on supported built-in drivers; unsupported drivers reject the call |
 | `usePluginConnection()` | `{ connectionId, driver, schema }` | Access active connection metadata |
 | `usePluginToast()` | `{ showInfo(), showError(), showWarning() }` | Show toast notifications |
-| `usePluginModal()` | `{ openModal(options), closeModal() }` | Open host-managed modals with custom content |
+| `usePluginModal()` | `{ openModal(options), closeModal() }` | Show custom React content in a modal contained in the plugin iframe |
 | `usePluginSetting(pluginId)` | `{ getSetting(key), setSetting(key, value) }` | Read/write plugin settings |
 | `usePluginTheme()` | `{ themeId, themeName, isDark, colors }` | Access current theme info |
 | `usePluginTranslation(pluginId)` | `t(key)` | Access plugin-specific i18n translations |
 | `openUrl(url)` | `Promise<void>` | Open a URL in the system browser |
+| `exchangeGoogleOAuthToken(request)` | `Promise<GoogleOAuthTokenResponse>` | Exchange or refresh Google OAuth tokens at the host-fixed Google endpoint |
+
+`usePluginQuery().executeQuery()` returns all rows provided by the driver; the
+host does not silently cap plugin query results at 100 rows. Add a SQL `LIMIT`
+clause when only a bounded result set is needed.
 
 #### Plugin Modal
 
-`usePluginModal()` lets you open a host-managed modal from within a slot component:
+`usePluginModal()` lets you open a modal from within a slot component. Its React
+content stays inside the sandboxed plugin iframe; it cannot render into the
+host application's React tree. Keep the plugin frame open while the modal is
+in use, and provide a close button in longer workflows. `setSetting` and
+`setSettings` now return promises; await them when the next operation depends
+on the saved value.
 
 ```tsx
 const { openModal, closeModal } = usePluginModal();
@@ -782,9 +795,13 @@ must not be absolute or contain `..`.
 
 Build the module as an IIFE named `__tabularis_explain_parser__`, externalize
 `@tabularis/explain` to `__TABULARIS_EXPLAIN__`, and default-export either one
-`RegisteredExplainParser` or an array. The host reads each declared module
-once, matches exports by exact `engine` and `format`, applies the manifest
-label, and calls `registerExplainParser`. For example:
+`RegisteredExplainParser` or an array. The sandbox reads each declared module
+once, sends only parser metadata to the host, and the host matches exports by
+exact `engine` and `format` before registering an asynchronous proxy. Parser
+functions stay inside the sandbox. EXPLAIN helpers that dispatch to parsers are
+asynchronous and must be awaited. For migration details, see
+[`EXPLAIN_SANDBOX_DESIGN.md`](./EXPLAIN_SANDBOX_DESIGN.md).
+For example:
 
 ```ts
 import type { RegisteredExplainParser } from "@tabularis/explain";

@@ -43,7 +43,7 @@ export type ExplainQueryOutput =
     {kind: 'raw'; raw: RawExplainOutput} | {kind: 'plan'; plan: ExplainPlan};
 
 /** Parse a driver's raw EXPLAIN payload into a plan. */
-export function parseRawExplain(raw: RawExplainOutput): ExplainPlan {
+export async function parseRawExplain(raw: RawExplainOutput): Promise<ExplainPlan> {
     const parser = getExplainParser(raw.format);
     if (parser === null) {
         throw new Error(
@@ -52,7 +52,7 @@ export function parseRawExplain(raw: RawExplainOutput): ExplainPlan {
         );
     }
 
-    const plan = parser.parse(raw.payload);
+    const plan = await parser.parse(raw.payload);
     return {
         ...plan,
         driver: raw.engine,
@@ -61,6 +61,6 @@ export function parseRawExplain(raw: RawExplainOutput): ExplainPlan {
 }
 
 /** Normalise either shape of `ExplainQueryOutput` into a plan. */
-export function resolveExplainOutput(output: ExplainQueryOutput): ExplainPlan {
-    return output.kind === 'plan' ? output.plan : parseRawExplain(output.raw);
+export function resolveExplainOutput(output: ExplainQueryOutput): Promise<ExplainPlan> {
+    return output.kind === 'plan' ? Promise.resolve(output.plan) : parseRawExplain(output.raw);
 }

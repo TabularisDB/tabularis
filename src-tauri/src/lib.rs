@@ -274,7 +274,10 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_deep_link::init());
+        .plugin(tauri_plugin_deep_link::init())
+        .register_uri_scheme_protocol("tabularis-plugin", |ctx, request| {
+            crate::plugins::sandbox_protocol::handle(ctx.app_handle(), request)
+        });
 
     // Dialog plugin: real in production, mocked under e2e-testing (the mock
     // auto-accepts ask()/confirm() so native Tauri confirm dialogs — which
@@ -610,6 +613,7 @@ pub fn run() {
             commands::get_file_stats,
             commands::read_file_as_data_url,
             commands::execute_query,
+            commands::execute_plugin_read_only_query,
             commands::execute_query_batch,
             commands::release_query_session,
             commands::get_server_now,

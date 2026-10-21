@@ -68,17 +68,17 @@ import {openUrl} from '@tauri-apps/plugin-opener';
 import {APP_VERSION} from '@/version';
 
 const NewConnectionModal = lazy(() =>
-    import('@/components/modals/NewConnectionModal').then((m) => ({
+    import('../components/modals/NewConnectionModal').then((m) => ({
         default: m.NewConnectionModal,
     })),
 );
 const ImportFromAppModal = lazy(() =>
-    import('@/components/modals/ImportFromAppModal').then((m) => ({
+    import('../components/modals/ImportFromAppModal').then((m) => ({
         default: m.ImportFromAppModal,
     })),
 );
 const MigrationChecklistModal = lazy(() =>
-    import('@/components/modals/MigrationChecklistModal').then((m) => ({
+    import('../components/modals/MigrationChecklistModal').then((m) => ({
         default: m.MigrationChecklistModal,
     })),
 );
@@ -507,6 +507,10 @@ export const Connections = () => {
         try {
             const payload = await invoke('export_connections_payload', {
                 includeSecrets: mode !== 'noSecrets',
+                confirmationTitle: t('connections.exportSecretsConfirmation.title'),
+                confirmationMessage: t('connections.exportSecretsConfirmation.message'),
+                confirmationExportLabel: t('connections.exportSecretsConfirmation.export'),
+                confirmationCancelLabel: t('connections.exportSecretsConfirmation.cancel'),
                 connectionIds:
                     exportSelectionOnly && selectedIds.size > 0 ? [...selectedIds] : null,
             });
@@ -522,6 +526,7 @@ export const Connections = () => {
                 await writeTextFile(path, JSON.stringify(fileContent, null, 2));
             }
         } catch (e) {
+            if (String(e).includes('SECRET_EXPORT_CANCELLED')) return;
             console.error('Export failed:', e);
             setError(toErrorMessage(e));
         }

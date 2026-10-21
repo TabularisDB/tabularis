@@ -180,6 +180,9 @@ importers:
       eslint-plugin-react-refresh:
         specifier: ^0.4.26
         version: 0.4.26(eslint@9.39.4(jiti@2.6.1))
+      esbuild:
+        specifier: ^0.27.4
+        version: 0.27.4
       gitnexus:
         specifier: ^1.6.9
         version: 1.6.9(graphology-types@0.24.8)(zod@4.3.6)

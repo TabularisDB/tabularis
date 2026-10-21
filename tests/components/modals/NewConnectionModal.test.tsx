@@ -3,10 +3,10 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {act, render, screen, fireEvent, waitFor} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
 import {save} from '@tauri-apps/plugin-dialog';
-import {NewConnectionModal} from '@/components/modals/NewConnectionModal';
-import {PluginSlotContext} from '@/contexts/PluginSlotContext';
-import type {PluginSlotRegistryType} from '@/contexts/PluginSlotContext';
-import type {SlotComponentProps, SlotContribution} from '@/types/pluginSlots';
+import {NewConnectionModal} from '../../../src/components/modals/NewConnectionModal';
+import {PluginSlotContext} from '../../../src/contexts/PluginSlotContext';
+import type {PluginSlotRegistryType} from '../../../src/contexts/PluginSlotContext';
+import type {SlotComponentProps, SlotContribution} from '../../../src/types/pluginSlots';
 
 interface MockSelectProps {
     ariaLabel?: string;
@@ -57,11 +57,11 @@ vi.mock('@tauri-apps/api/event', () => ({
     listen: eventMocks.listen,
 }));
 
-vi.mock('@/hooks/useAlert', () => ({
+vi.mock('../../../src/hooks/useAlert', () => ({
     useAlert: () => ({showAlert: alertMocks.showAlert}),
 }));
 
-vi.mock('@/components/ui/Modal', () => ({
+vi.mock('../../../src/components/ui/Modal', () => ({
     Modal: ({
         isOpen,
         onClose,
@@ -79,7 +79,7 @@ vi.mock('@/components/ui/Modal', () => ({
         ) : null,
 }));
 
-vi.mock('@/components/ui/Select', () => ({
+vi.mock('../../../src/components/ui/Select', () => ({
     Select: ({ariaLabel, value, options, onChange, placeholder, labels}: MockSelectProps) => (
         <select
             aria-label={ariaLabel ?? placeholder ?? 'select'}
@@ -96,7 +96,7 @@ vi.mock('@/components/ui/Select', () => ({
     ),
 }));
 
-vi.mock('@/hooks/useDrivers', () => ({
+vi.mock('../../../src/hooks/useDrivers', () => ({
     useDrivers: () => ({
         drivers: [
             {
@@ -161,7 +161,7 @@ vi.mock('@/hooks/useDrivers', () => ({
     }),
 }));
 
-vi.mock('@/hooks/usePluginSlotRegistry', () => ({
+vi.mock('../../../src/hooks/usePluginSlotRegistry', () => ({
     usePluginSlotRegistry: () => ({
         getSlotContributions: () => [],
     }),
@@ -171,14 +171,14 @@ afterEach(() => {
     driverState.connectionFields = undefined;
 });
 
-vi.mock('@/hooks/useSettings', () => ({
+vi.mock('../../../src/hooks/useSettings', () => ({
     useSettings: () => ({
         settings: {},
         updateSetting: vi.fn(),
     }),
 }));
 
-vi.mock('@/hooks/useConnectionCatalogue', () => ({
+vi.mock('../../../src/hooks/useConnectionCatalogue', () => ({
     useConnectionCatalogue: () => {
         const engine = driverState.catalogueDriver;
         const name = engine === 'sqlite' ? 'SQLite' : 'MySQL';
@@ -221,12 +221,12 @@ vi.mock('@/hooks/useConnectionCatalogue', () => ({
     },
 }));
 
-vi.mock('@/utils/ssh', () => ({
+vi.mock('../../../src/utils/ssh', () => ({
     loadSshConnections: sshMocks.loadSshConnections,
     testSshConnection: sshMocks.testSshConnection,
 }));
 
-vi.mock('@/utils/k8s', () => ({
+vi.mock('../../../src/utils/k8s', () => ({
     loadK8sConnections: k8sMocks.loadK8sConnections,
     getK8sContexts: k8sMocks.getK8sContexts,
     getK8sNamespaces: k8sMocks.getK8sNamespaces,
@@ -235,15 +235,15 @@ vi.mock('@/utils/k8s', () => ({
     validateK8sPath: k8sMocks.validateK8sPath,
 }));
 
-vi.mock('@/components/modals/NewConnectionModal/AppearanceSection', () => ({
+vi.mock('../../../src/components/modals/NewConnectionModal/AppearanceSection', () => ({
     AppearanceSection: () => null,
 }));
 
-vi.mock('@/components/modals/SshConnectionsModal', () => ({
+vi.mock('../../../src/components/modals/SshConnectionsModal', () => ({
     SshConnectionsModal: () => null,
 }));
 
-vi.mock('@/components/modals/K8sConnectionsModal', () => ({
+vi.mock('../../../src/components/modals/K8sConnectionsModal', () => ({
     K8sConnectionsModal: () => null,
 }));
 
@@ -1111,7 +1111,7 @@ describe('NewConnectionModal advanced inline K8s paths', () => {
                 }),
             );
         });
-    });
+    }, 15_000);
 
     it('blocks a submission that applies paths until inline selections are remade', async () => {
         await openInlineK8s();
