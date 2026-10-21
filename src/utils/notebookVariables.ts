@@ -1,34 +1,34 @@
-import type { NotebookCell } from "../types/notebook";
-import type { QueryResult } from "../types/editor";
-import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { getQuoteChar } from "./identifiers";
-import type { BooleanLiteralStyle } from "../types/plugins";
+import type {NotebookCell} from '@/types/notebook';
+import type {QueryResult} from '@/types/editor';
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import {getQuoteChar} from './identifiers';
+import type {BooleanLiteralStyle} from '@/types/plugins';
 import {
-  booleanLiteralWithStyle,
-  declaredBooleanLiterals,
-  quoteSqlStringWithStyle,
-  stringEscapeStyle,
-} from "./sqlLiteral";
+    booleanLiteralWithStyle,
+    declaredBooleanLiterals,
+    quoteSqlStringWithStyle,
+    stringEscapeStyle,
+} from './sqlLiteral';
 
 const CELL_REF_PATTERN = /\{\{cell_(\d+)\}\}/g;
 
 export interface CellReference {
-  match: string;
-  cellIndex: number;
+    match: string;
+    cellIndex: number;
 }
 
 export function extractCellReferences(sql: string): CellReference[] {
-  const refs: CellReference[] = [];
-  let match: RegExpExecArray | null;
-  const regex = new RegExp(CELL_REF_PATTERN.source, "g");
-  while ((match = regex.exec(sql)) !== null) {
-    refs.push({ match: match[0], cellIndex: Number(match[1]) - 1 });
-  }
-  return refs;
+    const refs: CellReference[] = [];
+    let match: RegExpExecArray | null;
+    const regex = new RegExp(CELL_REF_PATTERN.source, 'g');
+    while ((match = regex.exec(sql)) !== null) {
+        refs.push({match: match[0], cellIndex: Number(match[1]) - 1});
+    }
+    return refs;
 }
 
 export function hasCellReferences(sql: string): boolean {
-  return new RegExp(CELL_REF_PATTERN.source).test(sql);
+    return new RegExp(CELL_REF_PATTERN.source).test(sql);
 }
 
 /**
@@ -36,7 +36,7 @@ export function hasCellReferences(sql: string): boolean {
  * doubling embedded quote characters.
  */
 function quoteIdentifier(col: string, quote: string): string {
-  return `${quote}${col.split(quote).join(quote + quote)}${quote}`;
+    return `${quote}${col.split(quote).join(quote + quote)}${quote}`;
 }
 
 /**
@@ -48,14 +48,14 @@ function quoteIdentifier(col: string, quote: string): string {
  * backslash escapes instead.
  */
 function quoteStringLiteral(
-  val: string,
-  escapeBackslashes: boolean,
-  backslashLiterals: boolean,
+    val: string,
+    escapeBackslashes: boolean,
+    backslashLiterals: boolean,
 ): string {
-  if (backslashLiterals) return quoteSqlStringWithStyle(val, "backslash");
-  let escaped = val;
-  if (escapeBackslashes) escaped = escaped.replace(/\\/g, "\\\\");
-  return `'${escaped.replace(/'/g, "''")}'`;
+    if (backslashLiterals) return quoteSqlStringWithStyle(val, 'backslash');
+    let escaped = val;
+    if (escapeBackslashes) escaped = escaped.replace(/\\/g, '\\\\');
+    return `'${escaped.replace(/'/g, "''")}'`;
 }
 
 /**
@@ -66,61 +66,61 @@ function quoteStringLiteral(
 const cteCache = new WeakMap<QueryResult, Map<string, string>>();
 
 function resultToCte(
-  result: QueryResult,
-  alias: string,
-  escapeBackslashes: boolean,
-  backslashLiterals: boolean,
-  identifierQuote: string,
-  booleanLiterals: BooleanLiteralStyle | undefined,
+    result: QueryResult,
+    alias: string,
+    escapeBackslashes: boolean,
+    backslashLiterals: boolean,
+    identifierQuote: string,
+    booleanLiterals: BooleanLiteralStyle | undefined,
 ): string {
-  const variantKey = `${escapeBackslashes ? 1 : 0}${backslashLiterals ? 1 : 0}${booleanLiterals ?? ""}:${identifierQuote}:${alias}`;
-  let variants = cteCache.get(result);
-  const cached = variants?.get(variantKey);
-  if (cached !== undefined) return cached;
+    const variantKey = `${escapeBackslashes ? 1 : 0}${backslashLiterals ? 1 : 0}${booleanLiterals ?? ''}:${identifierQuote}:${alias}`;
+    let variants = cteCache.get(result);
+    const cached = variants?.get(variantKey);
+    if (cached !== undefined) return cached;
 
-  let cte: string;
-  if (result.rows.length === 0) {
-    const emptyCols = result.columns
-      .map((col) => `NULL AS ${quoteIdentifier(col, identifierQuote)}`)
-      .join(", ");
-    cte = `${alias} AS (SELECT ${emptyCols} WHERE 1=0)`;
-  } else {
-    const selects = result.rows.map((row) => {
-      const cols = result.columns
-        .map((col, i) => {
-          const val = row[i];
-          const ident = quoteIdentifier(col, identifierQuote);
-          if (val === null || val === undefined) return `NULL AS ${ident}`;
-          if (typeof val === "number" && Number.isFinite(val)) {
-            return `${val} AS ${ident}`;
-          }
-          if (typeof val === "boolean" && booleanLiterals) {
-            return `${booleanLiteralWithStyle(val, booleanLiterals)} AS ${ident}`;
-          }
-          const literal = quoteStringLiteral(
-            String(val),
-            escapeBackslashes,
-            backslashLiterals,
-          );
-          return `${literal} AS ${ident}`;
-        })
-        .join(", ");
-      return `SELECT ${cols}`;
-    });
-    cte = `${alias} AS (\n  ${selects.join("\n  UNION ALL\n  ")}\n)`;
-  }
+    let cte: string;
+    if (result.rows.length === 0) {
+        const emptyCols = result.columns
+            .map((col) => `NULL AS ${quoteIdentifier(col, identifierQuote)}`)
+            .join(', ');
+        cte = `${alias} AS (SELECT ${emptyCols} WHERE 1=0)`;
+    } else {
+        const selects = result.rows.map((row) => {
+            const cols = result.columns
+                .map((col, i) => {
+                    const val = row[i];
+                    const ident = quoteIdentifier(col, identifierQuote);
+                    if (val === null || val === undefined) return `NULL AS ${ident}`;
+                    if (typeof val === 'number' && Number.isFinite(val)) {
+                        return `${val} AS ${ident}`;
+                    }
+                    if (typeof val === 'boolean' && booleanLiterals) {
+                        return `${booleanLiteralWithStyle(val, booleanLiterals)} AS ${ident}`;
+                    }
+                    const literal = quoteStringLiteral(
+                        String(val),
+                        escapeBackslashes,
+                        backslashLiterals,
+                    );
+                    return `${literal} AS ${ident}`;
+                })
+                .join(', ');
+            return `SELECT ${cols}`;
+        });
+        cte = `${alias} AS (\n  ${selects.join('\n  UNION ALL\n  ')}\n)`;
+    }
 
-  if (!variants) {
-    variants = new Map();
-    cteCache.set(result, variants);
-  }
-  variants.set(variantKey, cte);
-  return cte;
+    if (!variants) {
+        variants = new Map();
+        cteCache.set(result, variants);
+    }
+    variants.set(variantKey, cte);
+    return cte;
 }
 
 export interface ResolvedQuery {
-  sql: string;
-  unresolvedRefs: CellReference[];
+    sql: string;
+    unresolvedRefs: CellReference[];
 }
 
 /**
@@ -128,48 +128,40 @@ export interface ResolvedQuery {
  * Returns indices of referenced cells that have no result (or have errors).
  * Returns them in sorted order (lowest index first) for sequential execution.
  */
-export function findUnresolvedDependencies(
-  sql: string,
-  cells: NotebookCell[],
-): number[] {
-  const refs = extractCellReferences(sql);
-  const indices = new Set<number>();
-  for (const ref of refs) {
-    const targetCell = cells[ref.cellIndex];
-    if (
-      !targetCell ||
-      targetCell.type !== "sql" ||
-      !targetCell.result ||
-      targetCell.error
-    ) {
-      if (targetCell && targetCell.type === "sql") {
-        indices.add(ref.cellIndex);
-      }
+export function findUnresolvedDependencies(sql: string, cells: NotebookCell[]): number[] {
+    const refs = extractCellReferences(sql);
+    const indices = new Set<number>();
+    for (const ref of refs) {
+        const targetCell = cells[ref.cellIndex];
+        if (!targetCell || targetCell.type !== 'sql' || !targetCell.result || targetCell.error) {
+            if (targetCell && targetCell.type === 'sql') {
+                indices.add(ref.cellIndex);
+            }
+        }
     }
-  }
-  return Array.from(indices).sort((a, b) => a - b);
+    return Array.from(indices).sort((a, b) => a - b);
 }
 
 export interface ResolveVariablesOptions {
-  /** Double backslashes in string literals (MySQL/MariaDB dialects). */
-  escapeBackslashes?: boolean;
-  /**
-   * Backslash-escape quotes, backslashes, NUL and line breaks instead of doubling
-   * quotes: a declared `sql_syntax.string_escape: "backslash"` (GoogleSQL).
-   * Takes precedence over `escapeBackslashes`.
-   */
-  backslashLiterals?: boolean;
-  /**
-   * Quote for the CTE column aliases: the driver's `identifier_quote`
-   * capability. Defaults to `"`.
-   */
-  identifierQuote?: string;
-  /**
-   * How boolean values are written: the driver's declared
-   * `sql_syntax.boolean_literals`. Omitted, they stay quoted strings
-   * (`'true'`), as before the field existed.
-   */
-  booleanLiterals?: BooleanLiteralStyle;
+    /** Double backslashes in string literals (MySQL/MariaDB dialects). */
+    escapeBackslashes?: boolean;
+    /**
+     * Backslash-escape quotes, backslashes, NUL and line breaks instead of doubling
+     * quotes: a declared `sql_syntax.string_escape: "backslash"` (GoogleSQL).
+     * Takes precedence over `escapeBackslashes`.
+     */
+    backslashLiterals?: boolean;
+    /**
+     * Quote for the CTE column aliases: the driver's `identifier_quote`
+     * capability. Defaults to `"`.
+     */
+    identifierQuote?: string;
+    /**
+     * How boolean values are written: the driver's declared
+     * `sql_syntax.boolean_literals`. Omitted, they stay quoted strings
+     * (`'true'`), as before the field existed.
+     */
+    booleanLiterals?: BooleanLiteralStyle;
 }
 
 /**
@@ -185,62 +177,65 @@ export interface ResolveVariablesOptions {
  * in `\` escape its closing quote on a MySQL-family engine.
  */
 export function variableOptionsForDriver(
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
-  driverId?: string | null,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    driverId?: string | null,
 ): ResolveVariablesOptions {
-  const style = stringEscapeStyle(driver, driverId);
-  const booleanLiterals = declaredBooleanLiterals(driver);
-  return {
-    escapeBackslashes: style !== "standard",
-    identifierQuote: getQuoteChar(driver),
-    ...(style === "backslash" ? { backslashLiterals: true } : {}),
-    ...(booleanLiterals ? { booleanLiterals } : {}),
-  };
+    const style = stringEscapeStyle(driver, driverId);
+    const booleanLiterals = declaredBooleanLiterals(driver);
+    return {
+        escapeBackslashes: style !== 'standard',
+        identifierQuote: getQuoteChar(driver),
+        ...(style === 'backslash' ? {backslashLiterals: true} : {}),
+        ...(booleanLiterals ? {booleanLiterals} : {}),
+    };
 }
 
 export function resolveQueryVariables(
-  sql: string,
-  cells: NotebookCell[],
-  options?: ResolveVariablesOptions,
+    sql: string,
+    cells: NotebookCell[],
+    options?: ResolveVariablesOptions,
 ): ResolvedQuery {
-  if (!hasCellReferences(sql)) return { sql, unresolvedRefs: [] };
+    if (!hasCellReferences(sql)) return {sql, unresolvedRefs: []};
 
-  const unresolvedRefs: CellReference[] = [];
-  const ctes: string[] = [];
-  const seen = new Set<number>();
-  let resolvedSql = sql.replace(new RegExp(CELL_REF_PATTERN.source, "g"), (match: string, number: string) => {
-    const cellIndex = Number(number) - 1;
-    const targetCell = cells[cellIndex];
-    if (
-      !targetCell ||
-      targetCell.type !== "sql" ||
-      !targetCell.result ||
-      targetCell.error
-    ) {
-      unresolvedRefs.push({ match, cellIndex });
-      return match;
+    const unresolvedRefs: CellReference[] = [];
+    const ctes: string[] = [];
+    const seen = new Set<number>();
+    let resolvedSql = sql.replace(
+        new RegExp(CELL_REF_PATTERN.source, 'g'),
+        (match: string, number: string) => {
+            const cellIndex = Number(number) - 1;
+            const targetCell = cells[cellIndex];
+            if (
+                !targetCell ||
+                targetCell.type !== 'sql' ||
+                !targetCell.result ||
+                targetCell.error
+            ) {
+                unresolvedRefs.push({match, cellIndex});
+                return match;
+            }
+
+            const alias = `cell_${cellIndex + 1}`;
+            if (!seen.has(cellIndex)) {
+                seen.add(cellIndex);
+                ctes.push(
+                    resultToCte(
+                        targetCell.result,
+                        alias,
+                        options?.escapeBackslashes ?? false,
+                        options?.backslashLiterals ?? false,
+                        options?.identifierQuote || '"',
+                        options?.booleanLiterals,
+                    ),
+                );
+            }
+            return alias;
+        },
+    );
+
+    if (ctes.length > 0) {
+        resolvedSql = `WITH ${ctes.join(',\n')}\n${resolvedSql}`;
     }
 
-    const alias = `cell_${cellIndex + 1}`;
-    if (!seen.has(cellIndex)) {
-      seen.add(cellIndex);
-      ctes.push(
-        resultToCte(
-          targetCell.result,
-          alias,
-          options?.escapeBackslashes ?? false,
-          options?.backslashLiterals ?? false,
-          options?.identifierQuote || '"',
-          options?.booleanLiterals,
-        ),
-      );
-    }
-    return alias;
-  });
-
-  if (ctes.length > 0) {
-    resolvedSql = `WITH ${ctes.join(",\n")}\n${resolvedSql}`;
-  }
-
-  return { sql: resolvedSql, unresolvedRefs };
+    return {sql: resolvedSql, unresolvedRefs};
 }

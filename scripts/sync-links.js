@@ -1,12 +1,12 @@
-import { readFileSync, writeFileSync } from 'fs';
-import { resolve } from 'path';
+import {readFileSync, writeFileSync} from 'fs';
+import {resolve} from 'path';
 
 // File paths
 const paths = {
-  package: resolve('package.json'),
-  configLinks: resolve('src/config/links.ts'),
-  readme: resolve('README.md'),
-  contributing: resolve('CONTRIBUTING.md')
+    package: resolve('package.json'),
+    configLinks: resolve('src/config/links.ts'),
+    readme: resolve('README.md'),
+    contributing: resolve('CONTRIBUTING.md'),
 };
 
 // 1. Read links from package.json
@@ -14,24 +14,22 @@ const pkg = JSON.parse(readFileSync(paths.package, 'utf-8'));
 const links = pkg.links;
 
 if (!links) {
-  console.error('❌ No "links" section found in package.json');
-  process.exit(1);
+    console.error('❌ No "links" section found in package.json');
+    process.exit(1);
 }
 
 console.log('🔄 Syncing links...');
 const entries = Object.entries(links);
 for (const [key, value] of entries) {
-  console.log(`   ${key}: ${value}`);
+    console.log(`   ${key}: ${value}`);
 }
 
 // 2. Create/update src/config/links.ts
 const constKey = (key) => key.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
-const linkLines = entries
-  .map(([key, value]) => `  ${constKey(key)}: "${value}",`)
-  .join('\n');
+const linkLines = entries.map(([key, value]) => `  ${constKey(key)}: "${value}",`).join('\n');
 const namedExports = entries
-  .map(([key]) => `export const ${constKey(key)}_URL = LINKS.${constKey(key)};`)
-  .join('\n');
+    .map(([key]) => `export const ${constKey(key)}_URL = LINKS.${constKey(key)};`)
+    .join('\n');
 
 const linksConfig = `/**
  * External links used throughout the application.
@@ -54,19 +52,13 @@ console.log('✅ Updated src/config/links.ts');
 
 // 3. Update README.md - Discord links
 let readme = readFileSync(paths.readme, 'utf-8');
-readme = readme.replace(
-  /https:\/\/discord\.gg\/[A-Za-z0-9]+/g,
-  links.discord
-);
+readme = readme.replace(/https:\/\/discord\.gg\/[A-Za-z0-9]+/g, links.discord);
 writeFileSync(paths.readme, readme);
 console.log('✅ Updated README.md');
 
 // 4. Update CONTRIBUTING.md - Discord links
 let contributing = readFileSync(paths.contributing, 'utf-8');
-contributing = contributing.replace(
-  /https:\/\/discord\.gg\/[A-Za-z0-9]+/g,
-  links.discord
-);
+contributing = contributing.replace(/https:\/\/discord\.gg\/[A-Za-z0-9]+/g, links.discord);
 writeFileSync(paths.contributing, contributing);
 console.log('✅ Updated CONTRIBUTING.md');
 

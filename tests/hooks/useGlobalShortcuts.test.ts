@@ -1,378 +1,388 @@
-import { fireEvent, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {fireEvent, renderHook} from '@testing-library/react';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-import { useGlobalShortcuts } from "../../src/hooks/useGlobalShortcuts";
+import {useGlobalShortcuts} from '@/hooks/useGlobalShortcuts';
 
 const navigateMock = vi.fn();
 const togglePaletteMock = vi.fn();
 const handleSwitchMock = vi.fn();
-let activeShortcutId = "command_palette_actions";
-let locationMock = { pathname: "/editor", key: "abc123" };
-const matchesShortcutMock = vi.fn(
-  (_event: KeyboardEvent, id: string) => id === activeShortcutId,
-);
+let activeShortcutId = 'command_palette_actions';
+let locationMock = {pathname: '/editor', key: 'abc123'};
+const matchesShortcutMock = vi.fn((_event: KeyboardEvent, id: string) => id === activeShortcutId);
 
-vi.mock("react-router-dom", () => ({
-  useNavigate: () => navigateMock,
-  useLocation: () => locationMock,
+vi.mock('react-router-dom', () => ({
+    useNavigate: () => navigateMock,
+    useLocation: () => locationMock,
 }));
 
-vi.mock("../../src/hooks/useKeybindings", () => ({
-  useKeybindings: () => ({
-    matchesShortcut: matchesShortcutMock,
-    isMac: true,
-  }),
+vi.mock('@/hooks/useKeybindings', () => ({
+    useKeybindings: () => ({
+        matchesShortcut: matchesShortcutMock,
+        isMac: true,
+    }),
 }));
 
-vi.mock("../../src/hooks/useConnectionManager", () => ({
-  useConnectionManager: () => ({
-    openConnections: [{ id: "connection-1" }],
-    handleSwitch: handleSwitchMock,
-  }),
+vi.mock('@/hooks/useConnectionManager', () => ({
+    useConnectionManager: () => ({
+        openConnections: [{id: 'connection-1'}],
+        handleSwitch: handleSwitchMock,
+    }),
 }));
 
-vi.mock("../../src/hooks/useCommandPalette", () => ({
-  useCommandPaletteDispatch: () => ({
-    togglePalette: togglePaletteMock,
-  }),
+vi.mock('@/hooks/useCommandPalette', () => ({
+    useCommandPaletteDispatch: () => ({
+        togglePalette: togglePaletteMock,
+    }),
 }));
 
-describe("useGlobalShortcuts", () => {
-  beforeEach(() => {
-    navigateMock.mockClear();
-    handleSwitchMock.mockClear();
-    togglePaletteMock.mockClear();
-    matchesShortcutMock.mockClear();
-    activeShortcutId = "command_palette_actions";
-    locationMock = { pathname: "/editor", key: "abc123" };
-  });
+describe('useGlobalShortcuts', () => {
+    beforeEach(() => {
+        navigateMock.mockClear();
+        handleSwitchMock.mockClear();
+        togglePaletteMock.mockClear();
+        matchesShortcutMock.mockClear();
+        activeShortcutId = 'command_palette_actions';
+        locationMock = {pathname: '/editor', key: 'abc123'};
+    });
 
-  describe.each(["Monaco textarea", "plain input"])("with focus in %s", (targetKind) => {
-    it.each([
-      { id: "toggle_sidebar", key: "b", code: "KeyB", shiftKey: false, customEvent: "tabularis:toggle-sidebar" },
-      { id: "toggle_right_sidebar", key: "b", code: "KeyB", shiftKey: true, customEvent: "tabularis:toggle-right-sidebar" },
-      { id: "open_connections", key: "c", code: "KeyC", shiftKey: true },
-      { id: "new_connection", key: "n", code: "KeyN", shiftKey: true },
-      { id: "switch_connection", key: "1", code: "Digit1", shiftKey: true },
-    ])("fires $id", ({ id, key, code, shiftKey, customEvent }) => {
-      activeShortcutId = id;
-      renderHook(() => useGlobalShortcuts());
-      const container = document.createElement("div");
-      container.className = targetKind === "Monaco textarea" ? "monaco-editor" : "";
-      const input = document.createElement(
-        targetKind === "Monaco textarea" ? "textarea" : "input",
-      );
-      container.append(input);
-      document.body.append(container);
-      input.focus();
-      const dispatchSpy = vi.spyOn(window, "dispatchEvent");
-      const event = new KeyboardEvent("keydown", {
-        key,
-        code,
-        shiftKey,
-        metaKey: true,
-        bubbles: true,
-        cancelable: true,
-      });
+    describe.each(['Monaco textarea', 'plain input'])('with focus in %s', (targetKind) => {
+        it.each([
+            {
+                id: 'toggle_sidebar',
+                key: 'b',
+                code: 'KeyB',
+                shiftKey: false,
+                customEvent: 'tabularis:toggle-sidebar',
+            },
+            {
+                id: 'toggle_right_sidebar',
+                key: 'b',
+                code: 'KeyB',
+                shiftKey: true,
+                customEvent: 'tabularis:toggle-right-sidebar',
+            },
+            {id: 'open_connections', key: 'c', code: 'KeyC', shiftKey: true},
+            {id: 'new_connection', key: 'n', code: 'KeyN', shiftKey: true},
+            {id: 'switch_connection', key: '1', code: 'Digit1', shiftKey: true},
+        ])('fires $id', ({id, key, code, shiftKey, customEvent}) => {
+            activeShortcutId = id;
+            renderHook(() => useGlobalShortcuts());
+            const container = document.createElement('div');
+            container.className = targetKind === 'Monaco textarea' ? 'monaco-editor' : '';
+            const input = document.createElement(
+                targetKind === 'Monaco textarea' ? 'textarea' : 'input',
+            );
+            container.append(input);
+            document.body.append(container);
+            input.focus();
+            const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+            const event = new KeyboardEvent('keydown', {
+                key,
+                code,
+                shiftKey,
+                metaKey: true,
+                bubbles: true,
+                cancelable: true,
+            });
 
-      try {
-        input.dispatchEvent(event);
-        expect(event.defaultPrevented).toBe(true);
-        if (customEvent) {
-          expect(dispatchSpy).toHaveBeenCalledWith(
-            expect.objectContaining({ type: customEvent }),
-          );
-        } else if (id === "new_connection") {
-          expect(navigateMock).toHaveBeenCalledWith("/connections", {
-            state: { openNew: true },
-          });
-        } else if (id === "open_connections") {
-          expect(navigateMock).toHaveBeenCalledWith("/connections");
-        } else {
-          expect(handleSwitchMock).toHaveBeenCalledWith("connection-1");
-          expect(navigateMock).toHaveBeenCalledWith("/editor");
+            try {
+                input.dispatchEvent(event);
+                expect(event.defaultPrevented).toBe(true);
+                if (customEvent) {
+                    expect(dispatchSpy).toHaveBeenCalledWith(
+                        expect.objectContaining({type: customEvent}),
+                    );
+                } else if (id === 'new_connection') {
+                    expect(navigateMock).toHaveBeenCalledWith('/connections', {
+                        state: {openNew: true},
+                    });
+                } else if (id === 'open_connections') {
+                    expect(navigateMock).toHaveBeenCalledWith('/connections');
+                } else {
+                    expect(handleSwitchMock).toHaveBeenCalledWith('connection-1');
+                    expect(navigateMock).toHaveBeenCalledWith('/editor');
+                }
+            } finally {
+                dispatchSpy.mockRestore();
+                container.remove();
+            }
+        });
+    });
+
+    it('leaves paste-as-plain-text in an input without triggering paste import', () => {
+        activeShortcutId = 'paste_import_clipboard';
+        renderHook(() => useGlobalShortcuts());
+        const input = document.createElement('input');
+        document.body.append(input);
+        input.focus();
+        const pasteImport = vi.fn();
+        window.addEventListener('tabularis:paste-import', pasteImport);
+        const event = new KeyboardEvent('keydown', {
+            key: 'v',
+            code: 'KeyV',
+            metaKey: true,
+            shiftKey: true,
+            bubbles: true,
+            cancelable: true,
+        });
+        try {
+            input.dispatchEvent(event);
+            expect(pasteImport).not.toHaveBeenCalled();
+            expect(event.defaultPrevented).toBe(false);
+        } finally {
+            window.removeEventListener('tabularis:paste-import', pasteImport);
+            input.remove();
         }
-      } finally {
-        dispatchSpy.mockRestore();
-        container.remove();
-      }
-    });
-  });
-
-  it("leaves paste-as-plain-text in an input without triggering paste import", () => {
-    activeShortcutId = "paste_import_clipboard";
-    renderHook(() => useGlobalShortcuts());
-    const input = document.createElement("input");
-    document.body.append(input);
-    input.focus();
-    const pasteImport = vi.fn();
-    window.addEventListener("tabularis:paste-import", pasteImport);
-    const event = new KeyboardEvent("keydown", {
-      key: "v",
-      code: "KeyV",
-      metaKey: true,
-      shiftKey: true,
-      bubbles: true,
-      cancelable: true,
-    });
-    try {
-      input.dispatchEvent(event);
-      expect(pasteImport).not.toHaveBeenCalled();
-      expect(event.defaultPrevented).toBe(false);
-    } finally {
-      window.removeEventListener("tabularis:paste-import", pasteImport);
-      input.remove();
-    }
-  });
-
-  it("should open action search while focus is inside an input", () => {
-    renderHook(() => useGlobalShortcuts());
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    input.focus();
-
-    fireEvent.keyDown(input, {
-      key: "a",
-      metaKey: true,
-      shiftKey: true,
     });
 
-    expect(togglePaletteMock).toHaveBeenCalledWith("actions");
-    input.remove();
-  });
+    it('should open action search while focus is inside an input', () => {
+        renderHook(() => useGlobalShortcuts());
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+        input.focus();
 
-  it("should open unified search while focus is inside an input", () => {
-    activeShortcutId = "command_palette";
-    renderHook(() => useGlobalShortcuts());
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    input.focus();
+        fireEvent.keyDown(input, {
+            key: 'a',
+            metaKey: true,
+            shiftKey: true,
+        });
 
-    fireEvent.keyDown(input, {
-      key: "k",
-      metaKey: true,
+        expect(togglePaletteMock).toHaveBeenCalledWith('actions');
+        input.remove();
     });
 
-    expect(togglePaletteMock).toHaveBeenCalledWith("all");
-    input.remove();
-  });
+    it('should open unified search while focus is inside an input', () => {
+        activeShortcutId = 'command_palette';
+        renderHook(() => useGlobalShortcuts());
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+        input.focus();
 
-  it("leaves the command palette shortcut available to Monaco", () => {
-    activeShortcutId = "command_palette";
-    renderHook(() => useGlobalShortcuts());
-    const monaco = document.createElement("div");
-    monaco.className = "monaco-editor";
-    const textarea = document.createElement("textarea");
-    monaco.appendChild(textarea);
-    document.body.appendChild(monaco);
-    textarea.focus();
+        fireEvent.keyDown(input, {
+            key: 'k',
+            metaKey: true,
+        });
 
-    const event = new KeyboardEvent("keydown", {
-      key: "k",
-      code: "KeyK",
-      metaKey: true,
-      bubbles: true,
-      cancelable: true,
-    });
-    textarea.dispatchEvent(event);
-
-    expect(togglePaletteMock).not.toHaveBeenCalled();
-    expect(event.defaultPrevented).toBe(false);
-    monaco.remove();
-  });
-
-  it("opens a remapped command palette shortcut inside Monaco", () => {
-    activeShortcutId = "command_palette";
-    renderHook(() => useGlobalShortcuts());
-    const monaco = document.createElement("div");
-    monaco.className = "monaco-editor";
-    const textarea = document.createElement("textarea");
-    monaco.appendChild(textarea);
-    document.body.appendChild(monaco);
-    textarea.focus();
-
-    fireEvent.keyDown(textarea, {
-      key: "p",
-      code: "KeyP",
-      metaKey: true,
+        expect(togglePaletteMock).toHaveBeenCalledWith('all');
+        input.remove();
     });
 
-    expect(togglePaletteMock).toHaveBeenCalledWith("all");
-    monaco.remove();
-  });
+    it('leaves the command palette shortcut available to Monaco', () => {
+        activeShortcutId = 'command_palette';
+        renderHook(() => useGlobalShortcuts());
+        const monaco = document.createElement('div');
+        monaco.className = 'monaco-editor';
+        const textarea = document.createElement('textarea');
+        monaco.appendChild(textarea);
+        document.body.appendChild(monaco);
+        textarea.focus();
 
-  it("opens action search while focus is inside Monaco", () => {
-    renderHook(() => useGlobalShortcuts());
-    const monaco = document.createElement("div");
-    monaco.className = "monaco-editor";
-    const textarea = document.createElement("textarea");
-    monaco.appendChild(textarea);
-    document.body.appendChild(monaco);
-    textarea.focus();
+        const event = new KeyboardEvent('keydown', {
+            key: 'k',
+            code: 'KeyK',
+            metaKey: true,
+            bubbles: true,
+            cancelable: true,
+        });
+        textarea.dispatchEvent(event);
 
-    fireEvent.keyDown(textarea, {
-      key: "a",
-      code: "KeyA",
-      metaKey: true,
-      shiftKey: true,
+        expect(togglePaletteMock).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(false);
+        monaco.remove();
     });
 
-    expect(togglePaletteMock).toHaveBeenCalledWith("actions");
-    monaco.remove();
-  });
+    it('opens a remapped command palette shortcut inside Monaco', () => {
+        activeShortcutId = 'command_palette';
+        renderHook(() => useGlobalShortcuts());
+        const monaco = document.createElement('div');
+        monaco.className = 'monaco-editor';
+        const textarea = document.createElement('textarea');
+        monaco.appendChild(textarea);
+        document.body.appendChild(monaco);
+        textarea.focus();
 
-  it("ignores composing key events while focus is inside an input", () => {
-    renderHook(() => useGlobalShortcuts());
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    input.focus();
+        fireEvent.keyDown(textarea, {
+            key: 'p',
+            code: 'KeyP',
+            metaKey: true,
+        });
 
-    fireEvent.keyDown(input, {
-      key: "a",
-      metaKey: true,
-      shiftKey: true,
-      isComposing: true,
+        expect(togglePaletteMock).toHaveBeenCalledWith('all');
+        monaco.remove();
     });
 
-    expect(togglePaletteMock).not.toHaveBeenCalled();
-    input.remove();
-  });
+    it('opens action search while focus is inside Monaco', () => {
+        renderHook(() => useGlobalShortcuts());
+        const monaco = document.createElement('div');
+        monaco.className = 'monaco-editor';
+        const textarea = document.createElement('textarea');
+        monaco.appendChild(textarea);
+        document.body.appendChild(monaco);
+        textarea.focus();
 
-  it("ignores dead-key events while focus is inside an input", () => {
-    renderHook(() => useGlobalShortcuts());
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    input.focus();
+        fireEvent.keyDown(textarea, {
+            key: 'a',
+            code: 'KeyA',
+            metaKey: true,
+            shiftKey: true,
+        });
 
-    fireEvent.keyDown(input, {
-      key: "Dead",
-      metaKey: true,
-      shiftKey: true,
+        expect(togglePaletteMock).toHaveBeenCalledWith('actions');
+        monaco.remove();
     });
 
-    expect(togglePaletteMock).not.toHaveBeenCalled();
-    input.remove();
-  });
+    it('ignores composing key events while focus is inside an input', () => {
+        renderHook(() => useGlobalShortcuts());
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+        input.focus();
 
-  it("should open object search through the shared palette controller", () => {
-    activeShortcutId = "quick_navigator";
-    renderHook(() => useGlobalShortcuts());
+        fireEvent.keyDown(input, {
+            key: 'a',
+            metaKey: true,
+            shiftKey: true,
+            isComposing: true,
+        });
 
-    fireEvent.keyDown(window, {
-      key: "p",
-      metaKey: true,
+        expect(togglePaletteMock).not.toHaveBeenCalled();
+        input.remove();
     });
 
-    expect(togglePaletteMock).toHaveBeenCalledWith("objects");
-  });
+    it('ignores dead-key events while focus is inside an input', () => {
+        renderHook(() => useGlobalShortcuts());
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+        input.focus();
 
-  it("should treat open settings as typing-safe and navigate", () => {
-    activeShortcutId = "open_settings";
-    renderHook(() => useGlobalShortcuts());
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    input.focus();
+        fireEvent.keyDown(input, {
+            key: 'Dead',
+            metaKey: true,
+            shiftKey: true,
+        });
 
-    fireEvent.keyDown(input, {
-      key: ",",
-      code: "Comma",
-      metaKey: true,
+        expect(togglePaletteMock).not.toHaveBeenCalled();
+        input.remove();
     });
 
-    expect(navigateMock).toHaveBeenCalledWith("/settings");
-    input.remove();
-  });
+    it('should open object search through the shared palette controller', () => {
+        activeShortcutId = 'quick_navigator';
+        renderHook(() => useGlobalShortcuts());
 
-  it("should not add another history entry when settings are already open", () => {
-    activeShortcutId = "open_settings";
-    locationMock = { pathname: "/settings", key: "abc123" };
-    renderHook(() => useGlobalShortcuts());
+        fireEvent.keyDown(window, {
+            key: 'p',
+            metaKey: true,
+        });
 
-    const event = new KeyboardEvent("keydown", {
-      key: ",",
-      code: "Comma",
-      metaKey: true,
-      bubbles: true,
-      cancelable: true,
+        expect(togglePaletteMock).toHaveBeenCalledWith('objects');
     });
-    window.dispatchEvent(event);
 
-    expect(navigateMock).not.toHaveBeenCalled();
-    expect(event.defaultPrevented).toBe(true);
-  });
+    it('should treat open settings as typing-safe and navigate', () => {
+        activeShortcutId = 'open_settings';
+        renderHook(() => useGlobalShortcuts());
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+        input.focus();
 
-  it("should step back from settings instead of closing the window", () => {
-    activeShortcutId = "close_tab";
-    locationMock = { pathname: "/settings", key: "abc123" };
-    renderHook(() => useGlobalShortcuts());
+        fireEvent.keyDown(input, {
+            key: ',',
+            code: 'Comma',
+            metaKey: true,
+        });
 
-    const event = new KeyboardEvent("keydown", {
-      key: "w",
-      metaKey: true,
-      bubbles: true,
-      cancelable: true,
+        expect(navigateMock).toHaveBeenCalledWith('/settings');
+        input.remove();
     });
-    window.dispatchEvent(event);
 
-    expect(navigateMock).toHaveBeenCalledWith(-1);
-    expect(event.defaultPrevented).toBe(true);
-  });
+    it('should not add another history entry when settings are already open', () => {
+        activeShortcutId = 'open_settings';
+        locationMock = {pathname: '/settings', key: 'abc123'};
+        renderHook(() => useGlobalShortcuts());
 
-  it("should step back from settings while focus is inside an input", () => {
-    activeShortcutId = "close_tab";
-    locationMock = { pathname: "/settings", key: "abc123" };
-    renderHook(() => useGlobalShortcuts());
-    const input = document.createElement("input");
-    document.body.appendChild(input);
-    input.focus();
+        const event = new KeyboardEvent('keydown', {
+            key: ',',
+            code: 'Comma',
+            metaKey: true,
+            bubbles: true,
+            cancelable: true,
+        });
+        window.dispatchEvent(event);
 
-    fireEvent.keyDown(input, { key: "w", metaKey: true });
-
-    expect(navigateMock).toHaveBeenCalledWith(-1);
-    input.remove();
-  });
-
-  it("should send the user to connections when there is no history to step back to", () => {
-    activeShortcutId = "close_tab";
-    locationMock = { pathname: "/mcp", key: "default" };
-    renderHook(() => useGlobalShortcuts());
-
-    fireEvent.keyDown(window, { key: "w", metaKey: true });
-
-    expect(navigateMock).toHaveBeenCalledWith("/connections");
-  });
-
-  it("should leave the close shortcut alone in the editor", () => {
-    activeShortcutId = "close_tab";
-    locationMock = { pathname: "/editor", key: "abc123" };
-    renderHook(() => useGlobalShortcuts());
-
-    const event = new KeyboardEvent("keydown", {
-      key: "w",
-      metaKey: true,
-      bubbles: true,
-      cancelable: true,
+        expect(navigateMock).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(true);
     });
-    window.dispatchEvent(event);
 
-    expect(navigateMock).not.toHaveBeenCalled();
-    expect(event.defaultPrevented).toBe(false);
-  });
+    it('should step back from settings instead of closing the window', () => {
+        activeShortcutId = 'close_tab';
+        locationMock = {pathname: '/settings', key: 'abc123'};
+        renderHook(() => useGlobalShortcuts());
 
-  it("should leave the close shortcut alone on the connections screen", () => {
-    activeShortcutId = "close_tab";
-    locationMock = { pathname: "/connections", key: "abc123" };
-    renderHook(() => useGlobalShortcuts());
+        const event = new KeyboardEvent('keydown', {
+            key: 'w',
+            metaKey: true,
+            bubbles: true,
+            cancelable: true,
+        });
+        window.dispatchEvent(event);
 
-    const event = new KeyboardEvent("keydown", {
-      key: "w",
-      metaKey: true,
-      bubbles: true,
-      cancelable: true,
+        expect(navigateMock).toHaveBeenCalledWith(-1);
+        expect(event.defaultPrevented).toBe(true);
     });
-    window.dispatchEvent(event);
 
-    expect(navigateMock).not.toHaveBeenCalled();
-    expect(event.defaultPrevented).toBe(false);
-  });
+    it('should step back from settings while focus is inside an input', () => {
+        activeShortcutId = 'close_tab';
+        locationMock = {pathname: '/settings', key: 'abc123'};
+        renderHook(() => useGlobalShortcuts());
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+        input.focus();
+
+        fireEvent.keyDown(input, {key: 'w', metaKey: true});
+
+        expect(navigateMock).toHaveBeenCalledWith(-1);
+        input.remove();
+    });
+
+    it('should send the user to connections when there is no history to step back to', () => {
+        activeShortcutId = 'close_tab';
+        locationMock = {pathname: '/mcp', key: 'default'};
+        renderHook(() => useGlobalShortcuts());
+
+        fireEvent.keyDown(window, {key: 'w', metaKey: true});
+
+        expect(navigateMock).toHaveBeenCalledWith('/connections');
+    });
+
+    it('should leave the close shortcut alone in the editor', () => {
+        activeShortcutId = 'close_tab';
+        locationMock = {pathname: '/editor', key: 'abc123'};
+        renderHook(() => useGlobalShortcuts());
+
+        const event = new KeyboardEvent('keydown', {
+            key: 'w',
+            metaKey: true,
+            bubbles: true,
+            cancelable: true,
+        });
+        window.dispatchEvent(event);
+
+        expect(navigateMock).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(false);
+    });
+
+    it('should leave the close shortcut alone on the connections screen', () => {
+        activeShortcutId = 'close_tab';
+        locationMock = {pathname: '/connections', key: 'abc123'};
+        renderHook(() => useGlobalShortcuts());
+
+        const event = new KeyboardEvent('keydown', {
+            key: 'w',
+            metaKey: true,
+            bubbles: true,
+            cancelable: true,
+        });
+        window.dispatchEvent(event);
+
+        expect(navigateMock).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(false);
+    });
 });

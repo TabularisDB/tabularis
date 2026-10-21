@@ -1,4 +1,4 @@
-import type { QueryResult, QueryResultEntry, Tab } from "../types/editor";
+import type {QueryResult, QueryResultEntry, Tab} from '@/types/editor';
 
 /**
  * Protocol for syncing query results between the main editor window and a
@@ -9,218 +9,211 @@ import type { QueryResult, QueryResultEntry, Tab } from "../types/editor";
  * module avoids event-name / payload drift between the two windows.
  */
 
-export const RESULTS_ACTION_EVENT = "results-window:action";
-export const RESULTS_READY_EVENT = "results-window:ready";
-export const RESULTS_CLOSED_EVENT = "results-window:closed";
+export const RESULTS_ACTION_EVENT = 'results-window:action';
+export const RESULTS_READY_EVENT = 'results-window:ready';
+export const RESULTS_CLOSED_EVENT = 'results-window:closed';
 
 // Per-tab event names: Tauri inlines an event's payload into every webview
 // listening on that name, so a shared name would ship each tab's results to
 // every detached window.
-export const resultsSyncEvent = (tabId: string) =>
-  `results-window:sync:${tabId}`;
-export const resultsCopyEvent = (tabId: string) =>
-  `results-window:copy:${tabId}`;
+export const resultsSyncEvent = (tabId: string) => `results-window:sync:${tabId}`;
+export const resultsCopyEvent = (tabId: string) => `results-window:copy:${tabId}`;
 
 /** Synthetic entry id used to render a legacy single `Tab.result` through the
  * entry-based detached view. */
-export const SINGLE_RESULT_ENTRY_ID = "__single__";
+export const SINGLE_RESULT_ENTRY_ID = '__single__';
 
-export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
+export type CopyFormat = 'csv' | 'json' | 'sql-insert' | 'markdown';
 
 /** Display settings the detached window needs but cannot read from main-window
  * React state. */
 export interface ResultsDisplaySettings {
-  connectionId: string | null;
-  copyFormat: CopyFormat;
-  csvDelimiter: string;
-  csvIncludeHeaders: boolean;
+    connectionId: string | null;
+    copyFormat: CopyFormat;
+    csvDelimiter: string;
+    csvIncludeHeaders: boolean;
 }
 
 /** Full snapshot of the active tab's result state pushed to the detached window. */
 export interface ResultsSyncPayload extends ResultsDisplaySettings {
-  tabId: string;
-  tabTitle: string;
-  query: string;
-  // Legacy single-result path (`Tab.result`).
-  result: QueryResult | null;
-  error: string;
-  executionTime: number | null;
-  isLoading: boolean;
-  activeTable: string | null;
-  // Multi-result path (`Tab.results`).
-  results?: QueryResultEntry[];
-  activeResultId?: string;
+    tabId: string;
+    tabTitle: string;
+    query: string;
+    // Legacy single-result path (`Tab.result`).
+    result: QueryResult | null;
+    error: string;
+    executionTime: number | null;
+    isLoading: boolean;
+    activeTable: string | null;
+    // Multi-result path (`Tab.results`).
+    results?: QueryResultEntry[];
+    activeResultId?: string;
 }
 
 /** Handshake the detached window sends on mount so the main window pushes the
  * current state for its tab. */
 export interface ResultsReadyPayload {
-  tabId: string;
+    tabId: string;
 }
 
 /** Notification (from the backend) that a tab's detached window was closed. */
 export interface ResultsClosedPayload {
-  tabId: string;
+    tabId: string;
 }
 
 /** Full result set formatted for the clipboard. */
 export interface CopiedRows {
-  text: string;
-  count: number;
+    text: string;
+    count: number;
 }
 
 /** Copy-all result the main window sends back to the detached window that
  * asked for it. The detached window writes the clipboard itself, so the write
  * and its toast happen in the focused window. */
-export type ResultsCopyPayload = CopiedRows | { error: string };
+export type ResultsCopyPayload = CopiedRows | {error: string};
 
 /** Actions the detached window forwards to the main window. */
 export type ResultsWindowAction =
-  | { type: "run-query-page"; query: string; page: number }
-  | { type: "page-change"; entryId: string; page: number }
-  | { type: "select-result"; entryId: string }
-  | { type: "rerun-entry"; entryId: string }
-  | { type: "close-entry"; entryId: string }
-  | { type: "close-other-entries"; entryId: string }
-  | { type: "close-entries-to-right"; entryId: string }
-  | { type: "close-entries-to-left"; entryId: string }
-  | { type: "close-all-entries" }
-  | { type: "rename-entry"; entryId: string; label: string }
-  | { type: "load-count" }
-  | { type: "copy-all-rows" }
-  | { type: "copy-entry-all-rows"; entryId: string };
+    | {type: 'run-query-page'; query: string; page: number}
+    | {type: 'page-change'; entryId: string; page: number}
+    | {type: 'select-result'; entryId: string}
+    | {type: 'rerun-entry'; entryId: string}
+    | {type: 'close-entry'; entryId: string}
+    | {type: 'close-other-entries'; entryId: string}
+    | {type: 'close-entries-to-right'; entryId: string}
+    | {type: 'close-entries-to-left'; entryId: string}
+    | {type: 'close-all-entries'}
+    | {type: 'rename-entry'; entryId: string; label: string}
+    | {type: 'load-count'}
+    | {type: 'copy-all-rows'}
+    | {type: 'copy-entry-all-rows'; entryId: string};
 
 /** Action envelope tagging which tab's window forwarded the action, so the main
  * window applies it to the correct tab. */
 export interface ResultsActionEnvelope {
-  tabId: string;
-  action: ResultsWindowAction;
+    tabId: string;
+    action: ResultsWindowAction;
 }
 
 /** Handlers the main window wires to its existing result operations. */
 export interface ResultsWindowActionHandlers {
-  onRunQueryPage: (query: string, page: number) => void;
-  onPageChange: (entryId: string, page: number) => void;
-  onSelectResult: (entryId: string) => void;
-  onRerunEntry: (entryId: string) => void;
-  onCloseEntry: (entryId: string) => void;
-  onCloseOtherEntries: (entryId: string) => void;
-  onCloseEntriesToRight: (entryId: string) => void;
-  onCloseEntriesToLeft: (entryId: string) => void;
-  onCloseAllEntries: () => void;
-  onRenameEntry: (entryId: string, label: string) => void;
-  onLoadCount: () => void;
-  onCopyAllRows: () => void;
-  onCopyEntryAllRows: (entryId: string) => void;
+    onRunQueryPage: (query: string, page: number) => void;
+    onPageChange: (entryId: string, page: number) => void;
+    onSelectResult: (entryId: string) => void;
+    onRerunEntry: (entryId: string) => void;
+    onCloseEntry: (entryId: string) => void;
+    onCloseOtherEntries: (entryId: string) => void;
+    onCloseEntriesToRight: (entryId: string) => void;
+    onCloseEntriesToLeft: (entryId: string) => void;
+    onCloseAllEntries: () => void;
+    onRenameEntry: (entryId: string, label: string) => void;
+    onLoadCount: () => void;
+    onCopyAllRows: () => void;
+    onCopyEntryAllRows: (entryId: string) => void;
 }
 
 /** Build the snapshot pushed to the detached window from the active tab. */
-export function buildSyncPayload(
-  tab: Tab,
-  settings: ResultsDisplaySettings,
-): ResultsSyncPayload {
-  return {
-    tabId: tab.id,
-    tabTitle: tab.title,
-    query: tab.query,
-    result: tab.result,
-    error: tab.error,
-    executionTime: tab.executionTime,
-    isLoading: tab.isLoading ?? false,
-    activeTable: tab.activeTable,
-    results: tab.results,
-    activeResultId: tab.activeResultId,
-    connectionId: settings.connectionId,
-    copyFormat: settings.copyFormat,
-    csvDelimiter: settings.csvDelimiter,
-    csvIncludeHeaders: settings.csvIncludeHeaders,
-  };
+export function buildSyncPayload(tab: Tab, settings: ResultsDisplaySettings): ResultsSyncPayload {
+    return {
+        tabId: tab.id,
+        tabTitle: tab.title,
+        query: tab.query,
+        result: tab.result,
+        error: tab.error,
+        executionTime: tab.executionTime,
+        isLoading: tab.isLoading ?? false,
+        activeTable: tab.activeTable,
+        results: tab.results,
+        activeResultId: tab.activeResultId,
+        connectionId: settings.connectionId,
+        copyFormat: settings.copyFormat,
+        csvDelimiter: settings.csvDelimiter,
+        csvIncludeHeaders: settings.csvIncludeHeaders,
+    };
 }
 
 /** True when the payload should render the multi-result panel rather than the
  * legacy single-result view. */
 export function hasMultiResults(payload: ResultsSyncPayload): boolean {
-  return Array.isArray(payload.results) && payload.results.length > 0;
+    return Array.isArray(payload.results) && payload.results.length > 0;
 }
 
 /** Adapt a legacy single-result payload into a {@link QueryResultEntry} so the
  * detached window can reuse the entry-based renderer. */
-export function singleResultToEntry(
-  payload: ResultsSyncPayload,
-): QueryResultEntry {
-  return {
-    id: SINGLE_RESULT_ENTRY_ID,
-    queryIndex: 0,
-    query: payload.query,
-    result: payload.result,
-    error: payload.error,
-    executionTime: payload.executionTime,
-    isLoading: payload.isLoading,
-    page: payload.result?.pagination?.page ?? 1,
-    activeTable: payload.activeTable,
-    pkColumns: null,
-  };
+export function singleResultToEntry(payload: ResultsSyncPayload): QueryResultEntry {
+    return {
+        id: SINGLE_RESULT_ENTRY_ID,
+        queryIndex: 0,
+        query: payload.query,
+        result: payload.result,
+        error: payload.error,
+        executionTime: payload.executionTime,
+        isLoading: payload.isLoading,
+        page: payload.result?.pagination?.page ?? 1,
+        activeTable: payload.activeTable,
+        pkColumns: null,
+    };
 }
 
 /** Route a copy-all result to the copied or error handler. */
 export function applyCopyResult(
-  payload: ResultsCopyPayload,
-  handlers: {
-    onCopied: (rows: CopiedRows) => void;
-    onError: (error: string) => void;
-  },
+    payload: ResultsCopyPayload,
+    handlers: {
+        onCopied: (rows: CopiedRows) => void;
+        onError: (error: string) => void;
+    },
 ): void {
-  if ("error" in payload) {
-    handlers.onError(payload.error);
-  } else {
-    handlers.onCopied({ text: payload.text, count: payload.count });
-  }
+    if ('error' in payload) {
+        handlers.onError(payload.error);
+    } else {
+        handlers.onCopied({text: payload.text, count: payload.count});
+    }
 }
 
 /** Dispatch a forwarded action to the main window's handlers. */
 export function applyAction(
-  action: ResultsWindowAction,
-  handlers: ResultsWindowActionHandlers,
+    action: ResultsWindowAction,
+    handlers: ResultsWindowActionHandlers,
 ): void {
-  switch (action.type) {
-    case "run-query-page":
-      handlers.onRunQueryPage(action.query, action.page);
-      break;
-    case "page-change":
-      handlers.onPageChange(action.entryId, action.page);
-      break;
-    case "select-result":
-      handlers.onSelectResult(action.entryId);
-      break;
-    case "rerun-entry":
-      handlers.onRerunEntry(action.entryId);
-      break;
-    case "close-entry":
-      handlers.onCloseEntry(action.entryId);
-      break;
-    case "close-other-entries":
-      handlers.onCloseOtherEntries(action.entryId);
-      break;
-    case "close-entries-to-right":
-      handlers.onCloseEntriesToRight(action.entryId);
-      break;
-    case "close-entries-to-left":
-      handlers.onCloseEntriesToLeft(action.entryId);
-      break;
-    case "close-all-entries":
-      handlers.onCloseAllEntries();
-      break;
-    case "rename-entry":
-      handlers.onRenameEntry(action.entryId, action.label);
-      break;
-    case "load-count":
-      handlers.onLoadCount();
-      break;
-    case "copy-all-rows":
-      handlers.onCopyAllRows();
-      break;
-    case "copy-entry-all-rows":
-      handlers.onCopyEntryAllRows(action.entryId);
-      break;
-  }
+    switch (action.type) {
+        case 'run-query-page':
+            handlers.onRunQueryPage(action.query, action.page);
+            break;
+        case 'page-change':
+            handlers.onPageChange(action.entryId, action.page);
+            break;
+        case 'select-result':
+            handlers.onSelectResult(action.entryId);
+            break;
+        case 'rerun-entry':
+            handlers.onRerunEntry(action.entryId);
+            break;
+        case 'close-entry':
+            handlers.onCloseEntry(action.entryId);
+            break;
+        case 'close-other-entries':
+            handlers.onCloseOtherEntries(action.entryId);
+            break;
+        case 'close-entries-to-right':
+            handlers.onCloseEntriesToRight(action.entryId);
+            break;
+        case 'close-entries-to-left':
+            handlers.onCloseEntriesToLeft(action.entryId);
+            break;
+        case 'close-all-entries':
+            handlers.onCloseAllEntries();
+            break;
+        case 'rename-entry':
+            handlers.onRenameEntry(action.entryId, action.label);
+            break;
+        case 'load-count':
+            handlers.onLoadCount();
+            break;
+        case 'copy-all-rows':
+            handlers.onCopyAllRows();
+            break;
+        case 'copy-entry-all-rows':
+            handlers.onCopyEntryAllRows(action.entryId);
+            break;
+    }
 }

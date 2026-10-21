@@ -1,5 +1,5 @@
-import type { ExplainPlan, ExplainQueryOutput } from "@tabularis/explain";
-import { resolveExplainOutput } from "@tabularis/explain";
+import type {ExplainPlan, ExplainQueryOutput} from '@tabularis/explain';
+import {resolveExplainOutput} from '@tabularis/explain';
 
 /**
  * Normalise the `explainPlan` payload of a pending MCP approval into an
@@ -11,17 +11,17 @@ import { resolveExplainOutput } from "@tabularis/explain";
  * straight to `ExplainPlan` crashes the visualiser on `plan.root`.
  */
 export function parseApprovalExplainPlan(value: unknown): ExplainPlan | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-  try {
-    const plan =
-      "kind" in value
-        ? resolveExplainOutput(value as ExplainQueryOutput)
-        : (value as ExplainPlan);
-    // A plan without a root would crash the visualiser downstream.
-    return plan?.root ? plan : null;
-  } catch {
-    return null;
-  }
+    if (!value || typeof value !== 'object') {
+        return null;
+    }
+    try {
+        const plan =
+            'kind' in value
+                ? resolveExplainOutput(value as ExplainQueryOutput)
+                : (value as ExplainPlan);
+        // A plan without a root would crash the visualiser downstream.
+        return plan?.root ? plan : null;
+    } catch {
+        return null;
+    }
 }

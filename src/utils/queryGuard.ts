@@ -1,6 +1,6 @@
 export interface QueryGuardPipeline {
-  guardProduction: () => Promise<boolean>;
-  guardDangerousQuery: () => Promise<boolean>;
+    guardProduction: () => Promise<boolean>;
+    guardDangerousQuery: () => Promise<boolean>;
 }
 
 /**
@@ -8,9 +8,9 @@ export interface QueryGuardPipeline {
  * to block the operation; the standard dangerous-query guard runs afterwards.
  */
 export async function passQueryGuards({
-  guardProduction,
-  guardDangerousQuery,
+    guardProduction,
+    guardDangerousQuery,
 }: QueryGuardPipeline): Promise<boolean> {
-  if (!(await guardProduction())) return false;
-  return guardDangerousQuery();
+    if (!(await guardProduction())) return false;
+    return guardDangerousQuery();
 }

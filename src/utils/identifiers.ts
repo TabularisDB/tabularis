@@ -1,12 +1,12 @@
-import type { DriverCapabilities, PluginManifest } from "../types/plugins";
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 
 /** Narrows a `driver` argument down to its `DriverCapabilities`, whether it
  * arrived as a full `PluginManifest`, a bare `DriverCapabilities`, or neither. */
 function capabilitiesOf(
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): DriverCapabilities | null {
-  if (typeof driver !== "object" || driver === null) return null;
-  return "capabilities" in driver ? driver.capabilities : driver;
+    if (typeof driver !== 'object' || driver === null) return null;
+    return 'capabilities' in driver ? driver.capabilities : driver;
 }
 
 /**
@@ -16,21 +16,21 @@ function capabilitiesOf(
  * MySQL/MariaDB use backticks (`), while PostgreSQL and SQLite use double quotes (").
  */
 export function getQuoteChar(
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string {
-  const caps = capabilitiesOf(driver);
-  if (caps?.identifier_quote) {
-    return caps.identifier_quote;
-  }
-  // legacy fallback for string driver names (or an object with no id, e.g. a
-  // bare DriverCapabilities that omitted identifier_quote)
-  const driverStr =
-    typeof driver === "object" && driver !== null && "id" in driver
-      ? driver.id
-      : typeof driver === "string"
-        ? driver
-        : undefined;
-  return driverStr === "mysql" || driverStr === "mariadb" ? "`" : '"';
+    const caps = capabilitiesOf(driver);
+    if (caps?.identifier_quote) {
+        return caps.identifier_quote;
+    }
+    // legacy fallback for string driver names (or an object with no id, e.g. a
+    // bare DriverCapabilities that omitted identifier_quote)
+    const driverStr =
+        typeof driver === 'object' && driver !== null && 'id' in driver
+            ? driver.id
+            : typeof driver === 'string'
+              ? driver
+              : undefined;
+    return driverStr === 'mysql' || driverStr === 'mariadb' ? '`' : '"';
 }
 
 /**
@@ -47,9 +47,9 @@ export function getQuoteChar(
  */
 /** Quotes identifiers for PostgreSQL dialects; see `isPostgresDialect`. */
 export function shouldQuoteIdentifiers(
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): boolean {
-  return isPostgresDialect(driver);
+    return isPostgresDialect(driver);
 }
 
 /**
@@ -66,32 +66,52 @@ export function shouldQuoteIdentifiers(
  * bare-string callers keep working without a manifest in scope.
  */
 export function isPostgresDialect(
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): boolean {
-  const caps = capabilitiesOf(driver);
-  if (caps) {
-    return (caps.sql_dialect ?? "postgres") === "postgres";
-  }
-  return driver === "postgres" || driver === "postgresql";
+    const caps = capabilitiesOf(driver);
+    if (caps) {
+        return (caps.sql_dialect ?? 'postgres') === 'postgres';
+    }
+    return driver === 'postgres' || driver === 'postgresql';
 }
 
 /** True for MySQL SQL dialect capabilities or the builtin "mysql" driver id. */
 export function isMysqlDialect(
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): boolean {
-  const caps = capabilitiesOf(driver);
-  if (caps) {
-    return caps.sql_dialect === "mysql";
-  }
-  return driver === "mysql";
+    const caps = capabilitiesOf(driver);
+    if (caps) {
+        return caps.sql_dialect === 'mysql';
+    }
+    return driver === 'mysql';
 }
 
 // PostgreSQL folds unquoted identifiers to lowercase and only needs quotes for
 // reserved words, mixed case, or special characters — mirroring quote_ident().
 const PG_SAFE_IDENTIFIER = /^[a-z_][a-z0-9_$]*$/;
 const PG_RESERVED = new Set([
-  "select", "from", "where", "table", "user", "order", "group", "join", "and", "or",
-  "as", "in", "on", "by", "null", "true", "false", "default", "check", "column", "limit", "offset",
+    'select',
+    'from',
+    'where',
+    'table',
+    'user',
+    'order',
+    'group',
+    'join',
+    'and',
+    'or',
+    'as',
+    'in',
+    'on',
+    'by',
+    'null',
+    'true',
+    'false',
+    'default',
+    'check',
+    'column',
+    'limit',
+    'offset',
 ]);
 
 /**
@@ -99,23 +119,23 @@ const PG_RESERVED = new Set([
  * Quotes only when required (PostgreSQL); otherwise returns the name unchanged.
  */
 export function formatSqlIdentifier(
-  identifier: string,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    identifier: string,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string {
-  if (!shouldQuoteIdentifiers(driver)) return identifier;
-  if (PG_SAFE_IDENTIFIER.test(identifier) && !PG_RESERVED.has(identifier)) {
-    return identifier;
-  }
-  return quoteIdentifier(identifier, driver);
+    if (!shouldQuoteIdentifiers(driver)) return identifier;
+    if (PG_SAFE_IDENTIFIER.test(identifier) && !PG_RESERVED.has(identifier)) {
+        return identifier;
+    }
+    return quoteIdentifier(identifier, driver);
 }
 
 export function quoteIdentifier(
-  identifier: string,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    identifier: string,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string {
-  const quote = getQuoteChar(driver);
-  const escaped = identifier.replaceAll(quote, `${quote}${quote}`);
-  return `${quote}${escaped}${quote}`;
+    const quote = getQuoteChar(driver);
+    const escaped = identifier.replaceAll(quote, `${quote}${quote}`);
+    return `${quote}${escaped}${quote}`;
 }
 
 /**
@@ -124,13 +144,12 @@ export function quoteIdentifier(
  * Otherwise returns just the quoted table name.
  */
 export function quoteTableRef(
-  table: string,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
-  schema?: string | null,
+    table: string,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    schema?: string | null,
 ): string {
-  if (schema) {
-    return `${quoteIdentifier(schema, driver)}.${quoteIdentifier(table, driver)}`;
-  }
-  return quoteIdentifier(table, driver);
+    if (schema) {
+        return `${quoteIdentifier(schema, driver)}.${quoteIdentifier(table, driver)}`;
+    }
+    return quoteIdentifier(table, driver);
 }
-

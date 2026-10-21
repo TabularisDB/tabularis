@@ -1,22 +1,22 @@
-import { useTranslation } from "react-i18next";
-import clsx from "clsx";
+import {useTranslation} from 'react-i18next';
+import clsx from 'clsx';
 
 interface BetaBadgeProps {
-  className?: string;
+    className?: string;
 }
 
 /** Small "BETA" pill for features that are still experimental. */
-export const BetaBadge = ({ className }: BetaBadgeProps) => {
-  const { t } = useTranslation();
-  return (
-    <span
-      className={clsx(
-        "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-        "border border-accent-warning/30 bg-accent-warning/15 text-accent-warning",
-        className,
-      )}
-    >
-      {t("common.beta")}
-    </span>
-  );
+export const BetaBadge = ({className}: BetaBadgeProps) => {
+    const {t} = useTranslation();
+    return (
+        <span
+            className={clsx(
+                'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                'border border-accent-warning/30 bg-accent-warning/15 text-accent-warning',
+                className,
+            )}
+        >
+            {t('common.beta')}
+        </span>
+    );
 };

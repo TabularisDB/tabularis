@@ -13,6 +13,7 @@ use sqlx::Row;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Runtime, State};
 use zip::ZipArchive;
@@ -36,38 +37,101 @@ fn import_slot_key(connection_id: &str) -> String {
     format!("{}_import", connection_id)
 }
 
+pub fn db_backup_slot_key(connection_id: &str) -> String {
+    format!("{}_db_backup", connection_id)
+}
+
+/// Error returned by a dump whose task was aborted through its slot.
+pub const DUMP_CANCELLED: &str = "Dump cancelled";
+
+/// Aborts every task registered under `slot_key`. Returns `false` when
+/// nothing was running there.
+pub(crate) fn abort_slot(handles: &Mutex<AbortHandleMap>, slot_key: &str) -> bool {
+    let entries = {
+        let mut handles = handles.lock().unwrap();
+        handles.remove(slot_key).unwrap_or_default()
+    };
+    for handle in &entries {
+        handle.abort();
+    }
+    !entries.is_empty()
+}
+
+/// Registers `task` under `slot_key` so `abort_slot` can stop it, then waits
+/// for it. An aborted task yields [`DUMP_CANCELLED`].
+///
+/// `cancel_requested` covers a cancel that arrives before the task is
+/// registered, when `abort_slot` finds nothing to stop: the flag is checked
+/// again right after registering, so either the canceller sees the handle or
+/// this sees the flag.
+pub(crate) async fn await_cancellable_dump(
+    handles: &Mutex<AbortHandleMap>,
+    slot_key: String,
+    task: tokio::task::JoinHandle<Result<(), String>>,
+    cancel_requested: Option<&AtomicBool>,
+) -> Result<(), String> {
+    let abort_handle = Arc::new(task.abort_handle());
+    register_abort_handle(handles, slot_key.clone(), abort_handle.clone());
+    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        abort_handle.abort();
+    }
+
+    let result = task.await;
+
+    unregister_abort_handle(handles, &slot_key, &abort_handle);
+
+    match result {
+        Ok(res) => res,
+        Err(e) if e.is_cancelled() => Err(DUMP_CANCELLED.into()),
+        Err(e) => Err(format!("Dump task failed: {e}")),
+    }
+}
+
 #[tauri::command]
 pub async fn cancel_dump(
     state: State<'_, DumpCancellationState>,
     connection_id: String,
 ) -> Result<(), String> {
-    let entries = {
-        let mut handles = state.handles.lock().unwrap();
-        handles.remove(&connection_id).unwrap_or_default()
-    };
-    if entries.is_empty() {
+    if !abort_slot(&state.handles, &connection_id) {
         return Err("No active dump process found".into());
-    }
-    for handle in entries {
-        handle.abort();
     }
     Ok(())
 }
 
-#[tauri::command]
-pub async fn dump_database<R: Runtime>(
-    app: AppHandle<R>,
-    state: State<'_, DumpCancellationState>,
-    connection_id: String,
-    file_path: String,
-    options: DumpOptions,
-    schema: Option<String>,
-    database: Option<String>,
+/// One dump: what to write, where, and the cancellation slot it runs under.
+pub struct DumpRequest {
+    pub slot_key: String,
+    pub connection_id: String,
+    pub file_path: String,
+    pub options: DumpOptions,
+    pub schema: Option<String>,
+    pub database: Option<String>,
+}
+
+/// Runs `request`. When `cancel_requested` is set before the dump starts
+/// (e.g. during the SSH/K8s setup), it returns [`DUMP_CANCELLED`] without
+/// writing anything.
+pub async fn dump_database_with_handles<R: Runtime>(
+    app: &AppHandle<R>,
+    handles: &Arc<Mutex<AbortHandleMap>>,
+    request: DumpRequest,
+    cancel_requested: Option<&AtomicBool>,
 ) -> Result<(), String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let DumpRequest {
+        slot_key,
+        connection_id,
+        file_path,
+        options,
+        schema,
+        database,
+    } = request;
+    let saved_conn = find_connection_by_id(app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(app, &expanded_params).await?;
     let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        return Err(DUMP_CANCELLED.into());
+    }
     // Scope the dump to the selected database on connections that expose multiple
     // databases (e.g. MySQL/MariaDB). Without this the connection pool stays bound
     // to the primary database, so unqualified statements such as `SHOW CREATE TABLE`
@@ -183,17 +247,33 @@ pub async fn dump_database<R: Runtime>(
         Ok::<(), String>(())
     });
 
-    let abort_handle = Arc::new(task.abort_handle());
-    register_abort_handle(&state.handles, connection_id.clone(), abort_handle.clone());
+    await_cancellable_dump(handles, slot_key, task, cancel_requested).await
+}
 
-    let result = task.await;
-
-    unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
-
-    match result {
-        Ok(res) => res,
-        Err(_) => Err("Dump cancelled".into()),
-    }
+#[tauri::command]
+pub async fn dump_database<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, DumpCancellationState>,
+    connection_id: String,
+    file_path: String,
+    options: DumpOptions,
+    schema: Option<String>,
+    database: Option<String>,
+) -> Result<(), String> {
+    dump_database_with_handles(
+        &app,
+        &state.handles,
+        DumpRequest {
+            slot_key: connection_id.clone(),
+            connection_id,
+            file_path,
+            options,
+            schema,
+            database,
+        },
+        None,
+    )
+    .await
 }
 
 async fn export_table_data(

@@ -10,15 +10,12 @@ export type ResultExportFormat = 'csv' | 'json' | 'ndjson' | 'markdown' | 'html'
 export type ExportScope = 'all' | 'loaded';
 
 /**
- * Whether the grid holds fewer rows than the query returns: fewer loaded rows
- * than the known total, or an unknown total with more pages to fetch. Only
- * then do the two export scopes differ, so the scope selector is shown.
+ * Whether the grid holds fewer rows than the query returns (see
+ * `getLoadedRowsExportLimit`). Only then do the two export scopes differ,
+ * so the scope selector is shown.
  */
 export function hasUnloadedRows(result: QueryResult): boolean {
-    if (getLoadedRowsExportLimit(result)) return true;
-    const totalRows = result.pagination?.total_rows;
-    const totalKnown = typeof totalRows === 'number' && Number.isFinite(totalRows);
-    return !totalKnown && result.pagination?.has_more === true;
+    return getLoadedRowsExportLimit(result) !== null;
 }
 
 /**
@@ -39,17 +36,27 @@ export function resolveExportScope(
     return result.rows.length > 0 ? 'all' : 'loaded';
 }
 
-export function getLoadedRowsExportLimit(
-    result: QueryResult,
-): {loadedRows: number; totalRows: number} | null {
-    const totalRows = result.pagination?.total_rows;
-
-    if (typeof totalRows !== 'number' || !Number.isFinite(totalRows)) {
-        return null;
-    }
+/**
+ * Describes a loaded-rows export that may not contain the whole query result.
+ * `totalRows` is null when the backend did not report a count, in which case
+ * the result is treated as partial if more pages exist or the loaded page is
+ * not the first one.
+ */
+export function getLoadedRowsExportLimit(result: QueryResult): {
+    loadedRows: number;
+    totalRows: number | null;
+} | null {
+    const pagination = result.pagination;
+    if (!pagination) return null;
 
     const loadedRows = result.rows.length;
-    return loadedRows < totalRows ? {loadedRows, totalRows} : null;
+    const totalRows = pagination.total_rows;
+
+    if (typeof totalRows === 'number' && Number.isFinite(totalRows)) {
+        return loadedRows < totalRows ? {loadedRows, totalRows} : null;
+    }
+
+    return pagination.has_more || pagination.page > 1 ? {loadedRows, totalRows: null} : null;
 }
 
 /**

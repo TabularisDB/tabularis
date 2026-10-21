@@ -1,6 +1,6 @@
-import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { quoteTableRef } from "./identifiers";
-import { supportsPluginDropTableSql } from "./driverCapabilities";
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import {quoteTableRef} from './identifiers';
+import {supportsPluginDropTableSql} from './driverCapabilities';
 
 /**
  * Statement used by the explorer to drop a table. A plugin can return its own
@@ -10,14 +10,14 @@ import { supportsPluginDropTableSql } from "./driverCapabilities";
  * driver's identifier quoting.
  */
 export function resolveDropTableSql(
-  pluginStatement: unknown,
-  table: string,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
-  schema?: string | null,
+    pluginStatement: unknown,
+    table: string,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    schema?: string | null,
 ): string {
-  const custom = typeof pluginStatement === "string" ? pluginStatement.trim() : "";
-  if (custom) return custom;
-  return `DROP TABLE ${quoteTableRef(table, driver, schema)}`;
+    const custom = typeof pluginStatement === 'string' ? pluginStatement.trim() : '';
+    if (custom) return custom;
+    return `DROP TABLE ${quoteTableRef(table, driver, schema)}`;
 }
 
 /**
@@ -27,14 +27,14 @@ export function resolveDropTableSql(
  * without a round trip.
  */
 export async function buildDropTableSql(
-  capabilities: DriverCapabilities | null | undefined,
-  fetchPluginStatement: () => Promise<unknown>,
-  table: string,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
-  schema?: string | null,
+    capabilities: DriverCapabilities | null | undefined,
+    fetchPluginStatement: () => Promise<unknown>,
+    table: string,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    schema?: string | null,
 ): Promise<string> {
-  const pluginStatement = supportsPluginDropTableSql(capabilities)
-    ? await fetchPluginStatement()
-    : null;
-  return resolveDropTableSql(pluginStatement, table, driver, schema);
+    const pluginStatement = supportsPluginDropTableSql(capabilities)
+        ? await fetchPluginStatement()
+        : null;
+    return resolveDropTableSql(pluginStatement, table, driver, schema);
 }

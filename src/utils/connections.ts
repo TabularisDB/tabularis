@@ -3,20 +3,20 @@
  * Extracted from Connections.tsx for testability
  */
 
-import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import type { ConnectionGroup, SavedConnection } from "../contexts/DatabaseContext";
-import type { ProxyOverride } from "../types/proxy";
-import { isLocalDriver } from "./driverCapabilities";
-import { isMultiDatabaseCapable } from "./database";
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import type {ConnectionGroup, SavedConnection} from '@/contexts/DatabaseContext';
+import type {ProxyOverride} from '@/types/proxy';
+import {isLocalDriver} from './driverCapabilities';
+import {isMultiDatabaseCapable} from './database';
 
 export type DatabaseDriver = string;
 
-export const BUILTIN_DRIVER_IDS = ["postgres", "mysql", "sqlite"] as const;
+export const BUILTIN_DRIVER_IDS = ['postgres', 'mysql', 'sqlite'] as const;
 export type BuiltinDriverId = (typeof BUILTIN_DRIVER_IDS)[number];
 
 /** Which direction a per-connection migration action would go, or `null` if
  * migration isn't applicable to this connection's current driver. */
-export type MigrationDirection = "to-plugin" | "to-builtin" | null;
+export type MigrationDirection = 'to-plugin' | 'to-builtin' | null;
 
 /**
  * Built-in/plugin driver pairs with a wired `useBuiltinDriverMigration` hook
@@ -27,7 +27,7 @@ export type MigrationDirection = "to-plugin" | "to-builtin" | null;
  * triggering an action for a driver nothing actually handles yet. Add a pair
  * here in the same commit that wires its `useBuiltinDriverMigration` call.
  */
-const MIGRATABLE_DRIVER_PAIRS: ReadonlySet<string> = new Set(["postgres:postgresql"]);
+const MIGRATABLE_DRIVER_PAIRS: ReadonlySet<string> = new Set(['postgres:postgresql']);
 
 /**
  * Determine whether a connection's current driver is a deprecated built-in
@@ -40,73 +40,71 @@ const MIGRATABLE_DRIVER_PAIRS: ReadonlySet<string> = new Set(["postgres:postgres
  * registered manifests.
  */
 export function migrationDirectionForDriver(
-  driverId: string,
-  allDrivers: PluginManifest[],
+    driverId: string,
+    allDrivers: PluginManifest[],
 ): MigrationDirection {
-  const currentManifest = allDrivers.find((d) => d.id === driverId);
-  if (currentManifest?.deprecated?.replacement_id) {
-    const pair = `${driverId}:${currentManifest.deprecated.replacement_id}`;
-    if (MIGRATABLE_DRIVER_PAIRS.has(pair)) return "to-plugin";
+    const currentManifest = allDrivers.find((d) => d.id === driverId);
+    if (currentManifest?.deprecated?.replacement_id) {
+        const pair = `${driverId}:${currentManifest.deprecated.replacement_id}`;
+        if (MIGRATABLE_DRIVER_PAIRS.has(pair)) return 'to-plugin';
+        return null;
+    }
+    const deprecatedBuiltin = allDrivers.find((d) => d.deprecated?.replacement_id === driverId);
+    if (deprecatedBuiltin) {
+        const pair = `${deprecatedBuiltin.id}:${driverId}`;
+        if (MIGRATABLE_DRIVER_PAIRS.has(pair)) return 'to-builtin';
+        return null;
+    }
     return null;
-  }
-  const deprecatedBuiltin = allDrivers.find(
-    (d) => d.deprecated?.replacement_id === driverId,
-  );
-  if (deprecatedBuiltin) {
-    const pair = `${deprecatedBuiltin.id}:${driverId}`;
-    if (MIGRATABLE_DRIVER_PAIRS.has(pair)) return "to-builtin";
-    return null;
-  }
-  return null;
 }
 
 export interface ConnectionParams {
-  driver: DatabaseDriver;
-  host?: string;
-  database: string;
-  port?: number;
-  username?: string;
-  password?: string;
-  /** TLS mode selected for the server connection. */
-  ssl_mode?: string;
-  /** Raw driver-specific connection URI, forwarded verbatim to the driver.
-   * Never persisted in connections.json: it embeds credentials and is stored
-   * in the OS keychain instead. */
-  connection_uri?: string;
-  /** True when the URI can be restored from the OS keychain. */
-  connection_uri_in_keychain?: boolean;
-  ssh_enabled?: boolean;
-  ssh_connection_id?: string;
-  // Legacy fields (for backward compatibility)
-  ssh_host?: string;
-  ssh_port?: number;
-  ssh_user?: string;
-  ssh_password?: string;
-  ssh_key_file?: string;
-  ssh_key_passphrase?: string;
-  ssh_allow_passphrase_prompt?: boolean;
-  // K8s
-  k8s_enabled?: boolean;
-  k8s_connection_id?: string;
-  k8s_context?: string;
-  k8s_namespace?: string;
-  k8s_resource_type?: string;
-  k8s_resource_name?: string;
-  k8s_port?: number;
-  // AWS SSM
-  ssm_enabled?: boolean;
-  ssm_target?: string;
-  ssm_profile?: string;
-  ssm_region?: string;
-  /** SQL run on every new connection to this data source (e.g. SET / set_config). */
-  startup_script?: string;
-  /** Connection pooler mode for PgBouncer / transaction-mode poolers. */
-  pooler_mode?: string;
-  /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB
-   * plugin). Persisted as-is and forwarded verbatim to the driver/plugin. */
-  extra?: Record<string, string>;
-  /** Optional proxy override for this connection. */
-  proxy?: ProxyOverride;
+    driver: DatabaseDriver;
+    host?: string;
+    database: string;
+    port?: number;
+    username?: string;
+    password?: string;
+    /** TLS mode selected for the server connection. */
+    ssl_mode?: string;
+    /** Raw driver-specific connection URI, forwarded verbatim to the driver.
+     * Never persisted in connections.json: it embeds credentials and is stored
+     * in the OS keychain instead. */
+    connection_uri?: string;
+    /** True when the URI can be restored from the OS keychain. */
+    connection_uri_in_keychain?: boolean;
+    ssh_enabled?: boolean;
+    ssh_connection_id?: string;
+    // Legacy fields (for backward compatibility)
+    ssh_host?: string;
+    ssh_port?: number;
+    ssh_user?: string;
+    ssh_password?: string;
+    ssh_key_file?: string;
+    ssh_key_passphrase?: string;
+    ssh_allow_passphrase_prompt?: boolean;
+    // K8s
+    k8s_enabled?: boolean;
+    k8s_connection_id?: string;
+    k8s_context?: string;
+    k8s_namespace?: string;
+    k8s_resource_type?: string;
+    k8s_resource_name?: string;
+    k8s_port?: number;
+    // AWS SSM
+    ssm_enabled?: boolean;
+    ssm_target?: string;
+    ssm_profile?: string;
+    ssm_region?: string;
+    /** SQL run on every new connection to this data source (e.g. SET / set_config). */
+    startup_script?: string;
+    /** Connection pooler mode for PgBouncer / transaction-mode poolers. */
+    pooler_mode?: string;
+    /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB
+     * plugin). Persisted as-is and forwarded verbatim to the driver/plugin. */
+    extra?: Record<string, string>;
+    /** Optional proxy override for this connection. */
+    proxy?: ProxyOverride;
 }
 
 /**
@@ -114,15 +112,15 @@ export interface ConnectionParams {
  * persists an omitted mode as `null`, so a connection loaded from disk can
  * carry `null` here as well as `undefined`.
  */
-export function withoutBlankSslMode<T extends { ssl_mode?: string | null }>(
-  params: T,
-): Omit<T, "ssl_mode"> | T {
-  if (params.ssl_mode == null || params.ssl_mode.trim() === "") {
-    const rest = { ...params };
-    delete rest.ssl_mode;
-    return rest;
-  }
-  return params;
+export function withoutBlankSslMode<T extends {ssl_mode?: string | null}>(
+    params: T,
+): Omit<T, 'ssl_mode'> | T {
+    if (params.ssl_mode == null || params.ssl_mode.trim() === '') {
+        const rest = {...params};
+        delete rest.ssl_mode;
+        return rest;
+    }
+    return params;
 }
 
 /**
@@ -138,19 +136,19 @@ export function withoutBlankSslMode<T extends { ssl_mode?: string | null }>(
  * @param value - New value; empty string clears the field
  */
 export function updateExtraField(
-  extra: Record<string, string> | undefined,
-  key: string,
-  value: string,
+    extra: Record<string, string> | undefined,
+    key: string,
+    value: string,
 ): Record<string, string> | undefined {
-  const trimmedKey = key.trim();
-  if (!trimmedKey) return extra;
-  const next = { ...(extra ?? {}) };
-  if (value === "") {
-    delete next[trimmedKey];
-  } else {
-    next[trimmedKey] = value;
-  }
-  return Object.keys(next).length > 0 ? next : undefined;
+    const trimmedKey = key.trim();
+    if (!trimmedKey) return extra;
+    const next = {...(extra ?? {})};
+    if (value === '') {
+        delete next[trimmedKey];
+    } else {
+        next[trimmedKey] = value;
+    }
+    return Object.keys(next).length > 0 ? next : undefined;
 }
 
 /**
@@ -162,20 +160,19 @@ export function updateExtraField(
  * @returns Formatted connection string
  */
 export function formatConnectionString(
-  params: ConnectionParams,
-  capabilities?: DriverCapabilities | null,
+    params: ConnectionParams,
+    capabilities?: DriverCapabilities | null,
 ): string {
-  const local =
-    capabilities != null ? isLocalDriver(capabilities) : params.driver === "sqlite";
+    const local = capabilities != null ? isLocalDriver(capabilities) : params.driver === 'sqlite';
 
-  if (local) {
-    return params.database;
-  }
+    if (local) {
+        return params.database;
+    }
 
-  const host = params.host || "localhost";
-  const port = params.port || getDefaultPort(params.driver);
+    const host = params.host || 'localhost';
+    const port = params.port || getDefaultPort(params.driver);
 
-  return `${host}:${port}/${params.database}`;
+    return `${host}:${port}/${params.database}`;
 }
 
 /**
@@ -189,19 +186,19 @@ export function formatConnectionString(
  * @returns Default port number
  */
 export function getDefaultPort(driver: DatabaseDriver | PluginManifest): number {
-  if (typeof driver === "object") {
-    return driver.default_port ?? 0;
-  }
-  switch (driver) {
-    case "postgres":
-      return 5432;
-    case "mysql":
-      return 3306;
-    case "sqlite":
-      return 0; // SQLite doesn't use ports
-    default:
-      return 0;
-  }
+    if (typeof driver === 'object') {
+        return driver.default_port ?? 0;
+    }
+    switch (driver) {
+        case 'postgres':
+            return 5432;
+        case 'mysql':
+            return 3306;
+        case 'sqlite':
+            return 0; // SQLite doesn't use ports
+        default:
+            return 0;
+    }
 }
 
 /**
@@ -213,80 +210,73 @@ export function getDefaultPort(driver: DatabaseDriver | PluginManifest): number 
  * @returns Object with isValid flag and optional error message
  */
 export function validateConnectionParams(
-  params: Partial<ConnectionParams>,
-  capabilities?: DriverCapabilities | null,
+    params: Partial<ConnectionParams>,
+    capabilities?: DriverCapabilities | null,
 ): {
-  isValid: boolean;
-  error?: string;
+    isValid: boolean;
+    error?: string;
 } {
-  if (!params.driver) {
-    return { isValid: false, error: "Driver is required" };
-  }
-
-  if (!params.database) {
-    return { isValid: false, error: "Database name is required" };
-  }
-
-  // For remote drivers, host is required
-  const local =
-    capabilities != null
-      ? isLocalDriver(capabilities)
-      : params.driver === "sqlite";
-  if (!local && !params.host) {
-    return { isValid: false, error: "Host is required for remote databases" };
-  }
-
-  // Validate port if provided
-  if (params.port !== undefined) {
-    if (
-      !Number.isInteger(params.port) ||
-      params.port < 1 ||
-      params.port > 65535
-    ) {
-      return { isValid: false, error: "Port must be between 1 and 65535" };
-    }
-  }
-
-  // SSH validation
-  if (params.ssh_enabled) {
-    if (!params.ssh_host) {
-      return {
-        isValid: false,
-        error: "SSH host is required when SSH is enabled",
-      };
+    if (!params.driver) {
+        return {isValid: false, error: 'Driver is required'};
     }
 
-    if (!params.ssh_user) {
-      return {
-        isValid: false,
-        error: "SSH user is required when SSH is enabled",
-      };
+    if (!params.database) {
+        return {isValid: false, error: 'Database name is required'};
     }
 
-    // Either password or key file must be provided
-    if (!params.ssh_password && !params.ssh_key_file) {
-      return {
-        isValid: false,
-        error: "SSH password or key file is required",
-      };
+    // For remote drivers, host is required
+    const local = capabilities != null ? isLocalDriver(capabilities) : params.driver === 'sqlite';
+    if (!local && !params.host) {
+        return {isValid: false, error: 'Host is required for remote databases'};
     }
 
-    // Validate SSH port if provided
-    if (params.ssh_port !== undefined) {
-      if (
-        !Number.isInteger(params.ssh_port) ||
-        params.ssh_port < 1 ||
-        params.ssh_port > 65535
-      ) {
-        return {
-          isValid: false,
-          error: "SSH port must be between 1 and 65535",
-        };
-      }
+    // Validate port if provided
+    if (params.port !== undefined) {
+        if (!Number.isInteger(params.port) || params.port < 1 || params.port > 65535) {
+            return {isValid: false, error: 'Port must be between 1 and 65535'};
+        }
     }
-  }
 
-  return { isValid: true };
+    // SSH validation
+    if (params.ssh_enabled) {
+        if (!params.ssh_host) {
+            return {
+                isValid: false,
+                error: 'SSH host is required when SSH is enabled',
+            };
+        }
+
+        if (!params.ssh_user) {
+            return {
+                isValid: false,
+                error: 'SSH user is required when SSH is enabled',
+            };
+        }
+
+        // Either password or key file must be provided
+        if (!params.ssh_password && !params.ssh_key_file) {
+            return {
+                isValid: false,
+                error: 'SSH password or key file is required',
+            };
+        }
+
+        // Validate SSH port if provided
+        if (params.ssh_port !== undefined) {
+            if (
+                !Number.isInteger(params.ssh_port) ||
+                params.ssh_port < 1 ||
+                params.ssh_port > 65535
+            ) {
+                return {
+                    isValid: false,
+                    error: 'SSH port must be between 1 and 65535',
+                };
+            }
+        }
+    }
+
+    return {isValid: true};
 }
 
 /**
@@ -300,19 +290,19 @@ export function validateConnectionParams(
  * @returns Display label for the driver
  */
 export function getDriverLabel(driver: DatabaseDriver | PluginManifest): string {
-  if (typeof driver === "object") {
-    return driver.name;
-  }
-  switch (driver) {
-    case "postgres":
-      return "PostgreSQL";
-    case "mysql":
-      return "MySQL";
-    case "sqlite":
-      return "SQLite";
-    default:
-      return String(driver).toUpperCase();
-  }
+    if (typeof driver === 'object') {
+        return driver.name;
+    }
+    switch (driver) {
+        case 'postgres':
+            return 'PostgreSQL';
+        case 'mysql':
+            return 'MySQL';
+        case 'sqlite':
+            return 'SQLite';
+        default:
+            return String(driver).toUpperCase();
+    }
 }
 
 /**
@@ -324,24 +314,24 @@ export function getDriverLabel(driver: DatabaseDriver | PluginManifest): string 
  * omitted.
  */
 export function connectionSubtitle(
-  conn: SavedConnection,
-  capabilities: DriverCapabilities | null | undefined,
-  labels?: { allDatabases?: string; databaseCount?: (count: number) => string },
+    conn: SavedConnection,
+    capabilities: DriverCapabilities | null | undefined,
+    labels?: {allDatabases?: string; databaseCount?: (count: number) => string},
 ): string {
-  if (isLocalDriver(capabilities)) {
+    if (isLocalDriver(capabilities)) {
+        const db = conn.params.database;
+        return Array.isArray(db) ? (db[0] ?? '') : db;
+    }
     const db = conn.params.database;
-    return Array.isArray(db) ? db[0] ?? '' : db;
-  }
-  const db = conn.params.database;
-  const isAllDatabases =
-    isMultiDatabaseCapable(capabilities) &&
-    (Array.isArray(db) ? db.length === 0 : db.trim() === '');
-  const dbStr = isAllDatabases
-    ? labels?.allDatabases ?? 'All databases'
-    : Array.isArray(db)
-      ? labels?.databaseCount?.(db.length) ?? `${db.length} databases`
-      : db;
-  return `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}  ·  ${dbStr}`;
+    const isAllDatabases =
+        isMultiDatabaseCapable(capabilities) &&
+        (Array.isArray(db) ? db.length === 0 : db.trim() === '');
+    const dbStr = isAllDatabases
+        ? (labels?.allDatabases ?? 'All databases')
+        : Array.isArray(db)
+          ? (labels?.databaseCount?.(db.length) ?? `${db.length} databases`)
+          : db;
+    return `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}  ·  ${dbStr}`;
 }
 
 /**
@@ -349,25 +339,24 @@ export function connectionSubtitle(
  * on hover, state tints (active/open) are layered on top by `getCardClass`.
  */
 export const CARD_IDLE_CLASS =
-  'border-strong bg-elevated hover:border-accent-primary/30 hover:bg-surface-primary hover:shadow-md hover:shadow-black/10';
+    'border-strong bg-elevated hover:border-accent-primary/30 hover:bg-surface-primary hover:shadow-md hover:shadow-black/10';
 
 /** Resting look for cards that are not themselves clickable (plugins): no accent on hover. */
-export const CARD_RESTING_CLASS =
-  'border-strong bg-elevated hover:shadow-md hover:shadow-black/10';
+export const CARD_RESTING_CLASS = 'border-strong bg-elevated hover:shadow-md hover:shadow-black/10';
 
 /**
  * CSS class string for a connection card/row based on its active/open state.
  */
 export function getCardClass(
-  connId: string,
-  activeConnectionId: string | null,
-  isConnectionOpen: (id: string) => boolean,
+    connId: string,
+    activeConnectionId: string | null,
+    isConnectionOpen: (id: string) => boolean,
 ): string {
-  if (activeConnectionId === connId)
-    return 'border-accent-primary/40 bg-accent-primary/5 ring-1 ring-accent-primary/20 shadow-lg shadow-accent-primary/10';
-  if (isConnectionOpen(connId))
-    return 'border-accent-success/35 bg-accent-success/5 ring-1 ring-accent-success/15 shadow-md shadow-accent-success/10';
-  return CARD_IDLE_CLASS;
+    if (activeConnectionId === connId)
+        return 'border-accent-primary/40 bg-accent-primary/5 ring-1 ring-accent-primary/20 shadow-lg shadow-accent-primary/10';
+    if (isConnectionOpen(connId))
+        return 'border-accent-success/35 bg-accent-success/5 ring-1 ring-accent-success/15 shadow-md shadow-accent-success/10';
+    return CARD_IDLE_CLASS;
 }
 
 /**
@@ -379,95 +368,90 @@ export function getCardClass(
  * @returns Display name for the connection
  */
 export function generateConnectionName(
-  params: ConnectionParams,
-  capabilities?: DriverCapabilities | null,
+    params: ConnectionParams,
+    capabilities?: DriverCapabilities | null,
 ): string {
-  const local =
-    capabilities != null ? isLocalDriver(capabilities) : params.driver === "sqlite";
+    const local = capabilities != null ? isLocalDriver(capabilities) : params.driver === 'sqlite';
 
-  if (local) {
-    // Extract filename or folder name from path
-    const parts = params.database.split("/");
-    return parts[parts.length - 1] || params.database;
-  }
+    if (local) {
+        // Extract filename or folder name from path
+        const parts = params.database.split('/');
+        return parts[parts.length - 1] || params.database;
+    }
 
-  const host = params.host || "localhost";
-  return `${params.database}@${host}`;
+    const host = params.host || 'localhost';
+    return `${params.database}@${host}`;
 }
 
-export type ConnectionDropPosition = "before" | "after";
+export type ConnectionDropPosition = 'before' | 'after';
 
 export function connectionOrderAfterMove(
-  ids: string[],
-  fromId: string,
-  toId: string,
-  position: ConnectionDropPosition,
+    ids: string[],
+    fromId: string,
+    toId: string,
+    position: ConnectionDropPosition,
 ): Array<[string, number]> | null {
-  if (fromId === toId) return null;
-  const next = ids.filter((id) => id !== fromId);
-  const toIdx = next.indexOf(toId);
-  if (toIdx === -1) return null;
-  next.splice(toIdx + (position === "after" ? 1 : 0), 0, fromId);
-  if (next.length === ids.length && next.every((id, i) => id === ids[i])) {
-    return null;
-  }
-  return next.map((id, i) => [id, i]);
+    if (fromId === toId) return null;
+    const next = ids.filter((id) => id !== fromId);
+    const toIdx = next.indexOf(toId);
+    if (toIdx === -1) return null;
+    next.splice(toIdx + (position === 'after' ? 1 : 0), 0, fromId);
+    if (next.length === ids.length && next.every((id, i) => id === ids[i])) {
+        return null;
+    }
+    return next.map((id, i) => [id, i]);
 }
 
-export type GroupDropPosition = "before" | "after" | "inside";
+export type GroupDropPosition = 'before' | 'after' | 'inside';
 
 export function planGroupDrop(
-  groups: ConnectionGroup[],
-  sourceId: string,
-  targetId: string,
-  position: GroupDropPosition,
-): { parentId: string | null; order: Array<[string, number]> } | "cycle" | null {
-  const target = groups.find((g) => g.id === targetId);
-  if (sourceId === targetId || !target) return null;
-  const parentId = position === "inside" ? targetId : (target.parent_id ?? null);
+    groups: ConnectionGroup[],
+    sourceId: string,
+    targetId: string,
+    position: GroupDropPosition,
+): {parentId: string | null; order: Array<[string, number]>} | 'cycle' | null {
+    const target = groups.find((g) => g.id === targetId);
+    if (sourceId === targetId || !target) return null;
+    const parentId = position === 'inside' ? targetId : (target.parent_id ?? null);
 
-  for (let cur: string | null = parentId; cur; ) {
-    if (cur === sourceId) return "cycle";
-    cur = groups.find((g) => g.id === cur)?.parent_id ?? null;
-  }
+    for (let cur: string | null = parentId; cur;) {
+        if (cur === sourceId) return 'cycle';
+        cur = groups.find((g) => g.id === cur)?.parent_id ?? null;
+    }
 
-  const current = groups
-    .filter((g) => (g.parent_id ?? null) === parentId)
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .map((g) => g.id);
-  const siblings = current.filter((id) => id !== sourceId);
-  const at =
-    position === "inside"
-      ? siblings.length
-      : siblings.indexOf(targetId) + (position === "after" ? 1 : 0);
-  siblings.splice(at, 0, sourceId);
-  if (
-    siblings.length === current.length &&
-    siblings.every((id, i) => id === current[i])
-  ) {
-    return null;
-  }
-  return { parentId, order: siblings.map((id, i) => [id, i]) };
+    const current = groups
+        .filter((g) => (g.parent_id ?? null) === parentId)
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((g) => g.id);
+    const siblings = current.filter((id) => id !== sourceId);
+    const at =
+        position === 'inside'
+            ? siblings.length
+            : siblings.indexOf(targetId) + (position === 'after' ? 1 : 0);
+    siblings.splice(at, 0, sourceId);
+    if (siblings.length === current.length && siblings.every((id, i) => id === current[i])) {
+        return null;
+    }
+    return {parentId, order: siblings.map((id, i) => [id, i])};
 }
 
 export function connectionDropZone(
-  rect: { top: number; left: number; width: number; height: number },
-  x: number,
-  y: number,
-  axis: "x" | "y",
+    rect: {top: number; left: number; width: number; height: number},
+    x: number,
+    y: number,
+    axis: 'x' | 'y',
 ): ConnectionDropPosition {
-  const before =
-    axis === "x" ? x < rect.left + rect.width / 2 : y < rect.top + rect.height / 2;
-  return before ? "before" : "after";
+    const before = axis === 'x' ? x < rect.left + rect.width / 2 : y < rect.top + rect.height / 2;
+    return before ? 'before' : 'after';
 }
 
 export function groupDropZone(
-  rect: { top: number; height: number },
-  y: number,
-  allowAfter: boolean,
+    rect: {top: number; height: number},
+    y: number,
+    allowAfter: boolean,
 ): GroupDropPosition {
-  const edge = rect.height * 0.3;
-  if (y < rect.top + edge) return "before";
-  if (allowAfter && y > rect.top + rect.height - edge) return "after";
-  return "inside";
+    const edge = rect.height * 0.3;
+    if (y < rect.top + edge) return 'before';
+    if (allowAfter && y > rect.top + rect.height - edge) return 'after';
+    return 'inside';
 }

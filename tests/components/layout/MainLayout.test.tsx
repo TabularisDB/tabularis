@@ -1,158 +1,156 @@
-import { render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import {render, screen} from '@testing-library/react';
+import type {ReactNode} from 'react';
+import {MemoryRouter, Route, Routes} from 'react-router-dom';
+import {describe, expect, it, vi} from 'vitest';
 
-import { MainLayout } from "../../../src/components/layout/MainLayout";
+import {MainLayout} from '@/components/layout/MainLayout';
 
-vi.mock("../../../src/contexts/PluginRegistryProvider", () => ({
-  PluginRegistryProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+vi.mock('@/contexts/PluginRegistryProvider', () => ({
+    PluginRegistryProvider: ({children}: {children: ReactNode}) => <>{children}</>,
 }));
 
-vi.mock("../../../src/components/plugins/PluginUpdateToast", () => ({
-  PluginUpdateToast: () => null,
+vi.mock('@/components/plugins/PluginUpdateToast', () => ({
+    PluginUpdateToast: () => null,
 }));
 
-vi.mock("../../../src/components/layout/Sidebar", () => ({
-  Sidebar: () => <aside>Sidebar</aside>,
+vi.mock('@/components/layout/Sidebar', () => ({
+    Sidebar: () => <aside>Sidebar</aside>,
 }));
 
-vi.mock("../../../src/components/layout/RightSidebar", () => ({
-  RightSidebar: () => <aside>Right sidebar</aside>,
+vi.mock('@/components/layout/RightSidebar', () => ({
+    RightSidebar: () => <aside>Right sidebar</aside>,
 }));
 
-vi.mock("../../../src/components/layout/SplitPaneLayout", () => ({
-  SplitPaneLayout: () => <div>Split pane</div>,
+vi.mock('@/components/layout/SplitPaneLayout', () => ({
+    SplitPaneLayout: () => <div>Split pane</div>,
 }));
 
-vi.mock("../../../src/components/layout/ProductionBanner", () => ({
-  ProductionBanner: () => <div data-testid="production-banner" />,
+vi.mock('@/components/layout/ProductionBanner', () => ({
+    ProductionBanner: () => <div data-testid="production-banner" />,
 }));
 
-vi.mock("../../../src/components/layout/CommandPaletteScopeBridge", () => ({
-  CommandPaletteScopeBridge: ({ scopeId }: { scopeId: string }) => (
-    <div data-testid={`command-scope-${scopeId}`} />
-  ),
+vi.mock('@/components/layout/CommandPaletteScopeBridge', () => ({
+    CommandPaletteScopeBridge: ({scopeId}: {scopeId: string}) => (
+        <div data-testid={`command-scope-${scopeId}`} />
+    ),
 }));
 
-vi.mock("../../../src/contexts/CommandPaletteProvider", () => ({
-  CommandPaletteProvider: ({ children }: { children: ReactNode }) => (
-    <>{children}</>
-  ),
+vi.mock('@/contexts/CommandPaletteProvider', () => ({
+    CommandPaletteProvider: ({children}: {children: ReactNode}) => <>{children}</>,
 }));
 
-vi.mock("../../../src/components/modals/CommandPaletteModal", () => ({
-  CommandPaletteModal: () => <div data-testid="palette-host" />,
+vi.mock('@/components/modals/CommandPaletteModal', () => ({
+    CommandPaletteModal: () => <div data-testid="palette-host" />,
 }));
 
-vi.mock("../../../src/hooks/useConnectionLayoutContext", () => ({
-  useConnectionLayoutContext: () => ({
-    splitView: null,
-    isSplitVisible: false,
-  }),
+vi.mock('@/hooks/useConnectionLayoutContext', () => ({
+    useConnectionLayoutContext: () => ({
+        splitView: null,
+        isSplitVisible: false,
+    }),
 }));
 
-vi.mock("../../../src/hooks/useGlobalShortcuts", () => ({
-  useGlobalShortcuts: vi.fn(),
+vi.mock('@/hooks/useGlobalShortcuts', () => ({
+    useGlobalShortcuts: vi.fn(),
 }));
 
-vi.mock("../../../src/hooks/useAutoConnectFromUrl", () => ({
-  useAutoConnectFromUrl: vi.fn(),
+vi.mock('@/hooks/useAutoConnectFromUrl', () => ({
+    useAutoConnectFromUrl: vi.fn(),
 }));
 
-vi.mock("../../../src/hooks/useConnectionWindowLifecycle", () => ({
-  useConnectionWindowLifecycle: vi.fn(),
+vi.mock('@/hooks/useConnectionWindowLifecycle', () => ({
+    useConnectionWindowLifecycle: vi.fn(),
 }));
 
-describe("MainLayout", () => {
-  it("should keep the shared palette host mounted while its input is closed", () => {
-    render(
-      <MemoryRouter>
-        <Routes>
-          <Route element={<MainLayout />}>
-            <Route index element={<div>Content</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
+describe('MainLayout', () => {
+    it('should keep the shared palette host mounted while its input is closed', () => {
+        render(
+            <MemoryRouter>
+                <Routes>
+                    <Route element={<MainLayout />}>
+                        <Route index element={<div>Content</div>} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
 
-    expect(screen.getByTestId("palette-host")).toBeInTheDocument();
-  });
+        expect(screen.getByTestId('palette-host')).toBeInTheDocument();
+    });
 
-  it("should show the production banner only on the connection editor route", () => {
-    const { unmount } = render(
-      <MemoryRouter initialEntries={["/editor"]}>
-        <Routes>
-          <Route element={<MainLayout />}>
-            <Route path="editor" element={<div>Editor</div>} />
-            <Route path="settings" element={<div>Settings</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
+    it('should show the production banner only on the connection editor route', () => {
+        const {unmount} = render(
+            <MemoryRouter initialEntries={['/editor']}>
+                <Routes>
+                    <Route element={<MainLayout />}>
+                        <Route path="editor" element={<div>Editor</div>} />
+                        <Route path="settings" element={<div>Settings</div>} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
 
-    expect(screen.getByTestId("production-banner")).toBeInTheDocument();
+        expect(screen.getByTestId('production-banner')).toBeInTheDocument();
 
-    unmount();
+        unmount();
 
-    render(
-      <MemoryRouter initialEntries={["/settings"]}>
-        <Routes>
-          <Route element={<MainLayout />}>
-            <Route path="editor" element={<div>Editor</div>} />
-            <Route path="settings" element={<div>Settings</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
+        render(
+            <MemoryRouter initialEntries={['/settings']}>
+                <Routes>
+                    <Route element={<MainLayout />}>
+                        <Route path="editor" element={<div>Editor</div>} />
+                        <Route path="settings" element={<div>Settings</div>} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
 
-    expect(screen.queryByTestId("production-banner")).not.toBeInTheDocument();
-  });
+        expect(screen.queryByTestId('production-banner')).not.toBeInTheDocument();
+    });
 
-  it("should delegate the root command scope to the editor route", () => {
-    const { unmount } = render(
-      <MemoryRouter initialEntries={["/editor"]}>
-        <Routes>
-          <Route element={<MainLayout />}>
-            <Route path="editor" element={<div>Editor</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
+    it('should delegate the root command scope to the editor route', () => {
+        const {unmount} = render(
+            <MemoryRouter initialEntries={['/editor']}>
+                <Routes>
+                    <Route element={<MainLayout />}>
+                        <Route path="editor" element={<div>Editor</div>} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
 
-    expect(screen.queryByTestId("command-scope-root")).not.toBeInTheDocument();
+        expect(screen.queryByTestId('command-scope-root')).not.toBeInTheDocument();
 
-    unmount();
+        unmount();
 
-    render(
-      <MemoryRouter initialEntries={["/settings"]}>
-        <Routes>
-          <Route element={<MainLayout />}>
-            <Route path="settings" element={<div>Settings</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
+        render(
+            <MemoryRouter initialEntries={['/settings']}>
+                <Routes>
+                    <Route element={<MainLayout />}>
+                        <Route path="settings" element={<div>Settings</div>} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
 
-    expect(screen.getByTestId("command-scope-root")).toBeInTheDocument();
-  });
+        expect(screen.getByTestId('command-scope-root')).toBeInTheDocument();
+    });
 
-  it("should provide root commands while the editor route is loading", () => {
-    const pending = new Promise<never>(() => {});
-    const SuspendedEditor = () => {
-      throw pending;
-    };
+    it('should provide root commands while the editor route is loading', () => {
+        const pending = new Promise<never>(() => {});
+        const SuspendedEditor = () => {
+            throw pending;
+        };
 
-    render(
-      <MemoryRouter initialEntries={["/editor"]}>
-        <Routes>
-          <Route element={<MainLayout />}>
-            <Route path="editor" element={<SuspendedEditor />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
+        render(
+            <MemoryRouter initialEntries={['/editor']}>
+                <Routes>
+                    <Route element={<MainLayout />}>
+                        <Route path="editor" element={<SuspendedEditor />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
 
-    expect(screen.getByTestId("command-scope-root")).toBeInTheDocument();
-  });
+        expect(screen.getByTestId('command-scope-root')).toBeInTheDocument();
+    });
 });

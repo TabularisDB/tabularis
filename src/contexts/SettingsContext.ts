@@ -1,303 +1,296 @@
-import { createContext } from "react";
-import type { AppLanguage } from "../i18n/config";
-import { DEFAULT_MASKING_PATTERNS } from "../utils/columnMasking";
-import type { AutocompleteKeywordCase } from "../utils/autocomplete";
-import type {
-  GlobalProxySettings,
-  ProxyOverride,
-} from "../types/proxy";
+import {createContext} from 'react';
+import type {AppLanguage} from '@/i18n/config';
+import {DEFAULT_MASKING_PATTERNS} from '@/utils/columnMasking';
+import type {AutocompleteKeywordCase} from '@/utils/autocomplete';
+import type {GlobalProxySettings, ProxyOverride} from '@/types/proxy';
 
-export type { AppLanguage };
-export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
-export type DefaultSortDirection = "asc" | "desc";
+export type {AppLanguage};
+export type CopyFormat = 'csv' | 'json' | 'sql-insert' | 'markdown';
+export type DefaultSortDirection = 'asc' | 'desc';
 export type AiProvider =
-  | "chatgpt"
-  | "openai"
-  | "anthropic"
-  | "openrouter"
-  | "requesty"
-  | "ollama"
-  | "custom-openai"
-  | "minimax";
-export type ERDiagramLayout = "LR" | "TB";
-export type WindowDecorationsMode =
-  | "automatic"
-  | "alwaysShow"
-  | "alwaysHide";
+    | 'chatgpt'
+    | 'openai'
+    | 'anthropic'
+    | 'openrouter'
+    | 'requesty'
+    | 'ollama'
+    | 'custom-openai'
+    | 'minimax';
+export type ERDiagramLayout = 'LR' | 'TB';
+export type WindowDecorationsMode = 'automatic' | 'alwaysShow' | 'alwaysHide';
 
 export interface PluginConfig {
-  interpreter?: string;
-  settings?: Record<string, unknown>;
-  /** Per-plugin override of `pluginCallTimeoutSeconds`. Unset inherits the global value; 0 disables the timeout. */
-  callTimeoutSeconds?: number;
-  /** Per-plugin override of `pluginShutdownGraceSeconds`. Unset inherits the global value. */
-  shutdownGraceSeconds?: number;
+    interpreter?: string;
+    settings?: Record<string, unknown>;
+    /** Per-plugin override of `pluginCallTimeoutSeconds`. Unset inherits the global value; 0 disables the timeout. */
+    callTimeoutSeconds?: number;
+    /** Per-plugin override of `pluginShutdownGraceSeconds`. Unset inherits the global value. */
+    shutdownGraceSeconds?: number;
 }
 
 /** One entry in the append-only driver-migration history. Kept even after an
  * undo so a filed issue has the before/after to attach. */
 export interface DriverMigrationRecord {
-  /** Connection that was migrated. */
-  connectionId: string;
-  /** Driver id migrated from (e.g. the built-in "postgres"). */
-  fromDriver: string;
-  /** Driver id migrated to (e.g. the plugin "postgresql"). */
-  toDriver: string;
-  /** ISO-8601 timestamp of the migration. */
-  migratedAt: string;
-  /** Whether the post-migration "Switched — Undo" toast was dismissed. */
-  toastDismissed?: boolean;
+    /** Connection that was migrated. */
+    connectionId: string;
+    /** Driver id migrated from (e.g. the built-in "postgres"). */
+    fromDriver: string;
+    /** Driver id migrated to (e.g. the plugin "postgresql"). */
+    toDriver: string;
+    /** ISO-8601 timestamp of the migration. */
+    migratedAt: string;
+    /** Whether the post-migration "Switched — Undo" toast was dismissed. */
+    toastDismissed?: boolean;
 }
 
 /** Whether a built-in driver's migration is opt-in or forced. Flipping to
  * "forced" is a separate, later decision; the default everywhere is "opt-in". */
-export type MigrationMode = "opt-in" | "forced";
+export type MigrationMode = 'opt-in' | 'forced';
 
 export interface Settings {
-  resultPageSize: number; // Changed from queryLimit to match backend config
-  language: AppLanguage;
-  /** IANA timezone name (e.g. "Asia/Tokyo") for rendering timestamps, or "auto" to follow the OS timezone. */
-  displayTimezone?: string;
-  fontFamily: string;
-  fontSize: number;
-  /** Colorize query result cell values by their data type. Default: false. */
-  resultColorByType?: boolean;
-  /** Per-type hex color overrides for result cell values (keys: number, string, date, boolean). */
-  resultTypeColors?: Record<string, string>;
-  /** Keep the result grid's column headers pinned to the top while scrolling. Default: true. */
-  stickyColumnHeaders?: boolean;
-  /** Shade every other result grid row for easier scanning. Default: false. */
-  resultZebraStripes?: boolean;
-  /** Default sort direction on the first column header click in the data grid: "asc" (default) or "desc". */
-  defaultSortDirection?: DefaultSortDirection;
-  /** Font used for query result cells. A font name from AVAILABLE_FONTS, a custom family, or RESULT_FONT_INHERIT to follow the interface font. Default: "JetBrains Mono". */
-  resultFontFamily?: string;
-  aiEnabled: boolean;
-  aiProvider: AiProvider | null;
-  aiModel: string | null;
-  aiCustomModels?: Record<string, string[]>;
-  aiOllamaPort?: number;
-  aiCustomOpenaiUrl?: string;
-  aiCustomOpenaiModel?: string;
-  autoCheckUpdatesOnStartup?: boolean;
-  /** Last plugin release shown in a startup notification, keyed by plugin id. */
-  notifiedPluginVersions?: Record<string, string>;
-  releaseChannel?: "stable" | "nightly";
-  loggingEnabled?: boolean;
-  maxLogEntries?: number;
-  erDiagramDefaultLayout?: ERDiagramLayout;
-  copyFormat?: CopyFormat;
-  csvDelimiter?: string;
-  /** Whether copied CSV output includes a header row. Default: true. */
-  csvIncludeHeaders?: boolean;
-  /** Whether the row editor sidebar follows row selection. Default: true. */
-  rowEditorFollowSelection?: boolean;
-  groupSidebarConnectionsByFolder?: boolean;
-  /** What happens on double-click of a data cell: "inline" (edit in place), "sidebar" (open in row editor), "both" (inline + update sidebar). Default: "inline". */
-  cellDoubleClickAction?: "inline" | "sidebar" | "both";
-  activeExternalDrivers?: string[];
-  /** Base URL of the Tabularium plugin registry. Defaults to the built-in instance when unset. */
-  tabulariumRegistryUrl?: string;
-  plugins?: Record<string, PluginConfig>;
-  /** Seconds the host waits for a plugin to answer a single call. 0 disables the timeout. Default: 120. */
-  pluginCallTimeoutSeconds?: number;
-  /** Seconds in-flight plugin calls may run after shutdown is requested. 0 waits until they finish. Default: 2. */
-  pluginShutdownGraceSeconds?: number;
-  editorTheme?: string;
-  editorFontFamily?: string;
-  editorFontSize?: number;
-  editorLineHeight?: number;
-  editorTabSize?: number;
-  editorWordWrap?: boolean;
-  /** Highlight invisible Unicode and look-alike characters in SQL. Default: true. */
-  editorHighlightInvisibleCharacters?: boolean;
-  editorShowLineNumbers?: boolean;
-  editorAcceptSuggestionOnEnter?: boolean;
-  runStatementUnderCursor?: boolean;
-  /** Case of SQL keywords inserted by autocomplete. Default: "match". */
-  autocompleteKeywordCase?: AutocompleteKeywordCase;
-  /** Delay destructive-query and production-write confirmations for five seconds. Default: false. */
-  safetyConfirmationDelayEnabled?: boolean;
-  /** Send a desktop notification when a long-running query finishes while the window is unfocused. Default: true. */
-  notifyLongQueries?: boolean;
-  /** Minimum execution time in seconds before a finished query triggers a notification. Default: 20. */
-  notifyLongQueriesThresholdSec?: number;
-  // SQL Formatter
-  formatterKeywordCase?: "upper" | "lower" | "preserve";
-  formatterIndentStyle?: "standard" | "tabularLeft" | "tabularRight";
-  formatterTabWidth?: number;
-  formatterUseTabs?: boolean;
-  formatterFunctionCase?: "upper" | "lower" | "preserve";
-  formatterLinesBetweenQueries?: number;
-  formatterDenseOperators?: boolean;
-  pingInterval?: number;
-  queryHistoryMaxEntries?: number;
-  showWelcome?: boolean;
-  /** Reconnect to the last active connection on startup. Default: true. */
-  autoConnectLastConnection?: boolean;
-  /** Maximize the window on startup. Default: false. */
-  startMaximized?: boolean;
-  /** Controls whether Tauri uses native window decorations. */
-  windowDecorations?: WindowDecorationsMode;
-  // AI / MCP safety
-  aiAuditEnabled?: boolean;
-  aiAuditMaxEntries?: number;
-  aiSessionGapMinutes?: number;
-  mcpOutputFormat?: "json" | "toon";
-  mcpReadonlyDefault?: boolean;
-  mcpReadonlyConnections?: string[];
-  mcpApprovalMode?: "off" | "writes_only" | "all";
-  mcpApprovalTimeoutSeconds?: number;
-  mcpPreflightExplain?: boolean;
-  mcpApprovalAlwaysOnTop?: boolean;
-  mcpApprovalNotifySound?: boolean;
-  // Automatic connections backup
-  /** When backups run: "manual" (default), "interval", "onClose" or "onLaunch". */
-  backupMode?: "manual" | "interval" | "onClose" | "onLaunch";
-  /** Directory the backup files are written to. */
-  backupDirectory?: string;
-  /** Minutes between automatic backups in interval mode. Default: 1440. */
-  backupIntervalMinutes?: number;
-  /** Number of backup files kept before rotation. Default: 10. */
-  backupRetention?: number;
-  /** Backup destination: "local" (default) or "webdav". */
-  backupTarget?: "local" | "webdav";
-  /** WebDAV collection URL the backups are uploaded into. */
-  backupWebdavUrl?: string;
-  /** WebDAV username; the password lives in the OS keychain. */
-  backupWebdavUsername?: string;
-  // Privacy
-  /** Mask values of sensitive columns in the results grid (display only). Default: true. */
-  columnMaskingEnabled?: boolean;
-  /** Column-name patterns (case-insensitive substring) that trigger masking. */
-  columnMaskingPatterns?: string[];
-  /** Per-connection `table.column` include/exclude overrides, keyed by connection id. */
-  columnMaskingOverrides?: Record<
-    string,
-    { include?: string[]; exclude?: string[] }
-  >;
-  // Built-in driver migration
-  /** Whether the user has dismissed the PostgreSQL-plugin migration banner.
-   * Absent/undefined → banner is eligible to show. Resurfaces automatically
-   * if a builtin-postgres connection appears that wasn't in
-   * `postgresPluginMigrationBannerDismissedFor` at dismissal time — the same
-   * "did-the-condition-change" gating `WhatsNewModal` uses for its own
-   * version comparison. */
-  postgresPluginMigrationBannerDismissed?: boolean;
-  /** Connection ids that existed (on the builtin driver) at the moment the
-   * banner was dismissed. A builtin connection id not in this list means the
-   * trigger condition changed since the dismissal, so the banner shows again. */
-  postgresPluginMigrationBannerDismissedFor?: string[];
-  /** Append-only record of every connection migrated between built-in and
-   * plugin drivers. Kept even after an undo. */
-  driverMigrationHistory?: DriverMigrationRecord[];
-  /** Map of pluginId → list of capability-gap feature names already reported,
-   * so the same user isn't prompted to re-report a gap already filed. */
-  knownCapabilityGaps?: Record<string, string[]>;
-  /** Per built-in driver id → migration mode. Defaults to "opt-in" when unset;
-   * flipping an entry to "forced" is a separate, later decision. */
-  migrationModeByDriver?: Record<string, MigrationMode>;
-  /** Global HTTP/SOCKS5 proxy and opt-in traffic scopes. */
-  proxy?: GlobalProxySettings;
-  /** Per AI-provider proxy overrides. */
-  aiProviderProxies?: Partial<Record<AiProvider, ProxyOverride>>;
+    resultPageSize: number; // Changed from queryLimit to match backend config
+    language: AppLanguage;
+    /** IANA timezone name (e.g. "Asia/Tokyo") for rendering timestamps, or "auto" to follow the OS timezone. */
+    displayTimezone?: string;
+    fontFamily: string;
+    fontSize: number;
+    /** Colorize query result cell values by their data type. Default: false. */
+    resultColorByType?: boolean;
+    /** Per-type hex color overrides for result cell values (keys: number, string, date, boolean). */
+    resultTypeColors?: Record<string, string>;
+    /** Keep the result grid's column headers pinned to the top while scrolling. Default: true. */
+    stickyColumnHeaders?: boolean;
+    /** Shade every other result grid row for easier scanning. Default: false. */
+    resultZebraStripes?: boolean;
+    /** Default sort direction on the first column header click in the data grid: "asc" (default) or "desc". */
+    defaultSortDirection?: DefaultSortDirection;
+    /** Font used for query result cells. A font name from AVAILABLE_FONTS, a custom family, or RESULT_FONT_INHERIT to follow the interface font. Default: "JetBrains Mono". */
+    resultFontFamily?: string;
+    aiEnabled: boolean;
+    aiProvider: AiProvider | null;
+    aiModel: string | null;
+    aiCustomModels?: Record<string, string[]>;
+    aiOllamaPort?: number;
+    aiCustomOpenaiUrl?: string;
+    aiCustomOpenaiModel?: string;
+    autoCheckUpdatesOnStartup?: boolean;
+    /** Last plugin release shown in a startup notification, keyed by plugin id. */
+    notifiedPluginVersions?: Record<string, string>;
+    releaseChannel?: 'stable' | 'nightly';
+    loggingEnabled?: boolean;
+    maxLogEntries?: number;
+    erDiagramDefaultLayout?: ERDiagramLayout;
+    copyFormat?: CopyFormat;
+    csvDelimiter?: string;
+    /** Whether copied CSV output includes a header row. Default: true. */
+    csvIncludeHeaders?: boolean;
+    /** Whether the row editor sidebar follows row selection. Default: true. */
+    rowEditorFollowSelection?: boolean;
+    groupSidebarConnectionsByFolder?: boolean;
+    /** What happens on double-click of a data cell: "inline" (edit in place), "sidebar" (open in row editor), "both" (inline + update sidebar). Default: "inline". */
+    cellDoubleClickAction?: 'inline' | 'sidebar' | 'both';
+    activeExternalDrivers?: string[];
+    /** Base URL of the Tabularium plugin registry. Defaults to the built-in instance when unset. */
+    tabulariumRegistryUrl?: string;
+    plugins?: Record<string, PluginConfig>;
+    /** Seconds the host waits for a plugin to answer a single call. 0 disables the timeout. Default: 120. */
+    pluginCallTimeoutSeconds?: number;
+    /** Seconds in-flight plugin calls may run after shutdown is requested. 0 waits until they finish. Default: 2. */
+    pluginShutdownGraceSeconds?: number;
+    editorTheme?: string;
+    editorFontFamily?: string;
+    editorFontSize?: number;
+    editorLineHeight?: number;
+    editorTabSize?: number;
+    editorWordWrap?: boolean;
+    /** Highlight invisible Unicode and look-alike characters in SQL. Default: true. */
+    editorHighlightInvisibleCharacters?: boolean;
+    editorShowLineNumbers?: boolean;
+    editorAcceptSuggestionOnEnter?: boolean;
+    runStatementUnderCursor?: boolean;
+    /** Case of SQL keywords inserted by autocomplete. Default: "match". */
+    autocompleteKeywordCase?: AutocompleteKeywordCase;
+    /** Delay destructive-query and production-write confirmations for five seconds. Default: false. */
+    safetyConfirmationDelayEnabled?: boolean;
+    /** Send a desktop notification when a long-running query finishes while the window is unfocused. Default: true. */
+    notifyLongQueries?: boolean;
+    /** Minimum execution time in seconds before a finished query triggers a notification. Default: 20. */
+    notifyLongQueriesThresholdSec?: number;
+    // SQL Formatter
+    formatterKeywordCase?: 'upper' | 'lower' | 'preserve';
+    formatterIndentStyle?: 'standard' | 'tabularLeft' | 'tabularRight';
+    formatterTabWidth?: number;
+    formatterUseTabs?: boolean;
+    formatterFunctionCase?: 'upper' | 'lower' | 'preserve';
+    formatterLinesBetweenQueries?: number;
+    formatterDenseOperators?: boolean;
+    pingInterval?: number;
+    queryHistoryMaxEntries?: number;
+    showWelcome?: boolean;
+    /** Reconnect to the last active connection on startup. Default: true. */
+    autoConnectLastConnection?: boolean;
+    /** Maximize the window on startup. Default: false. */
+    startMaximized?: boolean;
+    /** Controls whether Tauri uses native window decorations. */
+    windowDecorations?: WindowDecorationsMode;
+    // AI / MCP safety
+    aiAuditEnabled?: boolean;
+    aiAuditMaxEntries?: number;
+    aiSessionGapMinutes?: number;
+    mcpOutputFormat?: 'json' | 'toon';
+    mcpReadonlyDefault?: boolean;
+    mcpReadonlyConnections?: string[];
+    mcpApprovalMode?: 'off' | 'writes_only' | 'all';
+    mcpApprovalTimeoutSeconds?: number;
+    mcpPreflightExplain?: boolean;
+    mcpApprovalAlwaysOnTop?: boolean;
+    mcpApprovalNotifySound?: boolean;
+    // Automatic connections backup
+    /** When backups run: "manual" (default), "interval", "onClose" or "onLaunch". */
+    backupMode?: 'manual' | 'interval' | 'onClose' | 'onLaunch';
+    /** Directory the backup files are written to. */
+    backupDirectory?: string;
+    /** Minutes between automatic backups in interval mode. Default: 1440. */
+    backupIntervalMinutes?: number;
+    /** Number of backup files kept before rotation. Default: 10. */
+    backupRetention?: number;
+    /** Backup destination: "local" (default) or "webdav". */
+    backupTarget?: 'local' | 'webdav';
+    /** WebDAV collection URL the backups are uploaded into. */
+    backupWebdavUrl?: string;
+    /** WebDAV username; the password lives in the OS keychain. */
+    backupWebdavUsername?: string;
+    // Scheduled database content backup
+    /** Daily scheduled backup plan for database contents (Milestone 1). */
+    databaseBackupPlan?: import('../types/databaseBackup').DatabaseBackupPlan;
+    // Privacy
+    /** Mask values of sensitive columns in the results grid (display only). Default: true. */
+    columnMaskingEnabled?: boolean;
+    /** Column-name patterns (case-insensitive substring) that trigger masking. */
+    columnMaskingPatterns?: string[];
+    /** Per-connection `table.column` include/exclude overrides, keyed by connection id. */
+    columnMaskingOverrides?: Record<string, {include?: string[]; exclude?: string[]}>;
+    // Built-in driver migration
+    /** Whether the user has dismissed the PostgreSQL-plugin migration banner.
+     * Absent/undefined → banner is eligible to show. Resurfaces automatically
+     * if a builtin-postgres connection appears that wasn't in
+     * `postgresPluginMigrationBannerDismissedFor` at dismissal time — the same
+     * "did-the-condition-change" gating `WhatsNewModal` uses for its own
+     * version comparison. */
+    postgresPluginMigrationBannerDismissed?: boolean;
+    /** Connection ids that existed (on the builtin driver) at the moment the
+     * banner was dismissed. A builtin connection id not in this list means the
+     * trigger condition changed since the dismissal, so the banner shows again. */
+    postgresPluginMigrationBannerDismissedFor?: string[];
+    /** Append-only record of every connection migrated between built-in and
+     * plugin drivers. Kept even after an undo. */
+    driverMigrationHistory?: DriverMigrationRecord[];
+    /** Map of pluginId → list of capability-gap feature names already reported,
+     * so the same user isn't prompted to re-report a gap already filed. */
+    knownCapabilityGaps?: Record<string, string[]>;
+    /** Per built-in driver id → migration mode. Defaults to "opt-in" when unset;
+     * flipping an entry to "forced" is a separate, later decision. */
+    migrationModeByDriver?: Record<string, MigrationMode>;
+    /** Global HTTP/SOCKS5 proxy and opt-in traffic scopes. */
+    proxy?: GlobalProxySettings;
+    /** Per AI-provider proxy overrides. */
+    aiProviderProxies?: Partial<Record<AiProvider, ProxyOverride>>;
 }
 
 export interface SettingsContextType {
-  settings: Settings;
-  /** Overloaded: pass a plain value, or an updater that receives the
-   * *current* value at the moment the state update actually runs (React's
-   * functional-setState pattern) rather than whatever was in scope when
-   * `updateSetting` was called. Needed for any read-then-append onto a
-   * setting — e.g. a migration-history array — from inside an async loop
-   * that calls `updateSetting` more than once: a caller that captures
-   * `settings.foo` once, before the loop starts, and reuses that same
-   * snapshot on every iteration only ever appends onto that first snapshot,
-   * so every write but the last is silently overwritten by the one after it.
-   * No `Settings` field is itself function-typed, so the two signatures
-   * don't collide at any call site. */
-  updateSetting: {
-    <K extends keyof Settings>(key: K, value: Settings[K]): Promise<void>;
-    <K extends keyof Settings>(
-      key: K,
-      updater: (prev: Settings[K]) => Settings[K],
-    ): Promise<void>;
-  };
-  isLoading: boolean;
-  isLanguageReady: boolean;
-  isLanguageSettled: boolean;
+    settings: Settings;
+    /** Overloaded: pass a plain value, or an updater that receives the
+     * *current* value at the moment the state update actually runs (React's
+     * functional-setState pattern) rather than whatever was in scope when
+     * `updateSetting` was called. Needed for any read-then-append onto a
+     * setting — e.g. a migration-history array — from inside an async loop
+     * that calls `updateSetting` more than once: a caller that captures
+     * `settings.foo` once, before the loop starts, and reuses that same
+     * snapshot on every iteration only ever appends onto that first snapshot,
+     * so every write but the last is silently overwritten by the one after it.
+     * No `Settings` field is itself function-typed, so the two signatures
+     * don't collide at any call site. */
+    updateSetting: {
+        <K extends keyof Settings>(key: K, value: Settings[K]): Promise<void>;
+        <K extends keyof Settings>(
+            key: K,
+            updater: (prev: Settings[K]) => Settings[K],
+        ): Promise<void>;
+    };
+    isLoading: boolean;
+    isLanguageReady: boolean;
+    isLanguageSettled: boolean;
 }
 
-export const SettingsContext = createContext<SettingsContextType | undefined>(
-  undefined,
-);
+export const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const DEFAULT_SETTINGS: Settings = {
-  resultPageSize: 500,
-  language: "auto",
-  displayTimezone: "auto",
-  fontFamily: "System",
-  fontSize: 14,
-  resultColorByType: false,
-  resultTypeColors: {},
-  stickyColumnHeaders: true,
-  resultZebraStripes: false,
-  defaultSortDirection: "asc",
-  resultFontFamily: "JetBrains Mono",
-  aiEnabled: false,
-  aiProvider: null,
-  aiModel: null,
-  aiCustomModels: undefined,
-  aiOllamaPort: 11434,
-  aiCustomOpenaiUrl: "",
-  aiCustomOpenaiModel: "",
-  loggingEnabled: true,
-  maxLogEntries: 1000,
-  copyFormat: "csv",
-  csvDelimiter: ",",
-  csvIncludeHeaders: true,
-  erDiagramDefaultLayout: "LR",
-  editorFontFamily: "JetBrains Mono",
-  editorFontSize: 14,
-  editorLineHeight: 1.5,
-  editorTabSize: 2,
-  editorWordWrap: true,
-  editorHighlightInvisibleCharacters: true,
-  editorShowLineNumbers: true,
-  editorAcceptSuggestionOnEnter: true,
-  runStatementUnderCursor: true,
-  autocompleteKeywordCase: "match",
-  safetyConfirmationDelayEnabled: false,
-  notifyLongQueries: true,
-  notifyLongQueriesThresholdSec: 20,
-  formatterKeywordCase: "upper",
-  formatterIndentStyle: "standard",
-  formatterTabWidth: 2,
-  formatterUseTabs: false,
-  formatterFunctionCase: "preserve",
-  formatterLinesBetweenQueries: 1,
-  formatterDenseOperators: false,
-  pingInterval: 30,
-  queryHistoryMaxEntries: 500,
-  autoConnectLastConnection: true,
-  startMaximized: false,
-  windowDecorations: "automatic",
-  aiAuditEnabled: true,
-  aiAuditMaxEntries: 5000,
-  aiSessionGapMinutes: 10,
-  mcpOutputFormat: "json",
-  mcpReadonlyDefault: false,
-  mcpReadonlyConnections: [],
-  mcpApprovalMode: "writes_only",
-  mcpApprovalTimeoutSeconds: 120,
-  mcpPreflightExplain: true,
-  mcpApprovalAlwaysOnTop: true,
-  mcpApprovalNotifySound: true,
-  backupMode: "manual",
-  backupDirectory: "",
-  backupIntervalMinutes: 1440,
-  backupRetention: 10,
-  columnMaskingEnabled: true,
-  columnMaskingPatterns: DEFAULT_MASKING_PATTERNS,
-  columnMaskingOverrides: {},
+    resultPageSize: 500,
+    language: 'auto',
+    displayTimezone: 'auto',
+    fontFamily: 'System',
+    fontSize: 14,
+    resultColorByType: false,
+    resultTypeColors: {},
+    stickyColumnHeaders: true,
+    resultZebraStripes: false,
+    defaultSortDirection: 'asc',
+    resultFontFamily: 'JetBrains Mono',
+    aiEnabled: false,
+    aiProvider: null,
+    aiModel: null,
+    aiCustomModels: undefined,
+    aiOllamaPort: 11434,
+    aiCustomOpenaiUrl: '',
+    aiCustomOpenaiModel: '',
+    loggingEnabled: true,
+    maxLogEntries: 1000,
+    copyFormat: 'csv',
+    csvDelimiter: ',',
+    csvIncludeHeaders: true,
+    erDiagramDefaultLayout: 'LR',
+    editorFontFamily: 'JetBrains Mono',
+    editorFontSize: 14,
+    editorLineHeight: 1.5,
+    editorTabSize: 2,
+    editorWordWrap: true,
+    editorHighlightInvisibleCharacters: true,
+    editorShowLineNumbers: true,
+    editorAcceptSuggestionOnEnter: true,
+    runStatementUnderCursor: true,
+    autocompleteKeywordCase: 'match',
+    safetyConfirmationDelayEnabled: false,
+    notifyLongQueries: true,
+    notifyLongQueriesThresholdSec: 20,
+    formatterKeywordCase: 'upper',
+    formatterIndentStyle: 'standard',
+    formatterTabWidth: 2,
+    formatterUseTabs: false,
+    formatterFunctionCase: 'preserve',
+    formatterLinesBetweenQueries: 1,
+    formatterDenseOperators: false,
+    pingInterval: 30,
+    queryHistoryMaxEntries: 500,
+    autoConnectLastConnection: true,
+    startMaximized: false,
+    windowDecorations: 'automatic',
+    aiAuditEnabled: true,
+    aiAuditMaxEntries: 5000,
+    aiSessionGapMinutes: 10,
+    mcpOutputFormat: 'json',
+    mcpReadonlyDefault: false,
+    mcpReadonlyConnections: [],
+    mcpApprovalMode: 'writes_only',
+    mcpApprovalTimeoutSeconds: 120,
+    mcpPreflightExplain: true,
+    mcpApprovalAlwaysOnTop: true,
+    mcpApprovalNotifySound: true,
+    backupMode: 'manual',
+    backupDirectory: '',
+    backupIntervalMinutes: 1440,
+    backupRetention: 10,
+    databaseBackupPlan: undefined,
+    columnMaskingEnabled: true,
+    columnMaskingPatterns: DEFAULT_MASKING_PATTERNS,
+    columnMaskingOverrides: {},
 };

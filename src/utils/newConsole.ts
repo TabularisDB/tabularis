@@ -1,24 +1,24 @@
-import type { DriverCapabilities, PluginManifest } from "../types/plugins";
-import { quoteTableRef } from "./identifiers";
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
+import {quoteTableRef} from './identifiers';
 
 export interface NewConsoleSpec {
-  sql: string;
-  title: string;
-  schema?: string;
+    sql: string;
+    title: string;
+    schema?: string;
 }
 
 export function newConsoleForDatabase(databaseName: string): NewConsoleSpec {
-  return { sql: "", title: databaseName, schema: databaseName };
+    return {sql: '', title: databaseName, schema: databaseName};
 }
 
 export function newConsoleForTable(
-  tableName: string,
-  driver: string | PluginManifest | DriverCapabilities | null | undefined,
-  schema?: string,
+    tableName: string,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    schema?: string,
 ): NewConsoleSpec {
-  return {
-    sql: `SELECT * FROM ${quoteTableRef(tableName, driver, schema)}`,
-    title: tableName,
-    schema,
-  };
+    return {
+        sql: `SELECT * FROM ${quoteTableRef(tableName, driver, schema)}`,
+        title: tableName,
+        schema,
+    };
 }

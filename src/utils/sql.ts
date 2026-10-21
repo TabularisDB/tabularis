@@ -1,42 +1,42 @@
 import {
-  type Dialect,
-  type DialectInput,
-  type DialectOptions,
-  type SqlSyntaxSource,
-  type Statement,
-  dialectOptions,
-  splitStatements,
-  stripLeadingComments,
-  isExplainable,
+    type Dialect,
+    type DialectInput,
+    type DialectOptions,
+    type SqlSyntaxSource,
+    type Statement,
+    dialectOptions,
+    splitStatements,
+    stripLeadingComments,
+    isExplainable,
 } from './sqlSplitter';
-import { leadingKeyword } from './sqlSplitter/classify';
-import { maskNonCode } from './queryParameters';
+import {leadingKeyword} from './sqlSplitter/classify';
+import {maskNonCode} from './queryParameters';
 
 export type SqlDialect = Dialect;
-export type { Statement };
+export type {Statement};
 
-export { splitQueries, splitStatements, splitBatches, findStatementAtOffset } from './sqlSplitter';
+export {splitQueries, splitStatements, splitBatches, findStatementAtOffset} from './sqlSplitter';
 
 export const stripLeadingSqlComments = stripLeadingComments;
 
 export const isExplainableQuery = isExplainable;
 
 const DATA_MODIFYING_KEYWORDS: ReadonlySet<string> = new Set([
-  "INSERT",
-  "UPDATE",
-  "DELETE",
-  "MERGE",
-  "REPLACE",
-  "UPSERT",
-  "TRUNCATE",
-  "CREATE",
-  "DROP",
-  "ALTER",
-  "GRANT",
-  "REVOKE",
-  "CALL",
-  "EXEC",
-  "EXECUTE",
+    'INSERT',
+    'UPDATE',
+    'DELETE',
+    'MERGE',
+    'REPLACE',
+    'UPSERT',
+    'TRUNCATE',
+    'CREATE',
+    'DROP',
+    'ALTER',
+    'GRANT',
+    'REVOKE',
+    'CALL',
+    'EXEC',
+    'EXECUTE',
 ]);
 
 // A `WITH` statement writes when its main statement or any CTE body does.
@@ -49,31 +49,31 @@ const SELECT_INTO_RE = /\bINTO\b/i;
 // triple-quoted and prefixed strings, `#` comments), which no preset has. A
 // declared `sql_syntax` can make an engine lex this way, so the dialect-blind
 // check below reads the query this way too.
-const GENERIC_OPTIONS: DialectOptions = dialectOptions("generic");
+const GENERIC_OPTIONS: DialectOptions = dialectOptions('generic');
 const TRIPLE_QUOTED_BACKSLASH: SqlSyntaxSource = {
-  dialect: "generic",
-  declared: true,
-  options: {
-    ...GENERIC_OPTIONS,
-    quotes: [
-      { open: "'", close: "'", escape: "\\", doubleClose: false, kind: "string" },
-      { open: '"', close: '"', escape: "\\", doubleClose: false, kind: "string" },
-      { open: "`", close: "`", escape: "\\", doubleClose: false, kind: "identifier" },
-    ],
-    hashComments: true,
-    tripleQuotedStrings: true,
-    stringPrefixes: ["r", "b", "rb", "br"],
-  },
+    dialect: 'generic',
+    declared: true,
+    options: {
+        ...GENERIC_OPTIONS,
+        quotes: [
+            {open: "'", close: "'", escape: '\\', doubleClose: false, kind: 'string'},
+            {open: '"', close: '"', escape: '\\', doubleClose: false, kind: 'string'},
+            {open: '`', close: '`', escape: '\\', doubleClose: false, kind: 'identifier'},
+        ],
+        hashComments: true,
+        tripleQuotedStrings: true,
+        stringPrefixes: ['r', 'b', 'rb', 'br'],
+    },
 };
 
 const MASK_DIALECTS: readonly DialectInput[] = [
-  "postgres",
-  "mysql",
-  "mssql",
-  "sqlite",
-  "oracle",
-  TRIPLE_QUOTED_BACKSLASH,
-  "generic",
+    'postgres',
+    'mysql',
+    'mssql',
+    'sqlite',
+    'oracle',
+    TRIPLE_QUOTED_BACKSLASH,
+    'generic',
 ];
 
 /**
@@ -87,15 +87,15 @@ const MASK_DIALECTS: readonly DialectInput[] = [
  * helpers rather than in the plan analysis package.
  */
 export function isDataModifyingQuery(query: string): boolean {
-  // The dialect is unknown: a statement modifies data if it does under either
-  // reading of a leading `#` (a MySQL comment, or code elsewhere).
-  return [false, true].some((hashComments) => {
-    const keyword = leadingKeyword(query, { hashComments });
-    if (DATA_MODIFYING_KEYWORDS.has(keyword)) return true;
-    if (keyword === "SELECT") return matchesOutsideStrings(query, SELECT_INTO_RE);
-    if (keyword === "WITH") return matchesOutsideStrings(query, CTE_WRITE_RE);
-    return false;
-  });
+    // The dialect is unknown: a statement modifies data if it does under either
+    // reading of a leading `#` (a MySQL comment, or code elsewhere).
+    return [false, true].some((hashComments) => {
+        const keyword = leadingKeyword(query, {hashComments});
+        if (DATA_MODIFYING_KEYWORDS.has(keyword)) return true;
+        if (keyword === 'SELECT') return matchesOutsideStrings(query, SELECT_INTO_RE);
+        if (keyword === 'WITH') return matchesOutsideStrings(query, CTE_WRITE_RE);
+        return false;
+    });
 }
 
 // Look for a keyword outside strings and comments. The connection's dialect is
@@ -104,182 +104,182 @@ export function isDataModifyingQuery(query: string): boolean {
 // read an apostrophe in it as an unterminated string that hides everything
 // after it. The real dialect always lexes it, so a match under any one counts.
 function matchesOutsideStrings(query: string, pattern: RegExp): boolean {
-  return MASK_DIALECTS.some((dialect) => pattern.test(maskNonCode(query, dialect)));
+    return MASK_DIALECTS.some((dialect) => pattern.test(maskNonCode(query, dialect)));
 }
 
 function isIdentifierChar(char: string): boolean {
-  return /[A-Za-z0-9_$]/.test(char);
+    return /[A-Za-z0-9_$]/.test(char);
 }
 
 function skipQuotedSegment(sql: string, start: number, quote: string): number {
-  let index = start + 1;
+    let index = start + 1;
 
-  while (index < sql.length) {
-    if (sql[index] === quote) {
-      if (sql[index + 1] === quote) {
-        index += 2;
-        continue;
-      }
+    while (index < sql.length) {
+        if (sql[index] === quote) {
+            if (sql[index + 1] === quote) {
+                index += 2;
+                continue;
+            }
 
-      return index + 1;
+            return index + 1;
+        }
+
+        index += 1;
     }
 
-    index += 1;
-  }
-
-  return sql.length;
+    return sql.length;
 }
 
 function skipBracketIdentifier(sql: string, start: number): number {
-  let index = start + 1;
+    let index = start + 1;
 
-  while (index < sql.length) {
-    if (sql[index] === ']') {
-      if (sql[index + 1] === ']') {
-        index += 2;
-        continue;
-      }
+    while (index < sql.length) {
+        if (sql[index] === ']') {
+            if (sql[index + 1] === ']') {
+                index += 2;
+                continue;
+            }
 
-      return index + 1;
+            return index + 1;
+        }
+
+        index += 1;
     }
 
-    index += 1;
-  }
-
-  return sql.length;
+    return sql.length;
 }
 
 function skipLineComment(sql: string, start: number): number {
-  let index = start + 2;
+    let index = start + 2;
 
-  while (index < sql.length && sql[index] !== '\n' && sql[index] !== '\r') {
-    index += 1;
-  }
+    while (index < sql.length && sql[index] !== '\n' && sql[index] !== '\r') {
+        index += 1;
+    }
 
-  return index;
+    return index;
 }
 
 function skipHashComment(sql: string, start: number): number {
-  let index = start + 1;
+    let index = start + 1;
 
-  while (index < sql.length && sql[index] !== '\n' && sql[index] !== '\r') {
-    index += 1;
-  }
+    while (index < sql.length && sql[index] !== '\n' && sql[index] !== '\r') {
+        index += 1;
+    }
 
-  return index;
+    return index;
 }
 
 function skipBlockComment(sql: string, start: number): number {
-  let index = start + 2;
+    let index = start + 2;
 
-  while (index < sql.length - 1) {
-    if (sql[index] === '*' && sql[index + 1] === '/') {
-      return index + 2;
+    while (index < sql.length - 1) {
+        if (sql[index] === '*' && sql[index + 1] === '/') {
+            return index + 2;
+        }
+
+        index += 1;
     }
 
-    index += 1;
-  }
-
-  return sql.length;
+    return sql.length;
 }
 
-function readTopLevelWord(sql: string, start: number): { word: string; end: number } | null {
-  const firstChar = sql[start];
-  if (!/[A-Za-z_]/.test(firstChar)) {
-    return null;
-  }
+function readTopLevelWord(sql: string, start: number): {word: string; end: number} | null {
+    const firstChar = sql[start];
+    if (!/[A-Za-z_]/.test(firstChar)) {
+        return null;
+    }
 
-  let end = start + 1;
-  while (end < sql.length && isIdentifierChar(sql[end])) {
-    end += 1;
-  }
+    let end = start + 1;
+    while (end < sql.length && isIdentifierChar(sql[end])) {
+        end += 1;
+    }
 
-  return {
-    word: sql.slice(start, end),
-    end,
-  };
+    return {
+        word: sql.slice(start, end),
+        end,
+    };
 }
 
 export function extractEditableViewDefinition(sql: string): string {
-  const trimmed = sql.trim();
-  if (!trimmed) {
-    return trimmed;
-  }
-
-  let depth = 0;
-  let sawCreate = false;
-  let sawView = false;
-  let firstWord: string | null = null;
-
-  for (let index = 0; index < trimmed.length;) {
-    const char = trimmed[index];
-    const nextChar = trimmed[index + 1];
-
-    if (char === "'" || char === '"' || char === '`') {
-      index = skipQuotedSegment(trimmed, index, char);
-      continue;
-    }
-
-    if (char === '[') {
-      index = skipBracketIdentifier(trimmed, index);
-      continue;
-    }
-
-    if (char === '-' && nextChar === '-') {
-      index = skipLineComment(trimmed, index);
-      continue;
-    }
-
-    if (char === '#') {
-      index = skipHashComment(trimmed, index);
-      continue;
-    }
-
-    if (char === '/' && nextChar === '*') {
-      index = skipBlockComment(trimmed, index);
-      continue;
-    }
-
-    if (char === '(') {
-      depth += 1;
-      index += 1;
-      continue;
-    }
-
-    if (char === ')') {
-      depth = Math.max(0, depth - 1);
-      index += 1;
-      continue;
-    }
-
-    const word = readTopLevelWord(trimmed, index);
-    if (!word) {
-      index += 1;
-      continue;
-    }
-
-    const upperWord = word.word.toUpperCase();
-    if (firstWord === null) {
-      firstWord = upperWord;
-      if (upperWord !== 'CREATE') {
+    const trimmed = sql.trim();
+    if (!trimmed) {
         return trimmed;
-      }
-
-      sawCreate = true;
     }
 
-    if (depth === 0 && sawCreate) {
-      if (upperWord === 'VIEW') {
-        sawView = true;
-      } else if (upperWord === 'AS' && sawView) {
-        return trimmed.slice(word.end).trim();
-      }
+    let depth = 0;
+    let sawCreate = false;
+    let sawView = false;
+    let firstWord: string | null = null;
+
+    for (let index = 0; index < trimmed.length;) {
+        const char = trimmed[index];
+        const nextChar = trimmed[index + 1];
+
+        if (char === "'" || char === '"' || char === '`') {
+            index = skipQuotedSegment(trimmed, index, char);
+            continue;
+        }
+
+        if (char === '[') {
+            index = skipBracketIdentifier(trimmed, index);
+            continue;
+        }
+
+        if (char === '-' && nextChar === '-') {
+            index = skipLineComment(trimmed, index);
+            continue;
+        }
+
+        if (char === '#') {
+            index = skipHashComment(trimmed, index);
+            continue;
+        }
+
+        if (char === '/' && nextChar === '*') {
+            index = skipBlockComment(trimmed, index);
+            continue;
+        }
+
+        if (char === '(') {
+            depth += 1;
+            index += 1;
+            continue;
+        }
+
+        if (char === ')') {
+            depth = Math.max(0, depth - 1);
+            index += 1;
+            continue;
+        }
+
+        const word = readTopLevelWord(trimmed, index);
+        if (!word) {
+            index += 1;
+            continue;
+        }
+
+        const upperWord = word.word.toUpperCase();
+        if (firstWord === null) {
+            firstWord = upperWord;
+            if (upperWord !== 'CREATE') {
+                return trimmed;
+            }
+
+            sawCreate = true;
+        }
+
+        if (depth === 0 && sawCreate) {
+            if (upperWord === 'VIEW') {
+                sawView = true;
+            } else if (upperWord === 'AS' && sawView) {
+                return trimmed.slice(word.end).trim();
+            }
+        }
+
+        index = word.end;
     }
 
-    index = word.end;
-  }
-
-  return trimmed;
+    return trimmed;
 }
 
 /**
@@ -295,12 +295,12 @@ export function extractEditableViewDefinition(sql: string): string {
  * splitter and do not consume an index slot.
  */
 export function getExplainableQueries(
-  sql: string,
-  dialect?: DialectInput,
-): { query: string; index: number }[] {
-  return splitStatements(sql, dialect).flatMap((s, i) =>
-    s.isExplainable ? [{ query: s.text, index: i + 1 }] : [],
-  );
+    sql: string,
+    dialect?: DialectInput,
+): {query: string; index: number}[] {
+    return splitStatements(sql, dialect).flatMap((s, i) =>
+        s.isExplainable ? [{query: s.text, index: i + 1}] : [],
+    );
 }
 
 /**
@@ -310,7 +310,7 @@ export function getExplainableQueries(
  * (so the label is never blank).
  */
 export function statementLabel(query: string): string {
-  return stripLeadingComments(query) || query;
+    return stripLeadingComments(query) || query;
 }
 
 /**
@@ -321,60 +321,61 @@ export function statementLabel(query: string): string {
  * Returns null if no table is found or if it's not a SELECT query.
  * Returns null for aggregate queries (COUNT, SUM, etc.) since they don't return table rows.
  */
-export function extractTableName(
-  sql: string,
-  expectedSchema?: string | null,
-): string | null {
-  // Remove comments and normalize whitespace
-  const cleaned = sql
-    .replace(/--[^\n]*/g, '') // Remove line comments
-    .replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
-    .replace(/\s+/g, ' ') // Normalize whitespace
-    .trim();
+export function extractTableName(sql: string, expectedSchema?: string | null): string | null {
+    // Remove comments and normalize whitespace
+    const cleaned = sql
+        .replace(/--[^\n]*/g, '') // Remove line comments
+        .replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
 
-  // Check if it's a SELECT query
-  if (!/^\s*SELECT\s+/i.test(cleaned)) {
-    return null;
-  }
+    // Check if it's a SELECT query
+    if (!/^\s*SELECT\s+/i.test(cleaned)) {
+        return null;
+    }
 
-  // DISTINCT removes duplicates - editing a row could affect deduplication
-  if (/\bSELECT\s+DISTINCT\b/i.test(cleaned)) {
-    return null;
-  }
+    // DISTINCT removes duplicates - editing a row could affect deduplication
+    if (/\bSELECT\s+DISTINCT\b/i.test(cleaned)) {
+        return null;
+    }
 
-  // Check if it's an aggregate query (COUNT, SUM, AVG, MIN, MAX, GROUP BY, HAVING)
-  // These don't return table rows, so we shouldn't fetch PK
-  if (/\b(COUNT|SUM|AVG|MIN|MAX)\s*\(/i.test(cleaned) || /\bGROUP\s+BY\b/i.test(cleaned) || /\bHAVING\b/i.test(cleaned)) {
-    return null;
-  }
+    // Check if it's an aggregate query (COUNT, SUM, AVG, MIN, MAX, GROUP BY, HAVING)
+    // These don't return table rows, so we shouldn't fetch PK
+    if (
+        /\b(COUNT|SUM|AVG|MIN|MAX)\s*\(/i.test(cleaned) ||
+        /\bGROUP\s+BY\b/i.test(cleaned) ||
+        /\bHAVING\b/i.test(cleaned)
+    ) {
+        return null;
+    }
 
-  // JOINs produce rows from multiple tables - not safely editable against a single table
-  if (/\bJOIN\b/i.test(cleaned)) {
-    return null;
-  }
+    // JOINs produce rows from multiple tables - not safely editable against a single table
+    if (/\bJOIN\b/i.test(cleaned)) {
+        return null;
+    }
 
-  // Set operations combine results from multiple queries
-  if (/\b(UNION|INTERSECT|EXCEPT)\b/i.test(cleaned)) {
-    return null;
-  }
+    // Set operations combine results from multiple queries
+    if (/\b(UNION|INTERSECT|EXCEPT)\b/i.test(cleaned)) {
+        return null;
+    }
 
-  // Subquery in FROM clause (derived table)
-  if (/\bFROM\s*\(/i.test(cleaned)) {
-    return null;
-  }
+    // Subquery in FROM clause (derived table)
+    if (/\bFROM\s*\(/i.test(cleaned)) {
+        return null;
+    }
 
-  // Match an optionally schema-qualified identifier. Each identifier can be
-  // quoted independently, for example `Ops`.`Addresses` or Ops.Addresses.
-  const fromMatch = cleaned.match(
-    /\bFROM\s+(?:(?:`([^`]+)`|"([^"]+)"|'([^']+)'|([\w$]+))\s*\.\s*)?(?:`([^`]+)`|"([^"]+)"|'([^']+)'|([\w$]+))/i,
-  );
-  if (!fromMatch) return null;
+    // Match an optionally schema-qualified identifier. Each identifier can be
+    // quoted independently, for example `Ops`.`Addresses` or Ops.Addresses.
+    const fromMatch = cleaned.match(
+        /\bFROM\s+(?:(?:`([^`]+)`|"([^"]+)"|'([^']+)'|([\w$]+))\s*\.\s*)?(?:`([^`]+)`|"([^"]+)"|'([^']+)'|([\w$]+))/i,
+    );
+    if (!fromMatch) return null;
 
-  const schema = fromMatch[1] ?? fromMatch[2] ?? fromMatch[3] ?? fromMatch[4];
-  const table = fromMatch[5] ?? fromMatch[6] ?? fromMatch[7] ?? fromMatch[8];
-  if (!table) return null;
+    const schema = fromMatch[1] ?? fromMatch[2] ?? fromMatch[3] ?? fromMatch[4];
+    const table = fromMatch[5] ?? fromMatch[6] ?? fromMatch[7] ?? fromMatch[8];
+    if (!table) return null;
 
-  if (schema && schema !== expectedSchema) return null;
+    if (schema && schema !== expectedSchema) return null;
 
-  return table;
+    return table;
 }

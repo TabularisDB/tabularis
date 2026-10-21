@@ -1,23 +1,23 @@
 const TEXT_TYPES = [
-  "TEXT",
-  "TINYTEXT",
-  "MEDIUMTEXT",
-  "LONGTEXT",
-  "NTEXT",
-  "CLOB",
-  "CHARACTER VARYING",
-  "VARCHAR",
-  "NVARCHAR",
-  "CHARACTER",
-  "CHAR",
-  "NCHAR",
-  "STRING",
+    'TEXT',
+    'TINYTEXT',
+    'MEDIUMTEXT',
+    'LONGTEXT',
+    'NTEXT',
+    'CLOB',
+    'CHARACTER VARYING',
+    'VARCHAR',
+    'NVARCHAR',
+    'CHARACTER',
+    'CHAR',
+    'NCHAR',
+    'STRING',
 ];
 
 // pgvector extension types. Their values arrive as long textual literals
 // (e.g. "[-0.0038,-0.0132,…]"), so for preview/editing purposes they behave
 // like long text even though they are not character types.
-const VECTOR_TYPES = ["VECTOR", "HALFVEC", "SPARSEVEC"];
+const VECTOR_TYPES = ['VECTOR', 'HALFVEC', 'SPARSEVEC'];
 
 export const LONG_TEXT_THRESHOLD = 80;
 
@@ -33,10 +33,10 @@ export const LONG_TEXT_THRESHOLD = 80;
 export const CELL_PREVIEW_LIMIT = 300;
 
 export interface CellPreview {
-  /** The (possibly shortened) string safe to render inline. */
-  text: string;
-  /** Whether the source string was longer than the limit. */
-  truncated: boolean;
+    /** The (possibly shortened) string safe to render inline. */
+    text: string;
+    /** Whether the source string was longer than the limit. */
+    truncated: boolean;
 }
 
 /**
@@ -44,20 +44,17 @@ export interface CellPreview {
  * string untouched (with `truncated: false`) when it is already within the
  * limit, so short cells incur no allocation.
  */
-export function truncateCellPreview(
-  text: string,
-  limit: number = CELL_PREVIEW_LIMIT,
-): CellPreview {
-  if (text.length <= limit) return { text, truncated: false };
-  return { text: text.slice(0, limit), truncated: true };
+export function truncateCellPreview(text: string, limit: number = CELL_PREVIEW_LIMIT): CellPreview {
+    if (text.length <= limit) return {text, truncated: false};
+    return {text: text.slice(0, limit), truncated: true};
 }
 
 // Substring match so parameterised forms like "VARCHAR(255)" or
 // "CHARACTER VARYING(50)" still resolve as text.
 export function isTextColumn(dataType: string | undefined): boolean {
-  if (!dataType) return false;
-  const normalized = dataType.toUpperCase();
-  return TEXT_TYPES.some((type) => normalized.includes(type));
+    if (!dataType) return false;
+    const normalized = dataType.toUpperCase();
+    return TEXT_TYPES.some((type) => normalized.includes(type));
 }
 
 /**
@@ -72,34 +69,31 @@ export function isTextColumn(dataType: string | undefined): boolean {
  * unknown we stay permissive rather than hide the action for lack of metadata.
  */
 export function supportsEmptyString(dataType: string | undefined): boolean {
-  if (!dataType) return true;
-  return isTextColumn(dataType);
+    if (!dataType) return true;
+    return isTextColumn(dataType);
 }
 
 // pgvector columns (vector / halfvec / sparsevec) whose values are rendered
 // as long textual literals and benefit from the same preview/editor affordances
 // as long text. Matches the base name so "vector(1536)" still resolves.
 export function isVectorColumn(dataType: string | undefined): boolean {
-  if (!dataType) return false;
-  const normalized = dataType.toUpperCase();
-  return VECTOR_TYPES.some((type) => normalized.includes(type));
+    if (!dataType) return false;
+    const normalized = dataType.toUpperCase();
+    return VECTOR_TYPES.some((type) => normalized.includes(type));
 }
 
 export function isLongTextValue(value: unknown): boolean {
-  if (typeof value !== "string") return false;
-  if (value.length > LONG_TEXT_THRESHOLD) return true;
-  return value.includes("\n");
+    if (typeof value !== 'string') return false;
+    if (value.length > LONG_TEXT_THRESHOLD) return true;
+    return value.includes('\n');
 }
 
-export function isLongTextCellTarget(
-  colType: string | undefined,
-  value: unknown,
-): boolean {
-  if (!isTextColumn(colType) && !isVectorColumn(colType)) return false;
-  return isLongTextValue(value);
+export function isLongTextCellTarget(colType: string | undefined, value: unknown): boolean {
+    if (!isTextColumn(colType) && !isVectorColumn(colType)) return false;
+    return isLongTextValue(value);
 }
 
 export function formatTextForEditor(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  return String(value);
+    if (value === null || value === undefined) return '';
+    return String(value);
 }

@@ -21,6 +21,7 @@ import {
     hasUnloadedRows,
     resolveExportScope,
     type ExportScope,
+    getLoadedRowsExportLimit,
     type ResultExportFormat,
 } from '@/utils/resultExport';
 import {serializePkKey, buildPkMap} from '@/utils/dataGrid';
@@ -4587,12 +4588,26 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         setExportState((prev) => ({...prev, isOpen: false}));
     }, []);
 
+    const getLoadedRowsWarning = (result: QueryResult): string | undefined => {
+        const limit = getLoadedRowsExportLimit(result);
+        if (!limit) return undefined;
+        const loaded = limit.loadedRows.toLocaleString();
+        return limit.totalRows === null
+            ? t('editor.exportLoadedRowsWarningUnknownTotal', {loaded})
+            : t('editor.exportLoadedRowsWarning', {
+                  loaded,
+                  total: limit.totalRows.toLocaleString(),
+              });
+    };
+
     const handleExportLoadedRows = async (result: QueryResult, format: ResultExportFormat) => {
         if (!activeTab) return;
 
         const extension = format === 'markdown' ? 'md' : format;
         const filterName = format === 'markdown' ? 'Markdown' : format.toUpperCase();
         try {
+            const warningMessage = getLoadedRowsWarning(result);
+
             const filePath = await saveFileDialog({
                 filters: [
                     {
@@ -4614,7 +4629,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 rowsProcessed: result.rows.length,
                 fileName: filePath.split(/[/\\]/).pop() || filePath,
                 errorMessage: undefined,
-                warningMessage: undefined,
+                warningMessage,
             });
             setExportMenuOpen(false);
 

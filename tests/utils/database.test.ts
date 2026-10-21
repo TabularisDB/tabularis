@@ -1,517 +1,511 @@
-import { describe, it, expect } from 'vitest';
+import {describe, it, expect} from 'vitest';
 import {
-  isMultiDatabaseCapable,
-  isSchemaBasedMultiDbCapable,
-  isSchemaBasedMultiDb,
-  hasOptedIntoDatabaseSelection,
-  usesMultiDatabaseLayout,
-  isMultiDatabaseSelection,
-  getTableDataChangeScope,
-  getDatabaseList,
-  getEffectiveDatabase,
-  reconcileDatabaseSelection,
-  resolveHistoryDatabase,
-  resolveFlatMultiDbTabDatabase,
-  selectFlatMultiDbTabDatabase,
-  toFlatMultiDbTabTarget,
-} from '../../src/utils/database';
-import { parseEditorNavigationIntent } from '../../src/utils/editorNavigation';
-import type { DriverCapabilities } from '../../src/types/plugins';
+    isMultiDatabaseCapable,
+    isSchemaBasedMultiDbCapable,
+    isSchemaBasedMultiDb,
+    hasOptedIntoDatabaseSelection,
+    usesMultiDatabaseLayout,
+    isMultiDatabaseSelection,
+    getTableDataChangeScope,
+    getDatabaseList,
+    getEffectiveDatabase,
+    reconcileDatabaseSelection,
+    resolveHistoryDatabase,
+    resolveFlatMultiDbTabDatabase,
+    selectFlatMultiDbTabDatabase,
+    toFlatMultiDbTabTarget,
+} from '@/utils/database';
+import {parseEditorNavigationIntent} from '@/utils/editorNavigation';
+import type {DriverCapabilities} from '@/types/plugins';
 
 const baseCapabilities: DriverCapabilities = {
-  schemas: false,
-  views: true,
-  routines: true,
-  file_based: false,
-  folder_based: false,
-  identifier_quote: '`',
-  alter_primary_key: false,
+    schemas: false,
+    views: true,
+    routines: true,
+    file_based: false,
+    folder_based: false,
+    identifier_quote: '`',
+    alter_primary_key: false,
 };
 
 const postgresCapabilities: DriverCapabilities = {
-  ...baseCapabilities,
-  schemas: true,
+    ...baseCapabilities,
+    schemas: true,
 };
 
 describe('isMultiDatabaseCapable', () => {
-  it('returns true for MySQL-like driver (no schemas, not file_based, not folder_based)', () => {
-    expect(isMultiDatabaseCapable(baseCapabilities)).toBe(true);
-  });
+    it('returns true for MySQL-like driver (no schemas, not file_based, not folder_based)', () => {
+        expect(isMultiDatabaseCapable(baseCapabilities)).toBe(true);
+    });
 
-  it('returns false when schemas is true (Postgres)', () => {
-    expect(isMultiDatabaseCapable({ ...baseCapabilities, schemas: true })).toBe(false);
-  });
+    it('returns false when schemas is true (Postgres)', () => {
+        expect(isMultiDatabaseCapable({...baseCapabilities, schemas: true})).toBe(false);
+    });
 
-  it('returns false when file_based is true (SQLite)', () => {
-    expect(isMultiDatabaseCapable({ ...baseCapabilities, file_based: true })).toBe(false);
-  });
+    it('returns false when file_based is true (SQLite)', () => {
+        expect(isMultiDatabaseCapable({...baseCapabilities, file_based: true})).toBe(false);
+    });
 
-  it('returns false when folder_based is true (DuckDB)', () => {
-    expect(isMultiDatabaseCapable({ ...baseCapabilities, folder_based: true })).toBe(false);
-  });
+    it('returns false when folder_based is true (DuckDB)', () => {
+        expect(isMultiDatabaseCapable({...baseCapabilities, folder_based: true})).toBe(false);
+    });
 
-  it('returns false for a single_database store (Meilisearch)', () => {
-    expect(isMultiDatabaseCapable({ ...baseCapabilities, single_database: true })).toBe(false);
-  });
+    it('returns false for a single_database store (Meilisearch)', () => {
+        expect(isMultiDatabaseCapable({...baseCapabilities, single_database: true})).toBe(false);
+    });
 });
 
 describe('usesMultiDatabaseLayout', () => {
-  it('is on for a multi-db driver with any populated selection', () => {
-    expect(usesMultiDatabaseLayout(baseCapabilities, ['a', 'b'])).toBe(true);
-    // A single database still needs the multi-db presentation: all-databases
-    // connections have no default schema, so queries must stay db-qualified.
-    expect(usesMultiDatabaseLayout(baseCapabilities, ['a'])).toBe(true);
-  });
+    it('is on for a multi-db driver with any populated selection', () => {
+        expect(usesMultiDatabaseLayout(baseCapabilities, ['a', 'b'])).toBe(true);
+        // A single database still needs the multi-db presentation: all-databases
+        // connections have no default schema, so queries must stay db-qualified.
+        expect(usesMultiDatabaseLayout(baseCapabilities, ['a'])).toBe(true);
+    });
 
-  it('is off with an empty selection or a non multi-db driver', () => {
-    expect(usesMultiDatabaseLayout(baseCapabilities, [])).toBe(false);
-    expect(usesMultiDatabaseLayout({ ...baseCapabilities, schemas: true }, ['a'])).toBe(false);
-    expect(usesMultiDatabaseLayout(null, ['a'])).toBe(false);
-  });
+    it('is off with an empty selection or a non multi-db driver', () => {
+        expect(usesMultiDatabaseLayout(baseCapabilities, [])).toBe(false);
+        expect(usesMultiDatabaseLayout({...baseCapabilities, schemas: true}, ['a'])).toBe(false);
+        expect(usesMultiDatabaseLayout(null, ['a'])).toBe(false);
+    });
 
-  it('returns false when both schemas and file_based are true', () => {
-    expect(isMultiDatabaseCapable({ ...baseCapabilities, schemas: true, file_based: true })).toBe(false);
-  });
+    it('returns false when both schemas and file_based are true', () => {
+        expect(isMultiDatabaseCapable({...baseCapabilities, schemas: true, file_based: true})).toBe(
+            false,
+        );
+    });
 
-  it('returns false for null capabilities', () => {
-    expect(isMultiDatabaseCapable(null)).toBe(false);
-  });
+    it('returns false for null capabilities', () => {
+        expect(isMultiDatabaseCapable(null)).toBe(false);
+    });
 
-  it('returns false for undefined capabilities', () => {
-    expect(isMultiDatabaseCapable(undefined)).toBe(false);
-  });
+    it('returns false for undefined capabilities', () => {
+        expect(isMultiDatabaseCapable(undefined)).toBe(false);
+    });
 });
 
 describe('getTableDataChangeScope', () => {
-  it('prefers the table tab schema for schema-capable drivers', () => {
-    expect(
-      getTableDataChangeScope(
-        { ...baseCapabilities, schemas: true },
-        'schema_a',
-        'schema_b',
-      ),
-    ).toEqual({ schema: 'schema_a' });
-  });
-
-  it('falls back to the active schema when a schema-capable tab has no schema', () => {
-    expect(
-      getTableDataChangeScope(
-        { ...baseCapabilities, schemas: true },
-        undefined,
-        'public',
-      ),
-    ).toEqual({ schema: 'public' });
-  });
-
-  it('uses the table tab value as database for multi-database drivers', () => {
-    expect(getTableDataChangeScope(baseCapabilities, 'app_db', 'ignored')).toEqual({
-      database: 'app_db',
+    it('prefers the table tab schema for schema-capable drivers', () => {
+        expect(
+            getTableDataChangeScope({...baseCapabilities, schemas: true}, 'schema_a', 'schema_b'),
+        ).toEqual({schema: 'schema_a'});
     });
-  });
 
-  it('omits scope for flat drivers', () => {
-    expect(
-      getTableDataChangeScope(
-        { ...baseCapabilities, file_based: true },
-        'main',
-        'public',
-      ),
-    ).toEqual({});
-  });
+    it('falls back to the active schema when a schema-capable tab has no schema', () => {
+        expect(
+            getTableDataChangeScope({...baseCapabilities, schemas: true}, undefined, 'public'),
+        ).toEqual({schema: 'public'});
+    });
 
-  it('returns both database and schema for a nested (schema-based multi-db) tab', () => {
-    expect(
-      getTableDataChangeScope(
-        postgresCapabilities,
-        'reporting',
-        'public',
-        'analytics',
-      ),
-    ).toEqual({ database: 'analytics', schema: 'reporting' });
-  });
+    it('uses the table tab value as database for multi-database drivers', () => {
+        expect(getTableDataChangeScope(baseCapabilities, 'app_db', 'ignored')).toEqual({
+            database: 'app_db',
+        });
+    });
 
-  it('falls back to the active schema when a nested tab has no schema of its own', () => {
-    expect(
-      getTableDataChangeScope(
-        postgresCapabilities,
-        undefined,
-        'public',
-        'analytics',
-      ),
-    ).toEqual({ database: 'analytics', schema: 'public' });
-  });
+    it('omits scope for flat drivers', () => {
+        expect(
+            getTableDataChangeScope({...baseCapabilities, file_based: true}, 'main', 'public'),
+        ).toEqual({});
+    });
 
-  it('omits schema (but keeps database) when a nested tab and connection both lack one', () => {
-    expect(
-      getTableDataChangeScope(postgresCapabilities, undefined, undefined, 'analytics'),
-    ).toEqual({ database: 'analytics' });
-  });
+    it('returns both database and schema for a nested (schema-based multi-db) tab', () => {
+        expect(
+            getTableDataChangeScope(postgresCapabilities, 'reporting', 'public', 'analytics'),
+        ).toEqual({database: 'analytics', schema: 'reporting'});
+    });
 
-  it('ignores tabDatabase and keeps schema-only behavior for a plain single-db Postgres tab', () => {
-    // The regression guard: a plain single-database Postgres tab never has
-    // `database` set, so it must keep resolving to `{ schema }` exactly as
-    // before, never `{ database, schema }`.
-    expect(
-      getTableDataChangeScope(postgresCapabilities, 'reporting', 'public', undefined),
-    ).toEqual({ schema: 'reporting' });
-  });
+    it('falls back to the active schema when a nested tab has no schema of its own', () => {
+        expect(
+            getTableDataChangeScope(postgresCapabilities, undefined, 'public', 'analytics'),
+        ).toEqual({database: 'analytics', schema: 'public'});
+    });
 
-  it('ignores tabDatabase for flat multi-db drivers (MySQL never sets it)', () => {
-    expect(
-      getTableDataChangeScope(baseCapabilities, 'app_db', 'ignored', 'should-be-unused'),
-    ).toEqual({ database: 'app_db' });
-  });
+    it('omits schema (but keeps database) when a nested tab and connection both lack one', () => {
+        expect(
+            getTableDataChangeScope(postgresCapabilities, undefined, undefined, 'analytics'),
+        ).toEqual({database: 'analytics'});
+    });
+
+    it('ignores tabDatabase and keeps schema-only behavior for a plain single-db Postgres tab', () => {
+        // The regression guard: a plain single-database Postgres tab never has
+        // `database` set, so it must keep resolving to `{ schema }` exactly as
+        // before, never `{ database, schema }`.
+        expect(
+            getTableDataChangeScope(postgresCapabilities, 'reporting', 'public', undefined),
+        ).toEqual({schema: 'reporting'});
+    });
+
+    it('ignores tabDatabase for flat multi-db drivers (MySQL never sets it)', () => {
+        expect(
+            getTableDataChangeScope(baseCapabilities, 'app_db', 'ignored', 'should-be-unused'),
+        ).toEqual({database: 'app_db'});
+    });
 });
 
 describe('isMultiDatabaseSelection', () => {
-  it('returns true for an array', () => {
-    expect(isMultiDatabaseSelection(['db1', 'db2'])).toBe(true);
-  });
+    it('returns true for an array', () => {
+        expect(isMultiDatabaseSelection(['db1', 'db2'])).toBe(true);
+    });
 
-  it('returns true for an empty array', () => {
-    expect(isMultiDatabaseSelection([])).toBe(true);
-  });
+    it('returns true for an empty array', () => {
+        expect(isMultiDatabaseSelection([])).toBe(true);
+    });
 
-  it('returns true for a single-element array', () => {
-    expect(isMultiDatabaseSelection(['db1'])).toBe(true);
-  });
+    it('returns true for a single-element array', () => {
+        expect(isMultiDatabaseSelection(['db1'])).toBe(true);
+    });
 
-  it('returns false for a string', () => {
-    expect(isMultiDatabaseSelection('mydb')).toBe(false);
-  });
+    it('returns false for a string', () => {
+        expect(isMultiDatabaseSelection('mydb')).toBe(false);
+    });
 
-  it('returns false for an empty string', () => {
-    expect(isMultiDatabaseSelection('')).toBe(false);
-  });
+    it('returns false for an empty string', () => {
+        expect(isMultiDatabaseSelection('')).toBe(false);
+    });
 });
 
 describe('getDatabaseList', () => {
-  it('returns the array unchanged when given an array', () => {
-    expect(getDatabaseList(['db1', 'db2'])).toEqual(['db1', 'db2']);
-  });
+    it('returns the array unchanged when given an array', () => {
+        expect(getDatabaseList(['db1', 'db2'])).toEqual(['db1', 'db2']);
+    });
 
-  it('returns empty array for empty array input', () => {
-    expect(getDatabaseList([])).toEqual([]);
-  });
+    it('returns empty array for empty array input', () => {
+        expect(getDatabaseList([])).toEqual([]);
+    });
 
-  it('wraps a non-empty string in an array', () => {
-    expect(getDatabaseList('mydb')).toEqual(['mydb']);
-  });
+    it('wraps a non-empty string in an array', () => {
+        expect(getDatabaseList('mydb')).toEqual(['mydb']);
+    });
 
-  it('returns empty array for an empty string', () => {
-    expect(getDatabaseList('')).toEqual([]);
-  });
+    it('returns empty array for an empty string', () => {
+        expect(getDatabaseList('')).toEqual([]);
+    });
 
-  it('returns single-element array for single-element array input', () => {
-    expect(getDatabaseList(['only'])).toEqual(['only']);
-  });
+    it('returns single-element array for single-element array input', () => {
+        expect(getDatabaseList(['only'])).toEqual(['only']);
+    });
 });
 
 describe('reconcileDatabaseSelection', () => {
-  it('keeps the selection unchanged when every database exists', () => {
-    expect(reconcileDatabaseSelection(['a', 'b'], ['a', 'b', 'c'])).toEqual({
-      selection: ['a', 'b'],
-      removed: [],
+    it('keeps the selection unchanged when every database exists', () => {
+        expect(reconcileDatabaseSelection(['a', 'b'], ['a', 'b', 'c'])).toEqual({
+            selection: ['a', 'b'],
+            removed: [],
+        });
     });
-  });
 
-  it('removes databases that no longer exist on the server', () => {
-    expect(reconcileDatabaseSelection(['a', 'vins', 'b'], ['a', 'b', 'c'])).toEqual({
-      selection: ['a', 'b'],
-      removed: ['vins'],
+    it('removes databases that no longer exist on the server', () => {
+        expect(reconcileDatabaseSelection(['a', 'vins', 'b'], ['a', 'b', 'c'])).toEqual({
+            selection: ['a', 'b'],
+            removed: ['vins'],
+        });
     });
-  });
 
-  it('preserves the saved order of the surviving selection', () => {
-    expect(reconcileDatabaseSelection(['z', 'a', 'm'], ['a', 'm', 'z']).selection).toEqual([
-      'z',
-      'a',
-      'm',
-    ]);
-  });
-
-  it('reports everything as removed when the server list is empty', () => {
-    expect(reconcileDatabaseSelection(['a', 'b'], [])).toEqual({
-      selection: [],
-      removed: ['a', 'b'],
+    it('preserves the saved order of the surviving selection', () => {
+        expect(reconcileDatabaseSelection(['z', 'a', 'm'], ['a', 'm', 'z']).selection).toEqual([
+            'z',
+            'a',
+            'm',
+        ]);
     });
-  });
 
-  it('returns empty results for an empty saved selection', () => {
-    expect(reconcileDatabaseSelection([], ['a', 'b'])).toEqual({
-      selection: [],
-      removed: [],
+    it('reports everything as removed when the server list is empty', () => {
+        expect(reconcileDatabaseSelection(['a', 'b'], [])).toEqual({
+            selection: [],
+            removed: ['a', 'b'],
+        });
     });
-  });
 
-  it('matches database names case-sensitively', () => {
-    expect(reconcileDatabaseSelection(['Vins'], ['vins'])).toEqual({
-      selection: [],
-      removed: ['Vins'],
+    it('returns empty results for an empty saved selection', () => {
+        expect(reconcileDatabaseSelection([], ['a', 'b'])).toEqual({
+            selection: [],
+            removed: [],
+        });
     });
-  });
 
-  it('keeps duplicate saved entries that exist on the server', () => {
-    expect(reconcileDatabaseSelection(['a', 'a'], ['a'])).toEqual({
-      selection: ['a', 'a'],
-      removed: [],
+    it('matches database names case-sensitively', () => {
+        expect(reconcileDatabaseSelection(['Vins'], ['vins'])).toEqual({
+            selection: [],
+            removed: ['Vins'],
+        });
     });
-  });
+
+    it('keeps duplicate saved entries that exist on the server', () => {
+        expect(reconcileDatabaseSelection(['a', 'a'], ['a'])).toEqual({
+            selection: ['a', 'a'],
+            removed: [],
+        });
+    });
 });
 
 describe('getEffectiveDatabase', () => {
-  it('returns the string as-is', () => {
-    expect(getEffectiveDatabase('mydb')).toBe('mydb');
-  });
+    it('returns the string as-is', () => {
+        expect(getEffectiveDatabase('mydb')).toBe('mydb');
+    });
 
-  it('returns empty string for empty string input', () => {
-    expect(getEffectiveDatabase('')).toBe('');
-  });
+    it('returns empty string for empty string input', () => {
+        expect(getEffectiveDatabase('')).toBe('');
+    });
 
-  it('returns the first element of an array', () => {
-    expect(getEffectiveDatabase(['db1', 'db2', 'db3'])).toBe('db1');
-  });
+    it('returns the first element of an array', () => {
+        expect(getEffectiveDatabase(['db1', 'db2', 'db3'])).toBe('db1');
+    });
 
-  it('returns empty string for empty array', () => {
-    expect(getEffectiveDatabase([])).toBe('');
-  });
+    it('returns empty string for empty array', () => {
+        expect(getEffectiveDatabase([])).toBe('');
+    });
 
-  it('returns the only element of a single-element array', () => {
-    expect(getEffectiveDatabase(['only'])).toBe('only');
-  });
+    it('returns the only element of a single-element array', () => {
+        expect(getEffectiveDatabase(['only'])).toBe('only');
+    });
 });
 
 describe('isSchemaBasedMultiDbCapable', () => {
-  it('returns true for a Postgres-like driver (schemas, not file/folder-based)', () => {
-    expect(isSchemaBasedMultiDbCapable(postgresCapabilities)).toBe(true);
-  });
+    it('returns true for a Postgres-like driver (schemas, not file/folder-based)', () => {
+        expect(isSchemaBasedMultiDbCapable(postgresCapabilities)).toBe(true);
+    });
 
-  it('returns false when schemas is false (MySQL)', () => {
-    expect(isSchemaBasedMultiDbCapable(baseCapabilities)).toBe(false);
-  });
+    it('returns false when schemas is false (MySQL)', () => {
+        expect(isSchemaBasedMultiDbCapable(baseCapabilities)).toBe(false);
+    });
 
-  it('returns false when file_based is true', () => {
-    expect(isSchemaBasedMultiDbCapable({ ...postgresCapabilities, file_based: true })).toBe(false);
-  });
+    it('returns false when file_based is true', () => {
+        expect(isSchemaBasedMultiDbCapable({...postgresCapabilities, file_based: true})).toBe(
+            false,
+        );
+    });
 
-  it('returns false when folder_based is true', () => {
-    expect(isSchemaBasedMultiDbCapable({ ...postgresCapabilities, folder_based: true })).toBe(false);
-  });
+    it('returns false when folder_based is true', () => {
+        expect(isSchemaBasedMultiDbCapable({...postgresCapabilities, folder_based: true})).toBe(
+            false,
+        );
+    });
 
-  it('returns false for a single_database store', () => {
-    expect(isSchemaBasedMultiDbCapable({ ...postgresCapabilities, single_database: true })).toBe(false);
-  });
+    it('returns false for a single_database store', () => {
+        expect(isSchemaBasedMultiDbCapable({...postgresCapabilities, single_database: true})).toBe(
+            false,
+        );
+    });
 
-  it('returns false for null/undefined capabilities', () => {
-    expect(isSchemaBasedMultiDbCapable(null)).toBe(false);
-    expect(isSchemaBasedMultiDbCapable(undefined)).toBe(false);
-  });
+    it('returns false for null/undefined capabilities', () => {
+        expect(isSchemaBasedMultiDbCapable(null)).toBe(false);
+        expect(isSchemaBasedMultiDbCapable(undefined)).toBe(false);
+    });
 });
 
 describe('isSchemaBasedMultiDb', () => {
-  it('is on for a schema-based driver with a non-empty selection', () => {
-    expect(isSchemaBasedMultiDb(postgresCapabilities, ['analytics'])).toBe(true);
-    expect(isSchemaBasedMultiDb(postgresCapabilities, ['a', 'b'])).toBe(true);
-  });
+    it('is on for a schema-based driver with a non-empty selection', () => {
+        expect(isSchemaBasedMultiDb(postgresCapabilities, ['analytics'])).toBe(true);
+        expect(isSchemaBasedMultiDb(postgresCapabilities, ['a', 'b'])).toBe(true);
+    });
 
-  it('is off with an empty selection, even for a capable driver', () => {
-    // A plain single-database Postgres connection must keep using the
-    // schema-only layout — this is the guard against the exact regression
-    // #402's review caught (flat-driver fallback firing on plain Postgres).
-    expect(isSchemaBasedMultiDb(postgresCapabilities, [])).toBe(false);
-  });
+    it('is off with an empty selection, even for a capable driver', () => {
+        // A plain single-database Postgres connection must keep using the
+        // schema-only layout — this is the guard against the exact regression
+        // #402's review caught (flat-driver fallback firing on plain Postgres).
+        expect(isSchemaBasedMultiDb(postgresCapabilities, [])).toBe(false);
+    });
 
-  it('is off for a flat multi-db driver (MySQL)', () => {
-    expect(isSchemaBasedMultiDb(baseCapabilities, ['a'])).toBe(false);
-  });
+    it('is off for a flat multi-db driver (MySQL)', () => {
+        expect(isSchemaBasedMultiDb(baseCapabilities, ['a'])).toBe(false);
+    });
 
-  it('is off for null capabilities', () => {
-    expect(isSchemaBasedMultiDb(null, ['a'])).toBe(false);
-  });
+    it('is off for null capabilities', () => {
+        expect(isSchemaBasedMultiDb(null, ['a'])).toBe(false);
+    });
 });
 
 describe('hasOptedIntoDatabaseSelection', () => {
-  it('is always true for a flat multi-db driver, regardless of dbParam shape', () => {
-    expect(hasOptedIntoDatabaseSelection(baseCapabilities, 'mydb')).toBe(true);
-    expect(hasOptedIntoDatabaseSelection(baseCapabilities, '')).toBe(true);
-    expect(hasOptedIntoDatabaseSelection(baseCapabilities, ['a', 'b'])).toBe(true);
-  });
+    it('is always true for a flat multi-db driver, regardless of dbParam shape', () => {
+        expect(hasOptedIntoDatabaseSelection(baseCapabilities, 'mydb')).toBe(true);
+        expect(hasOptedIntoDatabaseSelection(baseCapabilities, '')).toBe(true);
+        expect(hasOptedIntoDatabaseSelection(baseCapabilities, ['a', 'b'])).toBe(true);
+    });
 
-  it('is false for a schema-based driver with a plain non-empty string', () => {
-    // The critical case: every existing Postgres connection already has a
-    // required, non-empty database name stored as a plain string from the
-    // traditional single-database mode. That must NOT be misread as an
-    // explicit one-element multi-db selection.
-    expect(hasOptedIntoDatabaseSelection(postgresCapabilities, 'mydb')).toBe(false);
-  });
+    it('is false for a schema-based driver with a plain non-empty string', () => {
+        // The critical case: every existing Postgres connection already has a
+        // required, non-empty database name stored as a plain string from the
+        // traditional single-database mode. That must NOT be misread as an
+        // explicit one-element multi-db selection.
+        expect(hasOptedIntoDatabaseSelection(postgresCapabilities, 'mydb')).toBe(false);
+    });
 
-  it('is true for a schema-based driver with an array selection (any length)', () => {
-    expect(hasOptedIntoDatabaseSelection(postgresCapabilities, ['db1'])).toBe(true);
-    expect(hasOptedIntoDatabaseSelection(postgresCapabilities, ['db1', 'db2'])).toBe(true);
-  });
+    it('is true for a schema-based driver with an array selection (any length)', () => {
+        expect(hasOptedIntoDatabaseSelection(postgresCapabilities, ['db1'])).toBe(true);
+        expect(hasOptedIntoDatabaseSelection(postgresCapabilities, ['db1', 'db2'])).toBe(true);
+    });
 
-  it('is true for a schema-based driver with an empty string ("all databases")', () => {
-    expect(hasOptedIntoDatabaseSelection(postgresCapabilities, '')).toBe(true);
-  });
+    it('is true for a schema-based driver with an empty string ("all databases")', () => {
+        expect(hasOptedIntoDatabaseSelection(postgresCapabilities, '')).toBe(true);
+    });
 
-  it('is false for a driver that is neither flat nor schema-based multi-db capable', () => {
-    expect(hasOptedIntoDatabaseSelection({ ...baseCapabilities, file_based: true }, 'main')).toBe(false);
-  });
+    it('is false for a driver that is neither flat nor schema-based multi-db capable', () => {
+        expect(hasOptedIntoDatabaseSelection({...baseCapabilities, file_based: true}, 'main')).toBe(
+            false,
+        );
+    });
 
-  it('is false for null capabilities', () => {
-    expect(hasOptedIntoDatabaseSelection(null, ['a'])).toBe(false);
-  });
+    it('is false for null capabilities', () => {
+        expect(hasOptedIntoDatabaseSelection(null, ['a'])).toBe(false);
+    });
 });
 
 describe('resolveHistoryDatabase', () => {
-  // resolveHistoryDatabase decides what value (if any) is stored as the
-  // `database` field of a query-history entry. The schema must NEVER leak into
-  // the database field — replaying a history entry passes its `database` as a
-  // real connection override, so a schema name like "public" would make replay
-  // try to connect to a database literally named "public".
+    // resolveHistoryDatabase decides what value (if any) is stored as the
+    // `database` field of a query-history entry. The schema must NEVER leak into
+    // the database field — replaying a history entry passes its `database` as a
+    // real connection override, so a schema name like "public" would make replay
+    // try to connect to a database literally named "public".
 
-  it('returns undefined for a plain single-database tab with no per-tab database (schema must not leak in)', () => {
-    // Plain PostgreSQL: not multi-db, tab.database is unset, schema is "public".
-    // Before the fix the chain fell through to `schema` and stored "public".
-    expect(
-      resolveHistoryDatabase({ database: undefined, schema: 'public' }, false, null),
-    ).toBeUndefined();
-  });
+    it('returns undefined for a plain single-database tab with no per-tab database (schema must not leak in)', () => {
+        // Plain PostgreSQL: not multi-db, tab.database is unset, schema is "public".
+        // Before the fix the chain fell through to `schema` and stored "public".
+        expect(
+            resolveHistoryDatabase({database: undefined, schema: 'public'}, false, null),
+        ).toBeUndefined();
+    });
 
-  it('returns the tab database for a nested (schema-based) multi-db tab', () => {
-    // Nested multi-db PostgreSQL: tab.database is the selected database.
-    expect(
-      resolveHistoryDatabase({ database: 'analytics', schema: 'public' }, false, null),
-    ).toBe('analytics');
-  });
+    it('returns the tab database for a nested (schema-based) multi-db tab', () => {
+        // Nested multi-db PostgreSQL: tab.database is the selected database.
+        expect(resolveHistoryDatabase({database: 'analytics', schema: 'public'}, false, null)).toBe(
+            'analytics',
+        );
+    });
 
-  it('returns the tab schema (the tab database) for a flat multi-db tab that has one', () => {
-    // Flat multi-db MySQL reuses the tab.schema field for the tab's database.
-    expect(
-      resolveHistoryDatabase({ database: undefined, schema: 'secondarydb' }, true, 'primary'),
-    ).toBe('secondarydb');
-  });
+    it('returns the tab schema (the tab database) for a flat multi-db tab that has one', () => {
+        // Flat multi-db MySQL reuses the tab.schema field for the tab's database.
+        expect(
+            resolveHistoryDatabase({database: undefined, schema: 'secondarydb'}, true, 'primary'),
+        ).toBe('secondarydb');
+    });
 
-  it('falls back to the active database name for a flat multi-db tab with no schema', () => {
-    expect(
-      resolveHistoryDatabase({ database: undefined, schema: undefined }, true, 'primary'),
-    ).toBe('primary');
-  });
+    it('falls back to the active database name for a flat multi-db tab with no schema', () => {
+        expect(
+            resolveHistoryDatabase({database: undefined, schema: undefined}, true, 'primary'),
+        ).toBe('primary');
+    });
 
-  it('returns undefined for a flat multi-db tab with neither schema nor active database', () => {
-    expect(
-      resolveHistoryDatabase({ database: undefined, schema: undefined }, true, null),
-    ).toBeUndefined();
-  });
+    it('returns undefined for a flat multi-db tab with neither schema nor active database', () => {
+        expect(
+            resolveHistoryDatabase({database: undefined, schema: undefined}, true, null),
+        ).toBeUndefined();
+    });
 
-  it('prefers the per-tab database over the schema for a flat multi-db tab', () => {
-    expect(
-      resolveHistoryDatabase({ database: 'explicit', schema: 'secondarydb' }, true, 'primary'),
-    ).toBe('explicit');
-  });
+    it('prefers the per-tab database over the schema for a flat multi-db tab', () => {
+        expect(
+            resolveHistoryDatabase({database: 'explicit', schema: 'secondarydb'}, true, 'primary'),
+        ).toBe('explicit');
+    });
 });
 
 describe('resolveFlatMultiDbTabDatabase', () => {
-  const selected = ['main_db', 'analytics_db'];
+    const selected = ['main_db', 'analytics_db'];
 
-  it('returns the tab schema, where the flat multi-db layout keeps the database', () => {
-    expect(resolveFlatMultiDbTabDatabase({ schema: 'analytics_db' }, selected)).toBe('analytics_db');
-  });
+    it('returns the tab schema, where the flat multi-db layout keeps the database', () => {
+        expect(resolveFlatMultiDbTabDatabase({schema: 'analytics_db'}, selected)).toBe(
+            'analytics_db',
+        );
+    });
 
-  it('returns the tab database for a tab that only has `database` set (saved query, restored tab)', () => {
-    // Before #1114 this fell back to the first selected database ("main_db")
-    // while the query ran on "analytics_db".
-    expect(resolveFlatMultiDbTabDatabase({ database: 'analytics_db' }, selected)).toBe('analytics_db');
-  });
+    it('returns the tab database for a tab that only has `database` set (saved query, restored tab)', () => {
+        // Before #1114 this fell back to the first selected database ("main_db")
+        // while the query ran on "analytics_db".
+        expect(resolveFlatMultiDbTabDatabase({database: 'analytics_db'}, selected)).toBe(
+            'analytics_db',
+        );
+    });
 
-  it('prefers the schema when both are set, matching where the run goes', () => {
-    expect(
-      resolveFlatMultiDbTabDatabase({ schema: 'main_db', database: 'analytics_db' }, selected),
-    ).toBe('main_db');
-  });
+    it('prefers the schema when both are set, matching where the run goes', () => {
+        expect(
+            resolveFlatMultiDbTabDatabase({schema: 'main_db', database: 'analytics_db'}, selected),
+        ).toBe('main_db');
+    });
 
-  it('falls back to the first selected database for a tab with neither', () => {
-    expect(resolveFlatMultiDbTabDatabase({ schema: undefined, database: null }, selected)).toBe('main_db');
-    expect(resolveFlatMultiDbTabDatabase({ schema: '', database: '' }, selected)).toBe('main_db');
-  });
+    it('falls back to the first selected database for a tab with neither', () => {
+        expect(resolveFlatMultiDbTabDatabase({schema: undefined, database: null}, selected)).toBe(
+            'main_db',
+        );
+        expect(resolveFlatMultiDbTabDatabase({schema: '', database: ''}, selected)).toBe('main_db');
+    });
 
-  it('handles a missing tab and an empty selection', () => {
-    expect(resolveFlatMultiDbTabDatabase(undefined, selected)).toBe('main_db');
-    expect(resolveFlatMultiDbTabDatabase(null, [])).toBeUndefined();
-  });
+    it('handles a missing tab and an empty selection', () => {
+        expect(resolveFlatMultiDbTabDatabase(undefined, selected)).toBe('main_db');
+        expect(resolveFlatMultiDbTabDatabase(null, [])).toBeUndefined();
+    });
 });
 
 describe('selectFlatMultiDbTabDatabase', () => {
-  it('sets the schema and clears a leftover database override', () => {
-    expect(selectFlatMultiDbTabDatabase('main_db')).toEqual({
-      schema: 'main_db',
-      database: undefined,
+    it('sets the schema and clears a leftover database override', () => {
+        expect(selectFlatMultiDbTabDatabase('main_db')).toEqual({
+            schema: 'main_db',
+            database: undefined,
+        });
     });
-  });
 
-  it('moves a saved-query tab to the picked database', () => {
-    const tab = { schema: undefined, database: 'analytics_db' };
-    const next = { ...tab, ...selectFlatMultiDbTabDatabase('main_db') };
+    it('moves a saved-query tab to the picked database', () => {
+        const tab = {schema: undefined, database: 'analytics_db'};
+        const next = {...tab, ...selectFlatMultiDbTabDatabase('main_db')};
 
-    expect(next.database).toBeUndefined();
-    expect(resolveFlatMultiDbTabDatabase(next, ['main_db', 'analytics_db'])).toBe('main_db');
-    // Query history (and so replay) follows the pick as well.
-    expect(resolveHistoryDatabase(next, true, 'main_db')).toBe('main_db');
-  });
+        expect(next.database).toBeUndefined();
+        expect(resolveFlatMultiDbTabDatabase(next, ['main_db', 'analytics_db'])).toBe('main_db');
+        // Query history (and so replay) follows the pick as well.
+        expect(resolveHistoryDatabase(next, true, 'main_db')).toBe('main_db');
+    });
 });
 
 describe('toFlatMultiDbTabTarget', () => {
-  it('moves `database` into `schema` in the flat multi-db layout', () => {
-    expect(toFlatMultiDbTabTarget({ database: 'analytics_db' }, true)).toEqual({
-      schema: 'analytics_db',
-      database: undefined,
+    it('moves `database` into `schema` in the flat multi-db layout', () => {
+        expect(toFlatMultiDbTabTarget({database: 'analytics_db'}, true)).toEqual({
+            schema: 'analytics_db',
+            database: undefined,
+        });
     });
-  });
 
-  it('keeps an explicit schema untouched', () => {
-    const input = { schema: 'main_db', database: 'analytics_db' };
-    expect(toFlatMultiDbTabTarget(input, true)).toBe(input);
-  });
-
-  it('leaves input without a database untouched', () => {
-    const input = { schema: undefined, database: undefined };
-    expect(toFlatMultiDbTabTarget(input, true)).toBe(input);
-  });
-
-  it('keeps `database` and `schema` side by side outside the flat multi-db layout', () => {
-    // Schema-based multi-db (PostgreSQL) tabs need both qualifiers at once.
-    const nested = { schema: 'public', database: 'analytics' };
-    expect(toFlatMultiDbTabTarget(nested, false)).toBe(nested);
-    const plain = { database: 'analytics' };
-    expect(toFlatMultiDbTabTarget(plain, false)).toBe(plain);
-  });
-
-  it('opens a saved query on its database in the tab title, selector and run (#1114)', () => {
-    const intent = parseEditorNavigationIntent(
-      {
-        kind: 'console',
-        initialQuery: 'SELECT DATABASE()',
-        queryName: 'Which database',
-        database: 'analytics_db',
-      },
-      'New console',
-    );
-    expect(intent).not.toBeNull();
-
-    const tabInput = toFlatMultiDbTabTarget(intent!.addTabInput, true);
-    const selected = ['main_db', 'analytics_db'];
-
-    expect(tabInput).toMatchObject({
-      type: 'console',
-      title: 'Which database',
-      query: 'SELECT DATABASE()',
-      schema: 'analytics_db',
+    it('keeps an explicit schema untouched', () => {
+        const input = {schema: 'main_db', database: 'analytics_db'};
+        expect(toFlatMultiDbTabTarget(input, true)).toBe(input);
     });
-    expect(tabInput.database).toBeUndefined();
-    // Tab title suffix and toolbar selector.
-    expect(resolveFlatMultiDbTabDatabase(tabInput, selected)).toBe('analytics_db');
-    // The run uses `schema` as the per-database pool in this layout.
-    expect(tabInput.schema).toBe('analytics_db');
-    expect(resolveHistoryDatabase(tabInput, true, 'main_db')).toBe('analytics_db');
-  });
+
+    it('leaves input without a database untouched', () => {
+        const input = {schema: undefined, database: undefined};
+        expect(toFlatMultiDbTabTarget(input, true)).toBe(input);
+    });
+
+    it('keeps `database` and `schema` side by side outside the flat multi-db layout', () => {
+        // Schema-based multi-db (PostgreSQL) tabs need both qualifiers at once.
+        const nested = {schema: 'public', database: 'analytics'};
+        expect(toFlatMultiDbTabTarget(nested, false)).toBe(nested);
+        const plain = {database: 'analytics'};
+        expect(toFlatMultiDbTabTarget(plain, false)).toBe(plain);
+    });
+
+    it('opens a saved query on its database in the tab title, selector and run (#1114)', () => {
+        const intent = parseEditorNavigationIntent(
+            {
+                kind: 'console',
+                initialQuery: 'SELECT DATABASE()',
+                queryName: 'Which database',
+                database: 'analytics_db',
+            },
+            'New console',
+        );
+        expect(intent).not.toBeNull();
+
+        const tabInput = toFlatMultiDbTabTarget(intent!.addTabInput, true);
+        const selected = ['main_db', 'analytics_db'];
+
+        expect(tabInput).toMatchObject({
+            type: 'console',
+            title: 'Which database',
+            query: 'SELECT DATABASE()',
+            schema: 'analytics_db',
+        });
+        expect(tabInput.database).toBeUndefined();
+        // Tab title suffix and toolbar selector.
+        expect(resolveFlatMultiDbTabDatabase(tabInput, selected)).toBe('analytics_db');
+        // The run uses `schema` as the per-database pool in this layout.
+        expect(tabInput.schema).toBe('analytics_db');
+        expect(resolveHistoryDatabase(tabInput, true, 'main_db')).toBe('analytics_db');
+    });
 });

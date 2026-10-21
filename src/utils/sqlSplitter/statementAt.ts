@@ -1,4 +1,4 @@
-import type { Statement } from './index';
+import type {Statement} from './index';
 
 /**
  * Resolves which statement a cursor offset falls inside. An offset in the
@@ -12,16 +12,16 @@ import type { Statement } from './index';
  * undefined.
  */
 export function findStatementAtOffset(
-  statements: readonly Statement[],
-  offset: number,
+    statements: readonly Statement[],
+    offset: number,
 ): Statement | undefined {
-  if (statements.length === 0) {
-    return undefined;
-  }
-  let result = statements[0];
-  for (const statement of statements) {
-    if (offset < statement.range.start) break;
-    result = statement;
-  }
-  return result;
+    if (statements.length === 0) {
+        return undefined;
+    }
+    let result = statements[0];
+    for (const statement of statements) {
+        if (offset < statement.range.start) break;
+        result = statement;
+    }
+    return result;
 }

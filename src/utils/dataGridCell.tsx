@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 /**
  * Inlined equivalent of the DataGrid column's default `cell` renderer (see
@@ -11,15 +11,15 @@ import React from "react";
  * formatted text verbatim — this helper never re-formats.
  */
 export function renderDefaultCellContent(
-  value: unknown,
-  formatted: string,
-  colorClass?: string,
+    value: unknown,
+    formatted: string,
+    colorClass?: string,
 ): React.ReactNode {
-  if (value === null || value === undefined) {
-    return <span className="text-muted italic">{formatted}</span>;
-  }
-  if (colorClass) {
-    return <span className={colorClass}>{formatted}</span>;
-  }
-  return formatted;
+    if (value === null || value === undefined) {
+        return <span className="text-muted italic">{formatted}</span>;
+    }
+    if (colorClass) {
+        return <span className={colorClass}>{formatted}</span>;
+    }
+    return formatted;
 }

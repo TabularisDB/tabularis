@@ -1,202 +1,213 @@
-import { useEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
+import {useEffect, useRef} from 'react';
+import {useTranslation} from 'react-i18next';
+import {X, Network, RefreshCw, AlertTriangle} from 'lucide-react';
+import {useSettings} from '@/hooks/useSettings';
+import {useDatabase} from '@/hooks/useDatabase';
+import {useDrivers} from '@/hooks/useDrivers';
+import {useExplainPlan} from '@/hooks/useExplainPlan';
+import {useExplainAnalyze} from '@/hooks/useExplainAnalyze';
+import {getConnectionIcon} from '@/utils/driverUI';
+import {Modal} from '@/components/ui/Modal';
 import {
-  X,
-  Network,
-  RefreshCw,
-  AlertTriangle,
-} from "lucide-react";
-import { useSettings } from "../../hooks/useSettings";
-import { useDatabase } from "../../hooks/useDatabase";
-import { useDrivers } from "../../hooks/useDrivers";
-import { useExplainPlan } from "../../hooks/useExplainPlan";
-import { useExplainAnalyze } from "../../hooks/useExplainAnalyze";
-import { getConnectionIcon } from "../../utils/driverUI";
-import { Modal } from "../ui/Modal";
-import { VisualExplainView, type VisualExplainViewProps } from "../explain/VisualExplainView";
+    VisualExplainView,
+    type VisualExplainViewProps,
+} from '@/components/explain/VisualExplainView';
 
 interface VisualExplainModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  query: string;
-  connectionId: string;
-  schema?: string;
-  /** Database name for a schema-based multi-db connection (see Tab.database). */
-  database?: string;
-  /// Display label to use when the connection isn't loaded in the active
-  /// database context (e.g. opened from the AI Activity panel). Falls back
-  /// to the live connection name if available, then to `connectionId`.
-  connectionLabel?: string;
-  /** Display an existing plan without issuing another database request. */
-  viewState?: VisualExplainViewProps;
+    isOpen: boolean;
+    onClose: () => void;
+    query: string;
+    connectionId: string;
+    schema?: string;
+    /** Database name for a schema-based multi-db connection (see Tab.database). */
+    database?: string;
+    /// Display label to use when the connection isn't loaded in the active
+    /// database context (e.g. opened from the AI Activity panel). Falls back
+    /// to the live connection name if available, then to `connectionId`.
+    connectionLabel?: string;
+    /** Display an existing plan without issuing another database request. */
+    viewState?: VisualExplainViewProps;
 }
 
 export const VisualExplainModal = ({
-  isOpen,
-  onClose,
-  query,
-  connectionId,
-  schema,
-  database,
-  connectionLabel,
-  viewState,
-}: VisualExplainModalProps) => {
-  const { t } = useTranslation();
-  const { settings } = useSettings();
-  const { getConnectionData, connections } = useDatabase();
-  const { allDrivers } = useDrivers();
-  const {
-    plan,
-    isLoading,
-    error,
-    viewMode,
-    setViewMode,
-    selectedNodeId,
-    setSelectedNodeId,
-    runExplain,
-    invalidate,
-  } = useExplainPlan();
-
-  const { analyze, setAnalyze, isDml } = useExplainAnalyze({
-    connectionId,
+    isOpen,
+    onClose,
     query,
+    connectionId,
     schema,
-    defaultEnabled: true,
-  });
-  const hasExternalPlan = !!viewState;
-  const connectionData = getConnectionData(connectionId);
-  const effectiveDriver =
-    connectionData?.driver ?? viewState?.plan?.driver ?? plan?.driver ?? "sqlite";
-  const driverManifest =
-    allDrivers.find((driver) => driver.id === effectiveDriver) ?? null;
-  const savedConnection = connections.find(c => c.id === connectionId) ?? null;
-  const driverLabel = driverManifest?.name ?? effectiveDriver;
-  const resolvedConnectionLabel =
-    connectionData?.connectionName ?? connectionLabel ?? connectionId;
-  const schemaLabel = schema ?? connectionData?.activeSchema ?? null;
-  const databaseLabel = database ?? connectionData?.databaseName ?? schema ?? "";
-  const locationLabel =
-    schemaLabel && schemaLabel !== databaseLabel
-      ? `${databaseLabel} / ${schemaLabel}`
-      : databaseLabel;
+    database,
+    connectionLabel,
+    viewState,
+}: VisualExplainModalProps) => {
+    const {t} = useTranslation();
+    const {settings} = useSettings();
+    const {getConnectionData, connections} = useDatabase();
+    const {allDrivers} = useDrivers();
+    const {
+        plan,
+        isLoading,
+        error,
+        viewMode,
+        setViewMode,
+        selectedNodeId,
+        setSelectedNodeId,
+        runExplain,
+        invalidate,
+    } = useExplainPlan();
 
-  // Ticking Analyze only records the choice; ANALYZE executes the statement, so
-  // it must not run until the source changes or the user clicks Re-run.
-  const analyzeRef = useRef(analyze);
-  useEffect(() => {
-    analyzeRef.current = analyze;
-  });
+    const {analyze, setAnalyze, isDml} = useExplainAnalyze({
+        connectionId,
+        query,
+        schema,
+        defaultEnabled: true,
+    });
+    const hasExternalPlan = !!viewState;
+    const connectionData = getConnectionData(connectionId);
+    const effectiveDriver =
+        connectionData?.driver ?? viewState?.plan?.driver ?? plan?.driver ?? 'sqlite';
+    const driverManifest = allDrivers.find((driver) => driver.id === effectiveDriver) ?? null;
+    const savedConnection = connections.find((c) => c.id === connectionId) ?? null;
+    const driverLabel = driverManifest?.name ?? effectiveDriver;
+    const resolvedConnectionLabel =
+        connectionData?.connectionName ?? connectionLabel ?? connectionId;
+    const schemaLabel = schema ?? connectionData?.activeSchema ?? null;
+    const databaseLabel = database ?? connectionData?.databaseName ?? schema ?? '';
+    const locationLabel =
+        schemaLabel && schemaLabel !== databaseLabel
+            ? `${databaseLabel} / ${schemaLabel}`
+            : databaseLabel;
 
-  useEffect(() => {
-    if (!isOpen || hasExternalPlan) return;
-    let cancelled = false;
-    const explain = async () => {
-      // Defer the request so StrictMode's setup/cleanup probe cannot run it twice.
-      await Promise.resolve();
-      if (cancelled) return;
-      setViewMode("graph");
-      await runExplain({ connectionId, query, analyze: analyzeRef.current, schema, database });
-    };
-    void explain();
-    return () => {
-      cancelled = true;
-      invalidate();
-    };
-  }, [isOpen, hasExternalPlan, query, connectionId, schema, database, runExplain, setViewMode, invalidate]);
+    // Ticking Analyze only records the choice; ANALYZE executes the statement, so
+    // it must not run until the source changes or the user clicks Re-run.
+    const analyzeRef = useRef(analyze);
+    useEffect(() => {
+        analyzeRef.current = analyze;
+    });
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[90vw] h-[85vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-default bg-base">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-accent-success/15 rounded-lg">
-              <Network size={20} className="text-accent-success" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-primary">
-                {t("editor.visualExplain.title")}
-              </h2>
-              <div className="flex flex-wrap items-center gap-2 mt-1">
-                <div className="inline-flex items-center gap-2 rounded-lg border border-default bg-surface-secondary/50 px-2.5 py-1 text-xs text-secondary">
-                  <span className="text-primary">{getConnectionIcon(savedConnection, driverManifest, 14)}</span>
-                  <span className="font-medium text-primary">
-                    {resolvedConnectionLabel}
-                  </span>
+    useEffect(() => {
+        if (!isOpen || hasExternalPlan) return;
+        let cancelled = false;
+        const explain = async () => {
+            // Defer the request so StrictMode's setup/cleanup probe cannot run it twice.
+            await Promise.resolve();
+            if (cancelled) return;
+            setViewMode('graph');
+            await runExplain({connectionId, query, analyze: analyzeRef.current, schema, database});
+        };
+        void explain();
+        return () => {
+            cancelled = true;
+            invalidate();
+        };
+    }, [
+        isOpen,
+        hasExternalPlan,
+        query,
+        connectionId,
+        schema,
+        database,
+        runExplain,
+        setViewMode,
+        invalidate,
+    ]);
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose}>
+            <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[90vw] h-[85vh] overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between p-4 border-b border-default bg-base">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-accent-success/15 rounded-lg">
+                            <Network size={20} className="text-accent-success" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-primary">
+                                {t('editor.visualExplain.title')}
+                            </h2>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                <div className="inline-flex items-center gap-2 rounded-lg border border-default bg-surface-secondary/50 px-2.5 py-1 text-xs text-secondary">
+                                    <span className="text-primary">
+                                        {getConnectionIcon(savedConnection, driverManifest, 14)}
+                                    </span>
+                                    <span className="font-medium text-primary">
+                                        {resolvedConnectionLabel}
+                                    </span>
+                                </div>
+                                {locationLabel && (
+                                    <div className="inline-flex items-center gap-2 rounded-lg border border-default bg-base/70 px-2.5 py-1 text-xs text-secondary">
+                                        <span className="uppercase tracking-wide text-muted">
+                                            {driverLabel}
+                                        </span>
+                                        <span className="text-muted">•</span>
+                                        <span className="font-mono">{locationLabel}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="text-secondary hover:text-primary transition-colors"
+                    >
+                        <X size={20} />
+                    </button>
                 </div>
-                {locationLabel && (
-                  <div className="inline-flex items-center gap-2 rounded-lg border border-default bg-base/70 px-2.5 py-1 text-xs text-secondary">
-                    <span className="uppercase tracking-wide text-muted">
-                      {driverLabel}
-                    </span>
-                    <span className="text-muted">•</span>
-                    <span className="font-mono">{locationLabel}</span>
-                  </div>
-                )}
-              </div>
+
+                <VisualExplainView
+                    {...(viewState ?? {
+                        plan,
+                        isLoading,
+                        error,
+                        viewMode,
+                        onViewModeChange: setViewMode,
+                        selectedNodeId,
+                        onSelectNode: setSelectedNodeId,
+                        aiEnabled: !!settings.aiEnabled,
+                    })}
+                />
+
+                <div className="p-4 border-t border-default bg-base/50 flex items-center gap-4">
+                    {!hasExternalPlan && (
+                        <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={analyze}
+                                onChange={(e) => setAnalyze(e.target.checked)}
+                                className="rounded border-strong"
+                            />
+                            {t('editor.visualExplain.analyze')}
+                        </label>
+                    )}
+
+                    {!hasExternalPlan && isDml && (
+                        <div className="flex items-center gap-1.5 text-xs text-warning-text">
+                            <AlertTriangle size={12} />
+                            <span>{t('editor.visualExplain.analyzeWarning')}</span>
+                        </div>
+                    )}
+
+                    <div className="flex-1" />
+
+                    {!hasExternalPlan && (
+                        <button
+                            onClick={() =>
+                                runExplain({connectionId, query, analyze, schema, database})
+                            }
+                            disabled={isLoading || !query.trim() || !connectionId}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-accent-success hover:bg-accent-success/90 disabled:opacity-50 text-on-accent-success rounded-lg text-sm font-medium transition-colors"
+                        >
+                            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+                            {t('editor.visualExplain.rerun')}
+                        </button>
+                    )}
+
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
+                    >
+                        {t('editor.visualExplain.close')}
+                    </button>
+                </div>
             </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-secondary hover:text-primary transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <VisualExplainView
-          {...(viewState ?? {
-            plan,
-            isLoading,
-            error,
-            viewMode,
-            onViewModeChange: setViewMode,
-            selectedNodeId,
-            onSelectNode: setSelectedNodeId,
-            aiEnabled: !!settings.aiEnabled,
-          })}
-        />
-
-        <div className="p-4 border-t border-default bg-base/50 flex items-center gap-4">
-          {!hasExternalPlan && (
-            <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                checked={analyze}
-                onChange={(e) => setAnalyze(e.target.checked)}
-                className="rounded border-strong"
-              />
-              {t("editor.visualExplain.analyze")}
-            </label>
-          )}
-
-          {!hasExternalPlan && isDml && (
-            <div className="flex items-center gap-1.5 text-xs text-warning-text">
-              <AlertTriangle size={12} />
-              <span>{t("editor.visualExplain.analyzeWarning")}</span>
-            </div>
-          )}
-
-          <div className="flex-1" />
-
-          {!hasExternalPlan && (
-            <button
-              onClick={() => runExplain({ connectionId, query, analyze, schema, database })}
-              disabled={isLoading || !query.trim() || !connectionId}
-              className="flex items-center gap-1.5 px-4 py-2 bg-accent-success hover:bg-accent-success/90 disabled:opacity-50 text-on-accent-success rounded-lg text-sm font-medium transition-colors"
-            >
-              <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-              {t("editor.visualExplain.rerun")}
-            </button>
-          )}
-
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
-          >
-            {t("editor.visualExplain.close")}
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
+        </Modal>
+    );
 };

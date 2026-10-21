@@ -44,6 +44,47 @@ pub enum WindowDecorationsMode {
     AlwaysHide,
 }
 
+fn default_true() -> bool {
+    true
+}
+
+fn default_backup_time() -> String {
+    "02:00".to_string()
+}
+
+fn default_backup_timezone() -> String {
+    "local".to_string()
+}
+
+fn default_backup_retention() -> u32 {
+    7
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseBackupPlan {
+    pub enabled: bool,
+    pub connection_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
+    #[serde(default = "default_backup_time")]
+    pub time: String,
+    #[serde(default = "default_backup_timezone")]
+    pub timezone: String,
+    #[serde(default)]
+    pub destination_directory: String,
+    #[serde(default = "default_backup_retention")]
+    pub retention: u32,
+    #[serde(default = "default_true")]
+    pub include_structure: bool,
+    #[serde(default = "default_true")]
+    pub include_data: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tables: Option<Vec<String>>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
@@ -222,6 +263,8 @@ pub struct AppConfig {
     pub backup_webdav_url: Option<String>,
     /// WebDAV username; the password lives in the OS keychain.
     pub backup_webdav_username: Option<String>,
+    // Scheduled database content backup (Milestone 1)
+    pub database_backup_plan: Option<DatabaseBackupPlan>,
 
     // ----- Privacy -----
     /// Mask values of sensitive columns in the results grid (display only). Default: true.
@@ -681,6 +724,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.backup_webdav_username.is_some() {
             existing_config.backup_webdav_username = config.backup_webdav_username;
+        }
+        if config.database_backup_plan.is_some() {
+            existing_config.database_backup_plan = config.database_backup_plan;
         }
         if config.column_masking_enabled.is_some() {
             existing_config.column_masking_enabled = config.column_masking_enabled;

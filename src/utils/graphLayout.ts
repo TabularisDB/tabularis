@@ -1,6 +1,6 @@
 /**
  * Layout utilities for graph/diagram positioning
- * Extracted from layoutWorker.ts for testability
+ * Pure helpers used by workers/layoutWorker.ts, kept apart for testability
  */
 
 /**
@@ -8,13 +8,13 @@
  * Hardcoded to avoid importing from @xyflow/react in worker context
  */
 export const Position = {
-  Left: 'left',
-  Right: 'right',
-  Top: 'top',
-  Bottom: 'bottom',
+    Left: 'left',
+    Right: 'right',
+    Top: 'top',
+    Bottom: 'bottom',
 } as const;
 
-export type PositionType = typeof Position[keyof typeof Position];
+export type PositionType = (typeof Position)[keyof typeof Position];
 
 /**
  * Constants for node sizing
@@ -29,8 +29,8 @@ export const NODE_ROW_HEIGHT = 28;
  * @returns Calculated height in pixels
  */
 export function calculateNodeHeight(columns: number): number {
-  if (columns < 0) return NODE_BASE_HEIGHT;
-  return NODE_BASE_HEIGHT + (columns * NODE_ROW_HEIGHT);
+    if (columns < 0) return NODE_BASE_HEIGHT;
+    return NODE_BASE_HEIGHT + columns * NODE_ROW_HEIGHT;
 }
 
 /**
@@ -39,15 +39,15 @@ export function calculateNodeHeight(columns: number): number {
  * @returns Object with sourcePosition and targetPosition
  */
 export function getNodePositions(direction: string): {
-  sourcePosition: PositionType;
-  targetPosition: PositionType;
+    sourcePosition: PositionType;
+    targetPosition: PositionType;
 } {
-  const isHorizontal = direction === 'LR';
+    const isHorizontal = direction === 'LR';
 
-  return {
-    sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
-    targetPosition: isHorizontal ? Position.Left : Position.Top,
-  };
+    return {
+        sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
+        targetPosition: isHorizontal ? Position.Left : Position.Top,
+    };
 }
 
 /**
@@ -59,13 +59,13 @@ export function getNodePositions(direction: string): {
  * @returns Position object with top-left coordinates
  */
 export function calculateCenteredPosition(
-  x: number,
-  y: number,
-  width: number,
-  height: number
-): { x: number; y: number } {
-  return {
-    x: x - width / 2,
-    y: y - height / 2,
-  };
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+): {x: number; y: number} {
+    return {
+        x: x - width / 2,
+        y: y - height / 2,
+    };
 }

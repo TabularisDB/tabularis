@@ -1,309 +1,299 @@
-import { describe, it, expect } from "vitest";
-import { GOOGLESQL_CAPS } from "../fixtures/sql-syntax/googlesql";
-import type { ForeignKey } from "../../src/types/schema";
-import type { DriverCapabilities, PluginManifest } from "../../src/types/plugins";
+import {describe, it, expect} from 'vitest';
+import {GOOGLESQL_CAPS} from '../fixtures/sql-syntax/googlesql';
+import type {ForeignKey} from '@/types/schema';
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import {
-  pickPrimaryForeignKeyByColumn,
-  isForeignKeyValueNavigable,
-  isNumericColumnType,
-  buildForeignKeyFilterClause,
-  getForeignKeyForPreview,
-} from "../../src/utils/foreignKeys";
+    pickPrimaryForeignKeyByColumn,
+    isForeignKeyValueNavigable,
+    isNumericColumnType,
+    buildForeignKeyFilterClause,
+    getForeignKeyForPreview,
+} from '@/utils/foreignKeys';
 
 const fk = (
-  name: string,
-  column_name: string,
-  ref_table: string,
-  ref_column: string,
-): ForeignKey => ({ name, column_name, ref_table, ref_column });
+    name: string,
+    column_name: string,
+    ref_table: string,
+    ref_column: string,
+): ForeignKey => ({name, column_name, ref_table, ref_column});
 
-describe("foreignKeys", () => {
-  describe("pickPrimaryForeignKeyByColumn", () => {
-    it("returns an empty map for undefined/null/empty input", () => {
-      expect(pickPrimaryForeignKeyByColumn(undefined).size).toBe(0);
-      expect(pickPrimaryForeignKeyByColumn(null).size).toBe(0);
-      expect(pickPrimaryForeignKeyByColumn([]).size).toBe(0);
+describe('foreignKeys', () => {
+    describe('pickPrimaryForeignKeyByColumn', () => {
+        it('returns an empty map for undefined/null/empty input', () => {
+            expect(pickPrimaryForeignKeyByColumn(undefined).size).toBe(0);
+            expect(pickPrimaryForeignKeyByColumn(null).size).toBe(0);
+            expect(pickPrimaryForeignKeyByColumn([]).size).toBe(0);
+        });
+
+        it('indexes single-column FKs by their source column', () => {
+            const fks = [
+                fk('fk_org', 'org_id', 'organizations', 'id'),
+                fk('fk_role', 'role_id', 'roles', 'id'),
+            ];
+            const map = pickPrimaryForeignKeyByColumn(fks);
+            expect(map.size).toBe(2);
+            expect(map.get('org_id')?.ref_table).toBe('organizations');
+            expect(map.get('role_id')?.ref_table).toBe('roles');
+        });
+
+        it('skips composite FKs (entries that share a constraint name)', () => {
+            const fks = [
+                fk('fk_composite', 'tenant_id', 'memberships', 'tenant_id'),
+                fk('fk_composite', 'user_id', 'memberships', 'user_id'),
+                fk('fk_country', 'country_code', 'countries', 'code'),
+            ];
+            const map = pickPrimaryForeignKeyByColumn(fks);
+            expect(map.size).toBe(1);
+            expect(map.has('tenant_id')).toBe(false);
+            expect(map.has('user_id')).toBe(false);
+            expect(map.get('country_code')?.ref_table).toBe('countries');
+        });
+
+        it('keeps the first occurrence when multiple single-column FKs hit the same column', () => {
+            const fks = [
+                fk('fk_first', 'owner_id', 'users', 'id'),
+                fk('fk_second', 'owner_id', 'service_accounts', 'id'),
+            ];
+            const map = pickPrimaryForeignKeyByColumn(fks);
+            expect(map.size).toBe(1);
+            expect(map.get('owner_id')?.name).toBe('fk_first');
+        });
     });
 
-    it("indexes single-column FKs by their source column", () => {
-      const fks = [
-        fk("fk_org", "org_id", "organizations", "id"),
-        fk("fk_role", "role_id", "roles", "id"),
-      ];
-      const map = pickPrimaryForeignKeyByColumn(fks);
-      expect(map.size).toBe(2);
-      expect(map.get("org_id")?.ref_table).toBe("organizations");
-      expect(map.get("role_id")?.ref_table).toBe("roles");
+    describe('isForeignKeyValueNavigable', () => {
+        it('rejects null, undefined, and empty string', () => {
+            expect(isForeignKeyValueNavigable(null)).toBe(false);
+            expect(isForeignKeyValueNavigable(undefined)).toBe(false);
+            expect(isForeignKeyValueNavigable('')).toBe(false);
+        });
+
+        it('accepts numbers, non-empty strings, and zero', () => {
+            expect(isForeignKeyValueNavigable(0)).toBe(true);
+            expect(isForeignKeyValueNavigable(42)).toBe(true);
+            expect(isForeignKeyValueNavigable('abc')).toBe(true);
+            expect(isForeignKeyValueNavigable(false)).toBe(true);
+        });
     });
 
-    it("skips composite FKs (entries that share a constraint name)", () => {
-      const fks = [
-        fk("fk_composite", "tenant_id", "memberships", "tenant_id"),
-        fk("fk_composite", "user_id", "memberships", "user_id"),
-        fk("fk_country", "country_code", "countries", "code"),
-      ];
-      const map = pickPrimaryForeignKeyByColumn(fks);
-      expect(map.size).toBe(1);
-      expect(map.has("tenant_id")).toBe(false);
-      expect(map.has("user_id")).toBe(false);
-      expect(map.get("country_code")?.ref_table).toBe("countries");
+    describe('isNumericColumnType', () => {
+        it('recognises common numeric types across drivers', () => {
+            for (const t of [
+                'INT',
+                'int(11)',
+                'bigint unsigned',
+                'DECIMAL(10,2)',
+                'numeric',
+                'double precision',
+                'real',
+                'float',
+                'serial',
+                'bigserial',
+                'money',
+            ]) {
+                expect(isNumericColumnType(t)).toBe(true);
+            }
+        });
+
+        it('returns false for non-numeric or missing types', () => {
+            expect(isNumericColumnType(undefined)).toBe(false);
+            expect(isNumericColumnType('')).toBe(false);
+            expect(isNumericColumnType('varchar(255)')).toBe(false);
+            expect(isNumericColumnType('text')).toBe(false);
+            expect(isNumericColumnType('uuid')).toBe(false);
+            expect(isNumericColumnType('timestamp')).toBe(false);
+        });
     });
 
-    it("keeps the first occurrence when multiple single-column FKs hit the same column", () => {
-      const fks = [
-        fk("fk_first", "owner_id", "users", "id"),
-        fk("fk_second", "owner_id", "service_accounts", "id"),
-      ];
-      const map = pickPrimaryForeignKeyByColumn(fks);
-      expect(map.size).toBe(1);
-      expect(map.get("owner_id")?.name).toBe("fk_first");
-    });
-  });
+    describe('buildForeignKeyFilterClause', () => {
+        const orgFk = fk('fk_org', 'org_id', 'organizations', 'id');
 
-  describe("isForeignKeyValueNavigable", () => {
-    it("rejects null, undefined, and empty string", () => {
-      expect(isForeignKeyValueNavigable(null)).toBe(false);
-      expect(isForeignKeyValueNavigable(undefined)).toBe(false);
-      expect(isForeignKeyValueNavigable("")).toBe(false);
-    });
+        it('emits numbers unquoted and quotes the identifier per driver', () => {
+            expect(buildForeignKeyFilterClause(orgFk, 42, 'mysql')).toBe('`id` = 42');
+            expect(buildForeignKeyFilterClause(orgFk, 42, 'postgres')).toBe('"id" = 42');
+            expect(buildForeignKeyFilterClause(orgFk, 42, 'sqlite')).toBe('"id" = 42');
+        });
 
-    it("accepts numbers, non-empty strings, and zero", () => {
-      expect(isForeignKeyValueNavigable(0)).toBe(true);
-      expect(isForeignKeyValueNavigable(42)).toBe(true);
-      expect(isForeignKeyValueNavigable("abc")).toBe(true);
-      expect(isForeignKeyValueNavigable(false)).toBe(true);
-    });
-  });
+        it('backslash-escapes string values for a GoogleSQL plugin', () => {
+            const bq = GOOGLESQL_CAPS;
+            expect(buildForeignKeyFilterClause(orgFk, "O'Brien\\", bq)).toBe(
+                "`id` = 'O\\'Brien\\\\'",
+            );
+            expect(buildForeignKeyFilterClause(orgFk, "O'Brien", 'postgres')).toBe(
+                `"id" = 'O''Brien'`,
+            );
+        });
 
-  describe("isNumericColumnType", () => {
-    it("recognises common numeric types across drivers", () => {
-      for (const t of [
-        "INT",
-        "int(11)",
-        "bigint unsigned",
-        "DECIMAL(10,2)",
-        "numeric",
-        "double precision",
-        "real",
-        "float",
-        "serial",
-        "bigserial",
-        "money",
-      ]) {
-        expect(isNumericColumnType(t)).toBe(true);
-      }
-    });
+        it('writes booleans in the declared boolean_literals style', () => {
+            const numeric = {
+                ...GOOGLESQL_CAPS,
+                sql_syntax: {...GOOGLESQL_CAPS.sql_syntax, boolean_literals: 'numeric' as const},
+            };
+            expect(buildForeignKeyFilterClause(orgFk, true, GOOGLESQL_CAPS)).toBe('`id` = TRUE');
+            expect(buildForeignKeyFilterClause(orgFk, false, numeric)).toBe('`id` = 0');
+            expect(buildForeignKeyFilterClause(orgFk, true, 'mysql')).toBe('`id` = TRUE');
+            expect(buildForeignKeyFilterClause(orgFk, false, 'postgres')).toBe('"id" = FALSE');
+        });
 
-    it("returns false for non-numeric or missing types", () => {
-      expect(isNumericColumnType(undefined)).toBe(false);
-      expect(isNumericColumnType("")).toBe(false);
-      expect(isNumericColumnType("varchar(255)")).toBe(false);
-      expect(isNumericColumnType("text")).toBe(false);
-      expect(isNumericColumnType("uuid")).toBe(false);
-      expect(isNumericColumnType("timestamp")).toBe(false);
-    });
-  });
+        it('treats bigint values as numeric', () => {
+            expect(buildForeignKeyFilterClause(orgFk, BigInt('9007199254740993'), 'postgres')).toBe(
+                '"id" = 9007199254740993',
+            );
+        });
 
-  describe("buildForeignKeyFilterClause", () => {
-    const orgFk = fk("fk_org", "org_id", "organizations", "id");
+        it('compares MySQL FLOAT values using their widened single precision', () => {
+            const capabilities: DriverCapabilities = {
+                schemas: true,
+                views: true,
+                routines: true,
+                file_based: false,
+                folder_based: false,
+                identifier_quote: '`',
+                alter_primary_key: true,
+                sql_dialect: 'mysql',
+            };
+            const manifest: PluginManifest = {
+                id: 'mysql-compatible',
+                name: 'MySQL compatible',
+                version: '1.0.0',
+                description: '',
+                default_port: 3306,
+                capabilities,
+            };
+            for (const driver of ['mysql', capabilities, manifest]) {
+                for (const columnType of ['float', 'FLOAT UNSIGNED']) {
+                    expect(buildForeignKeyFilterClause(orgFk, 89.9, driver, columnType)).toBe(
+                        '`id` = 89.9000015258789',
+                    );
+                }
+                expect(buildForeignKeyFilterClause(orgFk, 1e100, driver, 'float')).toBe(
+                    '`id` = 1e+100',
+                );
+                expect(buildForeignKeyFilterClause(orgFk, 89.9, driver, 'double')).toBe(
+                    '`id` = 89.9',
+                );
+            }
+            expect(buildForeignKeyFilterClause(orgFk, 89.9, 'postgres', 'float')).toBe(
+                '"id" = 89.9',
+            );
+        });
 
-    it("emits numbers unquoted and quotes the identifier per driver", () => {
-      expect(buildForeignKeyFilterClause(orgFk, 42, "mysql")).toBe(
-        "`id` = 42",
-      );
-      expect(buildForeignKeyFilterClause(orgFk, 42, "postgres")).toBe(
-        '"id" = 42',
-      );
-      expect(buildForeignKeyFilterClause(orgFk, 42, "sqlite")).toBe(
-        '"id" = 42',
-      );
-    });
+        it('compares PostgreSQL real values at column precision', () => {
+            const capabilities: DriverCapabilities = {
+                schemas: true,
+                views: true,
+                routines: true,
+                file_based: false,
+                folder_based: false,
+                identifier_quote: '"',
+                alter_primary_key: true,
+                sql_dialect: 'postgres',
+            };
+            for (const driver of ['postgres', 'postgresql', capabilities]) {
+                for (const columnType of ['real', 'FLOAT4']) {
+                    expect(buildForeignKeyFilterClause(orgFk, 89.9, driver, columnType)).toBe(
+                        '"id" = CAST(89.9 AS real)',
+                    );
+                }
+            }
+            expect(buildForeignKeyFilterClause(orgFk, 89.9, 'postgres', 'double precision')).toBe(
+                '"id" = 89.9',
+            );
+            expect(buildForeignKeyFilterClause(orgFk, 89.9, 'mysql', 'real')).toBe('`id` = 89.9');
+        });
 
-    it("backslash-escapes string values for a GoogleSQL plugin", () => {
-      const bq = GOOGLESQL_CAPS;
-      expect(buildForeignKeyFilterClause(orgFk, "O'Brien\\", bq)).toBe(
-        "`id` = 'O\\'Brien\\\\'",
-      );
-      expect(buildForeignKeyFilterClause(orgFk, "O'Brien", "postgres")).toBe(
-        `"id" = 'O''Brien'`,
-      );
-    });
+        it('quotes identically for a postgres-dialect plugin manifest as for the bare "postgres" string (issue #614)', () => {
+            const pluginManifest: PluginManifest = {
+                id: 'postgresql',
+                name: 'PostgreSQL',
+                version: '1.0.0',
+                description: '',
+                default_port: 5432,
+                capabilities: {
+                    schemas: true,
+                    views: true,
+                    routines: true,
+                    file_based: false,
+                    folder_based: false,
+                    identifier_quote: '"',
+                    alter_primary_key: true,
+                    sql_dialect: 'postgres',
+                },
+            };
+            expect(buildForeignKeyFilterClause(orgFk, 42, pluginManifest)).toBe(
+                buildForeignKeyFilterClause(orgFk, 42, 'postgres'),
+            );
+        });
 
-    it("writes booleans in the declared boolean_literals style", () => {
-      const numeric = {
-        ...GOOGLESQL_CAPS,
-        sql_syntax: { ...GOOGLESQL_CAPS.sql_syntax, boolean_literals: "numeric" as const },
-      };
-      expect(buildForeignKeyFilterClause(orgFk, true, GOOGLESQL_CAPS)).toBe("`id` = TRUE");
-      expect(buildForeignKeyFilterClause(orgFk, false, numeric)).toBe("`id` = 0");
-      expect(buildForeignKeyFilterClause(orgFk, true, "mysql")).toBe("`id` = TRUE");
-      expect(buildForeignKeyFilterClause(orgFk, false, "postgres")).toBe('"id" = FALSE');
-    });
+        it('quotes string values and escapes embedded single quotes', () => {
+            const slugFk = fk('fk_slug', 'slug', 'pages', 'slug');
+            expect(buildForeignKeyFilterClause(slugFk, "o'brien", 'postgres')).toBe(
+                `"slug" = 'o''brien'`,
+            );
+        });
 
-    it("treats bigint values as numeric", () => {
-      expect(
-        buildForeignKeyFilterClause(orgFk, BigInt("9007199254740993"), "postgres"),
-      ).toBe('"id" = 9007199254740993');
-    });
+        it('emits numeric strings unquoted when the source column is numeric', () => {
+            expect(buildForeignKeyFilterClause(orgFk, '42', 'postgres', 'BIGINT')).toBe(
+                '"id" = 42',
+            );
+        });
 
-    it("compares MySQL FLOAT values using their widened single precision", () => {
-      const capabilities: DriverCapabilities = {
-        schemas: true, views: true, routines: true,
-        file_based: false, folder_based: false,
-        identifier_quote: "`", alter_primary_key: true, sql_dialect: "mysql",
-      };
-      const manifest: PluginManifest = {
-        id: "mysql-compatible", name: "MySQL compatible", version: "1.0.0",
-        description: "", default_port: 3306, capabilities,
-      };
-      for (const driver of ["mysql", capabilities, manifest]) {
-        for (const columnType of ["float", "FLOAT UNSIGNED"]) {
-          expect(buildForeignKeyFilterClause(orgFk, 89.9, driver, columnType)).toBe(
-            "`id` = 89.9000015258789",
-          );
-        }
-        expect(buildForeignKeyFilterClause(orgFk, 1e100, driver, "float")).toBe(
-          "`id` = 1e+100",
-        );
-        expect(buildForeignKeyFilterClause(orgFk, 89.9, driver, "double")).toBe(
-          "`id` = 89.9",
-        );
-      }
-      expect(buildForeignKeyFilterClause(orgFk, 89.9, "postgres", "float")).toBe(
-        '"id" = 89.9',
-      );
-    });
+        it('keeps numeric strings quoted when the source column type is unknown', () => {
+            expect(buildForeignKeyFilterClause(orgFk, '42', 'postgres')).toBe(`"id" = '42'`);
+        });
 
-    it("compares PostgreSQL real values at column precision", () => {
-      const capabilities: DriverCapabilities = {
-        schemas: true, views: true, routines: true,
-        file_based: false, folder_based: false,
-        identifier_quote: '"', alter_primary_key: true, sql_dialect: "postgres",
-      };
-      for (const driver of ["postgres", "postgresql", capabilities]) {
-        for (const columnType of ["real", "FLOAT4"]) {
-          expect(buildForeignKeyFilterClause(orgFk, 89.9, driver, columnType)).toBe(
-            '"id" = CAST(89.9 AS real)',
-          );
-        }
-      }
-      expect(buildForeignKeyFilterClause(orgFk, 89.9, "postgres", "double precision")).toBe(
-        '"id" = 89.9',
-      );
-      expect(buildForeignKeyFilterClause(orgFk, 89.9, "mysql", "real")).toBe(
-        "`id` = 89.9",
-      );
-    });
+        it('emits booleans as TRUE/FALSE', () => {
+            const flagFk = fk('fk_flag', 'active', 'settings', 'active');
+            expect(buildForeignKeyFilterClause(flagFk, true, 'postgres')).toBe('"active" = TRUE');
+            expect(buildForeignKeyFilterClause(flagFk, false, 'postgres')).toBe('"active" = FALSE');
+        });
 
-    it("quotes identically for a postgres-dialect plugin manifest as for the bare \"postgres\" string (issue #614)", () => {
-      const pluginManifest: PluginManifest = {
-        id: "postgresql",
-        name: "PostgreSQL",
-        version: "1.0.0",
-        description: "",
-        default_port: 5432,
-        capabilities: {
-          schemas: true, views: true, routines: true,
-          file_based: false, folder_based: false,
-          identifier_quote: '"', alter_primary_key: true,
-          sql_dialect: "postgres",
-        },
-      };
-      expect(buildForeignKeyFilterClause(orgFk, 42, pluginManifest)).toBe(
-        buildForeignKeyFilterClause(orgFk, 42, "postgres"),
-      );
+        it('escapes identifiers that contain the quote character', () => {
+            const weirdFk = fk('fk_weird', '"id', 'weird', '"id');
+            expect(buildForeignKeyFilterClause(weirdFk, 1, 'postgres')).toBe(`"""id" = 1`);
+        });
     });
 
-    it("quotes string values and escapes embedded single quotes", () => {
-      const slugFk = fk("fk_slug", "slug", "pages", "slug");
-      expect(
-        buildForeignKeyFilterClause(slugFk, "o'brien", "postgres"),
-      ).toBe(`"slug" = 'o''brien'`);
-    });
+    describe('getForeignKeyForPreview', () => {
+        const orgFk = fk('fk_org', 'org_id', 'organizations', 'id');
+        const fksByColumn = pickPrimaryForeignKeyByColumn([
+            orgFk,
+            fk('fk_role', 'role_id', 'roles', 'id'),
+        ]);
 
-    it("emits numeric strings unquoted when the source column is numeric", () => {
-      expect(
-        buildForeignKeyFilterClause(orgFk, "42", "postgres", "BIGINT"),
-      ).toBe('"id" = 42');
-    });
+        it('returns the FK for a navigable value on an FK column', () => {
+            expect(getForeignKeyForPreview('org_id', 42, fksByColumn)).toEqual(orgFk);
+            expect(getForeignKeyForPreview('org_id', 'abc', fksByColumn)).toEqual(orgFk);
+        });
 
-    it("keeps numeric strings quoted when the source column type is unknown", () => {
-      expect(buildForeignKeyFilterClause(orgFk, "42", "postgres")).toBe(
-        `"id" = '42'`,
-      );
-    });
+        it('returns null for a non-FK column', () => {
+            expect(getForeignKeyForPreview('name', 42, fksByColumn)).toBeNull();
+        });
 
-    it("emits booleans as TRUE/FALSE", () => {
-      const flagFk = fk("fk_flag", "active", "settings", "active");
-      expect(buildForeignKeyFilterClause(flagFk, true, "postgres")).toBe(
-        '"active" = TRUE',
-      );
-      expect(buildForeignKeyFilterClause(flagFk, false, "postgres")).toBe(
-        '"active" = FALSE',
-      );
-    });
+        it('returns null for null, undefined, and empty string values', () => {
+            expect(getForeignKeyForPreview('org_id', null, fksByColumn)).toBeNull();
+            expect(getForeignKeyForPreview('org_id', undefined, fksByColumn)).toBeNull();
+            expect(getForeignKeyForPreview('org_id', '', fksByColumn)).toBeNull();
+        });
 
-    it("escapes identifiers that contain the quote character", () => {
-      const weirdFk = fk("fk_weird", '"id', "weird", '"id');
-      expect(buildForeignKeyFilterClause(weirdFk, 1, "postgres")).toBe(
-        `"""id" = 1`,
-      );
-    });
-  });
+        it('returns null when the row is pending delete or an insertion', () => {
+            expect(
+                getForeignKeyForPreview('org_id', 42, fksByColumn, {
+                    isPendingDelete: true,
+                }),
+            ).toBeNull();
+            expect(
+                getForeignKeyForPreview('org_id', 42, fksByColumn, {
+                    isInsertion: true,
+                }),
+            ).toBeNull();
+        });
 
-  describe("getForeignKeyForPreview", () => {
-    const orgFk = fk("fk_org", "org_id", "organizations", "id");
-    const fksByColumn = pickPrimaryForeignKeyByColumn([
-      orgFk,
-      fk("fk_role", "role_id", "roles", "id"),
-    ]);
-
-    it("returns the FK for a navigable value on an FK column", () => {
-      expect(
-        getForeignKeyForPreview("org_id", 42, fksByColumn),
-      ).toEqual(orgFk);
-      expect(
-        getForeignKeyForPreview("org_id", "abc", fksByColumn),
-      ).toEqual(orgFk);
+        it('returns null for composite FK columns not in the map', () => {
+            const compositeMap = pickPrimaryForeignKeyByColumn([
+                fk('fk_composite', 'tenant_id', 'memberships', 'tenant_id'),
+                fk('fk_composite', 'user_id', 'memberships', 'user_id'),
+            ]);
+            expect(getForeignKeyForPreview('tenant_id', 1, compositeMap)).toBeNull();
+        });
     });
-
-    it("returns null for a non-FK column", () => {
-      expect(
-        getForeignKeyForPreview("name", 42, fksByColumn),
-      ).toBeNull();
-    });
-
-    it("returns null for null, undefined, and empty string values", () => {
-      expect(
-        getForeignKeyForPreview("org_id", null, fksByColumn),
-      ).toBeNull();
-      expect(
-        getForeignKeyForPreview("org_id", undefined, fksByColumn),
-      ).toBeNull();
-      expect(getForeignKeyForPreview("org_id", "", fksByColumn)).toBeNull();
-    });
-
-    it("returns null when the row is pending delete or an insertion", () => {
-      expect(
-        getForeignKeyForPreview("org_id", 42, fksByColumn, {
-          isPendingDelete: true,
-        }),
-      ).toBeNull();
-      expect(
-        getForeignKeyForPreview("org_id", 42, fksByColumn, {
-          isInsertion: true,
-        }),
-      ).toBeNull();
-    });
-
-    it("returns null for composite FK columns not in the map", () => {
-      const compositeMap = pickPrimaryForeignKeyByColumn([
-        fk("fk_composite", "tenant_id", "memberships", "tenant_id"),
-        fk("fk_composite", "user_id", "memberships", "user_id"),
-      ]);
-      expect(
-        getForeignKeyForPreview("tenant_id", 1, compositeMap),
-      ).toBeNull();
-    });
-  });
 });

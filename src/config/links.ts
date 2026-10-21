@@ -7,12 +7,13 @@
  */
 
 export const LINKS = {
-  DISCORD: "https://discord.com/invite/K2hmhfHRSt",
-  GITHUB: "https://github.com/TabularisDB/tabularis",
-  GITHUB_ISSUES: "https://github.com/TabularisDB/tabularis/issues",
-  X: "https://x.com/tabularisdb",
-  BLUESKY: "https://bsky.app/profile/tabularis.bsky.social",
-  MASTODON: "https://mastodon.social/@tabularis",
+    DISCORD: 'https://discord.com/invite/K2hmhfHRSt',
+    GITHUB: 'https://github.com/TabularisDB/tabularis',
+    GITHUB_ISSUES: 'https://github.com/TabularisDB/tabularis/issues',
+    X: 'https://x.com/tabularisdb',
+    BLUESKY: 'https://bsky.app/profile/tabularis.bsky.social',
+    MASTODON: 'https://mastodon.social/@tabularis',
+    LINKEDIN: 'https://www.linkedin.com/company/tabularisdb',
 } as const;
 
 // Named exports for convenience
@@ -22,3 +23,4 @@ export const GITHUB_ISSUES_URL = LINKS.GITHUB_ISSUES;
 export const X_URL = LINKS.X;
 export const BLUESKY_URL = LINKS.BLUESKY;
 export const MASTODON_URL = LINKS.MASTODON;
+export const LINKEDIN_URL = LINKS.LINKEDIN;

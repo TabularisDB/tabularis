@@ -1,6 +1,6 @@
-import { format, type FormatOptionsWithLanguage, type SqlLanguage } from 'sql-formatter';
-import type { DialectInput } from './sqlSplitter';
-import { presetFormatter, type SqlSyntax } from './sqlSyntax';
+import {format, type FormatOptionsWithLanguage, type SqlLanguage} from 'sql-formatter';
+import type {DialectInput} from './sqlSplitter';
+import {presetFormatter, type SqlSyntax} from './sqlSyntax';
 
 /**
  * Maps Tabularis' internal SQL dialect, or a resolved syntax (whose
@@ -8,10 +8,10 @@ import { presetFormatter, type SqlSyntax } from './sqlSyntax';
  * Unknown or generic dialects fall back to standard `sql`.
  */
 export function toFormatterLanguage(dialect: DialectInput | SqlSyntax): SqlLanguage {
-  if (typeof dialect === 'object') {
-    return 'formatter' in dialect ? dialect.formatter : presetFormatter(dialect.dialect);
-  }
-  return presetFormatter(dialect);
+    if (typeof dialect === 'object') {
+        return 'formatter' in dialect ? dialect.formatter : presetFormatter(dialect.dialect);
+    }
+    return presetFormatter(dialect);
 }
 
 /**
@@ -20,21 +20,21 @@ export function toFormatterLanguage(dialect: DialectInput | SqlSyntax): SqlLangu
  * syntactically incomplete SQL), so callers never lose the user's text.
  */
 export function formatSql(
-  sql: string,
-  dialect?: DialectInput | SqlSyntax,
-  options?: Partial<FormatOptionsWithLanguage>,
+    sql: string,
+    dialect?: DialectInput | SqlSyntax,
+    options?: Partial<FormatOptionsWithLanguage>,
 ): string {
-  if (!sql.trim()) {
-    return sql;
-  }
+    if (!sql.trim()) {
+        return sql;
+    }
 
-  try {
-    return format(sql, {
-      language: toFormatterLanguage(dialect),
-      keywordCase: 'upper',
-      ...options,
-    });
-  } catch {
-    return sql;
-  }
+    try {
+        return format(sql, {
+            language: toFormatterLanguage(dialect),
+            keywordCase: 'upper',
+            ...options,
+        });
+    } catch {
+        return sql;
+    }
 }

@@ -33,6 +33,7 @@ pub mod connection_cache_tests;
 pub mod connection_migrations;
 #[cfg(test)]
 pub mod connection_migrations_tests;
+pub mod database_backup;
 pub mod connection_tags;
 pub mod connection_window;
 #[cfg(test)]
@@ -452,6 +453,9 @@ pub fn run() {
             // Periodic encrypted backup of the connections, when enabled.
             backup::spawn_scheduler(app.handle().clone());
 
+            // Scheduled daily database content backups, when enabled (app-open boundary).
+            database_backup::spawn_database_backup_scheduler(app.handle().clone());
+
             // Refresh the GUI heartbeat so the MCP subprocess can detect
             // when Tabularis is closed and fail fast on approval-gated
             // queries instead of waiting for the full approval timeout.
@@ -578,6 +582,9 @@ pub fn run() {
             backup::set_connections_backup_password,
             backup::set_connections_backup_target_password,
             backup::run_connections_backup,
+            database_backup::get_database_backup_status,
+            database_backup::run_database_backup_now,
+            database_backup::cancel_database_backup,
             commands::decrypt_export_payload,
             commands::import_connections_payload,
             connection_import_commands::list_connection_import_sources,

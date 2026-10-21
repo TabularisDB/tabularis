@@ -1,12 +1,12 @@
-import { useCallback, useState } from "react";
-import { isDataModifyingQuery } from "../utils/sql";
+import {useCallback, useState} from 'react';
+import {isDataModifyingQuery} from '@/utils/sql';
 
 interface UseExplainAnalyzeOptions {
-  connectionId: string;
-  query: string;
-  schema?: string | null;
-  /** Default for the Analyze toggle until the user picks one; ignored for DML. */
-  defaultEnabled?: boolean;
+    connectionId: string;
+    query: string;
+    schema?: string | null;
+    /** Default for the Analyze toggle until the user picks one; ignored for DML. */
+    defaultEnabled?: boolean;
 }
 
 /**
@@ -16,23 +16,22 @@ interface UseExplainAnalyzeOptions {
  * the user opts in for that exact source.
  */
 export function useExplainAnalyze({
-  connectionId,
-  query,
-  schema,
-  defaultEnabled = false,
+    connectionId,
+    query,
+    schema,
+    defaultEnabled = false,
 }: UseExplainAnalyzeOptions) {
-  const [choice, setChoice] = useState<{ sourceKey: string; enabled: boolean } | null>(null);
-  const sourceKey = JSON.stringify([connectionId, schema ?? null, query]);
-  const isDml = isDataModifyingQuery(query);
+    const [choice, setChoice] = useState<{sourceKey: string; enabled: boolean} | null>(null);
+    const sourceKey = JSON.stringify([connectionId, schema ?? null, query]);
+    const isDml = isDataModifyingQuery(query);
 
-  if (choice && choice.sourceKey !== sourceKey) setChoice(null);
-  const analyze =
-    choice?.sourceKey === sourceKey ? choice.enabled : defaultEnabled && !isDml;
+    if (choice && choice.sourceKey !== sourceKey) setChoice(null);
+    const analyze = choice?.sourceKey === sourceKey ? choice.enabled : defaultEnabled && !isDml;
 
-  const setAnalyze = useCallback(
-    (enabled: boolean) => setChoice({ sourceKey, enabled }),
-    [sourceKey],
-  );
+    const setAnalyze = useCallback(
+        (enabled: boolean) => setChoice({sourceKey, enabled}),
+        [sourceKey],
+    );
 
-  return { sourceKey, analyze, setAnalyze, isDml };
+    return {sourceKey, analyze, setAnalyze, isDml};
 }

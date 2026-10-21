@@ -25,36 +25,36 @@
 
 /** Which Issue Form template to target. Each maps to a `.yml` file in the
  * plugin repo's `.github/ISSUE_TEMPLATE/` directory. */
-export type IssueTemplate = "migration-failure" | "capability-gap" | "bug-report";
+export type IssueTemplate = 'migration-failure' | 'capability-gap' | 'bug-report';
 
 /** Which kind of migration failure happened, for the `migration-failure`
  * form's `failure_mode` dropdown. */
-export type FailureMode = "process" | "connection";
+export type FailureMode = 'process' | 'connection';
 
 /** Inputs to `buildPluginIssueUrl`. `repoUrl` is the plugin's own repository
  * URL (e.g. "https://github.com/TabularisDB/tabularis-postgresql-plugin"),
  * resolved from the registry catalogue, not from the driver manifest. */
 export interface BuildPluginIssueUrlInput {
-  /** Plugin id (e.g. "postgresql"). */
-  pluginId: string;
-  /** Installed plugin version, for the `plugin_version` field. */
-  pluginVersion: string;
-  /** Plugin repository URL, the base of the new-issue link. */
-  repoUrl: string;
-  /** Running app version, for the `app_version` field. */
-  appVersion: string;
-  /** Operating system string, for the `os` field. */
-  os: string;
-  /** Which Issue Form template to target. */
-  template: IssueTemplate;
-  /** Required for `migration-failure`: which kind of failure. */
-  failureMode?: FailureMode;
-  /** Required for `migration-failure`: the exact error message. */
-  error?: string;
-  /** Required for `migration-failure`: the built-in driver migrated from. */
-  migratedFromDriver?: string;
-  /** Required for `capability-gap`: the feature name with the gap. */
-  feature?: string;
+    /** Plugin id (e.g. "postgresql"). */
+    pluginId: string;
+    /** Installed plugin version, for the `plugin_version` field. */
+    pluginVersion: string;
+    /** Plugin repository URL, the base of the new-issue link. */
+    repoUrl: string;
+    /** Running app version, for the `app_version` field. */
+    appVersion: string;
+    /** Operating system string, for the `os` field. */
+    os: string;
+    /** Which Issue Form template to target. */
+    template: IssueTemplate;
+    /** Required for `migration-failure`: which kind of failure. */
+    failureMode?: FailureMode;
+    /** Required for `migration-failure`: the exact error message. */
+    error?: string;
+    /** Required for `migration-failure`: the built-in driver migrated from. */
+    migratedFromDriver?: string;
+    /** Required for `capability-gap`: the feature name with the gap. */
+    feature?: string;
 }
 
 /**
@@ -66,7 +66,7 @@ export interface BuildPluginIssueUrlInput {
  * "Report an issue" for a plugin whose repo never moves.
  */
 const KNOWN_PLUGIN_REPOS: Record<string, string> = {
-  postgresql: "https://github.com/TabularisDB/tabularis-postgresql-plugin",
+    postgresql: 'https://github.com/TabularisDB/tabularis-postgresql-plugin',
 };
 
 /**
@@ -74,10 +74,10 @@ const KNOWN_PLUGIN_REPOS: Record<string, string> = {
  * falling back to `KNOWN_PLUGIN_REPOS` when the registry didn't provide one.
  */
 export function resolvePluginRepoUrl(
-  pluginId: string,
-  registryRepoUrl: string | null | undefined,
+    pluginId: string,
+    registryRepoUrl: string | null | undefined,
 ): string | undefined {
-  return registryRepoUrl ?? KNOWN_PLUGIN_REPOS[pluginId];
+    return registryRepoUrl ?? KNOWN_PLUGIN_REPOS[pluginId];
 }
 
 /**
@@ -91,58 +91,58 @@ export function resolvePluginRepoUrl(
  *   fail loudly here than to hand GitHub a malformed, un-submittable form.
  */
 export function buildPluginIssueUrl(input: BuildPluginIssueUrlInput): string {
-  const {
-    pluginId,
-    pluginVersion,
-    repoUrl,
-    appVersion,
-    os,
-    template,
-    failureMode,
-    error,
-    migratedFromDriver,
-    feature,
-  } = input;
+    const {
+        pluginId,
+        pluginVersion,
+        repoUrl,
+        appVersion,
+        os,
+        template,
+        failureMode,
+        error,
+        migratedFromDriver,
+        feature,
+    } = input;
 
-  // Validate required-per-template fields up front. A migration-failure form
-  // with no error isn't submittable; a capability-gap with no feature isn't
-  // meaningful. Fail closed.
-  if (template === "migration-failure") {
-    if (!error || error.trim() === "") {
-      throw new Error("buildPluginIssueUrl: error is required for migration-failure");
+    // Validate required-per-template fields up front. A migration-failure form
+    // with no error isn't submittable; a capability-gap with no feature isn't
+    // meaningful. Fail closed.
+    if (template === 'migration-failure') {
+        if (!error || error.trim() === '') {
+            throw new Error('buildPluginIssueUrl: error is required for migration-failure');
+        }
+        if (!failureMode) {
+            throw new Error('buildPluginIssueUrl: failureMode is required for migration-failure');
+        }
+        if (!migratedFromDriver) {
+            throw new Error(
+                'buildPluginIssueUrl: migratedFromDriver is required for migration-failure',
+            );
+        }
     }
-    if (!failureMode) {
-      throw new Error("buildPluginIssueUrl: failureMode is required for migration-failure");
+    if (template === 'capability-gap' && (!feature || feature.trim() === '')) {
+        throw new Error('buildPluginIssueUrl: feature is required for capability-gap');
     }
-    if (!migratedFromDriver) {
-      throw new Error(
-        "buildPluginIssueUrl: migratedFromDriver is required for migration-failure",
-      );
+
+    // Fixed field set: only these named values are ever interpolated. Adding a
+    // field here is a deliberate decision — never pass a raw params object.
+    const params = new URLSearchParams();
+    params.set('template', `${template}.yml`);
+    params.set('plugin_id', pluginId);
+    params.set('plugin_version', pluginVersion);
+    params.set('app_version', appVersion);
+    params.set('os', os);
+
+    if (template === 'migration-failure') {
+        // failureMode, migratedFromDriver, error are all defined here (validated above).
+        params.set('failure_mode', failureMode as FailureMode);
+        params.set('migrated_from_driver', migratedFromDriver as string);
+        params.set('error', error as string);
     }
-  }
-  if (template === "capability-gap" && (!feature || feature.trim() === "")) {
-    throw new Error("buildPluginIssueUrl: feature is required for capability-gap");
-  }
+    if (template === 'capability-gap') {
+        params.set('feature', feature as string);
+    }
 
-  // Fixed field set: only these named values are ever interpolated. Adding a
-  // field here is a deliberate decision — never pass a raw params object.
-  const params = new URLSearchParams();
-  params.set("template", `${template}.yml`);
-  params.set("plugin_id", pluginId);
-  params.set("plugin_version", pluginVersion);
-  params.set("app_version", appVersion);
-  params.set("os", os);
-
-  if (template === "migration-failure") {
-    // failureMode, migratedFromDriver, error are all defined here (validated above).
-    params.set("failure_mode", failureMode as FailureMode);
-    params.set("migrated_from_driver", migratedFromDriver as string);
-    params.set("error", error as string);
-  }
-  if (template === "capability-gap") {
-    params.set("feature", feature as string);
-  }
-
-  const base = repoUrl.replace(/\/+$/, "");
-  return `${base}/issues/new?${params.toString()}`;
+    const base = repoUrl.replace(/\/+$/, '');
+    return `${base}/issues/new?${params.toString()}`;
 }

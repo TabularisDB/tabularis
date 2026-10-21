@@ -1,325 +1,408 @@
-import { describe, it, expect } from 'vitest';
-import { parseTablesFromQuery, getCurrentStatement, isDestructiveWithoutWhere, classifyDangerousQuery, isDangerousQuery } from '../../src/utils/sqlAnalysis';
+import {describe, it, expect} from 'vitest';
+import {
+    parseTablesFromQuery,
+    getCurrentStatement,
+    isDestructiveWithoutWhere,
+    classifyDangerousQuery,
+    isDangerousQuery,
+    isReadOnlyQuery,
+} from '@/utils/sqlAnalysis';
 
 describe('sqlAnalysis utils', () => {
-  describe('parseTablesFromQuery', () => {
-    it('should return null for empty queries or queries without table references', () => {
-      expect(parseTablesFromQuery('')).toBeNull();
-      expect(parseTablesFromQuery('SELECT 1')).toBeNull();
-    });
+    describe('parseTablesFromQuery', () => {
+        it('should return null for empty queries or queries without table references', () => {
+            expect(parseTablesFromQuery('')).toBeNull();
+            expect(parseTablesFromQuery('SELECT 1')).toBeNull();
+        });
 
-    it('should extract the INSERT target table', () => {
-      const result = parseTablesFromQuery('INSERT INTO orders (');
-      expect(result?.get('orders')?.name).toBe('orders');
-    });
+        it('should extract the INSERT target table', () => {
+            const result = parseTablesFromQuery('INSERT INTO orders (');
+            expect(result?.get('orders')?.name).toBe('orders');
+        });
 
-    it('should extract INSERT variants: without INTO, IGNORE, REPLACE', () => {
-      expect(parseTablesFromQuery('INSERT orders VALUES (1)')?.get('orders')?.name).toBe('orders');
-      expect(parseTablesFromQuery('INSERT IGNORE INTO orders (')?.get('orders')?.name).toBe('orders');
-      expect(parseTablesFromQuery('REPLACE INTO orders (')?.get('orders')?.name).toBe('orders');
-    });
+        it('should extract INSERT variants: without INTO, IGNORE, REPLACE', () => {
+            expect(parseTablesFromQuery('INSERT orders VALUES (1)')?.get('orders')?.name).toBe(
+                'orders',
+            );
+            expect(parseTablesFromQuery('INSERT IGNORE INTO orders (')?.get('orders')?.name).toBe(
+                'orders',
+            );
+            expect(parseTablesFromQuery('REPLACE INTO orders (')?.get('orders')?.name).toBe(
+                'orders',
+            );
+        });
 
-    it('should extract a schema-qualified INSERT target', () => {
-      const ref = parseTablesFromQuery('INSERT INTO blog_demo.posts (')?.get('posts');
-      expect(ref?.name).toBe('posts');
-      expect(ref?.schema).toBe('blog_demo');
-    });
+        it('should extract a schema-qualified INSERT target', () => {
+            const ref = parseTablesFromQuery('INSERT INTO blog_demo.posts (')?.get('posts');
+            expect(ref?.name).toBe('posts');
+            expect(ref?.schema).toBe('blog_demo');
+        });
 
-    it('should extract a quoted INSERT target', () => {
-      expect(parseTablesFromQuery('INSERT INTO "AccountEventLog" (')?.get('AccountEventLog')?.name).toBe('AccountEventLog');
-      expect(parseTablesFromQuery('INSERT INTO `orders` (')?.get('orders')?.name).toBe('orders');
-    });
+        it('should extract a quoted INSERT target', () => {
+            expect(
+                parseTablesFromQuery('INSERT INTO "AccountEventLog" (')?.get('AccountEventLog')
+                    ?.name,
+            ).toBe('AccountEventLog');
+            expect(parseTablesFromQuery('INSERT INTO `orders` (')?.get('orders')?.name).toBe(
+                'orders',
+            );
+        });
 
-    it('should extract the UPDATE target table, with and without alias', () => {
-      expect(parseTablesFromQuery('UPDATE t SET c=1')?.get('t')?.name).toBe('t');
-      expect(parseTablesFromQuery('UPDATE users SET ')?.get('users')?.name).toBe('users');
-      expect(parseTablesFromQuery('UPDATE users u SET ')?.get('u')?.name).toBe('users');
-    });
+        it('should extract the UPDATE target table, with and without alias', () => {
+            expect(parseTablesFromQuery('UPDATE t SET c=1')?.get('t')?.name).toBe('t');
+            expect(parseTablesFromQuery('UPDATE users SET ')?.get('users')?.name).toBe('users');
+            expect(parseTablesFromQuery('UPDATE users u SET ')?.get('u')?.name).toBe('users');
+        });
 
-    it('should combine UPDATE target with FROM tables (postgres UPDATE ... FROM)', () => {
-      const result = parseTablesFromQuery('UPDATE users u SET name = o.name FROM orders o WHERE o.user_id = u.id');
-      expect(result?.get('u')?.name).toBe('users');
-      expect(result?.get('o')?.name).toBe('orders');
-    });
+        it('should combine UPDATE target with FROM tables (postgres UPDATE ... FROM)', () => {
+            const result = parseTablesFromQuery(
+                'UPDATE users u SET name = o.name FROM orders o WHERE o.user_id = u.id',
+            );
+            expect(result?.get('u')?.name).toBe('users');
+            expect(result?.get('o')?.name).toBe('orders');
+        });
 
-    it('should not treat FOR UPDATE or ON DUPLICATE KEY UPDATE as targets', () => {
-      const forUpdate = parseTablesFromQuery('SELECT * FROM orders FOR UPDATE OF orders');
-      expect(forUpdate?.size).toBe(1);
-      expect(forUpdate?.get('orders')?.name).toBe('orders');
+        it('should not treat FOR UPDATE or ON DUPLICATE KEY UPDATE as targets', () => {
+            const forUpdate = parseTablesFromQuery('SELECT * FROM orders FOR UPDATE OF orders');
+            expect(forUpdate?.size).toBe(1);
+            expect(forUpdate?.get('orders')?.name).toBe('orders');
 
-      const dupKey = parseTablesFromQuery('INSERT INTO orders (id) VALUES (1) ON DUPLICATE KEY UPDATE total = 0');
-      expect(dupKey?.get('orders')?.name).toBe('orders');
-      expect(dupKey?.has('total')).toBe(false);
-    });
+            const dupKey = parseTablesFromQuery(
+                'INSERT INTO orders (id) VALUES (1) ON DUPLICATE KEY UPDATE total = 0',
+            );
+            expect(dupKey?.get('orders')?.name).toBe('orders');
+            expect(dupKey?.has('total')).toBe(false);
+        });
 
-    it('should extract simple table name', () => {
-      const result = parseTablesFromQuery('SELECT * FROM users');
-      expect(result).not.toBeNull();
-      expect(result?.get('users')?.name).toBe('users');
-    });
+        it('should extract simple table name', () => {
+            const result = parseTablesFromQuery('SELECT * FROM users');
+            expect(result).not.toBeNull();
+            expect(result?.get('users')?.name).toBe('users');
+        });
 
-    it('should extract table with alias', () => {
-      const result = parseTablesFromQuery('SELECT * FROM users u');
-      expect(result?.get('u')?.name).toBe('users');
-    });
+        it('should extract table with alias', () => {
+            const result = parseTablesFromQuery('SELECT * FROM users u');
+            expect(result?.get('u')?.name).toBe('users');
+        });
 
-    it('should extract table with AS alias', () => {
-      const result = parseTablesFromQuery('SELECT * FROM users AS u');
-      expect(result?.get('u')?.name).toBe('users');
-    });
+        it('should extract table with AS alias', () => {
+            const result = parseTablesFromQuery('SELECT * FROM users AS u');
+            expect(result?.get('u')?.name).toBe('users');
+        });
 
-    it('should extract multiple tables (JOIN)', () => {
-      const sql = 'SELECT * FROM users u JOIN posts p ON u.id = p.user_id';
-      const result = parseTablesFromQuery(sql);
-      expect(result?.get('u')?.name).toBe('users');
-      expect(result?.get('p')?.name).toBe('posts');
-    });
+        it('should extract multiple tables (JOIN)', () => {
+            const sql = 'SELECT * FROM users u JOIN posts p ON u.id = p.user_id';
+            const result = parseTablesFromQuery(sql);
+            expect(result?.get('u')?.name).toBe('users');
+            expect(result?.get('p')?.name).toBe('posts');
+        });
 
-    it('should handle backticks', () => {
-      const result = parseTablesFromQuery('SELECT * FROM `my_table` `mt`');
-      expect(result?.get('mt')?.name).toBe('my_table');
-    });
+        it('should handle backticks', () => {
+            const result = parseTablesFromQuery('SELECT * FROM `my_table` `mt`');
+            expect(result?.get('mt')?.name).toBe('my_table');
+        });
 
-    it('should handle complex joins', () => {
-        const sql = `
+        it('should handle complex joins', () => {
+            const sql = `
             SELECT * FROM orders o
             LEFT JOIN users u ON o.user_id = u.id
             INNER JOIN products p ON o.prod_id = p.id
         `;
-        const result = parseTablesFromQuery(sql);
-        expect(result?.get('o')?.name).toBe('orders');
-        expect(result?.get('u')?.name).toBe('users');
-        expect(result?.get('p')?.name).toBe('products');
+            const result = parseTablesFromQuery(sql);
+            expect(result?.get('o')?.name).toBe('orders');
+            expect(result?.get('u')?.name).toBe('users');
+            expect(result?.get('p')?.name).toBe('products');
+        });
+
+        it('does not register a keyword as an alias when it follows a table name', () => {
+            // Unaliased JOIN: both tables keyed by their own name, JOIN not an alias.
+            const r = parseTablesFromQuery('SELECT * FROM users JOIN orders');
+            expect(r?.get('users')?.name).toBe('users');
+            expect(r?.get('orders')?.name).toBe('orders');
+            expect(r?.has('join')).toBe(false);
+
+            // JOIN-type keywords must not become aliases of the preceding table.
+            const left = parseTablesFromQuery('SELECT * FROM a LEFT JOIN b ON a.id = b.a_id');
+            expect(left?.get('a')?.name).toBe('a');
+            expect(left?.get('b')?.name).toBe('b');
+            expect(left?.has('left')).toBe(false);
+
+            const natural = parseTablesFromQuery('SELECT * FROM t NATURAL JOIN u');
+            expect(natural?.get('t')?.name).toBe('t');
+            expect(natural?.get('u')?.name).toBe('u');
+            expect(natural?.has('natural')).toBe(false);
+
+            // Trailing clause keywords that can legally follow a table name.
+            const forUpdate = parseTablesFromQuery('SELECT * FROM orders FOR UPDATE');
+            expect(forUpdate?.get('orders')?.name).toBe('orders');
+            expect(forUpdate?.has('for')).toBe(false);
+        });
+
+        it('keeps schema on qualified refs across a JOIN', () => {
+            const r = parseTablesFromQuery('SELECT * FROM db1.users JOIN db2.orders ON 1 = 1');
+            expect(r?.get('users')).toEqual({name: 'users', schema: 'db1'});
+            expect(r?.get('orders')).toEqual({name: 'orders', schema: 'db2'});
+        });
+
+        it('should extract PostgreSQL double-quoted table with alias', () => {
+            const result = parseTablesFromQuery('SELECT ael. FROM "AccountEventLog" ael');
+            expect(result?.get('ael')?.name).toBe('AccountEventLog');
+        });
+
+        it('should extract schema-qualified table with alias', () => {
+            const result = parseTablesFromQuery('SELECT u. FROM public.users u');
+            expect(result?.get('u')?.name).toBe('users');
+            expect(result?.get('u')?.schema).toBe('public');
+        });
+
+        it('should extract comma-separated FROM tables', () => {
+            const result = parseTablesFromQuery('SELECT * FROM users u, orders o');
+            expect(result?.get('u')?.name).toBe('users');
+            expect(result?.get('o')?.name).toBe('orders');
+        });
     });
 
-    it('does not register a keyword as an alias when it follows a table name', () => {
-      // Unaliased JOIN: both tables keyed by their own name, JOIN not an alias.
-      const r = parseTablesFromQuery('SELECT * FROM users JOIN orders');
-      expect(r?.get('users')?.name).toBe('users');
-      expect(r?.get('orders')?.name).toBe('orders');
-      expect(r?.has('join')).toBe(false);
+    describe('getCurrentStatement', () => {
+        // Mock monaco model
+        const createMockModel = (text: string) => ({
+            getValue: () => text,
+            getOffsetAt: (pos: {lineNumber: number; column: number}) => {
+                // Simple mock: assumes text is single line or simple multiline logic
+                // For accurate testing we'd need a real text buffer, but for this logic
+                // we can approximate if we only use single line tests or controlled inputs.
+                // Let's implement a simple line/col to offset mapper.
+                const lines = text.split('\n');
+                let offset = 0;
+                for (let i = 0; i < pos.lineNumber - 1; i++) {
+                    offset += lines[i].length + 1; // +1 for \n
+                }
+                offset += pos.column - 1;
+                return offset;
+            },
+        });
 
-      // JOIN-type keywords must not become aliases of the preceding table.
-      const left = parseTablesFromQuery('SELECT * FROM a LEFT JOIN b ON a.id = b.a_id');
-      expect(left?.get('a')?.name).toBe('a');
-      expect(left?.get('b')?.name).toBe('b');
-      expect(left?.has('left')).toBe(false);
+        it('should return full text for short single queries', () => {
+            const text = 'SELECT * FROM users';
+            const model = createMockModel(text);
+            const stmt = getCurrentStatement(model, {lineNumber: 1, column: 5});
+            expect(stmt).toBe(text);
+        });
 
-      const natural = parseTablesFromQuery('SELECT * FROM t NATURAL JOIN u');
-      expect(natural?.get('t')?.name).toBe('t');
-      expect(natural?.get('u')?.name).toBe('u');
-      expect(natural?.has('natural')).toBe(false);
+        it('should extract current statement between semicolons', () => {
+            // We need text > 500 chars to trigger logic
+            const padding = ' '.repeat(500);
+            const text = `SELECT 1; SELECT * FROM users; SELECT 2 -- ${padding}`;
+            const model = createMockModel(text);
+            // Cursor in the middle query
+            // SELECT 1; [cursor here] SELECT * FROM users; SELECT 2
+            // Length of 'SELECT 1; ' is 10.
+            // Cursor at char 12 roughly.
+            const stmt = getCurrentStatement(model, {lineNumber: 1, column: 15});
+            expect(stmt).toBe('SELECT * FROM users');
+        });
 
-      // Trailing clause keywords that can legally follow a table name.
-      const forUpdate = parseTablesFromQuery('SELECT * FROM orders FOR UPDATE');
-      expect(forUpdate?.get('orders')?.name).toBe('orders');
-      expect(forUpdate?.has('for')).toBe(false);
-    });
+        it('should handle cursor at the end of statement', () => {
+            const padding = ' '.repeat(500);
+            const text = `SELECT * FROM users; -- ${padding}`;
+            const model = createMockModel(text);
+            const stmt = getCurrentStatement(model, {lineNumber: 1, column: 20});
+            expect(stmt).toBe('SELECT * FROM users');
+        });
 
-    it('keeps schema on qualified refs across a JOIN', () => {
-      const r = parseTablesFromQuery('SELECT * FROM db1.users JOIN db2.orders ON 1 = 1');
-      expect(r?.get('users')).toEqual({ name: 'users', schema: 'db1' });
-      expect(r?.get('orders')).toEqual({ name: 'orders', schema: 'db2' });
-    });
-
-    it('should extract PostgreSQL double-quoted table with alias', () => {
-      const result = parseTablesFromQuery('SELECT ael. FROM "AccountEventLog" ael');
-      expect(result?.get('ael')?.name).toBe('AccountEventLog');
-    });
-
-    it('should extract schema-qualified table with alias', () => {
-      const result = parseTablesFromQuery('SELECT u. FROM public.users u');
-      expect(result?.get('u')?.name).toBe('users');
-      expect(result?.get('u')?.schema).toBe('public');
-    });
-
-    it('should extract comma-separated FROM tables', () => {
-      const result = parseTablesFromQuery('SELECT * FROM users u, orders o');
-      expect(result?.get('u')?.name).toBe('users');
-      expect(result?.get('o')?.name).toBe('orders');
-    });
-  });
-
-  describe('getCurrentStatement', () => {
-    // Mock monaco model
-    const createMockModel = (text: string) => ({
-      getValue: () => text,
-      getOffsetAt: (pos: { lineNumber: number, column: number }) => {
-        // Simple mock: assumes text is single line or simple multiline logic
-        // For accurate testing we'd need a real text buffer, but for this logic 
-        // we can approximate if we only use single line tests or controlled inputs.
-        // Let's implement a simple line/col to offset mapper.
-        const lines = text.split('\n');
-        let offset = 0;
-        for (let i = 0; i < pos.lineNumber - 1; i++) {
-            offset += lines[i].length + 1; // +1 for \n
-        }
-        offset += pos.column - 1;
-        return offset;
-      }
-    });
-
-    it('should return full text for short single queries', () => {
-      const text = 'SELECT * FROM users';
-      const model = createMockModel(text);
-      const stmt = getCurrentStatement(model, { lineNumber: 1, column: 5 });
-      expect(stmt).toBe(text);
-    });
-
-    it('should extract current statement between semicolons', () => {
-      // We need text > 500 chars to trigger logic
-      const padding = ' '.repeat(500);
-      const text = `SELECT 1; SELECT * FROM users; SELECT 2 -- ${padding}`;
-      const model = createMockModel(text);
-      // Cursor in the middle query
-      // SELECT 1; [cursor here] SELECT * FROM users; SELECT 2
-      // Length of 'SELECT 1; ' is 10. 
-      // Cursor at char 12 roughly.
-      const stmt = getCurrentStatement(model, { lineNumber: 1, column: 15 });
-      expect(stmt).toBe('SELECT * FROM users');
-    });
-
-    it('should handle cursor at the end of statement', () => {
-        const padding = ' '.repeat(500);
-        const text = `SELECT * FROM users; -- ${padding}`;
-        const model = createMockModel(text);
-        const stmt = getCurrentStatement(model, { lineNumber: 1, column: 20 });
-        expect(stmt).toBe('SELECT * FROM users');
-    });
-
-    it('should handle multiline strings', () => {
-        const padding = ' '.repeat(500);
-        const text = `SELECT 1;
+        it('should handle multiline strings', () => {
+            const padding = ' '.repeat(500);
+            const text = `SELECT 1;
 SELECT * FROM users
 WHERE id = 1;
 SELECT 2; -- ${padding}`;
-        const model = createMockModel(text);
-        // Cursor in middle of WHERE clause (Line 3)
-        const stmt = getCurrentStatement(model, { lineNumber: 3, column: 5 });
-        const expected = `SELECT * FROM users
+            const model = createMockModel(text);
+            // Cursor in middle of WHERE clause (Line 3)
+            const stmt = getCurrentStatement(model, {lineNumber: 3, column: 5});
+            const expected = `SELECT * FROM users
 WHERE id = 1`;
-        expect(stmt).toBe(expected);
-    });
-  });
-
-  describe('isDestructiveWithoutWhere', () => {
-    it('flags DELETE with no WHERE clause', () => {
-      expect(isDestructiveWithoutWhere('DELETE FROM users')).toBe(true);
-      expect(isDestructiveWithoutWhere('delete from users;')).toBe(true);
+            expect(stmt).toBe(expected);
+        });
     });
 
-    it('flags UPDATE with no WHERE clause', () => {
-      expect(isDestructiveWithoutWhere('UPDATE users SET active = 0')).toBe(true);
+    describe('isDestructiveWithoutWhere', () => {
+        it('flags DELETE with no WHERE clause', () => {
+            expect(isDestructiveWithoutWhere('DELETE FROM users')).toBe(true);
+            expect(isDestructiveWithoutWhere('delete from users;')).toBe(true);
+        });
+
+        it('flags UPDATE with no WHERE clause', () => {
+            expect(isDestructiveWithoutWhere('UPDATE users SET active = 0')).toBe(true);
+        });
+
+        it('does not flag DELETE/UPDATE with a top-level WHERE clause', () => {
+            expect(isDestructiveWithoutWhere('DELETE FROM users WHERE id = 1')).toBe(false);
+            expect(isDestructiveWithoutWhere('UPDATE users SET active = 0 WHERE id = 1')).toBe(
+                false,
+            );
+        });
+
+        it('does not flag SELECT/INSERT/other statement types', () => {
+            expect(isDestructiveWithoutWhere('SELECT * FROM users')).toBe(false);
+            expect(isDestructiveWithoutWhere('INSERT INTO users (id) VALUES (1)')).toBe(false);
+            expect(isDestructiveWithoutWhere('TRUNCATE TABLE users')).toBe(false);
+        });
+
+        it('ignores WHERE that only appears inside a subquery', () => {
+            const sql =
+                "UPDATE users SET status = (SELECT status FROM defaults WHERE key = 'default')";
+            expect(isDestructiveWithoutWhere(sql)).toBe(true);
+        });
+
+        it('ignores WHERE-like text inside comments and string literals', () => {
+            expect(isDestructiveWithoutWhere('DELETE FROM users -- WHERE id = 1')).toBe(true);
+            expect(isDestructiveWithoutWhere('DELETE FROM users /* WHERE id = 1 */')).toBe(true);
+            expect(isDestructiveWithoutWhere("UPDATE users SET note = 'no WHERE here'")).toBe(true);
+        });
+
+        it('handles leading whitespace and multi-line statements', () => {
+            const sql = `\n  UPDATE users\n  SET active = 0\n`;
+            expect(isDestructiveWithoutWhere(sql)).toBe(true);
+        });
+
+        it('does not let a backslash-escaped quote hide a real WHERE, or fake one out of string content', () => {
+            // No real WHERE: the escaped quote must not prematurely close the string
+            // and expose the literal "WHERE clause" text inside it as a top-level WHERE.
+            expect(
+                isDestructiveWithoutWhere(
+                    "UPDATE logs SET msg = 'don\\'t forget to add a WHERE clause'",
+                ),
+            ).toBe(true);
+            // A real WHERE after a backslash-escaped string is still detected.
+            expect(
+                isDestructiveWithoutWhere("UPDATE logs SET msg = 'it\\'s fine' WHERE id = 1"),
+            ).toBe(false);
+        });
+
+        it('flags a data-modifying CTE with no WHERE on its final statement', () => {
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH ids AS (SELECT id FROM stale_users) DELETE FROM users',
+                ),
+            ).toBe(true);
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH ids AS (SELECT id FROM stale_users) DELETE FROM users WHERE id IN (SELECT id FROM ids)',
+                ),
+            ).toBe(false);
+            // A CTE feeding a plain SELECT is not destructive at all.
+            expect(
+                isDestructiveWithoutWhere(
+                    'WITH ids AS (SELECT id FROM stale_users) SELECT * FROM ids',
+                ),
+            ).toBe(false);
+        });
+
+        it('flags a statement wrapped in parentheses instead of silently allowing it', () => {
+            // The wrapping parens make the WHERE-depth scan treat any WHERE as
+            // nested, so a wrapped statement is conservatively flagged either way
+            // (a false positive, not a silent bypass) — that's the safe direction
+            // to err in for a "forgot the WHERE" guard.
+            expect(isDestructiveWithoutWhere('(DELETE FROM users)')).toBe(true);
+            expect(isDestructiveWithoutWhere('(DELETE FROM users WHERE id = 1)')).toBe(true);
+        });
+
+        it('returns false for empty or whitespace-only input', () => {
+            expect(isDestructiveWithoutWhere('')).toBe(false);
+            expect(isDestructiveWithoutWhere('   \n\t  ')).toBe(false);
+        });
     });
 
-    it('does not flag DELETE/UPDATE with a top-level WHERE clause', () => {
-      expect(isDestructiveWithoutWhere('DELETE FROM users WHERE id = 1')).toBe(false);
-      expect(isDestructiveWithoutWhere('UPDATE users SET active = 0 WHERE id = 1')).toBe(false);
+    describe('classifyDangerousQuery', () => {
+        it('sees a DROP behind a leading # comment (MySQL)', () => {
+            expect(classifyDangerousQuery('# cleanup\nDROP TABLE users')).toBe('drop');
+            expect(classifyDangerousQuery('# cleanup\nDELETE FROM users')).toBe('no-where');
+            expect(classifyDangerousQuery('# note\nSELECT 1')).toBeNull();
+        });
+
+        it('classifies DELETE/UPDATE without a WHERE as no-where', () => {
+            expect(classifyDangerousQuery('DELETE FROM users')).toBe('no-where');
+            expect(classifyDangerousQuery('UPDATE users SET active = 0')).toBe('no-where');
+        });
+
+        it('classifies DROP statements', () => {
+            expect(classifyDangerousQuery('DROP TABLE users')).toBe('drop');
+            expect(classifyDangerousQuery('drop database analytics;')).toBe('drop');
+            expect(classifyDangerousQuery('DROP INDEX idx_users_email')).toBe('drop');
+        });
+
+        it('classifies TRUNCATE statements', () => {
+            expect(classifyDangerousQuery('TRUNCATE TABLE users')).toBe('truncate');
+            expect(classifyDangerousQuery('truncate logs;')).toBe('truncate');
+        });
+
+        it('returns null for safe statements', () => {
+            expect(classifyDangerousQuery('SELECT * FROM users')).toBe(null);
+            expect(classifyDangerousQuery('DELETE FROM users WHERE id = 1')).toBe(null);
+            expect(classifyDangerousQuery('INSERT INTO users (id) VALUES (1)')).toBe(null);
+            expect(classifyDangerousQuery('')).toBe(null);
+        });
+
+        it('is not fooled by DROP/TRUNCATE inside comments or literals', () => {
+            expect(classifyDangerousQuery("SELECT 'DROP TABLE users'")).toBe(null);
+            expect(classifyDangerousQuery('SELECT 1 -- DROP TABLE users')).toBe(null);
+        });
+
+        it('exposes isDangerousQuery as a boolean shortcut', () => {
+            expect(isDangerousQuery('DROP TABLE users')).toBe(true);
+            expect(isDangerousQuery('DELETE FROM users')).toBe(true);
+            expect(isDangerousQuery('SELECT * FROM users')).toBe(false);
+        });
+    });
+});
+
+describe('isReadOnlyQuery', () => {
+    it('accepts plain reads', () => {
+        expect(isReadOnlyQuery('SELECT * FROM users')).toBe(true);
+        expect(isReadOnlyQuery('  select 1;  ')).toBe(true);
+        expect(isReadOnlyQuery('SHOW TABLES')).toBe(true);
+        expect(isReadOnlyQuery('DESCRIBE users')).toBe(true);
+        expect(isReadOnlyQuery('PRAGMA table_info(users)')).toBe(true);
+        expect(isReadOnlyQuery('SELECT 1; SELECT 2;')).toBe(true);
+        expect(isReadOnlyQuery('')).toBe(true);
     });
 
-    it('does not flag SELECT/INSERT/other statement types', () => {
-      expect(isDestructiveWithoutWhere('SELECT * FROM users')).toBe(false);
-      expect(isDestructiveWithoutWhere('INSERT INTO users (id) VALUES (1)')).toBe(false);
-      expect(isDestructiveWithoutWhere('TRUNCATE TABLE users')).toBe(false);
+    it('flags writes and DDL', () => {
+        expect(isReadOnlyQuery('INSERT INTO t VALUES (1)')).toBe(false);
+        expect(isReadOnlyQuery('UPDATE t SET a = 1 WHERE id = 2')).toBe(false);
+        expect(isReadOnlyQuery('DELETE FROM t WHERE id = 2')).toBe(false);
+        expect(isReadOnlyQuery('DROP TABLE t')).toBe(false);
+        expect(isReadOnlyQuery('TRUNCATE t')).toBe(false);
+        expect(isReadOnlyQuery('ALTER TABLE t ADD COLUMN c int')).toBe(false);
+        expect(isReadOnlyQuery('CREATE TABLE t (id int)')).toBe(false);
     });
 
-    it('ignores WHERE that only appears inside a subquery', () => {
-      const sql = "UPDATE users SET status = (SELECT status FROM defaults WHERE key = 'default')";
-      expect(isDestructiveWithoutWhere(sql)).toBe(true);
+    it('flags a write hidden in a multi-statement batch', () => {
+        expect(isReadOnlyQuery('SELECT 1; DELETE FROM t; SELECT 2')).toBe(false);
     });
 
-    it('ignores WHERE-like text inside comments and string literals', () => {
-      expect(isDestructiveWithoutWhere("DELETE FROM users -- WHERE id = 1")).toBe(true);
-      expect(isDestructiveWithoutWhere("DELETE FROM users /* WHERE id = 1 */")).toBe(true);
-      expect(isDestructiveWithoutWhere("UPDATE users SET note = 'no WHERE here'")).toBe(true);
+    it('treats unknown statement types as potential writes', () => {
+        expect(isReadOnlyQuery('CALL cleanup_procedure()')).toBe(false);
+        expect(isReadOnlyQuery('SET search_path TO app')).toBe(false);
+        expect(isReadOnlyQuery('VACUUM')).toBe(false);
     });
 
-    it('handles leading whitespace and multi-line statements', () => {
-      const sql = `\n  UPDATE users\n  SET active = 0\n`;
-      expect(isDestructiveWithoutWhere(sql)).toBe(true);
+    it('classifies EXPLAIN by its target statement', () => {
+        expect(isReadOnlyQuery('EXPLAIN SELECT * FROM t')).toBe(true);
+        expect(isReadOnlyQuery('EXPLAIN ANALYZE SELECT * FROM t')).toBe(true);
+        // Postgres actually executes the target of EXPLAIN ANALYZE.
+        expect(isReadOnlyQuery('EXPLAIN ANALYZE UPDATE t SET a = 1')).toBe(false);
+        expect(isReadOnlyQuery('EXPLAIN (ANALYZE, BUFFERS) DELETE FROM t')).toBe(false);
     });
 
-    it('does not let a backslash-escaped quote hide a real WHERE, or fake one out of string content', () => {
-      // No real WHERE: the escaped quote must not prematurely close the string
-      // and expose the literal "WHERE clause" text inside it as a top-level WHERE.
-      expect(
-        isDestructiveWithoutWhere("UPDATE logs SET msg = 'don\\'t forget to add a WHERE clause'"),
-      ).toBe(true);
-      // A real WHERE after a backslash-escaped string is still detected.
-      expect(
-        isDestructiveWithoutWhere("UPDATE logs SET msg = 'it\\'s fine' WHERE id = 1"),
-      ).toBe(false);
+    it('sees through data-modifying CTEs', () => {
+        expect(isReadOnlyQuery('WITH x AS (SELECT 1) SELECT * FROM x')).toBe(true);
+        expect(isReadOnlyQuery('WITH gone AS (SELECT id FROM t) DELETE FROM t')).toBe(false);
     });
 
-    it('flags a data-modifying CTE with no WHERE on its final statement', () => {
-      expect(
-        isDestructiveWithoutWhere('WITH ids AS (SELECT id FROM stale_users) DELETE FROM users'),
-      ).toBe(true);
-      expect(
-        isDestructiveWithoutWhere(
-          'WITH ids AS (SELECT id FROM stale_users) DELETE FROM users WHERE id IN (SELECT id FROM ids)',
-        ),
-      ).toBe(false);
-      // A CTE feeding a plain SELECT is not destructive at all.
-      expect(
-        isDestructiveWithoutWhere('WITH ids AS (SELECT id FROM stale_users) SELECT * FROM ids'),
-      ).toBe(false);
+    it('ignores keywords inside comments and string literals', () => {
+        expect(isReadOnlyQuery('SELECT * FROM t -- DELETE FROM t')).toBe(true);
+        expect(isReadOnlyQuery("SELECT 'DROP TABLE users' AS threat")).toBe(true);
+        expect(isReadOnlyQuery('/* UPDATE t */ SELECT 1')).toBe(true);
+        expect(isReadOnlyQuery("SELECT ';DELETE FROM t;' FROM dual")).toBe(true);
     });
-
-    it('flags a statement wrapped in parentheses instead of silently allowing it', () => {
-      // The wrapping parens make the WHERE-depth scan treat any WHERE as
-      // nested, so a wrapped statement is conservatively flagged either way
-      // (a false positive, not a silent bypass) — that's the safe direction
-      // to err in for a "forgot the WHERE" guard.
-      expect(isDestructiveWithoutWhere('(DELETE FROM users)')).toBe(true);
-      expect(isDestructiveWithoutWhere('(DELETE FROM users WHERE id = 1)')).toBe(true);
-    });
-
-    it('returns false for empty or whitespace-only input', () => {
-      expect(isDestructiveWithoutWhere('')).toBe(false);
-      expect(isDestructiveWithoutWhere('   \n\t  ')).toBe(false);
-    });
-  });
-
-  describe('classifyDangerousQuery', () => {
-    it('sees a DROP behind a leading # comment (MySQL)', () => {
-      expect(classifyDangerousQuery('# cleanup\nDROP TABLE users')).toBe('drop');
-      expect(classifyDangerousQuery('# cleanup\nDELETE FROM users')).toBe('no-where');
-      expect(classifyDangerousQuery('# note\nSELECT 1')).toBeNull();
-    });
-
-    it('classifies DELETE/UPDATE without a WHERE as no-where', () => {
-      expect(classifyDangerousQuery('DELETE FROM users')).toBe('no-where');
-      expect(classifyDangerousQuery('UPDATE users SET active = 0')).toBe('no-where');
-    });
-
-    it('classifies DROP statements', () => {
-      expect(classifyDangerousQuery('DROP TABLE users')).toBe('drop');
-      expect(classifyDangerousQuery('drop database analytics;')).toBe('drop');
-      expect(classifyDangerousQuery('DROP INDEX idx_users_email')).toBe('drop');
-    });
-
-    it('classifies TRUNCATE statements', () => {
-      expect(classifyDangerousQuery('TRUNCATE TABLE users')).toBe('truncate');
-      expect(classifyDangerousQuery('truncate logs;')).toBe('truncate');
-    });
-
-    it('returns null for safe statements', () => {
-      expect(classifyDangerousQuery('SELECT * FROM users')).toBe(null);
-      expect(classifyDangerousQuery('DELETE FROM users WHERE id = 1')).toBe(null);
-      expect(classifyDangerousQuery('INSERT INTO users (id) VALUES (1)')).toBe(null);
-      expect(classifyDangerousQuery('')).toBe(null);
-    });
-
-    it('is not fooled by DROP/TRUNCATE inside comments or literals', () => {
-      expect(classifyDangerousQuery("SELECT 'DROP TABLE users'")).toBe(null);
-      expect(classifyDangerousQuery('SELECT 1 -- DROP TABLE users')).toBe(null);
-    });
-
-    it('exposes isDangerousQuery as a boolean shortcut', () => {
-      expect(isDangerousQuery('DROP TABLE users')).toBe(true);
-      expect(isDangerousQuery('DELETE FROM users')).toBe(true);
-      expect(isDangerousQuery('SELECT * FROM users')).toBe(false);
-    });
-  });
 });

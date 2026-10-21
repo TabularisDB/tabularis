@@ -44,7 +44,7 @@ jobs:
         with:
           node-version-file: .node-version
 
-      # Dependency-free script: colors, radii and fonts must come from theme tokens (DESIGN.md).
+      # Dependency-free script: colors, radii and fonts must come from theme tokens (docs/DESIGN.md).
       - name: Check theme token usage
         run: node scripts/check-theme-tokens.mjs --github
 

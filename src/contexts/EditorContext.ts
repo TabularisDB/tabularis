@@ -1,67 +1,65 @@
-import { createContext } from 'react';
-import type { Tab, TableSchema, QueryResultEntry } from '../types/editor';
-import type { AutoRefreshSchedule } from '../utils/autoRefresh';
+import {createContext} from 'react';
+import type {Tab, TableSchema, QueryResultEntry} from '@/types/editor';
+import type {AutoRefreshSchedule} from '@/utils/autoRefresh';
 
 export interface AddTabOptions {
-  /** Insert the new tab immediately after this id instead of appending it. */
-  insertAfterId?: string;
-  /**
-   * Create a new tab even when a table tab for the same table is already open.
-   * Ordinary opens still focus that existing tab.
-   */
-  forceNew?: boolean;
+    /** Insert the new tab immediately after this id instead of appending it. */
+    insertAfterId?: string;
+    /**
+     * Create a new tab even when a table tab for the same table is already open.
+     * Ordinary opens still focus that existing tab.
+     */
+    forceNew?: boolean;
 }
 
 export interface EditorContextType {
-  getAutoRefreshSchedule: (tabId: string) => AutoRefreshSchedule;
-  tabs: Tab[];
-  activeTabId: string | null;
-  activeTab: Tab | null;
-  addTab: (tab?: Partial<Tab>, options?: AddTabOptions) => string;
-  /**
-   * Open (or focus) a saved notebook tab, possibly on another connection.
-   * Switch the active connection first (the resolution is deferred until that
-   * connection's tabs have loaded).
-   */
-  openNotebook: (connectionId: string, notebookId: string, title: string) => void;
-  closeTab: (id: string) => void;
-  closeAllTabs: () => void;
-  closeOtherTabs: (id: string) => void;
-  closeTabsToLeft: (id: string) => void;
-  closeTabsToRight: (id: string) => void;
-  /**
-   * Reopen the most recently closed tab of the active connection: re-insert
-   * it at its previous position among that connection's tabs and activate it.
-   * Returns the restored tab's id, or null when nothing was closed.
-   */
-  reopenClosedTab: () => string | null;
-  /** True when the active connection has at least one closed tab to reopen. */
-  canReopenClosedTab: boolean;
-  updateTab: (
-    id: string,
-    partial: Partial<Tab> | ((tab: Tab) => Partial<Tab>),
-  ) => void;
-  /**
-   * Reorder a tab within its own connection's tab list. `insertAt` is a gap
-   * index into the *filtered* (per-connection) `tabs` array — 0 means
-   * "before the first tab", `tabs.length` means "after the last".
-   */
-  reorderTab: (fromTabId: string, insertAt: number) => void;
-  /**
-   * Functional update of a single result entry inside a tab's `results` array,
-   * matched by entry id. Used to resolve batch result tabs progressively as
-   * each statement completes — safe under rapid back-to-back events because it
-   * reads the latest state instead of a possibly-stale snapshot.
-   */
-  updateResultEntry: (
-    tabId: string,
-    entryId: string,
-    partial: Partial<QueryResultEntry>,
-  ) => void;
-  /** Preview switches do not change MRU history until the selection is committed. */
-  setActiveTabId: (id: string, options?: { preview?: boolean }) => void;
-  getRecentTabIds: () => string[];
-  getSchema: (connectionId: string, schemaVersion?: number, schema?: string, database?: string) => Promise<TableSchema[]>;
+    getAutoRefreshSchedule: (tabId: string) => AutoRefreshSchedule;
+    tabs: Tab[];
+    activeTabId: string | null;
+    activeTab: Tab | null;
+    addTab: (tab?: Partial<Tab>, options?: AddTabOptions) => string;
+    /**
+     * Open (or focus) a saved notebook tab, possibly on another connection.
+     * Switch the active connection first (the resolution is deferred until that
+     * connection's tabs have loaded).
+     */
+    openNotebook: (connectionId: string, notebookId: string, title: string) => void;
+    closeTab: (id: string) => void;
+    closeAllTabs: () => void;
+    closeOtherTabs: (id: string) => void;
+    closeTabsToLeft: (id: string) => void;
+    closeTabsToRight: (id: string) => void;
+    /**
+     * Reopen the most recently closed tab of the active connection: re-insert
+     * it at its previous position among that connection's tabs and activate it.
+     * Returns the restored tab's id, or null when nothing was closed.
+     */
+    reopenClosedTab: () => string | null;
+    /** True when the active connection has at least one closed tab to reopen. */
+    canReopenClosedTab: boolean;
+    updateTab: (id: string, partial: Partial<Tab> | ((tab: Tab) => Partial<Tab>)) => void;
+    /**
+     * Reorder a tab within its own connection's tab list. `insertAt` is a gap
+     * index into the *filtered* (per-connection) `tabs` array — 0 means
+     * "before the first tab", `tabs.length` means "after the last".
+     */
+    reorderTab: (fromTabId: string, insertAt: number) => void;
+    /**
+     * Functional update of a single result entry inside a tab's `results` array,
+     * matched by entry id. Used to resolve batch result tabs progressively as
+     * each statement completes — safe under rapid back-to-back events because it
+     * reads the latest state instead of a possibly-stale snapshot.
+     */
+    updateResultEntry: (tabId: string, entryId: string, partial: Partial<QueryResultEntry>) => void;
+    /** Preview switches do not change MRU history until the selection is committed. */
+    setActiveTabId: (id: string, options?: {preview?: boolean}) => void;
+    getRecentTabIds: () => string[];
+    getSchema: (
+        connectionId: string,
+        schemaVersion?: number,
+        schema?: string,
+        database?: string,
+    ) => Promise<TableSchema[]>;
 }
 
 export const EditorContext = createContext<EditorContextType | undefined>(undefined);

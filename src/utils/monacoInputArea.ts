@@ -19,9 +19,9 @@
  * the mirrored text. The typed character then lands behind it and Monaco
  * deduces a plain `type`, which replaces the editor selection as expected.
  */
-export const MONACO_INPUT_AREA_CLASS = "inputarea";
+export const MONACO_INPUT_AREA_CLASS = 'inputarea';
 
-type SelectionRangeTarget = Pick<HTMLTextAreaElement, "setSelectionRange">;
+type SelectionRangeTarget = Pick<HTMLTextAreaElement, 'setSelectionRange'>;
 
 const installed = new WeakMap<SelectionRangeTarget, () => void>();
 
@@ -32,36 +32,34 @@ const installed = new WeakMap<SelectionRangeTarget, () => void>();
  * the uninstall function.
  */
 export function installMonacoInputAreaSelectionFix(
-  prototype: SelectionRangeTarget = HTMLTextAreaElement.prototype,
+    prototype: SelectionRangeTarget = HTMLTextAreaElement.prototype,
 ): () => void {
-  const existing = installed.get(prototype);
-  if (existing) return existing;
+    const existing = installed.get(prototype);
+    if (existing) return existing;
 
-  const native = prototype.setSelectionRange;
-  const patched: HTMLTextAreaElement["setSelectionRange"] = function (
-    this: HTMLTextAreaElement,
-    start,
-    end,
-    direction,
-  ) {
-    const reversed =
-      typeof start === "number" && typeof end === "number" && end < start;
-    const fixedEnd =
-      reversed && this.classList.contains(MONACO_INPUT_AREA_CLASS) ? start : end;
-    if (direction === undefined) {
-      native.call(this, start, fixedEnd);
-    } else {
-      native.call(this, start, fixedEnd, direction);
-    }
-  };
-  prototype.setSelectionRange = patched;
+    const native = prototype.setSelectionRange;
+    const patched: HTMLTextAreaElement['setSelectionRange'] = function (
+        this: HTMLTextAreaElement,
+        start,
+        end,
+        direction,
+    ) {
+        const reversed = typeof start === 'number' && typeof end === 'number' && end < start;
+        const fixedEnd = reversed && this.classList.contains(MONACO_INPUT_AREA_CLASS) ? start : end;
+        if (direction === undefined) {
+            native.call(this, start, fixedEnd);
+        } else {
+            native.call(this, start, fixedEnd, direction);
+        }
+    };
+    prototype.setSelectionRange = patched;
 
-  const uninstall = () => {
-    if (prototype.setSelectionRange === patched) {
-      prototype.setSelectionRange = native;
-    }
-    installed.delete(prototype);
-  };
-  installed.set(prototype, uninstall);
-  return uninstall;
+    const uninstall = () => {
+        if (prototype.setSelectionRange === patched) {
+            prototype.setSelectionRange = native;
+        }
+        installed.delete(prototype);
+    };
+    installed.set(prototype, uninstall);
+    return uninstall;
 }

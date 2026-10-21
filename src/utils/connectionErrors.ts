@@ -7,44 +7,44 @@
  */
 
 export type ConnectionErrorKind =
-  | "ssh-auth"
-  | "ssh-unreachable"
-  | "ssh"
-  | "ssm"
-  | "db-auth"
-  | "network"
-  | "db-not-found"
-  | "unknown";
+    | 'ssh-auth'
+    | 'ssh-unreachable'
+    | 'ssh'
+    | 'ssm'
+    | 'db-auth'
+    | 'network'
+    | 'db-not-found'
+    | 'unknown';
 
 export interface ClassifiedConnectionError {
-  kind: ConnectionErrorKind;
-  /** i18n key for the short human-readable summary. */
-  summaryKey: string;
-  /** i18n key for the actionable recovery hint, when one applies. */
-  recoveryKey: string | null;
-  /** Sanitized raw backend message, for the collapsible details block. */
-  detail: string;
+    kind: ConnectionErrorKind;
+    /** i18n key for the short human-readable summary. */
+    summaryKey: string;
+    /** i18n key for the actionable recovery hint, when one applies. */
+    recoveryKey: string | null;
+    /** Sanitized raw backend message, for the collapsible details block. */
+    detail: string;
 }
 
 /** Redacts credentials that may appear inside raw error text. */
 export function sanitizeErrorDetail(raw: string): string {
-  return raw
-    .replace(/(\w+:\/\/[^/\s:@]+):[^@\s/]+@/g, "$1:[redacted]@")
-    .replace(/(password\s*=\s*)[^\s&;,]+/gi, "$1[redacted]");
+    return raw
+        .replace(/(\w+:\/\/[^/\s:@]+):[^@\s/]+@/g, '$1:[redacted]@')
+        .replace(/(password\s*=\s*)[^\s&;,]+/gi, '$1[redacted]');
 }
 
 const SSH_CONTEXT = /\bssh\b|tunnel/i;
 const SSH_AUTH =
-  /auth|password|passphrase|credential|permission denied|publickey|keyboard-interactive/i;
+    /auth|password|passphrase|credential|permission denied|publickey|keyboard-interactive/i;
 const SSH_UNREACHABLE =
-  /timed?\s?out|timeout|refused|unreachable|resolve|resolution|failed to connect|exited prematurely|failed to launch|handshake|host key/i;
+    /timed?\s?out|timeout|refused|unreachable|resolve|resolution|failed to connect|exited prematurely|failed to launch|handshake|host key/i;
 const SSM_CONTEXT = /aws ssm|ssm session|session[- ]manager|aws output:|aws cli/i;
 const DB_AUTH =
-  /access denied|authentication failed|password authentication|login failed|role ".*" does not exist|invalid credentials/i;
+    /access denied|authentication failed|password authentication|login failed|role ".*" does not exist|invalid credentials/i;
 const NETWORK =
-  /connection refused|timed?\s?out|timeout|no route to host|name or service not known|could not translate host|failed to lookup|unreachable|connection reset|broken pipe|os error/i;
+    /connection refused|timed?\s?out|timeout|no route to host|name or service not known|could not translate host|failed to lookup|unreachable|connection reset|broken pipe|os error/i;
 const DB_NOT_FOUND =
-  /unknown database|database ".*" does not exist|no such database|database file not found/i;
+    /unknown database|database ".*" does not exist|no such database|database file not found/i;
 
 /**
  * Maps a raw backend error string to a category plus i18n keys.
@@ -58,32 +58,29 @@ const DB_NOT_FOUND =
  * as a database login failure and hide the hint naming the missing permission.
  */
 export function classifyConnectionError(
-  raw: string,
-  context: { sshEnabled?: boolean; ssmEnabled?: boolean } = {},
+    raw: string,
+    context: {sshEnabled?: boolean; ssmEnabled?: boolean} = {},
 ): ClassifiedConnectionError {
-  const detail = sanitizeErrorDetail(raw);
-  const build = (
-    kind: ConnectionErrorKind,
-    hasRecovery = true,
-  ): ClassifiedConnectionError => ({
-    kind,
-    summaryKey: `connectionErrors.${kind}.summary`,
-    recoveryKey: hasRecovery ? `connectionErrors.${kind}.recovery` : null,
-    detail,
-  });
+    const detail = sanitizeErrorDetail(raw);
+    const build = (kind: ConnectionErrorKind, hasRecovery = true): ClassifiedConnectionError => ({
+        kind,
+        summaryKey: `connectionErrors.${kind}.summary`,
+        recoveryKey: hasRecovery ? `connectionErrors.${kind}.recovery` : null,
+        detail,
+    });
 
-  if (SSH_CONTEXT.test(raw)) {
-    if (SSH_AUTH.test(raw)) return build("ssh-auth");
-    if (SSH_UNREACHABLE.test(raw)) return build("ssh-unreachable");
-    return build("ssh");
-  }
-  if (SSM_CONTEXT.test(raw)) return build("ssm");
-  if (DB_AUTH.test(raw)) return build("db-auth");
-  if (DB_NOT_FOUND.test(raw)) return build("db-not-found");
-  if (NETWORK.test(raw)) {
-    if (context.sshEnabled) return build("ssh-unreachable");
-    if (context.ssmEnabled) return build("ssm");
-    return build("network");
-  }
-  return build("unknown", false);
+    if (SSH_CONTEXT.test(raw)) {
+        if (SSH_AUTH.test(raw)) return build('ssh-auth');
+        if (SSH_UNREACHABLE.test(raw)) return build('ssh-unreachable');
+        return build('ssh');
+    }
+    if (SSM_CONTEXT.test(raw)) return build('ssm');
+    if (DB_AUTH.test(raw)) return build('db-auth');
+    if (DB_NOT_FOUND.test(raw)) return build('db-not-found');
+    if (NETWORK.test(raw)) {
+        if (context.sshEnabled) return build('ssh-unreachable');
+        if (context.ssmEnabled) return build('ssm');
+        return build('network');
+    }
+    return build('unknown', false);
 }

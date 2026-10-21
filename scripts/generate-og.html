@@ -1,360 +1,345 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tabularis Open Graph Image</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <style>
-      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Tabularis Open Graph Image</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-      * {
-        box-sizing: border-box;
-      }
+            * {
+                box-sizing: border-box;
+            }
 
-      body {
-        margin: 0;
-        padding: 32px 20px 60px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        min-height: 100vh;
-        background-color: #030507;
-        font-family: "Inter", sans-serif;
-        color: white;
-      }
+            body {
+                margin: 0;
+                padding: 32px 20px 60px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-height: 100vh;
+                background-color: #030507;
+                font-family: 'Inter', sans-serif;
+                color: white;
+            }
 
-      /* Toolbar */
-      .toolbar {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        margin-bottom: 24px;
-        z-index: 100;
-      }
-      .toolbar label {
-        color: #94a3b8;
-        font-size: 13px;
-      }
-      .toolbar input[type="range"] {
-        width: 130px;
-        accent-color: #0ea5e9;
-      }
-      #scale-val {
-        color: #0ea5e9;
-        font-size: 13px;
-        min-width: 36px;
-        font-variant-numeric: tabular-nums;
-      }
-      .btn {
-        font-family: inherit;
-        font-size: 13px;
-        font-weight: 600;
-        border: none;
-        border-radius: 8px;
-        padding: 8px 16px;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-      .btn-primary {
-        background: #0ea5e9;
-        color: #fff;
-      }
-      .btn-primary:hover {
-        background: #0284c7;
-      }
-      .btn-ghost {
-        background: #1e293b;
-        color: #cbd5e1;
-        border: 1px solid #334155;
-      }
-      .btn-ghost:hover {
-        background: #334155;
-      }
+            /* Toolbar */
+            .toolbar {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                margin-bottom: 24px;
+                z-index: 100;
+            }
+            .toolbar label {
+                color: #94a3b8;
+                font-size: 13px;
+            }
+            .toolbar input[type='range'] {
+                width: 130px;
+                accent-color: #0ea5e9;
+            }
+            #scale-val {
+                color: #0ea5e9;
+                font-size: 13px;
+                min-width: 36px;
+                font-variant-numeric: tabular-nums;
+            }
+            .btn {
+                font-family: inherit;
+                font-size: 13px;
+                font-weight: 600;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            .btn-primary {
+                background: #0ea5e9;
+                color: #fff;
+            }
+            .btn-primary:hover {
+                background: #0284c7;
+            }
+            .btn-ghost {
+                background: #1e293b;
+                color: #cbd5e1;
+                border: 1px solid #334155;
+            }
+            .btn-ghost:hover {
+                background: #334155;
+            }
 
-      #wrap {
-        transform-origin: top center;
-      }
+            #wrap {
+                transform-origin: top center;
+            }
 
-      /* CANVAS 1800x945 */
-      .canvas {
-        width: 1800px;
-        height: 945px;
-        position: relative;
-        background-color: #020617; /* Slate 950 */
-        overflow: hidden;
-        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.8);
-      }
+            /* CANVAS 1800x945 */
+            .canvas {
+                width: 1800px;
+                height: 945px;
+                position: relative;
+                background-color: #020617; /* Slate 950 */
+                overflow: hidden;
+                box-shadow: 0 24px 80px rgba(0, 0, 0, 0.8);
+            }
 
-      /* Background Layers */
-      .bg-grid {
-        position: absolute;
-        inset: 0;
-        background-image:
-          linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-        background-size: 40px 40px;
-        mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
-        -webkit-mask-image: linear-gradient(
-          to bottom,
-          black 0%,
-          transparent 100%
-        );
-        z-index: 1;
-      }
+            /* Background Layers */
+            .bg-grid {
+                position: absolute;
+                inset: 0;
+                background-image:
+                    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+                background-size: 40px 40px;
+                mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+                -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+                z-index: 1;
+            }
 
-      .glow-1 {
-        position: absolute;
-        top: -300px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 1200px;
-        height: 800px;
-        background: radial-gradient(
-          ellipse,
-          rgba(14, 165, 233, 0.25) 0%,
-          transparent 60%
-        );
-        z-index: 2;
-        border-radius: 50%;
-        filter: blur(80px);
-      }
+            .glow-1 {
+                position: absolute;
+                top: -300px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 1200px;
+                height: 800px;
+                background: radial-gradient(ellipse, rgba(14, 165, 233, 0.25) 0%, transparent 60%);
+                z-index: 2;
+                border-radius: 50%;
+                filter: blur(80px);
+            }
 
-      .glow-2 {
-        position: absolute;
-        bottom: -200px;
-        left: -100px;
-        width: 800px;
-        height: 800px;
-        background: radial-gradient(
-          circle,
-          rgba(99, 102, 241, 0.2) 0%,
-          transparent 60%
-        );
-        z-index: 2;
-        border-radius: 50%;
-        filter: blur(80px);
-      }
+            .glow-2 {
+                position: absolute;
+                bottom: -200px;
+                left: -100px;
+                width: 800px;
+                height: 800px;
+                background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 60%);
+                z-index: 2;
+                border-radius: 50%;
+                filter: blur(80px);
+            }
 
-      .glow-3 {
-        position: absolute;
-        top: 300px;
-        right: -200px;
-        width: 1000px;
-        height: 1000px;
-        background: radial-gradient(
-          circle,
-          rgba(56, 189, 248, 0.15) 0%,
-          transparent 60%
-        );
-        z-index: 2;
-        border-radius: 50%;
-        filter: blur(80px);
-      }
+            .glow-3 {
+                position: absolute;
+                top: 300px;
+                right: -200px;
+                width: 1000px;
+                height: 1000px;
+                background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, transparent 60%);
+                z-index: 2;
+                border-radius: 50%;
+                filter: blur(80px);
+            }
 
-      /* Content */
-      .content {
-        position: relative;
-        z-index: 10;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding-top: 80px;
-      }
+            /* Content */
+            .content {
+                position: relative;
+                z-index: 10;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding-top: 80px;
+            }
 
-      /* Header */
-      .header {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-        gap: 20px;
-        margin-bottom: 50px;
-      }
+            /* Header */
+            .header {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 20px;
+                margin-bottom: 50px;
+            }
 
-      .badge-wrap {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 6px 20px 6px 6px;
-        background: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(56, 189, 248, 0.3);
-        border-radius: 100px;
-        backdrop-filter: blur(12px);
-        box-shadow:
-          0 4px 24px rgba(0, 0, 0, 0.4),
-          inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      }
+            .badge-wrap {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 6px 20px 6px 6px;
+                background: rgba(15, 23, 42, 0.6);
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                border-radius: 100px;
+                backdrop-filter: blur(12px);
+                box-shadow:
+                    0 4px 24px rgba(0, 0, 0, 0.4),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            }
 
-      .logo-box {
-        width: 36px;
-        height: 36px;
-        background: #020617;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-      }
+            .logo-box {
+                width: 36px;
+                height: 36px;
+                background: #020617;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }
 
-      .logo-image {
-        width: 20px;
-        height: 20px;
-        object-fit: contain;
-      }
+            .logo-image {
+                width: 20px;
+                height: 20px;
+                object-fit: contain;
+            }
 
-      .badge-text {
-        color: #e2e8f0;
-        font-size: 16px;
-        font-weight: 500;
-        letter-spacing: 0.5px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
+            .badge-text {
+                color: #e2e8f0;
+                font-size: 16px;
+                font-weight: 500;
+                letter-spacing: 0.5px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
 
-      .badge-text span {
-        color: #38bdf8;
-        font-weight: 600;
-      }
+            .badge-text span {
+                color: #38bdf8;
+                font-weight: 600;
+            }
 
-      .tagline {
-        margin: 0;
-        font-size: 88px;
-        font-weight: 800;
-        letter-spacing: -2.5px;
-        line-height: 1.1;
-        color: #ffffff;
-        text-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-      }
+            .tagline {
+                margin: 0;
+                font-size: 88px;
+                font-weight: 800;
+                letter-spacing: -2.5px;
+                line-height: 1.1;
+                color: #ffffff;
+                text-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+            }
 
-      .tagline-accent {
-        background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
+            .tagline-accent {
+                background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
 
-      .sub-tagline {
-        margin: 0;
-        font-size: 28px;
-        font-weight: 500;
-        color: #94a3b8;
-        letter-spacing: -0.5px;
-        max-width: 800px;
-      }
+            .sub-tagline {
+                margin: 0;
+                font-size: 28px;
+                font-weight: 500;
+                color: #94a3b8;
+                letter-spacing: -0.5px;
+                max-width: 800px;
+            }
 
-      /* Screenshot */
-      .screenshot-image {
-        width: 1560px;
-        height: 700px;
-        object-fit: cover;
-        object-position: top;
-        display: block;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="toolbar">
-      <label>Zoom</label>
-      <input type="range" id="zoom" min="20" max="100" value="42" step="1" />
-      <span id="scale-val">42%</span>
-      <button class="btn btn-ghost" onclick="resetZoom()">Reset</button>
-      <button class="btn btn-primary" id="export-btn" onclick="exportPNG()">
-        Export PNG 1800&times;945
-      </button>
-    </div>
-
-    <div id="wrap">
-      <div class="canvas">
-        <div class="bg-grid"></div>
-        <div class="glow-1"></div>
-        <div class="glow-2"></div>
-        <div class="glow-3"></div>
-
-        <div class="content">
-          <div class="header">
-            <div class="badge-wrap">
-              <div class="logo-box">
-                <img
-                  src="https://tabularis.dev/img/logo.png"
-                  alt="Tabularis Logo"
-                  class="logo-image"
-                  crossorigin="anonymous"
-                />
-              </div>
-              <div class="badge-text">
-                <span>Tabularis</span> &mdash; Open-Source Desktop Client
-              </div>
-            </div>
-            <h1 class="tagline">
-              An open-source desktop client for <span class="tagline-accent">modern databases.</span>
-            </h1>
-            <p class="sub-tagline">
-              Supports PostgreSQL, MySQL/MariaDB, and SQLite. Hackable with
-              plugins, with notebooks, AI, and MCP built in.
-            </p>
-          </div>
-
-          <img
-            src="https://tabularis.dev/img/overview.png"
-            alt="Tabularis App Screenshot"
-            class="screenshot-image"
-            crossorigin="anonymous"
-          />
+            /* Screenshot */
+            .screenshot-image {
+                width: 1560px;
+                height: 700px;
+                object-fit: cover;
+                object-position: top;
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="toolbar">
+            <label>Zoom</label>
+            <input type="range" id="zoom" min="20" max="100" value="42" step="1" />
+            <span id="scale-val">42%</span>
+            <button class="btn btn-ghost" onclick="resetZoom()">Reset</button>
+            <button class="btn btn-primary" id="export-btn" onclick="exportPNG()">
+                Export PNG 1800&times;945
+            </button>
         </div>
-      </div>
-    </div>
 
-    <script>
-      const zoomEl = document.getElementById("zoom");
-      const scaleEl = document.getElementById("scale-val");
-      const wrap = document.getElementById("wrap");
+        <div id="wrap">
+            <div class="canvas">
+                <div class="bg-grid"></div>
+                <div class="glow-1"></div>
+                <div class="glow-2"></div>
+                <div class="glow-3"></div>
 
-      function applyZoom(v) {
-        wrap.style.transform = `scale(${v / 100})`;
-        scaleEl.textContent = v + "%";
-      }
+                <div class="content">
+                    <div class="header">
+                        <div class="badge-wrap">
+                            <div class="logo-box">
+                                <img
+                                    src="https://tabularis.dev/img/logo.png"
+                                    alt="Tabularis Logo"
+                                    class="logo-image"
+                                    crossorigin="anonymous"
+                                />
+                            </div>
+                            <div class="badge-text">
+                                <span>Tabularis</span> &mdash; Open-Source Desktop Client
+                            </div>
+                        </div>
+                        <h1 class="tagline">
+                            An open-source desktop client for
+                            <span class="tagline-accent">modern databases.</span>
+                        </h1>
+                        <p class="sub-tagline">
+                            Supports PostgreSQL, MySQL/MariaDB, and SQLite. Hackable with plugins,
+                            with notebooks, AI, and MCP built in.
+                        </p>
+                    </div>
 
-      zoomEl.addEventListener("input", () => applyZoom(+zoomEl.value));
-      applyZoom(+zoomEl.value);
+                    <img
+                        src="https://tabularis.dev/img/overview.png"
+                        alt="Tabularis App Screenshot"
+                        class="screenshot-image"
+                        crossorigin="anonymous"
+                    />
+                </div>
+            </div>
+        </div>
 
-      function resetZoom() {
-        zoomEl.value = 42;
-        applyZoom(42);
-      }
+        <script>
+            const zoomEl = document.getElementById('zoom');
+            const scaleEl = document.getElementById('scale-val');
+            const wrap = document.getElementById('wrap');
 
-      async function exportPNG() {
-        const btn = document.getElementById("export-btn");
-        btn.textContent = "Generating...";
-        btn.disabled = true;
+            function applyZoom(v) {
+                wrap.style.transform = `scale(${v / 100})`;
+                scaleEl.textContent = v + '%';
+            }
 
-        wrap.style.transform = "none";
+            zoomEl.addEventListener('input', () => applyZoom(+zoomEl.value));
+            applyZoom(+zoomEl.value);
 
-        try {
-          const canvas = await html2canvas(document.querySelector(".canvas"), {
-            width: 1800,
-            height: 945,
-            scale: 1,
-            useCORS: true,
-            allowTaint: false,
-            backgroundColor: "#020617",
-            logging: false,
-          });
-          const a = document.createElement("a");
-          a.download = "tabularis-og.png";
-          a.href = canvas.toDataURL("image/png");
-          a.click();
-        } catch (e) {
-          alert("Error: " + e.message);
-        } finally {
-          applyZoom(+zoomEl.value);
-          btn.textContent = "Export PNG 1800×945";
-          btn.disabled = false;
-        }
-      }
-    </script>
-  </body>
+            function resetZoom() {
+                zoomEl.value = 42;
+                applyZoom(42);
+            }
+
+            async function exportPNG() {
+                const btn = document.getElementById('export-btn');
+                btn.textContent = 'Generating...';
+                btn.disabled = true;
+
+                wrap.style.transform = 'none';
+
+                try {
+                    const canvas = await html2canvas(document.querySelector('.canvas'), {
+                        width: 1800,
+                        height: 945,
+                        scale: 1,
+                        useCORS: true,
+                        allowTaint: false,
+                        backgroundColor: '#020617',
+                        logging: false,
+                    });
+                    const a = document.createElement('a');
+                    a.download = 'tabularis-og.png';
+                    a.href = canvas.toDataURL('image/png');
+                    a.click();
+                } catch (e) {
+                    alert('Error: ' + e.message);
+                } finally {
+                    applyZoom(+zoomEl.value);
+                    btn.textContent = 'Export PNG 1800×945';
+                    btn.disabled = false;
+                }
+            }
+        </script>
+    </body>
 </html>

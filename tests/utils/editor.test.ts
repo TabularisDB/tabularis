@@ -1,1515 +1,1451 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Tab, TableSchema, SchemaCache } from "../../src/types/editor";
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
+import type {Tab, TableSchema, SchemaCache} from '@/types/editor';
 import {
-  generateTabId,
-  createInitialTabState,
-  generateTabTitle,
-  getTabDisplayTitle,
-  getTabFullTitle,
-  findExistingTableTab,
-  canDuplicateTab,
-  canRenameTab,
-  buildDuplicatedTab,
-  insertTabAfter,
-  DUPLICATE_TAB_TITLE_SUFFIX,
-  getConnectionTabs,
-  getActiveTab,
-  closeTabWithState,
-  closeAllTabsForConnection,
-  closeOtherTabsForConnection,
-  closeTabsToLeft,
-  closeTabsToRight,
-  updateTabInList,
-  shouldUseCachedSchema,
-  createSchemaCacheEntry,
-  reconstructTableQuery,
-  formatExportFileName,
-  validatePageNumber,
-  calculateTotalPages,
-  resolveTabPageSize,
-  toSqlList,
-} from "../../src/utils/editor";
-
-describe("editor", () => {
-  describe("generateTabId", () => {
-    it("should generate a string of 7 characters", () => {
-      const id = generateTabId();
-      expect(id).toHaveLength(7);
-      expect(typeof id).toBe("string");
+    generateTabId,
+    createInitialTabState,
+    generateTabTitle,
+    getTabDisplayTitle,
+    getTabFullTitle,
+    findExistingTableTab,
+    canDuplicateTab,
+    canRenameTab,
+    buildDuplicatedTab,
+    insertTabAfter,
+    DUPLICATE_TAB_TITLE_SUFFIX,
+    getConnectionTabs,
+    getActiveTab,
+    closeTabWithState,
+    closeAllTabsForConnection,
+    closeOtherTabsForConnection,
+    closeTabsToLeft,
+    closeTabsToRight,
+    updateTabInList,
+    shouldUseCachedSchema,
+    createSchemaCacheEntry,
+    reconstructTableQuery,
+    formatExportFileName,
+    validatePageNumber,
+    calculateTotalPages,
+    resolveTabPageSize,
+    toSqlList,
+} from '@/utils/editor';
+
+describe('editor', () => {
+    describe('generateTabId', () => {
+        it('should generate a string of 7 characters', () => {
+            const id = generateTabId();
+            expect(id).toHaveLength(7);
+            expect(typeof id).toBe('string');
+        });
+
+        it('should generate unique ids', () => {
+            const id1 = generateTabId();
+            const id2 = generateTabId();
+            expect(id1).not.toBe(id2);
+        });
+
+        it('should only contain alphanumeric characters', () => {
+            const id = generateTabId();
+            expect(id).toMatch(/^[a-z0-9]+$/);
+        });
+    });
+
+    describe('createInitialTabState', () => {
+        it('should create a console tab with default values', () => {
+            const tab = createInitialTabState('conn-1');
+
+            expect(tab).toMatchObject({
+                title: 'Console',
+                type: 'console',
+                query: '',
+                result: null,
+                error: '',
+                executionTime: null,
+                page: 1,
+                activeTable: null,
+                pkColumns: null,
+                isLoading: false,
+                connectionId: 'conn-1',
+                isEditorOpen: true,
+            });
+            expect(tab.id).toHaveLength(7);
+        });
+
+        it('should use partial values when provided', () => {
+            const partial = {
+                title: 'Custom Tab',
+                type: 'table' as const,
+                query: 'SELECT * FROM users',
+                activeTable: 'users',
+            };
+
+            const tab = createInitialTabState('conn-1', partial);
+
+            expect(tab.title).toBe('Custom Tab');
+            expect(tab.type).toBe('table');
+            expect(tab.query).toBe('SELECT * FROM users');
+            expect(tab.activeTable).toBe('users');
+            expect(tab.isEditorOpen).toBe(false);
+        });
+
+        it('should handle null connectionId', () => {
+            const tab = createInitialTabState(null);
+
+            expect(tab.connectionId).toBe('');
+        });
+
+        it('should allow overriding isEditorOpen', () => {
+            const tab = createInitialTabState('conn-1', {
+                type: 'table',
+                isEditorOpen: true,
+            });
+
+            expect(tab.isEditorOpen).toBe(true);
+        });
+    });
+
+    describe('generateTabTitle', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should return provided title', () => {
+            const tabs: Tab[] = [];
+            const title = generateTabTitle(tabs, 'conn-1', {title: 'Custom Title'});
+            expect(title).toBe('Custom Title');
+        });
+
+        it('should return table name for table tabs', () => {
+            const tabs: Tab[] = [];
+            const title = generateTabTitle(tabs, 'conn-1', {
+                type: 'table',
+                activeTable: 'users',
+            });
+            expect(title).toBe('users');
+        });
+
+        it('should generate "Console" for first console tab', () => {
+            const tabs: Tab[] = [];
+            const title = generateTabTitle(tabs, 'conn-1', {type: 'console'});
+            expect(title).toBe('Console');
+        });
+
+        it('should generate "Console N" for additional console tabs', () => {
+            const tabs: Tab[] = [
+                createMockTab({type: 'console', connectionId: 'conn-1'}),
+                createMockTab({type: 'console', connectionId: 'conn-1'}),
+            ];
+            const title = generateTabTitle(tabs, 'conn-1', {type: 'console'});
+            expect(title).toBe('Console 3');
+        });
+
+        it('should generate "Visual Query" for first query builder tab', () => {
+            const tabs: Tab[] = [];
+            const title = generateTabTitle(tabs, 'conn-1', {type: 'query_builder'});
+            expect(title).toBe('Visual Query');
+        });
+
+        it('should generate "Visual Query N" for additional query builder tabs', () => {
+            const tabs: Tab[] = [createMockTab({type: 'query_builder', connectionId: 'conn-1'})];
+            const title = generateTabTitle(tabs, 'conn-1', {type: 'query_builder'});
+            expect(title).toBe('Visual Query 2');
+        });
+
+        it('should only count tabs for the specified connection', () => {
+            const tabs: Tab[] = [
+                createMockTab({type: 'console', connectionId: 'conn-1'}),
+                createMockTab({type: 'console', connectionId: 'conn-2'}),
+            ];
+            const title = generateTabTitle(tabs, 'conn-1', {type: 'console'});
+            expect(title).toBe('Console 2');
+        });
+    });
+
+    describe('getTabDisplayTitle', () => {
+        const tableTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'clubs',
+            type: 'table',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: 'clubs',
+            schema: 'mira',
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('prefixes the schema when the same table is open from another schema', () => {
+            const mira = tableTab();
+            const dev = tableTab({id: 'tab-2', schema: 'mira_dev'});
+            expect(getTabDisplayTitle(mira, [mira, dev])).toBe('mira.clubs');
+            expect(getTabDisplayTitle(dev, [mira, dev])).toBe('mira_dev.clubs');
+        });
+
+        it('keeps the plain title when the table name is unique', () => {
+            const clubs = tableTab();
+            const users = tableTab({
+                id: 'tab-2',
+                title: 'users',
+                activeTable: 'users',
+                schema: 'mira_dev',
+            });
+            expect(getTabDisplayTitle(clubs, [clubs, users])).toBe('clubs');
+        });
+
+        it('ignores tabs from other connections', () => {
+            const mira = tableTab();
+            const other = tableTab({
+                id: 'tab-2',
+                schema: 'mira_dev',
+                connectionId: 'conn-2',
+            });
+            expect(getTabDisplayTitle(mira, [mira, other])).toBe('clubs');
+        });
+
+        it('keeps a title that no longer equals the table name', () => {
+            const custom = tableTab({title: 'clubs (db.mira)'});
+            const dev = tableTab({id: 'tab-2', schema: 'mira_dev'});
+            expect(getTabDisplayTitle(custom, [custom, dev])).toBe('clubs (db.mira)');
+        });
+
+        it('ignores a same-table tab whose title was customised', () => {
+            const mira = tableTab();
+            const copy = tableTab({id: 'tab-2', schema: 'mira_dev', title: 'clubs (db.mira_dev)'});
+            expect(getTabDisplayTitle(mira, [mira, copy])).toBe('clubs');
+        });
+
+        it('leaves non-table tabs untouched', () => {
+            const console = tableTab({type: 'console', title: 'Console'});
+            expect(getTabDisplayTitle(console, [console])).toBe('Console');
+        });
+    });
+
+    describe('getTabFullTitle', () => {
+        const tab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'global-mae_firewall_events',
+            type: 'table',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: 'global-mae_firewall_events',
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('returns the whole table name when there is no schema or database', () => {
+            const t = tab();
+            expect(getTabFullTitle(t, [t])).toBe('global-mae_firewall_events');
+        });
+
+        it('qualifies a table tab with its schema', () => {
+            const t = tab({schema: 'public'});
+            expect(getTabFullTitle(t, [t])).toBe('public.global-mae_firewall_events');
+        });
+
+        it('qualifies a table tab with its database and schema', () => {
+            const t = tab({schema: 'public', database: 'analytics'});
+            expect(getTabFullTitle(t, [t])).toBe('analytics.public.global-mae_firewall_events');
+        });
+
+        it('keeps a customised table tab title', () => {
+            const t = tab({title: 'firewall (copy)', schema: 'public'});
+            expect(getTabFullTitle(t, [t])).toBe('firewall (copy)');
+        });
+
+        it('appends the database to a console tab when one is given', () => {
+            const t = tab({type: 'console', title: 'Console 2', activeTable: null});
+            expect(getTabFullTitle(t, [t], 'analytics')).toBe('Console 2 (analytics)');
+            expect(getTabFullTitle(t, [t])).toBe('Console 2');
+        });
+
+        it('ignores the database for non-console tabs', () => {
+            const t = tab({type: 'notebook', title: 'Notebook', activeTable: null});
+            expect(getTabFullTitle(t, [t], 'analytics')).toBe('Notebook');
+        });
+    });
+
+    describe('findExistingTableTab', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should find existing table tab', () => {
+            const tabs: Tab[] = [
+                createMockTab({
+                    id: 'tab-1',
+                    type: 'table',
+                    connectionId: 'conn-1',
+                    activeTable: 'users',
+                }),
+            ];
+
+            const result = findExistingTableTab(tabs, 'conn-1', 'users');
+
+            expect(result).toBeDefined();
+            expect(result?.id).toBe('tab-1');
+        });
+
+        it('should return undefined when no matching tab exists', () => {
+            const tabs: Tab[] = [
+                createMockTab({
+                    type: 'table',
+                    connectionId: 'conn-1',
+                    activeTable: 'posts',
+                }),
+            ];
+
+            const result = findExistingTableTab(tabs, 'conn-1', 'users');
+
+            expect(result).toBeUndefined();
+        });
+
+        it('should return undefined when tableName is undefined', () => {
+            const tabs: Tab[] = [
+                createMockTab({
+                    type: 'table',
+                    connectionId: 'conn-1',
+                    activeTable: 'users',
+                }),
+            ];
+
+            const result = findExistingTableTab(tabs, 'conn-1', undefined);
+
+            expect(result).toBeUndefined();
+        });
+
+        it('should not match tabs from different connections', () => {
+            const tabs: Tab[] = [
+                createMockTab({
+                    type: 'table',
+                    connectionId: 'conn-2',
+                    activeTable: 'users',
+                }),
+            ];
+
+            const result = findExistingTableTab(tabs, 'conn-1', 'users');
+
+            expect(result).toBeUndefined();
+        });
+    });
+
+    describe('findExistingTableTab: nested multi-db database matching', () => {
+        // Regression: a nested multi-db connection (e.g. PostgreSQL with
+        // opt-in database selection) can have the same table name + schema in
+        // more than one database. Before this fix, dedup only matched on
+        // (connectionId, activeTable, schema), so double-clicking a table in
+        // database B would reactivate an existing tab already open for the
+        // same table/schema in database A -- reusing its stale `database`
+        // and, if that tab predates a database being set at all, re-running
+        // its query with no database override sends the connection's raw
+        // multi-db selection to the plugin ("Pool creation failed: ...dbname
+        // not found").
+        const createMockTableTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'table',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: 'products',
+            pkColumns: null,
+            connectionId: 'conn-1',
+            schema: 'store',
+            ...overrides,
+        });
+
+        it('does not reuse a tab for the same table/schema in a different database', () => {
+            const tabs: Tab[] = [createMockTableTab({id: 'tab-1', database: 'db_a'})];
+
+            const result = findExistingTableTab(tabs, 'conn-1', 'products', 'store', 'db_b');
+
+            expect(result).toBeUndefined();
+        });
+
+        it('does not reuse a stale tab with no database for a database-scoped open', () => {
+            const tabs: Tab[] = [createMockTableTab({id: 'tab-1', database: undefined})];
+
+            const result = findExistingTableTab(tabs, 'conn-1', 'products', 'store', 'db_b');
+
+            expect(result).toBeUndefined();
+        });
+
+        it('reuses the tab when database matches too', () => {
+            const tabs: Tab[] = [createMockTableTab({id: 'tab-1', database: 'db_a'})];
+
+            const result = findExistingTableTab(tabs, 'conn-1', 'products', 'store', 'db_a');
+
+            expect(result?.id).toBe('tab-1');
+        });
+
+        it('still matches on the single-database path where neither side has a database', () => {
+            const tabs: Tab[] = [createMockTableTab({id: 'tab-1', database: undefined})];
+
+            const result = findExistingTableTab(tabs, 'conn-1', 'products', 'store');
+
+            expect(result?.id).toBe('tab-1');
+        });
+    });
+
+    describe('getConnectionTabs', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should return tabs for specific connection', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-2', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-3', connectionId: 'conn-2'}),
+            ];
+
+            const result = getConnectionTabs(tabs, 'conn-1');
+
+            expect(result).toHaveLength(2);
+            expect(result.map((t) => t.id)).toEqual(['tab-1', 'tab-2']);
+        });
+
+        it('should return empty array when connectionId is null', () => {
+            const tabs: Tab[] = [createMockTab()];
+
+            const result = getConnectionTabs(tabs, null);
+
+            expect(result).toEqual([]);
+        });
+
+        it('should return empty array when no tabs match', () => {
+            const tabs: Tab[] = [createMockTab({connectionId: 'conn-2'})];
+
+            const result = getConnectionTabs(tabs, 'conn-1');
+
+            expect(result).toEqual([]);
+        });
+    });
+
+    describe('getActiveTab', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should return active tab', () => {
+            const tabs: Tab[] = [createMockTab({id: 'tab-1'}), createMockTab({id: 'tab-2'})];
+
+            const result = getActiveTab(tabs, 'conn-1', 'tab-1');
+
+            expect(result?.id).toBe('tab-1');
+        });
+
+        it('should return null when connectionId is null', () => {
+            const tabs: Tab[] = [createMockTab()];
+
+            const result = getActiveTab(tabs, null, 'tab-1');
+
+            expect(result).toBeNull();
+        });
+
+        it('should return null when activeTabId is null', () => {
+            const tabs: Tab[] = [createMockTab()];
+
+            const result = getActiveTab(tabs, 'conn-1', null);
+
+            expect(result).toBeNull();
+        });
+
+        it('should return null when tab belongs to different connection', () => {
+            const tabs: Tab[] = [createMockTab({id: 'tab-1', connectionId: 'conn-2'})];
+
+            const result = getActiveTab(tabs, 'conn-1', 'tab-1');
+
+            expect(result).toBeNull();
+        });
+
+        it('should return null when tab does not exist', () => {
+            const tabs: Tab[] = [createMockTab({id: 'tab-1'})];
+
+            const result = getActiveTab(tabs, 'conn-1', 'non-existent');
+
+            expect(result).toBeNull();
+        });
+    });
+
+    describe('closeTabWithState', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should close tab and update state', () => {
+            const tabs: Tab[] = [createMockTab({id: 'tab-1'}), createMockTab({id: 'tab-2'})];
+
+            const result = closeTabWithState(tabs, 'conn-1', 'tab-1', 'tab-2');
+
+            expect(result.newTabs).toHaveLength(1);
+            expect(result.newTabs[0].id).toBe('tab-1');
+            expect(result.newActiveTabId).toBe('tab-1');
+        });
+
+        it('should return empty tabs when closing last tab for connection', () => {
+            const tabs: Tab[] = [createMockTab({id: 'tab-1'})];
+
+            const result = closeTabWithState(tabs, 'conn-1', 'tab-1', 'tab-1');
+
+            expect(result.newTabs).toHaveLength(0);
+            expect(result.newActiveTabId).toBeNull();
+        });
+
+        it('should handle closing active tab', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1'}),
+                createMockTab({id: 'tab-2'}),
+                createMockTab({id: 'tab-3'}),
+            ];
+
+            const result = closeTabWithState(tabs, 'conn-1', 'tab-2', 'tab-2');
+
+            expect(result.newTabs).toHaveLength(2);
+            // When closing active tab at index 1, should select previous tab (tab-1)
+            expect(result.newActiveTabId).toBe('tab-1');
+        });
+
+        it('should select first tab when closing the first tab', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1'}),
+                createMockTab({id: 'tab-2'}),
+                createMockTab({id: 'tab-3'}),
+            ];
+
+            const result = closeTabWithState(tabs, 'conn-1', 'tab-1', 'tab-1');
+
+            expect(result.newTabs).toHaveLength(2);
+            // When closing first tab, should select the new first tab (tab-2)
+            expect(result.newActiveTabId).toBe('tab-2');
+        });
+
+        it('should keep other connection tabs when closing last tab for a connection', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-2', connectionId: 'conn-2'}),
+            ];
+
+            const result = closeTabWithState(tabs, 'conn-1', 'tab-1', 'tab-1');
+
+            expect(result.newTabs).toHaveLength(1);
+            expect(result.newTabs[0].id).toBe('tab-2');
+        });
+    });
+
+    describe('closeAllTabsForConnection', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should close all tabs for connection and keep other connections', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-2', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-3', connectionId: 'conn-2'}),
+            ];
+
+            const result = closeAllTabsForConnection(tabs, 'conn-1');
+
+            expect(result.newTabs).toHaveLength(1);
+            expect(result.newTabs[0].id).toBe('tab-3');
+            expect(result.newActiveTabId).toBeNull();
+        });
+
+        it('should work with empty tabs array', () => {
+            const tabs: Tab[] = [];
+
+            const result = closeAllTabsForConnection(tabs, 'conn-1');
+
+            expect(result.newTabs).toHaveLength(0);
+            expect(result.newActiveTabId).toBeNull();
+        });
+    });
+
+    describe('closeOtherTabsForConnection', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should keep only specified tab for connection', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-2', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-3', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-4', connectionId: 'conn-2'}),
+            ];
+
+            const result = closeOtherTabsForConnection(tabs, 'conn-1', 'tab-2');
+
+            expect(result).toHaveLength(2);
+            expect(result.map((t) => t.id)).toEqual(['tab-2', 'tab-4']);
+        });
+    });
+
+    describe('closeTabsToLeft', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should close tabs to the left of target', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-2', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-3', connectionId: 'conn-1'}),
+            ];
+
+            const result = closeTabsToLeft(tabs, 'conn-1', 'tab-2', 'tab-3');
+
+            expect(result.newTabs).toHaveLength(2);
+            expect(result.newTabs.map((t) => t.id)).toEqual(['tab-2', 'tab-3']);
+            expect(result.newActiveTabId).toBe('tab-3');
+        });
+
+        it('should update active tab if it was closed', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-2', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-3', connectionId: 'conn-1'}),
+            ];
+
+            const result = closeTabsToLeft(tabs, 'conn-1', 'tab-2', 'tab-1');
+
+            expect(result.newActiveTabId).toBe('tab-2');
+        });
+
+        it('should keep tabs from other connections', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-2', connectionId: 'conn-2'}),
+                createMockTab({id: 'tab-3', connectionId: 'conn-1'}),
+            ];
+
+            const result = closeTabsToLeft(tabs, 'conn-1', 'tab-3', 'tab-1');
+
+            expect(result.newTabs).toHaveLength(2);
+            expect(result.newTabs.map((t) => t.id)).toEqual(['tab-2', 'tab-3']);
+        });
+
+        it('should return original tabs when target not found', () => {
+            const tabs: Tab[] = [createMockTab({id: 'tab-1', connectionId: 'conn-1'})];
+
+            const result = closeTabsToLeft(tabs, 'conn-1', 'non-existent', 'tab-1');
+
+            expect(result.newTabs).toEqual(tabs);
+            expect(result.newActiveTabId).toBe('tab-1');
+        });
+    });
+
+    describe('closeTabsToRight', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should close tabs to the right of target', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-2', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-3', connectionId: 'conn-1'}),
+            ];
+
+            const result = closeTabsToRight(tabs, 'conn-1', 'tab-2', 'tab-1');
+
+            expect(result.newTabs).toHaveLength(2);
+            expect(result.newTabs.map((t) => t.id)).toEqual(['tab-1', 'tab-2']);
+            expect(result.newActiveTabId).toBe('tab-1');
+        });
+
+        it('should update active tab if it was closed', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-2', connectionId: 'conn-1'}),
+                createMockTab({id: 'tab-3', connectionId: 'conn-1'}),
+            ];
+
+            const result = closeTabsToRight(tabs, 'conn-1', 'tab-2', 'tab-3');
+
+            expect(result.newActiveTabId).toBe('tab-2');
+        });
+
+        it('should return original tabs when target not found', () => {
+            const tabs: Tab[] = [createMockTab({id: 'tab-1', connectionId: 'conn-1'})];
+
+            const result = closeTabsToRight(tabs, 'conn-1', 'non-existent', 'tab-1');
+
+            expect(result.newTabs).toEqual(tabs);
+            expect(result.newActiveTabId).toBe('tab-1');
+        });
+    });
+
+    describe('updateTabInList', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should update tab properties', () => {
+            const tabs: Tab[] = [
+                createMockTab({id: 'tab-1', title: 'Old Title'}),
+                createMockTab({id: 'tab-2', title: 'Other'}),
+            ];
+
+            const result = updateTabInList(tabs, 'tab-1', {title: 'New Title'});
+
+            expect(result[0].title).toBe('New Title');
+            expect(result[1].title).toBe('Other');
+        });
+
+        it('should not modify other tabs', () => {
+            const tabs: Tab[] = [createMockTab({id: 'tab-1'}), createMockTab({id: 'tab-2'})];
+
+            const result = updateTabInList(tabs, 'tab-1', {query: 'SELECT *'});
+
+            expect(result[1]).toEqual(tabs[1]);
+        });
+
+        it('should return new array without mutating original', () => {
+            const tabs: Tab[] = [createMockTab({id: 'tab-1'})];
+
+            const result = updateTabInList(tabs, 'tab-1', {title: 'New'});
+
+            expect(result).not.toBe(tabs);
+            expect(tabs[0].title).toBe('Test');
+        });
+    });
+
+    describe('shouldUseCachedSchema', () => {
+        const createMockSchemaCache = (overrides: Partial<SchemaCache> = {}): SchemaCache => ({
+            data: [],
+            version: 1,
+            timestamp: Date.now(),
+            ...overrides,
+        });
+
+        it('should return false when no cache exists', () => {
+            const result = shouldUseCachedSchema(undefined);
+            expect(result).toBe(false);
+        });
+
+        it('should return true for fresh cache without version check', () => {
+            const cache = createMockSchemaCache({timestamp: Date.now() - 1000});
+            const result = shouldUseCachedSchema(cache);
+            expect(result).toBe(true);
+        });
+
+        it('should return false for stale cache (older than 5 minutes)', () => {
+            const cache = createMockSchemaCache({timestamp: Date.now() - 301000});
+            const result = shouldUseCachedSchema(cache);
+            expect(result).toBe(false);
+        });
+
+        it('should check version when provided', () => {
+            const cache = createMockSchemaCache({
+                version: 1,
+                timestamp: Date.now(),
+            });
+            const result = shouldUseCachedSchema(cache, 2);
+            expect(result).toBe(false);
+        });
+
+        it('should return true when version matches', () => {
+            const cache = createMockSchemaCache({
+                version: 2,
+                timestamp: Date.now(),
+            });
+            const result = shouldUseCachedSchema(cache, 2);
+            expect(result).toBe(true);
+        });
+
+        it('should return true for fresh cache with undefined version', () => {
+            const cache = createMockSchemaCache({timestamp: Date.now()});
+            const result = shouldUseCachedSchema(cache, undefined);
+            expect(result).toBe(true);
+        });
+    });
+
+    describe('createSchemaCacheEntry', () => {
+        it('should create cache entry with current timestamp', () => {
+            const data: TableSchema[] = [{name: 'users', columns: [], foreign_keys: []}];
+            const version = 5;
+
+            const before = Date.now();
+            const result = createSchemaCacheEntry(data, version);
+            const after = Date.now();
+
+            expect(result.data).toBe(data);
+            expect(result.version).toBe(version);
+            expect(result.timestamp).toBeGreaterThanOrEqual(before);
+            expect(result.timestamp).toBeLessThanOrEqual(after);
+        });
+    });
+
+    describe('reconstructTableQuery', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'table',
+            query: 'SELECT * FROM users',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: 'users',
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should reconstruct basic table query', () => {
+            const tab = createMockTab();
+            const result = reconstructTableQuery(tab);
+            expect(result).toBe('SELECT * FROM "users"');
+        });
+
+        it('should include WHERE clause when filter is present', () => {
+            const tab = createMockTab({filterClause: 'age > 18'});
+            const result = reconstructTableQuery(tab);
+            expect(result).toBe('SELECT * FROM "users" WHERE age > 18');
+        });
+
+        it('should include ORDER BY clause when sort is present', () => {
+            const tab = createMockTab({sortClause: 'created_at DESC'});
+            const result = reconstructTableQuery(tab);
+            expect(result).toBe('SELECT * FROM "users" ORDER BY created_at DESC');
+        });
+
+        it('should include LIMIT clause when limit is present', () => {
+            const tab = createMockTab({limitClause: 100});
+            const result = reconstructTableQuery(tab);
+            expect(result).toBe('SELECT * FROM "users" LIMIT 100');
+        });
+
+        it('should combine filter, sort, and limit', () => {
+            const tab = createMockTab({
+                filterClause: 'status = "active"',
+                sortClause: 'name ASC',
+                limitClause: 50,
+            });
+            const result = reconstructTableQuery(tab);
+            expect(result).toBe(
+                'SELECT * FROM "users" WHERE status = "active" ORDER BY name ASC LIMIT 50',
+            );
+        });
+
+        it('should ignore zero or negative limit', () => {
+            const tab1 = createMockTab({limitClause: 0});
+            const result1 = reconstructTableQuery(tab1);
+            expect(result1).toBe('SELECT * FROM "users"');
+
+            const tab2 = createMockTab({limitClause: -10});
+            const result2 = reconstructTableQuery(tab2);
+            expect(result2).toBe('SELECT * FROM "users"');
+        });
+
+        it('should return original query when activeTable is null', () => {
+            const tab = createMockTab({
+                activeTable: null,
+                query: 'SELECT * FROM posts',
+            });
+            const result = reconstructTableQuery(tab);
+            expect(result).toBe('SELECT * FROM posts');
+        });
+
+        it('should normalize whitespace', () => {
+            const tab = createMockTab({
+                filterClause: 'id    >   10',
+                sortClause: 'created_at    DESC',
+            });
+            const result = reconstructTableQuery(tab);
+            // Should collapse multiple spaces into single spaces
+            expect(result).toContain('WHERE');
+            expect(result).toContain('ORDER BY');
+            expect(result).not.toMatch(/\s{2,}/);
+        });
+
+        it('should fold macOS smart quotes in the filter to straight ASCII', () => {
+            const tab = createMockTab({filterClause: 'status = ‘active’'});
+            const result = reconstructTableQuery(tab);
+            expect(result).toBe('SELECT * FROM "users" WHERE status = \'active\'');
+        });
+    });
+
+    describe('formatExportFileName', () => {
+        it('should format filename with table name and timestamp', () => {
+            const result = formatExportFileName('users', 'csv');
+            expect(result).toMatch(/^users_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.csv$/);
+        });
+
+        it('should handle different file formats', () => {
+            const csvResult = formatExportFileName('orders', 'csv');
+            const jsonResult = formatExportFileName('orders', 'json');
+
+            expect(csvResult).toMatch(/\.csv$/);
+            expect(jsonResult).toMatch(/\.json$/);
+        });
+
+        it('should sanitize table names with special characters', () => {
+            const result = formatExportFileName('user-accounts!@#$', 'csv');
+            expect(result).toMatch(/^user-accounts____/);
+            expect(result).not.toContain('!');
+            expect(result).not.toContain('@');
+            expect(result).not.toContain('#');
+            expect(result).not.toContain('$');
+        });
+
+        it('should replace spaces with underscores', () => {
+            const result = formatExportFileName('user accounts', 'csv');
+            expect(result).toMatch(/^user_accounts/);
+        });
+
+        it('should handle table names with dots', () => {
+            const result = formatExportFileName('schema.users', 'csv');
+            expect(result).toMatch(/^schema_users/);
+        });
+
+        it('should preserve alphanumeric and hyphens/underscores', () => {
+            const result = formatExportFileName('user_accounts-2024', 'json');
+            expect(result).toContain('user_accounts-2024');
+        });
+    });
+
+    describe('validatePageNumber', () => {
+        it('should validate correct page numbers', () => {
+            expect(validatePageNumber('1', 10)).toBe(true);
+            expect(validatePageNumber('5', 10)).toBe(true);
+            expect(validatePageNumber('10', 10)).toBe(true);
+        });
+
+        it('should reject page numbers less than 1', () => {
+            expect(validatePageNumber('0', 10)).toBe(false);
+            expect(validatePageNumber('-1', 10)).toBe(false);
+            expect(validatePageNumber('-100', 10)).toBe(false);
+        });
+
+        it('should reject page numbers greater than totalPages', () => {
+            expect(validatePageNumber('11', 10)).toBe(false);
+            expect(validatePageNumber('100', 10)).toBe(false);
+        });
+
+        it('should reject non-numeric input', () => {
+            expect(validatePageNumber('abc', 10)).toBe(false);
+            expect(validatePageNumber('', 10)).toBe(false);
+            // parseInt('1.5') returns 1, so this would pass validation
+            // We only validate integer inputs, decimals are truncated
+            expect(validatePageNumber('1.5', 10)).toBe(true); // parseInt truncates to 1
+        });
+
+        it('should reject NaN input', () => {
+            expect(validatePageNumber('NaN', 10)).toBe(false);
+            expect(validatePageNumber('Infinity', 10)).toBe(false);
+        });
+
+        it('should handle single page', () => {
+            expect(validatePageNumber('1', 1)).toBe(true);
+            expect(validatePageNumber('2', 1)).toBe(false);
+        });
+
+        it('should handle whitespace in input', () => {
+            // parseInt handles leading whitespace
+            expect(validatePageNumber(' 5 ', 10)).toBe(true);
+        });
+    });
+
+    describe('calculateTotalPages', () => {
+        it('should calculate correct number of pages', () => {
+            expect(calculateTotalPages(100, 10)).toBe(10);
+            expect(calculateTotalPages(105, 10)).toBe(11);
+            expect(calculateTotalPages(99, 10)).toBe(10);
+        });
+
+        it('should return 1 for zero rows', () => {
+            expect(calculateTotalPages(0, 10)).toBe(1);
+        });
+
+        it('should return 1 for null rows', () => {
+            expect(calculateTotalPages(null, 10)).toBe(1);
+        });
+
+        it('should handle single row', () => {
+            expect(calculateTotalPages(1, 10)).toBe(1);
+            expect(calculateTotalPages(1, 100)).toBe(1);
+        });
+
+        it('should handle exact multiples', () => {
+            expect(calculateTotalPages(50, 10)).toBe(5);
+            expect(calculateTotalPages(1000, 100)).toBe(10);
+        });
+
+        it('should round up for partial pages', () => {
+            expect(calculateTotalPages(51, 10)).toBe(6);
+            expect(calculateTotalPages(1001, 100)).toBe(11);
+            expect(calculateTotalPages(99, 100)).toBe(1);
+        });
+
+        it('should handle large datasets', () => {
+            expect(calculateTotalPages(1000000, 500)).toBe(2000);
+            expect(calculateTotalPages(999999, 1000)).toBe(1000);
+        });
+
+        it('should handle small page sizes', () => {
+            expect(calculateTotalPages(100, 1)).toBe(100);
+            expect(calculateTotalPages(10, 3)).toBe(4);
+        });
+    });
+
+    describe('resolveTabPageSize', () => {
+        it('should prefer the per-tab override over the global setting', () => {
+            expect(resolveTabPageSize(51, 50)).toBe(51);
+            expect(resolveTabPageSize(25, 500)).toBe(25);
+        });
+
+        it('should fall back to the global setting when no override is set', () => {
+            expect(resolveTabPageSize(undefined, 500)).toBe(500);
+        });
+
+        it('should return undefined for 0 (pagination disabled)', () => {
+            expect(resolveTabPageSize(0, 500)).toBeUndefined();
+        });
+
+        it('should fall back to 100 when neither value is usable', () => {
+            expect(resolveTabPageSize(undefined, undefined)).toBe(100);
+            expect(resolveTabPageSize(undefined, 0)).toBe(100);
+            expect(resolveTabPageSize(undefined, -5)).toBe(100);
+            expect(resolveTabPageSize(-1, undefined)).toBe(100);
+        });
+    });
+
+    describe('toSqlList', () => {
+        it('should quote each line for an IN list', () => {
+            expect(toSqlList('alice@example.com\nbob@example.com')).toBe(
+                "'alice@example.com', 'bob@example.com'",
+            );
+        });
+
+        it('should split on newlines, CRLF, tabs and commas', () => {
+            expect(toSqlList('a\r\nb\tc,d')).toBe("'a', 'b', 'c', 'd'");
+        });
+
+        it('should trim values and skip blanks', () => {
+            expect(toSqlList('  a  \n\n\t\n , b ,\n')).toBe("'a', 'b'");
+        });
+
+        it('should escape embedded single quotes', () => {
+            expect(toSqlList("O'Brien\nD'Angelo")).toBe("'O''Brien', 'D''Angelo'");
+        });
+
+        it('should leave numeric-only input unquoted', () => {
+            expect(toSqlList('1\n2\n3')).toBe('1, 2, 3');
+            expect(toSqlList('-4\t0\t3.25')).toBe('-4, 0, 3.25');
+        });
+
+        it('should quote every value when numbers and text are mixed', () => {
+            expect(toSqlList('1\nabc\n3')).toBe("'1', 'abc', '3'");
+        });
+
+        it('should keep identifiers with a leading zero or plus sign quoted', () => {
+            expect(toSqlList('007\n42')).toBe("'007', '42'");
+            expect(toSqlList('+15551234567')).toBe("'+15551234567'");
+        });
+
+        it('should keep duplicates unless dedupe is set', () => {
+            expect(toSqlList('a\nb\na')).toBe("'a', 'b', 'a'");
+            expect(toSqlList('a\nb\na', {dedupe: true})).toBe("'a', 'b'");
+            expect(toSqlList('2\n1\n2', {dedupe: true})).toBe('2, 1');
+        });
+
+        it('should support a custom quote and separator', () => {
+            expect(toSqlList('a\nsay "hi"', {quote: '"', separator: ','})).toBe('"a","say ""hi"""');
+            expect(toSqlList('a\nb', {separator: ',\n'})).toBe("'a',\n'b'");
+        });
+
+        it('should return an empty string when there are no values', () => {
+            expect(toSqlList('')).toBe('');
+            expect(toSqlList(' \n\t, ,\n')).toBe('');
+        });
+    });
+
+    describe('canRenameTab', () => {
+        it('shows rename for notebooks and consoles that are not linked to a file', () => {
+            expect(canRenameTab({type: 'notebook'})).toBe(true);
+            expect(canRenameTab({type: 'console'})).toBe(true);
+            expect(canRenameTab({type: 'console', sourceFilePath: undefined})).toBe(true);
+        });
+
+        it('hides rename for table tabs and file-backed consoles', () => {
+            expect(canRenameTab({type: 'table'})).toBe(false);
+            expect(canRenameTab({type: 'query_builder'})).toBe(false);
+            expect(canRenameTab({type: 'users'})).toBe(false);
+            expect(canRenameTab({type: 'console', sourceFilePath: '/tmp/orders.sql'})).toBe(false);
+            expect(canRenameTab(undefined)).toBe(false);
+            expect(canRenameTab(null)).toBe(false);
+        });
+    });
+
+    describe('duplicate tab', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Orders',
+            type: 'console',
+            query: 'SELECT * FROM orders WHERE id = :id',
+            result: {
+                columns: ['id'],
+                rows: [[1]],
+                affected_rows: 1,
+            },
+            error: 'boom',
+            executionTime: 12,
+            page: 3,
+            activeTable: 'orders',
+            pkColumns: ['id'],
+            connectionId: 'conn-1',
+            queryParams: {id: '7'},
+            schema: 'public',
+            sourceFilePath: '/tmp/orders.sql',
+            sourceFileContent: 'SELECT 1',
+            sourceFileDirty: true,
+            notebookId: 'notebook-1',
+            results: [
+                {
+                    id: 'result-1',
+                    queryIndex: 0,
+                    query: 'SELECT 1',
+                    result: null,
+                    error: '',
+                    executionTime: 1,
+                    isLoading: false,
+                    page: 1,
+                    activeTable: null,
+                    pkColumns: null,
+                },
+            ],
+            ...overrides,
+        });
+
+        it('should allow console and table tabs only', () => {
+            expect(canDuplicateTab('console')).toBe(true);
+            expect(canDuplicateTab('table')).toBe(true);
+            expect(canDuplicateTab('notebook')).toBe(false);
+            expect(canDuplicateTab('query_builder')).toBe(false);
+            expect(canDuplicateTab('users')).toBe(false);
+            expect(canDuplicateTab(undefined)).toBe(false);
+        });
+
+        it('should copy sql, parameters, table, and schema with a copy title', () => {
+            const source = createMockTab({type: 'table', title: 'orders'});
+            const duplicate = buildDuplicatedTab(source);
+
+            expect(duplicate).toEqual({
+                type: 'table',
+                title: `orders${DUPLICATE_TAB_TITLE_SUFFIX}`,
+                query: source.query,
+                activeTable: 'orders',
+                queryParams: {id: '7'},
+                schema: 'public',
+            });
+            expect(duplicate?.queryParams).not.toBe(source.queryParams);
+        });
+
+        it('should leave results, the source file, and notebook ids behind', () => {
+            const source = createMockTab();
+            const duplicate = buildDuplicatedTab(source);
+
+            expect(duplicate).not.toHaveProperty('result');
+            expect(duplicate).not.toHaveProperty('results');
+            expect(duplicate).not.toHaveProperty('error');
+            expect(duplicate).not.toHaveProperty('sourceFilePath');
+            expect(duplicate).not.toHaveProperty('sourceFileContent');
+            expect(duplicate).not.toHaveProperty('sourceFileDirty');
+            expect(duplicate).not.toHaveProperty('notebookId');
+            expect(duplicate).not.toHaveProperty('notebookState');
+
+            const created = createInitialTabState('conn-1', duplicate ?? undefined);
+            expect(created.query).toBe(source.query);
+            expect(created.queryParams).toEqual({id: '7'});
+            expect(created.result).toBeNull();
+            expect(created.results).toBeUndefined();
+            expect(created.sourceFilePath).toBeUndefined();
+            expect(created.notebookId).toBeUndefined();
+        });
+
+        it('should omit parameters and schema when the source has none', () => {
+            const duplicate = buildDuplicatedTab(
+                createMockTab({queryParams: undefined, schema: undefined}),
+            );
+
+            expect(duplicate).not.toHaveProperty('queryParams');
+            expect(duplicate).not.toHaveProperty('schema');
+        });
+
+        it('should keep an empty schema', () => {
+            const duplicate = buildDuplicatedTab(createMockTab({schema: ''}));
+            expect(duplicate?.schema).toBe('');
+        });
+
+        it('should refuse notebook, query builder, and users tabs', () => {
+            expect(buildDuplicatedTab(createMockTab({type: 'notebook'}))).toBeNull();
+            expect(buildDuplicatedTab(createMockTab({type: 'query_builder'}))).toBeNull();
+            expect(buildDuplicatedTab(createMockTab({type: 'users'}))).toBeNull();
+        });
+
+        it('should not share parameter edits with the source tab', () => {
+            const source = createMockTab();
+            const duplicate = buildDuplicatedTab(source);
+            duplicate!.queryParams!.id = 'changed';
+            expect(source.queryParams?.id).toBe('7');
+        });
+
+        it('should keep a materialized table tab read-only', () => {
+            const source = createMockTab({
+                type: 'table',
+                title: 'mv_orders',
+                activeTable: 'mv_orders',
+                query: 'SELECT * FROM mv_orders',
+                materialized: true,
+                isLoading: true,
+                executionTime: 4,
+            });
+            const duplicate = buildDuplicatedTab(source);
+
+            expect(duplicate).toEqual({
+                type: 'table',
+                title: `mv_orders${DUPLICATE_TAB_TITLE_SUFFIX}`,
+                query: source.query,
+                activeTable: 'mv_orders',
+                queryParams: {id: '7'},
+                schema: 'public',
+                materialized: true,
+            });
+            expect(duplicate).not.toHaveProperty('readOnly');
+            expect(duplicate).not.toHaveProperty('result');
+            expect(duplicate).not.toHaveProperty('error');
+            expect(duplicate).not.toHaveProperty('isLoading');
+
+            const created = createInitialTabState('conn-1', duplicate ?? undefined);
+            expect(created.id).not.toBe(source.id);
+            expect(created.materialized).toBe(true);
+            expect(created.readOnly).toBeUndefined();
+            expect(created.result).toBeNull();
+            expect(created.error).toBe('');
+            expect(created.isLoading).toBe(false);
+            expect(created.executionTime).toBeNull();
+        });
+
+        it('should keep a read-only definition tab from regaining Run', () => {
+            const source = createMockTab({
+                type: 'console',
+                title: 'trg_audit Definition',
+                query: 'CREATE TRIGGER trg_audit',
+                activeTable: null,
+                readOnly: true,
+                queryParams: undefined,
+                schema: 'public',
+                isLoading: true,
+            });
+            const duplicate = buildDuplicatedTab(source);
+
+            expect(duplicate).toEqual({
+                type: 'console',
+                title: `trg_audit Definition${DUPLICATE_TAB_TITLE_SUFFIX}`,
+                query: source.query,
+                activeTable: null,
+                schema: 'public',
+                readOnly: true,
+            });
+            expect(duplicate).not.toHaveProperty('materialized');
+            expect(duplicate).not.toHaveProperty('result');
+            expect(duplicate).not.toHaveProperty('error');
+
+            const created = createInitialTabState('conn-1', duplicate ?? undefined);
+            expect(created.id).not.toBe(source.id);
+            expect(created.readOnly).toBe(true);
+            expect(created.materialized).toBeUndefined();
+            expect(created.result).toBeNull();
+            expect(created.isLoading).toBe(false);
+        });
+
+        it('should omit editability flags that are not set', () => {
+            const duplicate = buildDuplicatedTab(
+                createMockTab({materialized: false, readOnly: false}),
+            );
+
+            expect(duplicate).not.toHaveProperty('materialized');
+            expect(duplicate).not.toHaveProperty('readOnly');
+        });
+    });
+
+    describe('insertTabAfter', () => {
+        const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
+            id: 'tab-1',
+            title: 'Test',
+            type: 'console',
+            query: '',
+            result: null,
+            error: '',
+            executionTime: null,
+            page: 1,
+            activeTable: null,
+            pkColumns: null,
+            connectionId: 'conn-1',
+            ...overrides,
+        });
+
+        it('should insert immediately after the source tab', () => {
+            const first = createMockTab({id: 'a1', title: 'First'});
+            const source = createMockTab({id: 'a2', title: 'Source'});
+            const last = createMockTab({id: 'a3', title: 'Last'});
+            const copy = createMockTab({id: 'copy', title: 'Source (copy)'});
+            const tabs = [first, source, last];
+
+            const next = insertTabAfter(tabs, 'a2', copy);
+
+            expect(next.map((tab) => tab.id)).toEqual(['a1', 'a2', 'copy', 'a3']);
+            expect(tabs.map((tab) => tab.id)).toEqual(['a1', 'a2', 'a3']);
+        });
+
+        it('should keep the copy next to the source inside one connection', () => {
+            const source = createMockTab({id: 'a1', title: 'Source'});
+            const other = createMockTab({
+                id: 'b1',
+                connectionId: 'conn-2',
+                title: 'Other',
+            });
+            const last = createMockTab({id: 'a2', title: 'Last'});
+            const copy = createMockTab({id: 'copy', title: 'Source (copy)'});
+
+            const next = insertTabAfter([source, other, last], 'a1', copy);
+
+            expect(next.map((tab) => tab.id)).toEqual(['a1', 'copy', 'b1', 'a2']);
+            expect(
+                next.filter((tab) => tab.connectionId === 'conn-1').map((tab) => tab.id),
+            ).toEqual(['a1', 'copy', 'a2']);
+        });
+
+        it('should append when the source id is missing', () => {
+            const first = createMockTab({id: 'a1'});
+            const copy = createMockTab({id: 'copy'});
+
+            expect(insertTabAfter([first], 'missing', copy).map((tab) => tab.id)).toEqual([
+                'a1',
+                'copy',
+            ]);
+        });
     });
-
-    it("should generate unique ids", () => {
-      const id1 = generateTabId();
-      const id2 = generateTabId();
-      expect(id1).not.toBe(id2);
-    });
-
-    it("should only contain alphanumeric characters", () => {
-      const id = generateTabId();
-      expect(id).toMatch(/^[a-z0-9]+$/);
-    });
-  });
-
-  describe("createInitialTabState", () => {
-    it("should create a console tab with default values", () => {
-      const tab = createInitialTabState("conn-1");
-
-      expect(tab).toMatchObject({
-        title: "Console",
-        type: "console",
-        query: "",
-        result: null,
-        error: "",
-        executionTime: null,
-        page: 1,
-        activeTable: null,
-        pkColumns: null,
-        isLoading: false,
-        connectionId: "conn-1",
-        isEditorOpen: true,
-      });
-      expect(tab.id).toHaveLength(7);
-    });
-
-    it("should use partial values when provided", () => {
-      const partial = {
-        title: "Custom Tab",
-        type: "table" as const,
-        query: "SELECT * FROM users",
-        activeTable: "users",
-      };
-
-      const tab = createInitialTabState("conn-1", partial);
-
-      expect(tab.title).toBe("Custom Tab");
-      expect(tab.type).toBe("table");
-      expect(tab.query).toBe("SELECT * FROM users");
-      expect(tab.activeTable).toBe("users");
-      expect(tab.isEditorOpen).toBe(false);
-    });
-
-    it("should handle null connectionId", () => {
-      const tab = createInitialTabState(null);
-
-      expect(tab.connectionId).toBe("");
-    });
-
-    it("should allow overriding isEditorOpen", () => {
-      const tab = createInitialTabState("conn-1", {
-        type: "table",
-        isEditorOpen: true,
-      });
-
-      expect(tab.isEditorOpen).toBe(true);
-    });
-  });
-
-  describe("generateTabTitle", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "console",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: null,
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should return provided title", () => {
-      const tabs: Tab[] = [];
-      const title = generateTabTitle(tabs, "conn-1", { title: "Custom Title" });
-      expect(title).toBe("Custom Title");
-    });
-
-    it("should return table name for table tabs", () => {
-      const tabs: Tab[] = [];
-      const title = generateTabTitle(tabs, "conn-1", {
-        type: "table",
-        activeTable: "users",
-      });
-      expect(title).toBe("users");
-    });
-
-    it('should generate "Console" for first console tab', () => {
-      const tabs: Tab[] = [];
-      const title = generateTabTitle(tabs, "conn-1", { type: "console" });
-      expect(title).toBe("Console");
-    });
-
-    it('should generate "Console N" for additional console tabs', () => {
-      const tabs: Tab[] = [
-        createMockTab({ type: "console", connectionId: "conn-1" }),
-        createMockTab({ type: "console", connectionId: "conn-1" }),
-      ];
-      const title = generateTabTitle(tabs, "conn-1", { type: "console" });
-      expect(title).toBe("Console 3");
-    });
-
-    it('should generate "Visual Query" for first query builder tab', () => {
-      const tabs: Tab[] = [];
-      const title = generateTabTitle(tabs, "conn-1", { type: "query_builder" });
-      expect(title).toBe("Visual Query");
-    });
-
-    it('should generate "Visual Query N" for additional query builder tabs', () => {
-      const tabs: Tab[] = [
-        createMockTab({ type: "query_builder", connectionId: "conn-1" }),
-      ];
-      const title = generateTabTitle(tabs, "conn-1", { type: "query_builder" });
-      expect(title).toBe("Visual Query 2");
-    });
-
-    it("should only count tabs for the specified connection", () => {
-      const tabs: Tab[] = [
-        createMockTab({ type: "console", connectionId: "conn-1" }),
-        createMockTab({ type: "console", connectionId: "conn-2" }),
-      ];
-      const title = generateTabTitle(tabs, "conn-1", { type: "console" });
-      expect(title).toBe("Console 2");
-    });
-  });
-
-  describe("getTabDisplayTitle", () => {
-    const tableTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "clubs",
-      type: "table",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: "clubs",
-      schema: "mira",
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("prefixes the schema when the same table is open from another schema", () => {
-      const mira = tableTab();
-      const dev = tableTab({ id: "tab-2", schema: "mira_dev" });
-      expect(getTabDisplayTitle(mira, [mira, dev])).toBe("mira.clubs");
-      expect(getTabDisplayTitle(dev, [mira, dev])).toBe("mira_dev.clubs");
-    });
-
-    it("keeps the plain title when the table name is unique", () => {
-      const clubs = tableTab();
-      const users = tableTab({
-        id: "tab-2",
-        title: "users",
-        activeTable: "users",
-        schema: "mira_dev",
-      });
-      expect(getTabDisplayTitle(clubs, [clubs, users])).toBe("clubs");
-    });
-
-    it("ignores tabs from other connections", () => {
-      const mira = tableTab();
-      const other = tableTab({
-        id: "tab-2",
-        schema: "mira_dev",
-        connectionId: "conn-2",
-      });
-      expect(getTabDisplayTitle(mira, [mira, other])).toBe("clubs");
-    });
-
-    it("keeps a title that no longer equals the table name", () => {
-      const custom = tableTab({ title: "clubs (db.mira)" });
-      const dev = tableTab({ id: "tab-2", schema: "mira_dev" });
-      expect(getTabDisplayTitle(custom, [custom, dev])).toBe("clubs (db.mira)");
-    });
-
-    it("ignores a same-table tab whose title was customised", () => {
-      const mira = tableTab();
-      const copy = tableTab({ id: "tab-2", schema: "mira_dev", title: "clubs (db.mira_dev)" });
-      expect(getTabDisplayTitle(mira, [mira, copy])).toBe("clubs");
-    });
-
-    it("leaves non-table tabs untouched", () => {
-      const console = tableTab({ type: "console", title: "Console" });
-      expect(getTabDisplayTitle(console, [console])).toBe("Console");
-    });
-  });
-
-  describe("getTabFullTitle", () => {
-    const tab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "global-mae_firewall_events",
-      type: "table",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: "global-mae_firewall_events",
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("returns the whole table name when there is no schema or database", () => {
-      const t = tab();
-      expect(getTabFullTitle(t, [t])).toBe("global-mae_firewall_events");
-    });
-
-    it("qualifies a table tab with its schema", () => {
-      const t = tab({ schema: "public" });
-      expect(getTabFullTitle(t, [t])).toBe("public.global-mae_firewall_events");
-    });
-
-    it("qualifies a table tab with its database and schema", () => {
-      const t = tab({ schema: "public", database: "analytics" });
-      expect(getTabFullTitle(t, [t])).toBe(
-        "analytics.public.global-mae_firewall_events",
-      );
-    });
-
-    it("keeps a customised table tab title", () => {
-      const t = tab({ title: "firewall (copy)", schema: "public" });
-      expect(getTabFullTitle(t, [t])).toBe("firewall (copy)");
-    });
-
-    it("appends the database to a console tab when one is given", () => {
-      const t = tab({ type: "console", title: "Console 2", activeTable: null });
-      expect(getTabFullTitle(t, [t], "analytics")).toBe("Console 2 (analytics)");
-      expect(getTabFullTitle(t, [t])).toBe("Console 2");
-    });
-
-    it("ignores the database for non-console tabs", () => {
-      const t = tab({ type: "notebook", title: "Notebook", activeTable: null });
-      expect(getTabFullTitle(t, [t], "analytics")).toBe("Notebook");
-    });
-  });
-
-  describe("findExistingTableTab", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "console",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: null,
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should find existing table tab", () => {
-      const tabs: Tab[] = [
-        createMockTab({
-          id: "tab-1",
-          type: "table",
-          connectionId: "conn-1",
-          activeTable: "users",
-        }),
-      ];
-
-      const result = findExistingTableTab(tabs, "conn-1", "users");
-
-      expect(result).toBeDefined();
-      expect(result?.id).toBe("tab-1");
-    });
-
-    it("should return undefined when no matching tab exists", () => {
-      const tabs: Tab[] = [
-        createMockTab({
-          type: "table",
-          connectionId: "conn-1",
-          activeTable: "posts",
-        }),
-      ];
-
-      const result = findExistingTableTab(tabs, "conn-1", "users");
-
-      expect(result).toBeUndefined();
-    });
-
-    it("should return undefined when tableName is undefined", () => {
-      const tabs: Tab[] = [
-        createMockTab({
-          type: "table",
-          connectionId: "conn-1",
-          activeTable: "users",
-        }),
-      ];
-
-      const result = findExistingTableTab(tabs, "conn-1", undefined);
-
-      expect(result).toBeUndefined();
-    });
-
-    it("should not match tabs from different connections", () => {
-      const tabs: Tab[] = [
-        createMockTab({
-          type: "table",
-          connectionId: "conn-2",
-          activeTable: "users",
-        }),
-      ];
-
-      const result = findExistingTableTab(tabs, "conn-1", "users");
-
-      expect(result).toBeUndefined();
-    });
-  });
-
-  describe("findExistingTableTab: nested multi-db database matching", () => {
-    // Regression: a nested multi-db connection (e.g. PostgreSQL with
-    // opt-in database selection) can have the same table name + schema in
-    // more than one database. Before this fix, dedup only matched on
-    // (connectionId, activeTable, schema), so double-clicking a table in
-    // database B would reactivate an existing tab already open for the
-    // same table/schema in database A -- reusing its stale `database`
-    // and, if that tab predates a database being set at all, re-running
-    // its query with no database override sends the connection's raw
-    // multi-db selection to the plugin ("Pool creation failed: ...dbname
-    // not found").
-    const createMockTableTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "table",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: "products",
-      pkColumns: null,
-      connectionId: "conn-1",
-      schema: "store",
-      ...overrides,
-    });
-
-    it("does not reuse a tab for the same table/schema in a different database", () => {
-      const tabs: Tab[] = [
-        createMockTableTab({ id: "tab-1", database: "db_a" }),
-      ];
-
-      const result = findExistingTableTab(tabs, "conn-1", "products", "store", "db_b");
-
-      expect(result).toBeUndefined();
-    });
-
-    it("does not reuse a stale tab with no database for a database-scoped open", () => {
-      const tabs: Tab[] = [
-        createMockTableTab({ id: "tab-1", database: undefined }),
-      ];
-
-      const result = findExistingTableTab(tabs, "conn-1", "products", "store", "db_b");
-
-      expect(result).toBeUndefined();
-    });
-
-    it("reuses the tab when database matches too", () => {
-      const tabs: Tab[] = [
-        createMockTableTab({ id: "tab-1", database: "db_a" }),
-      ];
-
-      const result = findExistingTableTab(tabs, "conn-1", "products", "store", "db_a");
-
-      expect(result?.id).toBe("tab-1");
-    });
-
-    it("still matches on the single-database path where neither side has a database", () => {
-      const tabs: Tab[] = [createMockTableTab({ id: "tab-1", database: undefined })];
-
-      const result = findExistingTableTab(tabs, "conn-1", "products", "store");
-
-      expect(result?.id).toBe("tab-1");
-    });
-  });
-
-  describe("getConnectionTabs", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "console",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: null,
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should return tabs for specific connection", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-2", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-3", connectionId: "conn-2" }),
-      ];
-
-      const result = getConnectionTabs(tabs, "conn-1");
-
-      expect(result).toHaveLength(2);
-      expect(result.map((t) => t.id)).toEqual(["tab-1", "tab-2"]);
-    });
-
-    it("should return empty array when connectionId is null", () => {
-      const tabs: Tab[] = [createMockTab()];
-
-      const result = getConnectionTabs(tabs, null);
-
-      expect(result).toEqual([]);
-    });
-
-    it("should return empty array when no tabs match", () => {
-      const tabs: Tab[] = [createMockTab({ connectionId: "conn-2" })];
-
-      const result = getConnectionTabs(tabs, "conn-1");
-
-      expect(result).toEqual([]);
-    });
-  });
-
-  describe("getActiveTab", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "console",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: null,
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should return active tab", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1" }),
-        createMockTab({ id: "tab-2" }),
-      ];
-
-      const result = getActiveTab(tabs, "conn-1", "tab-1");
-
-      expect(result?.id).toBe("tab-1");
-    });
-
-    it("should return null when connectionId is null", () => {
-      const tabs: Tab[] = [createMockTab()];
-
-      const result = getActiveTab(tabs, null, "tab-1");
-
-      expect(result).toBeNull();
-    });
-
-    it("should return null when activeTabId is null", () => {
-      const tabs: Tab[] = [createMockTab()];
-
-      const result = getActiveTab(tabs, "conn-1", null);
-
-      expect(result).toBeNull();
-    });
-
-    it("should return null when tab belongs to different connection", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-2" }),
-      ];
-
-      const result = getActiveTab(tabs, "conn-1", "tab-1");
-
-      expect(result).toBeNull();
-    });
-
-    it("should return null when tab does not exist", () => {
-      const tabs: Tab[] = [createMockTab({ id: "tab-1" })];
-
-      const result = getActiveTab(tabs, "conn-1", "non-existent");
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("closeTabWithState", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "console",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: null,
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should close tab and update state", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1" }),
-        createMockTab({ id: "tab-2" }),
-      ];
-
-      const result = closeTabWithState(
-        tabs,
-        "conn-1",
-        "tab-1",
-        "tab-2",
-      );
-
-      expect(result.newTabs).toHaveLength(1);
-      expect(result.newTabs[0].id).toBe("tab-1");
-      expect(result.newActiveTabId).toBe("tab-1");
-    });
-
-    it("should return empty tabs when closing last tab for connection", () => {
-      const tabs: Tab[] = [createMockTab({ id: "tab-1" })];
-
-      const result = closeTabWithState(
-        tabs,
-        "conn-1",
-        "tab-1",
-        "tab-1",
-      );
-
-      expect(result.newTabs).toHaveLength(0);
-      expect(result.newActiveTabId).toBeNull();
-    });
-
-    it("should handle closing active tab", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1" }),
-        createMockTab({ id: "tab-2" }),
-        createMockTab({ id: "tab-3" }),
-      ];
-
-      const result = closeTabWithState(
-        tabs,
-        "conn-1",
-        "tab-2",
-        "tab-2",
-      );
-
-      expect(result.newTabs).toHaveLength(2);
-      // When closing active tab at index 1, should select previous tab (tab-1)
-      expect(result.newActiveTabId).toBe("tab-1");
-    });
-
-    it("should select first tab when closing the first tab", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1" }),
-        createMockTab({ id: "tab-2" }),
-        createMockTab({ id: "tab-3" }),
-      ];
-
-      const result = closeTabWithState(
-        tabs,
-        "conn-1",
-        "tab-1",
-        "tab-1",
-      );
-
-      expect(result.newTabs).toHaveLength(2);
-      // When closing first tab, should select the new first tab (tab-2)
-      expect(result.newActiveTabId).toBe("tab-2");
-    });
-
-    it("should keep other connection tabs when closing last tab for a connection", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-2", connectionId: "conn-2" }),
-      ];
-
-      const result = closeTabWithState(
-        tabs,
-        "conn-1",
-        "tab-1",
-        "tab-1",
-      );
-
-      expect(result.newTabs).toHaveLength(1);
-      expect(result.newTabs[0].id).toBe("tab-2");
-    });
-  });
-
-  describe("closeAllTabsForConnection", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "console",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: null,
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should close all tabs for connection and keep other connections", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-2", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-3", connectionId: "conn-2" }),
-      ];
-
-      const result = closeAllTabsForConnection(tabs, "conn-1");
-
-      expect(result.newTabs).toHaveLength(1);
-      expect(result.newTabs[0].id).toBe("tab-3");
-      expect(result.newActiveTabId).toBeNull();
-    });
-
-    it("should work with empty tabs array", () => {
-      const tabs: Tab[] = [];
-
-      const result = closeAllTabsForConnection(tabs, "conn-1");
-
-      expect(result.newTabs).toHaveLength(0);
-      expect(result.newActiveTabId).toBeNull();
-    });
-  });
-
-  describe("closeOtherTabsForConnection", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "console",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: null,
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should keep only specified tab for connection", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-2", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-3", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-4", connectionId: "conn-2" }),
-      ];
-
-      const result = closeOtherTabsForConnection(tabs, "conn-1", "tab-2");
-
-      expect(result).toHaveLength(2);
-      expect(result.map((t) => t.id)).toEqual(["tab-2", "tab-4"]);
-    });
-  });
-
-  describe("closeTabsToLeft", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "console",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: null,
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should close tabs to the left of target", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-2", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-3", connectionId: "conn-1" }),
-      ];
-
-      const result = closeTabsToLeft(tabs, "conn-1", "tab-2", "tab-3");
-
-      expect(result.newTabs).toHaveLength(2);
-      expect(result.newTabs.map((t) => t.id)).toEqual(["tab-2", "tab-3"]);
-      expect(result.newActiveTabId).toBe("tab-3");
-    });
-
-    it("should update active tab if it was closed", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-2", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-3", connectionId: "conn-1" }),
-      ];
-
-      const result = closeTabsToLeft(tabs, "conn-1", "tab-2", "tab-1");
-
-      expect(result.newActiveTabId).toBe("tab-2");
-    });
-
-    it("should keep tabs from other connections", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-2", connectionId: "conn-2" }),
-        createMockTab({ id: "tab-3", connectionId: "conn-1" }),
-      ];
-
-      const result = closeTabsToLeft(tabs, "conn-1", "tab-3", "tab-1");
-
-      expect(result.newTabs).toHaveLength(2);
-      expect(result.newTabs.map((t) => t.id)).toEqual(["tab-2", "tab-3"]);
-    });
-
-    it("should return original tabs when target not found", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-1" }),
-      ];
-
-      const result = closeTabsToLeft(tabs, "conn-1", "non-existent", "tab-1");
-
-      expect(result.newTabs).toEqual(tabs);
-      expect(result.newActiveTabId).toBe("tab-1");
-    });
-  });
-
-  describe("closeTabsToRight", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "console",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: null,
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should close tabs to the right of target", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-2", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-3", connectionId: "conn-1" }),
-      ];
-
-      const result = closeTabsToRight(tabs, "conn-1", "tab-2", "tab-1");
-
-      expect(result.newTabs).toHaveLength(2);
-      expect(result.newTabs.map((t) => t.id)).toEqual(["tab-1", "tab-2"]);
-      expect(result.newActiveTabId).toBe("tab-1");
-    });
-
-    it("should update active tab if it was closed", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-2", connectionId: "conn-1" }),
-        createMockTab({ id: "tab-3", connectionId: "conn-1" }),
-      ];
-
-      const result = closeTabsToRight(tabs, "conn-1", "tab-2", "tab-3");
-
-      expect(result.newActiveTabId).toBe("tab-2");
-    });
-
-    it("should return original tabs when target not found", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", connectionId: "conn-1" }),
-      ];
-
-      const result = closeTabsToRight(tabs, "conn-1", "non-existent", "tab-1");
-
-      expect(result.newTabs).toEqual(tabs);
-      expect(result.newActiveTabId).toBe("tab-1");
-    });
-  });
-
-  describe("updateTabInList", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "console",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: null,
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should update tab properties", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1", title: "Old Title" }),
-        createMockTab({ id: "tab-2", title: "Other" }),
-      ];
-
-      const result = updateTabInList(tabs, "tab-1", { title: "New Title" });
-
-      expect(result[0].title).toBe("New Title");
-      expect(result[1].title).toBe("Other");
-    });
-
-    it("should not modify other tabs", () => {
-      const tabs: Tab[] = [
-        createMockTab({ id: "tab-1" }),
-        createMockTab({ id: "tab-2" }),
-      ];
-
-      const result = updateTabInList(tabs, "tab-1", { query: "SELECT *" });
-
-      expect(result[1]).toEqual(tabs[1]);
-    });
-
-    it("should return new array without mutating original", () => {
-      const tabs: Tab[] = [createMockTab({ id: "tab-1" })];
-
-      const result = updateTabInList(tabs, "tab-1", { title: "New" });
-
-      expect(result).not.toBe(tabs);
-      expect(tabs[0].title).toBe("Test");
-    });
-  });
-
-  describe("shouldUseCachedSchema", () => {
-    const createMockSchemaCache = (
-      overrides: Partial<SchemaCache> = {},
-    ): SchemaCache => ({
-      data: [],
-      version: 1,
-      timestamp: Date.now(),
-      ...overrides,
-    });
-
-    it("should return false when no cache exists", () => {
-      const result = shouldUseCachedSchema(undefined);
-      expect(result).toBe(false);
-    });
-
-    it("should return true for fresh cache without version check", () => {
-      const cache = createMockSchemaCache({ timestamp: Date.now() - 1000 });
-      const result = shouldUseCachedSchema(cache);
-      expect(result).toBe(true);
-    });
-
-    it("should return false for stale cache (older than 5 minutes)", () => {
-      const cache = createMockSchemaCache({ timestamp: Date.now() - 301000 });
-      const result = shouldUseCachedSchema(cache);
-      expect(result).toBe(false);
-    });
-
-    it("should check version when provided", () => {
-      const cache = createMockSchemaCache({
-        version: 1,
-        timestamp: Date.now(),
-      });
-      const result = shouldUseCachedSchema(cache, 2);
-      expect(result).toBe(false);
-    });
-
-    it("should return true when version matches", () => {
-      const cache = createMockSchemaCache({
-        version: 2,
-        timestamp: Date.now(),
-      });
-      const result = shouldUseCachedSchema(cache, 2);
-      expect(result).toBe(true);
-    });
-
-    it("should return true for fresh cache with undefined version", () => {
-      const cache = createMockSchemaCache({ timestamp: Date.now() });
-      const result = shouldUseCachedSchema(cache, undefined);
-      expect(result).toBe(true);
-    });
-  });
-
-  describe("createSchemaCacheEntry", () => {
-    it("should create cache entry with current timestamp", () => {
-      const data: TableSchema[] = [
-        { name: "users", columns: [], foreign_keys: [] },
-      ];
-      const version = 5;
-
-      const before = Date.now();
-      const result = createSchemaCacheEntry(data, version);
-      const after = Date.now();
-
-      expect(result.data).toBe(data);
-      expect(result.version).toBe(version);
-      expect(result.timestamp).toBeGreaterThanOrEqual(before);
-      expect(result.timestamp).toBeLessThanOrEqual(after);
-    });
-  });
-
-  describe("reconstructTableQuery", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "table",
-      query: "SELECT * FROM users",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: "users",
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should reconstruct basic table query", () => {
-      const tab = createMockTab();
-      const result = reconstructTableQuery(tab);
-      expect(result).toBe('SELECT * FROM "users"');
-    });
-
-    it("should include WHERE clause when filter is present", () => {
-      const tab = createMockTab({ filterClause: "age > 18" });
-      const result = reconstructTableQuery(tab);
-      expect(result).toBe('SELECT * FROM "users" WHERE age > 18');
-    });
-
-    it("should include ORDER BY clause when sort is present", () => {
-      const tab = createMockTab({ sortClause: "created_at DESC" });
-      const result = reconstructTableQuery(tab);
-      expect(result).toBe('SELECT * FROM "users" ORDER BY created_at DESC');
-    });
-
-    it("should include LIMIT clause when limit is present", () => {
-      const tab = createMockTab({ limitClause: 100 });
-      const result = reconstructTableQuery(tab);
-      expect(result).toBe('SELECT * FROM "users" LIMIT 100');
-    });
-
-    it("should combine filter, sort, and limit", () => {
-      const tab = createMockTab({
-        filterClause: 'status = "active"',
-        sortClause: "name ASC",
-        limitClause: 50,
-      });
-      const result = reconstructTableQuery(tab);
-      expect(result).toBe(
-        'SELECT * FROM "users" WHERE status = "active" ORDER BY name ASC LIMIT 50',
-      );
-    });
-
-    it("should ignore zero or negative limit", () => {
-      const tab1 = createMockTab({ limitClause: 0 });
-      const result1 = reconstructTableQuery(tab1);
-      expect(result1).toBe('SELECT * FROM "users"');
-
-      const tab2 = createMockTab({ limitClause: -10 });
-      const result2 = reconstructTableQuery(tab2);
-      expect(result2).toBe('SELECT * FROM "users"');
-    });
-
-    it("should return original query when activeTable is null", () => {
-      const tab = createMockTab({
-        activeTable: null,
-        query: "SELECT * FROM posts",
-      });
-      const result = reconstructTableQuery(tab);
-      expect(result).toBe("SELECT * FROM posts");
-    });
-
-    it("should normalize whitespace", () => {
-      const tab = createMockTab({
-        filterClause: "id    >   10",
-        sortClause: "created_at    DESC",
-      });
-      const result = reconstructTableQuery(tab);
-      // Should collapse multiple spaces into single spaces
-      expect(result).toContain("WHERE");
-      expect(result).toContain("ORDER BY");
-      expect(result).not.toMatch(/\s{2,}/);
-    });
-
-    it("should fold macOS smart quotes in the filter to straight ASCII", () => {
-      const tab = createMockTab({ filterClause: "status = ‘active’" });
-      const result = reconstructTableQuery(tab);
-      expect(result).toBe("SELECT * FROM \"users\" WHERE status = 'active'");
-    });
-  });
-
-  describe("formatExportFileName", () => {
-    it("should format filename with table name and timestamp", () => {
-      const result = formatExportFileName("users", "csv");
-      expect(result).toMatch(
-        /^users_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.csv$/,
-      );
-    });
-
-    it("should handle different file formats", () => {
-      const csvResult = formatExportFileName("orders", "csv");
-      const jsonResult = formatExportFileName("orders", "json");
-
-      expect(csvResult).toMatch(/\.csv$/);
-      expect(jsonResult).toMatch(/\.json$/);
-    });
-
-    it("should sanitize table names with special characters", () => {
-      const result = formatExportFileName("user-accounts!@#$", "csv");
-      expect(result).toMatch(/^user-accounts____/);
-      expect(result).not.toContain("!");
-      expect(result).not.toContain("@");
-      expect(result).not.toContain("#");
-      expect(result).not.toContain("$");
-    });
-
-    it("should replace spaces with underscores", () => {
-      const result = formatExportFileName("user accounts", "csv");
-      expect(result).toMatch(/^user_accounts/);
-    });
-
-    it("should handle table names with dots", () => {
-      const result = formatExportFileName("schema.users", "csv");
-      expect(result).toMatch(/^schema_users/);
-    });
-
-    it("should preserve alphanumeric and hyphens/underscores", () => {
-      const result = formatExportFileName("user_accounts-2024", "json");
-      expect(result).toContain("user_accounts-2024");
-    });
-  });
-
-  describe("validatePageNumber", () => {
-    it("should validate correct page numbers", () => {
-      expect(validatePageNumber("1", 10)).toBe(true);
-      expect(validatePageNumber("5", 10)).toBe(true);
-      expect(validatePageNumber("10", 10)).toBe(true);
-    });
-
-    it("should reject page numbers less than 1", () => {
-      expect(validatePageNumber("0", 10)).toBe(false);
-      expect(validatePageNumber("-1", 10)).toBe(false);
-      expect(validatePageNumber("-100", 10)).toBe(false);
-    });
-
-    it("should reject page numbers greater than totalPages", () => {
-      expect(validatePageNumber("11", 10)).toBe(false);
-      expect(validatePageNumber("100", 10)).toBe(false);
-    });
-
-    it("should reject non-numeric input", () => {
-      expect(validatePageNumber("abc", 10)).toBe(false);
-      expect(validatePageNumber("", 10)).toBe(false);
-      // parseInt('1.5') returns 1, so this would pass validation
-      // We only validate integer inputs, decimals are truncated
-      expect(validatePageNumber("1.5", 10)).toBe(true); // parseInt truncates to 1
-    });
-
-    it("should reject NaN input", () => {
-      expect(validatePageNumber("NaN", 10)).toBe(false);
-      expect(validatePageNumber("Infinity", 10)).toBe(false);
-    });
-
-    it("should handle single page", () => {
-      expect(validatePageNumber("1", 1)).toBe(true);
-      expect(validatePageNumber("2", 1)).toBe(false);
-    });
-
-    it("should handle whitespace in input", () => {
-      // parseInt handles leading whitespace
-      expect(validatePageNumber(" 5 ", 10)).toBe(true);
-    });
-  });
-
-  describe("calculateTotalPages", () => {
-    it("should calculate correct number of pages", () => {
-      expect(calculateTotalPages(100, 10)).toBe(10);
-      expect(calculateTotalPages(105, 10)).toBe(11);
-      expect(calculateTotalPages(99, 10)).toBe(10);
-    });
-
-    it("should return 1 for zero rows", () => {
-      expect(calculateTotalPages(0, 10)).toBe(1);
-    });
-
-    it("should return 1 for null rows", () => {
-      expect(calculateTotalPages(null, 10)).toBe(1);
-    });
-
-    it("should handle single row", () => {
-      expect(calculateTotalPages(1, 10)).toBe(1);
-      expect(calculateTotalPages(1, 100)).toBe(1);
-    });
-
-    it("should handle exact multiples", () => {
-      expect(calculateTotalPages(50, 10)).toBe(5);
-      expect(calculateTotalPages(1000, 100)).toBe(10);
-    });
-
-    it("should round up for partial pages", () => {
-      expect(calculateTotalPages(51, 10)).toBe(6);
-      expect(calculateTotalPages(1001, 100)).toBe(11);
-      expect(calculateTotalPages(99, 100)).toBe(1);
-    });
-
-    it("should handle large datasets", () => {
-      expect(calculateTotalPages(1000000, 500)).toBe(2000);
-      expect(calculateTotalPages(999999, 1000)).toBe(1000);
-    });
-
-    it("should handle small page sizes", () => {
-      expect(calculateTotalPages(100, 1)).toBe(100);
-      expect(calculateTotalPages(10, 3)).toBe(4);
-    });
-  });
-
-  describe("resolveTabPageSize", () => {
-    it("should prefer the per-tab override over the global setting", () => {
-      expect(resolveTabPageSize(51, 50)).toBe(51);
-      expect(resolveTabPageSize(25, 500)).toBe(25);
-    });
-
-    it("should fall back to the global setting when no override is set", () => {
-      expect(resolveTabPageSize(undefined, 500)).toBe(500);
-    });
-
-    it("should return undefined for 0 (pagination disabled)", () => {
-      expect(resolveTabPageSize(0, 500)).toBeUndefined();
-    });
-
-    it("should fall back to 100 when neither value is usable", () => {
-      expect(resolveTabPageSize(undefined, undefined)).toBe(100);
-      expect(resolveTabPageSize(undefined, 0)).toBe(100);
-      expect(resolveTabPageSize(undefined, -5)).toBe(100);
-      expect(resolveTabPageSize(-1, undefined)).toBe(100);
-    });
-  });
-
-  describe("toSqlList", () => {
-    it("should quote each line for an IN list", () => {
-      expect(toSqlList("alice@example.com\nbob@example.com")).toBe(
-        "'alice@example.com', 'bob@example.com'",
-      );
-    });
-
-    it("should split on newlines, CRLF, tabs and commas", () => {
-      expect(toSqlList("a\r\nb\tc,d")).toBe("'a', 'b', 'c', 'd'");
-    });
-
-    it("should trim values and skip blanks", () => {
-      expect(toSqlList("  a  \n\n\t\n , b ,\n")).toBe("'a', 'b'");
-    });
-
-    it("should escape embedded single quotes", () => {
-      expect(toSqlList("O'Brien\nD'Angelo")).toBe("'O''Brien', 'D''Angelo'");
-    });
-
-    it("should leave numeric-only input unquoted", () => {
-      expect(toSqlList("1\n2\n3")).toBe("1, 2, 3");
-      expect(toSqlList("-4\t0\t3.25")).toBe("-4, 0, 3.25");
-    });
-
-    it("should quote every value when numbers and text are mixed", () => {
-      expect(toSqlList("1\nabc\n3")).toBe("'1', 'abc', '3'");
-    });
-
-    it("should keep identifiers with a leading zero or plus sign quoted", () => {
-      expect(toSqlList("007\n42")).toBe("'007', '42'");
-      expect(toSqlList("+15551234567")).toBe("'+15551234567'");
-    });
-
-    it("should keep duplicates unless dedupe is set", () => {
-      expect(toSqlList("a\nb\na")).toBe("'a', 'b', 'a'");
-      expect(toSqlList("a\nb\na", { dedupe: true })).toBe("'a', 'b'");
-      expect(toSqlList("2\n1\n2", { dedupe: true })).toBe("2, 1");
-    });
-
-    it("should support a custom quote and separator", () => {
-      expect(toSqlList('a\nsay "hi"', { quote: '"', separator: "," })).toBe(
-        '"a","say ""hi"""',
-      );
-      expect(toSqlList("a\nb", { separator: ",\n" })).toBe("'a',\n'b'");
-    });
-
-    it("should return an empty string when there are no values", () => {
-      expect(toSqlList("")).toBe("");
-      expect(toSqlList(" \n\t, ,\n")).toBe("");
-    });
-  });
-
-  describe("canRenameTab", () => {
-    it("shows rename for notebooks and consoles that are not linked to a file", () => {
-      expect(canRenameTab({ type: "notebook" })).toBe(true);
-      expect(canRenameTab({ type: "console" })).toBe(true);
-      expect(canRenameTab({ type: "console", sourceFilePath: undefined })).toBe(
-        true,
-      );
-    });
-
-    it("hides rename for table tabs and file-backed consoles", () => {
-      expect(canRenameTab({ type: "table" })).toBe(false);
-      expect(canRenameTab({ type: "query_builder" })).toBe(false);
-      expect(canRenameTab({ type: "users" })).toBe(false);
-      expect(
-        canRenameTab({ type: "console", sourceFilePath: "/tmp/orders.sql" }),
-      ).toBe(false);
-      expect(canRenameTab(undefined)).toBe(false);
-      expect(canRenameTab(null)).toBe(false);
-    });
-  });
-
-  describe("duplicate tab", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Orders",
-      type: "console",
-      query: "SELECT * FROM orders WHERE id = :id",
-      result: {
-        columns: ["id"],
-        rows: [[1]],
-        affected_rows: 1,
-      },
-      error: "boom",
-      executionTime: 12,
-      page: 3,
-      activeTable: "orders",
-      pkColumns: ["id"],
-      connectionId: "conn-1",
-      queryParams: { id: "7" },
-      schema: "public",
-      sourceFilePath: "/tmp/orders.sql",
-      sourceFileContent: "SELECT 1",
-      sourceFileDirty: true,
-      notebookId: "notebook-1",
-      results: [
-        {
-          id: "result-1",
-          queryIndex: 0,
-          query: "SELECT 1",
-          result: null,
-          error: "",
-          executionTime: 1,
-          isLoading: false,
-          page: 1,
-          activeTable: null,
-          pkColumns: null,
-        },
-      ],
-      ...overrides,
-    });
-
-    it("should allow console and table tabs only", () => {
-      expect(canDuplicateTab("console")).toBe(true);
-      expect(canDuplicateTab("table")).toBe(true);
-      expect(canDuplicateTab("notebook")).toBe(false);
-      expect(canDuplicateTab("query_builder")).toBe(false);
-      expect(canDuplicateTab("users")).toBe(false);
-      expect(canDuplicateTab(undefined)).toBe(false);
-    });
-
-    it("should copy sql, parameters, table, and schema with a copy title", () => {
-      const source = createMockTab({ type: "table", title: "orders" });
-      const duplicate = buildDuplicatedTab(source);
-
-      expect(duplicate).toEqual({
-        type: "table",
-        title: `orders${DUPLICATE_TAB_TITLE_SUFFIX}`,
-        query: source.query,
-        activeTable: "orders",
-        queryParams: { id: "7" },
-        schema: "public",
-      });
-      expect(duplicate?.queryParams).not.toBe(source.queryParams);
-    });
-
-    it("should leave results, the source file, and notebook ids behind", () => {
-      const source = createMockTab();
-      const duplicate = buildDuplicatedTab(source);
-
-      expect(duplicate).not.toHaveProperty("result");
-      expect(duplicate).not.toHaveProperty("results");
-      expect(duplicate).not.toHaveProperty("error");
-      expect(duplicate).not.toHaveProperty("sourceFilePath");
-      expect(duplicate).not.toHaveProperty("sourceFileContent");
-      expect(duplicate).not.toHaveProperty("sourceFileDirty");
-      expect(duplicate).not.toHaveProperty("notebookId");
-      expect(duplicate).not.toHaveProperty("notebookState");
-
-      const created = createInitialTabState("conn-1", duplicate ?? undefined);
-      expect(created.query).toBe(source.query);
-      expect(created.queryParams).toEqual({ id: "7" });
-      expect(created.result).toBeNull();
-      expect(created.results).toBeUndefined();
-      expect(created.sourceFilePath).toBeUndefined();
-      expect(created.notebookId).toBeUndefined();
-    });
-
-    it("should omit parameters and schema when the source has none", () => {
-      const duplicate = buildDuplicatedTab(
-        createMockTab({ queryParams: undefined, schema: undefined }),
-      );
-
-      expect(duplicate).not.toHaveProperty("queryParams");
-      expect(duplicate).not.toHaveProperty("schema");
-    });
-
-    it("should keep an empty schema", () => {
-      const duplicate = buildDuplicatedTab(createMockTab({ schema: "" }));
-      expect(duplicate?.schema).toBe("");
-    });
-
-    it("should refuse notebook, query builder, and users tabs", () => {
-      expect(buildDuplicatedTab(createMockTab({ type: "notebook" }))).toBeNull();
-      expect(
-        buildDuplicatedTab(createMockTab({ type: "query_builder" })),
-      ).toBeNull();
-      expect(buildDuplicatedTab(createMockTab({ type: "users" }))).toBeNull();
-    });
-
-    it("should not share parameter edits with the source tab", () => {
-      const source = createMockTab();
-      const duplicate = buildDuplicatedTab(source);
-      duplicate!.queryParams!.id = "changed";
-      expect(source.queryParams?.id).toBe("7");
-    });
-
-    it("should keep a materialized table tab read-only", () => {
-      const source = createMockTab({
-        type: "table",
-        title: "mv_orders",
-        activeTable: "mv_orders",
-        query: "SELECT * FROM mv_orders",
-        materialized: true,
-        isLoading: true,
-        executionTime: 4,
-      });
-      const duplicate = buildDuplicatedTab(source);
-
-      expect(duplicate).toEqual({
-        type: "table",
-        title: `mv_orders${DUPLICATE_TAB_TITLE_SUFFIX}`,
-        query: source.query,
-        activeTable: "mv_orders",
-        queryParams: { id: "7" },
-        schema: "public",
-        materialized: true,
-      });
-      expect(duplicate).not.toHaveProperty("readOnly");
-      expect(duplicate).not.toHaveProperty("result");
-      expect(duplicate).not.toHaveProperty("error");
-      expect(duplicate).not.toHaveProperty("isLoading");
-
-      const created = createInitialTabState("conn-1", duplicate ?? undefined);
-      expect(created.id).not.toBe(source.id);
-      expect(created.materialized).toBe(true);
-      expect(created.readOnly).toBeUndefined();
-      expect(created.result).toBeNull();
-      expect(created.error).toBe("");
-      expect(created.isLoading).toBe(false);
-      expect(created.executionTime).toBeNull();
-    });
-
-    it("should keep a read-only definition tab from regaining Run", () => {
-      const source = createMockTab({
-        type: "console",
-        title: "trg_audit Definition",
-        query: "CREATE TRIGGER trg_audit",
-        activeTable: null,
-        readOnly: true,
-        queryParams: undefined,
-        schema: "public",
-        isLoading: true,
-      });
-      const duplicate = buildDuplicatedTab(source);
-
-      expect(duplicate).toEqual({
-        type: "console",
-        title: `trg_audit Definition${DUPLICATE_TAB_TITLE_SUFFIX}`,
-        query: source.query,
-        activeTable: null,
-        schema: "public",
-        readOnly: true,
-      });
-      expect(duplicate).not.toHaveProperty("materialized");
-      expect(duplicate).not.toHaveProperty("result");
-      expect(duplicate).not.toHaveProperty("error");
-
-      const created = createInitialTabState("conn-1", duplicate ?? undefined);
-      expect(created.id).not.toBe(source.id);
-      expect(created.readOnly).toBe(true);
-      expect(created.materialized).toBeUndefined();
-      expect(created.result).toBeNull();
-      expect(created.isLoading).toBe(false);
-    });
-
-    it("should omit editability flags that are not set", () => {
-      const duplicate = buildDuplicatedTab(
-        createMockTab({ materialized: false, readOnly: false }),
-      );
-
-      expect(duplicate).not.toHaveProperty("materialized");
-      expect(duplicate).not.toHaveProperty("readOnly");
-    });
-  });
-
-  describe("insertTabAfter", () => {
-    const createMockTab = (overrides: Partial<Tab> = {}): Tab => ({
-      id: "tab-1",
-      title: "Test",
-      type: "console",
-      query: "",
-      result: null,
-      error: "",
-      executionTime: null,
-      page: 1,
-      activeTable: null,
-      pkColumns: null,
-      connectionId: "conn-1",
-      ...overrides,
-    });
-
-    it("should insert immediately after the source tab", () => {
-      const first = createMockTab({ id: "a1", title: "First" });
-      const source = createMockTab({ id: "a2", title: "Source" });
-      const last = createMockTab({ id: "a3", title: "Last" });
-      const copy = createMockTab({ id: "copy", title: "Source (copy)" });
-      const tabs = [first, source, last];
-
-      const next = insertTabAfter(tabs, "a2", copy);
-
-      expect(next.map((tab) => tab.id)).toEqual(["a1", "a2", "copy", "a3"]);
-      expect(tabs.map((tab) => tab.id)).toEqual(["a1", "a2", "a3"]);
-    });
-
-    it("should keep the copy next to the source inside one connection", () => {
-      const source = createMockTab({ id: "a1", title: "Source" });
-      const other = createMockTab({
-        id: "b1",
-        connectionId: "conn-2",
-        title: "Other",
-      });
-      const last = createMockTab({ id: "a2", title: "Last" });
-      const copy = createMockTab({ id: "copy", title: "Source (copy)" });
-
-      const next = insertTabAfter([source, other, last], "a1", copy);
-
-      expect(next.map((tab) => tab.id)).toEqual(["a1", "copy", "b1", "a2"]);
-      expect(
-        next.filter((tab) => tab.connectionId === "conn-1").map((tab) => tab.id),
-      ).toEqual(["a1", "copy", "a2"]);
-    });
-
-    it("should append when the source id is missing", () => {
-      const first = createMockTab({ id: "a1" });
-      const copy = createMockTab({ id: "copy" });
-
-      expect(insertTabAfter([first], "missing", copy).map((tab) => tab.id)).toEqual([
-        "a1",
-        "copy",
-      ]);
-    });
-  });
 });

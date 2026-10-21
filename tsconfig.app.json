@@ -15,6 +15,9 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
 
     /* Linting */
     "strict": true,
@@ -24,5 +27,11 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "tests/setup.ts", "tests/components/layout/Accordion.test.tsx", "tests/components/layout/NavItem.test.tsx", "tests/utils/triggerSql.test.ts"]
+  "include": [
+    "src",
+    "tests/setup.ts",
+    "tests/components/layout/sidebar/Accordion.test.tsx",
+    "tests/components/layout/sidebar/NavItem.test.tsx",
+    "tests/utils/triggerSql.test.ts"
+  ]
 }

@@ -241,8 +241,35 @@ describe('resultExport', () => {
         ).toBeNull();
     });
 
-    it('does not warn without a finite total row count', () => {
+    it('does not warn without pagination or when a single unknown-total page is complete', () => {
         expect(getLoadedRowsExportLimit(result)).toBeNull();
+        expect(
+            getLoadedRowsExportLimit({
+                ...result,
+                pagination: {total_rows: null, page: 1, page_size: 2, has_more: false},
+            }),
+        ).toBeNull();
+    });
+
+    it('warns without a total when more pages exist', () => {
+        expect(
+            getLoadedRowsExportLimit({
+                ...result,
+                pagination: {total_rows: null, page: 1, page_size: 2, has_more: true},
+            }),
+        ).toEqual({loadedRows: 2, totalRows: null});
+    });
+
+    it('warns without a total when the loaded page is not the first', () => {
+        expect(
+            getLoadedRowsExportLimit({
+                ...result,
+                pagination: {total_rows: null, page: 3, page_size: 2, has_more: false},
+            }),
+        ).toEqual({loadedRows: 2, totalRows: null});
+    });
+
+    it('treats a non-finite total as unknown', () => {
         expect(
             getLoadedRowsExportLimit({
                 ...result,
@@ -250,10 +277,10 @@ describe('resultExport', () => {
                     total_rows: Number.POSITIVE_INFINITY,
                     page: 1,
                     page_size: 2,
-                    has_more: false,
+                    has_more: true,
                 },
             }),
-        ).toBeNull();
+        ).toEqual({loadedRows: 2, totalRows: null});
     });
 
     describe('hasUnloadedRows', () => {
@@ -276,9 +303,12 @@ describe('resultExport', () => {
             expect(hasUnloadedRows({...result, pagination: page(2, false)})).toBe(false);
         });
 
-        it('follows has_more when the total is unknown', () => {
+        it('follows has_more and the page number when the total is unknown', () => {
             expect(hasUnloadedRows({...result, pagination: page(null, true)})).toBe(true);
             expect(hasUnloadedRows({...result, pagination: page(null, false)})).toBe(false);
+            expect(hasUnloadedRows({...result, pagination: {...page(null, false), page: 2}})).toBe(
+                true,
+            );
         });
     });
 

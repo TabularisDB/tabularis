@@ -15,6 +15,9 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "paths": {
+      "@/*": ["../../src/*"]
+    },
     "verbatimModuleSyntax": true,
     "outDir": "dist",
     "rootDir": "src"

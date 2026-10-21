@@ -1,409 +1,399 @@
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import { Monitor, Code2 } from "lucide-react";
-import clsx from "clsx";
-import { useSettings } from "../../hooks/useSettings";
+import {useState} from 'react';
+import {useTranslation} from 'react-i18next';
+import {Monitor, Code2} from 'lucide-react';
+import clsx from 'clsx';
+import {useSettings} from '@/hooks/useSettings';
 import {
-  EDITOR_FONT_SIZE_DEFAULT,
-  EDITOR_FONT_SIZE_MAX,
-  EDITOR_FONT_SIZE_MIN,
-} from "../../utils/editorFontSize";
-import { useTheme } from "../../hooks/useTheme";
+    EDITOR_FONT_SIZE_DEFAULT,
+    EDITOR_FONT_SIZE_MAX,
+    EDITOR_FONT_SIZE_MIN,
+} from '@/utils/editorFontSize';
+import {useTheme} from '@/hooks/useTheme';
+import {DEFAULT_RESULT_FONT_FAMILY, RESULT_FONT_INHERIT, getFontCSS} from '@/utils/settings';
 import {
-  DEFAULT_RESULT_FONT_FAMILY,
-  RESULT_FONT_INHERIT,
-  getFontCSS,
-} from "../../utils/settings";
-import {
-  SettingSection,
-  SettingRow,
-  SettingToggle,
-  SettingButtonGroup,
-  SettingSlider,
-  SettingNumberInput,
-} from "./SettingControls";
-import { FontPicker } from "./FontPicker";
-import { ThemePicker } from "./ThemePicker";
-import { ThemeManager } from "./ThemeManager";
-import { ResultColorsSection } from "./ResultColorsSection";
+    SettingSection,
+    SettingRow,
+    SettingToggle,
+    SettingButtonGroup,
+    SettingSlider,
+    SettingNumberInput,
+} from './SettingControls';
+import {FontPicker} from './FontPicker';
+import {ThemePicker} from './ThemePicker';
+import {ThemeManager} from './ThemeManager';
+import {ResultColorsSection} from './ResultColorsSection';
 
 export function AppearanceTab() {
-  const { t } = useTranslation();
-  const { settings, updateSetting } = useSettings();
-  const { allThemes } = useTheme();
-  const [subTab, setSubTab] = useState<"general" | "editor">("general");
+    const {t} = useTranslation();
+    const {settings, updateSetting} = useSettings();
+    const {allThemes} = useTheme();
+    const [subTab, setSubTab] = useState<'general' | 'editor'>('general');
 
-  return (
-    <div>
-      {/* Sub-tab switcher */}
-      <div className="flex gap-1 p-1 bg-surface-secondary/40 rounded-xl border border-default w-fit mb-6">
-        <button
-          onClick={() => setSubTab("general")}
-          className={clsx(
-            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-            subTab === "general"
-              ? "bg-elevated text-primary shadow-sm"
-              : "text-muted hover:text-primary",
-          )}
-        >
-          <Monitor size={15} />
-          {t("settings.appearance_general")}
-        </button>
-        <button
-          onClick={() => setSubTab("editor")}
-          className={clsx(
-            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-            subTab === "editor"
-              ? "bg-elevated text-primary shadow-sm"
-              : "text-muted hover:text-primary",
-          )}
-        >
-          <Code2 size={15} />
-          {t("settings.appearance_sqlEditor")}
-        </button>
-      </div>
-
-      {/* General sub-tab */}
-      {subTab === "general" && (
-        <>
-          <ThemeManager />
-
-          <SettingSection title={t("settings.fontFamily")}>
-            <div className="py-3">
-              <FontPicker
-                value={settings.fontFamily ?? "System"}
-                onChange={(f) => updateSetting("fontFamily", f)}
-                getPreviewCSS={(name) =>
-                  name === "System"
-                    ? "var(--font-base)"
-                    : `"${name}", ${name}`
-                }
-                inputId="custom-font-input"
-              />
+    return (
+        <div>
+            {/* Sub-tab switcher */}
+            <div className="flex gap-1 p-1 bg-surface-secondary/40 rounded-xl border border-default w-fit mb-6">
+                <button
+                    onClick={() => setSubTab('general')}
+                    className={clsx(
+                        'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                        subTab === 'general'
+                            ? 'bg-elevated text-primary shadow-sm'
+                            : 'text-muted hover:text-primary',
+                    )}
+                >
+                    <Monitor size={15} />
+                    {t('settings.appearance_general')}
+                </button>
+                <button
+                    onClick={() => setSubTab('editor')}
+                    className={clsx(
+                        'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                        subTab === 'editor'
+                            ? 'bg-elevated text-primary shadow-sm'
+                            : 'text-muted hover:text-primary',
+                    )}
+                >
+                    <Code2 size={15} />
+                    {t('settings.appearance_sqlEditor')}
+                </button>
             </div>
-          </SettingSection>
 
-          <SettingSection title={t("settings.fontSize")}>
-            <SettingRow
-              label={t("settings.fontSizeLabel")}
-              description={t("settings.fontSizeDesc")}
-            >
-              <SettingSlider
-                value={settings.fontSize || 14}
-                onChange={(v) => updateSetting("fontSize", v)}
-                min={10}
-                max={20}
-                step={1}
-                formatValue={(v) => `${v}px`}
-              />
-            </SettingRow>
-            <div className="bg-base border border-default rounded-lg p-4 mt-2">
-              <p className="text-xs text-muted mb-2">
-                {t("settings.preview")}:
-              </p>
-              <p
-                className="text-primary"
-                style={{ fontSize: `${settings.fontSize || 14}px` }}
-              >
-                Aa Bb Cc 123 - {t("settings.fontPreviewText")}
-              </p>
-            </div>
-          </SettingSection>
+            {/* General sub-tab */}
+            {subTab === 'general' && (
+                <>
+                    <ThemeManager />
 
-          <SettingSection title={t("settings.dataGrid.title")}>
-            <SettingRow
-              label={t("settings.dataGrid.stickyHeaders")}
-              description={t("settings.dataGrid.stickyHeadersDesc")}
-            >
-              <SettingToggle
-                checked={settings.stickyColumnHeaders ?? true}
-                onChange={(v) => updateSetting("stickyColumnHeaders", v)}
-              />
-            </SettingRow>
-            <SettingRow
-              label={t("settings.dataGrid.zebraStripes")}
-              description={t("settings.dataGrid.zebraStripesDesc")}
-            >
-              <SettingToggle
-                checked={settings.resultZebraStripes ?? false}
-                onChange={(v) => updateSetting("resultZebraStripes", v)}
-              />
-            </SettingRow>
-            <SettingRow
-              label={t("settings.dataGrid.defaultSortDirection")}
-              description={t("settings.dataGrid.defaultSortDirectionDesc")}
-            >
-              <SettingButtonGroup
-                value={settings.defaultSortDirection ?? "asc"}
-                onChange={(v) => updateSetting("defaultSortDirection", v)}
-                options={[
-                  {
-                    value: "asc",
-                    label: t("settings.dataGrid.sortAscending"),
-                  },
-                  {
-                    value: "desc",
-                    label: t("settings.dataGrid.sortDescending"),
-                  },
-                ]}
-              />
-            </SettingRow>
-            <div className="py-3">
-              <p className="text-sm text-primary">
-                {t("settings.dataGrid.fontFamily")}
-              </p>
-              <p className="text-xs text-muted mb-3">
-                {t("settings.dataGrid.fontFamilyDesc")}
-              </p>
-              <FontPicker
-                value={settings.resultFontFamily ?? DEFAULT_RESULT_FONT_FAMILY}
-                onChange={(f) => updateSetting("resultFontFamily", f)}
-                getPreviewCSS={getFontCSS}
-                inputId="custom-result-font-input"
-                inheritOption={{
-                  value: RESULT_FONT_INHERIT,
-                  label: t("settings.dataGrid.fontSameAsInterface"),
-                  previewCSS: "var(--font-base)",
-                }}
-              />
-            </div>
-          </SettingSection>
+                    <SettingSection title={t('settings.fontFamily')}>
+                        <div className="py-3">
+                            <FontPicker
+                                value={settings.fontFamily ?? 'System'}
+                                onChange={(f) => updateSetting('fontFamily', f)}
+                                getPreviewCSS={(name) =>
+                                    name === 'System' ? 'var(--font-base)' : `"${name}", ${name}`
+                                }
+                                inputId="custom-font-input"
+                            />
+                        </div>
+                    </SettingSection>
 
-          <ResultColorsSection />
-        </>
-      )}
+                    <SettingSection title={t('settings.fontSize')}>
+                        <SettingRow
+                            label={t('settings.fontSizeLabel')}
+                            description={t('settings.fontSizeDesc')}
+                        >
+                            <SettingSlider
+                                value={settings.fontSize || 14}
+                                onChange={(v) => updateSetting('fontSize', v)}
+                                min={10}
+                                max={20}
+                                step={1}
+                                formatValue={(v) => `${v}px`}
+                            />
+                        </SettingRow>
+                        <div className="bg-base border border-default rounded-lg p-4 mt-2">
+                            <p className="text-xs text-muted mb-2">{t('settings.preview')}:</p>
+                            <p
+                                className="text-primary"
+                                style={{fontSize: `${settings.fontSize || 14}px`}}
+                            >
+                                Aa Bb Cc 123 - {t('settings.fontPreviewText')}
+                            </p>
+                        </div>
+                    </SettingSection>
 
-      {/* Editor sub-tab */}
-      {subTab === "editor" && (
-        <>
-          <SettingSection title={t("settings.appearance_editorTheme")}>
-            <p className="text-xs text-muted mb-3">
-              {t("settings.appearance_editorThemeDesc")}
-            </p>
-            <div className="py-1">
-              <ThemePicker
-                value={settings.editorTheme ?? ""}
-                onChange={(id) => updateSetting("editorTheme", id)}
-                themes={allThemes}
-                showSameAsApp
-              />
-            </div>
-          </SettingSection>
+                    <SettingSection title={t('settings.dataGrid.title')}>
+                        <SettingRow
+                            label={t('settings.dataGrid.stickyHeaders')}
+                            description={t('settings.dataGrid.stickyHeadersDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.stickyColumnHeaders ?? true}
+                                onChange={(v) => updateSetting('stickyColumnHeaders', v)}
+                            />
+                        </SettingRow>
+                        <SettingRow
+                            label={t('settings.dataGrid.zebraStripes')}
+                            description={t('settings.dataGrid.zebraStripesDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.resultZebraStripes ?? false}
+                                onChange={(v) => updateSetting('resultZebraStripes', v)}
+                            />
+                        </SettingRow>
+                        <SettingRow
+                            label={t('settings.dataGrid.defaultSortDirection')}
+                            description={t('settings.dataGrid.defaultSortDirectionDesc')}
+                        >
+                            <SettingButtonGroup
+                                value={settings.defaultSortDirection ?? 'asc'}
+                                onChange={(v) => updateSetting('defaultSortDirection', v)}
+                                options={[
+                                    {
+                                        value: 'asc',
+                                        label: t('settings.dataGrid.sortAscending'),
+                                    },
+                                    {
+                                        value: 'desc',
+                                        label: t('settings.dataGrid.sortDescending'),
+                                    },
+                                ]}
+                            />
+                        </SettingRow>
+                        <div className="py-3">
+                            <p className="text-sm text-primary">
+                                {t('settings.dataGrid.fontFamily')}
+                            </p>
+                            <p className="text-xs text-muted mb-3">
+                                {t('settings.dataGrid.fontFamilyDesc')}
+                            </p>
+                            <FontPicker
+                                value={settings.resultFontFamily ?? DEFAULT_RESULT_FONT_FAMILY}
+                                onChange={(f) => updateSetting('resultFontFamily', f)}
+                                getPreviewCSS={getFontCSS}
+                                inputId="custom-result-font-input"
+                                inheritOption={{
+                                    value: RESULT_FONT_INHERIT,
+                                    label: t('settings.dataGrid.fontSameAsInterface'),
+                                    previewCSS: 'var(--font-base)',
+                                }}
+                            />
+                        </div>
+                    </SettingSection>
 
-          <SettingSection title={t("settings.appearance_editorFontFamily")}>
-            <div className="py-3">
-              <FontPicker
-                value={settings.editorFontFamily ?? "JetBrains Mono"}
-                onChange={(f) => updateSetting("editorFontFamily", f)}
-                getPreviewCSS={getFontCSS}
-                inputId="custom-editor-font-input"
-              />
-            </div>
-          </SettingSection>
+                    <ResultColorsSection />
+                </>
+            )}
 
-          <SettingSection title={t("settings.appearance_editorFontSize")}>
-            <SettingRow label={t("settings.appearance_editorFontSize")}>
-              <SettingSlider
-                value={settings.editorFontSize ?? EDITOR_FONT_SIZE_DEFAULT}
-                onChange={(v) => updateSetting("editorFontSize", v)}
-                min={EDITOR_FONT_SIZE_MIN}
-                max={EDITOR_FONT_SIZE_MAX}
-                step={1}
-                formatValue={(v) => `${v}px`}
-              />
-            </SettingRow>
+            {/* Editor sub-tab */}
+            {subTab === 'editor' && (
+                <>
+                    <SettingSection title={t('settings.appearance_editorTheme')}>
+                        <p className="text-xs text-muted mb-3">
+                            {t('settings.appearance_editorThemeDesc')}
+                        </p>
+                        <div className="py-1">
+                            <ThemePicker
+                                value={settings.editorTheme ?? ''}
+                                onChange={(id) => updateSetting('editorTheme', id)}
+                                themes={allThemes}
+                                showSameAsApp
+                            />
+                        </div>
+                    </SettingSection>
 
-            <SettingRow label={t("settings.appearance_editorLineHeight")}>
-              <SettingSlider
-                value={settings.editorLineHeight ?? 1.5}
-                onChange={(v) => updateSetting("editorLineHeight", v)}
-                min={1.0}
-                max={2.5}
-                step={0.1}
-                formatValue={(v) => v.toFixed(1)}
-              />
-            </SettingRow>
-          </SettingSection>
+                    <SettingSection title={t('settings.appearance_editorFontFamily')}>
+                        <div className="py-3">
+                            <FontPicker
+                                value={settings.editorFontFamily ?? 'JetBrains Mono'}
+                                onChange={(f) => updateSetting('editorFontFamily', f)}
+                                getPreviewCSS={getFontCSS}
+                                inputId="custom-editor-font-input"
+                            />
+                        </div>
+                    </SettingSection>
 
-          <SettingSection title={t("settings.appearance_editorTabSize")}>
-            <SettingRow label={t("settings.appearance_editorTabSize")}>
-              <SettingButtonGroup
-                value={settings.editorTabSize ?? 2}
-                onChange={(v) => updateSetting("editorTabSize", v)}
-                options={[
-                  { value: 2, label: "2" },
-                  { value: 4, label: "4" },
-                  { value: 8, label: "8" },
-                ]}
-                mono
-              />
-            </SettingRow>
-          </SettingSection>
+                    <SettingSection title={t('settings.appearance_editorFontSize')}>
+                        <SettingRow label={t('settings.appearance_editorFontSize')}>
+                            <SettingSlider
+                                value={settings.editorFontSize ?? EDITOR_FONT_SIZE_DEFAULT}
+                                onChange={(v) => updateSetting('editorFontSize', v)}
+                                min={EDITOR_FONT_SIZE_MIN}
+                                max={EDITOR_FONT_SIZE_MAX}
+                                step={1}
+                                formatValue={(v) => `${v}px`}
+                            />
+                        </SettingRow>
 
-          <SettingSection title={t("settings.appearance_editorWordWrap")}>
-            <SettingRow
-              label={t("settings.appearance_editorWordWrap")}
-              description={t("settings.appearance_editorWordWrapDesc")}
-            >
-              <SettingToggle
-                checked={settings.editorWordWrap ?? true}
-                onChange={(v) => updateSetting("editorWordWrap", v)}
-              />
-            </SettingRow>
+                        <SettingRow label={t('settings.appearance_editorLineHeight')}>
+                            <SettingSlider
+                                value={settings.editorLineHeight ?? 1.5}
+                                onChange={(v) => updateSetting('editorLineHeight', v)}
+                                min={1.0}
+                                max={2.5}
+                                step={0.1}
+                                formatValue={(v) => v.toFixed(1)}
+                            />
+                        </SettingRow>
+                    </SettingSection>
 
-            <SettingRow
-              label={t("settings.appearance_editorHighlightInvisibleCharacters")}
-              description={t("settings.appearance_editorHighlightInvisibleCharactersDesc")}
-            >
-              <SettingToggle
-                checked={settings.editorHighlightInvisibleCharacters ?? true}
-                onChange={(v) => updateSetting("editorHighlightInvisibleCharacters", v)}
-              />
-            </SettingRow>
+                    <SettingSection title={t('settings.appearance_editorTabSize')}>
+                        <SettingRow label={t('settings.appearance_editorTabSize')}>
+                            <SettingButtonGroup
+                                value={settings.editorTabSize ?? 2}
+                                onChange={(v) => updateSetting('editorTabSize', v)}
+                                options={[
+                                    {value: 2, label: '2'},
+                                    {value: 4, label: '4'},
+                                    {value: 8, label: '8'},
+                                ]}
+                                mono
+                            />
+                        </SettingRow>
+                    </SettingSection>
 
-            <SettingRow
-              label={t("settings.appearance_editorShowLineNumbers")}
-              description={t(
-                "settings.appearance_editorShowLineNumbersDesc",
-              )}
-            >
-              <SettingToggle
-                checked={settings.editorShowLineNumbers ?? true}
-                onChange={(v) => updateSetting("editorShowLineNumbers", v)}
-              />
-            </SettingRow>
+                    <SettingSection title={t('settings.appearance_editorWordWrap')}>
+                        <SettingRow
+                            label={t('settings.appearance_editorWordWrap')}
+                            description={t('settings.appearance_editorWordWrapDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.editorWordWrap ?? true}
+                                onChange={(v) => updateSetting('editorWordWrap', v)}
+                            />
+                        </SettingRow>
 
-            <SettingRow
-              label={t("settings.appearance_editorAcceptSuggestionOnEnter")}
-              description={t(
-                "settings.appearance_editorAcceptSuggestionOnEnterDesc",
-              )}
-            >
-              <SettingToggle
-                checked={settings.editorAcceptSuggestionOnEnter ?? true}
-                onChange={(v) =>
-                  updateSetting("editorAcceptSuggestionOnEnter", v)
-                }
-              />
-            </SettingRow>
-          </SettingSection>
+                        <SettingRow
+                            label={t('settings.appearance_editorHighlightInvisibleCharacters')}
+                            description={t(
+                                'settings.appearance_editorHighlightInvisibleCharactersDesc',
+                            )}
+                        >
+                            <SettingToggle
+                                checked={settings.editorHighlightInvisibleCharacters ?? true}
+                                onChange={(v) =>
+                                    updateSetting('editorHighlightInvisibleCharacters', v)
+                                }
+                            />
+                        </SettingRow>
 
-          <SettingSection title={t("settings.autocomplete_title")}>
-            <SettingRow
-              label={t("settings.autocomplete_keywordCase")}
-              description={t("settings.autocomplete_keywordCaseDesc")}
-            >
-              <SettingButtonGroup
-                value={settings.autocompleteKeywordCase ?? "match"}
-                onChange={(v) => updateSetting("autocompleteKeywordCase", v)}
-                options={[
-                  {
-                    value: "match",
-                    label: t("settings.autocomplete_keywordCaseMatch"),
-                  },
-                  { value: "upper", label: "UPPER" },
-                  { value: "lower", label: "lower" },
-                ]}
-                mono
-              />
-            </SettingRow>
-          </SettingSection>
+                        <SettingRow
+                            label={t('settings.appearance_editorShowLineNumbers')}
+                            description={t('settings.appearance_editorShowLineNumbersDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.editorShowLineNumbers ?? true}
+                                onChange={(v) => updateSetting('editorShowLineNumbers', v)}
+                            />
+                        </SettingRow>
 
-          <SettingSection title={t("settings.formatter_title")}>
-            <SettingRow
-              label={t("settings.formatter_keywordCase")}
-              description={t("settings.formatter_keywordCaseDesc")}
-            >
-              <SettingButtonGroup
-                value={settings.formatterKeywordCase ?? "upper"}
-                onChange={(v) => updateSetting("formatterKeywordCase", v)}
-                options={[
-                  { value: "upper", label: "UPPER" },
-                  { value: "lower", label: "lower" },
-                  { value: "preserve", label: "Preserve" },
-                ]}
-                mono
-              />
-            </SettingRow>
+                        <SettingRow
+                            label={t('settings.appearance_editorAcceptSuggestionOnEnter')}
+                            description={t('settings.appearance_editorAcceptSuggestionOnEnterDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.editorAcceptSuggestionOnEnter ?? true}
+                                onChange={(v) => updateSetting('editorAcceptSuggestionOnEnter', v)}
+                            />
+                        </SettingRow>
+                    </SettingSection>
 
-            <SettingRow
-              label={t("settings.formatter_functionCase")}
-              description={t("settings.formatter_functionCaseDesc")}
-            >
-              <SettingButtonGroup
-                value={settings.formatterFunctionCase ?? "preserve"}
-                onChange={(v) => updateSetting("formatterFunctionCase", v)}
-                options={[
-                  { value: "upper", label: "UPPER" },
-                  { value: "lower", label: "lower" },
-                  { value: "preserve", label: "Preserve" },
-                ]}
-                mono
-              />
-            </SettingRow>
+                    <SettingSection title={t('settings.autocomplete_title')}>
+                        <SettingRow
+                            label={t('settings.autocomplete_keywordCase')}
+                            description={t('settings.autocomplete_keywordCaseDesc')}
+                        >
+                            <SettingButtonGroup
+                                value={settings.autocompleteKeywordCase ?? 'match'}
+                                onChange={(v) => updateSetting('autocompleteKeywordCase', v)}
+                                options={[
+                                    {
+                                        value: 'match',
+                                        label: t('settings.autocomplete_keywordCaseMatch'),
+                                    },
+                                    {value: 'upper', label: 'UPPER'},
+                                    {value: 'lower', label: 'lower'},
+                                ]}
+                                mono
+                            />
+                        </SettingRow>
+                    </SettingSection>
 
-            <SettingRow
-              label={t("settings.formatter_indentStyle")}
-              description={t("settings.formatter_indentStyleDesc")}
-            >
-              <SettingButtonGroup
-                value={settings.formatterIndentStyle ?? "standard"}
-                onChange={(v) => updateSetting("formatterIndentStyle", v)}
-                options={[
-                  { value: "standard", label: "Standard" },
-                  { value: "tabularLeft", label: "Tabular Left" },
-                  { value: "tabularRight", label: "Tabular Right" },
-                ]}
-              />
-            </SettingRow>
+                    <SettingSection title={t('settings.formatter_title')}>
+                        <SettingRow
+                            label={t('settings.formatter_keywordCase')}
+                            description={t('settings.formatter_keywordCaseDesc')}
+                        >
+                            <SettingButtonGroup
+                                value={settings.formatterKeywordCase ?? 'upper'}
+                                onChange={(v) => updateSetting('formatterKeywordCase', v)}
+                                options={[
+                                    {value: 'upper', label: 'UPPER'},
+                                    {value: 'lower', label: 'lower'},
+                                    {value: 'preserve', label: 'Preserve'},
+                                ]}
+                                mono
+                            />
+                        </SettingRow>
 
-            <SettingRow label={t("settings.formatter_tabWidth")}>
-              <SettingButtonGroup
-                value={settings.formatterTabWidth ?? 2}
-                onChange={(v) => updateSetting("formatterTabWidth", v)}
-                options={[
-                  { value: 2, label: "2" },
-                  { value: 4, label: "4" },
-                ]}
-                mono
-              />
-            </SettingRow>
+                        <SettingRow
+                            label={t('settings.formatter_functionCase')}
+                            description={t('settings.formatter_functionCaseDesc')}
+                        >
+                            <SettingButtonGroup
+                                value={settings.formatterFunctionCase ?? 'preserve'}
+                                onChange={(v) => updateSetting('formatterFunctionCase', v)}
+                                options={[
+                                    {value: 'upper', label: 'UPPER'},
+                                    {value: 'lower', label: 'lower'},
+                                    {value: 'preserve', label: 'Preserve'},
+                                ]}
+                                mono
+                            />
+                        </SettingRow>
 
-            <SettingRow
-              label={t("settings.formatter_useTabs")}
-              description={t("settings.formatter_useTabsDesc")}
-            >
-              <SettingToggle
-                checked={settings.formatterUseTabs ?? false}
-                onChange={(v) => updateSetting("formatterUseTabs", v)}
-              />
-            </SettingRow>
+                        <SettingRow
+                            label={t('settings.formatter_indentStyle')}
+                            description={t('settings.formatter_indentStyleDesc')}
+                        >
+                            <SettingButtonGroup
+                                value={settings.formatterIndentStyle ?? 'standard'}
+                                onChange={(v) => updateSetting('formatterIndentStyle', v)}
+                                options={[
+                                    {value: 'standard', label: 'Standard'},
+                                    {value: 'tabularLeft', label: 'Tabular Left'},
+                                    {value: 'tabularRight', label: 'Tabular Right'},
+                                ]}
+                            />
+                        </SettingRow>
 
-            <SettingRow
-              label={t("settings.formatter_linesBetweenQueries")}
-              description={t("settings.formatter_linesBetweenQueriesDesc")}
-            >
-              <SettingNumberInput
-                value={settings.formatterLinesBetweenQueries ?? 1}
-                onChange={(v) => updateSetting("formatterLinesBetweenQueries", v)}
-                min={0}
-                max={5}
-                step={1}
-              />
-            </SettingRow>
+                        <SettingRow label={t('settings.formatter_tabWidth')}>
+                            <SettingButtonGroup
+                                value={settings.formatterTabWidth ?? 2}
+                                onChange={(v) => updateSetting('formatterTabWidth', v)}
+                                options={[
+                                    {value: 2, label: '2'},
+                                    {value: 4, label: '4'},
+                                ]}
+                                mono
+                            />
+                        </SettingRow>
 
-            <SettingRow
-              label={t("settings.formatter_denseOperators")}
-              description={t("settings.formatter_denseOperatorsDesc")}
-            >
-              <SettingToggle
-                checked={settings.formatterDenseOperators ?? false}
-                onChange={(v) => updateSetting("formatterDenseOperators", v)}
-              />
-            </SettingRow>
-          </SettingSection>
-        </>
-      )}
-    </div>
-  );
+                        <SettingRow
+                            label={t('settings.formatter_useTabs')}
+                            description={t('settings.formatter_useTabsDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.formatterUseTabs ?? false}
+                                onChange={(v) => updateSetting('formatterUseTabs', v)}
+                            />
+                        </SettingRow>
+
+                        <SettingRow
+                            label={t('settings.formatter_linesBetweenQueries')}
+                            description={t('settings.formatter_linesBetweenQueriesDesc')}
+                        >
+                            <SettingNumberInput
+                                value={settings.formatterLinesBetweenQueries ?? 1}
+                                onChange={(v) => updateSetting('formatterLinesBetweenQueries', v)}
+                                min={0}
+                                max={5}
+                                step={1}
+                            />
+                        </SettingRow>
+
+                        <SettingRow
+                            label={t('settings.formatter_denseOperators')}
+                            description={t('settings.formatter_denseOperatorsDesc')}
+                        >
+                            <SettingToggle
+                                checked={settings.formatterDenseOperators ?? false}
+                                onChange={(v) => updateSetting('formatterDenseOperators', v)}
+                            />
+                        </SettingRow>
+                    </SettingSection>
+                </>
+            )}
+        </div>
+    );
 }
