@@ -102,6 +102,28 @@ pub fn is_backup_due(
     !last_successful_run_at.is_some_and(|last| ptz.date_of(last) == today_date)
 }
 
+/// When the plan's daily slot was last settled: by a successful backup, or by
+/// a cancellation made once that day's slot was due (cancelling a scheduled
+/// run, or any run after the daily time). A cancellation before the daily
+/// time, e.g. of an early manual run, leaves that day's slot open.
+pub fn slot_settled_at(
+    time_str: &str,
+    timezone_str: &str,
+    last_successful_run_at: Option<DateTime<Utc>>,
+    last_cancelled_at: Option<DateTime<Utc>>,
+) -> Option<DateTime<Utc>> {
+    let ptz = PlanTimezone::parse(timezone_str);
+    let (target_h, target_m) = parse_time_hh_mm(time_str).unwrap_or((2, 0));
+    let settling_cancel = last_cancelled_at.filter(|cancelled| {
+        ptz.target_utc(ptz.date_of(*cancelled), target_h, target_m)
+            .is_some_and(|target| *cancelled >= target)
+    });
+    match (last_successful_run_at, settling_cancel) {
+        (Some(success), Some(cancel)) => Some(success.max(cancel)),
+        (success, cancel) => success.or(cancel),
+    }
+}
+
 /// Whether a failed attempt at `last_failure_at` still blocks a retry.
 pub fn is_retry_blocked(now_utc: DateTime<Utc>, last_failure_at: Option<DateTime<Utc>>) -> bool {
     last_failure_at.is_some_and(|failed| now_utc - failed < RETRY_AFTER_FAILURE)

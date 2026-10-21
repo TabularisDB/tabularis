@@ -13,6 +13,7 @@ use sqlx::Row;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Runtime, State};
 use zip::ZipArchive;
@@ -58,13 +59,22 @@ pub(crate) fn abort_slot(handles: &Mutex<AbortHandleMap>, slot_key: &str) -> boo
 
 /// Registers `task` under `slot_key` so `abort_slot` can stop it, then waits
 /// for it. An aborted task yields [`DUMP_CANCELLED`].
+///
+/// `cancel_requested` covers a cancel that arrives before the task is
+/// registered, when `abort_slot` finds nothing to stop: the flag is checked
+/// again right after registering, so either the canceller sees the handle or
+/// this sees the flag.
 pub(crate) async fn await_cancellable_dump(
     handles: &Mutex<AbortHandleMap>,
     slot_key: String,
     task: tokio::task::JoinHandle<Result<(), String>>,
+    cancel_requested: Option<&AtomicBool>,
 ) -> Result<(), String> {
     let abort_handle = Arc::new(task.abort_handle());
     register_abort_handle(handles, slot_key.clone(), abort_handle.clone());
+    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        abort_handle.abort();
+    }
 
     let result = task.await;
 
@@ -88,20 +98,40 @@ pub async fn cancel_dump(
     Ok(())
 }
 
+/// One dump: what to write, where, and the cancellation slot it runs under.
+pub struct DumpRequest {
+    pub slot_key: String,
+    pub connection_id: String,
+    pub file_path: String,
+    pub options: DumpOptions,
+    pub schema: Option<String>,
+    pub database: Option<String>,
+}
+
+/// Runs `request`. When `cancel_requested` is set before the dump starts
+/// (e.g. during the SSH/K8s setup), it returns [`DUMP_CANCELLED`] without
+/// writing anything.
 pub async fn dump_database_with_handles<R: Runtime>(
     app: &AppHandle<R>,
     handles: &Arc<Mutex<AbortHandleMap>>,
-    slot_key: String,
-    connection_id: String,
-    file_path: String,
-    options: DumpOptions,
-    schema: Option<String>,
-    database: Option<String>,
+    request: DumpRequest,
+    cancel_requested: Option<&AtomicBool>,
 ) -> Result<(), String> {
+    let DumpRequest {
+        slot_key,
+        connection_id,
+        file_path,
+        options,
+        schema,
+        database,
+    } = request;
     let saved_conn = find_connection_by_id(app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(app, &expanded_params).await?;
     let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if cancel_requested.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        return Err(DUMP_CANCELLED.into());
+    }
     // Scope the dump to the selected database on connections that expose multiple
     // databases (e.g. MySQL/MariaDB). Without this the connection pool stays bound
     // to the primary database, so unqualified statements such as `SHOW CREATE TABLE`
@@ -217,7 +247,7 @@ pub async fn dump_database_with_handles<R: Runtime>(
         Ok::<(), String>(())
     });
 
-    await_cancellable_dump(handles, slot_key, task).await
+    await_cancellable_dump(handles, slot_key, task, cancel_requested).await
 }
 
 #[tauri::command]
@@ -233,12 +263,15 @@ pub async fn dump_database<R: Runtime>(
     dump_database_with_handles(
         &app,
         &state.handles,
-        connection_id.clone(),
-        connection_id,
-        file_path,
-        options,
-        schema,
-        database,
+        DumpRequest {
+            slot_key: connection_id.clone(),
+            connection_id,
+            file_path,
+            options,
+            schema,
+            database,
+        },
+        None,
     )
     .await
 }

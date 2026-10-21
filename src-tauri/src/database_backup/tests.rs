@@ -343,7 +343,7 @@ async fn run_exclusive_rejects_a_second_run_until_the_first_finishes() {
 async fn run_exclusive_releases_the_flag_when_the_run_is_dropped() {
     let flag = AtomicBool::new(false);
     {
-        let run = run_exclusive(&flag, || std::future::pending::<Result<(), String>>());
+        let run = run_exclusive(&flag, std::future::pending::<Result<(), String>>);
         tokio::pin!(run);
         assert!(futures::poll!(run.as_mut()).is_pending());
         assert!(flag.load(Ordering::SeqCst));
@@ -436,7 +436,7 @@ async fn cancelled_run_removes_the_partial_file_and_keeps_good_backups() {
                 std::future::pending::<()>().await;
                 Ok(())
             });
-            await_cancellable_dump(&handles, slot.clone(), task)
+            await_cancellable_dump(&handles, slot.clone(), task, None)
         },
     );
     let cancel = async {
@@ -520,4 +520,152 @@ async fn error_mentioning_cancel_is_not_a_cancellation() {
     )
     .await;
     assert_eq!(report.outcome, BackupOutcome::Error);
+}
+
+// ---------- Cancellation and per-plan state ----------
+
+#[test]
+fn cancelling_after_the_daily_time_settles_the_slot_until_tomorrow() {
+    let tz = "UTC";
+    let cancelled = Utc.with_ymd_and_hms(2026, 10, 19, 2, 5, 0).unwrap();
+    let settled = slot_settled_at("02:00", tz, None, Some(cancelled));
+    assert_eq!(settled, Some(cancelled));
+
+    // No restart later today, even though nothing succeeded.
+    let later_today = Utc.with_ymd_and_hms(2026, 10, 19, 2, 30, 0).unwrap();
+    assert!(!is_backup_due(later_today, "02:00", tz, settled));
+    assert_eq!(
+        next_attempt_utc(later_today, "02:00", tz, settled, None),
+        Utc.with_ymd_and_hms(2026, 10, 20, 2, 0, 0).unwrap()
+    );
+
+    // The next daily slot runs as usual.
+    let tomorrow = Utc.with_ymd_and_hms(2026, 10, 20, 2, 0, 30).unwrap();
+    assert!(is_backup_due(tomorrow, "02:00", tz, settled));
+}
+
+#[test]
+fn cancelling_before_the_daily_time_leaves_the_slot_open() {
+    let tz = "UTC";
+    // An early manual run, cancelled before 02:00.
+    let cancelled = Utc.with_ymd_and_hms(2026, 10, 19, 1, 30, 0).unwrap();
+    assert_eq!(slot_settled_at("02:00", tz, None, Some(cancelled)), None);
+
+    let at_slot = Utc.with_ymd_and_hms(2026, 10, 19, 2, 0, 30).unwrap();
+    let settled = slot_settled_at("02:00", tz, None, Some(cancelled));
+    assert!(is_backup_due(at_slot, "02:00", tz, settled));
+}
+
+#[test]
+fn slot_settled_at_takes_the_later_of_success_and_cancellation() {
+    let tz = "UTC";
+    let success = Utc.with_ymd_and_hms(2026, 10, 18, 2, 1, 0).unwrap();
+    let cancelled = Utc.with_ymd_and_hms(2026, 10, 19, 2, 5, 0).unwrap();
+    assert_eq!(
+        slot_settled_at("02:00", tz, Some(success), Some(cancelled)),
+        Some(cancelled)
+    );
+    assert_eq!(
+        slot_settled_at("02:00", tz, Some(success), None),
+        Some(success)
+    );
+}
+
+#[test]
+fn record_report_keeps_cancellations_out_of_the_retry_delay() {
+    // A key no other test uses, since the runtime state is shared.
+    let key = "record-report-test\nprod\n/backups";
+    let report = |outcome| BackupRunReport {
+        outcome,
+        file: None,
+        error: Some("x".into()),
+        pruned: Vec::new(),
+    };
+    let at = Utc.with_ymd_and_hms(2026, 10, 19, 2, 5, 0).unwrap();
+
+    record_report(key, &report(BackupOutcome::Cancelled), at);
+    assert_eq!(
+        entry_for(&RUNTIME_STATE.last_cancelled_at.lock().unwrap(), key),
+        Some(at)
+    );
+    assert_eq!(
+        entry_for(&RUNTIME_STATE.last_failure_attempt_at.lock().unwrap(), key),
+        None,
+        "a cancellation does not schedule a retry"
+    );
+
+    let failed_at = at + Duration::minutes(1);
+    record_report(key, &report(BackupOutcome::Error), failed_at);
+    assert_eq!(
+        entry_for(&RUNTIME_STATE.last_failure_attempt_at.lock().unwrap(), key),
+        Some(failed_at)
+    );
+}
+
+#[test]
+fn runs_recorded_for_another_plan_do_not_count() {
+    let dir = tempfile::tempdir().unwrap();
+    let plan = plan_for(dir.path(), 7);
+    let at = Utc.with_ymd_and_hms(2026, 10, 19, 2, 1, 0).unwrap();
+    let recorded = Some((plan_key(&plan), at));
+    assert_eq!(entry_for(&recorded, &plan_key(&plan)), Some(at));
+
+    let other_connection = DatabaseBackupPlan {
+        connection_id: "other".into(),
+        ..plan.clone()
+    };
+    let other_database = DatabaseBackupPlan {
+        database: Some("staging".into()),
+        ..plan.clone()
+    };
+    let other_destination = DatabaseBackupPlan {
+        destination_directory: "/elsewhere".into(),
+        ..plan.clone()
+    };
+    for other in [&other_connection, &other_database, &other_destination] {
+        assert_ne!(plan_key(other), plan_key(&plan));
+        assert_eq!(entry_for(&recorded, &plan_key(other)), None);
+    }
+}
+
+#[test]
+fn last_success_follows_the_plan_destination_on_disk() {
+    let with_backups = tempfile::tempdir().unwrap();
+    let empty = tempfile::tempdir().unwrap();
+    let good = seed_good_backups(with_backups.path());
+
+    let plan = plan_for(with_backups.path(), 7);
+    let (at, file) = last_success_for(&plan, None).expect("newest backup on disk");
+    assert_eq!(at, Utc.with_ymd_and_hms(2026, 10, 18, 2, 0, 0).unwrap());
+    assert_eq!(
+        file,
+        with_backups.path().join(&good[1]).display().to_string()
+    );
+
+    // Pointing the plan at another folder drops the old folder's backups.
+    assert_eq!(last_success_for(&plan_for(empty.path(), 7), None), None);
+
+    // A newer run recorded in this session wins over the files on disk.
+    let newer = (
+        Utc.with_ymd_and_hms(2026, 10, 19, 2, 1, 0).unwrap(),
+        "recorded.sql".to_string(),
+    );
+    assert_eq!(last_success_for(&plan, Some(newer.clone())), Some(newer));
+}
+
+#[tokio::test]
+async fn a_cancel_before_the_dump_is_registered_still_stops_it() {
+    let handles: Arc<std::sync::Mutex<AbortHandleMap>> = Arc::default();
+    let slot = crate::dump_commands::db_backup_slot_key("conn");
+    // The cancel arrived while the dump was still being set up, so there was
+    // nothing to abort yet and only the flag is set.
+    let cancel_requested = AtomicBool::new(true);
+    assert!(!abort_slot(&handles, &slot));
+
+    let task = tokio::spawn(std::future::pending::<Result<(), String>>());
+    let result =
+        await_cancellable_dump(&handles, slot.clone(), task, Some(&cancel_requested)).await;
+
+    assert_eq!(result, Err(DUMP_CANCELLED.to_string()));
+    assert!(handles.lock().unwrap().is_empty(), "slot unregistered");
 }
