@@ -1036,7 +1036,6 @@
       "noBackupYet": "Резервных копий пока нет.",
       "backupDone": "Резервная копия записана в {{path}}",
       "custom": "Свой интервал",
-      "destination": "Назначение",
       "target": "Назначение резервных копий",
       "targetDesc": "Куда записываются файлы резервных копий. Папка, синхронизируемая Dropbox, OneDrive или Syncthing, даёт облачную копию бесплатно.",
       "targetLocal": "Локальная папка",
@@ -1104,6 +1103,7 @@
       "dbBackupReasonNoDialect": "Драйвер \"{{driver}}\" не объявляет SQL-диалект, поэтому его данные нельзя записать в SQL-дамп.",
       "databaseBackupErrorNoConnection": "Пожалуйста, выберите подключение для расписания.",
       "databaseBackupErrorNoDirectory": "Пожалуйста, укажите папку для сохранения копий.",
+      "databaseBackupErrorNoContent": "Выберите структуру, данные или и то и другое для резервной копии.",
       "databaseBackupErrorInvalidRetention": "Количество хранимых копий должно быть не менее 1.",
       "databaseBackupErrorInvalidTime": "Время запуска должно быть в формате ЧЧ:ММ.",
       "databaseBackupErrorUnsupportedDriver": "Выбранное подключение использует драйвер, не поддерживающий дампы баз данных."

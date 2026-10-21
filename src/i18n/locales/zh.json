@@ -1003,7 +1003,6 @@
       "noBackupYet": "尚无备份。",
       "backupDone": "备份已写入 {{path}}",
       "custom": "自定义",
-      "destination": "目标",
       "target": "备份目标",
       "targetDesc": "备份文件的写入位置。使用 Dropbox、OneDrive 或 Syncthing 同步的文件夹即可免费获得云备份。",
       "targetLocal": "本地文件夹",
@@ -1071,6 +1070,7 @@
       "dbBackupReasonNoDialect": "驱动 \"{{driver}}\" 未声明 SQL 方言，因此无法将其数据写入 SQL 转储。",
       "databaseBackupErrorNoConnection": "请为备份计划选择一个连接。",
       "databaseBackupErrorNoDirectory": "请为备份选择目标文件夹。",
+      "databaseBackupErrorNoContent": "请选择要备份的结构、数据或两者。",
       "databaseBackupErrorInvalidRetention": "至少需要保留 1 个备份。",
       "databaseBackupErrorInvalidTime": "每日时间必须为 HH：mm 格式。",
       "databaseBackupErrorUnsupportedDriver": "所选连接使用的驱动不支持数据库转储。"

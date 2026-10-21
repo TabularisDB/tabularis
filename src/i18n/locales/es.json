@@ -1068,7 +1068,6 @@
       "noBackupYet": "Aún no hay copias.",
       "backupDone": "Copia escrita en {{path}}",
       "custom": "Personalizada",
-      "destination": "Destino",
       "target": "Destino de las copias",
       "targetDesc": "Dónde se escriben los archivos de copia. Una carpeta sincronizada por Dropbox, OneDrive o Syncthing te da una copia en la nube gratis.",
       "targetLocal": "Carpeta local",
@@ -1136,6 +1135,7 @@
       "dbBackupReasonNoDialect": "El controlador \"{{driver}}\" no declara un dialecto SQL, por lo que sus datos no se pueden escribir como volcado SQL.",
       "databaseBackupErrorNoConnection": "Selecciona una conexión para la programación de copias.",
       "databaseBackupErrorNoDirectory": "Elige una carpeta de destino para las copias.",
+      "databaseBackupErrorNoContent": "Selecciona la estructura, los datos o ambos para la copia de seguridad.",
       "databaseBackupErrorInvalidRetention": "Debe conservarse al menos 1 copia.",
       "databaseBackupErrorInvalidTime": "La hora diaria debe tener el formato HH:mm.",
       "databaseBackupErrorUnsupportedDriver": "La conexión seleccionada usa un controlador que no admite volcados de bases de datos."

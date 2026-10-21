@@ -1103,7 +1103,6 @@
       "noBackupYet": "Nessun backup finora.",
       "backupDone": "Backup scritto in {{path}}",
       "custom": "Personalizzata",
-      "destination": "Destinazione",
       "target": "Destinazione dei backup",
       "targetDesc": "Dove vengono scritti i file di backup. Una cartella sincronizzata da Dropbox, OneDrive o Syncthing ti dà un backup cloud gratis.",
       "targetLocal": "Cartella locale",
@@ -1171,6 +1170,7 @@
       "dbBackupReasonNoDialect": "Il driver \"{{driver}}\" non dichiara un dialetto SQL, quindi i suoi dati non possono essere scritti in un dump SQL.",
       "databaseBackupErrorNoConnection": "Seleziona una connessione per la pianificazione dei backup.",
       "databaseBackupErrorNoDirectory": "Scegli una cartella di destinazione per i backup.",
+      "databaseBackupErrorNoContent": "Seleziona la struttura, i dati o entrambi da includere nel backup.",
       "databaseBackupErrorInvalidRetention": "È necessario conservare almeno 1 backup.",
       "databaseBackupErrorInvalidTime": "L'orario giornaliero deve essere nel formato HH:mm.",
       "databaseBackupErrorUnsupportedDriver": "La connessione selezionata usa un driver che non supporta i dump del database."

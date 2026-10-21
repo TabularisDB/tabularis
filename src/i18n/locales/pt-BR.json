@@ -1057,7 +1057,6 @@
       "noBackupYet": "Nenhum backup ainda.",
       "backupDone": "Backup gravado em {{path}}",
       "custom": "Personalizado",
-      "destination": "Destino",
       "target": "Destino do backup",
       "targetDesc": "Onde os arquivos de backup são gravados. Uma pasta sincronizada pelo Dropbox, OneDrive ou Syncthing oferece um backup na nuvem gratuito.",
       "targetLocal": "Pasta local",
@@ -1125,6 +1124,7 @@
       "dbBackupReasonNoDialect": "O driver \"{{driver}}\" não declara um dialeto SQL, então seus dados não podem ser gravados como dump SQL.",
       "databaseBackupErrorNoConnection": "Selecione uma conexão para o agendamento de backup.",
       "databaseBackupErrorNoDirectory": "Escolha uma pasta de destino para os backups.",
+      "databaseBackupErrorNoContent": "Selecione a estrutura, os dados ou ambos para o backup.",
       "databaseBackupErrorInvalidRetention": "É preciso manter pelo menos 1 backup.",
       "databaseBackupErrorInvalidTime": "O horário diário deve estar no formato HH:mm.",
       "databaseBackupErrorUnsupportedDriver": "A conexão selecionada usa um driver que não oferece suporte a dumps de banco de dados."

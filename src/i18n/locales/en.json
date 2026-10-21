@@ -1109,7 +1109,6 @@
       "noBackupYet": "No backup yet.",
       "backupDone": "Backup written to {{path}}",
       "custom": "Custom",
-      "destination": "Destination",
       "target": "Backup destination",
       "targetDesc": "Where the backup files are written. A folder synced by Dropbox, OneDrive or Syncthing gives you a cloud backup for free.",
       "targetLocal": "Local folder",
@@ -1177,6 +1176,7 @@
       "dbBackupReasonNoDialect": "Driver \"{{driver}}\" does not declare an SQL dialect, so its data cannot be written as an SQL dump.",
       "databaseBackupErrorNoConnection": "Please select a connection for the backup schedule.",
       "databaseBackupErrorNoDirectory": "Please choose a destination directory for the backups.",
+      "databaseBackupErrorNoContent": "Select the structure, the data or both to back up.",
       "databaseBackupErrorInvalidRetention": "Retention must be at least 1 backup.",
       "databaseBackupErrorInvalidTime": "Daily time must be in HH:mm format.",
       "databaseBackupErrorUnsupportedDriver": "The selected connection uses a driver that does not support database dumps."

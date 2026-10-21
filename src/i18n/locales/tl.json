@@ -1073,7 +1073,6 @@
       "noBackupYet": "Wala pang backup.",
       "backupDone": "Naisulat ang backup sa {{path}}",
       "custom": "Custom",
-      "destination": "Destinasyon",
       "target": "Destinasyon ng backup",
       "targetDesc": "Kung saan isinusulat ang mga backup file. Ang folder na naka-sync sa Dropbox, OneDrive o Syncthing ay libreng cloud backup.",
       "targetLocal": "Lokal na folder",
@@ -1141,6 +1140,7 @@
       "dbBackupReasonNoDialect": "Walang idineklarang SQL dialect ang driver na \"{{driver}}\", kaya hindi maisusulat ang data nito bilang SQL dump.",
       "databaseBackupErrorNoConnection": "Pumili ng connection para sa iskedyul ng backup.",
       "databaseBackupErrorNoDirectory": "Pumili ng destination folder para sa mga backup.",
+      "databaseBackupErrorNoContent": "Piliin ang istruktura, ang data, o pareho para i-back up.",
       "databaseBackupErrorInvalidRetention": "Kailangang magtabi ng hindi bababa sa 1 backup.",
       "databaseBackupErrorInvalidTime": "Dapat nasa format na HH:mm ang araw-araw na oras.",
       "databaseBackupErrorUnsupportedDriver": "Gumagamit ang napiling connection ng driver na hindi sumusuporta sa database dump."

@@ -1057,7 +1057,6 @@
       "noBackupYet": "バックアップはまだありません。",
       "backupDone": "バックアップを {{path}} に書き込みました",
       "custom": "カスタム",
-      "destination": "保存先",
       "target": "バックアップの保存先",
       "targetDesc": "バックアップファイルの書き込み先。Dropbox・OneDrive・Syncthing で同期されたフォルダーなら無料でクラウドバックアップになります。",
       "targetLocal": "ローカルフォルダー",
@@ -1125,6 +1124,7 @@
       "dbBackupReasonNoDialect": "ドライバー \"{{driver}}\" は SQL 方言を宣言していないため、データを SQL ダンプとして書き出せません。",
       "databaseBackupErrorNoConnection": "バックアップスケジュールの接続を選択してください。",
       "databaseBackupErrorNoDirectory": "バックアップの保存先フォルダーを選択してください。",
+      "databaseBackupErrorNoContent": "バックアップする対象として、構造、データ、またはその両方を選択してください。",
       "databaseBackupErrorInvalidRetention": "保持数は 1 以上にしてください。",
       "databaseBackupErrorInvalidTime": "毎日の時刻は HH:mm 形式で指定してください。",
       "databaseBackupErrorUnsupportedDriver": "選択した接続のドライバーはデータベースのダンプに対応していません。"

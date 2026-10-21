@@ -1018,7 +1018,6 @@
       "noBackupYet": "아직 백업이 없습니다.",
       "backupDone": "백업이 {{path}}에 저장되었습니다.",
       "custom": "사용자 지정",
-      "destination": "대상",
       "target": "백업 대상",
       "targetDesc": "백업 파일이 저장되는 위치입니다. Dropbox, OneDrive 또는 Syncthing으로 동기화되는 폴더를 사용하면 무료로 클라우드 백업을 이용할 수 있습니다.",
       "targetLocal": "로컬 폴더",
@@ -1086,6 +1085,7 @@
       "dbBackupReasonNoDialect": "\"{{driver}}\" 드라이버는 SQL 방언을 선언하지 않아 데이터를 SQL 덤프로 쓸 수 없습니다.",
       "databaseBackupErrorNoConnection": "백업 일정에 사용할 연결을 선택하세요.",
       "databaseBackupErrorNoDirectory": "백업을 저장할 폴더를 선택하세요.",
+      "databaseBackupErrorNoContent": "백업할 구조, 데이터 또는 둘 다를 선택하세요.",
       "databaseBackupErrorInvalidRetention": "최소 1개의 백업을 보관해야 합니다.",
       "databaseBackupErrorInvalidTime": "매일 실행 시간은 HH:mm 형식이어야 합니다.",
       "databaseBackupErrorUnsupportedDriver": "선택한 연결의 드라이버는 데이터베이스 덤프를 지원하지 않습니다."
