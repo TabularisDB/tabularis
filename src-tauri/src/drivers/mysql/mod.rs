@@ -2078,6 +2078,20 @@ impl DatabaseDriver for MysqlDriver {
         let connect_timeout =
             mysql_numeric_setting("connectTimeout", DEFAULT_MYSQL_CONNECT_TIMEOUT_MS);
         let timezone = mysql_string_setting("timezone", DEFAULT_MYSQL_TIMEZONE);
+        // A socket connection names the socket in the query string (as sqlx's
+        // URL parser expects) and never uses TLS, like `build_mysql_options`.
+        if let Some(socket) = params.mysql_socket() {
+            return Ok(format!(
+                "mysql://{}@localhost/{}?socket={}&maxAllowedPacket={}&socketTimeout={}&connectTimeout={}&timezone={}&ssl-mode=disabled",
+                credentials,
+                params.database,
+                encode(socket),
+                max_allowed_packet,
+                socket_timeout,
+                connect_timeout,
+                encode(&timezone),
+            ));
+        }
         let ssl_mode = match params.ssl_mode.as_deref() {
             Some("disabled") | Some("disable") => "disabled",
             Some("preferred") | Some("prefer") => "preferred",

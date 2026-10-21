@@ -861,4 +861,52 @@ describe("connectionStringParser", () => {
       }
     });
   });
+
+  describe("MySQL Unix socket", () => {
+    it("imports ?socket= as a socket connection", () => {
+      const result = parseConnectionString(
+        "mysql://root@localhost/db?socket=/tmp/mysql.sock",
+        CAPABILITY_DRIVERS,
+      );
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.params.driver).toBe("mysql");
+        expect(result.params.socket).toBe("/tmp/mysql.sock");
+        expect(result.params.username).toBe("root");
+        expect(result.params.database).toBe("db");
+        expect(toConnectionParams(result.params).socket).toBe("/tmp/mysql.sock");
+      }
+    });
+
+    it("decodes a percent-encoded socket path", () => {
+      const result = parseConnectionString(
+        "mysql://root@localhost/db?socket=%2Fvar%2Frun%2Fmysqld%2Fmysqld.sock",
+        CAPABILITY_DRIVERS,
+      );
+      expect(result.success && result.params.socket).toBe(
+        "/var/run/mysqld/mysqld.sock",
+      );
+    });
+
+    it("leaves socket unset without the parameter or when it is blank", () => {
+      for (const uri of [
+        "mysql://root@localhost:3306/db",
+        "mysql://root@localhost/db?socket=",
+        "mysql://root@localhost/db?socket=%20%20",
+      ]) {
+        const result = parseConnectionString(uri, CAPABILITY_DRIVERS);
+        expect(result.success).toBe(true);
+        if (result.success) expect(result.params.socket).toBeUndefined();
+      }
+    });
+
+    it("ignores ?socket= for other drivers", () => {
+      const result = parseConnectionString(
+        "postgres://user@localhost/db?socket=/tmp/.s.PGSQL.5432",
+        CAPABILITY_DRIVERS,
+      );
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.params.socket).toBeUndefined();
+    });
+  });
 });

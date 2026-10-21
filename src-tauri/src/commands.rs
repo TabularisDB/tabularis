@@ -496,6 +496,27 @@ fn ensure_single_tunnel(params: &ConnectionParams) -> Result<(), String> {
     Ok(())
 }
 
+/// A Unix socket connection reaches a local file, so an enabled SSH,
+/// Kubernetes or AWS SSM tunnel would be silently ignored. Reject it instead.
+/// Proxies are skipped for sockets rather than rejected: the global proxy
+/// scopes apply to every connection and are not a per-connection choice.
+fn ensure_no_tunnel_for_socket(params: &ConnectionParams) -> Result<(), String> {
+    let tunnel = [
+        ("An SSH", params.ssh_enabled),
+        ("A Kubernetes", params.k8s_enabled),
+        ("An AWS SSM", params.ssm_enabled),
+    ]
+    .into_iter()
+    .find(|(_, on)| on.unwrap_or(false));
+
+    match tunnel {
+        Some((name, _)) => Err(format!(
+            "{name} tunnel cannot be used with a Unix socket connection"
+        )),
+        None => Ok(()),
+    }
+}
+
 pub fn resolve_connection_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
     let mut resolved = resolve_connection_transport(params)?;
     // Only file/folder drivers store a path in `database`; for network drivers
@@ -510,6 +531,12 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
 /// database-scope proxy) and return params pointing at the local endpoint.
 fn resolve_connection_transport(params: &ConnectionParams) -> Result<ConnectionParams, String> {
     ensure_single_tunnel(params)?;
+
+    // A Unix socket is a local file: there is no host/port to tunnel or proxy.
+    if params.mysql_socket().is_some() {
+        ensure_no_tunnel_for_socket(params)?;
+        return Ok(params.clone());
+    }
 
     // Handle K8s tunnel - result is already on localhost; do not re-proxy.
     if params.k8s_enabled.unwrap_or(false) {
@@ -3960,6 +3987,51 @@ mod tests {
             let result = resolve_connection_params(&params);
             assert!(result.is_err());
             assert!(result.unwrap_err().contains("SSH User"));
+        }
+
+        fn socket_params() -> ConnectionParams {
+            ConnectionParams {
+                driver: "mysql".to_string(),
+                socket: Some("/tmp/mysql.sock".to_string()),
+                username: Some("root".to_string()),
+                database: DatabaseSelection::Single("testdb".to_string()),
+                ..Default::default()
+            }
+        }
+
+        #[tokio::test]
+        async fn test_socket_params_skip_transport_and_stay_unchanged() {
+            let params = socket_params();
+            let result = resolve_connection_params(&params).unwrap();
+            assert_eq!(result, params);
+        }
+
+        #[tokio::test]
+        async fn test_socket_params_reject_every_tunnel() {
+            let mut ssh = create_ssh_params("jump.server", 22, "admin", "db.internal", 3306);
+            ssh.socket = Some("/tmp/mysql.sock".to_string());
+            let err = resolve_connection_params(&ssh).unwrap_err();
+            assert!(err.contains("SSH tunnel"), "unexpected error: {err}");
+
+            let mut k8s = socket_params();
+            k8s.k8s_enabled = Some(true);
+            let err = resolve_connection_params(&k8s).unwrap_err();
+            assert!(err.contains("Kubernetes tunnel"), "unexpected error: {err}");
+
+            let mut ssm = socket_params();
+            ssm.ssm_enabled = Some(true);
+            let err = resolve_connection_params(&ssm).unwrap_err();
+            assert!(err.contains("AWS SSM tunnel"), "unexpected error: {err}");
+        }
+
+        #[tokio::test]
+        async fn test_blank_socket_keeps_ssh_tunnel_path() {
+            let mut params = create_ssh_params("jump.server", 22, "admin", "db.internal", 3306);
+            params.socket = Some("  ".to_string());
+            params.ssh_host = None;
+            // Reaches the SSH branch (and its validation) instead of the socket guard.
+            let err = resolve_connection_params(&params).unwrap_err();
+            assert!(err.contains("SSH Host"), "unexpected error: {err}");
         }
     }
 

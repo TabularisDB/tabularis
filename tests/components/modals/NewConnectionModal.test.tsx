@@ -491,6 +491,76 @@ describe("NewConnectionModal layout", () => {
     );
   });
 
+  describe("MySQL Unix socket", () => {
+    it("swaps host and port for a socket path and hides SSL and tunnel tabs", async () => {
+      renderModal(createInitialConnection({ host: "db.local", port: 3306 }));
+
+      await waitFor(() =>
+        expect(screen.getByPlaceholderText("localhost")).toHaveValue("db.local"),
+      );
+      expect(screen.getByRole("button", { name: "SSH" })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByLabelText("newConnection.connectViaSocket"));
+
+      expect(screen.queryByPlaceholderText("localhost")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("newConnection.socketPath")).toHaveValue("");
+      for (const tab of ["SSL", "SSH", "Kubernetes", "AWS SSM"]) {
+        expect(screen.queryByRole("button", { name: tab })).not.toBeInTheDocument();
+      }
+
+      fireEvent.click(screen.getByLabelText("newConnection.connectViaSocket"));
+      expect(screen.getByPlaceholderText("localhost")).toHaveValue("db.local");
+    });
+
+    it("requires a socket path before testing", async () => {
+      vi.mocked(invoke).mockResolvedValue("ok");
+      renderModal(createInitialConnection({ host: "db.local" }));
+      await waitFor(() =>
+        expect(screen.getByPlaceholderText("localhost")).toHaveValue("db.local"),
+      );
+
+      fireEvent.click(screen.getByLabelText("newConnection.connectViaSocket"));
+      fireEvent.click(screen.getByText("newConnection.testConnection"));
+
+      expect(
+        await screen.findByText("newConnection.socketPathRequired"),
+      ).toBeInTheDocument();
+      expect(invoke).not.toHaveBeenCalledWith("test_connection", expect.anything());
+    });
+
+    it("opens a saved socket connection in socket mode and tests through the socket", async () => {
+      vi.mocked(invoke).mockResolvedValue("ok");
+      renderModal(
+        createInitialConnection({
+          host: "localhost",
+          socket: "/tmp/mysql.sock",
+        }),
+      );
+
+      await waitFor(() =>
+        expect(screen.getByLabelText("newConnection.connectViaSocket")).toBeChecked(),
+      );
+      expect(screen.getByLabelText("newConnection.socketPath")).toHaveValue(
+        "/tmp/mysql.sock",
+      );
+
+      fireEvent.click(screen.getByText("newConnection.testConnection"));
+
+      await waitFor(() => {
+        expect(invoke).toHaveBeenCalledWith(
+          "test_connection",
+          expect.objectContaining({
+            request: expect.objectContaining({
+              params: expect.objectContaining({
+                socket: "/tmp/mysql.sock",
+              }),
+            }),
+          }),
+        );
+      });
+    });
+  });
+
   it("keeps the dialog shell at a stable viewport-bounded height", () => {
     const { container } = renderModal();
     const shell = container.querySelector("fieldset");

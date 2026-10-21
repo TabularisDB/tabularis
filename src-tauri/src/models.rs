@@ -187,6 +187,11 @@ pub struct ConnectionParams {
     pub driver: String,
     pub host: Option<String>,
     pub port: Option<u16>,
+    /// MySQL/MariaDB: path of a local Unix socket (e.g.
+    /// `/var/run/mysqld/mysqld.sock`). When set, the driver connects through
+    /// it instead of `host`/`port`, without TLS and without any tunnel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socket: Option<String>,
     pub username: Option<String>,
     pub password: Option<String>,
     /// Opaque driver-specific connection URI forwarded verbatim to the driver
@@ -310,6 +315,21 @@ pub struct ConnectionParams {
     // Connection ID for stable pooling (not persisted, set at runtime)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
+}
+
+impl ConnectionParams {
+    /// The Unix socket path of a MySQL/MariaDB connection, or `None` for a
+    /// TCP connection. A blank path counts as unset, and other drivers never
+    /// use the field.
+    pub fn mysql_socket(&self) -> Option<&str> {
+        if self.driver != "mysql" {
+            return None;
+        }
+        self.socket
+            .as_deref()
+            .map(str::trim)
+            .filter(|path| !path.is_empty())
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]

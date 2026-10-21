@@ -217,7 +217,9 @@ pub(crate) fn build_connection_key(
             // The raw ssl_mode is kept as written. `build_mysql_options` rejects
             // unknown values, so they must not collapse onto the unset default
             // and share a pool with a connection that skips verification.
-            "ssl:{}:{}:{}:{}:clear:{}:pipes:{}:iam:{}",
+            // `socket` (only present for socket connections, so TCP keys are
+            // unchanged) keeps pools of different socket paths apart.
+            "ssl:{}:{}:{}:{}:clear:{}:pipes:{}:iam:{}{}",
             non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("default"),
             params.ssl_ca.as_deref().unwrap_or(""),
             params.ssl_cert.as_deref().unwrap_or(""),
@@ -228,7 +230,11 @@ pub(crate) fn build_connection_key(
                 "true"
             } else {
                 "false"
-            }
+            },
+            params
+                .mysql_socket()
+                .map(|path| format!(":socket:{path}"))
+                .unwrap_or_default()
         )),
         "postgres" => {
             // Unset matches `build_postgres_tls_connector` (`prefer`). The raw
@@ -262,11 +268,20 @@ pub(crate) fn build_connection_key(
         // targets behind a single host:port and pick the backend from the
         // username, so without it two different targets would share one pool and
         // serve each other's databases.
+        // A socket connection has no meaningful host/port, so the socket path
+        // stands in for them.
+        let (host, port) = match params.mysql_socket() {
+            Some(path) => (path, 0),
+            None => (
+                params.host.as_deref().unwrap_or("localhost"),
+                params.port.unwrap_or(0),
+            ),
+        };
         format!(
             "{}:{}:{}:{}:{}",
             params.driver,
-            params.host.as_deref().unwrap_or("localhost"),
-            params.port.unwrap_or(0),
+            host,
+            port,
             params.username.as_deref().unwrap_or(""),
             params.database
         )
@@ -304,6 +319,24 @@ pub(crate) fn build_mysql_options(
     let port = params.port.unwrap_or(3306);
     let database = override_db.unwrap_or_else(|| params.database.primary());
     let timezone = mysql_string_setting("timezone", DEFAULT_MYSQL_TIMEZONE);
+    let socket = params.mysql_socket();
+
+    if socket.is_some() {
+        if cfg!(windows) {
+            return Err(
+                "Unix socket connections are not supported on Windows. \
+                 Connect with host and port instead."
+                    .to_string(),
+            );
+        }
+        if params.use_iam_auth.unwrap_or(false) {
+            return Err(
+                "AWS IAM authentication requires a TLS connection to RDS and \
+                 cannot be used over a Unix socket."
+                    .to_string(),
+            );
+        }
+    }
 
     // ssl_mode: user-selected, with auto-escalation to VerifyCa when an ssl_ca
     // is supplied under Required/Preferred. sqlx-mysql only forwards the CA
@@ -317,8 +350,14 @@ pub(crate) fn build_mysql_options(
     // Unset keeps the historical default (`required`): encrypted, certificate
     // not verified. An unrecognised value is an error — it must not silently
     // fall back to that default.
-    let mut ssl_mode =
-        parse_mysql_ssl_mode(non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("required"))?;
+    // A Unix socket never carries TLS: the server either refuses the upgrade
+    // or does not advertise SSL there, so the TCP default (`required`) would
+    // fail the handshake. The SSL fields of the connection are ignored.
+    let mut ssl_mode = if socket.is_some() {
+        MySqlSslMode::Disabled
+    } else {
+        parse_mysql_ssl_mode(non_empty_ssl_mode(params.ssl_mode.as_deref()).unwrap_or("required"))?
+    };
     // Auto-escalate Required/Preferred + ssl_ca to VerifyCa only for IAM
     // connections. For IAM the chain must be validated because the
     // pre-signed RDS auth token only travels safely over a verified
@@ -369,9 +408,10 @@ pub(crate) fn build_mysql_options(
     }
 
     log::info!(
-        "build_mysql_options: driver=mysql host={host} port={port} \
+        "build_mysql_options: driver=mysql host={host} port={port} socket={:?} \
          ssl_mode_param={:?} ssl_ca_present={} effective_ssl_mode={:?} \
          iam_auth={} password_len={}",
+        socket,
         params.ssl_mode,
         has_user_ca,
         ssl_mode,
@@ -379,9 +419,11 @@ pub(crate) fn build_mysql_options(
         password.len(),
     );
 
-    let mut options = MySqlConnectOptions::new()
-        .host(host)
-        .port(port)
+    let options = match socket {
+        Some(path) => MySqlConnectOptions::new().socket(path),
+        None => MySqlConnectOptions::new().host(host).port(port),
+    };
+    let mut options = options
         .username(username)
         .timezone(timezone)
         .ssl_mode(ssl_mode);
@@ -400,23 +442,26 @@ pub(crate) fn build_mysql_options(
         options = options.password(password);
     }
 
-    if let Some(ca) = &params.ssl_ca {
-        options = options.ssl_ca(ca);
-    }
-    if let Some(cert) = &params.ssl_cert {
-        options = options.ssl_client_cert(cert);
-    }
-    if let Some(key) = &params.ssl_key {
-        options = options.ssl_client_key(key);
+    if socket.is_none() {
+        if let Some(ca) = &params.ssl_ca {
+            options = options.ssl_ca(ca);
+        }
+        if let Some(cert) = &params.ssl_cert {
+            options = options.ssl_client_cert(cert);
+        }
+        if let Some(key) = &params.ssl_key {
+            options = options.ssl_client_key(key);
+        }
     }
 
     // Optionally enable the mysql_clear_password (cleartext) auth plugin, used by
     // bastions like Warpgate. Cleartext credentials must never be sent over an
     // unencrypted link, so require a TLS mode that actually guarantees
     // encryption. `Preferred` only attempts TLS and silently falls back to
-    // plaintext, so it is rejected alongside `Disabled`.
+    // plaintext, so it is rejected alongside `Disabled`. A Unix socket is a
+    // local transport that MySQL itself treats as secure, so it is allowed.
     if params.enable_cleartext_plugin.unwrap_or(false) {
-        if !matches!(
+        if socket.is_none() && !matches!(
             ssl_mode,
             MySqlSslMode::Required | MySqlSslMode::VerifyCa | MySqlSslMode::VerifyIdentity
         ) {

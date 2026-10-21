@@ -68,7 +68,11 @@ import { useLatestAsync } from "../../hooks/useLatestAsync";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
 import { DefaultDatabaseSelect } from "./NewConnectionModal/DefaultDatabaseSelect";
 import { isMultiDatabaseCapable, isSchemaBasedMultiDbCapable, hasOptedIntoDatabaseSelection } from "../../utils/database";
-import { updateExtraField, withoutBlankSslMode } from "../../utils/connections";
+import {
+  supportsUnixSocket,
+  updateExtraField,
+  withoutBlankSslMode,
+} from "../../utils/connections";
 import { normalizeLocalDatabasePath, sanitizeLocalFilePath } from "../../utils/fsPath";
 import {
   IN_MEMORY_DATABASE,
@@ -123,10 +127,22 @@ const PARADIGM_ACCENT: Record<string, string> = {
 
 const paradigmAccent = (p: string): string => PARADIGM_ACCENT[p] ?? "#64748b";
 
+// A Unix socket has no TLS and cannot go through a tunnel, so switching a MySQL
+// connection to socket mode turns these off. The SSL fields are kept but
+// ignored, so they come back if the user switches to host and port again.
+const SOCKET_MODE_RESETS = {
+  ssh_enabled: false,
+  k8s_enabled: false,
+  ssm_enabled: false,
+  use_iam_auth: false,
+} as const;
+
 interface ConnectionParams {
   driver: string;
   host?: string;
   port?: number;
+  /** MySQL/MariaDB Unix socket path; replaces host/port when set. */
+  socket?: string;
   username?: string;
   password?: string;
   /** Raw driver-specific connection URI, stored in the OS keychain, never in connections.json. */
@@ -500,6 +516,7 @@ export const NewConnectionModal = ({
   const [ssmSelectionError, setSsmSelectionError] = useState<string | null>(
     null,
   );
+  const [socketPathError, setSocketPathError] = useState<string | null>(null);
 
   // ── K8s ──
   const [k8sConnections, setK8sConnections] = useState<K8sConnection[]>([]);
@@ -669,6 +686,17 @@ export const NewConnectionModal = ({
     !noConnectionRequired &&
     activeDriver?.capabilities?.file_based === false &&
     !activeDriver?.capabilities?.folder_based;
+  // MySQL/MariaDB can connect through a local Unix socket instead of host and
+  // port. `socket` is "" while the toggle is on and no path is entered yet.
+  const canUseSocket =
+    driver === "mysql" && !isUriPassthrough && supportsUnixSocket();
+  const isSocketMode = canUseSocket && formData.socket !== undefined;
+  // A socket reaches a local file: no host/port to encrypt or tunnel.
+  const showNetworkTransportTabs = isNetworkDriver && !isSocketMode;
+  // Listing databases needs somewhere to connect: a host, or a socket path.
+  const hasServerTarget = isSocketMode
+    ? !!formData.socket?.trim()
+    : !!formData.host;
   const k8sDefaultPort = activeDriver?.default_port ?? undefined;
   // Derive K8s ports instead of seeding formData so edit flows with no saved port are covered.
   const getK8sAutoPort = (params: Partial<ConnectionParams>) =>
@@ -1283,6 +1311,28 @@ export const NewConnectionModal = ({
     setSsmSelectionError(null);
     return true;
   }, [formData.port, formData.ssm_enabled, formData.ssm_target, t]);
+
+  const validateSocketPath = useCallback((): boolean => {
+    if (!isSocketMode || formData.socket?.trim()) {
+      setSocketPathError(null);
+      return true;
+    }
+    setSocketPathError(t("newConnection.socketPathRequired"));
+    setActiveTab("general");
+    return false;
+  }, [formData.socket, isSocketMode, t]);
+
+  const handleSocketModeChange = (enabled: boolean) => {
+    setSocketPathError(null);
+    setFormData((prev) =>
+      enabled
+        ? { ...prev, socket: prev.socket ?? "", ...SOCKET_MODE_RESETS }
+        : { ...prev, socket: undefined },
+    );
+    if (enabled && ["ssl", "ssh", "k8s", "ssm"].includes(activeTab)) {
+      setActiveTab("general");
+    }
+  };
 
   const testSshTunnel = async () => {
     if (!validateInlineSshSelection()) return;
@@ -2161,6 +2211,7 @@ export const NewConnectionModal = ({
     const { actionId, startingSnapshot, inlinePaths } = preflight;
 
     try {
+      if (!validateSocketPath()) return false;
       if (!validateInlineK8sSelection()) return false;
       if (!validateInlineSshSelection()) return false;
       if (!validateInlineSsmSelection()) return false;
@@ -2406,6 +2457,7 @@ export const NewConnectionModal = ({
         setTestResult("error");
         return;
       }
+      if (!validateSocketPath()) return;
       if (!validateInlineK8sSelection()) return;
       if (!validateInlineSshSelection()) return;
       if (!validateInlineSsmSelection()) return;
@@ -2632,6 +2684,7 @@ export const NewConnectionModal = ({
       const parsedIsMultiDb = hasOptedIntoDatabaseSelection(parsedDriver?.capabilities, parsed.database ?? "");
 
       const driverChanged = newDriver !== driver;
+      const parsedCanUseSocket = newDriver === "mysql" && supportsUnixSocket();
       const parsedFields: Partial<ConnectionParams> = {
         driver: newDriver,
         host: parsed.host || "localhost",
@@ -2644,6 +2697,10 @@ export const NewConnectionModal = ({
         database: parsed.database || "",
         connection_uri: parsed.connection_uri,
         connection_uri_in_keychain: false,
+        // `?socket=` switches the form to socket mode; a string without it
+        // goes back to host and port.
+        socket: parsedCanUseSocket ? parsed.socket : undefined,
+        ...(parsedCanUseSocket && parsed.socket ? SOCKET_MODE_RESETS : {}),
       };
 
       const importingMysql = newDriver === "mysql" || newDriver === "mariadb" ||
@@ -2923,7 +2980,83 @@ export const NewConnectionModal = ({
             </div>
           )}
 
+          {canUseSocket && (
+            <label className="flex items-center gap-2.5 select-none w-fit cursor-pointer">
+              <input
+                type="checkbox"
+                id="socket-mode-toggle"
+                checked={isSocketMode}
+                onChange={(e) => handleSocketModeChange(e.target.checked)}
+                className="accent-accent-primary w-3.5 h-3.5 rounded"
+              />
+              <span className="text-sm font-medium text-secondary">
+                {t("newConnection.connectViaSocket")}
+              </span>
+            </label>
+          )}
+
+          {isSocketMode && (
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="socket-path-input"
+                className="text-[10px] uppercase font-semibold tracking-wider text-muted"
+              >
+                {t("newConnection.socketPath")}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="socket-path-input"
+                  type="text"
+                  value={formData.socket ?? ""}
+                  onChange={(e) => {
+                    setSocketPathError(null);
+                    updateField("socket", e.target.value);
+                  }}
+                  aria-invalid={socketPathError ? true : undefined}
+                  aria-describedby="socket-path-hint"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="flex-1 px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-focus focus:outline-none transition-colors"
+                  placeholder="/var/run/mysqld/mysqld.sock"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const selected = await open({
+                      multiple: false,
+                      directory: false,
+                    });
+                    if (typeof selected === "string") {
+                      setSocketPathError(null);
+                      updateField("socket", selected);
+                    }
+                  }}
+                  className="px-3 py-2 bg-base hover:bg-surface-secondary border border-strong rounded-md text-muted hover:text-primary transition-colors"
+                  title={t("newConnection.browseFile")}
+                  aria-label={t("newConnection.browseFile")}
+                >
+                  <FolderOpen size={15} />
+                </button>
+              </div>
+              {socketPathError ? (
+                <div
+                  id="socket-path-hint"
+                  className="flex items-center gap-1 text-xs text-accent-error mt-0.5"
+                >
+                  <AlertCircle size={11} /> {socketPathError}
+                </div>
+              ) : (
+                <p id="socket-path-hint" className="text-xs text-muted">
+                  {t("newConnection.socketPathHint")}
+                </p>
+              )}
+            </div>
+          )}
+
           {!isUriPassthrough &&
+            !isSocketMode &&
             (!hostField?.hidden || !portField?.hidden) && (
             <div
               className={clsx(
@@ -3032,7 +3165,7 @@ export const NewConnectionModal = ({
                     onClick={() => {
                       void loadDatabases();
                     }}
-                    disabled={loadingDatabases || !formData.host}
+                    disabled={loadingDatabases || !hasServerTarget}
                     className="flex items-center gap-1 text-xs text-accent disabled:text-muted disabled:cursor-not-allowed transition-colors"
                   >
                     {loadingDatabases ? (
@@ -3385,7 +3518,7 @@ export const NewConnectionModal = ({
           onClick={() => {
             void loadDatabases();
           }}
-          disabled={loadingDatabases || !formData.host}
+          disabled={loadingDatabases || !hasServerTarget}
           className="flex items-center gap-1 text-xs text-accent disabled:text-muted disabled:cursor-not-allowed transition-colors shrink-0"
         >
           {loadingDatabases ? (
@@ -4728,12 +4861,19 @@ export const NewConnectionModal = ({
                         },
                       ]
                     : []),
-                  ...(activeDriver?.capabilities?.supports_ssl && isNetworkDriver
+                  ...(activeDriver?.capabilities?.supports_ssl &&
+                  showNetworkTransportTabs
                     ? [{ id: "ssl", label: "SSL" }]
                     : []),
-                  ...(isNetworkDriver ? [{ id: "ssh", label: "SSH" }] : []),
-                  ...(isNetworkDriver ? [{ id: "k8s", label: "Kubernetes" }] : []),
-                  ...(isNetworkDriver ? [{ id: "ssm", label: "AWS SSM" }] : []),
+                  ...(showNetworkTransportTabs
+                    ? [{ id: "ssh", label: "SSH" }]
+                    : []),
+                  ...(showNetworkTransportTabs
+                    ? [{ id: "k8s", label: "Kubernetes" }]
+                    : []),
+                  ...(showNetworkTransportTabs
+                    ? [{ id: "ssm", label: "AWS SSM" }]
+                    : []),
                   {
                     id: "advanced",
                     label: t("newConnection.advanced", {

@@ -237,4 +237,43 @@ mod tests {
         let json = serde_json::to_string(&connection).expect("serialize connection");
         assert!(!json.contains("plugin_secret_keys"));
     }
+
+    #[test]
+    fn mysql_socket_returns_trimmed_path_for_mysql_only() {
+        let mut params = ConnectionParams {
+            driver: "mysql".to_string(),
+            socket: Some("  /tmp/mysql.sock ".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(params.mysql_socket(), Some("/tmp/mysql.sock"));
+
+        params.socket = Some("   ".to_string());
+        assert_eq!(params.mysql_socket(), None);
+
+        params.socket = None;
+        assert_eq!(params.mysql_socket(), None);
+
+        params.driver = "postgres".to_string();
+        params.socket = Some("/tmp/mysql.sock".to_string());
+        assert_eq!(params.mysql_socket(), None);
+    }
+
+    #[test]
+    fn socket_is_optional_in_json_and_omitted_when_unset() {
+        let params: ConnectionParams =
+            serde_json::from_str(r#"{"driver":"mysql","database":"app"}"#).unwrap();
+        assert_eq!(params.socket, None);
+        let json = serde_json::to_value(&params).unwrap();
+        assert!(json.get("socket").is_none());
+
+        let with_socket: ConnectionParams = serde_json::from_str(
+            r#"{"driver":"mysql","database":"app","socket":"/tmp/mysql.sock"}"#,
+        )
+        .unwrap();
+        assert_eq!(with_socket.socket.as_deref(), Some("/tmp/mysql.sock"));
+        assert_eq!(
+            serde_json::to_value(&with_socket).unwrap()["socket"],
+            "/tmp/mysql.sock"
+        );
+    }
 }

@@ -69,6 +69,9 @@ export interface ConnectionParams {
   password?: string;
   /** TLS mode selected for the server connection. */
   ssl_mode?: string;
+  /** MySQL/MariaDB: path of a local Unix socket. When set, the connection
+   * uses it instead of host/port, without TLS or tunnels. */
+  socket?: string;
   /** Raw driver-specific connection URI, forwarded verbatim to the driver.
    * Never persisted in connections.json: it embeds credentials and is stored
    * in the OS keychain instead. */
@@ -172,10 +175,37 @@ export function formatConnectionString(
     return params.database;
   }
 
+  const socket = getMysqlSocket(params);
+  if (socket) {
+    return `${socket}/${params.database}`;
+  }
+
   const host = params.host || "localhost";
   const port = params.port || getDefaultPort(params.driver);
 
   return `${host}:${port}/${params.database}`;
+}
+
+/**
+ * Unix socket path of a MySQL/MariaDB connection, or `undefined` for a TCP
+ * connection. A blank path counts as unset. Mirrors `mysql_socket` in Rust.
+ */
+export function getMysqlSocket(
+  params: Pick<ConnectionParams, "driver" | "socket">,
+): string | undefined {
+  if (params.driver !== "mysql") return undefined;
+  const path = params.socket?.trim();
+  return path ? path : undefined;
+}
+
+/**
+ * Whether the app runs on a platform with Unix domain sockets. Windows has
+ * none, so the socket option is hidden there (the backend rejects it too).
+ */
+export function supportsUnixSocket(
+  platform: string = typeof navigator !== "undefined" ? navigator.platform : "",
+): boolean {
+  return !/^win/i.test(platform);
 }
 
 /**
@@ -341,7 +371,10 @@ export function connectionSubtitle(
     : Array.isArray(db)
       ? labels?.databaseCount?.(db.length) ?? `${db.length} databases`
       : db;
-  return `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}  ·  ${dbStr}`;
+  const target =
+    getMysqlSocket(conn.params) ??
+    `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}`;
+  return `${target}  ·  ${dbStr}`;
 }
 
 /**

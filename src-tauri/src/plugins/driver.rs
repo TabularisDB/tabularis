@@ -2422,6 +2422,7 @@ mod tests {
             driver: "test-plugin".to_string(),
             host: Some("localhost".to_string()),
             port: Some(1234),
+            socket: None,
             username: Some("user".to_string()),
             password: Some("secret".to_string()),
             connection_uri: None,

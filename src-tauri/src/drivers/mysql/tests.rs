@@ -36,6 +36,55 @@ fn build_connection_url_includes_disabled_ssl_mode() {
     assert!(url.contains("ssl-mode=disabled"), "url was: {url}");
 }
 
+#[test]
+fn build_connection_url_uses_socket_query_param_without_tls() {
+    let driver = MysqlDriver::new();
+    let params = ConnectionParams {
+        driver: "mysql".to_string(),
+        host: Some("db.example.com".to_string()),
+        port: Some(3307),
+        socket: Some("/var/run/mysqld/mysqld.sock".to_string()),
+        username: Some("root".to_string()),
+        database: DatabaseSelection::Single("dec".to_string()),
+        ssl_mode: Some("verify_identity".to_string()),
+        ..Default::default()
+    };
+
+    let url = driver.build_connection_url(&params).unwrap();
+
+    assert!(
+        url.starts_with("mysql://root@localhost/dec?"),
+        "url was: {url}"
+    );
+    assert!(
+        url.contains("socket=%2Fvar%2Frun%2Fmysqld%2Fmysqld.sock"),
+        "url was: {url}"
+    );
+    assert!(url.contains("ssl-mode=disabled"), "url was: {url}");
+    assert!(!url.contains("db.example.com"), "url was: {url}");
+}
+
+#[test]
+fn build_connection_url_round_trips_socket_through_sqlx_parser() {
+    use std::str::FromStr;
+    let driver = MysqlDriver::new();
+    let params = ConnectionParams {
+        driver: "mysql".to_string(),
+        socket: Some("/tmp/my sql.sock".to_string()),
+        username: Some("root".to_string()),
+        database: DatabaseSelection::Single("dec".to_string()),
+        ..Default::default()
+    };
+
+    let url = driver.build_connection_url(&params).unwrap();
+    let opts = sqlx::mysql::MySqlConnectOptions::from_str(&url).unwrap();
+
+    assert_eq!(
+        opts.get_socket().map(|p| p.to_string_lossy().into_owned()),
+        Some("/tmp/my sql.sock".to_string())
+    );
+}
+
 // -- Text-protocol literal helpers (Warpgate / cleartext bastion path) -----
 
 #[test]

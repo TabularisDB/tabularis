@@ -1591,3 +1591,134 @@ mod startup_script_tests {
         close_pool_with_id(&params, Some(&conn_id)).await;
     }
 }
+
+#[cfg(test)]
+mod mysql_socket_tests {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use crate::pool_manager::{build_connection_key, build_mysql_options};
+    use sqlx::mysql::MySqlSslMode;
+
+    fn connection_params(driver: &str, ssl_mode: Option<&str>) -> ConnectionParams {
+        ConnectionParams {
+            driver: driver.to_string(),
+            host: Some("127.0.0.1".to_string()),
+            port: Some(if driver == "mysql" { 3306 } else { 5432 }),
+            username: Some("dec".to_string()),
+            password: Some("secret".to_string()),
+            database: DatabaseSelection::Single("dec".to_string()),
+            ssl_mode: ssl_mode.map(ToOwned::to_owned),
+            ..Default::default()
+        }
+    }
+
+    fn mysql_params(ssl_mode: &str) -> ConnectionParams {
+        connection_params("mysql", Some(ssl_mode))
+    }
+
+    fn mysql_socket_params(socket: &str) -> ConnectionParams {
+        let mut params = mysql_params("required");
+        params.socket = Some(socket.to_string());
+        params
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn mysql_socket_connects_through_the_socket_without_tls() {
+        let mut params = mysql_socket_params("/var/run/mysqld/mysqld.sock");
+        params.ssl_mode = Some("verify_identity".to_string());
+        params.ssl_ca = Some("/etc/ssl/ca.pem".to_string());
+
+        let opts = build_mysql_options(&params, None).expect("socket options");
+
+        assert_eq!(
+            opts.get_socket().map(|p| p.to_string_lossy().into_owned()),
+            Some("/var/run/mysqld/mysqld.sock".to_string())
+        );
+        assert!(matches!(opts.get_ssl_mode(), MySqlSslMode::Disabled));
+        assert_eq!(opts.get_username(), "dec");
+        assert_eq!(opts.get_database(), Some("dec"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn mysql_socket_path_is_trimmed() {
+        let opts = build_mysql_options(&mysql_socket_params("  /tmp/mysql.sock \n"), None)
+            .expect("socket options");
+        assert_eq!(
+            opts.get_socket().map(|p| p.to_string_lossy().into_owned()),
+            Some("/tmp/mysql.sock".to_string())
+        );
+    }
+
+    #[test]
+    fn mysql_blank_socket_keeps_tcp_and_default_tls() {
+        let opts = build_mysql_options(&mysql_socket_params("   "), None).expect("tcp options");
+        assert!(opts.get_socket().is_none());
+        assert_eq!(opts.get_host(), "127.0.0.1");
+        assert_eq!(opts.get_port(), 3306);
+        assert!(matches!(opts.get_ssl_mode(), MySqlSslMode::Required));
+    }
+
+    #[test]
+    fn socket_is_ignored_for_other_drivers() {
+        let mut params = connection_params("postgres", Some("disable"));
+        params.socket = Some("/tmp/mysql.sock".to_string());
+        assert_eq!(
+            build_connection_key(&params, Some("conn-1")),
+            build_connection_key(&connection_params("postgres", Some("disable")), Some("conn-1"))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn mysql_socket_rejects_iam_auth() {
+        let mut params = mysql_socket_params("/tmp/mysql.sock");
+        params.use_iam_auth = Some(true);
+        let err = build_mysql_options(&params, None).unwrap_err();
+        assert!(err.contains("Unix socket"), "unexpected error: {err}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn mysql_socket_allows_cleartext_plugin() {
+        let mut params = mysql_socket_params("/tmp/mysql.sock");
+        params.enable_cleartext_plugin = Some(true);
+        assert!(build_mysql_options(&params, None).is_ok());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn mysql_socket_is_rejected_on_windows() {
+        let err = build_mysql_options(&mysql_socket_params("/tmp/mysql.sock"), None).unwrap_err();
+        assert!(err.contains("not supported on Windows"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn mysql_tcp_connection_key_is_unchanged_by_an_unset_socket() {
+        let tcp = mysql_params("required");
+        let mut blank = mysql_params("required");
+        blank.socket = Some(String::new());
+        assert_eq!(
+            build_connection_key(&tcp, Some("conn-1")),
+            build_connection_key(&blank, Some("conn-1"))
+        );
+        assert!(!build_connection_key(&tcp, Some("conn-1")).contains("socket"));
+    }
+
+    #[test]
+    fn mysql_socket_path_changes_the_connection_key() {
+        let tcp = mysql_params("required");
+        let a = mysql_socket_params("/tmp/a.sock");
+        let b = mysql_socket_params("/tmp/b.sock");
+        let key_a = build_connection_key(&a, Some("conn-1"));
+        assert_ne!(key_a, build_connection_key(&tcp, Some("conn-1")));
+        assert_ne!(key_a, build_connection_key(&b, Some("conn-1")));
+        assert!(key_a.ends_with(":socket:/tmp/a.sock"), "key was: {key_a}");
+    }
+
+    #[test]
+    fn mysql_ad_hoc_socket_key_uses_the_path_instead_of_host() {
+        let key = build_connection_key(&mysql_socket_params("/tmp/a.sock"), None);
+        assert!(key.starts_with("mysql:/tmp/a.sock:0:dec:"), "key was: {key}");
+    }
+}

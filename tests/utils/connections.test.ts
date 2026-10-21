@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   formatConnectionString,
   getDefaultPort,
+  getMysqlSocket,
+  supportsUnixSocket,
   validateConnectionParams,
   getDriverLabel,
   generateConnectionName,
@@ -843,6 +845,42 @@ describe('connections', () => {
 
     it('does nothing when dropped on itself', () => {
       expect(planGroupDrop(groups, 'pg', 'pg', 'before')).toBeNull();
+    });
+  });
+
+  describe('MySQL Unix socket', () => {
+    it('getMysqlSocket returns the trimmed path for MySQL only', () => {
+      expect(getMysqlSocket({ driver: 'mysql', socket: ' /tmp/mysql.sock ' })).toBe('/tmp/mysql.sock');
+      expect(getMysqlSocket({ driver: 'mysql', socket: '   ' })).toBeUndefined();
+      expect(getMysqlSocket({ driver: 'mysql' })).toBeUndefined();
+      expect(getMysqlSocket({ driver: 'postgres', socket: '/tmp/mysql.sock' })).toBeUndefined();
+    });
+
+    it('formatConnectionString shows the socket instead of host:port', () => {
+      expect(
+        formatConnectionString({
+          driver: 'mysql',
+          host: 'db.example.com',
+          port: 3307,
+          socket: '/tmp/mysql.sock',
+          database: 'app',
+        }),
+      ).toBe('/tmp/mysql.sock/app');
+    });
+
+    it('connectionSubtitle shows the socket instead of host:port', () => {
+      const conn: SavedConnection = {
+        id: '1',
+        name: 'local',
+        params: { driver: 'mysql', host: 'localhost', port: 3306, socket: '/tmp/mysql.sock', database: 'app' },
+      };
+      expect(connectionSubtitle(conn, null)).toBe('/tmp/mysql.sock  ·  app');
+    });
+
+    it('supportsUnixSocket is false only on Windows', () => {
+      expect(supportsUnixSocket('Win32')).toBe(false);
+      expect(supportsUnixSocket('MacIntel')).toBe(true);
+      expect(supportsUnixSocket('Linux x86_64')).toBe(true);
     });
   });
 });
