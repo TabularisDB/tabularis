@@ -20,7 +20,8 @@ export type DatabaseBackupOutcome = 'success' | 'error' | 'cancelled';
 export interface DatabaseBackupStatus {
     /** Last attempt, successful or not. */
     lastRunAt: string | null;
-    /** Last successful run; the schedule is computed from this one. */
+    /** Newest successful backup of the current plan (this session or the
+     * plan's destination folder); the schedule is computed from it. */
     lastSuccessfulRunAt: string | null;
     lastOutcome: DatabaseBackupOutcome | null;
     lastError: string | null;

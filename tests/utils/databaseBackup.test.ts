@@ -131,10 +131,23 @@ describe('databaseBackup utils', () => {
             [{retention: 0}, 'settings.backup.databaseBackupErrorInvalidRetention'],
             [{time: '25:70'}, 'settings.backup.databaseBackupErrorInvalidTime'],
             [{time: '2:00'}, 'settings.backup.databaseBackupErrorInvalidTime'],
+            [
+                {includeStructure: false, includeData: false},
+                'settings.backup.databaseBackupErrorNoContent',
+            ],
         ])('rejects %o', (patch, errorKey) => {
             const res = validateDatabaseBackupPlan({...validPlan, ...patch}, pgDriver);
             expect(res).toEqual({isValid: false, errorKey});
         });
+
+        it.each([{includeStructure: false}, {includeData: false}])(
+            'accepts a plan with only one kind of content: %o',
+            (patch) => {
+                expect(validateDatabaseBackupPlan({...validPlan, ...patch}, pgDriver).isValid).toBe(
+                    true,
+                );
+            },
+        );
 
         it('always validates disabled plans as valid', () => {
             const disabledPlan: DatabaseBackupPlan = {

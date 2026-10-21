@@ -16,11 +16,11 @@ import {
     CheckSquare,
     StopCircle,
 } from 'lucide-react';
-import {useSettings} from '../../hooks/useSettings';
-import {useAlert} from '../../hooks/useAlert';
-import {DEFAULT_SETTINGS} from '../../contexts/SettingsContext';
-import {toErrorMessage} from '../../utils/errors';
-import {PasswordInput} from '../ui/PasswordInput';
+import {useSettings} from '@/hooks/useSettings';
+import {useAlert} from '@/hooks/useAlert';
+import {DEFAULT_SETTINGS} from '@/contexts/SettingsContext';
+import {toErrorMessage} from '@/utils/errors';
+import {PasswordInput} from '@/components/ui/PasswordInput';
 import {
     SettingSection,
     SettingRow,
@@ -28,14 +28,14 @@ import {
     SettingNumberInput,
     SettingToggle,
 } from './SettingControls';
-import type {SavedConnection} from '../../contexts/DatabaseContext';
-import type {PluginManifest} from '../../types/plugins';
-import type {DatabaseBackupPlan, DatabaseBackupStatus} from '../../types/databaseBackup';
+import type {SavedConnection} from '@/contexts/DatabaseContext';
+import type {PluginManifest} from '@/types/plugins';
+import type {DatabaseBackupPlan, DatabaseBackupStatus} from '@/types/databaseBackup';
 import {
     COMMON_IANA_TIMEZONES,
     isDriverDumpCapable,
     validateDatabaseBackupPlan,
-} from '../../utils/databaseBackup';
+} from '@/utils/databaseBackup';
 
 interface BackupStatus {
     passwordSet: boolean;
@@ -44,6 +44,10 @@ interface BackupStatus {
 }
 
 const INTERVAL_PRESETS = [360, 720, 1440, 10080];
+
+// Database backup status polling while this tab is open.
+const DB_STATUS_POLL_RUNNING_MS = 2_000;
+const DB_STATUS_POLL_IDLE_MS = 15_000;
 
 const textInputClass =
     'w-64 px-3 py-2 bg-base border border-strong rounded-lg text-sm text-primary placeholder:text-muted focus:border-focus focus:outline-none transition-colors';
@@ -285,13 +289,12 @@ export function BackupTab() {
         }
     };
 
+    // The backend cancels the run in progress, even if the plan was edited
+    // after it started.
     const handleCancelDatabaseBackup = async () => {
-        if (!plan.connectionId) return;
         setCancellingDbBackup(true);
         try {
-            await invoke('cancel_database_backup', {
-                connectionId: plan.connectionId,
-            });
+            await invoke('cancel_database_backup');
             await refreshDbStatus();
             showAlert(t('settings.backup.dbBackupCancelled'));
         } catch (e) {
@@ -308,6 +311,16 @@ export function BackupTab() {
             : Boolean(settings.backupDirectory));
 
     const isDbBackupActive = dbStatus?.isRunning || runningDbBackup;
+
+    // A scheduled run can start or finish while this tab is open, so the
+    // status is polled: often while a run is in progress, rarely otherwise.
+    useEffect(() => {
+        const interval = window.setInterval(
+            () => void refreshDbStatus(),
+            isDbBackupActive ? DB_STATUS_POLL_RUNNING_MS : DB_STATUS_POLL_IDLE_MS,
+        );
+        return () => window.clearInterval(interval);
+    }, [isDbBackupActive, refreshDbStatus]);
 
     return (
         <div>
@@ -640,14 +653,7 @@ export function BackupTab() {
                 {/* App-Open Execution Boundary Notification */}
                 <div className="flex items-start gap-2.5 p-3 mb-4 rounded-lg bg-surface-secondary/40 border border-default text-xs text-secondary">
                     <Info size={16} className="text-accent shrink-0 mt-0.5" />
-                    <div>
-                        <p className="font-medium text-primary">
-                            {t('settings.backup.databaseContentDesc')}
-                        </p>
-                        <p className="mt-0.5 text-muted">
-                            {t('settings.backup.dbBackupAppOpenNotice')}
-                        </p>
-                    </div>
+                    <p>{t('settings.backup.dbBackupAppOpenNotice')}</p>
                 </div>
 
                 {/* Enable Plan Switch */}
@@ -840,14 +846,17 @@ export function BackupTab() {
                     description={t('settings.backup.dbBackupContentDesc')}
                 >
                     <div className="flex items-center gap-6">
+                        {/* At least one stays selected: neither writes an empty dump. */}
                         <button
                             type="button"
+                            aria-pressed={plan.includeStructure}
+                            disabled={plan.includeStructure && !plan.includeData}
                             onClick={() =>
                                 void updatePlan({
                                     includeStructure: !plan.includeStructure,
                                 })
                             }
-                            className="flex items-center gap-2 text-sm text-primary hover:text-accent transition-colors"
+                            className="flex items-center gap-2 text-sm text-primary enabled:hover:text-accent transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {plan.includeStructure ? (
                                 <CheckSquare size={16} className="text-accent" />
@@ -859,12 +868,14 @@ export function BackupTab() {
 
                         <button
                             type="button"
+                            aria-pressed={plan.includeData}
+                            disabled={plan.includeData && !plan.includeStructure}
                             onClick={() =>
                                 void updatePlan({
                                     includeData: !plan.includeData,
                                 })
                             }
-                            className="flex items-center gap-2 text-sm text-primary hover:text-accent transition-colors"
+                            className="flex items-center gap-2 text-sm text-primary enabled:hover:text-accent transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {plan.includeData ? (
                                 <CheckSquare size={16} className="text-accent" />

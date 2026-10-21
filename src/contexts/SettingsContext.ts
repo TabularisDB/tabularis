@@ -1,8 +1,8 @@
 import {createContext} from 'react';
-import type {AppLanguage} from '../i18n/config';
-import {DEFAULT_MASKING_PATTERNS} from '../utils/columnMasking';
-import type {AutocompleteKeywordCase} from '../utils/autocomplete';
-import type {GlobalProxySettings, ProxyOverride} from '../types/proxy';
+import type {AppLanguage} from '@/i18n/config';
+import {DEFAULT_MASKING_PATTERNS} from '@/utils/columnMasking';
+import type {AutocompleteKeywordCase} from '@/utils/autocomplete';
+import type {GlobalProxySettings, ProxyOverride} from '@/types/proxy';
 
 export type {AppLanguage};
 export type CopyFormat = 'csv' | 'json' | 'sql-insert' | 'markdown';

@@ -1,5 +1,5 @@
-import type {DatabaseBackupPlan, DriverDumpCapability} from '../types/databaseBackup';
-import type {DriverCapabilities, PluginManifest} from '../types/plugins';
+import type {DatabaseBackupPlan, DriverDumpCapability} from '@/types/databaseBackup';
+import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 
 export const COMMON_IANA_TIMEZONES = [
     'UTC',
@@ -83,6 +83,11 @@ export function validateDatabaseBackupPlan(
 
     if (!plan.destinationDirectory) {
         return {isValid: false, errorKey: 'settings.backup.databaseBackupErrorNoDirectory'};
+    }
+
+    // Neither structure nor data would write an empty dump.
+    if (!plan.includeStructure && !plan.includeData) {
+        return {isValid: false, errorKey: 'settings.backup.databaseBackupErrorNoContent'};
     }
 
     if (plan.retention < 1) {
