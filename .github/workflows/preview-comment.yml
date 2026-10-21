@@ -15,9 +15,12 @@ on:
 jobs:
   comment:
     # Cancelled runs were superseded by a newer push; that one will comment.
-    # Skipped builds (label event for another label) conclude "success" with
-    # no artifacts and are filtered out below.
-    if: github.event.workflow_run.conclusion != 'cancelled'
+    # Skipped runs (a push to a PR without the `preview` label) built nothing,
+    # so there is nothing to report. Label events for another label conclude
+    # "success" with no artifacts and are filtered out below.
+    if: >-
+      github.event.workflow_run.conclusion != 'cancelled' &&
+      github.event.workflow_run.conclusion != 'skipped'
     runs-on: ubuntu-latest
     permissions:
       actions: read # list artifacts
