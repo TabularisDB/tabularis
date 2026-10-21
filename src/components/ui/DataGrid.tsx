@@ -25,7 +25,9 @@ import {
     ArrowDown,
     ArrowUpDown,
     Braces,
+    ClipboardList,
     ClipboardPaste,
+    ClipboardType,
     Copy,
     CopyPlus,
     Clock,
@@ -102,8 +104,18 @@ import {
     type CellWrite,
     type EditSelection,
 } from '@/utils/bulkCellEdit';
-import {pickPrimaryForeignKeyByColumn, getForeignKeyForPreview} from '@/utils/foreignKeys';
-import {getCellValueFilterOperators, type CellValueFilterOperator} from '@/utils/cellValueFilter';
+import {
+    pickPrimaryForeignKeyByColumn,
+    getForeignKeyForPreview,
+    isNumericColumnType,
+} from '@/utils/foreignKeys';
+import {
+    getCellValueFilterOperators,
+    isNumericClipboardValue,
+    parseClipboardInList,
+    MAX_CLIPBOARD_FILTER_VALUES,
+    type CellValueFilterOperator,
+} from '@/utils/cellValueFilter';
 import {
     getColumnStatsSupport,
     type ColumnStats,
@@ -259,6 +271,7 @@ const CELL_VALUE_FILTER_BADGES: Record<CellValueFilterOperator, string> = {
     contains: 'LIKE',
     'IS NULL': 'IS',
     'IS NOT NULL': 'IS NOT',
+    IN: 'IN',
 };
 
 // Value shown next to the column name in the "Filter by this value" submenu.
@@ -279,6 +292,7 @@ const CELL_VALUE_FILTER_LABEL_KEYS: Record<CellValueFilterOperator, string> = {
     contains: 'dataGrid.filterContains',
     'IS NULL': 'dataGrid.filterIsNull',
     'IS NOT NULL': 'dataGrid.filterIsNotNull',
+    IN: 'dataGrid.filterIn',
 };
 
 export const DataGrid = React.memo(function DataGrid({
@@ -3361,6 +3375,130 @@ export const DataGrid = React.memo(function DataGrid({
                                                 setContextMenu(null);
                                             },
                                         })),
+                                        {separator: true},
+                                        // "Column = clipboard": the whole clipboard text is one
+                                        // value. Read the clipboard when the item is clicked (not
+                                        // when the menu opens) and trim before comparing; an
+                                        // empty clipboard shows a short message instead of a
+                                        // filter.
+                                        {
+                                            label: t('dataGrid.filterEqualsClipboard', {
+                                                column: colName,
+                                            }),
+                                            icon: ClipboardType,
+                                            action: async () => {
+                                                setContextMenu(null);
+                                                try {
+                                                    const clipboardText = (await readText()).trim();
+                                                    if (!clipboardText) {
+                                                        showToast(
+                                                            t('dataGrid.filterClipboardEmpty'),
+                                                            {
+                                                                kind: 'error',
+                                                            },
+                                                        );
+                                                        return;
+                                                    }
+                                                    // A non-numeric clipboard value on a numeric
+                                                    // column (e.g. a spreadsheet header) would be
+                                                    // silently cast to 0 by MySQL or rejected
+                                                    // outright by PostgreSQL.
+                                                    if (
+                                                        isNumericColumnType(colDataType) &&
+                                                        !isNumericClipboardValue(clipboardText)
+                                                    ) {
+                                                        showToast(
+                                                            t('dataGrid.filterClipboardNoNumeric'),
+                                                            {
+                                                                kind: 'error',
+                                                            },
+                                                        );
+                                                        return;
+                                                    }
+                                                    onFilterByValue(
+                                                        colName,
+                                                        '=',
+                                                        clipboardText,
+                                                        colDataType || undefined,
+                                                    );
+                                                } catch (e) {
+                                                    console.error('Failed to read clipboard:', e);
+                                                    showToast(
+                                                        t('dataGrid.filterClipboardReadFailed'),
+                                                        {
+                                                            kind: 'error',
+                                                        },
+                                                    );
+                                                }
+                                            },
+                                        },
+                                        // "Column IN (clipboard)": split clipboard text into
+                                        // lines (blank lines and duplicates dropped, values
+                                        // capped) and build an IN list typed for the column.
+                                        {
+                                            label: t('dataGrid.filterInClipboard', {
+                                                column: colName,
+                                            }),
+                                            icon: ClipboardList,
+                                            action: async () => {
+                                                setContextMenu(null);
+                                                try {
+                                                    const clipboardText = await readText();
+                                                    const {values, truncated, nonNumericDropped} =
+                                                        parseClipboardInList(clipboardText, {
+                                                            columnType: colDataType || undefined,
+                                                        });
+                                                    if (values.length === 0) {
+                                                        // Distinguish "nothing was pasted" from "the
+                                                        // clipboard held text but none of it is
+                                                        // numeric", otherwise the latter misleadingly
+                                                        // says empty.
+                                                        showToast(
+                                                            t(
+                                                                nonNumericDropped > 0
+                                                                    ? 'dataGrid.filterClipboardNoNumeric'
+                                                                    : 'dataGrid.filterClipboardEmpty',
+                                                            ),
+                                                            {kind: 'error'},
+                                                        );
+                                                        return;
+                                                    }
+                                                    if (nonNumericDropped > 0) {
+                                                        showToast(
+                                                            t(
+                                                                'dataGrid.filterClipboardNonNumericDropped',
+                                                                {
+                                                                    count: nonNumericDropped,
+                                                                },
+                                                            ),
+                                                            {kind: 'warning'},
+                                                        );
+                                                    }
+                                                    if (truncated) {
+                                                        showToast(
+                                                            t('dataGrid.filterClipboardTruncated', {
+                                                                max: MAX_CLIPBOARD_FILTER_VALUES,
+                                                            }),
+                                                            {kind: 'warning'},
+                                                        );
+                                                    }
+                                                    onFilterByValue(
+                                                        colName,
+                                                        'IN',
+                                                        values,
+                                                        colDataType || undefined,
+                                                    );
+                                                } catch (e) {
+                                                    console.error('Failed to read clipboard:', e);
+                                                    showToast(
+                                                        t('dataGrid.filterClipboardReadFailed'),
+                                                        {
+                                                            kind: 'error',
+                                                        },
+                                                    );
+                                                }
+                                            },
+                                        },
                                     ],
                                 });
                             }

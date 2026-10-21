@@ -7,12 +7,72 @@ import {isGeometricType} from './geometry';
 import {isTextColumn} from './text';
 
 export type CellValueFilterOperator =
-    '=' | '<>' | '>' | '>=' | '<' | '<=' | 'contains' | 'IS NULL' | 'IS NOT NULL';
+    '=' | '<>' | '>' | '>=' | '<' | '<=' | 'contains' | 'IS NULL' | 'IS NOT NULL' | 'IN';
+
+/** Cap on the number of clipboard values turned into an IN list. */
+export const MAX_CLIPBOARD_FILTER_VALUES = 1000;
+
+/**
+ * A numeric literal accepted in a numeric column: an optional sign, digits,
+ * and an optional fractional part. Mirrors the numeric check in
+ * {@link formatSqlValueForFilter}; text that fails this (e.g. a spreadsheet
+ * header copied with the column) can't be compared against a numeric column.
+ */
+const NUMERIC_CLIPBOARD_VALUE = /^-?\d+(\.\d+)?$/;
+
+/** Whether a clipboard line is a valid literal for a numeric column. */
+export function isNumericClipboardValue(value: string): boolean {
+    return NUMERIC_CLIPBOARD_VALUE.test(value.trim());
+}
+
+/**
+ * Split clipboard text into a deduplicated list of trimmed values for an IN
+ * filter. Lines are split on line breaks; blank lines (including a trailing
+ * newline) are ignored and duplicates collapse to their first occurrence.
+ *
+ * More than {@link MAX_CLIPBOARD_FILTER_VALUES} distinct values are dropped and
+ * reported via `truncated`, so the caller can toast about the cut-off.
+ *
+ * When `columnType` is a numeric column, non-numeric lines (e.g. a spreadsheet
+ * header copied together with the column) are dropped instead of emitted as
+ * quoted strings — MySQL would silently cast them to 0 and PostgreSQL would
+ * reject the query. The count is reported via `nonNumericDropped` so the
+ * caller can toast about the skipped lines.
+ */
+export function parseClipboardInList(
+    text: string,
+    options: {columnType?: string} = {},
+): {
+    values: string[];
+    truncated: boolean;
+    nonNumericDropped: number;
+} {
+    const numeric = isNumericColumnType(options.columnType);
+    const seen = new Set<string>();
+    const values: string[] = [];
+    let nonNumericDropped = 0;
+    for (const line of text.split(/\r\n|\r|\n/)) {
+        const value = line.trim();
+        if (value === '' || seen.has(value)) continue;
+        seen.add(value);
+        if (numeric && !isNumericClipboardValue(value)) {
+            nonNumericDropped += 1;
+            continue;
+        }
+        if (values.length < MAX_CLIPBOARD_FILTER_VALUES) values.push(value);
+    }
+    return {
+        values,
+        truncated: seen.size - nonNumericDropped > MAX_CLIPBOARD_FILTER_VALUES,
+        nonNumericDropped,
+    };
+}
 
 /**
  * Build a WHERE-clause fragment that filters the current table by a cell value.
  * Output: `"col" = 42`, `"col" <> 'escaped''value'`, `"col" >= '2024-01-01'`,
- * `"col" LIKE '%50!%%' ESCAPE '!'`, `"col" IS NULL`, or `"col" IS NOT NULL`.
+ * `"col" LIKE '%50!%%' ESCAPE '!'`, `"col" IS NULL`, `"col" IS NOT NULL`, or
+ * `"col" IN (1, 2, 3)` (the value must be an array).
  *
  * `columnType` is the data type of the column the user clicked on; it decides
  * whether a numeric-looking string is emitted unquoted (numeric column) or
@@ -34,6 +94,13 @@ export function buildCellValueFilterClause(
     if (operator === 'IS NOT NULL') return `${col} IS NOT NULL`;
     if (operator === 'contains') {
         return buildLiteralLikeClause(col, String(value), 'contains', driver);
+    }
+    if (operator === 'IN') {
+        const list = Array.isArray(value) ? value : [value];
+        const literals = list.map((item) =>
+            formatSqlValueForColumnComparison(item, driver, columnType),
+        );
+        return `${col} IN (${literals.join(', ')})`;
     }
     return `${col} ${operator} ${formatSqlValueForColumnComparison(value, driver, columnType)}`;
 }
