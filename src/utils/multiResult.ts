@@ -1,4 +1,4 @@
-import type {QueryResult, QueryResultEntry} from '../types/editor';
+import type {QueryResult, QueryResultEntry} from '@/types/editor';
 
 /**
  * Uses the first leading SQL comment as a single-line result label.

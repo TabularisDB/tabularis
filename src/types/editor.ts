@@ -1,5 +1,5 @@
 import type {ForeignKey} from './schema';
-import type {GridHistory} from '../utils/gridUndo';
+import type {GridHistory} from '@/utils/gridUndo';
 
 export type {ForeignKey};
 

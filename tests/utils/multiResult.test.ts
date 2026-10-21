@@ -15,9 +15,9 @@ import {
     removeEntriesToLeft,
     getEntryDisplayLabel,
     getStackedGridHeight,
-} from '../../src/utils/multiResult';
-import type {QueryResult, QueryResultEntry} from '../../src/types/editor';
-import {splitQueries} from '../../src/utils/sqlSplitter';
+} from '@/utils/multiResult';
+import type {QueryResult, QueryResultEntry} from '@/types/editor';
+import {splitQueries} from '@/utils/sqlSplitter';
 
 function makeEntry(overrides: Partial<QueryResultEntry> = {}): QueryResultEntry {
     return {

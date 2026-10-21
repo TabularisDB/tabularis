@@ -1,6 +1,6 @@
 import {useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useId} from 'react';
-import {useAutoRefresh} from '../hooks/useAutoRefresh';
-import {hasPendingTableEdits, tableRefreshIdentity} from '../utils/autoRefresh';
+import {useAutoRefresh} from '@/hooks/useAutoRefresh';
+import {hasPendingTableEdits, tableRefreshIdentity} from '@/utils/autoRefresh';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {useTranslation} from 'react-i18next';
 import {
@@ -12,18 +12,18 @@ import {
     normalizeSmartQuotes,
     reconstructTableQuery,
     resolveTabPageSize,
-} from '../utils/editor';
-import {shouldShowStatementSuccess} from '../utils/resultPresentation';
-import {formatRowsForCopy, copyTextToClipboard} from '../utils/clipboard';
-import {onActivationKey, isTypingTarget} from '../utils/keyboardEvents';
+} from '@/utils/editor';
+import {shouldShowStatementSuccess} from '@/utils/resultPresentation';
+import {formatRowsForCopy, copyTextToClipboard} from '@/utils/clipboard';
+import {onActivationKey, isTypingTarget} from '@/utils/keyboardEvents';
 import {
     formatResultForExport,
     hasUnloadedRows,
     resolveExportScope,
     type ExportScope,
     type ResultExportFormat,
-} from '../utils/resultExport';
-import {serializePkKey, buildPkMap} from '../utils/dataGrid';
+} from '@/utils/resultExport';
+import {serializePkKey, buildPkMap} from '@/utils/dataGrid';
 import {
     createGridHistory,
     recordGridEdit,
@@ -35,9 +35,9 @@ import {
     clonePendingDeletions,
     clonePendingInsertions,
     type GridPendingSnapshot,
-} from '../utils/gridUndo';
-import {TONE_SOFT_BG_CLASS, TONE_TEXT_CLASS, tint} from '../utils/tones';
-import {buildKeylessUpdatePlan, resolveRowIdentity} from '../utils/rowIdentity';
+} from '@/utils/gridUndo';
+import {TONE_SOFT_BG_CLASS, TONE_TEXT_CLASS, tint} from '@/utils/tones';
+import {buildKeylessUpdatePlan, resolveRowIdentity} from '@/utils/rowIdentity';
 import {
     getTableDataChangeScope,
     isMultiDatabaseCapable,
@@ -46,27 +46,27 @@ import {
     resolveFlatMultiDbTabDatabase,
     selectFlatMultiDbTabDatabase,
     toFlatMultiDbTabTarget,
-} from '../utils/database';
+} from '@/utils/database';
 import {
     findDriverManifest,
     isReadonly,
     speaksGenericSql,
     supportsExplain,
-} from '../utils/driverCapabilities';
-import {useClickOutside} from '../hooks/useClickOutside';
-import {DANGEROUS_QUERY_I18N} from '../hooks/useDangerousQueryGuard';
-import {useProductionGuard} from '../hooks/useProductionGuard';
-import {useQueryGuards} from '../hooks/useQueryGuards';
+} from '@/utils/driverCapabilities';
+import {useClickOutside} from '@/hooks/useClickOutside';
+import {DANGEROUS_QUERY_I18N} from '@/hooks/useDangerousQueryGuard';
+import {useProductionGuard} from '@/hooks/useProductionGuard';
+import {useQueryGuards} from '@/hooks/useQueryGuards';
 import {
     generateTempId,
     initializeNewRow,
     validatePendingInsertion,
     insertionToBackendData,
-} from '../utils/pendingInsertions';
-import {AiQueryModal} from '../components/modals/AiQueryModal';
-import {AiExplainModal} from '../components/modals/AiExplainModal';
-import {AiDropdownButton} from '../components/ui/AiDropdownButton';
-import {VisualExplainModal} from '../components/modals/VisualExplainModal';
+} from '@/utils/pendingInsertions';
+import {AiQueryModal} from '@/components/modals/AiQueryModal';
+import {AiExplainModal} from '@/components/modals/AiExplainModal';
+import {AiDropdownButton} from '@/components/ui/AiDropdownButton';
+import {VisualExplainModal} from '@/components/modals/VisualExplainModal';
 import {
     Play,
     Plus,
@@ -115,23 +115,23 @@ import {invoke} from '@tauri-apps/api/core';
 import {listen, emit} from '@tauri-apps/api/event';
 import {writeTextFile} from '@tauri-apps/plugin-fs';
 import {open as openFileDialog, save as saveFileDialog} from '@tauri-apps/plugin-dialog';
-import {TableToolbar} from '../components/ui/TableToolbar';
-import {DataGrid, type DataGridCommandTarget} from '../components/ui/DataGrid';
-import {MultiResultPanel} from '../components/ui/MultiResultPanel';
-import {ErrorDisplay} from '../components/ui/ErrorDisplay';
-import {PageSizeSelector} from '../components/ui/PageSizeSelector';
-import {NewRowModal} from '../components/modals/NewRowModal';
-import {QuerySelectionModal} from '../components/modals/QuerySelectionModal';
-import {ConfirmModal} from '../components/modals/ConfirmModal';
-import {ExplainSelectionModal} from '../components/modals/ExplainSelectionModal';
-import {useTabSwitcher} from '../hooks/useTabSwitcher';
-import {TabSwitcherModal} from '../components/modals/TabSwitcherModal';
-import {QueryModal} from '../components/modals/QueryModal';
-import {QueryParamsModal} from '../components/modals/QueryParamsModal';
-import {ErrorModal} from '../components/modals/ErrorModal';
-import {VisualQueryBuilder} from '../components/ui/VisualQueryBuilder';
-import {ContextMenu} from '../components/ui/ContextMenu';
-import {ExportProgressModal, type ExportStatus} from '../components/modals/ExportProgressModal';
+import {TableToolbar} from '@/components/ui/TableToolbar';
+import {DataGrid, type DataGridCommandTarget} from '@/components/ui/DataGrid';
+import {MultiResultPanel} from '@/components/ui/MultiResultPanel';
+import {ErrorDisplay} from '@/components/ui/ErrorDisplay';
+import {PageSizeSelector} from '@/components/ui/PageSizeSelector';
+import {NewRowModal} from '@/components/modals/NewRowModal';
+import {QuerySelectionModal} from '@/components/modals/QuerySelectionModal';
+import {ConfirmModal} from '@/components/modals/ConfirmModal';
+import {ExplainSelectionModal} from '@/components/modals/ExplainSelectionModal';
+import {useTabSwitcher} from '@/hooks/useTabSwitcher';
+import {TabSwitcherModal} from '@/components/modals/TabSwitcherModal';
+import {QueryModal} from '@/components/modals/QueryModal';
+import {QueryParamsModal} from '@/components/modals/QueryParamsModal';
+import {ErrorModal} from '@/components/modals/ErrorModal';
+import {VisualQueryBuilder} from '@/components/ui/VisualQueryBuilder';
+import {ContextMenu} from '@/components/ui/ContextMenu';
+import {ExportProgressModal, type ExportStatus} from '@/components/modals/ExportProgressModal';
 import {
     splitQueries,
     splitStatements,
@@ -141,11 +141,11 @@ import {
     getExplainableQueries,
     statementLabel,
     type Statement,
-} from '../utils/sql';
-import type {DialectInput} from '../utils/sqlSplitter';
-import {resolveSqlSyntax} from '../utils/sqlSyntax';
-import {canStripSqlComments, stripSqlComments} from '../utils/stripSqlComments';
-import {resolveRunTarget, type RunContext} from '../utils/runTarget';
+} from '@/utils/sql';
+import type {DialectInput} from '@/utils/sqlSplitter';
+import {resolveSqlSyntax} from '@/utils/sqlSyntax';
+import {canStripSqlComments, stripSqlComments} from '@/utils/stripSqlComments';
+import {resolveRunTarget, type RunContext} from '@/utils/runTarget';
 import {
     createResultEntries,
     clearEntryScrollTops as clearScrollTopsForTab,
@@ -156,11 +156,11 @@ import {
     removeEntriesToRight,
     removeEntriesToLeft,
     findActiveEntry,
-} from '../utils/multiResult';
-import {extractQueryParams, interpolateQueryParams} from '../utils/queryParameters';
-import {formatDuration, formatTimingTooltip} from '../utils/formatTime';
-import {useTimingLabels} from '../hooks/useTimingLabels';
-import {notifyQueryFinished} from '../utils/queryNotification';
+} from '@/utils/multiResult';
+import {extractQueryParams, interpolateQueryParams} from '@/utils/queryParameters';
+import {formatDuration, formatTimingTooltip} from '@/utils/formatTime';
+import {useTimingLabels} from '@/hooks/useTimingLabels';
+import {notifyQueryFinished} from '@/utils/queryNotification';
 import {
     buildSyncPayload,
     applyAction,
@@ -175,24 +175,24 @@ import {
     type ResultsReadyPayload,
     type ResultsActionEnvelope,
     type ResultsClosedPayload,
-} from '../utils/resultsWindowSync';
-import {SqlEditorWrapper} from '../components/ui/SqlEditorWrapper';
-import {NotebookView} from '../components/notebook/NotebookView';
-import {UserManagementView} from '../components/users/UserManagementView';
-import {useSqlAutocompleteRegistration} from '../hooks/useSqlAutocompleteRegistration';
-import {createNotebook, renameNotebook} from '../utils/notebookStore';
+} from '@/utils/resultsWindowSync';
+import {SqlEditorWrapper} from '@/components/ui/SqlEditorWrapper';
+import {NotebookView} from '@/components/notebook/NotebookView';
+import {UserManagementView} from '@/components/users/UserManagementView';
+import {useSqlAutocompleteRegistration} from '@/hooks/useSqlAutocompleteRegistration';
+import {createNotebook, renameNotebook} from '@/utils/notebookStore';
 import type {OnMount, Monaco} from '@monaco-editor/react';
-import {useAlert} from '../hooks/useAlert';
-import {useToast} from '../hooks/useToast';
-import {useDatabase} from '../hooks/useDatabase';
-import {useDrivers} from '../hooks/useDrivers';
-import {getConnectionAccent} from '../utils/driverUI';
-import {useSavedQueries} from '../hooks/useSavedQueries';
-import {useQueryHistory} from '../hooks/useQueryHistory';
-import {useSettings} from '../hooks/useSettings';
-import {useEditor} from '../hooks/useEditor';
-import {useConnectionLayoutContext} from '../hooks/useConnectionLayoutContext';
-import {useKeybindings} from '../hooks/useKeybindings';
+import {useAlert} from '@/hooks/useAlert';
+import {useToast} from '@/hooks/useToast';
+import {useDatabase} from '@/hooks/useDatabase';
+import {useDrivers} from '@/hooks/useDrivers';
+import {getConnectionAccent} from '@/utils/driverUI';
+import {useSavedQueries} from '@/hooks/useSavedQueries';
+import {useQueryHistory} from '@/hooks/useQueryHistory';
+import {useSettings} from '@/hooks/useSettings';
+import {useEditor} from '@/hooks/useEditor';
+import {useConnectionLayoutContext} from '@/hooks/useConnectionLayoutContext';
+import {useKeybindings} from '@/hooks/useKeybindings';
 import type {
     BatchStatementResult,
     QueryResult,
@@ -202,18 +202,18 @@ import type {
     ForeignKey,
     EditorNavigationIntent,
     EditorNavigationRequest,
-} from '../types/editor';
-import {createEditorNavigationIntent, parseEditorNavigationIntent} from '../utils/editorNavigation';
-import {CommandPaletteScopeBridge} from '../components/layout/CommandPaletteScopeBridge';
-import type {CommandScope} from '../types/commands';
-import {ROOT_COMMAND_SCOPE_ID} from '../utils/commandScopeStore';
-import {createActiveEditorCommands} from '../utils/editorCommands';
-import {buildForeignKeyFilterClause} from '../utils/foreignKeys';
+} from '@/types/editor';
+import {createEditorNavigationIntent, parseEditorNavigationIntent} from '@/utils/editorNavigation';
+import {CommandPaletteScopeBridge} from '@/components/layout/CommandPaletteScopeBridge';
+import type {CommandScope} from '@/types/commands';
+import {ROOT_COMMAND_SCOPE_ID} from '@/utils/commandScopeStore';
+import {createActiveEditorCommands} from '@/utils/editorCommands';
+import {buildForeignKeyFilterClause} from '@/utils/foreignKeys';
 import {
     buildCellValueFilterClause,
     combineFilterClauses,
     type CellValueFilterOperator,
-} from '../utils/cellValueFilter';
+} from '@/utils/cellValueFilter';
 import {
     getColumnStatsSource,
     loadColumnStats,
@@ -222,20 +222,20 @@ import {
     type ColumnStatsSupport,
     type PluginColumnStats,
     type PluginColumnStatsFetcher,
-} from '../utils/columnStats';
-import {getNextSortClause} from '../utils/tableToolbar';
-import {getAdjacentTabGap} from '../utils/tabDnd';
+} from '@/utils/columnStats';
+import {getNextSortClause} from '@/utils/tableToolbar';
+import {getAdjacentTabGap} from '@/utils/tabDnd';
 import {
     createSqlFileTab,
     getSqlFileName,
     hasUnsavedSqlFileTabs,
     isSqlFileDirty,
     savedSqlFileTab,
-} from '../utils/sqlFile';
-import {RelatedRecordsPanel} from '../components/ui/RelatedRecordsPanel';
-import {getTabScrollState, getAdjacentTabIndex, isFocusedPane} from '../utils/tabScroll';
-import {computeAutoScrollSpeed} from '../utils/notebookDnd';
-import {buildExportFileName} from '../utils/exportFileName';
+} from '@/utils/sqlFile';
+import {RelatedRecordsPanel} from '@/components/ui/RelatedRecordsPanel';
+import {getTabScrollState, getAdjacentTabIndex, isFocusedPane} from '@/utils/tabScroll';
+import {computeAutoScrollSpeed} from '@/utils/notebookDnd';
+import {buildExportFileName} from '@/utils/exportFileName';
 import clsx from 'clsx';
 
 interface ExportProgress {

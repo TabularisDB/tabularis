@@ -1,12 +1,12 @@
 import {describe, expect, it} from 'vitest';
-import type {QueryResult} from '../../src/types/editor';
-import {rowsToHtmlTable} from '../../src/utils/clipboard';
+import type {QueryResult} from '@/types/editor';
+import {rowsToHtmlTable} from '@/utils/clipboard';
 import {
     formatResultForExport,
     getLoadedRowsExportLimit,
     hasUnloadedRows,
     resolveExportScope,
-} from '../../src/utils/resultExport';
+} from '@/utils/resultExport';
 
 const result: QueryResult = {
     columns: ['id', 'name'],

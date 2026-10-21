@@ -1,4 +1,4 @@
-import type {QueryResult} from '../types/editor';
+import type {QueryResult} from '@/types/editor';
 import {csvField, rowsToHtmlTable, rowsToMarkdown} from './clipboard';
 
 export type ResultExportFormat = 'csv' | 'json' | 'ndjson' | 'markdown' | 'html';
