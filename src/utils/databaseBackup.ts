@@ -1,24 +1,24 @@
-import type { DatabaseBackupPlan, DriverDumpCapability } from "../types/databaseBackup";
-import type { DriverCapabilities, PluginManifest } from "../types/plugins";
+import type {DatabaseBackupPlan, DriverDumpCapability} from '../types/databaseBackup';
+import type {DriverCapabilities, PluginManifest} from '../types/plugins';
 
 export const COMMON_IANA_TIMEZONES = [
-  "UTC",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Europe/Kyiv",
-  "Europe/Moscow",
-  "Asia/Dubai",
-  "Asia/Kolkata",
-  "Asia/Singapore",
-  "Asia/Shanghai",
-  "Asia/Tokyo",
-  "Australia/Sydney",
-  "Pacific/Auckland",
+    'UTC',
+    'America/New_York',
+    'America/Chicago',
+    'America/Denver',
+    'America/Los_Angeles',
+    'Europe/London',
+    'Europe/Paris',
+    'Europe/Berlin',
+    'Europe/Kyiv',
+    'Europe/Moscow',
+    'Asia/Dubai',
+    'Asia/Kolkata',
+    'Asia/Singapore',
+    'Asia/Shanghai',
+    'Asia/Tokyo',
+    'Australia/Sydney',
+    'Pacific/Auckland',
 ];
 
 /**
@@ -32,36 +32,36 @@ export const COMMON_IANA_TIMEZONES = [
  * `reasonKey` is an i18n key explaining why the driver is not capable.
  */
 export function isDriverDumpCapable(
-  driver: DriverCapabilities | PluginManifest | null | undefined,
+    driver: DriverCapabilities | PluginManifest | null | undefined,
 ): DriverDumpCapability {
-  if (!driver) {
-    return {
-      capable: false,
-      reasonKey: "settings.backup.dbBackupReasonUnknownDriver",
-    };
-  }
+    if (!driver) {
+        return {
+            capable: false,
+            reasonKey: 'settings.backup.dbBackupReasonUnknownDriver',
+        };
+    }
 
-  const caps = "capabilities" in driver ? driver.capabilities : driver;
+    const caps = 'capabilities' in driver ? driver.capabilities : driver;
 
-  if (caps.no_connection_required) {
-    return { capable: false, reasonKey: "settings.backup.dbBackupReasonApi" };
-  }
+    if (caps.no_connection_required) {
+        return {capable: false, reasonKey: 'settings.backup.dbBackupReasonApi'};
+    }
 
-  if (caps.folder_based) {
-    return {
-      capable: false,
-      reasonKey: "settings.backup.dbBackupReasonFolder",
-    };
-  }
+    if (caps.folder_based) {
+        return {
+            capable: false,
+            reasonKey: 'settings.backup.dbBackupReasonFolder',
+        };
+    }
 
-  if (!caps.sql_dialect) {
-    return {
-      capable: false,
-      reasonKey: "settings.backup.dbBackupReasonNoDialect",
-    };
-  }
+    if (!caps.sql_dialect) {
+        return {
+            capable: false,
+            reasonKey: 'settings.backup.dbBackupReasonNoDialect',
+        };
+    }
 
-  return { capable: true };
+    return {capable: true};
 }
 
 /**
@@ -70,35 +70,38 @@ export function isDriverDumpCapable(
  * skip the driver check (no connection selected yet).
  */
 export function validateDatabaseBackupPlan(
-  plan: DatabaseBackupPlan,
-  driver?: DriverCapabilities | PluginManifest | null,
-): { isValid: boolean; errorKey?: string } {
-  if (!plan.enabled) {
-    return { isValid: true };
-  }
-
-  if (!plan.connectionId) {
-    return { isValid: false, errorKey: "settings.backup.databaseBackupErrorNoConnection" };
-  }
-
-  if (!plan.destinationDirectory) {
-    return { isValid: false, errorKey: "settings.backup.databaseBackupErrorNoDirectory" };
-  }
-
-  if (plan.retention < 1) {
-    return { isValid: false, errorKey: "settings.backup.databaseBackupErrorInvalidRetention" };
-  }
-
-  if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(plan.time)) {
-    return { isValid: false, errorKey: "settings.backup.databaseBackupErrorInvalidTime" };
-  }
-
-  if (driver !== undefined) {
-    const capability = isDriverDumpCapable(driver);
-    if (!capability.capable) {
-      return { isValid: false, errorKey: "settings.backup.databaseBackupErrorUnsupportedDriver" };
+    plan: DatabaseBackupPlan,
+    driver?: DriverCapabilities | PluginManifest | null,
+): {isValid: boolean; errorKey?: string} {
+    if (!plan.enabled) {
+        return {isValid: true};
     }
-  }
 
-  return { isValid: true };
+    if (!plan.connectionId) {
+        return {isValid: false, errorKey: 'settings.backup.databaseBackupErrorNoConnection'};
+    }
+
+    if (!plan.destinationDirectory) {
+        return {isValid: false, errorKey: 'settings.backup.databaseBackupErrorNoDirectory'};
+    }
+
+    if (plan.retention < 1) {
+        return {isValid: false, errorKey: 'settings.backup.databaseBackupErrorInvalidRetention'};
+    }
+
+    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(plan.time)) {
+        return {isValid: false, errorKey: 'settings.backup.databaseBackupErrorInvalidTime'};
+    }
+
+    if (driver !== undefined) {
+        const capability = isDriverDumpCapable(driver);
+        if (!capability.capable) {
+            return {
+                isValid: false,
+                errorKey: 'settings.backup.databaseBackupErrorUnsupportedDriver',
+            };
+        }
+    }
+
+    return {isValid: true};
 }
