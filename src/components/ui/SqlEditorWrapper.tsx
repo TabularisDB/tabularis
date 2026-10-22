@@ -6,7 +6,7 @@ import type * as Monaco from 'monaco-editor';
 import {useEditorTheme} from '@/hooks/useEditorTheme';
 import {loadMonacoTheme} from '@/themes/themeUtils';
 import {getMonacoThemeId} from '@/themes/themeRuntime';
-import {readText, writeText} from '@tauri-apps/plugin-clipboard-manager';
+import {readClipboardText, writeClipboardText} from '@/utils/systemClipboard';
 import {useSettings} from '@/hooks/useSettings';
 import {useKeybindings} from '@/hooks/useKeybindings';
 import {CommandPaletteDispatchContext} from '@/contexts/CommandPaletteContext';
@@ -264,7 +264,7 @@ const SqlEditorInternal = ({
 
     const tauriPaste = async (ed: Monaco.editor.ICodeEditor) => {
         try {
-            const text = await readText();
+            const text = await readClipboardText();
             const selections = ed.getSelections();
             if (selections && selections.length > 0 && text) {
                 const lines = text.split('\n');
@@ -297,7 +297,7 @@ const SqlEditorInternal = ({
     const tauriCopy = async (ed: Monaco.editor.ICodeEditor) => {
         try {
             const text = getSelectedText(ed);
-            if (text) await writeText(text);
+            if (text) await writeClipboardText(text);
         } catch (err) {
             console.error('Failed to write clipboard:', err);
         }
@@ -307,7 +307,7 @@ const SqlEditorInternal = ({
         try {
             const text = getSelectedText(ed);
             if (!text) return;
-            await writeText(text);
+            await writeClipboardText(text);
             const model = ed.getModel();
             const selections = ed.getSelections();
             if (!model || !selections) return;
@@ -396,7 +396,7 @@ const SqlEditorInternal = ({
             },
         });
 
-        // Register custom Cut/Copy/Paste actions using the Tauri clipboard API.
+        // Register custom Cut/Copy/Paste actions using the system clipboard helpers.
         // Monaco's built-ins rely on document.execCommand, which silently fails
         // inside the WebView on some Linux setups.
         editor.addAction({

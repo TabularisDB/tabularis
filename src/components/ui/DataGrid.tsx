@@ -87,7 +87,7 @@ import {
     type RangeExtendKey,
 } from '@/utils/dataGrid';
 import {isTypingTarget} from '@/utils/keyboardEvents';
-import {readText, writeHtml} from '@tauri-apps/plugin-clipboard-manager';
+import {readClipboardText, writeClipboardHtml} from '@/utils/systemClipboard';
 import {getSortButtonAction} from '@/utils/tableToolbar';
 import {useSettings} from '@/hooks/useSettings';
 import {useJsonEditorActivity} from '@/hooks/useJsonEditorActivity';
@@ -1966,7 +1966,8 @@ export const DataGrid = React.memo(function DataGrid({
         if (!rows) return;
 
         await writeToClipboard(
-            () => writeHtml(rowsToHtmlTable(rows, columns, 'null'), formatRows(rows, true)),
+            () =>
+                writeClipboardHtml(rowsToHtmlTable(rows, columns, 'null'), formatRows(rows, true)),
             rowsCopiedToast(rows.length),
         );
     }, [getContextRows, columns, formatRows, writeToClipboard, rowsCopiedToast]);
@@ -2352,7 +2353,7 @@ export const DataGrid = React.memo(function DataGrid({
 
             let text: string | null = null;
             try {
-                text = await readText();
+                text = await readClipboardText();
             } catch (e) {
                 console.error('Failed to read clipboard:', e);
                 showToast(t('dataGrid.pasteReadFailed'), {kind: 'error'});
