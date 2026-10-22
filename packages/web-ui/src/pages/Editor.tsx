@@ -2249,7 +2249,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                 csvIncludeHeaders,
                 csvDelimiter,
                 tableName,
-                driver: activeCapabilities,
+                driver: activeCapabilities ?? activeDriver,
             });
             return {text, count: rows.length};
         },
@@ -2257,6 +2257,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             client,
             activeConnectionId,
             activeCapabilities,
+            activeDriver,
             copyFormat,
             csvDelimiter,
             csvIncludeHeaders,

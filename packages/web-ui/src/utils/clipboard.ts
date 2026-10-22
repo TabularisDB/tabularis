@@ -3,8 +3,9 @@ import {writeActiveClipboard} from '@/platform/activeCapabilities';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import {quoteSqlString, sqlBooleanLiteral, stringEscapeStyle} from './sqlLiteral';
 import {escapeHtml} from './escape';
+import {quoteIdentifier} from './identifiers';
 
-/** Driver whose dialect the copied SQL literals follow. */
+/** Driver whose dialect the copied SQL identifiers and literals follow. */
 type CopyDriver = string | PluginManifest | DriverCapabilities | null;
 
 // RFC 4180 quoting, shared with the file export: a field with the delimiter, a quote or a line
@@ -226,9 +227,9 @@ function rowToSqlInsert(
     tableName: string,
     driver?: CopyDriver,
 ): string {
-    const cols = columns.map((c) => `\`${c}\``).join(', ');
+    const cols = columns.map((c) => quoteIdentifier(c, driver)).join(', ');
     const vals = row.map((cell) => sqlValue(cell, driver)).join(', ');
-    return `INSERT INTO \`${tableName}\` (${cols}) VALUES (${vals});`;
+    return `INSERT INTO ${quoteIdentifier(tableName, driver)} (${cols}) VALUES (${vals});`;
 }
 
 export function rowsToSqlInsert(
