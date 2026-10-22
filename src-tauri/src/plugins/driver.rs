@@ -1225,6 +1225,30 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    async fn execute_read_only_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<QueryResult, String> {
+        match self
+            .process
+            .call_detailed(
+                "execute_read_only_query",
+                json!({ "params": self.with_primary_database(params), "query": query, "limit": limit, "page": page, "schema": schema }),
+            )
+            .await
+        {
+            Ok(res) => serde_json::from_value(res).map_err(|e| e.to_string()),
+            Err(error) if is_method_not_found(&error) => {
+                self.execute_query(params, query, limit, page, schema).await
+            }
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
     async fn execute_batch(
         &self,
         params: &ConnectionParams,
@@ -3289,6 +3313,72 @@ mod tests {
             .await;
 
         assert_eq!(result.unwrap_err(), "connection lost");
+    }
+
+    fn read_only_result() -> Value {
+        json!({ "columns": ["n"], "rows": [[1]], "affected_rows": 0, "pagination": null })
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_forwards_execute_read_only_query() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "execute_read_only_query");
+            assert_eq!(request.params["query"], "SELECT 1 AS n");
+            assert_eq!(request.params["schema"], "public");
+            read_only_result()
+        });
+
+        let result = driver
+            .execute_read_only_query(
+                &test_connection_params(),
+                "SELECT 1 AS n",
+                Some(10),
+                1,
+                Some("public"),
+            )
+            .await
+            .expect("execute_read_only_query");
+
+        assert_eq!(result.rows, vec![vec![json!(1)]]);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_execute_read_only_query_falls_back_when_the_plugin_lacks_it() {
+        let driver = test_driver_detailed(|request| match request.method.as_str() {
+            "execute_read_only_query" => Err(PluginCallError::Remote(JsonRpcError {
+                code: -32601,
+                message: "not implemented".to_string(),
+            })),
+            "execute_query" => Ok(read_only_result()),
+            other => panic!("unexpected method: {other}"),
+        });
+
+        let result = driver
+            .execute_read_only_query(&test_connection_params(), "SELECT 1 AS n", None, 1, None)
+            .await
+            .expect("fallback to execute_query");
+
+        assert_eq!(result.rows, vec![vec![json!(1)]]);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_execute_read_only_query_propagates_other_errors() {
+        let driver = test_driver_detailed(|request| match request.method.as_str() {
+            "execute_read_only_query" => Err(PluginCallError::Remote(JsonRpcError {
+                code: -32603,
+                message: "cannot execute INSERT in a read-only transaction".to_string(),
+            })),
+            other => panic!("unexpected method: {other}"),
+        });
+
+        let result = driver
+            .execute_read_only_query(&test_connection_params(), "SELECT f()", None, 1, None)
+            .await;
+
+        assert_eq!(
+            result.unwrap_err(),
+            "cannot execute INSERT in a read-only transaction"
+        );
     }
 
     #[tokio::test]
