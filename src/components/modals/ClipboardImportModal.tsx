@@ -21,7 +21,7 @@ import {
     DATA_IMPORT_EXTENSIONS,
 } from '@/utils/dataImportFile';
 import {toErrorMessage} from '@/utils/errors';
-import {readText} from '@tauri-apps/plugin-clipboard-manager';
+import {readClipboardText} from '@/utils/systemClipboard';
 import {Modal} from '@/components/ui/Modal';
 import {Select} from '@/components/ui/Select';
 import {useDatabase} from '@/hooks/useDatabase';
@@ -166,7 +166,7 @@ export function ClipboardImportModal({
         setIsLoadingFile(false);
         setError(null);
         try {
-            await applyText((await readText()) ?? '', id, null);
+            await applyText(await readClipboardText(), id, null);
         } catch {
             if (id === sourceRequest.current) setError(t('clipboardImport.noData'));
         } finally {
