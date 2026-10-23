@@ -138,6 +138,157 @@ export function quoteIdentifier(
     return `${quote}${escaped}${quote}`;
 }
 
+// Unquoted identifiers keep their case on MySQL/MariaDB, SQLite and SQL Server,
+// so only the character set matters there. Oracle folds unquoted names to
+// upper case, PostgreSQL (PG_SAFE_IDENTIFIER above) to lower case.
+const PLAIN_SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const ORACLE_SAFE_IDENTIFIER = /^[A-Z][A-Z0-9_$#]*$/;
+
+// Words reserved in at least one of the supported dialects that are plausible
+// table or column names. Quoting a word a dialect does not reserve is harmless,
+// so one shared list covers every dialect.
+const RESERVED_IDENTIFIERS = new Set([
+    ...PG_RESERVED,
+    'add',
+    'all',
+    'alter',
+    'analyze',
+    'any',
+    'asc',
+    'between',
+    'both',
+    'call',
+    'cascade',
+    'case',
+    'cast',
+    'change',
+    'collate',
+    'constraint',
+    'create',
+    'cross',
+    'current_date',
+    'current_time',
+    'current_timestamp',
+    'current_user',
+    'database',
+    'databases',
+    'delete',
+    'desc',
+    'describe',
+    'distinct',
+    'div',
+    'drop',
+    'else',
+    'end',
+    'escape',
+    'except',
+    'exists',
+    'explain',
+    'fetch',
+    'for',
+    'force',
+    'foreign',
+    'full',
+    'fulltext',
+    'function',
+    'grant',
+    'having',
+    'if',
+    'ignore',
+    'index',
+    'inner',
+    'insert',
+    'interval',
+    'intersect',
+    'into',
+    'is',
+    'key',
+    'keys',
+    'leading',
+    'left',
+    'like',
+    'lock',
+    'match',
+    'mod',
+    'natural',
+    'not',
+    'option',
+    'outer',
+    'over',
+    'partition',
+    'primary',
+    'procedure',
+    'range',
+    'rank',
+    'read',
+    'references',
+    'regexp',
+    'rename',
+    'replace',
+    'require',
+    'restrict',
+    'return',
+    'revoke',
+    'right',
+    'rlike',
+    'row',
+    'rows',
+    'schema',
+    'set',
+    'show',
+    'then',
+    'to',
+    'trailing',
+    'trigger',
+    'union',
+    'unique',
+    'unlock',
+    'update',
+    'usage',
+    'use',
+    'using',
+    'values',
+    'when',
+    'while',
+    'window',
+    'with',
+    'write',
+]);
+
+/**
+ * True when `identifier` must be quoted to be used as-is in the driver's
+ * dialect: it contains characters outside `[A-Za-z0-9_]` (a hyphen, a space,
+ * ...), starts with a digit, is a reserved word, or (PostgreSQL / Oracle) its
+ * case differs from the one the server folds unquoted names to.
+ */
+export function identifierNeedsQuoting(
+    identifier: string,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+): boolean {
+    if (identifier === '') return false;
+    if (RESERVED_IDENTIFIERS.has(identifier.toLowerCase())) return true;
+    if (isPostgresDialect(driver)) return !PG_SAFE_IDENTIFIER.test(identifier);
+    if (capabilitiesOf(driver)?.sql_dialect === 'oracle') {
+        return !ORACLE_SAFE_IDENTIFIER.test(identifier);
+    }
+    return !PLAIN_SAFE_IDENTIFIER.test(identifier);
+}
+
+/**
+ * Quotes `identifier` with the driver's identifier quote (see
+ * `quoteIdentifier`) only when `identifierNeedsQuoting` says it must be, so
+ * plain names such as `users` stay unquoted. Used where the user keeps typing
+ * around the inserted name, e.g. the SQL editor's autocomplete.
+ */
+export function quoteIdentifierIfNeeded(
+    identifier: string,
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+): string {
+    return identifierNeedsQuoting(identifier, driver)
+        ? quoteIdentifier(identifier, driver)
+        : identifier;
+}
+
 /**
  * Returns a schema-qualified, quoted table reference for use in SQL queries.
  * When a schema is provided, returns "schema"."table" (or `schema`.`table` for MySQL).

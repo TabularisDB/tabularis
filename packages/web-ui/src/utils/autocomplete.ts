@@ -2,7 +2,7 @@ import type {Monaco} from '@monaco-editor/react';
 import type {TableInfo} from '@/contexts/DatabaseContext';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
 import type {TypedCommandCaller} from '@/api/contract';
-import {formatSqlIdentifier, getQuoteChar, quoteIdentifier} from './identifiers';
+import {getQuoteChar, quoteIdentifier, quoteIdentifierIfNeeded} from './identifiers';
 import {getCurrentStatement, parseTablesFromQuery, type ParsedTableRef} from './sqlAnalysis';
 import {
     analyzeSqlContext,
@@ -203,6 +203,34 @@ export const clearAutocompleteCache = (connectionId?: string) => {
     }
 };
 
+/**
+ * Returns the 0-based index of the identifier quote the line text ends inside
+ * of (the user typed an opening quote and has not closed it yet), or -1.
+ * Quotes inside single-quoted string literals are ignored, and `[` pairs with
+ * `]` for drivers that quote with brackets.
+ */
+export function findOpenIdentifierQuote(text: string, quoteChar: string): number {
+    const closingQuote = quoteChar === '[' ? ']' : quoteChar;
+    let open = -1;
+    let inLiteral = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inLiteral) {
+            if (ch === "'") inLiteral = false;
+        } else if (open >= 0) {
+            if (ch !== closingQuote) continue;
+            // A doubled closing quote is an escaped quote inside the name.
+            if (closingQuote === quoteChar && text[i + 1] === closingQuote) i++;
+            else open = -1;
+        } else if (ch === "'") {
+            inLiteral = true;
+        } else if (ch === quoteChar) {
+            open = i;
+        }
+    }
+    return open;
+}
+
 let sqlCompletionProvider: {dispose: () => void} | null = null;
 
 export const disposeSqlAutocomplete = (): void => {
@@ -256,15 +284,36 @@ export const registerSqlAutocomplete = (
                 endColumn: wordUntil.endColumn,
             };
 
-            // When the user has already typed an opening quote, Monaco auto-closes it
-            // so the cursor sits inside a pair (`"|"`); the user may also have deleted
-            // the closing one (`"|`). Inserting a freshly quoted identifier into the
-            // word range would then double the opening quote (`""AccountEventLog"`) or
-            // leave it dangling. So when an opening quote precedes the replacement
-            // range, expand the range to swallow it (and the closing quote if present)
-            // and emit a fully-quoted identifier — yielding a canonical result for 0, 1
-            // or 2 surrounding quotes alike.
+            // Get text until cursor position
+            const textUntilPosition = model.getValueInRange({
+                startLineNumber: position.lineNumber,
+                startColumn: 1,
+                endLineNumber: position.lineNumber,
+                endColumn: position.column,
+            });
+
+            // Identifiers are inserted quoted with the dialect's quote only when they
+            // need it (`global-conf_modulos` -> `` `global-conf_modulos` `` on MySQL),
+            // while label and filter text stay unquoted so `glo` still matches.
+            //
+            // When the user has already typed an opening quote, Monaco may auto-close
+            // it so the cursor sits inside a pair (`"|"`); the user may also have
+            // deleted the closing one (`"|`) or typed part of the name (`` `global-co| ``).
+            // Inserting a freshly quoted identifier into the word range would then
+            // double the opening quote (`""AccountEventLog"`) or leave it dangling. So
+            // when the cursor is inside an opened quote, expand the range to swallow it
+            // (and the closing quote if present) and emit a fully-quoted identifier —
+            // yielding a canonical result for 0, 1 or 2 surrounding quotes alike.
             const quoteChar = getQuoteChar(driver);
+            const openQuoteIndex = findOpenIdentifierQuote(textUntilPosition, quoteChar);
+            const openQuoteColumn = openQuoteIndex >= 0 ? openQuoteIndex + 1 : null;
+            // The text before the identifier being typed, without its opening quote
+            // and partial name, so clause analysis and the dot matchers see the same
+            // input as for an unquoted name (`FROM ` rather than `FROM \`glo`).
+            const textBeforeIdentifier =
+                openQuoteIndex >= 0
+                    ? textUntilPosition.slice(0, openQuoteIndex)
+                    : textUntilPosition;
             const charAt = (column: number): string =>
                 column < 1
                     ? ''
@@ -274,6 +323,7 @@ export const registerSqlAutocomplete = (
                           endLineNumber: position.lineNumber,
                           endColumn: column + 1,
                       });
+            const closingQuote = quoteChar === '[' ? ']' : quoteChar;
             const buildIdentifierInsert = (
                 name: string,
                 baseRange: {
@@ -292,32 +342,44 @@ export const registerSqlAutocomplete = (
                 };
                 filterText?: string;
             } => {
-                if (baseRange.startColumn <= 1 || charAt(baseRange.startColumn - 1) !== quoteChar) {
-                    return {insertText: formatSqlIdentifier(name, driver), range: baseRange};
+                if (openQuoteColumn !== null && openQuoteColumn < baseRange.startColumn) {
+                    const swallowsClosing = charAt(baseRange.endColumn) === closingQuote;
+                    const insertText = quoteIdentifier(name, driver);
+                    return {
+                        insertText,
+                        // The range now starts at the opening quote, so Monaco filters
+                        // items against the leading quote; match it by giving filterText
+                        // the same quoted form, otherwise every suggestion gets filtered out.
+                        filterText: insertText,
+                        range: {
+                            ...baseRange,
+                            startColumn: openQuoteColumn,
+                            endColumn: swallowsClosing
+                                ? baseRange.endColumn + 1
+                                : baseRange.endColumn,
+                        },
+                    };
                 }
-                const swallowsClosing = charAt(baseRange.endColumn) === quoteChar;
-                const insertText = quoteIdentifier(name, driver);
+                const insertText = quoteIdentifierIfNeeded(name, driver);
+                if (insertText === name) return {insertText, range: baseRange};
+                // Monaco's word stops at a hyphen, so after typing `global-co` only `co`
+                // is in the word range. Swallow the typed lead-in when it starts the name,
+                // otherwise the quoted name lands after it (`global-\`global-conf_modulos\``).
+                const leadIn =
+                    textUntilPosition.slice(0, baseRange.startColumn - 1).match(/[\w$-]+$/)?.[0] ??
+                    '';
+                const typed = textUntilPosition.slice(baseRange.startColumn - 1);
+                const swallowsLeadIn =
+                    leadIn !== '' && name.toLowerCase().startsWith((leadIn + typed).toLowerCase());
                 return {
                     insertText,
-                    // The range now starts at the opening quote, so Monaco filters items
-                    // against the leading quote; match it by giving filterText the same
-                    // quoted form, otherwise every suggestion gets filtered out.
-                    filterText: insertText,
-                    range: {
-                        ...baseRange,
-                        startColumn: baseRange.startColumn - 1,
-                        endColumn: swallowsClosing ? baseRange.endColumn + 1 : baseRange.endColumn,
-                    },
+                    // Filter on the bare name so typing `glo` still matches.
+                    filterText: name,
+                    range: swallowsLeadIn
+                        ? {...baseRange, startColumn: baseRange.startColumn - leadIn.length}
+                        : baseRange,
                 };
             };
-
-            // Get text until cursor position
-            const textUntilPosition = model.getValueInRange({
-                startLineNumber: position.lineNumber,
-                startColumn: 1,
-                endLineNumber: position.lineNumber,
-                endColumn: position.column,
-            });
 
             // Clause-aware context: figure out where the cursor sits so only the
             // relevant suggestion kinds are offered (and nothing inside strings or
@@ -328,7 +390,13 @@ export const registerSqlAutocomplete = (
                 endLineNumber: position.lineNumber,
                 endColumn: position.column,
             });
-            const sqlContext = analyzeSqlContext(fullTextUntilPosition);
+            const sqlContext = analyzeSqlContext(
+                fullTextUntilPosition.slice(
+                    0,
+                    fullTextUntilPosition.length -
+                        (textUntilPosition.length - textBeforeIdentifier.length),
+                ),
+            );
             if (sqlContext.inString || sqlContext.inComment) {
                 return {suggestions: []};
             }
@@ -362,29 +430,37 @@ export const registerSqlAutocomplete = (
             // 1. DOT TRIGGER (table.column, alias.column, or db.table.column)
             // ============================================
             // Try qualified (db.table.) first, then simple (table.)
-            const qualifiedDotMatch = textUntilPosition.match(
+            const qualifiedDotMatch = textBeforeIdentifier.match(
                 /`?([a-zA-Z0-9_]+)`?\.`?([a-zA-Z0-9_]+)`?\.([a-zA-Z0-9_]*)$/,
             );
             // Parse quoted aliases first: the unquoted pattern would otherwise
             // incorrectly extract only the final word of "My CTE".
             const quotedDotMatch = qualifiedDotMatch
                 ? null
-                : textUntilPosition.match(
+                : textBeforeIdentifier.match(
                       /(?:"((?:[^"]|"")*)"|`((?:[^`]|``)*)`|\[((?:[^\]]|\]\])*)\])\.([a-zA-Z0-9_]*)$/,
                   );
             const simpleDotMatch =
                 qualifiedDotMatch || quotedDotMatch
                     ? null
-                    : textUntilPosition.match(
+                    : textBeforeIdentifier.match(
                           /(?:["'`])?([a-zA-Z0-9_]+)(?:["'`])?\.([a-zA-Z0-9_]*)$/,
                       );
             if (qualifiedDotMatch || simpleDotMatch || quotedDotMatch) {
+                const quotedAlias = quotedDotMatch
+                    ? (quotedDotMatch[1] ?? quotedDotMatch[2] ?? quotedDotMatch[3] ?? '')
+                          .replace(/""/g, '"')
+                          .replace(/``/g, '`')
+                          .replace(/\]\]/g, ']')
+                    : '';
                 // In a table operand, `namespace.partial` refers to a table rather than
                 // a column. Resolve this before the regular table/alias dot path so
-                // `FROM Ops.Add` does not request columns for a table named `Ops`.
-                if (simpleDotMatch && suggestionKinds.tables) {
-                    const namespace = simpleDotMatch[1].toLowerCase();
-                    const partialTable = simpleDotMatch[2];
+                // `FROM Ops.Add` does not request columns for a table named `Ops`. The
+                // namespace may itself be quoted (`` `my-db`.glo ``); only the table part
+                // is inserted, quoted on its own.
+                if ((simpleDotMatch || quotedDotMatch) && suggestionKinds.tables) {
+                    const namespace = (simpleDotMatch?.[1] ?? quotedAlias).toLowerCase();
+                    const partialTable = simpleDotMatch?.[2] ?? quotedDotMatch?.[4] ?? '';
                     const namespaceTables = tables.filter(
                         (table) => table.schema?.toLowerCase() === namespace,
                     );
@@ -421,12 +497,6 @@ export const registerSqlAutocomplete = (
                     );
                     dotTables = found ? [found] : [{name: tblName, schema: dbName}];
                 } else {
-                    const quotedAlias = quotedDotMatch
-                        ? (quotedDotMatch[1] ?? quotedDotMatch[2] ?? quotedDotMatch[3] ?? '')
-                              .replace(/""/g, '"')
-                              .replace(/``/g, '`')
-                              .replace(/\]\]/g, ']')
-                        : '';
                     const typedName = (simpleDotMatch?.[1] ?? quotedAlias).toLowerCase();
                     partialColumn = simpleDotMatch?.[2] ?? quotedDotMatch?.[4] ?? '';
                     // Virtual relations belong to this SQL statement, not the server.
@@ -647,9 +717,10 @@ export const registerSqlAutocomplete = (
             // Keywords irrelevant in the current clause are dropped (WHEN outside
             // CASE, ...); likely continuations get a higher rank (`2_0_`) so a
             // short prefix + Enter picks the right one (e.g. "wh" after FROM →
-            // WHERE, not WHEN).
+            // WHERE, not WHEN). Inside an opened identifier quote only names fit.
             const colLabels = new Set(contextColumnSuggestions.map((s) => s.label.toUpperCase()));
-            const keywordSuggestions = suggestionKinds.keywords
+            const offerKeywords = suggestionKinds.keywords && openQuoteColumn === null;
+            const keywordSuggestions = offerKeywords
                 ? keywords
                       .filter((kw) => !colLabels.has(kw))
                       .map((kw) => ({kw, relevance: getKeywordRelevance(sqlContext.clause, kw)}))

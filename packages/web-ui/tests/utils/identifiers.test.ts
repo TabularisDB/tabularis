@@ -4,6 +4,8 @@ import {
     quoteIdentifier,
     quoteTableRef,
     formatSqlIdentifier,
+    identifierNeedsQuoting,
+    quoteIdentifierIfNeeded,
     shouldQuoteIdentifiers,
 } from '@/utils/identifiers';
 import type {PluginManifest} from '@/types/plugins';
@@ -227,6 +229,101 @@ describe('formatSqlIdentifier', () => {
     it('leaves identifiers unchanged for a plugin manifest declaring a non-postgres dialect', () => {
         expect(formatSqlIdentifier('Status', pluginManifest({sql_dialect: 'mysql'}))).toBe(
             'Status',
+        );
+    });
+});
+
+describe('identifierNeedsQuoting', () => {
+    it('should not flag plain identifiers in any dialect', () => {
+        for (const driver of ['mysql', 'mariadb', 'postgres', 'sqlite']) {
+            expect(identifierNeedsQuoting('users', driver)).toBe(false);
+            expect(identifierNeedsQuoting('order_items', driver)).toBe(false);
+            expect(identifierNeedsQuoting('_tmp2', driver)).toBe(false);
+        }
+    });
+
+    it('should flag hyphens, spaces and other special characters in every dialect', () => {
+        for (const driver of ['mysql', 'mariadb', 'postgres', 'sqlite']) {
+            expect(identifierNeedsQuoting('global-conf_modulos', driver)).toBe(true);
+            expect(identifierNeedsQuoting('order items', driver)).toBe(true);
+            expect(identifierNeedsQuoting('price€', driver)).toBe(true);
+            expect(identifierNeedsQuoting('a.b', driver)).toBe(true);
+        }
+    });
+
+    it('should flag names starting with a digit', () => {
+        expect(identifierNeedsQuoting('2fa_codes', 'mysql')).toBe(true);
+        expect(identifierNeedsQuoting('2fa_codes', 'postgres')).toBe(true);
+    });
+
+    it('should flag reserved words whatever their case', () => {
+        expect(identifierNeedsQuoting('order', 'mysql')).toBe(true);
+        expect(identifierNeedsQuoting('Order', 'mysql')).toBe(true);
+        expect(identifierNeedsQuoting('key', 'mariadb')).toBe(true);
+        expect(identifierNeedsQuoting('group', 'sqlite')).toBe(true);
+        expect(identifierNeedsQuoting('user', 'postgres')).toBe(true);
+    });
+
+    it('should flag mixed case on postgres only, where unquoted names fold to lower case', () => {
+        expect(identifierNeedsQuoting('AccountEventLog', 'postgres')).toBe(true);
+        expect(identifierNeedsQuoting('AccountEventLog', 'postgresql')).toBe(true);
+        expect(identifierNeedsQuoting('AccountEventLog', 'mysql')).toBe(false);
+        expect(identifierNeedsQuoting('AccountEventLog', 'sqlite')).toBe(false);
+    });
+
+    it('should follow sql_dialect for plugin capabilities', () => {
+        const caps = pluginManifest().capabilities;
+        expect(identifierNeedsQuoting('AccountEventLog', caps)).toBe(true);
+        expect(identifierNeedsQuoting('AccountEventLog', {...caps, sql_dialect: 'mysql'})).toBe(
+            false,
+        );
+        expect(identifierNeedsQuoting('AccountEventLog', {...caps, sql_dialect: 'generic'})).toBe(
+            false,
+        );
+    });
+
+    it('should flag non-upper-case names on an oracle-dialect plugin', () => {
+        const oracle = pluginManifest({sql_dialect: 'oracle'});
+        expect(identifierNeedsQuoting('EMPLOYEES', oracle)).toBe(false);
+        expect(identifierNeedsQuoting('employees', oracle)).toBe(true);
+        expect(identifierNeedsQuoting('Employees', oracle)).toBe(true);
+    });
+
+    it('should not flag an empty identifier', () => {
+        expect(identifierNeedsQuoting('', 'mysql')).toBe(false);
+    });
+});
+
+describe('quoteIdentifierIfNeeded', () => {
+    it('should quote names that need it with the dialect quote (issue #1260)', () => {
+        expect(quoteIdentifierIfNeeded('global-conf_modulos', 'mariadb')).toBe(
+            '`global-conf_modulos`',
+        );
+        expect(quoteIdentifierIfNeeded('global-conf_modulos', 'mysql')).toBe(
+            '`global-conf_modulos`',
+        );
+        expect(quoteIdentifierIfNeeded('global-conf_modulos', 'postgres')).toBe(
+            '"global-conf_modulos"',
+        );
+        expect(quoteIdentifierIfNeeded('global-conf_modulos', 'sqlite')).toBe(
+            '"global-conf_modulos"',
+        );
+    });
+
+    it('should leave plain names unchanged', () => {
+        expect(quoteIdentifierIfNeeded('users', 'mysql')).toBe('users');
+        expect(quoteIdentifierIfNeeded('users', 'postgres')).toBe('users');
+        expect(quoteIdentifierIfNeeded('Users', 'sqlite')).toBe('Users');
+    });
+
+    it('should escape embedded quote characters like quoteIdentifier', () => {
+        expect(quoteIdentifierIfNeeded('it`s', 'mysql')).toBe('`it``s`');
+        expect(quoteIdentifierIfNeeded('say "hi"', 'postgres')).toBe('"say ""hi"""');
+    });
+
+    it("should use a plugin's identifier_quote", () => {
+        expect(quoteIdentifierIfNeeded('my table', pluginManifest({identifier_quote: '`'}))).toBe(
+            '`my table`',
         );
     });
 });
