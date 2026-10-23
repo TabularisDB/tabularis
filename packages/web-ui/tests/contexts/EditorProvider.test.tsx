@@ -2,6 +2,7 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {renderHook, waitFor, act} from '@testing-library/react';
 import {EditorProvider} from '@/contexts/EditorProvider';
 import {useEditor} from '@/hooks/useEditor';
+import {useResultChartState} from '@/hooks/useResultChartState';
 import {buildDuplicatedTab} from '@/utils/editor';
 import {getAdjacentTabGap} from '@/utils/tabDnd';
 import {DatabaseContext} from '@/contexts/DatabaseContext';
@@ -376,6 +377,37 @@ describe('EditorProvider', () => {
             'release_query_session',
             expect.objectContaining({sessionId: result.current.tabs[0].id}),
         );
+    });
+
+    it("forgets a closed tab's result chart view", async () => {
+        const wrapper = createWrapper('conn-1');
+        const {result} = renderHook(() => useEditor(), {wrapper});
+
+        act(() => {
+            result.current.addTab({type: 'console'});
+        });
+        act(() => {
+            result.current.addTab({type: 'console'});
+        });
+        const [closed, kept] = result.current.tabs.map((tab) => tab.id);
+        const chart = renderHook(() => ({
+            closed: useResultChartState(closed),
+            closedEntry: useResultChartState(`${closed}-result-0`),
+            kept: useResultChartState(kept),
+        }));
+        act(() => {
+            chart.result.current.closed.setView('chart');
+            chart.result.current.closedEntry.setView('chart');
+            chart.result.current.kept.setView('chart');
+        });
+
+        act(() => {
+            result.current.closeTab(closed);
+        });
+
+        await waitFor(() => expect(chart.result.current.closed.view).toBe('grid'));
+        expect(chart.result.current.closedEntry.view).toBe('grid');
+        expect(chart.result.current.kept.view).toBe('chart');
     });
 
     it('should return empty tabs when closing last tab', () => {

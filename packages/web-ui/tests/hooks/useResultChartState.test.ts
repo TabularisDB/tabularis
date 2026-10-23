@@ -1,6 +1,10 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 import {act, renderHook} from '@testing-library/react';
-import {resetResultChartStates, useResultChartState} from '@/hooks/useResultChartState';
+import {
+    forgetResultChartStates,
+    resetResultChartStates,
+    useResultChartState,
+} from '@/hooks/useResultChartState';
 import type {CellChartConfig} from '@/types/notebook';
 
 const config: CellChartConfig = {
@@ -48,5 +52,26 @@ describe('useResultChartState', () => {
         const {result} = renderHook(() => useResultChartState(null));
         act(() => result.current.setView('chart'));
         expect(result.current.view).toBe('grid');
+    });
+
+    it('forgets the states of closed tabs and their result entries', () => {
+        const {result} = renderHook(() => ({
+            tab: useResultChartState('tab-1'),
+            entry: useResultChartState('tab-1-result-0'),
+            other: useResultChartState('tab-10'),
+            otherEntry: useResultChartState('tab-10-result-0'),
+        }));
+        act(() => {
+            result.current.tab.setView('chart');
+            result.current.entry.setView('chart');
+            result.current.other.setView('chart');
+            result.current.otherEntry.setView('chart');
+        });
+
+        act(() => forgetResultChartStates(['tab-1']));
+        expect(result.current.tab.view).toBe('grid');
+        expect(result.current.entry.view).toBe('grid');
+        expect(result.current.other.view).toBe('chart');
+        expect(result.current.otherEntry.view).toBe('chart');
     });
 });
