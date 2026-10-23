@@ -324,9 +324,9 @@ describe('resultExport', () => {
             expect(resolveExportScope(partial, 'loaded', true)).toBe('loaded');
         });
 
-        it('streams every format when the grid is complete', () => {
-            expect(resolveExportScope(result, 'all', true)).toBe('all');
-            expect(resolveExportScope(result, 'loaded', true)).toBe('all');
+        it('writes the grid instead of re-running the query when it is complete', () => {
+            expect(resolveExportScope(result, 'all', true)).toBe('loaded');
+            expect(resolveExportScope(result, 'loaded', true)).toBe('loaded');
         });
 
         it('writes an empty, complete result from the grid to keep its header', () => {

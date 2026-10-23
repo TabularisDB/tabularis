@@ -477,6 +477,12 @@ fn html_writes_lowercase_null_and_scalars() {
 }
 
 #[test]
+fn html_pads_a_short_row_with_null_cells() {
+    let out = collect_html(&[(vec!["a", "b", "c"], vec![json!(1)])]);
+    assert!(out.contains("<tr><td>1</td><td>null</td><td>null</td></tr>"));
+}
+
+#[test]
 fn html_escapes_headers_and_cells() {
     let out = collect_html(&[(vec!["<a&b>"], vec![json!("<script>'x' & \"y\"</script>")])]);
     assert!(out.contains("<th>&lt;a&amp;b&gt;</th>"));

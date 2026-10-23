@@ -277,9 +277,9 @@ impl<W: Write> RowSink for HtmlSink<W> {
         if !self.headers_written {
             self.write_head(headers)?;
         }
-        let cells: String = values
-            .iter()
-            .map(|v| format!("<td>{}</td>", html_cell(v)))
+        // One cell per header, padding a short row with null like the JSON writers do.
+        let cells: String = (0..headers.len().max(values.len()))
+            .map(|i| format!("<td>{}</td>", html_cell(values.get(i).unwrap_or(&Value::Null))))
             .collect();
         write!(self.writer, "<tr>{cells}</tr>").map_err(|e| e.to_string())
     }

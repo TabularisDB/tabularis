@@ -20,11 +20,13 @@ export function hasUnloadedRows(result: QueryResult): boolean {
 
 /**
  * Picks the scope an export actually runs with. The requested scope only
- * applies when the grid is missing rows. Otherwise "all" is implied and goes
- * through the backend, except when there is nothing to stream: an empty,
- * fully loaded result is written from the grid so the file keeps its column
- * header. `canStream` is false for result sets that cannot be re-run on their
- * own (e.g. the extra sets of a MySQL `CALL`), which always use the grid.
+ * applies when the grid is missing rows. When the grid already holds every
+ * row, the export writes what is on screen: re-running the query would gain
+ * nothing and is not harmless (an `INSERT ... RETURNING` would execute again,
+ * and `now()` or `random()` would stop matching what the user sees). The
+ * backend streams only when rows are actually missing and the user asked for
+ * all of them. `canStream` is false for result sets that cannot be re-run on
+ * their own (e.g. the extra sets of a MySQL `CALL`), which always use the grid.
  */
 export function resolveExportScope(
     result: QueryResult,
@@ -32,8 +34,7 @@ export function resolveExportScope(
     canStream: boolean,
 ): ExportScope {
     if (!canStream) return 'loaded';
-    if (hasUnloadedRows(result)) return requested;
-    return result.rows.length > 0 ? 'all' : 'loaded';
+    return hasUnloadedRows(result) ? requested : 'loaded';
 }
 
 /**

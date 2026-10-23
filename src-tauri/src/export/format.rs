@@ -25,7 +25,9 @@ impl ExportFormat {
         match self {
             Self::Csv => "csv",
             Self::Json => "json",
+            Self::Ndjson => "ndjson",
             Self::Markdown => "md",
+            Self::Html => "html",
         }
     }
 
@@ -33,7 +35,9 @@ impl ExportFormat {
         match self {
             Self::Csv => "text/csv",
             Self::Json => "application/json",
+            Self::Ndjson => "application/x-ndjson",
             Self::Markdown => "text/markdown",
+            Self::Html => "text/html",
         }
     }
 }
