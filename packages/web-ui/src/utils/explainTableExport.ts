@@ -35,14 +35,38 @@ const CSV_LINE_ENDING = '\r\n';
 const DERIVED_VALUE_DECIMALS = 3;
 
 /**
+ * `String(value)` without exponent notation: `1e+21` becomes
+ * `1000000000000000000000` and `1.5e-7` becomes `0.00000015`. The digits are
+ * the ones `String` picks, the shortest that round-trip, so no precision is
+ * lost or invented. Expects a finite number.
+ */
+function plainDecimal(value: number): string {
+    const text = String(value);
+    const exponentAt = text.indexOf('e');
+    if (exponentAt === -1) return text;
+
+    const sign = text.startsWith('-') ? '-' : '';
+    const mantissa = text.slice(sign.length, exponentAt);
+    const exponent = Number(text.slice(exponentAt + 1));
+    const [intDigits, fracDigits = ''] = mantissa.split('.');
+    const digits = intDigits + fracDigits;
+    // Where the decimal point lands once the exponent is applied.
+    const point = intDigits.length + exponent;
+
+    if (point <= 0) return `${sign}0.${'0'.repeat(-point)}${digits}`;
+    if (point >= digits.length) return `${sign}${digits}${'0'.repeat(point - digits.length)}`;
+    return `${sign}${digits.slice(0, point)}.${digits.slice(point)}`;
+}
+
+/**
  * A plain number a spreadsheet can sort and chart: no unit, no suffix, no
- * thousands separator. Unavailable or non-finite values become an empty cell,
- * never 0.
+ * thousands separator and no exponent notation. Unavailable or non-finite
+ * values become an empty cell, never 0.
  */
 function csvNumber(value: number | null, decimals?: number): string {
     if (value == null || !Number.isFinite(value)) return '';
     const rounded = decimals == null ? value : Number(value.toFixed(decimals));
-    return String(rounded);
+    return plainDecimal(rounded);
 }
 
 /**

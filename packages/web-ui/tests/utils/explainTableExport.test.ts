@@ -194,6 +194,33 @@ describe('explainTableExport', () => {
             expect(cols[5]).toBe('');
         });
 
+        it.each([
+            [1e21, '1000000000000000000000'],
+            [1.2345e25, '12345000000000000000000000'],
+            [-2.5e22, '-25000000000000000000000'],
+            [1.5e-7, '0.00000015'],
+            [1.234e-10, '0.0000000001234'],
+            [123456.789, '123456.789'],
+            [0.1, '0.1'],
+        ])('writes the cost %s without exponent notation', (cost, expected) => {
+            const root = makeNode({id: 'root', startup_cost: cost, total_cost: cost});
+
+            const cols = records(formatExplainTableCsv(makePlan({root})))[1].split(',');
+
+            expect(cols[4]).toBe(expected);
+            expect(cols[5]).toBe(expected);
+        });
+
+        it('keeps every digit of a large cost the database reported', () => {
+            // 2^53 + 2 is exactly representable; String() gives 9007199254740994.
+            const root = makeNode({id: 'root', total_cost: 2 ** 53 + 2, plan_rows: 1e22});
+
+            const cols = records(formatExplainTableCsv(makePlan({root})))[1].split(',');
+
+            expect(cols[5]).toBe('9007199254740994');
+            expect(cols[6]).toBe('10000000000000000000000');
+        });
+
         it('leaves the estimate gap empty when estimates or actual rows are missing', () => {
             const noEstimate = makeNode({
                 id: 'no_estimate',
