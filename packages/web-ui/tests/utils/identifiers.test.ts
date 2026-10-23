@@ -135,6 +135,14 @@ describe('quoteIdentifier', () => {
             quoteIdentifier('my_table', 'postgres'),
         );
     });
+
+    it('should close a bracket quote with ] and double a ] in the name', () => {
+        const brackets = pluginManifest({identifier_quote: '[', sql_dialect: 'mssql'});
+        expect(quoteIdentifier('my table', brackets)).toBe('[my table]');
+        expect(quoteIdentifier('a]b', brackets)).toBe('[a]]b]');
+        // `[` needs no escaping inside a bracket-quoted name.
+        expect(quoteIdentifier('a[b', brackets)).toBe('[a[b]');
+    });
 });
 
 describe('quoteTableRef', () => {

@@ -134,8 +134,10 @@ export function quoteIdentifier(
     driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string {
     const quote = getQuoteChar(driver);
-    const escaped = identifier.replaceAll(quote, `${quote}${quote}`);
-    return `${quote}${escaped}${quote}`;
+    // `[` (SQL Server style) closes with `]`, and a `]` in the name is doubled.
+    const close = quote === '[' ? ']' : quote;
+    const escaped = identifier.replaceAll(close, `${close}${close}`);
+    return `${quote}${escaped}${close}`;
 }
 
 // Unquoted identifiers keep their case on MySQL/MariaDB, SQLite and SQL Server,

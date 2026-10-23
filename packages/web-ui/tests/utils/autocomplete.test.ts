@@ -1736,6 +1736,20 @@ describe('quoting identifiers that need it (issue #1260)', () => {
         expect(column?.range.endColumn).toBe(before.length + 2);
     });
 
+    it('pairs [ with ] for a plugin that quotes with brackets', async () => {
+        const brackets = pluginCapabilities({identifier_quote: '[', sql_dialect: 'mssql'});
+        const tables = [{name: 'order items'}, {name: 'users'}];
+
+        const bare = await complete(brackets, tables, 'SELECT * FROM ');
+        expect(byLabel(bare, 'order items')?.insertText).toBe('[order items]');
+        expect(byLabel(bare, 'users')?.insertText).toBe('users');
+
+        const typed = await complete(brackets, tables, 'SELECT * FROM [ord', ']');
+        expect(byLabel(typed, 'order items')?.insertText).toBe('[order items]');
+        expect(byLabel(typed, 'order items')?.range.startColumn).toBe(15);
+        expect(byLabel(typed, 'order items')?.range.endColumn).toBe(20);
+    });
+
     it('quotes mixed-case names on postgres only', async () => {
         const tables = [{name: 'AccountEventLog'}];
         const pg = await complete('postgres', tables, 'SELECT * FROM ');
