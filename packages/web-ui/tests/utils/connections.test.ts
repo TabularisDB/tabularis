@@ -559,6 +559,12 @@ describe('connections', () => {
             expect(connectionSubtitle(conn, makeFileCaps())).toBe('');
         });
 
+        it('should return empty string when database is null and driver is local', () => {
+            const conn = makeConn();
+            (conn.params as {database: unknown}).database = null;
+            expect(connectionSubtitle(conn, makeFileCaps())).toBe('');
+        });
+
         it('should return host:port · db for remote driver', () => {
             const conn = makeConn({host: 'db.host', port: 5432, database: 'mydb'});
             expect(connectionSubtitle(conn, makeRemoteCaps())).toBe('db.host:5432  ·  mydb');
@@ -587,6 +593,14 @@ describe('connections', () => {
             expect(
                 connectionSubtitle(conn, makeRemoteCaps(), {allDatabases: 'Tutti i database'}),
             ).toBe('db.host:3306  ·  Tutti i database');
+        });
+
+        it('should label a non-string database as all databases instead of throwing', () => {
+            const conn = makeConn({host: 'db.host', port: 3306});
+            (conn.params as {database: unknown}).database = null;
+            expect(connectionSubtitle(conn, makeRemoteCaps())).toBe(
+                'db.host:3306  ·  All databases',
+            );
         });
 
         it('should keep empty database verbatim when capabilities are unknown', () => {
