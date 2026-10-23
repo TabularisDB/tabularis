@@ -9,10 +9,13 @@
 - A `Grid | Chart` toggle on the right of the result status bar, next to
   pagination. It covers the single result of a query tab, the active entry in
   the multi-result Tabs view, and the detached results window.
-- Chart view replaces only the grid area. The status bar, pagination and the
-  pending-changes toolbar stay put. Row selection, pending edits and scroll
-  position already live on the tab or entry, so switching back to Grid restores
-  them. Nothing changes until someone clicks Chart.
+- Chart view replaces only the grid area. The status bar and pagination stay
+  put. The data toolbar drops the grid-only actions (New Row, Delete Row and the
+  copy format, delimiter and header controls) and shows only the
+  pending-changes bar, while edits are pending, so Submit and Rollback stay
+  reachable. Row selection, pending edits and scroll position already live on
+  the tab or entry, so switching back to Grid restores them. Nothing changes
+  until someone clicks Chart.
 
 ## Chart types and columns (v1)
 
@@ -34,7 +37,12 @@
   plotted: N", plus "more rows not loaded" when the result is paginated.
   Changing the page redraws the chart.
 - Capped at 1,000 points so a "page size: all" result can't freeze the SVG. When
-  the cap applies, the note says "first 1,000 of N loaded".
+  the cap applies, the note says "first 1,000 of N loaded". Column types are
+  read from those same rows, once per result.
+- NULL is missing data, not 0. Lines break at a NULL (`connectNulls` stays off,
+  so the chart never draws values the query didn't return), bars leave the slot
+  empty, and the tooltip shows a dash. A value with NULLs on both sides gets a
+  marker so it stays visible.
 
 ## Library
 
@@ -88,10 +96,10 @@ multi-result view and in table-browse tabs.
    results for now?
 2. Is it OK to leave the stacked multi-result view out of v1? Items can be about
    70px tall, which is too cramped for a chart.
-3. `transformResultToChartData` turns NULL into 0, which can draw false dips.
-   Should I leave that as is for consistency with notebooks, or make NULL a gap
-   for both in a small follow-up? Same question for adopting the
-   colour-blind-checked colour order in notebook charts.
+3. Result charts now keep NULL as a gap. Notebook charts still turn NULL into 0
+   through `transformResultToChartData`. Should they get the same fix in a small
+   follow-up? Same question for adopting the colour-blind-checked colour order
+   in notebook charts.
 
 Plugin drivers: there's nothing driver-specific. It works on any materialized
 result and generates no SQL.
