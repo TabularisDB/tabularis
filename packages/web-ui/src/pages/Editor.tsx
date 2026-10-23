@@ -2646,17 +2646,22 @@ export const Editor = ({commandScopeId}: EditorProps) => {
             isLoading: activeTab.isLoading === true,
             canSaveSqlFile: canSaveSqlFile(activeTab),
             statementCount: splitBatchQueries(editorText, activeDialect).length,
+            aiEnabled: settings.aiEnabled === true,
             labels: {
                 run: runLabel,
                 runAll: t('editor.runAll'),
                 saveSqlFile: t('editor.saveSqlFile'),
                 closeTab: t('editor.closeTab'),
+                aiGenerate: `${t('ai.assist')}: ${t('ai.generateSql')}`,
+                aiExplain: t('ai.explainQuery'),
             },
             actions: {
                 run: handleRunButton,
                 runAll: handleRunAll,
                 saveSqlFile: () => handleSaveSqlFile(activeTab),
                 closeTab: () => handleCloseTab(activeTab.id),
+                aiGenerate: () => setIsAiModalOpen(true),
+                aiExplain: () => setIsAiExplainModalOpen(true),
             },
         });
     }, [
@@ -2669,6 +2674,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         handleRunButton,
         handleSaveSqlFile,
         runLabel,
+        settings.aiEnabled,
         t,
     ]);
 

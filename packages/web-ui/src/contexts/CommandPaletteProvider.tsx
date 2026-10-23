@@ -3,6 +3,7 @@ import {useLocation} from 'react-router-dom';
 
 import {CommandPaletteDispatchContext, CommandPaletteStateContext} from './CommandPaletteContext';
 import {CommandPaletteScopeContext} from './CommandPaletteScopeContext';
+import {SPOTLIGHT_PALETTE_SELECTOR} from '@/components/ui/SpotlightPalette';
 import {useConnectionLayoutContext} from '@/hooks/useConnectionLayoutContext';
 import {createCommandScopeStore, getActiveCommandScopeId} from '@/utils/commandScopeStore';
 import {resolveRenderedSplitLayout} from '@/utils/connectionLayout';
@@ -54,7 +55,13 @@ export const CommandPaletteProvider = ({children}: CommandPaletteProviderProps) 
         previousFocusRef.current = null;
         setActivePalette(null);
         setFocusContext(null);
-        window.requestAnimationFrame(() => previousFocus?.focus());
+        window.requestAnimationFrame(() => {
+            // A command may have opened a dialog that already took focus.
+            const current = document.activeElement;
+            if (current === document.body || current?.closest(SPOTLIGHT_PALETTE_SELECTOR)) {
+                previousFocus?.focus();
+            }
+        });
     }, []);
 
     const togglePalette = useCallback(
