@@ -144,115 +144,71 @@ export function quoteIdentifier(
 const PLAIN_SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const ORACLE_SAFE_IDENTIFIER = /^[A-Z][A-Z0-9_$#]*$/;
 
-// Words reserved in at least one of the supported dialects that are plausible
-// table or column names. Quoting a word a dialect does not reserve is harmless,
-// so one shared list covers every dialect.
+// Words that cannot be used as a bare table or column name in at least one of
+// the supported dialects. Quoting a word the connection's dialect does not
+// reserve is harmless, so one shared set covers every dialect:
+//
+// - PostgreSQL: every reserved keyword, including the ones that can only be
+//   function or type names (categories R and T of `pg_get_keywords()`, 17).
+// - SQLite: every keyword its parser rejects as a bare table or column name.
+// - Oracle: the SQL reserved words.
+// - MySQL 8 / MariaDB and SQL Server: the reserved words that are plausible
+//   table or column names. Their full lists also hold data types, interval
+//   units and engine options (`tinyint`, `day_hour`, `sql_big_result`,
+//   `fillfactor`) that are left out.
+const words = (list: string): string[] => list.trim().split(/\s+/);
+const RESERVED_IN_POSTGRES = words(`
+    all analyse analyze and any array as asc asymmetric authorization binary both case cast
+    check collate collation column concurrently constraint create cross current_catalog
+    current_date current_role current_schema current_time current_timestamp current_user
+    default deferrable desc distinct do else end except false fetch for foreign freeze from
+    full grant group having ilike in initially inner intersect into is isnull join lateral
+    leading left like limit localtime localtimestamp natural not notnull null offset on only
+    or order outer overlaps placing primary references returning right select session_user
+    similar some symmetric system_user table tablesample then to trailing true union unique
+    user using variadic verbose when where window with
+`);
+const RESERVED_IN_SQLITE = words(`
+    add all alter and as autoincrement between case cast check collate commit constraint
+    create default deferrable delete distinct drop else escape except exists foreign from
+    group having if in index insert intersect into is isnull join limit not nothing notnull
+    null on or order primary raise references returning select set table then to transaction
+    union unique update using values when where
+`);
+const RESERVED_IN_ORACLE = words(`
+    access add all alter and any as asc audit between by char check cluster column comment
+    compress connect create current date decimal default delete desc distinct drop else
+    exclusive exists file float for from grant group having identified immediate in
+    increment index initial insert integer intersect into is level like lock long maxextents
+    minus mlslabel mode modify noaudit nocompress not nowait null number of offline on
+    online option or order pctfree prior public raw rename resource revoke row rowid rownum
+    rows select session set share size smallint start successful synonym sysdate table then
+    to trigger uid union unique update user validate values varchar varchar2 view whenever
+    where with
+`);
+const RESERVED_IN_MYSQL = words(`
+    accessible before call cascade change character condition cube cume_dist cursor database
+    databases delayed dense_rank describe div dual each empty exit explain first_value force
+    fulltext function generated get grouping groups ignore interval key keys kill lag
+    last_value lead leave linear lines load loop match mod nth_value ntile out over
+    partition percent_rank precision procedure purge range rank read reads recursive regexp
+    release repeat replace require restrict return rlike row_number schema sensitive
+    separator show signal spatial specific sql ssl starting stored system undo unlock usage
+    use virtual while write
+`);
+const RESERVED_IN_MSSQL = words(`
+    backup begin break browse bulk checkpoint close clustered compute contains continue
+    cursor deny disk distributed dump exec execute exit external identity kill lineno load
+    merge national off open percent pivot plan print proc procedure replication restore
+    revert rollback rowcount rule save statistics top tran transaction truncate unpivot view
+    waitfor
+`);
 const RESERVED_IDENTIFIERS = new Set([
-    ...PG_RESERVED,
-    'add',
-    'all',
-    'alter',
-    'analyze',
-    'any',
-    'asc',
-    'between',
-    'both',
-    'call',
-    'cascade',
-    'case',
-    'cast',
-    'change',
-    'collate',
-    'constraint',
-    'create',
-    'cross',
-    'current_date',
-    'current_time',
-    'current_timestamp',
-    'current_user',
-    'database',
-    'databases',
-    'delete',
-    'desc',
-    'describe',
-    'distinct',
-    'div',
-    'drop',
-    'else',
-    'end',
-    'escape',
-    'except',
-    'exists',
-    'explain',
-    'fetch',
-    'for',
-    'force',
-    'foreign',
-    'full',
-    'fulltext',
-    'function',
-    'grant',
-    'having',
-    'if',
-    'ignore',
-    'index',
-    'inner',
-    'insert',
-    'interval',
-    'intersect',
-    'into',
-    'is',
-    'key',
-    'keys',
-    'leading',
-    'left',
-    'like',
-    'lock',
-    'match',
-    'mod',
-    'natural',
-    'not',
-    'option',
-    'outer',
-    'over',
-    'partition',
-    'primary',
-    'procedure',
-    'range',
-    'rank',
-    'read',
-    'references',
-    'regexp',
-    'rename',
-    'replace',
-    'require',
-    'restrict',
-    'return',
-    'revoke',
-    'right',
-    'rlike',
-    'row',
-    'rows',
-    'schema',
-    'set',
-    'show',
-    'then',
-    'to',
-    'trailing',
-    'trigger',
-    'union',
-    'unique',
-    'unlock',
-    'update',
-    'usage',
-    'use',
-    'using',
-    'values',
-    'when',
-    'while',
-    'window',
-    'with',
-    'write',
+    ...RESERVED_IN_POSTGRES,
+    ...RESERVED_IN_SQLITE,
+    ...RESERVED_IN_ORACLE,
+    ...RESERVED_IN_MYSQL,
+    ...RESERVED_IN_MSSQL,
 ]);
 
 /**

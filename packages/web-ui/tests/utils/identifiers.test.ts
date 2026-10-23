@@ -264,6 +264,39 @@ describe('identifierNeedsQuoting', () => {
         expect(identifierNeedsQuoting('user', 'postgres')).toBe(true);
     });
 
+    it.each([
+        ['groups', 'mysql'],
+        ['system', 'mysql'],
+        ['lead', 'mariadb'],
+        ['rank', 'mysql'],
+        ['window', 'mysql'],
+        ['transaction', 'sqlite'],
+        ['commit', 'sqlite'],
+        ['only', 'postgres'],
+        ['some', 'postgres'],
+    ])('should flag %s, reserved on %s', (word, driver) => {
+        expect(identifierNeedsQuoting(word, driver)).toBe(true);
+    });
+
+    it('should flag words reserved on SQL Server and Oracle for those plugins', () => {
+        const mssql = pluginManifest({identifier_quote: '[', sql_dialect: 'mssql'});
+        expect(identifierNeedsQuoting('view', mssql)).toBe(true);
+        expect(identifierNeedsQuoting('top', mssql)).toBe(true);
+        // Upper case is what Oracle folds to, so only the reserved list catches these.
+        const oracle = pluginManifest({sql_dialect: 'oracle'});
+        expect(identifierNeedsQuoting('COMMENT', oracle)).toBe(true);
+        expect(identifierNeedsQuoting('LEVEL', oracle)).toBe(true);
+        expect(identifierNeedsQuoting('DATE', oracle)).toBe(true);
+    });
+
+    it('should not flag common names that no supported dialect reserves', () => {
+        for (const driver of ['mysql', 'postgres', 'sqlite']) {
+            for (const name of ['name', 'status', 'type', 'time', 'timestamp', 'email', 'text']) {
+                expect(identifierNeedsQuoting(name, driver)).toBe(false);
+            }
+        }
+    });
+
     it('should flag mixed case on postgres only, where unquoted names fold to lower case', () => {
         expect(identifierNeedsQuoting('AccountEventLog', 'postgres')).toBe(true);
         expect(identifierNeedsQuoting('AccountEventLog', 'postgresql')).toBe(true);
