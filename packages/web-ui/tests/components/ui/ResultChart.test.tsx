@@ -4,6 +4,17 @@ import {ResultChart} from '@/components/ui/ResultChart';
 import type {QueryResult} from '@/types/editor';
 import type {CellChartConfig} from '@/types/notebook';
 
+const translations = vi.hoisted(() => [] as {key: string; options?: Record<string, unknown>}[]);
+vi.mock('react-i18next', () => ({
+    useTranslation: () => ({
+        t: (key: string, options?: Record<string, unknown>) => {
+            translations.push({key, options});
+            return key;
+        },
+        i18n: {language: 'de'},
+    }),
+}));
+
 vi.mock('@/hooks/useChartPalette', () => ({
     useChartPalette: () => ({
         series: ['var(--a)', 'var(--b)'],
@@ -190,6 +201,28 @@ describe('ResultChart', () => {
         expect(screen.getByText(/editor\.resultChart\.scopeLoaded/)).toHaveTextContent(
             'editor.resultChart.scopeLoaded · editor.resultChart.scopeMore',
         );
+    });
+
+    it('formats the plotted row count for the locale', () => {
+        const rows = Array.from({length: 1000}, (_, i) => [i, `r${i}`, i * 10, i]);
+        translations.length = 0;
+        render(<ResultChart result={{...sales, rows}} config={null} onConfigChange={vi.fn()} />);
+        const options = (key: string) => translations.find((c) => c.key === key)?.options;
+        expect(options('editor.resultChart.scopeLoaded')).toEqual({count: '1.000'});
+        expect(options('editor.resultChart.summary')).toMatchObject({count: '1.000'});
+
+        translations.length = 0;
+        render(
+            <ResultChart
+                result={{...sales, rows: [...rows, ...rows.slice(0, 234)]}}
+                config={null}
+                onConfigChange={vi.fn()}
+            />,
+        );
+        expect(options('editor.resultChart.scopeCapped')).toEqual({
+            plotted: '1.000',
+            loaded: '1.234',
+        });
     });
 
     it('dims the chart and marks it busy while a refresh runs', () => {

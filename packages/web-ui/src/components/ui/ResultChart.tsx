@@ -13,6 +13,7 @@ import {
     RESULT_CHART_TYPES,
     buildTemporalFormatters,
     classifyResultColumns,
+    formatChartCount,
     getChartUnavailableReason,
     getResultChartScope,
     getSeriesDash,
@@ -117,6 +118,8 @@ export function ResultChart({
     }
 
     const scope = getResultChartScope(result);
+    // Passed as strings: these keys have no plural forms, so i18next uses them as written.
+    const plotted = formatChartCount(scope.plotted, locale);
     const chartType: ResultChartType = effective.type === 'line' ? 'line' : 'bar';
     const yCandidates = Object.keys(slots).sort((a, b) => slots[a] - slots[b]);
     const colorFor = (column: string) =>
@@ -248,10 +251,10 @@ export function ResultChart({
                 >
                     {scope.capped
                         ? t('editor.resultChart.scopeCapped', {
-                              plotted: scope.plotted.toLocaleString(locale),
-                              loaded: scope.loaded.toLocaleString(locale),
+                              plotted,
+                              loaded: formatChartCount(scope.loaded, locale),
                           })
-                        : t('editor.resultChart.scopeLoaded', {count: scope.plotted})}
+                        : t('editor.resultChart.scopeLoaded', {count: plotted})}
                     {scope.hasMore && ` · ${t('editor.resultChart.scopeMore')}`}
                 </p>
             </div>
@@ -270,7 +273,7 @@ export function ResultChart({
                         type: t(CHART_TYPES[chartType].labelKey),
                         values: series.map((s) => s.column).join(', '),
                         label: effective.labelColumn,
-                        count: scope.plotted,
+                        count: plotted,
                     })}
                 </figcaption>
                 <ResultChartPlot

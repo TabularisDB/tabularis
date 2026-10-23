@@ -307,6 +307,11 @@ function safeNumberFormat(locale: string, options: Intl.NumberFormatOptions) {
     }
 }
 
+/** A row count for the chart toolbar and caption: grouped digits. */
+export function formatChartCount(count: number, locale: string): string {
+    return safeNumberFormat(locale, {maximumFractionDigits: 0}).format(count);
+}
+
 /** A value for tooltips: grouped digits, at most four decimals. */
 export function formatChartValue(value: unknown, locale: string): string {
     if (typeof value !== 'number' || !Number.isFinite(value)) return '—';

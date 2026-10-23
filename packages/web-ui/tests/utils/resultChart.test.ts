@@ -6,6 +6,7 @@ import {
     MAX_CHART_POINTS,
     MAX_CHART_SERIES,
     buildTemporalFormatters,
+    formatChartCount,
     formatChartTick,
     formatChartValue,
     getSeriesDash,
@@ -513,6 +514,14 @@ describe('resultChart', () => {
 
         it('falls back to English for an invalid locale', () => {
             expect(formatChartValue(1000, 'not a locale!')).toBe('1,000');
+        });
+    });
+
+    describe('formatChartCount', () => {
+        it('groups digits for the locale and falls back to English', () => {
+            expect(formatChartCount(1234567, 'en')).toBe('1,234,567');
+            expect(formatChartCount(1000, 'de')).toBe('1.000');
+            expect(formatChartCount(1000, 'not a locale!')).toBe('1,000');
         });
     });
 
