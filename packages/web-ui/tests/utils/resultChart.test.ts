@@ -111,6 +111,23 @@ describe('resultChart', () => {
             const result = makeResult(['mixed'], [[1], ['two']]);
             expect(classifyResultColumns(result)).toEqual(['text']);
         });
+
+        it('classifies a result once and reuses it', () => {
+            const result = makeResult(['a', 'b'], [['x', 1]]);
+            const kinds = classifyResultColumns(result);
+            expect(classifyResultColumns(result)).toBe(kinds);
+            // A new result (a re-run or another page) is classified afresh.
+            expect(classifyResultColumns(makeResult(['a', 'b'], [['x', 'y']]))).toEqual([
+                'text',
+                'text',
+            ]);
+        });
+
+        it('looks only at the rows a chart can plot', () => {
+            const rows: unknown[][] = Array.from({length: MAX_CHART_POINTS}, (_, i) => [i]);
+            rows.push(['not a number']);
+            expect(classifyResultColumns(makeResult(['n'], rows))).toEqual(['numeric']);
+        });
     });
 
     describe('getChartValueColumns', () => {

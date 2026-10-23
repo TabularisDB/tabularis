@@ -33,18 +33,26 @@ export function isTemporalValue(value: unknown): boolean {
     return typeof value === 'string' && TEMPORAL_STRING.test(value);
 }
 
+// Results are replaced, never mutated, so the classification of one can be
+// reused by every helper below (config changes call several of them).
+const kindsByResult = new WeakMap<QueryResult, readonly ChartColumnKind[]>();
+
 /**
- * Classifies every column from its loaded, non-null values: numeric when all
- * of them are numbers, temporal when all are date-like strings, otherwise text.
- * A column with no non-null values is `empty`.
+ * Classifies every column from its non-null values in the rows a chart can
+ * plot (the first `MAX_CHART_POINTS`): numeric when all of them are numbers,
+ * temporal when all are date-like strings, otherwise text. A column with no
+ * non-null values is `empty`. Computed once per result.
  */
-export function classifyResultColumns(result: QueryResult): ChartColumnKind[] {
-    return result.columns.map((_, colIndex) => {
+export function classifyResultColumns(result: QueryResult): readonly ChartColumnKind[] {
+    const cached = kindsByResult.get(result);
+    if (cached) return cached;
+    const rowCount = Math.min(result.rows.length, MAX_CHART_POINTS);
+    const kinds = result.columns.map((_, colIndex): ChartColumnKind => {
         let seen = false;
         let numeric = true;
         let temporal = true;
-        for (const row of result.rows) {
-            const value = row[colIndex];
+        for (let r = 0; r < rowCount; r++) {
+            const value = result.rows[r][colIndex];
             if (value === null || value === undefined) continue;
             seen = true;
             if (numeric && !isNumericValue(value)) numeric = false;
@@ -56,6 +64,8 @@ export function classifyResultColumns(result: QueryResult): ChartColumnKind[] {
         if (temporal) return 'temporal';
         return 'text';
     });
+    kindsByResult.set(result, kinds);
+    return kinds;
 }
 
 /** Columns that can be plotted on the Y axis. */
