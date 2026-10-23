@@ -1015,6 +1015,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         [activeTab?.gridHistory],
     );
     const showPendingChangesBar = hasPendingChanges || canUndoGridActiveTab || canRedoGridActiveTab;
+    // Row and copy actions act on the grid, so Chart view leaves them out. It keeps the
+    // pending-changes bar while there is something to submit or roll back.
+    const showDataToolbar =
+        !!activeTab?.activeTable && !!activeTab.result && (!showResultChart || hasPendingChanges);
 
     useLayoutEffect(() => {
         tabsRef.current = tabs;
@@ -6257,9 +6261,9 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 )}
 
                                 {/* Data Manipulation Toolbar (Below Header) */}
-                                {activeTab.activeTable && activeTab.result && (
+                                {showDataToolbar && (
                                     <div className="@container p-1 px-2 bg-elevated border-b border-default flex items-center gap-2 flex-wrap">
-                                        {!driverReadonly && (
+                                        {!showResultChart && !driverReadonly && (
                                             <div className="flex items-center gap-1">
                                                 <button
                                                     onClick={handleNewRow}
@@ -6284,77 +6288,83 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                             </div>
                                         )}
 
-                                        <div className="w-[1px] h-4 bg-surface-secondary mx-1"></div>
+                                        {!showResultChart && (
+                                            <div className="w-[1px] h-4 bg-surface-secondary mx-1"></div>
+                                        )}
 
-                                        <div className="flex items-center gap-1 text-secondary">
-                                            <Copy size={13} className="shrink-0" />
-                                            <select
-                                                value={copyFormat}
-                                                onChange={(e) =>
-                                                    setCopyFormat(
-                                                        e.target.value as
-                                                            | 'csv'
-                                                            | 'json'
-                                                            | 'sql-insert'
-                                                            | 'markdown',
-                                                    )
-                                                }
-                                                className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
-                                                title={t('settings.copyFormat')}
-                                                style={CHEVRON_SELECT_STYLE}
-                                            >
-                                                <option value="csv">CSV</option>
-                                                <option value="json">JSON</option>
-                                                <option value="sql-insert">SQL INSERT</option>
-                                                <option value="markdown">Markdown</option>
-                                            </select>
-                                            {copyFormat === 'csv' && (
+                                        {!showResultChart && (
+                                            <div className="flex items-center gap-1 text-secondary">
+                                                <Copy size={13} className="shrink-0" />
                                                 <select
-                                                    value={csvDelimiter}
+                                                    value={copyFormat}
                                                     onChange={(e) =>
-                                                        setCsvDelimiter(e.target.value)
+                                                        setCopyFormat(
+                                                            e.target.value as
+                                                                | 'csv'
+                                                                | 'json'
+                                                                | 'sql-insert'
+                                                                | 'markdown',
+                                                        )
                                                     }
-                                                    className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium tracking-wide"
-                                                    title={t('settings.csvDelimiter')}
+                                                    className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
+                                                    title={t('settings.copyFormat')}
                                                     style={CHEVRON_SELECT_STYLE}
                                                 >
-                                                    <option value=",">
-                                                        {t('settings.delimiterComma')}
-                                                    </option>
-                                                    <option value=";">
-                                                        {t('settings.delimiterSemicolon')}
-                                                    </option>
-                                                    <option value={'\t'}>
-                                                        {t('settings.delimiterTab')}
-                                                    </option>
-                                                    <option value="|">
-                                                        {t('settings.delimiterPipe')}
-                                                    </option>
+                                                    <option value="csv">CSV</option>
+                                                    <option value="json">JSON</option>
+                                                    <option value="sql-insert">SQL INSERT</option>
+                                                    <option value="markdown">Markdown</option>
                                                 </select>
-                                            )}
-                                            {(copyFormat === 'csv' ||
-                                                copyFormat === 'markdown') && (
-                                                <label
-                                                    className="flex items-center gap-1 cursor-pointer select-none text-[11px] text-secondary hover:text-primary"
-                                                    title={t('settings.csvIncludeHeaders')}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={csvIncludeHeaders}
+                                                {copyFormat === 'csv' && (
+                                                    <select
+                                                        value={csvDelimiter}
                                                         onChange={(e) =>
-                                                            setCsvIncludeHeaders(e.target.checked)
+                                                            setCsvDelimiter(e.target.value)
                                                         }
-                                                        className="w-3 h-3 cursor-pointer accent-accent-primary"
-                                                    />
-                                                    <span className="hidden @[440px]:inline font-medium tracking-wide whitespace-nowrap">
-                                                        {t('settings.csvHeaders')}
-                                                    </span>
-                                                </label>
-                                            )}
-                                        </div>
+                                                        className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium tracking-wide"
+                                                        title={t('settings.csvDelimiter')}
+                                                        style={CHEVRON_SELECT_STYLE}
+                                                    >
+                                                        <option value=",">
+                                                            {t('settings.delimiterComma')}
+                                                        </option>
+                                                        <option value=";">
+                                                            {t('settings.delimiterSemicolon')}
+                                                        </option>
+                                                        <option value={'\t'}>
+                                                            {t('settings.delimiterTab')}
+                                                        </option>
+                                                        <option value="|">
+                                                            {t('settings.delimiterPipe')}
+                                                        </option>
+                                                    </select>
+                                                )}
+                                                {(copyFormat === 'csv' ||
+                                                    copyFormat === 'markdown') && (
+                                                    <label
+                                                        className="flex items-center gap-1 cursor-pointer select-none text-[11px] text-secondary hover:text-primary"
+                                                        title={t('settings.csvIncludeHeaders')}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={csvIncludeHeaders}
+                                                            onChange={(e) =>
+                                                                setCsvIncludeHeaders(
+                                                                    e.target.checked,
+                                                                )
+                                                            }
+                                                            className="w-3 h-3 cursor-pointer accent-accent-primary"
+                                                        />
+                                                        <span className="hidden @[440px]:inline font-medium tracking-wide whitespace-nowrap">
+                                                            {t('settings.csvHeaders')}
+                                                        </span>
+                                                    </label>
+                                                )}
+                                            </div>
+                                        )}
 
                                         {/* Separator */}
-                                        {showPendingChangesBar && (
+                                        {!showResultChart && showPendingChangesBar && (
                                             <div className="w-[1px] h-4 bg-surface-secondary mx-1"></div>
                                         )}
 

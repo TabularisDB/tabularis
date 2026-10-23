@@ -219,6 +219,22 @@ function Harness({initialTabs}: {initialTabs: Tab[]}) {
 }
 let switchTab: (id: string) => void = () => {};
 
+const cleanTab = (id = 'console-1'): Tab => ({...consoleTab(id), pendingChanges: undefined});
+
+const gridOnlyActions = [
+    'editor.newRow',
+    'dataGrid.deleteRow',
+    'settings.copyFormat',
+    'settings.csvDelimiter',
+    'settings.csvIncludeHeaders',
+];
+const expectGridOnlyActions = (present: boolean) => {
+    for (const title of gridOnlyActions) {
+        if (present) expect(screen.getByTitle(title)).toBeInTheDocument();
+        else expect(screen.queryByTitle(title)).not.toBeInTheDocument();
+    }
+};
+
 const chartButton = () => screen.getByRole('button', {name: 'editor.resultChart.viewChart'});
 const gridButton = () => screen.getByRole('button', {name: 'editor.resultChart.viewGrid'});
 
@@ -260,5 +276,62 @@ describe('Editor result grid/chart toggle', () => {
         expect(
             screen.queryByRole('group', {name: 'editor.resultChart.viewLabel'}),
         ).not.toBeInTheDocument();
+    });
+});
+
+describe('Editor data toolbar in chart view', () => {
+    beforeEach(() => {
+        resetResultChartStates();
+    });
+
+    it('shows the row and copy actions in grid view', () => {
+        render(<Harness initialTabs={[consoleTab()]} />);
+        expectGridOnlyActions(true);
+        expect(screen.getByTitle('editor.newRow')).toBeEnabled();
+        expect(screen.getByTitle('editor.submitChanges')).toBeInTheDocument();
+        expect(screen.getByTitle('editor.rollbackChanges')).toBeInTheDocument();
+    });
+
+    it('keeps the toolbar in grid view when nothing is pending', () => {
+        render(<Harness initialTabs={[cleanTab()]} />);
+        expectGridOnlyActions(true);
+        expect(screen.queryByTitle('editor.submitChanges')).not.toBeInTheDocument();
+    });
+
+    it('drops the row and copy actions in chart view but keeps the pending bar', () => {
+        render(<Harness initialTabs={[consoleTab()]} />);
+        fireEvent.click(chartButton());
+
+        expect(screen.getByTestId('bar-chart')).toBeInTheDocument();
+        expectGridOnlyActions(false);
+        expect(screen.getByTitle('editor.submitChanges')).toBeInTheDocument();
+        expect(screen.getByTitle('editor.rollbackChanges')).toBeInTheDocument();
+        expect(screen.getByText('editor.pendingCount')).toBeInTheDocument();
+    });
+
+    it('can roll back pending edits from chart view, then hides the toolbar', () => {
+        render(<Harness initialTabs={[consoleTab()]} />);
+        fireEvent.click(chartButton());
+
+        fireEvent.click(screen.getByRole('checkbox', {name: 'editor.applyToAll'}));
+        fireEvent.click(screen.getByTitle('editor.rollbackChanges'));
+
+        expect(screen.queryByTitle('editor.rollbackChanges')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('editor.undoGridEdit')).not.toBeInTheDocument();
+        expectGridOnlyActions(false);
+
+        fireEvent.click(gridButton());
+        expect(screen.getByTestId('grid-pending')).toHaveTextContent('{}');
+        expectGridOnlyActions(true);
+        expect(screen.getByTitle('editor.undoGridEdit')).toBeEnabled();
+    });
+
+    it('shows no toolbar in chart view when nothing is pending', () => {
+        render(<Harness initialTabs={[cleanTab()]} />);
+        fireEvent.click(chartButton());
+
+        expectGridOnlyActions(false);
+        expect(screen.queryByTitle('editor.submitChanges')).not.toBeInTheDocument();
+        expect(screen.queryByTitle('editor.undoGridEdit')).not.toBeInTheDocument();
     });
 });
