@@ -11,6 +11,7 @@ import {
     getSuggestionKinds,
 } from './sqlContext';
 import {maskNestedSqlBodies, parseDerivedTables} from './derivedTables';
+import {dialectOptions, type QuoteRule} from './sqlSplitter';
 import {resolveSqlSyntax, syntaxKeywords} from './sqlSyntax';
 
 export type AutocompleteKeywordCase = 'match' | 'upper' | 'lower';
@@ -203,29 +204,69 @@ export const clearAutocompleteCache = (connectionId?: string) => {
     }
 };
 
+type DriverRef = string | PluginManifest | DriverCapabilities | null | undefined;
+
+/**
+ * The string-literal quote rules of the driver's dialect: the resolved
+ * `sql_syntax` of a manifest or capabilities object, the MySQL preset for the
+ * bare `mysql` / `mariadb` ids, otherwise standard single-quoted strings. On
+ * MySQL that adds double-quoted strings and backslash escapes. A rule that
+ * opens with the identifier quote itself is dropped, so a MySQL-dialect plugin
+ * that quotes identifiers with `"` (ANSI_QUOTES) still reads `"` as one.
+ */
+function stringLiteralRules(driver: DriverRef, quoteChar: string): readonly QuoteRule[] {
+    const options =
+        typeof driver === 'object' && driver !== null
+            ? resolveSqlSyntax(driver).options
+            : dialectOptions(driver === 'mysql' || driver === 'mariadb' ? 'mysql' : 'generic');
+    return options.quotes.filter((rule) => rule.kind === 'string' && rule.open !== quoteChar);
+}
+
 /**
  * Returns the 0-based index of the identifier quote the line text ends inside
  * of (the user typed an opening quote and has not closed it yet), or -1.
- * Quotes inside single-quoted string literals are ignored, and `[` pairs with
- * `]` for drivers that quote with brackets.
+ * Quotes inside string literals are ignored, following the driver's dialect
+ * (see `stringLiteralRules`), and `[` pairs with `]` for drivers that quote
+ * with brackets.
  */
-export function findOpenIdentifierQuote(text: string, quoteChar: string): number {
+export function findOpenIdentifierQuote(
+    text: string,
+    quoteChar: string,
+    driver?: DriverRef,
+): number {
     const closingQuote = quoteChar === '[' ? ']' : quoteChar;
+    const literalRules = stringLiteralRules(driver, quoteChar);
     let open = -1;
-    let inLiteral = false;
+    let literal: QuoteRule | null = null;
     for (let i = 0; i < text.length; i++) {
         const ch = text[i];
-        if (inLiteral) {
-            if (ch === "'") inLiteral = false;
+        if (literal) {
+            if (literal.escape && ch === literal.escape) {
+                // `'it\'s'` on MySQL: the escaped character never closes the string.
+                i++;
+            } else if (text.startsWith(literal.close, i)) {
+                const after = i + literal.close.length;
+                // A doubled closing quote is an escaped quote inside the string.
+                if (literal.doubleClose && text.startsWith(literal.close, after)) {
+                    i = after + literal.close.length - 1;
+                } else {
+                    i = after - 1;
+                    literal = null;
+                }
+            }
         } else if (open >= 0) {
             if (ch !== closingQuote) continue;
             // A doubled closing quote is an escaped quote inside the name.
             if (closingQuote === quoteChar && text[i + 1] === closingQuote) i++;
             else open = -1;
-        } else if (ch === "'") {
-            inLiteral = true;
-        } else if (ch === quoteChar) {
-            open = i;
+        } else {
+            const rule = literalRules.find((r) => text.startsWith(r.open, i));
+            if (rule) {
+                literal = rule;
+                i += rule.open.length - 1;
+            } else if (ch === quoteChar) {
+                open = i;
+            }
         }
     }
     return open;
@@ -305,7 +346,7 @@ export const registerSqlAutocomplete = (
             // (and the closing quote if present) and emit a fully-quoted identifier —
             // yielding a canonical result for 0, 1 or 2 surrounding quotes alike.
             const quoteChar = getQuoteChar(driver);
-            const openQuoteIndex = findOpenIdentifierQuote(textUntilPosition, quoteChar);
+            const openQuoteIndex = findOpenIdentifierQuote(textUntilPosition, quoteChar, driver);
             const openQuoteColumn = openQuoteIndex >= 0 ? openQuoteIndex + 1 : null;
             // The text before the identifier being typed, without its opening quote
             // and partial name, so clause analysis and the dot matchers see the same

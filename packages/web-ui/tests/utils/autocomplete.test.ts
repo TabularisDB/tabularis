@@ -1527,6 +1527,49 @@ describe('findOpenIdentifierQuote', () => {
         expect(findOpenIdentifierQuote('select * from [my table] join [ord', '[')).toBe(30);
         expect(findOpenIdentifierQuote('select * from [my table] ', '[')).toBe(-1);
     });
+
+    describe('MySQL string literals', () => {
+        const mysqlCaps = {
+            schemas: false,
+            views: true,
+            routines: false,
+            file_based: false,
+            folder_based: false,
+            identifier_quote: '`',
+            alter_primary_key: false,
+            sql_dialect: 'mysql',
+        } satisfies DriverCapabilities;
+
+        it.each<[string, string]>([
+            ['a double-quoted string with an apostrophe', `WHERE a = "it's" AND \`co`],
+            ['a backslash-escaped quote', "WHERE a = 'it\\'s' AND `co"],
+            ['a backslash-escaped double quote', 'WHERE a = "say \\"hi\\"" AND `co'],
+            ['a doubled double quote', 'WHERE a = "say ""hi""" AND `co'],
+        ])('should find the backtick after %s', (_case, text) => {
+            const backtick = text.lastIndexOf('`');
+            expect(findOpenIdentifierQuote(text, '`', 'mysql')).toBe(backtick);
+            expect(findOpenIdentifierQuote(text, '`', 'mariadb')).toBe(backtick);
+            expect(findOpenIdentifierQuote(text, '`', mysqlCaps)).toBe(backtick);
+        });
+
+        it('should ignore a backtick inside a double-quoted string', () => {
+            expect(findOpenIdentifierQuote('WHERE a = "`" AND ', '`', 'mysql')).toBe(-1);
+            expect(findOpenIdentifierQuote('WHERE a = "x\\"`" AND ', '`', 'mysql')).toBe(-1);
+        });
+
+        it('should read " as the identifier quote when a MySQL-dialect plugin quotes with it', () => {
+            const ansiQuotes = {...mysqlCaps, identifier_quote: '"'};
+            const text = "WHERE a = 'it\\'s' AND \"co";
+            expect(findOpenIdentifierQuote(text, '"', ansiQuotes)).toBe(text.lastIndexOf('"'));
+        });
+
+        it('should keep backslashes as plain text on other dialects', () => {
+            // `'C:\'` is a complete string on PostgreSQL and SQLite.
+            const text = "WHERE path = 'C:\\' AND \"Na";
+            expect(findOpenIdentifierQuote(text, '"', 'postgres')).toBe(text.lastIndexOf('"'));
+            expect(findOpenIdentifierQuote(text, '"', 'sqlite')).toBe(text.lastIndexOf('"'));
+        });
+    });
 });
 
 describe('quoting identifiers that need it (issue #1260)', () => {
@@ -1667,6 +1710,30 @@ describe('quoting identifiers that need it (issue #1260)', () => {
             expect(byLabel(suggestions, 'nombre-modulo')?.insertText).toBe(`${q}nombre-modulo${q}`);
             expect(byLabel(suggestions, 'order')?.insertText).toBe(`${q}order${q}`);
         });
+    });
+
+    it.each<[string, Driver, string]>([
+        ['a double-quoted string with an apostrophe', 'mysql', `"it's"`],
+        ['a backslash-escaped quote', 'mysql', "'it\\'s'"],
+        ['a double-quoted string with an apostrophe', mysqlPlugin, `"it's"`],
+        ['a backslash-escaped quote', mysqlPlugin, "'it\\'s'"],
+    ])('completes a backtick-quoted column after %s (%#)', async (_case, driver, literal) => {
+        const {parseTablesFromQuery} = await import('@/utils/sqlAnalysis');
+        (parseTablesFromQuery as ReturnType<typeof vi.fn>).mockReturnValue(
+            new Map([['t', {name: 't'}]]),
+        );
+        (invoke as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+            {name: 'col', data_type: 'int'},
+        ]);
+
+        const before = `SELECT * FROM t WHERE note = ${literal} AND \`co`;
+        const suggestions = await complete(driver, [{name: 't'}], before, '`');
+
+        const column = byLabel(suggestions, 'col');
+        expect(column?.insertText).toBe('`col`');
+        // The typed backtick and the auto-closed one are both replaced.
+        expect(column?.range.startColumn).toBe(before.lastIndexOf('`') + 1);
+        expect(column?.range.endColumn).toBe(before.length + 2);
     });
 
     it('quotes mixed-case names on postgres only', async () => {
