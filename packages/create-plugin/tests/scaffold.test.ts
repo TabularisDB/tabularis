@@ -40,7 +40,11 @@ describe('scaffold', () => {
         it('declares the UI bundle when --with-ui is set', () => {
             const manifest = readManifest(scaffoldPlugin(true));
             expect(manifest.ui_extensions).toEqual([
-                {slot: 'data-grid.toolbar.actions', module: 'ui/dist/index.js'},
+                {
+                    slot: 'data-grid.toolbar.actions',
+                    module: 'ui/dist/index.js',
+                    api_version: '0.1.0',
+                },
             ]);
         });
 
@@ -84,6 +88,13 @@ describe('scaffold', () => {
 
             const withoutUiDir = scaffoldPlugin(false);
             expect(existsSync(join(withoutUiDir, 'locales'))).toBe(false);
+        });
+    });
+
+    describe('README', () => {
+        it('states the minimum just version the justfile needs', () => {
+            const readme = readFileSync(join(scaffoldPlugin(false), 'README.md'), 'utf8');
+            expect(readme).toContain('just) 1.44 or newer');
         });
     });
 });

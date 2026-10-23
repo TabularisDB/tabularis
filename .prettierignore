@@ -5,12 +5,12 @@ pnpm-lock.yaml
 src-tauri
 packages/*/dist
 e2e/.drv-*
-src/themes/monaco
-src/themes/builtin-themes.json
-src/schemas
-src/i18n/locales
+packages/web-ui/src/themes/monaco
+packages/web-ui/src/themes/builtin-themes.json
+packages/web-ui/src/schemas
+packages/web-ui/src/i18n/locales
 *.md
-tests/fixtures
+packages/web-ui/tests/fixtures
 .github
 .claude
 snap
@@ -18,3 +18,15 @@ aur
 demo
 public
 plugins/*.schema.json
+
+# Helm templates contain Go expressions, not plain YAML.
+charts/**/templates
+
+# Frozen compatibility fixtures retain their original bytes.
+tests/fixtures
+
+# This inventory has a byte-for-byte generator contract.
+web-ui-project/docs/web-ui-parity.json
+
+# Browser test sessions and reports are generated runtime data.
+web-ui-project/.runtime

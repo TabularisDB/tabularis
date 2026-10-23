@@ -16,7 +16,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "paths": {
-      "@/*": ["../../src/*"]
+      "@/*": ["../web-ui/src/*"]
     },
     "verbatimModuleSyntax": true,
     "outDir": "dist",

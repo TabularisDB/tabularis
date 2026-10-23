@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::Path;
 use sha2::{Digest, Sha256};
-use tauri::AppHandle;
 
 pub(crate) const MAX_ICON_BYTES: u64 = 512 * 1024;
 
@@ -173,38 +172,5 @@ pub fn copy_icon_for_duplicate(
         IconError::Io(e.to_string())
     })?;
     Ok(format!("connection-icons/{filename}"))
-}
-
-#[tauri::command]
-pub async fn save_connection_icon(
-    _app: AppHandle,
-    connection_id: String,
-    source_path: String,
-) -> Result<String, String> {
-    let data_dir = crate::paths::get_app_data_dir();
-    let dest = data_dir.join("connection-icons");
-    save_icon_impl(&dest, &connection_id, Path::new(&source_path))
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn delete_connection_icon(
-    _app: AppHandle,
-    relative_path: String,
-) -> Result<(), String> {
-    let data_dir = crate::paths::get_app_data_dir();
-    let icons_dir = data_dir.join("connection-icons");
-    let full = data_dir.join(&relative_path);
-    // If the file doesn't exist, treat as a no-op (don't canonicalize a non-existent path).
-    if !full.exists() {
-        return Ok(());
-    }
-    let canon_icons = icons_dir.canonicalize().map_err(|e| e.to_string())?;
-    let canon_full = full.canonicalize().map_err(|e| e.to_string())?;
-    if !canon_full.starts_with(&canon_icons) {
-        return Err("path outside connection-icons".into());
-    }
-    fs::remove_file(&canon_full).map_err(|e| e.to_string())?;
-    Ok(())
 }
 

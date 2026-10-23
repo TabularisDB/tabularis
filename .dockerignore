@@ -1,0 +1,18 @@
+# Allowlist: the image only needs the workspace manifests, the packages, the
+# Rust crate and the docker helpers.
+*
+!package.json
+!roadmap.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!.node-version
+!packages/
+!plugins/manifest.schema.json
+!src-tauri/
+!docker/
+
+**/node_modules
+**/dist
+**/coverage
+src-tauri/target
+src-tauri/gen

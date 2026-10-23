@@ -96,6 +96,22 @@ pub async fn unregister_driver(id: &str) -> bool {
     }
 }
 
+/// Shut down and remove every external driver process.
+pub async fn shutdown_external_drivers() {
+    let external_ids = {
+        let registry = REGISTRY.read().await;
+        registry
+            .iter()
+            .filter(|(_, driver)| !driver.manifest().is_builtin)
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>()
+    };
+
+    for id in external_ids {
+        unregister_driver(&id).await;
+    }
+}
+
 /// Register the manifest of a UI-only plugin (no driver process).
 pub async fn register_manifest(manifest: PluginManifest) {
     let id = manifest.id.clone();
@@ -136,7 +152,7 @@ fn drivers_to_unregister(registered: &[(String, bool)], active_ids: &[String]) -
 /// stale driver keeps resolving successfully.
 ///
 /// `active_ids: None` means "no explicit preference saved" (see
-/// [`crate::plugins::manager::load_plugins`]'s doc comment) — every
+/// [`crate::transport::desktop::plugins::manager::load_plugins`]'s doc comment) — every
 /// installed plugin is implicitly active in that state, so nothing is
 /// unregistered. Builtins are never touched regardless of `active_ids`,
 /// since `active_external_drivers` only ever governs external plugins.

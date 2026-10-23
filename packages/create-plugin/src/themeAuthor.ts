@@ -17,12 +17,12 @@ import {
     parseThemeDefinition,
     parseThemePackageManifest,
     THEME_INPUT_LIMITS,
-} from '../../../src/utils/themePackageValidation';
-import {isThemePackagePath, themePackageId} from '../../../src/utils/themePackageIdentity';
-import {createThemeArchive} from '../../../src/utils/themeArchive';
-import type {ThemePackageManifestV1} from '../../../src/types/themePackage';
+} from '../../web-ui/src/utils/themePackageValidation';
+import {isThemePackagePath, themePackageId} from '../../web-ui/src/utils/themePackageIdentity';
+import {createThemeArchive} from '../../web-ui/src/utils/themeArchive';
+import type {ThemePackageManifestV1} from '../../web-ui/src/types/themePackage';
 import licenses from './theme-licenses.json';
-import definitionSchema from '../../../src/schemas/theme-definition-v1.json';
+import definitionSchema from '../../web-ui/src/schemas/theme-definition-v1.json';
 import {themeValidationWorkflow} from './themeCi';
 
 function readBounded(root: string, relative: string, limit: number): string {

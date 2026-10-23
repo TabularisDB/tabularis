@@ -3,7 +3,7 @@
  * Theme token conformance check.
  *
  * Every color, radius and font the UI paints must come from the theme tokens
- * described in docs/DESIGN.md, so that built-in and third-party themes (light,
+ * described in DESIGN.md, so that built-in and third-party themes (light,
  * dark, square-cornered, high-contrast) restyle the whole application. This
  * script fails when a source file reintroduces a hardcoded color:
  *
@@ -30,88 +30,105 @@ import {join, relative, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const ROOT = join(fileURLToPath(import.meta.url), '..', '..');
-const SRC = join(ROOT, 'src');
-const SKIP_DIRS = ['src/themes', 'src/schemas', 'src/i18n'];
+const SRC = join(ROOT, 'packages', 'web-ui', 'src');
+const SKIP_DIRS = [
+    'packages/web-ui/src/themes',
+    'packages/web-ui/src/schemas',
+    'packages/web-ui/src/i18n',
+];
 const EXTENSIONS = new Set(['.ts', '.tsx', '.css']);
 
 /** @type {Record<string, { rules: Array<"palette" | "hex" | "rgb" | "white">, reason: string }>} */
 const ALLOWLIST = {
-    'src/index.css': {
+    'packages/web-ui/src/index.css': {
         rules: ['hex', 'rgb'],
         reason: 'Tabularis Dark defaults for :root before a theme is applied',
     },
-    'src/App.css': {rules: ['hex'], reason: 'Vite scaffold leftovers, unused by the app'},
-    'src/utils/themeResolver.ts': {
+    'packages/web-ui/src/App.css': {
+        rules: ['hex'],
+        reason: 'Vite scaffold leftovers, unused by the app',
+    },
+    'packages/web-ui/src/utils/themeResolver.ts': {
         rules: ['hex'],
         reason: 'theme engine: transparent constant used while resolving definitions',
     },
-    'src/utils/themePackageExport.ts': {
+    'packages/web-ui/src/utils/themePackageExport.ts': {
         rules: ['hex'],
         reason: 'theme engine: transparent constant used while exporting definitions',
     },
-    'src/utils/themeContrast.ts': {
+    'packages/web-ui/src/utils/themeContrast.ts': {
         rules: ['hex'],
         reason: 'contrast audit: black/white labels derived like --text-on-accent-*',
     },
-    'src/components/icons/ClientIcons.tsx': {
+    'packages/web-ui/src/components/icons/ClientIcons.tsx': {
         rules: ['hex', 'palette'],
         reason: 'third-party brand marks',
     },
-    'src/components/icons/BrandIcons.tsx': {
+    'packages/web-ui/src/components/icons/BrandIcons.tsx': {
         rules: ['hex', 'palette'],
         reason: 'third-party brand marks',
     },
-    'src/components/icons/DiscordIcon.tsx': {
+    'packages/web-ui/src/components/icons/DiscordIcon.tsx': {
         rules: ['hex', 'palette'],
         reason: 'Discord brand mark',
     },
-    'src/components/layout/sidebar/DiscordCommunityCallout.tsx': {
+    'packages/web-ui/src/components/layout/sidebar/DiscordCommunityCallout.tsx': {
         rules: ['palette', 'white'],
         reason: 'Discord-branded callout',
     },
-    'src/utils/notebookHtmlExport.ts': {
+    'packages/web-ui/src/utils/notebookHtmlExport.ts': {
         rules: ['hex', 'rgb'],
         reason: 'standalone HTML document rendered outside the app',
     },
-    'src/hooks/useDrivers.ts': {
+    'packages/web-ui/src/hooks/useDrivers.ts': {
         rules: ['hex'],
         reason: 'driver identity colors, shown next to the driver logo',
     },
-    'src/utils/driverUI.tsx': {
+    'packages/web-ui/src/utils/driverUI.tsx': {
         rules: ['hex'],
         reason: 'neutral fallback for drivers without an identity color',
     },
-    'src/components/modals/NewConnectionModal.tsx': {
+    'packages/web-ui/src/components/modals/NewConnectionModal.tsx': {
         rules: ['hex'],
         reason: 'database paradigm identity colors',
     },
-    'src/components/modals/connection/InstallGate.tsx': {
+    'packages/web-ui/src/components/modals/connection/InstallGate.tsx': {
         rules: ['hex'],
         reason: 'database paradigm identity colors',
     },
-    'src/components/modals/connection/EngineCard.tsx': {
+    'packages/web-ui/src/components/modals/connection/EngineCard.tsx': {
         rules: ['hex'],
         reason: 'database paradigm identity colors',
     },
-    'src/components/modals/NewConnectionModal/palette.ts': {
+    'packages/web-ui/src/components/modals/NewConnectionModal/palette.ts': {
         rules: ['hex'],
         reason: 'swatches the user picks for connections and tags',
     },
-    'src/components/modals/NewConnectionModal/AppearanceSection.tsx': {
+    'packages/web-ui/src/components/modals/NewConnectionModal/AppearanceSection.tsx': {
         rules: ['hex', 'rgb'],
         reason: 'user-picked connection color and its neutral swatch shadows',
     },
-    'src/components/settings/AiTab.tsx': {rules: ['hex'], reason: 'AI provider brand marks'},
-    'src/pages/McpPage.tsx': {rules: ['hex'], reason: 'AI client brand marks'},
-    'src/components/settings/InfoTab.tsx': {
+    'packages/web-ui/src/components/settings/AiTab.tsx': {
+        rules: ['hex'],
+        reason: 'AI provider brand marks',
+    },
+    'packages/web-ui/src/pages/McpPage.tsx': {rules: ['hex'], reason: 'AI client brand marks'},
+    'packages/web-ui/src/components/modals/McpModal.tsx': {
+        rules: ['hex'],
+        reason: 'AI client brand marks',
+    },
+    'packages/web-ui/src/components/settings/InfoTab.tsx': {
         rules: ['hex'],
         reason: 'fallback when the theme has no surface color yet',
     },
-    'src/components/layout/Sidebar.tsx': {
+    'packages/web-ui/src/components/layout/Sidebar.tsx': {
         rules: ['hex'],
         reason: 'fallback when the theme has no surface color yet',
     },
-    'src/components/ui/TableToolbar.tsx': {rules: ['rgb'], reason: 'neutral black drop shadow'},
+    'packages/web-ui/src/components/ui/TableToolbar.tsx': {
+        rules: ['rgb'],
+        reason: 'neutral black drop shadow',
+    },
 };
 
 const FAMILIES =
@@ -168,7 +185,7 @@ function checkFile(full, rel, ext) {
         if (!allowed(rel, 'palette')) {
             for (const match of line.matchAll(PALETTE)) {
                 report(
-                    `Tailwind palette class "${match[0]}" bypasses the theme (use an accent/surface/semantic token, see docs/DESIGN.md)`,
+                    `Tailwind palette class "${match[0]}" bypasses the theme (use an accent/surface/semantic token, see DESIGN.md)`,
                 );
             }
         }
@@ -225,12 +242,12 @@ if (findings.length > 0) {
                 `::error file=${file},line=${line},title=Theme token::${message.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}`,
             );
     }
-    console.error('\nSee docs/DESIGN.md for the token to use in each case.');
+    console.error('\nSee DESIGN.md for the token to use in each case.');
     process.exit(1);
 }
 if (verbose) {
     console.log(
-        `Theme token check: scanned src/, allowlist has ${Object.keys(ALLOWLIST).length} file(s).`,
+        `Theme token check: scanned packages/web-ui/src/, allowlist has ${Object.keys(ALLOWLIST).length} file(s).`,
     );
 }
 console.log('Theme token check: OK');

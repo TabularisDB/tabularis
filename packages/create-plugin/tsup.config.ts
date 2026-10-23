@@ -3,9 +3,9 @@ import {defineConfig, type Options} from 'tsup';
 
 type EsbuildPlugin = NonNullable<Options['esbuildPlugins']>[number];
 
-// Theme helpers are shared with the app (src/), which imports through '@/'.
+// Theme helpers are shared with the app (packages/web-ui/src/), which imports through '@/'.
 // esbuild's `alias` option rejects a bare '@', so resolve it with a plugin.
-const appSrc = path.resolve(__dirname, '../../src');
+const appSrc = path.resolve(__dirname, '../web-ui/src');
 const appAlias: EsbuildPlugin = {
     name: 'app-src-alias',
     setup(build) {

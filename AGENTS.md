@@ -1,5 +1,8 @@
 # AGENTS.md
 
+> [!IMPORTANT]
+> **The backend layout changed (October 2026).** All Tauri code now lives in `src-tauri/src/transport/desktop/`, and desktop commands are thin wrappers over `src-tauri/src/application/`. Read [Backend layout](#backend-layout-desktop-and-web-transports) before you start, rebase, or review a PR that touches `src-tauri/`.
+
 ## Directives
 Adhere to the rules defined in the [rules directory](./.rules/):
 - [General Rules](./.rules/general.md) (Logging & Language)
@@ -13,6 +16,27 @@ Adhere to the rules defined in the [rules directory](./.rules/):
 - [Plugin Driver Rules](./.rules/plugins.md) (capabilities over driver ids, dialect-aware SQL, plugin contract)
 
 When reviewing pull requests, follow [REVIEW.md](./REVIEW.md).
+
+## Backend layout: desktop and web transports
+
+The Rust backend serves two transports over the same React frontend:
+
+- **Tauri desktop app:** `src-tauri/src/transport/desktop/`
+- **`tabularis web` server:** `src-tauri/src/transport/web/`
+
+Shared logic lives in `src-tauri/src/application/` (and plain modules), so the app and the web behave the same.
+
+- **Tauri code goes in `transport/desktop/` only.** That covers `#[tauri::command]`, `tauri_plugin_*`, and anything taking an `AppHandle`, `Window` or Tauri `State`. It is the only module behind the `desktop` cargo feature; `cargo build --no-default-features` builds the server without Tauri.
+- **A desktop command is a thin wrapper over `application/`.** Implement the behaviour there, call it from the desktop command, and give the web RPC (`transport/web/rpc.rs`) a route to the same function.
+- **The desktop command registry is in `transport/desktop/mod.rs`** (`run()` and `generate_handler!`), not in `lib.rs`.
+- **CI enforces the boundary:** `cargo check --no-default-features` must pass, and a grep fails the build when `tauri::` or `tauri_plugin` appears outside `transport/desktop/`. See rule 7 in [Rust Rules](./.rules/rust.md).
+
+**Branches and PRs started before this layout:**
+- Rebase onto it.
+- Move new or changed Tauri commands from `commands.rs`, `config.rs` and the like into the mirrored file under `transport/desktop/`.
+- Drop `#[cfg(feature = "desktop")]` and `#[cfg_attr(feature = "desktop", tauri::command)]` from shared modules.
+- Register commands in `transport/desktop/mod.rs`.
+- Check for these commands, which had no frontend caller and were removed: `list_all_preferences`, `get_theme`, `save_blob_to_file`, `preview_tabularis_import`, `apply_tabularis_import`, `export_connections_payload`, `import_connections_payload`, `encrypt_export_payload`, `decrypt_export_payload`, `open_visual_explain_window`, `open_json_viewer_window`, `get_json_viewer_session`, `complete_json_viewer_session`, `open_results_window` and `close_results_window`.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

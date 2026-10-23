@@ -38,6 +38,22 @@ pub fn get_tunnels() -> &'static Mutex<HashMap<K8sTunnelKey, K8sTunnel>> {
     TUNNELS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+pub fn stop_all_tunnels() {
+    let tunnels = {
+        let mut tunnels = get_tunnels()
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        tunnels
+            .drain()
+            .map(|(_, tunnel)| tunnel)
+            .collect::<Vec<_>>()
+    };
+
+    for tunnel in tunnels {
+        tunnel.stop();
+    }
+}
+
 /// Allocate a local TCP port for kubectl port-forward.
 ///
 /// When `preferred` is set (replacing a dead tunnel), require that port so
@@ -287,16 +303,6 @@ impl K8sTunnel {
             "kubectl version check failed. Please verify your kubectl installation",
         )
         .map(|_| ())
-    }
-}
-
-pub fn stop_all_tunnels() {
-    if let Some(tunnels) = TUNNELS.get() {
-        if let Ok(mut guard) = tunnels.lock() {
-            for (_, tunnel) in guard.drain() {
-                tunnel.stop();
-            }
-        }
     }
 }
 

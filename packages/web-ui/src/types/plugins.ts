@@ -1,0 +1,329 @@
+import type {Dialect} from '@/utils/sqlSplitter';
+
+export interface ConnectionStringExample {
+    label: string;
+    value: string;
+    description?: string;
+}
+
+export interface DriverCapabilities {
+    schemas: boolean;
+    views: boolean;
+    routines: boolean;
+    file_based: boolean;
+    folder_based: boolean;
+    /** File-based driver that also opens `:memory:` as a temporary database living in
+     * the driver process (e.g. DuckDB). Adds an in-memory shortcut to the connection
+     * form and skips the file existence check for that path. Defaults to false. */
+    in_memory?: boolean;
+    /** CamelCase alias accepted for plugin compatibility. */
+    inMemory?: boolean;
+    /** The driver exposes a single implicit database (e.g. a flat search/document
+     * store like Meilisearch). Skips the database tab + database-name field. */
+    single_database?: boolean;
+    /** Optional flag to enable/disable connection string import UI for network drivers. Defaults to true when omitted. */
+    connection_string?: boolean;
+    /** CamelCase alias accepted for plugin compatibility. */
+    connectionString?: boolean;
+    /** Optional placeholder example shown in the connection string input. */
+    connection_string_example?: string;
+    /** Optional presets shown beside the connection string field. */
+    connection_string_examples?: ConnectionStringExample[];
+    /** CamelCase alias accepted for plugin compatibility. */
+    connectionStringExample?: string;
+    /** CamelCase alias accepted for plugin compatibility. */
+    connectionStringExamples?: ConnectionStringExample[];
+    /** The driver consumes the raw connection URI verbatim instead of the decomposed
+     * host/port/database fields. Set by drivers whose scheme carries semantics the
+     * decomposition would destroy (e.g. the DNS seedlist lookup implied by
+     * `mongodb+srv://`). Defaults to false. */
+    connection_uri?: boolean;
+    /** CamelCase alias accepted for plugin compatibility. */
+    connectionUri?: boolean;
+    /** Additional URI schemes handled by this driver, beyond its own id and the scheme
+     * of `connection_string_example` (e.g. ["mongodb+srv"]). */
+    connection_uri_schemes?: string[];
+    /** CamelCase alias accepted for plugin compatibility. */
+    connectionUriSchemes?: string[];
+    identifier_quote: string;
+    alter_primary_key: boolean;
+    // SQL generation capabilities (optional, default to '' / false when not present)
+    auto_increment_keyword?: string;
+    serial_type?: string;
+    inline_pk?: boolean;
+    /** Opts Generate SQL into the optional get_table_query_template RPC. Defaults to false. */
+    table_query_templates?: boolean;
+    /** DDL builders honour ColumnDefinition.comment; shows the column description field. Defaults to false. */
+    column_comments?: boolean;
+    /** Opts the explorer's Drop table action into the optional get_drop_table_sql RPC. Defaults to false. */
+    drop_table_sql?: boolean;
+    /** Opts the column statistics popover into the optional get_column_stats RPC.
+     * Defaults to false: SQL-compatible drivers (see `speaksGenericSql`) keep the
+     * host's generic SQL, the others don't show the menu entry. */
+    column_stats?: boolean;
+    // DDL capabilities (optional, default to false when not present)
+    alter_column?: boolean;
+    create_foreign_keys?: boolean;
+    /** true for API-based plugins that need no host/port/credentials (e.g. public REST APIs). Hides the entire connection form. */
+    no_connection_required?: boolean;
+    /** Whether the driver supports table and column management (CREATE TABLE, ADD/MODIFY/DROP COLUMN, DROP TABLE). Does not control index or FK operations. Defaults to true. */
+    manage_tables?: boolean;
+    /** When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table/column management is also hidden regardless of manage_tables. Defaults to false. */
+    readonly?: boolean;
+    /** Supports EXPLAIN / query plan visualization. When false, the Visual Explain UI is hidden for connections using this driver. Defaults to false. */
+    explain?: boolean;
+    /** Supports listing and managing database triggers. Defaults to false. */
+    triggers?: boolean;
+    /** Supports listing and managing server accounts (users, grants). Defaults to false. */
+    user_management?: boolean;
+    /** Supports managing stored routines (run with parameters, create from template, edit, drop). Defaults to false. */
+    routine_management?: boolean;
+    /** Supports materialized views (e.g. PostgreSQL). When false, the frontend skips fetching materialized views entirely. Defaults to false. */
+    materialized_views?: boolean;
+    /** Shows the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal.
+     * Built-in network drivers (postgres, mysql) set this; plugins opt in via their manifest. Defaults to false. */
+    supports_ssl?: boolean;
+    /**
+     * SQL dialect for the statement splitter / classifier. Plugins that
+     * omit the field fall back to "postgres" (the dialect everyone got
+     * implicitly via the previous splitter).
+     */
+    sql_dialect?: Dialect;
+    /**
+     * Declarative SQL syntax extending a preset, for engines no preset
+     * describes (see `SqlSyntaxDescriptor`). Resolve it with
+     * `resolveSqlSyntax` (`src/utils/sqlSyntax.ts`); never read it directly.
+     */
+    sql_syntax?: SqlSyntaxDescriptor;
+}
+
+/** One quote rule of a declared SQL syntax. */
+export interface SqlSyntaxQuote {
+    /** `'`, `"`, `` ` `` or `[`. */
+    open: string;
+    /** Defaults to `open` (`]` for `[`); any other value is invalid. */
+    close?: string;
+    kind: 'string' | 'identifier';
+    /**
+     * How a closing quote is escaped inside the run: `double` (`''`, the
+     * default), `backslash` (`\'`, no doubling), `both` or `none`.
+     */
+    escape?: 'double' | 'backslash' | 'both' | 'none';
+}
+
+/** How generated boolean literals are written (`sql_syntax.boolean_literals`). */
+export type BooleanLiteralStyle = 'keywords' | 'numeric';
+
+/**
+ * `capabilities.sql_syntax`: how a plugin's SQL is lexed and how the host
+ * writes SQL for it, as data. Every field is optional and overrides the
+ * `extends` preset (default: `sql_dialect`). Invalid fields are ignored.
+ */
+export interface SqlSyntaxDescriptor {
+    extends?: Dialect;
+    /** Replaces the preset's quote rules (1 to 8, unique `open`). */
+    quotes?: SqlSyntaxQuote[];
+    triple_quoted_strings?: boolean;
+    /** 1–2 ASCII letters each (e.g. `r`, `b`, `rb`, `br`), at most 8. */
+    string_prefixes?: string[];
+    hash_comments?: boolean;
+    nested_block_comments?: boolean;
+    line_comment_requires_space?: boolean;
+    script_blocks?: boolean;
+    dollar_quoting?: boolean;
+    /** Generated string literals: `standard` (`''`) or `backslash` (`\'`). */
+    string_escape?: 'standard' | 'backslash';
+    /** Whether `LIKE … ESCAPE '\'` is supported. Defaults to true. */
+    like_escape?: boolean;
+    /**
+     * Generated boolean literals: `keywords` (`TRUE`/`FALSE`) or `numeric`
+     * (`1`/`0`). Omitted, each generator keeps its historical form.
+     */
+    boolean_literals?: BooleanLiteralStyle;
+    /** `sql-formatter` language for Format SQL (allowlisted). */
+    formatter?: string;
+    /** Extra autocomplete keywords (at most 1000, each up to 64 chars). */
+    keywords?: string[];
+    /** Extra autocomplete function names (same limits as `keywords`). */
+    functions?: string[];
+}
+
+/** Non-fatal plugin warning queued by the host, e.g. a runtime version mismatch. */
+export interface PluginRuntimeWarning {
+    plugin_id: string;
+    message: string;
+}
+
+/** Effective metadata for one connection. The registered manifest stays static. */
+export interface ConnectionMetadata {
+    capabilities: DriverCapabilities;
+    data_types: import('./dataTypes').DataTypeInfo[];
+    type_mappings: Record<string, string>;
+}
+
+export type PluginSettingType = 'string' | 'boolean' | 'number' | 'select';
+
+export interface PluginSettingDefinition {
+    key: string;
+    label: string;
+    type: PluginSettingType;
+    default?: string | boolean | number;
+    description?: string;
+    required?: boolean;
+    options?: string[]; // only when type === "select"
+}
+
+/** Deprecation notice for a built-in driver being retired in favour of a
+ * standalone plugin. Absent on manifests for drivers that are not deprecated.
+ * Stamped onto built-in manifests by the backend at registration time. */
+export interface DeprecationInfo {
+    /** Driver id of the replacement plugin (e.g. "postgresql"). */
+    replacement_id?: string;
+    /** Human-readable target removal date (tentative, e.g. "2026-10-05"). */
+    removal_date?: string;
+    /** App version targeted for removal, if decided. */
+    removal_version?: string;
+}
+
+export interface ConnectionFieldOverride {
+    hidden?: boolean;
+    label?: string;
+    placeholder?: string;
+}
+
+export interface ConnectionFieldOverrides {
+    host?: ConnectionFieldOverride;
+    port?: ConnectionFieldOverride;
+    username?: ConnectionFieldOverride;
+    password?: ConnectionFieldOverride;
+    database?: ConnectionFieldOverride;
+}
+
+export interface PluginManifest {
+    id: string;
+    name: string;
+    version: string;
+    description: string;
+    default_port: number | null;
+    capabilities: DriverCapabilities;
+    /** Present on get_driver_manifest when the plugin opts in to discovery. */
+    connection_metadata?: boolean;
+    /** true for built-in drivers (postgres, mysql, sqlite); false/absent for external plugins */
+    is_builtin?: boolean;
+    /** Concrete database engine (registry manifest `engine`). Lets the connection
+     * catalogue place locally-installed, not-yet-published plugins. */
+    engine?: string | null;
+    /** Data-model families, primary first (registry manifest `paradigms`). */
+    paradigms?: string[];
+    /** Default username pre-filled in the connection modal (e.g. "postgres", "root") */
+    default_username?: string;
+    /** CSS hex color for UI accents (e.g. "#f97316"). Undefined falls back to a neutral color. */
+    color?: string;
+    /** Icon: a hosted URL (`https://...`) or `data:` URI, resolved to an
+     * `<img>` (see the Tabularium manifest docs); or one of the built-in
+     * lookup keys "mysql" | "postgres" | "sqlite" | "network" | "database" |
+     * "folder-open", resolved to an inline brand/lucide icon. */
+    icon?: string;
+    /** Plugin-declared setting definitions. Empty/absent for built-in drivers. */
+    settings?: PluginSettingDefinition[];
+    /** Optional map of generic inferred type names to driver-specific types.
+     * Used during paste/import to resolve map_inferred_type() locally. */
+    type_mappings?: Record<string, string>;
+    /** UI extension declarations for slot-based rendering (Phase 2). */
+    ui_extensions?: UIExtensionManifestEntry[];
+    /** Deprecation notice for a built-in driver being retired in favour of a
+     * plugin. Absent/undefined for non-deprecated drivers. */
+    deprecated?: DeprecationInfo;
+    /** Raw EXPLAIN parser bundles loaded when this plugin is enabled. */
+    explain_parsers?: ExplainParserManifestEntry[];
+    /** Optional presentation overrides for host-owned connection fields. */
+    connection_fields?: ConnectionFieldOverrides;
+}
+
+/** Manifest-level declaration for a plugin-owned EXPLAIN parser bundle. */
+export interface ExplainParserManifestEntry {
+    engine: string;
+    format: string;
+    module: string;
+    label?: string;
+}
+
+/** Manifest-level entry for a UI extension slot. */
+export interface UIExtensionManifestEntry {
+    slot: string;
+    module: string;
+    order?: number;
+    /** If set, the contribution is only active when context.driver matches this value. */
+    driver?: string;
+    /** @tabularis/plugin-api version used to build this bundle. */
+    api_version?: string;
+}
+
+/**
+ * Locale-aware README payload from the `fetch_plugin_readme` command.
+ * `html` is the registry's server-rendered README; `locale` is the locale
+ * actually served, which can differ from the requested one when the plugin
+ * has no translation for it.
+ */
+export interface PluginReadme {
+    html: string | null;
+    locale: string | null;
+    available_locales?: string[];
+    documentation_url?: string | null;
+    /** Repository URL, used to resolve relative image/link paths in the README. */
+    repo_url?: string | null;
+}
+
+export interface RegistryReleaseWithStatus {
+    version: string;
+    min_tabularis_version: string | null;
+    platform_supported: boolean;
+}
+
+export interface RegistryPluginWithStatus {
+    id: string;
+    name: string;
+    description: string;
+    author: string;
+    homepage: string;
+    latest_version: string;
+    releases: RegistryReleaseWithStatus[];
+    installed_version: string | null;
+    update_available: boolean;
+    platform_supported: boolean;
+    // Richer Tabularium-only fields. All optional so legacy data still works.
+    icon?: string | null;
+    repo_url?: string | null;
+    kind?: string | null;
+    tags?: string[];
+    category?: string | null;
+    downloads?: number | null;
+    /** Base URL of the registry that served this plugin (e.g. https://registry.tabularis.dev). */
+    registry_base_url?: string | null;
+    /** Concrete database the driver connects to (registry manifest extensions.engine). */
+    engine?: string | null;
+    /** Data-model families, primary first (registry manifest extensions.paradigms). */
+    paradigms?: string[];
+    /** Registry-assigned verification flag. */
+    verified?: boolean;
+    /** Deeplink-only: resolved action for the confirmation modal. */
+    install_action?: 'install' | 'update' | 'up_to_date' | null;
+    /**
+     * Release-integrity signature state for the target version (preview path).
+     * Distinct from `verified` (admin moderation) — this is the cryptographic
+     * signature over the release's asset hashes.
+     */
+    signature?: 'verified' | 'unsigned' | 'invalid' | 'unknown' | null;
+}
+
+export interface InstalledPluginInfo {
+    id: string;
+    name: string;
+    version: string;
+    description: string;
+}
+
+export interface PluginLoadError {
+    plugin_id: string;
+    error: string;
+}

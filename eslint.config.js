@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import js from '@eslint/js';
 import globals from 'globals';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
@@ -6,10 +7,23 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 import {defineConfig, globalIgnores} from 'eslint/config';
 
+const tauriBoundaryAllowlist = JSON.parse(
+    fs.readFileSync(
+        new URL('./web-ui-project/scripts/web-ui-tauri-boundary-allowlist.json', import.meta.url),
+        'utf8',
+    ),
+);
+const tauriImportExceptions = [
+    ...tauriBoundaryAllowlist.adapterFiles,
+    ...Object.keys(tauriBoundaryAllowlist.legacyTauriImports),
+];
+
 export default defineConfig([
     globalIgnores([
         'dist',
         'packages/create-plugin/dist',
+        'packages/web-ui/tests',
+        'web-ui-project/tests',
         'tests',
         'e2e',
         'coverage',
@@ -27,15 +41,49 @@ export default defineConfig([
             ecmaVersion: 2020,
             globals: globals.browser,
         },
-    },
-    {
-        files: ['src/**/*.{ts,tsx}'],
         rules: {
-            // Same-folder imports use './', everything else goes through the '@/' alias.
             'no-restricted-imports': [
                 'error',
-                {patterns: [{group: ['../*'], message: "Import through '@/' instead of '../'."}]},
+                {
+                    patterns: [
+                        {
+                            group: ['@tauri-apps/**'],
+                            message:
+                                'Use a frontend transport or platform adapter instead of importing Tauri directly.',
+                        },
+                    ],
+                },
             ],
+        },
+    },
+    {
+        files: ['web-ui-project/e2e/**/*.ts'],
+        languageOptions: {
+            globals: {...globals.browser, ...globals.node},
+        },
+    },
+    {
+        files: ['packages/web-ui/src/**/*.{ts,tsx}'],
+        rules: {
+            'no-restricted-imports': [
+                'error',
+                {
+                    patterns: [
+                        {
+                            group: ['@tauri-apps/**'],
+                            message:
+                                'Use a frontend transport or platform adapter instead of importing Tauri directly.',
+                        },
+                        {group: ['../*'], message: "Import through '@/' instead of '../'."},
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        files: tauriImportExceptions,
+        rules: {
+            'no-restricted-imports': 'off',
         },
     },
     {

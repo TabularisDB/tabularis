@@ -4,25 +4,25 @@ use serde::Deserialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-pub(super) fn now() -> u64 {
+pub(crate) fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
 }
 
-pub(super) fn random() -> Result<String, String> {
+pub(crate) fn random() -> Result<String, String> {
     let mut bytes = [0u8; 32];
     openssl::rand::rand_bytes(&mut bytes)
         .map_err(|_| "Could not prepare secure ChatGPT sign-in.")?;
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
-pub(super) fn challenge(verifier: &str) -> String {
+pub(crate) fn challenge(verifier: &str) -> String {
     URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
 }
 
-pub(super) struct Callback {
+pub(crate) struct Callback {
     pub code: String,
     pub client_id: String,
 }
@@ -76,7 +76,7 @@ pub(super) fn parse_callback(
 }
 
 #[derive(Deserialize)]
-pub(super) struct Identity {
+pub(crate) struct Identity {
     pub iss: String,
     pub sub: String,
     pub aud: Value,
@@ -87,7 +87,7 @@ pub(super) struct Identity {
     pub azp: Option<String>,
 }
 
-pub(super) fn verify_identity(
+pub(crate) fn verify_identity(
     token: &str,
     jwks: &Value,
     client_id: &str,

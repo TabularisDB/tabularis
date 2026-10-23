@@ -131,6 +131,40 @@ pub fn find_connection_uri(connection_id: &str) -> Result<Option<String>, String
     }
 }
 
+/// Maps a keychain read so that a missing entry (`NoEntry`) is `Ok(None)` and
+/// `Err` is left for genuine failures (keychain locked or unreachable, access
+/// denied, platform errors), like [`find_connection_uri`] and [`get_ai_key`].
+pub fn optional_secret(read: Result<String, keyring::Error>) -> Result<Option<String>, String> {
+    match read {
+        Ok(secret) => Ok(Some(secret)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(keychain_error(e)),
+    }
+}
+
+fn find_secret(account: &str) -> Result<Option<String>, String> {
+    let entry = Entry::new(SERVICE_NAME, account).map_err(|e| e.to_string())?;
+    optional_secret(entry.get_password()).map_err(|e| {
+        eprintln!("[Keychain] Error reading {}: {}", account, e);
+        e
+    })
+}
+
+/// Like [`get_db_password`], but a missing entry is `Ok(None)`.
+pub fn find_db_password(connection_id: &str) -> Result<Option<String>, String> {
+    find_secret(&format!("{}:db", connection_id))
+}
+
+/// Like [`get_ssh_password`], but a missing entry is `Ok(None)`.
+pub fn find_ssh_password(connection_id: &str) -> Result<Option<String>, String> {
+    find_secret(&format!("{}:ssh", connection_id))
+}
+
+/// Like [`get_ssh_key_passphrase`], but a missing entry is `Ok(None)`.
+pub fn find_ssh_key_passphrase(connection_id: &str) -> Result<Option<String>, String> {
+    find_secret(&format!("{}:ssh_passphrase", connection_id))
+}
+
 pub fn delete_connection_uri(connection_id: &str) -> Result<(), String> {
     let entry = Entry::new(SERVICE_NAME, &format!("{}:connection_uri", connection_id))
         .map_err(|e| e.to_string())?;

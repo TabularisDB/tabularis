@@ -1,0 +1,30 @@
+# Public HTTPS deployment: Caddy terminates TLS (automatic Let's Encrypt
+# certificates) and is the only service that publishes ports.
+#
+#   TABULARIS_DOMAIN=tabularis.example.com in .env, DNS pointing at this host
+#   docker compose -f compose.yaml -f compose.tls.yaml up -d
+services:
+  tabularis:
+    ports: !reset []
+    environment:
+      TABULARIS_PUBLIC_URL: https://${TABULARIS_DOMAIN:?set TABULARIS_DOMAIN in .env}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - tabularis
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      TABULARIS_DOMAIN: ${TABULARIS_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

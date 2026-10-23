@@ -4,7 +4,6 @@ use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
 
 use crate::config::PluginConfig;
 use crate::drivers::driver_trait::{
@@ -41,8 +40,11 @@ pub struct PluginLoadError {
     pub error: String,
 }
 
-#[tauri::command]
 pub fn get_plugin_startup_errors() -> Vec<PluginLoadError> {
+    crate::application::plugins::get_plugin_startup_errors()
+}
+
+pub fn take_plugin_startup_errors() -> Vec<PluginLoadError> {
     let mut guard = STARTUP_ERRORS.lock().unwrap_or_else(|e| e.into_inner());
     std::mem::take(&mut *guard)
 }
@@ -106,18 +108,6 @@ pub struct ConfigManifest {
 /// swallowed because the built-in of the same id is already registered.
 const BUILTIN_DRIVER_IDS: [&str; 3] = ["mysql", "postgres", "sqlite"];
 
-/// Load installed plugins at startup.
-///
-/// `enabled_ids` controls which plugins are started:
-/// - `None`  → load all installed plugins (first-run or no preference saved).
-/// - `Some(ids)` → load only the plugins whose directory name (= plugin ID) is in `ids`.
-pub async fn load_plugins<R: tauri::Runtime>(app: &AppHandle<R>, enabled_ids: Option<&[String]>) {
-    let plugin_configs = crate::config::load_config_internal(app)
-        .plugins
-        .unwrap_or_default();
-    load_plugins_with_configs(plugin_configs, enabled_ids).await;
-}
-
 /// Re-scans installed plugins against the latest on-disk config and registers
 /// any that are missing from the driver registry. Idempotent — plugins
 /// already registered are skipped by `load_plugins_with_configs`, so this can
@@ -154,7 +144,19 @@ pub async fn load_plugins_with_configs(
         }
     };
 
-    let entries = match super::layout::driver_directories(&plugins_dir) {
+    load_plugins_from_dir(&plugins_dir, plugin_configs, enabled_ids).await;
+}
+
+/// Load external drivers from a runtime-provided directory.
+///
+/// Startup adapters resolve paths; plugin discovery and registration remain
+/// platform-neutral and can therefore run without a Tauri `AppHandle`.
+pub async fn load_plugins_from_dir(
+    plugins_dir: &Path,
+    plugin_configs: HashMap<String, PluginConfig>,
+    enabled_ids: Option<&[String]>,
+) {
+    let entries = match super::layout::driver_directories(plugins_dir) {
         Ok(e) => e,
         Err(e) => {
             log::error!("Failed to read plugins directory: {}", e);

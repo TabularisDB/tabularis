@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 pub(super) const PERSONAL_DIR: &str = "theme-personal-v1";
 /// Installed packages live in `plugins/<kind-folder>/<package>/`. Flat packages
 /// remain a read fallback; manifests keep declarative themes out of drivers.
-pub(super) const PACKAGES_DIR: &str = "plugins";
+pub(crate) const PACKAGES_DIR: &str = "plugins";
 const CATALOG_BYTES: usize = 32 * 1024 * 1024;
 
 pub(super) fn revision(source: &str) -> String {

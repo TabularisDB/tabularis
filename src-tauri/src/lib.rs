@@ -1,5 +1,9 @@
+// ponytail: without `desktop`, helpers used only by `transport::desktop` go
+// unused; silenced here instead of gating each one. The desktop build still
+// reports real dead code.
+#![cfg_attr(not(feature = "desktop"), allow(unused_imports, dead_code))]
+
 pub mod ai;
-pub mod chatgpt;
 pub mod ai_activity;
 #[cfg(test)]
 pub mod ai_activity_tests;
@@ -9,35 +13,35 @@ pub mod ai_approval;
 #[cfg(test)]
 pub mod ai_approval_tests;
 pub mod ai_approval_watcher;
-pub mod ai_commands;
+
 pub mod ai_notebook_export;
 #[cfg(test)]
 pub mod ai_notebook_export_tests;
 pub mod ai_schema_context;
 #[cfg(test)]
 pub mod ai_schema_context_tests;
+pub mod application;
 pub mod askpass;
 pub mod backup;
+pub mod database_backup;
+pub mod chatgpt;
 pub mod cli;
 pub mod clipboard_import;
 pub mod commands;
+pub mod config;
 pub mod connection_appearance;
-pub mod connection_import;
-pub mod connection_import_commands;
 #[cfg(test)]
 pub mod connection_appearance_tests;
-pub mod config;
 pub mod connection_cache;
 #[cfg(test)]
 pub mod connection_cache_tests;
+pub mod connection_import;
+
 pub mod connection_migrations;
 #[cfg(test)]
 pub mod connection_migrations_tests;
-pub mod database_backup;
 pub mod connection_tags;
-pub mod connection_window;
-#[cfg(test)]
-pub mod connection_window_tests;
+
 pub mod credential_cache;
 pub mod dump_commands; // Added
 #[cfg(test)]
@@ -53,34 +57,26 @@ pub mod export_import_tests;
 pub mod fs_path;
 #[cfg(test)]
 pub mod fs_path_tests;
-pub mod health_check;
 #[cfg(test)]
 pub mod group_tree_tests;
+pub mod health_check;
 pub mod heartbeat;
 #[cfg(test)]
 pub mod heartbeat_tests;
-pub mod json_viewer;
+pub mod k8s_tunnel;
 pub mod keychain_utils;
 #[cfg(test)]
 pub mod keychain_utils_tests;
-pub mod results_window;
-pub mod sandbox;
-#[cfg(test)]
-pub mod sandbox_tests;
-pub mod k8s_tunnel;
 pub mod log_commands;
 pub mod logger;
 pub mod mcp;
 pub mod models;
 #[cfg(test)]
 pub mod models_tests;
-pub mod notebooks;
+
 pub mod paths; // Added
 #[cfg(test)]
 pub mod paths_tests;
-pub mod storage_location;
-#[cfg(test)]
-pub mod storage_location_tests;
 pub mod persistence;
 #[cfg(test)]
 pub mod persistence_tests;
@@ -94,34 +90,49 @@ pub mod proxy;
 pub mod query_history;
 #[cfg(test)]
 pub mod query_history_tests;
+pub mod runtime;
+pub mod sandbox;
+#[cfg(test)]
+pub mod sandbox_tests;
+pub mod saved_queries;
+#[cfg(test)]
+pub mod saved_queries_tests;
 pub mod sql_database_statements;
 pub mod sql_file;
 #[cfg(test)]
 pub mod sql_file_tests;
-pub mod saved_queries;
-#[cfg(test)]
-pub mod saved_queries_tests;
 pub mod saved_query_folders;
 #[cfg(test)]
 pub mod saved_query_folders_tests;
-pub mod ssh_tunnel;
-pub mod ssm_tunnel;
+pub mod secret_store;
 pub mod sqlite_database;
 #[cfg(test)]
 pub mod sqlite_database_tests;
-mod system_theme;
-pub mod task_manager;
+pub mod ssh_tunnel;
+pub mod ssm_tunnel;
+pub mod storage_location;
+#[cfg(test)]
+pub mod storage_location_tests;
+
 pub mod team_share;
-pub mod theme_commands;
+
 pub mod theme_models;
 pub mod theme_packages;
-pub mod updater;
-pub mod window_decorations;
-// E2E-only mock of the `dialog` plugin (auto-accepts ask/confirm, stubs
-// open/save via env vars). Only compiled with --features e2e-testing.
-#[cfg(feature = "e2e-testing")]
-pub mod e2e_dialog_mock;
-mod window_placement;
+pub mod transport;
+pub mod ui_state;
+
+#[cfg(test)]
+pub mod ui_state_tests;
+
+
+/// Tauri's global runtime in the desktop app; the ambient Tokio runtime of
+/// `tabularis web` and `--mcp` otherwise.
+pub mod async_rt {
+    #[cfg(feature = "desktop")]
+    pub use tauri::async_runtime::{spawn, spawn_blocking, JoinHandle};
+    #[cfg(not(feature = "desktop"))]
+    pub use tokio::task::{spawn, spawn_blocking, JoinHandle};
+}
 pub mod drivers {
     pub mod common;
     pub mod driver_trait;
@@ -139,37 +150,10 @@ pub mod drivers {
     pub mod sqlite;
 }
 
-use logger::{create_log_buffer, init_logger, SharedLogBuffer};
-use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::Manager;
+pub use runtime::bootstrap::get_log_buffer;
 
-static DEBUG_MODE: AtomicBool = AtomicBool::new(false);
-
-// Global log buffer for capturing logs
-static LOG_BUFFER: std::sync::OnceLock<SharedLogBuffer> = std::sync::OnceLock::new();
-
-pub fn get_log_buffer() -> SharedLogBuffer {
-    LOG_BUFFER
-        .get()
-        .expect("Log buffer not initialized")
-        .clone()
-}
-
-#[tauri::command]
-fn is_debug_mode() -> bool {
-    DEBUG_MODE.load(Ordering::Relaxed)
-}
-
-#[tauri::command]
-fn open_devtools(window: tauri::WebviewWindow) {
-    window.open_devtools();
-    log::info!("DevTools opened");
-}
-
-#[tauri::command]
-fn close_devtools(window: tauri::WebviewWindow) {
-    window.close_devtools();
-    log::info!("DevTools closed");
+pub(crate) fn is_debug_mode() -> bool {
+    runtime::bootstrap::is_debug_mode()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -178,21 +162,7 @@ pub fn run() {
     // `askpass` module), serve the prompt and exit without booting the app.
     askpass::maybe_run_askpass_client();
 
-    // Install the rustls `ring` crypto provider as the process-wide default.
-    //
-    // Both `sqlx` (via the `tls-rustls-ring-native-roots` feature) and the
-    // workspace's direct `rustls` usage link against the same `rustls 0.23`
-    // crate, but `rustls 0.23` enables both the `ring` and the `aws-lc-rs`
-    // crypto providers when their respective feature flags are active in
-    // the dependency graph. With two providers linked, rustls refuses to
-    // pick one automatically and panics the first time someone tries a TLS
-    // handshake ("Could not automatically determine the process-level
-    // CryptoProvider"). We pin `ring` here because:
-    //   * `sqlx` is configured to use the `ring` provider.
-    //   * `ring` is pure-Rust and works on all our target platforms
-    //     (macOS, Linux, Windows) without a C toolchain at runtime.
-    // This must run before any sqlx pool is built.
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    runtime::bootstrap::install_process_prerequisites();
 
     // On Linux + Wayland, disable the DMA-BUF renderer in WebKitGTK to prevent
     // "Protocol error dispatching to Wayland display" crashes.
@@ -209,670 +179,91 @@ pub fn run() {
 
     let args = cli::parse();
 
+    // The capturing logger writes to stderr, keeping MCP's stdout JSON-RPC
+    // stream clean while providing the same diagnostics in every launch mode.
+    let log_buffer = runtime::bootstrap::initialize_logging(args.debug);
+
+    if let Err(error) = secret_store::install_from_env() {
+        eprintln!("Error: {error}");
+        std::process::exit(1);
+    }
+
+    if let Some(cli::Command::Web(web_args)) = &args.command {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+        rt.block_on(async {
+            let web_root =
+                transport::web::static_assets::resolve_web_root(web_args.web_root.as_deref())
+                    .expect("Failed to locate Tabularis Web assets");
+            let web_events = transport::web::events::WebEventBus::default();
+            let runtime_context = runtime::RuntimeContext::new(
+                std::sync::Arc::new(runtime::paths::FixedRuntimePaths::system()),
+                std::sync::Arc::new(web_events.clone()),
+                std::sync::Arc::new(runtime::secrets::KeyringRuntimeSecrets),
+            );
+            let application = runtime::bootstrap::bootstrap_application(
+                runtime_context,
+                runtime::bootstrap::BootstrapOptions::default(),
+            )
+            .await
+            .expect("Failed to bootstrap Tabularis Web services");
+            let application_state =
+                std::sync::Arc::new(runtime::state::ApplicationState::default());
+            let web_data_dir = application.context.paths.data_dir().to_path_buf();
+            let web_plugins_dir = application.context.paths.plugins_dir();
+            let database_backup_scheduler = database_backup::spawn_database_backup_scheduler(
+                application.context.clone(), application_state.dump_cancellation.clone(),
+            );
+            let approval_heartbeat = runtime::lifecycle::start_approval_heartbeat(&application.context);
+            let approval_watcher = ai_approval_watcher::spawn_headless(
+                application.context.clone(),
+                application_state.clone(),
+            );
+            let application_api = std::sync::Arc::new(application::RuntimeApplicationApi::new(
+                application.context,
+                application_state.clone(),
+            ));
+
+            let server_result =
+                transport::web::server::run(transport::web::server::WebServerOptions {
+                    trusted_proxies: web_args.trusted_proxies.clone(),
+                    host: web_args.host.clone(),
+                    port: web_args.port,
+                    web_root,
+                    data_dir: web_data_dir,
+                    plugins_dir: web_plugins_dir,
+                    open_browser: !web_args.no_open,
+                    auth: web_args.auth,
+                    public_url: web_args.public_url.clone(),
+                    allowed_origins: web_args.allowed_origins.clone(),
+                    allow_high_risk: web_args.allow_high_risk,
+                    server_file_browser_roots: web_args.server_file_browser_roots.clone(),
+                    application: application_api,
+                    events: web_events,
+                })
+                .await;
+
+            database_backup_scheduler.abort();
+            approval_watcher.abort();
+            drop(approval_heartbeat);
+            runtime::lifecycle::shutdown_headless_runtime(&application_state).await;
+            server_result.expect("Failed to run Tabularis Web server");
+        });
+        return;
+    }
+
     if args.mcp {
-        // Initialize the logger so plugin-loading and driver RPC errors (which
-        // use the `log` crate) are visible. The custom logger writes to stderr
-        // only, leaving the stdout JSON-RPC stream clean.
-        init_logger(create_log_buffer(1000), args.log_level());
         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
         rt.block_on(mcp::run_mcp_server());
         return;
     }
 
-    // Info by default so users can see application logs; --debug raises it
-    // to Debug, which includes sqlx queries, and RUST_LOG is honoured when the
-    // flag is absent.
-    let log_level = args.log_level();
-
-    // Store debug flag in global state
-    DEBUG_MODE.store(args.debug, Ordering::Relaxed);
-
-    // Create and initialize log buffer - MUST be before sqlx to capture all logs
-    let log_buffer = create_log_buffer(1000);
-    LOG_BUFFER
-        .set(log_buffer.clone())
-        .expect("Failed to initialize log buffer");
-
-    // Initialize custom logger that captures logs to buffer and prints to stderr
-    init_logger(log_buffer.clone(), log_level);
-
-    // Log startup message
-    log::info!("Tabularis application starting...");
-    if args.debug {
-        log::info!("Debug mode enabled - verbose logging active");
-    } else {
-        log::info!("Debug mode disabled - standard logging active");
-    }
-
-    // Install default drivers for sqlx::Any
-    sqlx::any::install_default_drivers();
-
-    #[cfg_attr(not(feature = "e2e-testing"), allow(unused_mut))]
-    let mut builder = tauri::Builder::default()
-        // Singleton: a second launch (typically a `tabularis://...` URL
-        // clicked while the app is already running) hands its argv to the
-        // first instance and exits. With `features = ["deep-link"]` the plugin
-        // usually auto-routes those URLs through `on_open_url`, but on
-        // Linux/Windows the URL arrives as a plain argv entry on warm launch.
-        // We scan argv for it defensively and dispatch ourselves so the
-        // install modal fires even when auto-routing doesn't.
-        //
-        // Order matters: must be the FIRST plugin in the chain so it can
-        // intercept duplicate launches before any heavy initialisation.
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            log::info!("Duplicate launch detected — forwarded to existing instance");
-            if let Some(url) = argv.iter().find(|a| a.starts_with("tabularis:")) {
-                crate::plugins::deep_link::handle_url(app, url);
-            }
-            if let Some(win) = tauri::Manager::get_webview_window(app, "main") {
-                let _ = win.unminimize();
-                let _ = win.set_focus();
-            }
-        }))
-        .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_deep_link::init());
-
-    // Dialog plugin: real in production, mocked under e2e-testing (the mock
-    // auto-accepts ask()/confirm() so native Tauri confirm dialogs — which
-    // WebDriverIO can't click — don't block the trigger-save flow). Registered
-    // as a same-named "dialog" plugin so it replaces the real one at Tauri's
-    // IPC dispatch layer (PluginStore::register retains only the last).
-    #[cfg(not(feature = "e2e-testing"))]
+    #[cfg(feature = "desktop")]
+    transport::desktop::run(args, log_buffer);
+    #[cfg(not(feature = "desktop"))]
     {
-        builder = builder.plugin(tauri_plugin_dialog::init());
+        drop(log_buffer);
+        eprintln!("This build has no desktop app. Run `tabularis web` or `tabularis --mcp`.");
+        std::process::exit(2);
     }
-    #[cfg(feature = "e2e-testing")]
-    {
-        builder = builder.plugin(crate::e2e_dialog_mock::init());
-        // In-app WebDriver server. tauri-wd connects to drive the real WKWebView
-        // via the W3C WebDriver protocol on macOS, exercising real Tauri IPC.
-        builder = builder.plugin(tauri_plugin_webdriver_automation::init());
-    }
-
-    builder
-        .manage(crate::plugins::deep_link::PendingInstall::default())
-        .manage(commands::QueryCancellationState::default())
-        .manage(export::ExportCancellationState::default())
-        .manage(dump_commands::DumpCancellationState::default())
-        .manage(log_buffer)
-        .manage(std::sync::Arc::new(
-            credential_cache::CredentialCache::default(),
-        ))
-        .manage(std::sync::Arc::new(
-            connection_cache::ConnectionCache::default(),
-        ))
-        .manage(connection_import_commands::ImportEnvelopeCache::default())
-        .manage(explain_import::PendingExplainFile::default())
-        .manage(json_viewer::JsonViewerStore::default())
-        .manage(results_window::ResultsWindowStore::default())
-        .manage(window_placement::WindowPlacementCache::default())
-        .manage(query_history::QueryHistoryState::default())
-        .setup(move |app| {
-            #[cfg(target_os = "linux")]
-            system_theme::watch(app.handle().clone());
-            // The asset protocol scope in tauri.conf.json only covers the
-            // default data directory; when the user moved the storage folder
-            // the connection icons live there instead.
-            if crate::storage_location::active_override().is_some() {
-                let icons_dir = crate::paths::get_connection_icons_dir();
-                let _ = std::fs::create_dir_all(&icons_dir);
-                if let Err(e) = app.asset_protocol_scope().allow_directory(&icons_dir, true) {
-                    log::warn!("Failed to allow asset access to {:?}: {}", icons_dir, e);
-                }
-                log::info!(
-                    "Using custom storage location: {}",
-                    crate::paths::get_app_config_dir().display()
-                );
-            }
-
-            // Apply the persisted decoration policy as early as possible. The
-            // main window is created from tauri.conf.json before this hook.
-            let startup_config = crate::config::load_config_internal(&app.handle());
-            crate::window_decorations::apply_to_all_windows(
-                &app.handle(),
-                startup_config.window_decorations.as_ref(),
-            );
-            // Restore the main window's last normal size and position.
-            // The explicit start_maximized preference below still takes precedence.
-            if let Some(window) = app.get_webview_window("main") {
-                window_placement::restore(&window);
-            }
-
-            // Allow the SSH tunnel code (which runs without a Tauri context)
-            // to bridge askpass prompts to the frontend.
-            askpass::set_app_handle(app.handle().clone());
-
-            // Read persisted config to know which external plugins are enabled.
-            // `None` means no preference has been saved yet → load all installed plugins.
-            let active_ext_drivers = startup_config.active_external_drivers.as_deref();
-
-            // Register built-in drivers
-            tauri::async_runtime::block_on(async {
-                drivers::registry::register_driver(drivers::mysql::MysqlDriver::new()).await;
-                drivers::registry::register_driver(drivers::postgres::PostgresDriver::new()).await;
-                drivers::registry::register_driver(drivers::sqlite::SqliteDriver::new()).await;
-
-                // Load only enabled external plugins (or all if no preference saved).
-                crate::plugins::manager::load_plugins_with_configs(
-                    startup_config.plugins.clone().unwrap_or_default(),
-                    active_ext_drivers,
-                )
-                .await;
-            });
-
-            // Ensure replacement plugins are installed for any built-in
-            // driver a saved connection still depends on (e.g. install the
-            // `postgresql` plugin when a `postgres` connection exists). Spawned,
-            // not `block_on`, so a slow or failed registry fetch never delays
-            // window creation — same pattern as the health-check spawn below.
-            // See `.github/planning/postgres-plugin-force-install.md`.
-            for (builtin_id, plugin_id) in crate::plugins::force_install::MIGRATABLE_DRIVERS {
-                let handle = app.handle().clone();
-                let builtin_id = builtin_id.to_string();
-                let plugin_id = plugin_id.to_string();
-                tauri::async_runtime::spawn(async move {
-                    crate::plugins::force_install::ensure_plugin_installed_if_needed(
-                        &handle,
-                        &builtin_id,
-                        &plugin_id,
-                    )
-                    .await;
-                });
-            }
-
-            // Start connection health-check ping loop.
-            {
-                let interval = startup_config
-                    .ping_interval
-                    .unwrap_or(health_check::DEFAULT_PING_INTERVAL);
-                let handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    health_check::start_ping_loop(handle, interval as u64).await;
-                });
-            }
-
-            // Subscribe to `tabularis://` deep links so a registry's
-            // "Open in App" button can hand us a plugin slug + version.
-            // The handler emits a frontend event; the React side opens the
-            // install confirmation modal. See `plugins::deep_link`.
-            //
-            // On Linux/Windows the scheme is only auto-registered when the
-            // app is installed from a bundled package. Under `tauri dev`
-            // the binary lives in `target/debug/...`, so call
-            // `register("tabularis")` here — it writes the desktop / xdg-mime
-            // entry pointing at the current binary so Firefox & friends can
-            // route `tabularis://...` to us. The call is a no-op on macOS
-            // (handled by Info.plist) and idempotent across restarts.
-            //
-            // Inside Snap/Flatpak the exported `.desktop` entry already
-            // carries `MimeType=x-scheme-handler/tabularis`, and the sandbox
-            // has neither `xdg-mime` nor write access to the host's
-            // mimeapps.list — so skip the call instead of logging a failure.
-            {
-                use tauri_plugin_deep_link::DeepLinkExt;
-                let handle = app.handle().clone();
-                let deep_link = app.deep_link();
-                #[cfg(any(target_os = "linux", all(debug_assertions, target_os = "windows")))]
-                match crate::sandbox::current() {
-                    Some(sandbox) => log::info!(
-                        "Skipping tabularis:// scheme registration: handled by the {} desktop entry",
-                        sandbox.name()
-                    ),
-                    None => {
-                        if let Err(e) = deep_link.register("tabularis") {
-                            log::warn!("Failed to register tabularis:// scheme: {}", e);
-                        }
-                    }
-                }
-                deep_link.on_open_url({
-                    let handle = handle.clone();
-                    move |event| {
-                        for url in event.urls() {
-                            crate::plugins::deep_link::handle_url(&handle, url.as_str());
-                        }
-                    }
-                });
-                // Cold-start path: when the OS launched us *because of* a
-                // tabularis:// URL, on_open_url won't fire — the URL is
-                // already consumed by the launch handshake. Pull it out via
-                // get_current() and route it through the same handler.
-                if let Ok(Some(urls)) = deep_link.get_current() {
-                    for url in urls {
-                        crate::plugins::deep_link::handle_url(&handle, url.as_str());
-                    }
-                }
-            }
-
-            // Watch for pending MCP approval requests and run periodic cleanup.
-            ai_approval_watcher::spawn(app.handle().clone());
-
-            // Periodic encrypted backup of the connections, when enabled.
-            backup::spawn_scheduler(app.handle().clone());
-
-            // Scheduled daily database content backups, when enabled (app-open boundary).
-            database_backup::spawn_database_backup_scheduler(app.handle().clone());
-
-            // Refresh the GUI heartbeat so the MCP subprocess can detect
-            // when Tabularis is closed and fail fast on approval-gated
-            // queries instead of waiting for the full approval timeout.
-            heartbeat::spawn();
-
-            // Maximize the window on startup if the user enabled it.
-            if startup_config
-                .start_maximized
-                .unwrap_or(false)
-            {
-                if let Some(window) = app.get_webview_window("main") {
-                    if let Err(e) = window.maximize() {
-                        log::warn!("Failed to maximize window on startup: {e}");
-                    }
-                }
-            }
-
-            // Open devtools automatically in debug mode
-            if args.debug {
-                if let Some(window) = app.get_webview_window("main") {
-                    window.open_devtools();
-                    log::info!("DevTools opened (debug mode active)");
-                }
-            }
-
-            // If the user launched with `--explain <FILE>`, spawn the Visual
-            // Explain window and hide the main app window: the CLI flag is
-            // meant to be a dedicated plan viewer, not a full app launch.
-            if let Some(path) = args.explain.clone() {
-                log::info!("CLI --explain received: {path}");
-                if let Err(e) =
-                    explain_import::spawn_visual_explain_window(app, Some(path))
-                {
-                    log::error!("Failed to open Visual Explain window: {e}");
-                }
-                // Close the default main window only AFTER visual-explain is
-                // built — closing the last window would terminate the app.
-                if let Some(main) = app.get_webview_window("main") {
-                    if let Err(e) = main.close() {
-                        log::warn!("Failed to close main window: {e}");
-                    }
-                }
-            }
-            Ok(())
-        })
-        // Only the main window is persisted; utility windows retain their
-        // existing per-feature sizing and placement behavior.
-        .on_window_event(|window, event| {
-            if window.label() != "main" { return; }
-            match event {
-                tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
-                    window_placement::remember(window);
-                }
-                tauri::WindowEvent::CloseRequested { .. } => {
-                    window_placement::persist(window);
-                }
-                _ => {}
-            }
-        })
-        .invoke_handler(tauri::generate_handler![
-            system_theme::get_linux_system_theme,
-            is_debug_mode,
-            open_devtools,
-            close_devtools,
-            commands::get_registered_drivers,
-            commands::get_driver_manifest,
-            commands::get_connection_metadata,
-            commands::get_keybindings,
-            commands::save_keybindings,
-            commands::test_connection,
-            commands::list_databases,
-            commands::save_connection,
-            sqlite_database::create_sqlite_file,
-            sqlite_database::create_sqlite_database,
-            commands::delete_connection,
-            commands::update_connection,
-            commands::duplicate_connection,
-            commands::get_connections,
-            commands::get_connection_by_id,
-            commands::disconnect_connection,
-            commands::register_active_connection,
-            commands::get_active_connections,
-            commands::get_data_types,
-            commands::map_inferred_column_types,
-            // SSH Connections
-            commands::get_ssh_connections,
-            commands::save_ssh_connection,
-            commands::update_ssh_connection,
-            commands::delete_ssh_connection,
-            commands::test_ssh_connection,
-            askpass::respond_ssh_askpass,
-            // K8s Connections
-            commands::get_k8s_connections,
-            commands::save_k8s_connection,
-            commands::update_k8s_connection,
-            commands::delete_k8s_connection,
-            commands::test_k8s_connection_cmd,
-            commands::get_k8s_contexts_cmd,
-            commands::get_k8s_namespaces_cmd,
-            commands::get_k8s_resources_cmd,
-            commands::get_k8s_resource_ports_cmd,
-            commands::validate_k8s_path_cmd,
-            // AWS SSM
-            commands::test_ssm_connection_cmd,
-            // Connection Groups
-            commands::get_connection_groups,
-            commands::get_connections_with_groups,
-            commands::create_connection_group,
-            commands::create_group_path,
-            commands::update_connection_group,
-            commands::move_group_to_parent,
-            commands::delete_connection_group,
-            commands::move_connection_to_group,
-            commands::reorder_groups,
-            commands::reorder_connections_in_group,
-            connection_tags::list_connection_tags,
-            connection_tags::create_connection_tag,
-            connection_tags::update_connection_tag,
-            connection_tags::delete_connection_tag,
-            connection_tags::set_connection_tags,
-            commands::export_connections_payload,
-            commands::encrypt_export_payload,
-            backup::get_connections_backup_status,
-            backup::set_connections_backup_password,
-            backup::set_connections_backup_target_password,
-            backup::run_connections_backup,
-            database_backup::get_database_backup_status,
-            database_backup::run_database_backup_now,
-            database_backup::cancel_database_backup,
-            commands::decrypt_export_payload,
-            commands::import_connections_payload,
-            connection_import_commands::list_connection_import_sources,
-            connection_import_commands::preview_connection_import,
-            connection_import_commands::apply_connection_import,
-            connection_import_commands::preview_tabularis_import,
-            connection_import_commands::apply_tabularis_import,
-            commands::get_schemas,
-            commands::get_available_databases,
-            commands::set_selected_databases,
-            commands::get_tables,
-            commands::get_columns,
-            commands::get_foreign_keys,
-            commands::get_indexes,
-            commands::delete_record,
-            commands::update_record,
-            commands::insert_record,
-            commands::save_blob_to_file,
-            commands::fetch_blob_as_data_url,
-            commands::load_blob_from_file,
-            commands::detect_blob_mime,
-            commands::detect_mime_type,
-            commands::get_file_stats,
-            commands::read_file_as_data_url,
-            commands::execute_query,
-            commands::execute_query_batch,
-            commands::release_query_session,
-            commands::get_server_now,
-            commands::explain_query_plan,
-            commands::count_query,
-            commands::cancel_query,
-            commands::get_views,
-            commands::get_view_definition,
-            commands::create_view,
-            commands::alter_view,
-            commands::drop_view,
-            commands::get_view_columns,
-            commands::get_materialized_views,
-            commands::get_materialized_view_columns,
-            commands::get_materialized_view_definition,
-            commands::refresh_materialized_view,
-            commands::set_window_title,
-            commands::open_er_diagram_window,
-            explain_import::load_explain_from_file,
-            explain_import::get_pending_explain_file,
-            explain_import::open_visual_explain_window,
-            export::export_query_to_file,
-            export::cancel_export,
-            sql_file::read_sql_file,
-            sql_file::write_sql_file,
-            saved_queries::get_saved_queries,
-            saved_queries::save_query,
-            saved_queries::update_saved_query,
-            saved_queries::delete_saved_query,
-            saved_queries::get_saved_query_folders,
-            saved_queries::create_saved_query_folder,
-            saved_queries::rename_saved_query_folder,
-            saved_queries::delete_saved_query_folder,
-            saved_queries::move_saved_query,
-            query_history::get_query_history,
-            query_history::add_query_history_entry,
-            query_history::delete_query_history_entry,
-            query_history::clear_query_history,
-            // Config
-            config::get_schema_preference,
-            config::set_schema_preference,
-            config::get_last_active_connection,
-            config::set_last_active_connection,
-            config::get_last_open_connections,
-            config::set_last_open_connections,
-            config::get_selected_schemas,
-            config::set_selected_schemas,
-            config::get_config,
-            config::save_config,
-            config::get_config_json,
-            config::save_config_json,
-            config::relaunch_app,
-            storage_location::get_storage_location,
-            storage_location::inspect_storage_location,
-            storage_location::set_storage_location,
-            storage_location::reset_storage_location,
-            storage_location::open_storage_location,
-            storage_location::get_app_data_dir,
-            config::set_ai_key,
-            config::delete_ai_key,
-            config::check_ai_key,
-            config::check_ai_key_status,
-            proxy::set_proxy_password,
-            proxy::proxy_password_is_set,
-            proxy::delete_proxy_password,
-            config::get_system_prompt,
-            config::save_system_prompt,
-            config::reset_system_prompt,
-            config::get_explain_prompt,
-            config::save_explain_prompt,
-            config::reset_explain_prompt,
-            config::get_explainplan_prompt,
-            config::save_explainplan_prompt,
-            config::reset_explainplan_prompt,
-            config::get_cellname_prompt,
-            config::save_cellname_prompt,
-            config::reset_cellname_prompt,
-            config::get_tabrename_prompt,
-            config::save_tabrename_prompt,
-            config::reset_tabrename_prompt,
-            // AI
-            ai::generate_ai_query,
-            ai::explain_ai_query,
-            ai::analyze_ai_explain_plan,
-            ai::generate_cell_name,
-            ai::generate_tab_rename,
-            ai::suggest_table_name,
-            ai::get_ai_models,
-            chatgpt::get_chatgpt_session,
-            chatgpt::sign_in_chatgpt,
-            chatgpt::cancel_chatgpt_sign_in,
-            chatgpt::select_chatgpt_profile,
-            chatgpt::sign_out_chatgpt,
-            chatgpt::get_chatgpt_models,
-            chatgpt::open_chatgpt_usage,
-            // Clipboard Import
-            clipboard_import::execute_clipboard_import,
-            commands::get_ai_schema_context,
-            commands::get_schema_snapshot,
-            // DDL generation
-            commands::get_table_query_template,
-            commands::get_column_stats,
-            commands::get_create_table_sql,
-            commands::get_add_column_sql,
-            commands::get_alter_column_sql,
-            commands::get_create_index_sql,
-            commands::get_create_foreign_key_sql,
-            commands::get_drop_table_sql,
-            commands::drop_index_action,
-            commands::drop_foreign_key_action,
-            // Routines
-            commands::get_routines,
-            commands::get_routine_parameters,
-            commands::get_routine_definition,
-            commands::build_routine_call_sql,
-            commands::get_routine_create_template,
-            commands::get_routine_edit_script,
-            commands::drop_routine,
-            // Triggers
-            commands::get_triggers,
-            commands::get_trigger_definition,
-            commands::create_trigger,
-            commands::drop_trigger,
-            // User management
-            commands::get_db_privilege_catalog,
-            commands::get_db_users,
-            commands::get_db_user_grants,
-            commands::get_db_user_privileges,
-            commands::create_db_user,
-            commands::drop_db_user,
-            commands::set_db_user_password,
-            commands::apply_db_user_privileges,
-            // MCP
-            mcp::install::get_mcp_status,
-            mcp::install::install_mcp_config,
-            // AI Activity / Approvals
-            ai_commands::get_ai_activity,
-            ai_commands::get_ai_sessions,
-            ai_commands::get_ai_session_events,
-            ai_commands::clear_ai_activity,
-            ai_commands::export_ai_activity_json,
-            ai_commands::export_ai_activity_csv,
-            ai_commands::export_ai_session_as_notebook,
-            ai_commands::list_pending_approvals,
-            ai_commands::decide_pending_approval,
-            // Themes
-            theme_packages::commands::preview_theme_document,
-            theme_packages::commands::preview_local_theme_package,
-            theme_packages::commands::install_local_theme_package,
-            theme_packages::commands::fetch_theme_registry,
-            theme_packages::commands::fetch_theme_package_detail,
-            theme_packages::commands::install_registry_theme,
-            theme_packages::commands::cancel_theme_install,
-            theme_packages::commands::set_theme_package_enabled,
-            theme_packages::commands::uninstall_theme_package,
-            theme_packages::commands::recover_theme_packages,
-            theme_commands::get_theme_catalog,
-            theme_commands::create_personal_theme,
-            theme_commands::create_personal_snapshot,
-            theme_commands::update_personal_theme,
-            theme_commands::update_personal_snapshot,
-            theme_commands::duplicate_personal_theme,
-            theme_commands::get_all_themes,
-            theme_commands::get_theme,
-            theme_commands::save_custom_theme,
-            theme_commands::delete_custom_theme,
-            theme_commands::import_theme,
-            theme_commands::export_theme,
-            // Dump & Import
-            dump_commands::dump_database,
-            dump_commands::cancel_dump,
-            dump_commands::import_database,
-            dump_commands::cancel_import,
-            dump_commands::cancel_dump,
-            // Updater
-            updater::check_for_updates,
-            updater::download_and_install_update,
-            updater::get_installation_source,
-            // Logs
-            log_commands::get_logs,
-            log_commands::log_frontend_event,
-            log_commands::clear_logs,
-            log_commands::get_log_settings,
-            log_commands::set_log_enabled,
-            log_commands::set_log_max_size,
-            log_commands::export_logs,
-            log_commands::test_log,
-            // Preferences
-            preferences::save_editor_preferences,
-            preferences::load_editor_preferences,
-            preferences::delete_editor_preferences,
-            preferences::list_all_preferences,
-            // Notebooks
-            notebooks::create_notebook,
-            notebooks::save_notebook,
-            notebooks::load_notebook,
-            notebooks::delete_notebook,
-            notebooks::rename_notebook,
-            notebooks::list_notebooks,
-            // Plugin Registry
-            plugins::commands::fetch_plugin_registry,
-            plugins::commands::install_plugin,
-            plugins::commands::cancel_plugin_install,
-            plugins::commands::uninstall_plugin,
-            plugins::commands::get_installed_plugins,
-            plugins::commands::disable_plugin,
-            plugins::commands::enable_plugin,
-            plugins::commands::get_plugin_manifest,
-            plugins::commands::get_plugin_dir,
-            plugins::commands::open_plugins_dir,
-            plugins::commands::read_plugin_file,
-            plugins::commands::fetch_tabularium_plugin_preview,
-            plugins::commands::fetch_plugin_readme,
-            plugins::deep_link::consume_pending_deep_link_install,
-            plugins::manager::get_plugin_startup_errors,
-            plugins::runtime_version::get_plugin_runtime_warnings,
-            // JSON Viewer
-            json_viewer::open_json_viewer_window,
-            json_viewer::get_json_viewer_session,
-            json_viewer::complete_json_viewer_session,
-            results_window::open_results_window,
-            results_window::close_results_window,
-            // Connection Window
-            connection_window::open_connection_window,
-            // Task Manager
-            task_manager::get_process_list,
-            task_manager::get_system_stats,
-            task_manager::get_tabularis_children,
-            task_manager::kill_plugin_process,
-            task_manager::restart_plugin_process,
-            task_manager::open_task_manager_window,
-            // Connection Appearance
-            connection_appearance::save_connection_icon,
-            connection_appearance::delete_connection_icon,
-            commands::set_connection_appearance,
-        ])
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(|app_handle, event| {
-            // Cmd+Q and relaunch paths can exit without CloseRequested.
-            if matches!(&event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
-                window_placement::persist_cached(app_handle);
-            }
-            if let tauri::RunEvent::Exit = event {
-                // Back up the freshest state before the process ends (no-op
-                // unless backups are enabled and due).
-                backup::run_exit_backup(app_handle);
-                // Roll back pinned transactions while the tunnels they run through are still up.
-                // Only the built-in PostgreSQL driver pins; plugins release in their own shutdown.
-                tauri::async_runtime::block_on(async {
-                    let release = crate::drivers::postgres::session::release_all();
-                    if tokio::time::timeout(std::time::Duration::from_secs(3), release)
-                        .await
-                        .is_err()
-                    {
-                        log::warn!("Releasing pinned PostgreSQL sessions timed out on exit");
-                    }
-                });
-                log::info!("Application exiting, stopping all active tunnels...");
-                crate::ssh_tunnel::stop_all_tunnels();
-                crate::proxy::stop_all_forwards();
-                crate::ssm_tunnel::stop_all_tunnels();
-                crate::k8s_tunnel::stop_all_tunnels();
-            }
-        });
 }
+

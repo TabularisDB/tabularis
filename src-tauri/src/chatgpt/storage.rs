@@ -12,7 +12,7 @@ use std::{
 };
 
 #[derive(Serialize, Deserialize)]
-pub(super) struct Store {
+pub(crate) struct Store {
     pub host_id: String,
     pub active_profile_id: Option<String>,
     pub profiles: Vec<Profile>,
@@ -29,7 +29,7 @@ impl Default for Store {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(super) struct Profile {
+pub(crate) struct Profile {
     pub id: String,
     pub label: String,
     pub client_id: String,
@@ -39,7 +39,7 @@ pub(super) struct Profile {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(super) struct Tokens {
+pub(crate) struct Tokens {
     pub access_token: String,
     pub refresh_token: String,
     pub id_token: String,
@@ -56,12 +56,12 @@ impl Tokens {
     }
 }
 
-pub(super) struct LockedStore {
+pub(crate) struct LockedStore {
     path: PathBuf,
     _lock: File,
 }
 
-pub(super) fn session(state: &Store) -> super::ChatGptSession {
+pub(crate) fn session(state: &Store) -> super::ChatGptSession {
     super::ChatGptSession {
         active_profile_id: state.active_profile_id.clone(),
         profiles: state

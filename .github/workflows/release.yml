@@ -54,7 +54,7 @@ jobs:
       # so always read it from the ref that triggered the workflow.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Prepend the announcement blog post (from src/data/changelog.ts) to the
+      # Prepend the announcement blog post (from packages/web-ui/src/data/changelog.ts) to the
       # release body when one exists for this version. GitHub's auto-generated
       # "What's Changed" section is appended after the body, so the link always
       # shows up above it.
@@ -68,7 +68,7 @@ jobs:
           version="${TAG#v}"
           blog_url="$(node -e '
             const fs = require("fs");
-            const src = fs.readFileSync("src/data/changelog.ts", "utf8");
+            const src = fs.readFileSync("packages/web-ui/src/data/changelog.ts", "utf8");
             const version = process.argv[1];
             const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
             const m = src.match(new RegExp(`"${escaped}":\\s*"([^"]+)"`));

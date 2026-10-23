@@ -1,0 +1,6 @@
+{$TABULARIS_DOMAIN} {
+	encode zstd gzip
+	# Caddy keeps the original Host header and upgrades WebSockets on its own,
+	# both of which Tabularis requires.
+	reverse_proxy tabularis:8080
+}

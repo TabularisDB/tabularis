@@ -22,8 +22,8 @@ use std::fs;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
-use tauri::{AppHandle, Manager, Runtime};
+use std::sync::{Arc, Mutex};
+use crate::runtime::RuntimeContext;
 
 use crate::config::DatabaseBackupPlan;
 use crate::dump_commands::{
@@ -223,7 +223,7 @@ pub(crate) struct BackupRunReport {
 }
 
 /// One backup attempt into `dest_dir`: runs `dump` with the target file path,
-/// then prunes old backups on success, or deletes the partial file on failure
+/// then atomically publishes and prunes on success, or drops the temporary file on failure
 /// so previous backups are never touched. A failure counts as a cancellation
 /// when the dump reports [`DUMP_CANCELLED`] or `cancel_requested` was set.
 pub(crate) async fn execute_backup<F>(
@@ -258,8 +258,17 @@ where
     let target_path = dest_dir.join(&file_name);
     let target = target_path.display().to_string();
 
-    match dump(target.clone()).await {
+    let staging = match tempfile::Builder::new().prefix(".pending-backup-").tempfile_in(dest_dir) {
+        Ok(file) => file,
+        Err(error) => return failed(BackupOutcome::Error, format!("Failed to create backup file: {error}")),
+    };
+    let result = dump(staging.path().display().to_string()).await;
+    let result = if cancel_requested.load(Ordering::SeqCst) { Err(DUMP_CANCELLED.to_string()) } else { result };
+    match result {
         Ok(()) => {
+            if let Err(error) = staging.persist(&target_path) {
+                return failed(BackupOutcome::Error, format!("Failed to publish database backup: {error}"));
+            }
             let retention = if plan.retention > 0 {
                 plan.retention as usize
             } else {
@@ -289,9 +298,6 @@ where
             }
         }
         Err(err) => {
-            if target_path.exists() {
-                let _ = fs::remove_file(&target_path);
-            }
             let outcome = if err == DUMP_CANCELLED || cancel_requested.load(Ordering::SeqCst) {
                 BackupOutcome::Cancelled
             } else {
@@ -327,12 +333,13 @@ fn record_report(key: &str, report: &BackupRunReport, finished_at: DateTime<Utc>
     }
 }
 
-pub async fn run_database_backup<R: Runtime>(
-    app: AppHandle<R>,
+pub async fn run_database_backup(
+    runtime: &RuntimeContext,
+    cancellation_state: &DumpCancellationState,
     trigger: &str,
 ) -> Result<String, String> {
     run_exclusive(&RUNTIME_STATE.is_running, || async {
-        let result = run_plan_once(&app, trigger).await;
+        let result = run_plan_once(runtime, cancellation_state, trigger).await;
         // Reset on every way out, so a cancel never leaks into the next run.
         *RUNTIME_STATE.active_slot.lock().unwrap() = None;
         RUNTIME_STATE.was_cancelled.store(false, Ordering::SeqCst);
@@ -341,8 +348,8 @@ pub async fn run_database_backup<R: Runtime>(
     .await
 }
 
-async fn run_plan_once<R: Runtime>(app: &AppHandle<R>, trigger: &str) -> Result<String, String> {
-    let config = crate::config::load_config_internal(app);
+async fn run_plan_once(runtime: &RuntimeContext, cancellation_state: &DumpCancellationState, trigger: &str) -> Result<String, String> {
+    let config = crate::application::persistence::load_config(runtime);
     let plan = config
         .database_backup_plan
         .clone()
@@ -356,7 +363,6 @@ async fn run_plan_once<R: Runtime>(app: &AppHandle<R>, trigger: &str) -> Result<
     }
     let dest_dir = PathBuf::from(&plan.destination_directory);
 
-    let cancellation_state = app.state::<DumpCancellationState>();
     let slot_key = db_backup_slot_key(&plan.connection_id);
     *RUNTIME_STATE.active_slot.lock().unwrap() = Some(slot_key.clone());
     let options = DumpOptions {
@@ -378,7 +384,7 @@ async fn run_plan_once<R: Runtime>(app: &AppHandle<R>, trigger: &str) -> Result<
         &RUNTIME_STATE.was_cancelled,
         |target| {
             dump_database_with_handles(
-                app,
+                runtime,
                 &cancellation_state.handles,
                 DumpRequest {
                     slot_key,
@@ -414,13 +420,13 @@ async fn run_plan_once<R: Runtime>(app: &AppHandle<R>, trigger: &str) -> Result<
 
 // ---------- Background scheduler ----------
 
-pub fn spawn_database_backup_scheduler(app: AppHandle) {
-    tauri::async_runtime::spawn(async move {
+pub fn spawn_database_backup_scheduler(runtime: RuntimeContext, cancellation_state: Arc<DumpCancellationState>) -> crate::async_rt::JoinHandle<()> {
+    crate::async_rt::spawn(async move {
         // App-open boundary: scheduler runs every 30 seconds while Tabularis is open
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(30)).await;
 
-            let config = crate::config::load_config_internal(&app);
+            let config = crate::application::persistence::load_config(&runtime);
             let Some(plan) = config.database_backup_plan else {
                 continue;
             };
@@ -442,22 +448,22 @@ pub fn spawn_database_backup_scheduler(app: AppHandle) {
                 && !recently_failed
                 && !RUNTIME_STATE.is_running.load(Ordering::SeqCst)
             {
-                let app_clone = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let _ = run_database_backup(app_clone, "scheduled").await;
+                let runtime = runtime.clone();
+                let cancellation_state = cancellation_state.clone();
+                crate::async_rt::spawn(async move {
+                    let _ = run_database_backup(&runtime, &cancellation_state, "scheduled").await;
                 });
             }
         }
-    });
+    })
 }
 
-// ---------- Tauri commands ----------
+// ---------- Application commands ----------
 
-#[tauri::command]
-pub async fn get_database_backup_status<R: Runtime>(
-    app: AppHandle<R>,
+pub async fn get_database_backup_status(
+    runtime: &RuntimeContext,
 ) -> Result<DatabaseBackupStatus, String> {
-    let config = crate::config::load_config_internal(&app);
+    let config = crate::application::persistence::load_config(&runtime);
     let now_utc = Utc::now();
 
     // The last success and the next run always describe the current plan.
@@ -492,17 +498,15 @@ pub async fn get_database_backup_status<R: Runtime>(
     })
 }
 
-#[tauri::command]
-pub async fn run_database_backup_now<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
-    run_database_backup(app, "manual").await
+pub async fn run_database_backup_now(runtime: &RuntimeContext, cancellation_state: &DumpCancellationState) -> Result<String, String> {
+    run_database_backup(runtime, cancellation_state, "manual").await
 }
 
 /// Cancels the run in progress, whatever the plan says now. Before the dump
 /// task exists (e.g. during the SSH/K8s setup) the flag alone stops it: the
 /// dump checks it once the setup is done and again right after registering.
-#[tauri::command]
 pub async fn cancel_database_backup(
-    state: tauri::State<'_, DumpCancellationState>,
+    state: &DumpCancellationState,
 ) -> Result<(), String> {
     if !RUNTIME_STATE.is_running.load(Ordering::SeqCst) {
         return Err("No database backup is running".into());

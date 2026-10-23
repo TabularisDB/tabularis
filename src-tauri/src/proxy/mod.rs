@@ -27,7 +27,6 @@ pub use types::{
 
 use crate::keychain_utils;
 
-#[tauri::command]
 pub fn set_proxy_password(slot: String, password: String) -> Result<(), String> {
     if !is_valid_proxy_slot(&slot) {
         return Err(format!("Invalid proxy password slot: {slot}"));
@@ -39,7 +38,6 @@ pub fn set_proxy_password(slot: String, password: String) -> Result<(), String> 
     }
 }
 
-#[tauri::command]
 pub fn proxy_password_is_set(slot: String) -> Result<bool, String> {
     if !is_valid_proxy_slot(&slot) {
         return Err(format!("Invalid proxy password slot: {slot}"));
@@ -49,7 +47,6 @@ pub fn proxy_password_is_set(slot: String) -> Result<bool, String> {
         .unwrap_or(false))
 }
 
-#[tauri::command]
 pub fn delete_proxy_password(slot: String) -> Result<(), String> {
     if !is_valid_proxy_slot(&slot) {
         return Err(format!("Invalid proxy password slot: {slot}"));

@@ -2,12 +2,9 @@
 //! `connections.json` next to the groups. Tags are purely organizational;
 //! assignment lives on `SavedConnection.tag_ids`.
 
-use tauri::{AppHandle, Runtime};
 use uuid::Uuid;
 
-use crate::commands::{get_config_path, save_connections_and_invalidate};
 use crate::models::{ConnectionTag, ConnectionsFile};
-use crate::persistence;
 
 /// Basic sanity check for a CSS hex color (`#rgb`, `#rrggbb` or `#rrggbbaa`),
 /// so a crafted connections.json entry can't inject arbitrary CSS.
@@ -171,63 +168,6 @@ pub fn merge_imported_tags(
 }
 
 // ---------- Tauri commands ----------
-
-#[tauri::command]
-pub async fn list_connection_tags<R: Runtime>(
-    app: AppHandle<R>,
-) -> Result<Vec<ConnectionTag>, String> {
-    let path = get_config_path(&app)?;
-    Ok(persistence::load_connections_file(&path)?.tags)
-}
-
-#[tauri::command]
-pub async fn create_connection_tag<R: Runtime>(
-    app: AppHandle<R>,
-    name: String,
-    color: String,
-) -> Result<ConnectionTag, String> {
-    let path = get_config_path(&app)?;
-    let mut file = persistence::load_connections_file(&path)?;
-    let tag = create_tag_impl(&mut file, &name, &color)?;
-    save_connections_and_invalidate(&app, &path, &file)?;
-    Ok(tag)
-}
-
-#[tauri::command]
-pub async fn update_connection_tag<R: Runtime>(
-    app: AppHandle<R>,
-    id: String,
-    name: String,
-    color: String,
-) -> Result<(), String> {
-    let path = get_config_path(&app)?;
-    let mut file = persistence::load_connections_file(&path)?;
-    update_tag_impl(&mut file, &id, &name, &color)?;
-    save_connections_and_invalidate(&app, &path, &file)
-}
-
-#[tauri::command]
-pub async fn delete_connection_tag<R: Runtime>(
-    app: AppHandle<R>,
-    id: String,
-) -> Result<(), String> {
-    let path = get_config_path(&app)?;
-    let mut file = persistence::load_connections_file(&path)?;
-    delete_tag_impl(&mut file, &id)?;
-    save_connections_and_invalidate(&app, &path, &file)
-}
-
-#[tauri::command]
-pub async fn set_connection_tags<R: Runtime>(
-    app: AppHandle<R>,
-    connection_id: String,
-    tag_ids: Vec<String>,
-) -> Result<(), String> {
-    let path = get_config_path(&app)?;
-    let mut file = persistence::load_connections_file(&path)?;
-    set_connection_tags_impl(&mut file, &connection_id, &tag_ids)?;
-    save_connections_and_invalidate(&app, &path, &file)
-}
 
 #[cfg(test)]
 mod tests {

@@ -1,7 +1,7 @@
 [
   {
     "name": "static builtin with inherited editor",
-    "config": { "theme": "tabularis-dark", "editorTheme": null }
+    "config": {"theme": "tabularis-dark", "editorTheme": null}
   },
   {
     "name": "system appearance with independent editor",
@@ -23,7 +23,7 @@
   },
   {
     "name": "partial non-theme save",
-    "config": { "fontFamily": "System", "fontSize": 14 }
+    "config": {"fontFamily": "System", "fontSize": 14}
   },
   {
     "name": "old configuration without theme settings",

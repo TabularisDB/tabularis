@@ -9,7 +9,7 @@ import {
     validateThemeDirectory,
 } from '../src/themeAuthor';
 import {themeValidationWorkflow} from '../src/themeCi';
-import definitionSchema from '../../../src/schemas/theme-definition-v1.json';
+import definitionSchema from '../../web-ui/src/schemas/theme-definition-v1.json';
 
 const roots: string[] = [];
 function fixture() {

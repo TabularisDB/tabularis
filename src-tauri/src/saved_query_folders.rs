@@ -9,7 +9,7 @@ use std::fs;
 use std::path::Path;
 use uuid::Uuid;
 
-use crate::query_history::atomic_write;
+use crate::application::productivity::atomic_write;
 use crate::saved_queries::SavedQueryMeta;
 
 /// Maximum folder name length in characters, mirrored by `maxLength` on the
