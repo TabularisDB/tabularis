@@ -2,6 +2,7 @@ import {
     Bar,
     BarChart,
     CartesianGrid,
+    Dot,
     Line,
     LineChart,
     ResponsiveContainer,
@@ -12,14 +13,15 @@ import {
 } from 'recharts';
 import type {ChartPalette} from '@/hooks/useChartPalette';
 import {useContainerWidth} from '@/hooks/useContainerWidth';
-import type {ChartDataPoint} from '@/utils/notebookChart';
 import {
     BAR_GAP,
     MAX_BAR_SIZE,
     formatChartTick,
     getBarCategoryGap,
+    getIsolatedPoints,
     formatChartValue,
     truncateChartLabel,
+    type ResultChartPoint,
     type ResultChartType,
     type TemporalFormatters,
 } from '@/utils/resultChart';
@@ -40,7 +42,7 @@ export interface ResultChartSeries {
 
 interface ResultChartPlotProps {
     type: ResultChartType;
-    data: ChartDataPoint[];
+    data: ResultChartPoint[];
     series: ResultChartSeries[];
     palette: ChartPalette;
     locale: string;
@@ -73,10 +75,18 @@ function ChartTooltip({
                 {series.map((s) => {
                     const entry = payload.find((p) => p.dataKey === s.column);
                     if (!entry) return null;
+                    // NULL rows show a dash rather than disappearing, so the gap reads as missing data.
+                    const missing = typeof entry.value !== 'number';
                     return (
                         <li key={s.column} className="flex items-center gap-2">
                             <SeriesKey type={type} color={s.color} dash={s.dash} />
-                            <span className="text-primary font-semibold tabular-nums">
+                            <span
+                                className={
+                                    missing
+                                        ? 'text-muted tabular-nums'
+                                        : 'text-primary font-semibold tabular-nums'
+                                }
+                            >
                                 {formatChartValue(entry.value, locale)}
                             </span>
                             <span className="text-primary truncate">{s.column}</span>
@@ -114,6 +124,8 @@ export function ResultChartPlot({
                 type === 'bar' ? {fill: palette.cursor} : {stroke: palette.axis, strokeWidth: 1}
             }
             isAnimationActive={false}
+            // Keep NULL entries so the tooltip can show them as missing.
+            filterNull={false}
             content={(props) => (
                 <ChartTooltip
                     {...(props as TooltipContentProps<number, string>)}
@@ -148,6 +160,13 @@ export function ResultChartPlot({
             />
         </>
     );
+    const marker = (color: string) => ({
+        r: 4,
+        fill: color,
+        stroke: palette.surface,
+        strokeWidth: 2,
+    });
+    const showMarkers = data.length <= MAX_LINE_MARKERS;
     const margin = {top: 12, right: 16, left: 0, bottom: 4};
     const barCategoryGap = getBarCategoryGap(
         width - Y_AXIS_WIDTH - margin.right - margin.left,
@@ -162,38 +181,49 @@ export function ResultChartPlot({
                     <LineChart data={data} margin={margin}>
                         {axes}
                         {tooltip}
-                        {series.map((s) => (
-                            <Line
-                                key={s.column}
-                                type="linear"
-                                dataKey={s.column}
-                                name={s.column}
-                                stroke={s.color}
-                                strokeWidth={2}
-                                strokeDasharray={s.dash}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                dot={
-                                    data.length <= MAX_LINE_MARKERS
-                                        ? {
-                                              r: 4,
-                                              fill: s.color,
-                                              stroke: palette.surface,
-                                              strokeWidth: 2,
-                                          }
-                                        : false
-                                }
-                                activeDot={{
-                                    r: 5,
-                                    fill: s.color,
-                                    stroke: palette.surface,
-                                    strokeWidth: 2,
-                                }}
-                                isAnimationActive={animate}
-                                animationDuration={ANIMATION_MS}
-                                animationEasing="ease-out"
-                            />
-                        ))}
+                        {series.map((s) => {
+                            // Without markers, a value with NULLs on both sides has no
+                            // segment to draw, so it gets a marker of its own.
+                            const isolated = showMarkers ? null : getIsolatedPoints(data, s.column);
+                            return (
+                                <Line
+                                    key={s.column}
+                                    type="linear"
+                                    dataKey={s.column}
+                                    name={s.column}
+                                    stroke={s.color}
+                                    strokeWidth={2}
+                                    strokeDasharray={s.dash}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    // NULLs break the line: joining across them would draw
+                                    // values the query never returned.
+                                    connectNulls={false}
+                                    dot={
+                                        isolated === null
+                                            ? marker(s.color)
+                                            : isolated.size > 0
+                                              ? ({
+                                                    index,
+                                                    cx,
+                                                    cy,
+                                                }: {
+                                                    index: number;
+                                                    cx?: number;
+                                                    cy?: number;
+                                                }) =>
+                                                    isolated.has(index) ? (
+                                                        <Dot cx={cx} cy={cy} {...marker(s.color)} />
+                                                    ) : null
+                                              : false
+                                    }
+                                    activeDot={{...marker(s.color), r: 5}}
+                                    isAnimationActive={animate}
+                                    animationDuration={ANIMATION_MS}
+                                    animationEasing="ease-out"
+                                />
+                            );
+                        })}
                     </LineChart>
                 ) : (
                     <BarChart

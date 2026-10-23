@@ -15,6 +15,7 @@ import {
     classifyResultColumns,
     getChartUnavailableReason,
     getChartValueColumns,
+    getIsolatedPoints,
     getResultChartScope,
     isNumericValue,
     isTemporalValue,
@@ -352,6 +353,62 @@ describe('resultChart', () => {
             });
         });
 
+        it('keeps NULLs as missing values instead of plotting 0', () => {
+            const config: CellChartConfig = {
+                type: 'line',
+                labelColumn: 'month',
+                valueColumns: ['orders', 'revenue'],
+            };
+            expect(shapeResultChartData(monthly, config)[2]).toEqual({
+                label: '2024-03-01',
+                orders: null,
+                revenue: 990.1,
+            });
+        });
+
+        it('keeps real zeros and handles sparse columns', () => {
+            const sparse = makeResult(
+                ['month', 'signups'],
+                [
+                    ['2024-01', 5],
+                    ['2024-02', null],
+                    ['2024-03', 0],
+                    ['2024-04', undefined],
+                    ['2024-05', '7'],
+                    ['2024-06', BigInt(9)],
+                ],
+            );
+            const config: CellChartConfig = {
+                type: 'line',
+                labelColumn: 'month',
+                valueColumns: ['signups'],
+            };
+            expect(shapeResultChartData(sparse, config).map((p) => p.signups)).toEqual([
+                5,
+                null,
+                0,
+                null,
+                7,
+                9,
+            ]);
+        });
+
+        it('returns no points when the columns are gone', () => {
+            const config: CellChartConfig = {
+                type: 'bar',
+                labelColumn: 'missing',
+                valueColumns: ['revenue'],
+            };
+            expect(shapeResultChartData(sales, config)).toEqual([]);
+            expect(
+                shapeResultChartData(sales, {
+                    ...config,
+                    labelColumn: 'region',
+                    valueColumns: ['x'],
+                }),
+            ).toEqual([]);
+        });
+
         it('caps the number of points', () => {
             const rows = Array.from({length: MAX_CHART_POINTS + 5}, (_, i) => [`r${i}`, i]);
             const config: CellChartConfig = {
@@ -362,6 +419,22 @@ describe('resultChart', () => {
             const data = shapeResultChartData(makeResult(['a', 'b'], rows), config);
             expect(data).toHaveLength(MAX_CHART_POINTS);
             expect(data[data.length - 1].label).toBe(`r${MAX_CHART_POINTS - 1}`);
+        });
+    });
+
+    describe('getIsolatedPoints', () => {
+        it('finds values with no neighbour to draw a line to', () => {
+            const data = [
+                {label: 'a', v: 1},
+                {label: 'b', v: null},
+                {label: 'c', v: 3},
+                {label: 'd', v: null},
+                {label: 'e', v: 5},
+                {label: 'f', v: 0},
+            ];
+            expect([...getIsolatedPoints(data, 'v')]).toEqual([0, 2]);
+            expect(getIsolatedPoints([{label: 'a', v: 1}], 'v')).toEqual(new Set([0]));
+            expect(getIsolatedPoints([], 'v').size).toBe(0);
         });
     });
 
@@ -392,6 +465,7 @@ describe('resultChart', () => {
 
         it('shows a dash for missing values', () => {
             expect(formatChartValue(undefined, 'en')).toBe('—');
+            expect(formatChartValue(null, 'en')).toBe('—');
             expect(formatChartValue(Number.NaN, 'en')).toBe('—');
         });
 

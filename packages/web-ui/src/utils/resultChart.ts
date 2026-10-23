@@ -1,6 +1,5 @@
 import type {QueryResult} from '@/types/editor';
 import type {CellChartConfig} from '@/types/notebook';
-import {transformResultToChartData, type ChartDataPoint} from './notebookChart';
 
 /** Which presentation a result panel shows. */
 export type ResultView = 'grid' | 'chart';
@@ -206,17 +205,56 @@ export function getResultChartScope(
     };
 }
 
+/** One X category and its Y values. A null value is missing data, not zero. */
+export interface ResultChartPoint {
+    label: string;
+    [column: string]: string | number | null;
+}
+
+/** The value to plot for a cell, or null when there is nothing to plot. */
+function toChartNumber(value: unknown): number | null {
+    return isNumericValue(value) ? Number(value) : null;
+}
+
 /**
- * Shapes the loaded rows into chart points, reusing the notebook transform so
- * both chart surfaces read results the same way.
+ * Shapes the loaded rows into chart points, keyed like the notebook chart
+ * data (`label` plus one key per Y column). Unlike the notebook transform,
+ * NULLs stay null so lines show a gap and bars leave the slot empty, instead
+ * of drawing a false 0.
  */
 export function shapeResultChartData(
     result: QueryResult,
     config: CellChartConfig,
     maxPoints = MAX_CHART_POINTS,
-): ChartDataPoint[] {
+): ResultChartPoint[] {
+    const labelIdx = result.columns.indexOf(config.labelColumn);
+    if (labelIdx === -1) return [];
+    const valueIndices = config.valueColumns
+        .map((name) => ({name, idx: result.columns.indexOf(name)}))
+        .filter((v) => v.idx !== -1);
+    if (valueIndices.length === 0) return [];
+
     const rows = result.rows.length > maxPoints ? result.rows.slice(0, maxPoints) : result.rows;
-    return transformResultToChartData({...result, rows}, config);
+    return rows.map((row) => {
+        const point: ResultChartPoint = {
+            label: row[labelIdx] != null ? String(row[labelIdx]) : '',
+        };
+        for (const {name, idx} of valueIndices) point[name] = toChartNumber(row[idx]);
+        return point;
+    });
+}
+
+/**
+ * Indexes of points with a value in `column` but none on either side. A line
+ * can't draw them, so they need a marker to stay visible.
+ */
+export function getIsolatedPoints(data: ResultChartPoint[], column: string): Set<number> {
+    const has = (i: number) => typeof data[i]?.[column] === 'number';
+    const isolated = new Set<number>();
+    data.forEach((_, i) => {
+        if (has(i) && !has(i - 1) && !has(i + 1)) isolated.add(i);
+    });
+    return isolated;
 }
 
 /** Dash patterns that tell line series apart without relying on colour. */

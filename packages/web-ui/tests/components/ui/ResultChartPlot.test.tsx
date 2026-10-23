@@ -1,8 +1,9 @@
 import {describe, it, expect, vi} from 'vitest';
 import {cloneElement, type ReactElement} from 'react';
-import {render} from '@testing-library/react';
+import {fireEvent, render, screen, within} from '@testing-library/react';
 import {ResultChartPlot} from '@/components/ui/ResultChartPlot';
 import type {ChartPalette} from '@/hooks/useChartPalette';
+import type {ResultChartPoint} from '@/utils/resultChart';
 
 // jsdom has no layout, so give the chart a real size instead of measuring.
 vi.mock('recharts', async (importOriginal) => {
@@ -83,5 +84,62 @@ describe('ResultChartPlot', () => {
         const curves = container.querySelectorAll('.recharts-line-curve');
         expect(curves).toHaveLength(2);
         expect(curves[1]).toHaveAttribute('stroke-dasharray', '6 3');
+    });
+
+    describe('missing values', () => {
+        const sparse: ResultChartPoint[] = [
+            {label: 'Jan', signups: 4},
+            {label: 'Feb', signups: 6},
+            {label: 'Mar', signups: null},
+            {label: 'Apr', signups: 5},
+            {label: 'May', signups: 8},
+        ];
+        const renderPlot = (type: 'bar' | 'line', data: ResultChartPoint[]) =>
+            render(
+                <ResultChartPlot
+                    type={type}
+                    data={data}
+                    series={[{column: 'signups', color: '#111111'}]}
+                    palette={palette}
+                    locale="en"
+                    temporal={null}
+                    animate={false}
+                />,
+            );
+
+        it('breaks the line at a NULL instead of dipping to 0', () => {
+            const {container} = renderPlot('line', sparse);
+            const path = container.querySelector('.recharts-line-curve')?.getAttribute('d') ?? '';
+            // Two separate segments: Jan-Feb and Apr-May.
+            expect(path.match(/M/g)).toHaveLength(2);
+            expect(container.querySelectorAll('.recharts-line-dot')).toHaveLength(4);
+        });
+
+        it('leaves the bar slot of a NULL empty', () => {
+            const {container} = renderPlot('bar', sparse);
+            expect(container.querySelectorAll('.recharts-bar-rectangle path')).toHaveLength(4);
+        });
+
+        it('marks a value isolated between NULLs when line markers are off', () => {
+            const many: ResultChartPoint[] = Array.from({length: 60}, (_, i) => ({
+                label: `p${i}`,
+                signups: i === 30 ? 7 : i > 30 && i < 33 ? null : i === 29 ? null : i,
+            }));
+            const {container} = renderPlot('line', many);
+            expect(container.querySelectorAll('.recharts-dot')).toHaveLength(1);
+        });
+
+        it('shows a NULL as a dash in the tooltip', async () => {
+            const {container} = renderPlot('line', sparse);
+            const surface = container.querySelector('.recharts-wrapper');
+            expect(surface).not.toBeNull();
+            // The Mar point sits in the middle of the plot.
+            fireEvent.mouseMove(surface!, {clientX: 316, clientY: 150});
+            const value = await screen.findByText('—');
+            const tooltip = container.querySelector('.recharts-tooltip-wrapper') as HTMLElement;
+            expect(within(tooltip).getByText('Mar')).toBeInTheDocument();
+            expect(within(tooltip).getByText('signups')).toBeInTheDocument();
+            expect(value).toHaveClass('text-muted');
+        });
     });
 });
