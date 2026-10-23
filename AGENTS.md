@@ -17,6 +17,15 @@ Adhere to the rules defined in the [rules directory](./.rules/):
 
 When reviewing pull requests, follow [REVIEW.md](./REVIEW.md).
 
+## Creating feature issues
+
+- Write issues in English and follow [the Feature Proposal template](./.github/ISSUE_TEMPLATE/feature_request.yml), including when creating issues through an API or CLI.
+- Use the `[Feat]: ` title prefix and the existing `feature request` label. Check existing issues for duplicates and inspect available labels before adding other labels.
+- Include Prerequisites, Feature Proposal, Motivation, Example, Acceptance criteria, and the Contributor notes footer. Add Where to start when concrete implementation pointers have been verified; do not invent file paths or claim unverified bugs.
+- Keep each issue focused on one capability, with explicit scope and testable acceptance criteria. Link related issues when useful.
+- Always retain the Contributor notes footer with links to the repository rules and [Discord](https://discord.com/invite/K2hmhfHRSt). Adapt implementation and validation notes to the issue and current repository layout.
+- Assign `good first issue` only to bounded work with a clear implementation path that does not require architectural decisions or security-sensitive authorization changes. Do not apply it just because a UI change looks small.
+
 ## Backend layout: desktop and web transports
 
 The Rust backend serves two transports over the same React frontend:
