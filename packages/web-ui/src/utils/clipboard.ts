@@ -221,15 +221,20 @@ function sqlValue(cell: unknown, driver?: CopyDriver): string {
     return `'${str.replace(/'/g, "''")}'`;
 }
 
+/** Quotes a copied identifier for the driver; without a driver it keeps MySQL backticks. */
+export function quoteCopiedIdentifier(name: string, driver?: CopyDriver): string {
+    return quoteIdentifier(name, driver ?? 'mysql');
+}
+
 function rowToSqlInsert(
     row: unknown[],
     columns: string[],
     tableName: string,
     driver?: CopyDriver,
 ): string {
-    const cols = columns.map((c) => quoteIdentifier(c, driver)).join(', ');
+    const cols = columns.map((c) => quoteCopiedIdentifier(c, driver)).join(', ');
     const vals = row.map((cell) => sqlValue(cell, driver)).join(', ');
-    return `INSERT INTO ${quoteIdentifier(tableName, driver)} (${cols}) VALUES (${vals});`;
+    return `INSERT INTO ${quoteCopiedIdentifier(tableName, driver)} (${cols}) VALUES (${vals});`;
 }
 
 export function rowsToSqlInsert(

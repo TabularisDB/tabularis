@@ -388,7 +388,6 @@ describe('clipboard utils', () => {
                 columnValuesForCopy(rows, columns, 1, {
                     format: 'sql-insert',
                     tableName: 'users',
-                    driver: 'mysql',
                 }),
             ).toBe(
                 "INSERT INTO `users` (`name`) VALUES ('Alice');\n" +
@@ -439,7 +438,7 @@ describe('clipboard utils', () => {
                 "INSERT INTO `t` (`id`, `name`) VALUES (1, 'it\\'s');",
             );
             expect(rowsToSqlInsert([[1, "it's"]], ['id', 'name'], 't')).toBe(
-                `INSERT INTO "t" ("id", "name") VALUES (1, 'it''s');`,
+                "INSERT INTO `t` (`id`, `name`) VALUES (1, 'it''s');",
             );
         });
 
@@ -457,14 +456,19 @@ describe('clipboard utils', () => {
         });
 
         it("uses a plugin driver's declared identifier_quote", () => {
-            const caps: DriverCapabilities = {...GOOGLESQL_CAPS, identifier_quote: '"'};
-            expect(rowsToSqlInsert([[1]], ['id'], 'users', caps)).toBe(
-                'INSERT INTO "users" ("id") VALUES (1);',
+            // A non-default quote, so the test fails if the capabilities are ignored.
+            const caps: DriverCapabilities = {...GOOGLESQL_CAPS, identifier_quote: '~'};
+            expect(rowsToSqlInsert([[1]], ['id', 'a~b'], 'users', caps)).toBe(
+                'INSERT INTO ~users~ (~id~, ~a~~b~) VALUES (1);',
             );
         });
 
         it('escapes a quote character inside a name', () => {
             expect(rowsToSqlInsert([[1]], ['a`b'], 'my`t', 'mysql')).toBe(
+                'INSERT INTO `my``t` (`a``b`) VALUES (1);',
+            );
+            // The no-driver backtick fallback escapes the same way.
+            expect(rowsToSqlInsert([[1]], ['a`b'], 'my`t')).toBe(
                 'INSERT INTO `my``t` (`a``b`) VALUES (1);',
             );
             expect(rowsToSqlInsert([[1]], ['a"b'], 'my"t', 'postgres')).toBe(
@@ -485,11 +489,13 @@ describe('clipboard utils', () => {
             expect(rowsToSqlInsert(rows, cols, 't', numeric)).toBe(
                 'INSERT INTO `t` (`id`, `a`, `b`) VALUES (1, 1, 0);',
             );
-            // Built-in drivers keep TRUE/FALSE.
-            expect(rowsToSqlInsert(rows, cols, 't', 'mysql')).toBe(
-                'INSERT INTO `t` (`id`, `a`, `b`) VALUES (1, TRUE, FALSE);',
-            );
-            for (const driver of ['postgres', 'sqlite', undefined]) {
+            // Built-in drivers keep TRUE/FALSE; no driver keeps backticks.
+            for (const driver of ['mysql', undefined]) {
+                expect(rowsToSqlInsert(rows, cols, 't', driver)).toBe(
+                    'INSERT INTO `t` (`id`, `a`, `b`) VALUES (1, TRUE, FALSE);',
+                );
+            }
+            for (const driver of ['postgres', 'sqlite']) {
                 expect(rowsToSqlInsert(rows, cols, 't', driver)).toBe(
                     'INSERT INTO "t" ("id", "a", "b") VALUES (1, TRUE, FALSE);',
                 );

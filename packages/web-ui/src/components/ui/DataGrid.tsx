@@ -123,8 +123,9 @@ import {
     rowsToHtmlTable,
     columnNamesAsLines,
     columnNamesAsJson,
+    quoteCopiedIdentifier,
 } from '@/utils/clipboard';
-import {formatColumnNamesAsSqlList, formatObjectNameForCopy} from '@/utils/objectNameCopy';
+import {formatColumnNamesAsSqlList} from '@/utils/objectNameCopy';
 import {DEFAULT_MASKING_PATTERNS, isColumnMasked} from '@/utils/columnMasking';
 import type {PendingInsertion, TableColumn, ForeignKey} from '@/types/editor';
 import type {ResultCommands} from '@/types/commands';
@@ -2039,9 +2040,7 @@ export const DataGrid = React.memo(function DataGrid({
 
     const copyHeaderNameQuoted = useCallback(async () => {
         if (!headerContextMenu) return;
-        await copyToClipboard(
-            formatObjectNameForCopy(headerContextMenu.colName, 'quoted', copyDriver),
-        );
+        await copyToClipboard(quoteCopiedIdentifier(headerContextMenu.colName, copyDriver));
         setHeaderContextMenu(null);
     }, [headerContextMenu, copyDriver, copyToClipboard]);
 
