@@ -16,8 +16,11 @@ export const MAX_CHART_POINTS = 1000;
 
 export type ChartColumnKind = 'numeric' | 'temporal' | 'text' | 'empty';
 
-const NUMERIC_STRING = /^\s*-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?\s*$/;
-const TEMPORAL_STRING = /^\d{4}-\d{2}(-\d{2})?([ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?/;
+// No leading zeros ("01234" is a ZIP or phone code, not a number), except "0.5".
+const NUMERIC_STRING = /^\s*-?((0|[1-9]\d*)(\.\d*)?|\.\d+)([eE][+-]?\d+)?\s*$/;
+// The whole value must be a date or timestamp, optionally with a UTC offset.
+const TEMPORAL_STRING =
+    /^\d{4}-\d{2}(-\d{2})?([ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?( ?(Z|UTC|[+-]\d{2}(:?\d{2})?))?$/;
 const ID_COLUMN = /(^id$|_id$)/i;
 
 /** A finite number, a bigint, or a string drivers use for exact numerics (DECIMAL). */
@@ -324,7 +327,7 @@ export function truncateChartLabel(label: string, max = 16): string {
     return label.length > max ? `${label.slice(0, max - 1)}…` : label;
 }
 
-const TEMPORAL_PARTS = /^(\d{4})-(\d{2})(?:-(\d{2}))?(?:[ T](\d{2}):(\d{2}))?/;
+const TEMPORAL_PARTS = /^(\d{4})-(\d{2})(?:-(\d{2}))?(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/;
 
 export interface TemporalFormatters {
     /** Short form for axis ticks. */
@@ -335,14 +338,17 @@ export interface TemporalFormatters {
 
 /**
  * Formats date-like labels as written (wall-clock, no time-zone shift),
- * choosing the precision the data actually has: months, days or minutes.
+ * choosing the precision the data actually has: months, days, minutes or
+ * seconds.
  * Ticks leave out what every label shares (the year, or the whole date for
  * timestamps within one day); the tooltip always shows the full value.
  */
 export function buildTemporalFormatters(labels: string[], locale: string): TemporalFormatters {
     const parsed = labels.map((l) => TEMPORAL_PARTS.exec(l));
     const valid = parsed.filter((m): m is RegExpExecArray => m !== null);
-    const hasTime = valid.some((m) => m[4] !== undefined && (m[4] !== '00' || m[5] !== '00'));
+    const hasSeconds = valid.some((m) => m[6] !== undefined && m[6] !== '00');
+    const hasTime =
+        hasSeconds || valid.some((m) => m[4] !== undefined && (m[4] !== '00' || m[5] !== '00'));
     // Month-start dates (2024-01-01, 2024-02-01, ...) are monthly data: show months.
     const hasDay = hasTime || valid.some((m) => m[3] !== undefined && m[3] !== '01');
     const years = new Set(valid.map((m) => m[1]));
@@ -368,13 +374,16 @@ export function buildTemporalFormatters(labels: string[], locale: string): Tempo
                     m[3] ? Number(m[3]) : 1,
                     m[4] ? Number(m[4]) : 0,
                     m[5] ? Number(m[5]) : 0,
+                    m[6] ? Number(m[6]) : 0,
                 ),
             );
             return Number.isNaN(date.getTime()) ? label : format.format(date);
         };
     };
 
-    const time: Intl.DateTimeFormatOptions = hasTime ? {hour: '2-digit', minute: '2-digit'} : {};
+    const time: Intl.DateTimeFormatOptions = hasTime
+        ? {hour: '2-digit', minute: '2-digit', ...(hasSeconds ? {second: '2-digit'} : {})}
+        : {};
     const tick = make(
         timeOnlyTicks
             ? time

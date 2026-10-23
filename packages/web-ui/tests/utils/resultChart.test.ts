@@ -62,6 +62,17 @@ describe('resultChart', () => {
             expect(isNumericValue('1200.50')).toBe(true);
             expect(isNumericValue('-3')).toBe(true);
             expect(isNumericValue('1e6')).toBe(true);
+            expect(isNumericValue('0')).toBe(true);
+            expect(isNumericValue('0.5')).toBe(true);
+            expect(isNumericValue('-0.25')).toBe(true);
+            expect(isNumericValue('.5')).toBe(true);
+        });
+
+        it('rejects zero-padded codes such as ZIP or phone numbers', () => {
+            expect(isNumericValue('01234')).toBe(false);
+            expect(isNumericValue('007')).toBe(false);
+            expect(isNumericValue('-01')).toBe(false);
+            expect(isNumericValue('00.5')).toBe(false);
         });
 
         it('rejects text, empty strings, booleans and non-finite numbers', () => {
@@ -81,6 +92,15 @@ describe('resultChart', () => {
             expect(isTemporalValue('2024-01-31')).toBe(true);
             expect(isTemporalValue('2024-01-31 10:15:00')).toBe(true);
             expect(isTemporalValue('2024-01-31T10:15:00.123Z')).toBe(true);
+            expect(isTemporalValue('2024-01-31 10:15:00+00')).toBe(true);
+            expect(isTemporalValue('2024-01-31T10:15:00+05:30')).toBe(true);
+            expect(isTemporalValue('2024-01-31 10:15:00 UTC')).toBe(true);
+        });
+
+        it('rejects values that only start like a date', () => {
+            expect(isTemporalValue('2024-01-01abc')).toBe(false);
+            expect(isTemporalValue('2024-01-31 10:15:00 later')).toBe(false);
+            expect(isTemporalValue('2024-01-31 (Wed)')).toBe(false);
         });
 
         it('rejects other values', () => {
@@ -105,6 +125,11 @@ describe('resultChart', () => {
                 ],
             );
             expect(classifyResultColumns(result)).toEqual(['empty', 'numeric']);
+        });
+
+        it('treats zero-padded codes as text', () => {
+            const result = makeResult(['zip'], [['01234'], ['10115']]);
+            expect(classifyResultColumns(result)).toEqual(['text']);
         });
 
         it('treats a column mixing numbers and text as text', () => {
@@ -544,6 +569,21 @@ describe('resultChart', () => {
             const f = buildTemporalFormatters(['2024-05-01 00:00:00', '2024-05-01 09:30:00'], 'en');
             expect(f.tick('2024-05-01 09:30:00')).toBe('09:30 AM');
             expect(f.full('2024-05-01 09:30:00')).toMatch(/May 1, 2024.*09:30/);
+        });
+
+        it('shows seconds when timestamps differ by seconds', () => {
+            const f = buildTemporalFormatters(
+                ['2024-05-01 09:30:05', '2024-05-01 09:30:10', '2024-05-01 09:30:15'],
+                'en',
+            );
+            expect(f.tick('2024-05-01 09:30:05')).toBe('09:30:05 AM');
+            expect(f.tick('2024-05-01 09:30:10')).not.toBe(f.tick('2024-05-01 09:30:05'));
+            expect(f.full('2024-05-01 09:30:15')).toMatch(/May 1, 2024.*09:30:15/);
+        });
+
+        it('leaves seconds out when every timestamp is on the minute', () => {
+            const f = buildTemporalFormatters(['2024-05-01 09:30:00', '2024-05-01 09:31:00'], 'en');
+            expect(f.tick('2024-05-01 09:31:00')).toBe('09:31 AM');
         });
 
         it('leaves unparseable labels unchanged', () => {
