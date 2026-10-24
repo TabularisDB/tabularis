@@ -15,6 +15,19 @@ function assertCommandContract(caller: TypedCommandCaller): void {
         cancellationId: 'startup-debug',
     });
     const sshProfiles = caller.call('get_ssh_connections', undefined);
+    const credentialProfiles = caller.call('list_credential_profiles', undefined);
+    const createdCredentialProfile = caller.call('create_credential_profile', {
+        name: 'Shared',
+        username: 'app',
+        password: 'write-only-secret',
+    });
+    const updatedCredentialProfile = caller.call('update_credential_profile', {
+        id: 'profile-1',
+        name: 'Shared',
+        username: 'app',
+        password: 'rotated-secret',
+    });
+    const deletedCredentialProfile = caller.call('delete_credential_profile', {id: 'profile-1'});
     const askpassResponse = caller.call('respond_ssh_askpass', {
         id: 7,
         response: null,
@@ -210,6 +223,10 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     void [
         debugMode,
         sshProfiles,
+        credentialProfiles,
+        createdCredentialProfile,
+        updatedCredentialProfile,
+        deletedCredentialProfile,
         askpassResponse,
         queryResult,
         columns,

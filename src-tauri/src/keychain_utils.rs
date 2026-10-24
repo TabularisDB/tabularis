@@ -155,6 +155,11 @@ pub fn find_db_password(connection_id: &str) -> Result<Option<String>, String> {
     find_secret(&format!("{}:db", connection_id))
 }
 
+/// Like [`find_db_password`], for [`crate::application::connections::profile_db_secret_account`].
+pub fn find_credential_profile_db_password(profile_id: &str) -> Result<Option<String>, String> {
+    find_secret(&format!("{profile_id}:profile:db"))
+}
+
 /// Like [`get_ssh_password`], but a missing entry is `Ok(None)`.
 pub fn find_ssh_password(connection_id: &str) -> Result<Option<String>, String> {
     find_secret(&format!("{}:ssh", connection_id))

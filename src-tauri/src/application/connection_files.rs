@@ -303,9 +303,17 @@ pub async fn export_payload(
             .cloned()
             .collect();
         file.tags.retain(|tag| kept_tags.contains(&tag.id));
+        let kept_profiles: HashSet<String> = file
+            .connections
+            .iter()
+            .filter_map(|connection| connection.params.credential_profile_id.clone())
+            .collect();
+        file.credential_profiles
+            .retain(|profile| kept_profiles.contains(&profile.id));
     }
 
     let mut plugin_secrets = HashMap::new();
+    let mut credential_profile_secrets = HashMap::new();
     for connection in &mut file.connections {
         if include_secrets {
             // A missing keychain entry must not abort the whole export (or a
@@ -320,6 +328,18 @@ pub async fn export_payload(
                 &connection.id,
                 &mut connection.params,
             )?;
+            if let Some(profile_id) = connection.params.credential_profile_id.clone() {
+                connection.params.password = None;
+                if !credential_profile_secrets.contains_key(&profile_id) {
+                    if let Ok(Some(password)) = runtime.secrets.get(
+                        &crate::application::connections::profile_db_secret_account(&profile_id),
+                    ) {
+                        if !password.is_empty() {
+                            credential_profile_secrets.insert(profile_id, password);
+                        }
+                    }
+                }
+            }
         } else {
             connection.params.password = None;
             connection.params.connection_uri = None;
@@ -336,6 +356,8 @@ pub async fn export_payload(
         ssh_connections,
         k8s_connections,
         tags: file.tags,
+        credential_profiles: file.credential_profiles,
+        credential_profile_secrets,
         plugin_secrets,
     })
 }
@@ -482,16 +504,52 @@ pub async fn apply_export_payload(
     credential_cache: &crate::credential_cache::CredentialCache,
     mut payload: ExportPayload,
 ) -> Result<(), String> {
-    let mut current = load_file(runtime).unwrap_or_default();
+    crate::persistence::with_connections_file_exclusive(|| {
+        apply_export_payload_locked(runtime, connection_cache, credential_cache, payload)
+    })
+}
+
+fn apply_export_payload_locked(
+    runtime: &RuntimeContext,
+    connection_cache: &crate::connection_cache::ConnectionCache,
+    credential_cache: &crate::credential_cache::CredentialCache,
+    mut payload: ExportPayload,
+) -> Result<(), String> {
+    let connections_path = runtime.paths.connections_file();
+    let mut current = crate::persistence::read_connections_file(&connections_path)
+        .unwrap_or_default();
+    let connections_snapshot = current.clone();
     let mut imported_plugin_secrets = std::mem::take(&mut payload.plugin_secrets);
+    let imported_profile_secrets = std::mem::take(&mut payload.credential_profile_secrets);
     let mut plugin_secret_writes = Vec::new();
     let mut current_ssh: Vec<SshConnection> = load_json(&ssh_path(runtime))?;
     crate::commands::merge_groups(&mut current.groups, payload.groups);
     let tag_remap = crate::connection_tags::merge_imported_tags(&mut current.tags, payload.tags);
+    for profile in payload.credential_profiles {
+        crate::credential_profiles::validate_profile_keychain_namespace(&current, &profile.id)?;
+        if let Some(existing) = current
+            .credential_profiles
+            .iter_mut()
+            .find(|existing| existing.id == profile.id)
+        {
+            *existing = profile;
+        } else {
+            current.credential_profiles.push(profile);
+        }
+    }
+
+    let mut stale_connection_db_deletes = Vec::new();
     let mut incoming = payload.connections;
     remap_tags(&mut current.connections, &mut incoming, &tag_remap);
 
     for mut connection in incoming {
+        if let Some(profile_id) = connection.params.credential_profile_id.as_deref() {
+            crate::credential_profiles::validate_connection_profile_link(
+                &connection.id,
+                profile_id,
+            )?;
+            connection.params.password = None;
+        }
         connection.environment = normalize_environment(connection.environment.take());
         let declared_plugin_secret_keys = std::mem::take(&mut connection.plugin_secret_keys);
         let imported_values = imported_plugin_secrets
@@ -517,7 +575,12 @@ pub async fn apply_export_payload(
                 .as_ref()
                 .map(|(driver, keys)| (driver.as_str(), keys.as_slice())),
         ));
-        persist_imported_connection_secrets(runtime, credential_cache, &mut connection)?;
+        persist_imported_connection_secrets(
+            runtime,
+            credential_cache,
+            &mut connection,
+            &mut stale_connection_db_deletes,
+        )?;
         if let Some(existing) = current
             .connections
             .iter_mut()
@@ -545,8 +608,26 @@ pub async fn apply_export_payload(
         &RuntimeSecretStore(runtime),
         credential_cache,
         plugin_secret_writes,
-        || crate::persistence::save_connections_file(&runtime.paths.connections_file(), &current),
+        || crate::persistence::write_connections_file(&connections_path, &current),
     )?;
+    if let Err(error) = apply_imported_credential_profile_secrets(
+        runtime,
+        credential_cache,
+        imported_profile_secrets,
+        stale_connection_db_deletes,
+    ) {
+        // `with_connections_file_exclusive` keeps other writers out until restore
+        // finishes, so this snapshot cannot overwrite a concurrent edit.
+        if let Err(restore_error) =
+            crate::persistence::write_connections_file(&connections_path, &connections_snapshot)
+        {
+            return Err(format!(
+                "{error}. Failed to restore connections after credential profile import: {restore_error}"
+            ));
+        }
+        connection_cache.invalidate();
+        return Err(error);
+    }
     save_json(&ssh_path(runtime), &current_ssh)?;
     let mut current_k8s: Vec<K8sConnection> = load_json(&k8s_path(runtime))?;
     for connection in payload.k8s_connections {
@@ -702,10 +783,71 @@ impl crate::plugin_secrets::SecretStore for RuntimeSecretStore<'_> {
     }
 }
 
+/// Applies imported credential-profile passwords after `connections.json` is saved.
+///
+/// Keychain updates are not transactional with the filesystem: on failure, prior
+/// writes in this batch are rolled back via [`SecretWrites`] (best-effort; a
+/// failed rollback is logged). The caller restores the pre-import
+/// `connections.json` while [`with_connections_file_exclusive`] is held. A
+/// failed restore is reported in the returned error. Manual edits or a broken
+/// keychain rollback can still leave metadata and secrets misaligned.
+fn apply_imported_credential_profile_secrets(
+    runtime: &RuntimeContext,
+    credential_cache: &crate::credential_cache::CredentialCache,
+    profile_secrets: HashMap<String, String>,
+    stale_connection_db_deletes: Vec<String>,
+) -> Result<(), String> {
+    use super::connections::{profile_db_secret_account, SecretWrites};
+
+    let mut profile_ids: Vec<String> = profile_secrets.keys().cloned().collect();
+    profile_ids.sort();
+    let mut writes = SecretWrites::default();
+    let result = (|| {
+        for profile_id in profile_ids {
+            let password = profile_secrets
+                .get(&profile_id)
+                .expect("profile id was collected from the same map");
+            writes.set(
+                runtime,
+                profile_db_secret_account(&profile_id),
+                password,
+            )?;
+        }
+        for connection_id in &stale_connection_db_deletes {
+            if profile_secrets.keys().any(|profile_id| {
+                crate::credential_profiles::connection_db_collides_with_profile_db(
+                    connection_id,
+                    profile_id,
+                )
+            }) {
+                continue;
+            }
+            writes.delete(runtime, format!("{connection_id}:db"))?;
+        }
+        Ok(())
+    })();
+    if let Err(error) = result {
+        writes.rollback(runtime);
+        return Err(error);
+    }
+    for profile_id in profile_secrets.keys() {
+        crate::credential_cache::set_db_password_cached(
+            credential_cache,
+            profile_id,
+            &profile_secrets[profile_id],
+        );
+    }
+    for connection_id in stale_connection_db_deletes {
+        crate::credential_cache::invalidate_db_password(credential_cache, &connection_id);
+    }
+    Ok(())
+}
+
 fn persist_imported_connection_secrets(
     runtime: &RuntimeContext,
     credential_cache: &crate::credential_cache::CredentialCache,
     connection: &mut SavedConnection,
+    stale_connection_db_deletes: &mut Vec<String>,
 ) -> Result<(), String> {
     crate::credential_cache::invalidate_all_for_connection(credential_cache, &connection.id);
     let keychain = connection.params.save_in_keychain.unwrap_or(false);
@@ -727,13 +869,22 @@ fn persist_imported_connection_secrets(
         connection.params.connection_uri_in_keychain = None;
     }
     if keychain {
-        set_imported_secret(
-            runtime,
-            credential_cache,
-            &connection.id,
-            "db",
-            connection.params.password.as_deref(),
-        )?;
+        if let Some(profile_id) = connection.params.credential_profile_id.as_deref() {
+            if !crate::credential_profiles::connection_db_collides_with_profile_db(
+                &connection.id,
+                profile_id,
+            ) {
+                stale_connection_db_deletes.push(connection.id.clone());
+            }
+        } else {
+            set_imported_secret(
+                runtime,
+                credential_cache,
+                &connection.id,
+                "db",
+                connection.params.password.as_deref(),
+            )?;
+        }
         set_imported_secret(
             runtime,
             credential_cache,

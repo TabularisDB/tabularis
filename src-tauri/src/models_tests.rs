@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use crate::models::{
-        single_db_before_multi_transition, ConnectionParams, DatabaseSelection, TableColumn,
-        TableInfo,
+        single_db_before_multi_transition, ConnectionParams, ConnectionsFile, CredentialProfile,
+        DatabaseSelection, ExportPayload, SavedConnection, TableColumn, TableInfo,
     };
 
     #[test]
@@ -236,5 +236,231 @@ mod tests {
 
         let json = serde_json::to_string(&connection).expect("serialize connection");
         assert!(!json.contains("plugin_secret_keys"));
+    }
+
+    /// Files saved before credential profiles existed must keep deserializing,
+    /// and must not gain an empty `credential_profiles` key when written back.
+    #[test]
+    fn connections_file_without_credential_profiles_round_trips_unchanged() {
+        let stored = r#"{
+            "groups": [],
+            "connections": [
+                {
+                    "id": "legacy",
+                    "name": "Legacy",
+                    "params": { "driver": "mysql", "database": "app" }
+                }
+            ],
+            "tags": []
+        }"#;
+
+        let file: ConnectionsFile =
+            serde_json::from_str(stored).expect("legacy connections file deserializes");
+        assert!(file.credential_profiles.is_empty());
+
+        let json = serde_json::to_string(&file).expect("serialize connections file");
+        assert!(!json.contains("credential_profiles"));
+    }
+
+    /// Connections saved before `credential_profile_id` existed must keep
+    /// deserializing, and must not gain the field when written back out.
+    #[test]
+    fn connection_params_without_credential_profile_id_round_trip_unchanged() {
+        let stored = r#"{
+            "driver": "postgres",
+            "host": "localhost",
+            "port": 5432,
+            "username": "postgres",
+            "password": null,
+            "database": "app",
+            "ssl_mode": null,
+            "ssl_ca": null,
+            "ssl_cert": null,
+            "ssl_key": null,
+            "ssh_enabled": false,
+            "ssh_connection_id": null,
+            "save_in_keychain": true
+        }"#;
+
+        let params: ConnectionParams =
+            serde_json::from_str(stored).expect("legacy params deserialize");
+        assert_eq!(params.credential_profile_id, None);
+
+        let json = serde_json::to_string(&params).expect("serialize params");
+        assert!(!json.contains("credential_profile_id"));
+    }
+
+    #[test]
+    fn credential_profile_serializes_metadata_only() {
+        let profile = CredentialProfile {
+            id: "cred-shared".to_string(),
+            name: "Team read-only".to_string(),
+            username: "readonly".to_string(),
+        };
+
+        let value = serde_json::to_value(&profile).expect("serialize profile");
+        let object = value.as_object().expect("profile serializes as an object");
+        let mut keys: Vec<&str> = object.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["id", "name", "username"]);
+        assert_eq!(
+            object.get("id").and_then(|v| v.as_str()),
+            Some("cred-shared")
+        );
+        assert_eq!(
+            object.get("name").and_then(|v| v.as_str()),
+            Some("Team read-only")
+        );
+        assert_eq!(
+            object.get("username").and_then(|v| v.as_str()),
+            Some("readonly")
+        );
+        assert!(!object.contains_key("password"));
+    }
+
+    #[test]
+    fn multiple_connections_may_reference_the_same_credential_profile_id() {
+        let profile_id = "cred-shared";
+        let conn_params = || ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some("db.example.com".to_string()),
+            database: DatabaseSelection::Single("app".to_string()),
+            username: Some("stale-inline".to_string()),
+            credential_profile_id: Some(profile_id.to_string()),
+            save_in_keychain: Some(true),
+            ..Default::default()
+        };
+
+        let file = ConnectionsFile {
+            credential_profiles: vec![CredentialProfile {
+                id: profile_id.to_string(),
+                name: "Shared".to_string(),
+                username: "readonly".to_string(),
+            }],
+            connections: vec![
+                SavedConnection {
+                    id: "conn-a".to_string(),
+                    name: "A".to_string(),
+                    params: conn_params(),
+                    plugin_secret_keys: vec![],
+                    group_id: None,
+                    sort_order: None,
+                    detect_json_in_text_columns: None,
+                    appearance: None,
+                    tag_ids: None,
+                    environment: None,
+                },
+                SavedConnection {
+                    id: "conn-b".to_string(),
+                    name: "B".to_string(),
+                    params: conn_params(),
+                    plugin_secret_keys: vec![],
+                    group_id: None,
+                    sort_order: None,
+                    detect_json_in_text_columns: None,
+                    appearance: None,
+                    tag_ids: None,
+                    environment: None,
+                },
+            ],
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&file).expect("serialize file");
+        let restored: ConnectionsFile = serde_json::from_str(&json).expect("deserialize file");
+        assert_eq!(restored.credential_profiles.len(), 1);
+        assert_eq!(
+            restored
+                .connections
+                .iter()
+                .filter(|c| c.params.credential_profile_id.as_deref() == Some(profile_id))
+                .count(),
+            2
+        );
+    }
+
+    /// Metadata-only export payloads must round-trip profile records without
+    /// ever carrying a password field on the profile itself.
+    #[test]
+    fn export_payload_secrets_free_round_trips_credential_profiles() {
+        let profile = CredentialProfile {
+            id: "cred-1".to_string(),
+            name: "Shared".to_string(),
+            username: "app_user".to_string(),
+        };
+        let payload = ExportPayload {
+            version: 1,
+            groups: vec![],
+            connections: vec![SavedConnection {
+                id: "conn-1".to_string(),
+                name: "Uses profile".to_string(),
+                params: ConnectionParams {
+                    driver: "mysql".to_string(),
+                    host: Some("localhost".to_string()),
+                    username: Some("ignored-inline".to_string()),
+                    password: None,
+                    database: DatabaseSelection::Single("app".to_string()),
+                    credential_profile_id: Some("cred-1".to_string()),
+                    save_in_keychain: Some(true),
+                    ..Default::default()
+                },
+                plugin_secret_keys: vec![],
+                group_id: None,
+                sort_order: None,
+                detect_json_in_text_columns: None,
+                appearance: None,
+                tag_ids: None,
+                environment: None,
+            }],
+            ssh_connections: vec![],
+            k8s_connections: vec![],
+            tags: vec![],
+            credential_profiles: vec![profile.clone()],
+            credential_profile_secrets: std::collections::HashMap::new(),
+            plugin_secrets: std::collections::HashMap::new(),
+        };
+
+        let json = serde_json::to_string(&payload).expect("serialize export payload");
+        assert!(!json.contains("\"password\":\""));
+        let value: serde_json::Value =
+            serde_json::from_str(&json).expect("export payload is valid JSON");
+        let profiles = value
+            .get("credential_profiles")
+            .and_then(serde_json::Value::as_array)
+            .expect("export payload has a credential_profiles array");
+        assert_eq!(profiles.len(), 1);
+        let profile_object = profiles[0]
+            .as_object()
+            .expect("credential profile serializes as an object");
+        let mut keys: Vec<&str> = profile_object.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["id", "name", "username"]);
+        assert!(!profile_object.contains_key("password"));
+        let restored: ExportPayload =
+            serde_json::from_str(&json).expect("deserialize export payload");
+        assert_eq!(restored.credential_profiles, vec![profile]);
+        assert_eq!(
+            restored.connections[0]
+                .params
+                .credential_profile_id
+                .as_deref(),
+            Some("cred-1")
+        );
+        assert_eq!(restored.connections[0].params.password, None);
+    }
+
+    #[test]
+    fn export_payload_legacy_json_without_credential_profiles_deserializes() {
+        let stored = r#"{
+            "version": 1,
+            "groups": [],
+            "connections": [],
+            "ssh_connections": [],
+            "k8s_connections": [],
+            "tags": []
+        }"#;
+        let payload: ExportPayload =
+            serde_json::from_str(stored).expect("legacy export payload deserializes");
+        assert!(payload.credential_profiles.is_empty());
     }
 }

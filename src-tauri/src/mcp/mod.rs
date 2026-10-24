@@ -266,11 +266,36 @@ async fn resolve_db_params(
 ) -> Result<(crate::models::SavedConnection, ConnectionParams), JsonRpcError> {
     let mut conn = find_connection(conn_id)?;
 
+    // A shared credential profile owns the login. Resolve it before the
+    // connection's own keychain entry so a missing profile or password fails
+    // here instead of silently using the connection password.
+    if conn.params.credential_profile_id.is_some() {
+        let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
+        let file = persistence::load_connections_file(&config_path).map_err(|e| JsonRpcError {
+            code: -32000,
+            message: e,
+            data: None,
+        })?;
+        crate::application::connections::resolve_credential_profile(
+            &mut conn.params,
+            &file.credential_profiles,
+            |profile_id| keychain_utils::find_credential_profile_db_password(profile_id),
+        )
+        .map_err(|e| JsonRpcError {
+            code: -32000,
+            message: e,
+            data: None,
+        })?;
+    }
+
     // Load DB password from keychain unless the connection uses IAM auth,
     // whose 15-min tokens must come from the `password` field on every
     // connect — never from the keychain, where a stale token would survive.
     let iam_auth = conn.params.use_iam_auth.unwrap_or(false);
-    if !iam_auth && conn.params.save_in_keychain.unwrap_or(false) {
+    if !iam_auth
+        && conn.params.save_in_keychain.unwrap_or(false)
+        && conn.params.credential_profile_id.is_none()
+    {
         let id = conn.id.clone();
         let pwd = tokio::task::spawn_blocking(move || keychain_utils::find_db_password(&id))
             .await

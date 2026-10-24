@@ -13,6 +13,7 @@ import {
     FileJson,
     Shield,
     Cable,
+    KeyRound,
     Archive,
     EyeOff,
     FolderCog,
@@ -29,6 +30,7 @@ import {LogsTab} from '@/components/settings/LogsTab';
 import {ShortcutsTab} from '@/components/settings/ShortcutsTab';
 import {PluginsTab} from '@/components/settings/PluginsTab';
 import {SshTab} from '@/components/settings/SshTab';
+import {CredentialProfilesTab} from '@/components/settings/CredentialProfilesTab';
 import {BackupTab} from '@/components/settings/BackupTab';
 import {StorageTab} from '@/components/settings/StorageTab';
 import {NetworkTab} from '@/components/settings/NetworkTab';
@@ -46,6 +48,7 @@ type SettingsTab =
     | 'network'
     | 'privacy'
     | 'ssh'
+    | 'credential-profiles'
     | 'backup'
     | 'storage'
     | 'appearance'
@@ -72,6 +75,7 @@ const TAB_ITEMS: Array<{
     {id: 'general', icon: SettingsIcon, labelKey: 'settings.general'},
     {id: 'network', icon: Network, labelKey: 'settings.network.tab'},
     {id: 'ssh', icon: Cable, labelKey: 'sshConnections.title'},
+    {id: 'credential-profiles', icon: KeyRound, labelKey: 'credentialProfiles.title'},
     {id: 'storage', icon: FolderCog, labelKey: 'settings.storage.title'},
     {id: 'backup', icon: Archive, labelKey: 'settings.backup.title'},
     {id: 'plugins', icon: Plug, labelKey: 'settings.plugins.title'},
@@ -90,6 +94,7 @@ const TAB_COMPONENTS: Partial<Record<SettingsTab, React.ComponentType>> = {
     network: NetworkTab,
     privacy: PrivacyTab,
     ssh: SshTab,
+    'credential-profiles': CredentialProfilesTab,
     backup: BackupTab,
     storage: StorageTab,
     appearance: AppearanceTab,

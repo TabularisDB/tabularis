@@ -105,9 +105,12 @@ pub fn apply(
         // Carried through wholesale so any tag_ids on imported connections
         // keep resolving; the merge in apply_export_payload dedups by id.
         tags: payload.tags.clone(),
+        credential_profiles: Vec::new(),
+        credential_profile_secrets: HashMap::new(),
         plugin_secrets: HashMap::new(),
     };
     let mut group_ids: HashMap<String, String> = HashMap::new();
+    let mut profile_ids: HashMap<String, String> = HashMap::new();
     // Original payload group ids to preserve verbatim (with their ancestor
     // chain) for connections that keep their source group.
     let mut keep_original: HashSet<String> = HashSet::new();
@@ -187,6 +190,36 @@ pub fn apply(
             }
         }
 
+        // Remap the linked credential profile the same way, sharing one fresh
+        // profile id between connections that referenced the same source
+        // profile, and never overwriting an existing profile with that id.
+        if let Some(old_profile_id) = new_conn.params.credential_profile_id.clone() {
+            if let Some(profile) = payload
+                .credential_profiles
+                .iter()
+                .find(|profile| profile.id == old_profile_id)
+            {
+                let new_profile_id = match profile_ids.get(&old_profile_id) {
+                    Some(id) => id.clone(),
+                    None => {
+                        let id = new_id();
+                        let mut imported = profile.clone();
+                        imported.id = id.clone();
+                        out.credential_profiles.push(imported);
+                        if let Some(password) =
+                            payload.credential_profile_secrets.get(&old_profile_id)
+                        {
+                            out.credential_profile_secrets
+                                .insert(id.clone(), password.clone());
+                        }
+                        profile_ids.insert(old_profile_id, id.clone());
+                        id
+                    }
+                };
+                new_conn.params.credential_profile_id = Some(new_profile_id);
+            }
+        }
+
         out.connections.push(new_conn);
     }
 
@@ -222,7 +255,7 @@ fn include_group_chains(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{ConnectionParams, DatabaseSelection, SshConnection};
+    use crate::models::{ConnectionParams, CredentialProfile, DatabaseSelection, SshConnection};
 
     fn group(id: &str, name: &str, parent: Option<&str>) -> ConnectionGroup {
         ConnectionGroup {
@@ -275,6 +308,8 @@ mod tests {
             ssh_connections: Vec::new(),
             k8s_connections: Vec::new(),
             tags: Vec::new(),
+            credential_profiles: Vec::new(),
+            credential_profile_secrets: HashMap::new(),
             plugin_secrets: HashMap::new(),
         }
     }
@@ -380,6 +415,41 @@ mod tests {
 
         assert_eq!(out.connections.len(), 1);
         assert_eq!(out.connections[0].id, "target-id");
+    }
+
+    #[test]
+    fn apply_remaps_shared_credential_profile_to_one_fresh_id() {
+        let mut first = conn("c1", "One", "h1", "app", None);
+        first.params.credential_profile_id = Some("profile-old".into());
+        let mut second = conn("c2", "Two", "h2", "app", None);
+        second.params.credential_profile_id = Some("profile-old".into());
+        let mut p = payload(vec![], vec![first, second]);
+        p.credential_profiles.push(CredentialProfile {
+            id: "profile-old".into(),
+            name: "Shared login".into(),
+            username: "deploy".into(),
+        });
+        p.credential_profile_secrets
+            .insert("profile-old".into(), "shared-password".into());
+
+        let out = apply(&p, &[res(0, "import"), res(1, "import")], &[]);
+
+        assert_eq!(out.credential_profiles.len(), 1);
+        let new_profile_id = &out.credential_profiles[0].id;
+        assert_ne!(new_profile_id, "profile-old");
+        assert_eq!(
+            out.connections[0].params.credential_profile_id.as_ref(),
+            Some(new_profile_id)
+        );
+        assert_eq!(
+            out.connections[1].params.credential_profile_id.as_ref(),
+            Some(new_profile_id)
+        );
+        assert_eq!(out.credential_profile_secrets.len(), 1);
+        assert_eq!(
+            out.credential_profile_secrets.get(new_profile_id),
+            Some(&"shared-password".to_string())
+        );
     }
 
     #[test]

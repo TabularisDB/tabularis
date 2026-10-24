@@ -1,8 +1,28 @@
 use crate::models::{ConnectionGroup, ConnectionParams, ConnectionsFile, SavedConnection};
+use once_cell::sync::Lazy;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::Mutex;
+
+static CONNECTIONS_FILE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+fn connections_file_lock() -> std::sync::MutexGuard<'static, ()> {
+    CONNECTIONS_FILE_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+}
+
+/// Serializes the whole import merge, including deferred credential-profile
+/// keychain writes and snapshot restore on failure, so recovery cannot clobber
+/// a concurrent `connections.json` edit.
+pub(crate) fn with_connections_file_exclusive<R>(
+    operation: impl FnOnce() -> Result<R, String>,
+) -> Result<R, String> {
+    let _guard = connections_file_lock();
+    operation()
+}
 
 /// Parses connections file content already read from disk. Supports both
 /// the old format (a bare array of connections) and the new format (an
@@ -24,6 +44,7 @@ pub fn parse_connections_file(content: &str) -> Result<ConnectionsFile, String> 
         groups: Vec::new(),
         connections,
         tags: Vec::new(),
+        credential_profiles: Vec::new(),
     })
 }
 
@@ -31,6 +52,14 @@ pub fn parse_connections_file(content: &str) -> Result<ConnectionsFile, String> 
 /// Supports both old format (array of connections) and new format (with groups).
 /// Use `load_connections` or `load_connections_with_passwords` when passwords are needed.
 pub fn load_connections_file(path: &Path) -> Result<ConnectionsFile, String> {
+    let _guard = connections_file_lock();
+    read_connections_file(path)
+}
+
+/// Reads `connections.json` without acquiring [`CONNECTIONS_FILE_LOCK`].
+/// Call only while the lock is already held (for example inside
+/// [`with_connections_file_exclusive`]).
+pub(crate) fn read_connections_file(path: &Path) -> Result<ConnectionsFile, String> {
     if !path.exists() {
         return Ok(ConnectionsFile::default());
     }
@@ -45,6 +74,13 @@ pub fn load_connections(path: &Path) -> Result<Vec<SavedConnection>, String> {
 }
 
 pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), String> {
+    let _guard = connections_file_lock();
+    write_connections_file(path, file)
+}
+
+/// Writes `connections.json` without acquiring [`CONNECTIONS_FILE_LOCK`].
+/// Call only while the lock is already held.
+pub(crate) fn write_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         if !parent.exists() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -58,10 +94,14 @@ pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), 
         for key in &c.plugin_secret_keys {
             c.params.extra.remove(key);
         }
-        if c.params.save_in_keychain.unwrap_or(false) {
-            // Passwords are stored in keychain, remove from JSON
+        if c.params.save_in_keychain.unwrap_or(false)
+            || c.params.credential_profile_id.is_some()
+        {
+            // Passwords live in the keychain (connection or shared profile), not JSON.
             c.params.password = None;
-            c.params.ssh_password = None;
+            if c.params.save_in_keychain.unwrap_or(false) {
+                c.params.ssh_password = None;
+            }
         }
         connections_to_save.push(c);
     }
@@ -70,6 +110,7 @@ pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), 
         groups: file.groups.clone(),
         connections: connections_to_save,
         tags: file.tags.clone(),
+        credential_profiles: file.credential_profiles.clone(),
     };
 
     let mut json = serde_json::to_value(&to_save).map_err(|e| e.to_string())?;
@@ -113,6 +154,9 @@ pub fn write_private_file(path: &Path, contents: impl AsRef<[u8]>) -> Result<(),
 /// `save_in_keychain` is cleared so the file is the source of truth and the
 /// save can still succeed.
 pub fn apply_secret_persistence(params: &mut ConnectionParams, keychain_stored: bool) {
+    if params.credential_profile_id.is_some() {
+        params.password = None;
+    }
     if !params.save_in_keychain.unwrap_or(false) {
         return;
     }
@@ -256,6 +300,7 @@ pub fn save_connections(path: &Path, connections: &[SavedConnection]) -> Result<
         groups: existing.groups,
         connections: connections.to_vec(),
         tags: existing.tags,
+        credential_profiles: existing.credential_profiles,
     };
     save_connections_file(path, &file)
 }

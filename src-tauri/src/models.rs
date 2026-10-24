@@ -119,6 +119,15 @@ impl Default for DatabaseSelection {
     }
 }
 
+/// Reusable database login metadata. Passwords live in the OS keychain under
+/// `{id}:profile:db`, never in this record or in `connections.json`.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+pub struct CredentialProfile {
+    pub id: String,
+    pub name: String,
+    pub username: String,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct SshConnection {
     pub id: String,
@@ -243,6 +252,10 @@ pub struct ConnectionParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ssh_allow_passphrase_prompt: Option<bool>,
     pub save_in_keychain: Option<bool>,
+    /// When set, `username` (and the DB password in the keychain) are taken
+    /// from this shared [`CredentialProfile`] instead of the inline fields.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_profile_id: Option<String>,
     // Kubernetes Tunnel (mutually exclusive with SSH)
     #[serde(default)]
     pub k8s_enabled: Option<bool>,
@@ -390,6 +403,8 @@ pub struct ConnectionsFile {
     pub connections: Vec<SavedConnection>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<ConnectionTag>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub credential_profiles: Vec<CredentialProfile>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -443,9 +458,15 @@ pub struct ExportPayload {
     pub k8s_connections: Vec<K8sConnection>,
     #[serde(default)]
     pub tags: Vec<ConnectionTag>,
+    #[serde(default)]
+    pub credential_profiles: Vec<CredentialProfile>,
     /// Export-only secret material keyed by connection id and plugin field.
     /// This remains empty for metadata-only exports and never appears in
     /// `connections.json`.
+    /// Export-only DB passwords keyed by [`CredentialProfile::id`]. Never written
+    /// to `connections.json` or duplicated on connection records.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub credential_profile_secrets: HashMap<String, String>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub plugin_secrets: HashMap<String, HashMap<String, String>>,
 }

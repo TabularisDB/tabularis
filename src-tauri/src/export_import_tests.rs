@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use crate::models::{ExportPayload, ConnectionGroup, SavedConnection, SshConnection, ConnectionParams, DatabaseSelection};
+    use crate::models::{
+        ConnectionGroup, ConnectionParams, CredentialProfile, DatabaseSelection, ExportPayload,
+        SavedConnection, SshConnection,
+    };
 
     #[test]
     fn test_export_payload_serialization() {
@@ -50,6 +53,8 @@ mod tests {
             }],
             k8s_connections: vec![],
             tags: vec![],
+            credential_profiles: vec![],
+            credential_profile_secrets: std::collections::HashMap::new(),
             plugin_secrets: std::collections::HashMap::new(),
         };
 
@@ -62,6 +67,81 @@ mod tests {
         assert_eq!(deserialized.ssh_connections.len(), 1);
         assert_eq!(deserialized.connections[0].params.password, Some("password".to_string()));
         assert_eq!(deserialized.ssh_connections[0].password, Some("ssh_password".to_string()));
+    }
+
+    #[test]
+    fn test_export_payload_round_trips_referenced_credential_profiles() {
+        let profile = CredentialProfile {
+            id: "cred-shared".to_string(),
+            name: "Shared login".to_string(),
+            username: "deploy".to_string(),
+        };
+        let payload = ExportPayload {
+            version: 1,
+            groups: vec![],
+            connections: vec![SavedConnection {
+                id: "conn1".to_string(),
+                name: "App".to_string(),
+                params: ConnectionParams {
+                    driver: "postgres".to_string(),
+                    host: Some("db.example.com".to_string()),
+                    database: DatabaseSelection::Single("app".to_string()),
+                    credential_profile_id: Some("cred-shared".to_string()),
+                    save_in_keychain: Some(true),
+                    ..Default::default()
+                },
+                plugin_secret_keys: vec![],
+                group_id: None,
+                sort_order: None,
+                detect_json_in_text_columns: None,
+                appearance: None,
+                tag_ids: None,
+                environment: None,
+            }],
+            ssh_connections: vec![],
+            k8s_connections: vec![],
+            tags: vec![],
+            credential_profiles: vec![profile.clone()],
+            credential_profile_secrets: std::collections::HashMap::new(),
+            plugin_secrets: std::collections::HashMap::new(),
+        };
+
+        let json = serde_json::to_string(&payload).unwrap();
+        assert!(!json.contains("\"password\":\""));
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let profiles = value
+            .get("credential_profiles")
+            .and_then(serde_json::Value::as_array)
+            .expect("export payload has a credential_profiles array");
+        assert_eq!(profiles.len(), 1);
+        let profile_object = profiles[0]
+            .as_object()
+            .expect("credential profile serializes as an object");
+        let mut keys: Vec<&str> = profile_object.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["id", "name", "username"]);
+        assert_eq!(
+            profile_object.get("id").and_then(|v| v.as_str()),
+            Some("cred-shared")
+        );
+        assert_eq!(
+            profile_object.get("name").and_then(|v| v.as_str()),
+            Some("Shared login")
+        );
+        assert_eq!(
+            profile_object.get("username").and_then(|v| v.as_str()),
+            Some("deploy")
+        );
+        assert!(!profile_object.contains_key("password"));
+        let deserialized: ExportPayload = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.credential_profiles, vec![profile]);
+        assert_eq!(
+            deserialized.connections[0]
+                .params
+                .credential_profile_id
+                .as_deref(),
+            Some("cred-shared")
+        );
     }
 
     // Helper: build a 3-level tree
@@ -115,6 +195,8 @@ mod tests {
             ssh_connections: vec![],
             k8s_connections: vec![],
             tags: vec![],
+            credential_profiles: vec![],
+            credential_profile_secrets: std::collections::HashMap::new(),
             plugin_secrets: std::collections::HashMap::new(),
         };
 

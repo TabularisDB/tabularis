@@ -38,6 +38,8 @@ import {choosePlatformSavePath, choosePlatformServerPath} from '@/platform/dialo
 import clsx from 'clsx';
 import {SshConnectionsModal} from './SshConnectionsModal';
 import {K8sConnectionsModal} from './K8sConnectionsModal';
+import {CredentialProfilesModal} from './CredentialProfilesModal';
+import {CredentialProfileConnectionFields} from './CredentialProfileConnectionFields';
 import {Select} from '@/components/ui/Select';
 import {SlotAnchor} from '@/components/ui/SlotAnchor';
 import type {PluginSecretFieldState} from '@/types/pluginSlots';
@@ -79,6 +81,13 @@ import {classifyConnectionError, type ClassifiedConnectionError} from '@/utils/c
 import {ConnectionDiagnosticsModal} from './connection/ConnectionDiagnosticsModal';
 import {testStepLabelKey, type ConnectionTestLogEntry} from '@/utils/connectionTest';
 import {fetchConnectionWithCredentials} from '@/utils/credentials';
+import {loadCredentialProfiles, type CredentialProfile} from '@/utils/credentialProfiles';
+import {
+    isCredentialProfileLinked,
+    shouldLockUsernameToProfile,
+    shouldShowDatabasePasswordField,
+    stripInlineSecretsForCredentialProfile,
+} from '@/utils/connectionCredentialProfile';
 import {getDriverIcon, getDriverColorStyle, isUrlIcon} from '@/utils/driverUI';
 import {
     parseConnectionString,
@@ -139,6 +148,7 @@ interface ConnectionParams {
     pipes_as_concat?: boolean;
     // When true, the password field is an RDS auth token (mysql only).
     use_iam_auth?: boolean;
+    credential_profile_id?: string;
     // SSH
     ssh_enabled?: boolean;
     ssh_connection_id?: string;
@@ -218,6 +228,7 @@ const FieldInput = ({
     placeholder,
     autoFocus,
     className,
+    readOnly,
 }: {
     label: string;
     value: string | number | undefined;
@@ -226,6 +237,7 @@ const FieldInput = ({
     placeholder?: string;
     autoFocus?: boolean;
     className?: string;
+    readOnly?: boolean;
 }) => {
     const [showPassword, setShowPassword] = useState(false);
     const isPassword = type === 'password';
@@ -242,6 +254,8 @@ const FieldInput = ({
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={placeholder}
                     autoFocus={autoFocus}
+                    readOnly={readOnly}
+                    aria-readonly={readOnly ? true : undefined}
                     autoCorrect="off"
                     autoCapitalize="off"
                     autoComplete="off"
@@ -463,7 +477,9 @@ export const NewConnectionModal = ({
 
     // ── SSH ──
     const [sshConnections, setSshConnections] = useState<SshConnection[]>([]);
+    const [credentialProfiles, setCredentialProfiles] = useState<CredentialProfile[]>([]);
     const [isSshModalOpen, setIsSshModalOpen] = useState(false);
+    const [isCredentialProfilesModalOpen, setIsCredentialProfilesModalOpen] = useState(false);
     const [sshMode, setSshMode] = useState<'existing' | 'inline'>('existing');
     const [sshTestStatus, setSshTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>(
         'idle',
@@ -733,7 +749,12 @@ export const NewConnectionModal = ({
     const setCredentialFieldsHidden = useCallback((hidden: boolean) => {
         setCredentialFieldsHiddenState(hidden);
         if (hidden) {
-            setFormData((prev) => ({...prev, username: '', password: ''}));
+            setFormData((prev) => ({
+                ...prev,
+                username: '',
+                password: '',
+                credential_profile_id: undefined,
+            }));
         }
     }, []);
     const setSecretField = useCallback((key: string, value: string) => {
@@ -789,6 +810,11 @@ export const NewConnectionModal = ({
     const loadSshConnectionsList = async () => {
         const result = await loadSshConnections(client);
         setSshConnections(result);
+    };
+
+    const loadCredentialProfilesList = async () => {
+        const result = await loadCredentialProfiles(client);
+        setCredentialProfiles(result);
     };
 
     const loadK8sConnectionsList = async () => {
@@ -1963,6 +1989,13 @@ export const NewConnectionModal = ({
                 if (editIsMultiDb && editHasExplicitSelection) {
                     void loadDatabases(params, isCurrentInit);
                 }
+                if (params.credential_profile_id) {
+                    setFormData((previous) => ({
+                        ...previous,
+                        credential_profile_id: params.credential_profile_id,
+                        password: '',
+                    }));
+                }
             } else {
                 setName('');
                 setDriver('mysql');
@@ -1993,6 +2026,10 @@ export const NewConnectionModal = ({
             if (!isCurrentInit()) return;
             setSshConnections(nextSshConnections);
 
+            const nextCredentialProfiles = await loadCredentialProfiles(client);
+            if (!isCurrentInit()) return;
+            setCredentialProfiles(nextCredentialProfiles);
+
             const nextK8sConnections = await loadK8sConnections(client);
             if (!isCurrentInit()) return;
             setK8sConnections(nextK8sConnections);
@@ -2014,6 +2051,7 @@ export const NewConnectionModal = ({
             database: '',
             ssl_mode: '',
             ssh_enabled: false,
+            credential_profile_id: undefined,
             ssh_connection_id: undefined,
             ssh_host: undefined,
             ssh_port: 22,
@@ -2158,8 +2196,10 @@ export const NewConnectionModal = ({
                             ) ?? '')
                           : formData.database,
                 };
-                const testParams = withoutBlankSslMode(
-                    withInlineK8sPaths(testParamsBase, inlinePaths.options),
+                const testParams = stripInlineSecretsForCredentialProfile(
+                    withoutBlankSslMode(
+                        withInlineK8sPaths(testParamsBase, inlinePaths.options),
+                    ) as ConnectionParams,
                 );
                 const invokeTest = () =>
                     client.call('test_connection', {
@@ -2391,9 +2431,13 @@ export const NewConnectionModal = ({
                           ) ?? formData.database)
                         : formData.database,
             };
-            const params = withoutBlankSslMode(
+            let params = withoutBlankSslMode(
                 withInlineK8sPaths(paramsBase, inlinePaths.options),
             ) as ConnectionParams;
+            params = stripInlineSecretsForCredentialProfile(params);
+            if (!isCredentialProfileLinked(params)) {
+                delete params.credential_profile_id;
+            }
             const appearancePayload =
                 appearance.icon || appearance.accentColor ? appearance : undefined;
             const finalImagePath = appearance.icon?.type === 'image' ? appearance.icon.path : null;
@@ -2419,7 +2463,11 @@ export const NewConnectionModal = ({
                     // An omitted password means "keep the stored one". While a plugin
                     // hides the login inputs the empty password is deliberate: it is
                     // sent as-is so the backend drops the keychain entry too.
-                    if (!params.password?.trim() && !credentialFieldsHidden) {
+                    if (
+                        !params.credential_profile_id &&
+                        !params.password?.trim() &&
+                        !credentialFieldsHidden
+                    ) {
                         delete params.password;
                     }
                     if (!params.ssh_password?.trim()) delete params.ssh_password;
@@ -2921,6 +2969,28 @@ export const NewConnectionModal = ({
                         className="flex flex-col gap-3"
                     />
 
+                    {!credentialFieldsHidden && !isUriPassthrough && (
+                        <CredentialProfileConnectionFields
+                            profiles={credentialProfiles}
+                            credentialProfileId={formData.credential_profile_id}
+                            username={formData.username ?? ''}
+                            password={formData.password ?? ''}
+                            useIamAuth={formData.use_iam_auth === true}
+                            onCredentialProfileChange={(next) => {
+                                setPasswordDirty(false);
+                                setFormData((previous) => {
+                                    const merged = {...previous, ...next};
+                                    if (next.credential_profile_id === undefined) {
+                                        delete merged.credential_profile_id;
+                                    }
+                                    return merged;
+                                });
+                            }}
+                            onManageProfiles={() => setIsCredentialProfilesModalOpen(true)}
+                            onProfilesRefresh={loadCredentialProfilesList}
+                        />
+                    )}
+
                     {/* User + Password (a plugin may hide them via the extra_fields
               slot or per field through its manifest `connection_fields`) */}
                     {!credentialFieldsHidden &&
@@ -2929,7 +2999,12 @@ export const NewConnectionModal = ({
                             <div
                                 className={clsx(
                                     'grid gap-3',
-                                    !passwordField?.hidden &&
+                                    shouldShowDatabasePasswordField({
+                                        credentialProfileId: formData.credential_profile_id,
+                                        credentialFieldsHidden,
+                                        passwordFieldHidden: passwordField?.hidden === true,
+                                        useIamAuth: formData.use_iam_auth === true,
+                                    }) &&
                                         !isUriPassthrough &&
                                         !usernameField?.hidden
                                         ? 'grid-cols-2'
@@ -2941,13 +3016,22 @@ export const NewConnectionModal = ({
                                         label={usernameField?.label ?? t('newConnection.username')}
                                         value={formData.username}
                                         onChange={(v) => updateField('username', v)}
+                                        readOnly={shouldLockUsernameToProfile({
+                                            credentialProfileId: formData.credential_profile_id,
+                                            credentialFieldsHidden,
+                                        })}
                                         placeholder={
                                             usernameField?.placeholder ??
                                             t('newConnection.usernamePlaceholder')
                                         }
                                     />
                                 )}
-                                {!passwordField?.hidden && (
+                                {shouldShowDatabasePasswordField({
+                                    credentialProfileId: formData.credential_profile_id,
+                                    credentialFieldsHidden,
+                                    passwordFieldHidden: passwordField?.hidden === true,
+                                    useIamAuth: formData.use_iam_auth === true,
+                                }) && (
                                     <FieldInput
                                         label={passwordField?.label ?? t('newConnection.password')}
                                         value={formData.password}
@@ -2959,7 +3043,8 @@ export const NewConnectionModal = ({
                                         placeholder={
                                             initialConnection &&
                                             !passwordDirty &&
-                                            !formData.password
+                                            !formData.password &&
+                                            !formData.credential_profile_id
                                                 ? '••••••••'
                                                 : (passwordField?.placeholder ??
                                                   t('newConnection.passwordPlaceholder'))
@@ -4958,6 +5043,14 @@ export const NewConnectionModal = ({
                     setIsSshModalOpen(false);
                     await loadSshConnectionsList();
                 }}
+            />
+            <CredentialProfilesModal
+                isOpen={isCredentialProfilesModalOpen}
+                onClose={async () => {
+                    setIsCredentialProfilesModalOpen(false);
+                    await loadCredentialProfilesList();
+                }}
+                onProfilesChanged={() => void loadCredentialProfilesList()}
             />
             <K8sConnectionsModal
                 isOpen={isK8sModalOpen}
