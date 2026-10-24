@@ -165,6 +165,7 @@ describe('CommandPaletteProvider', () => {
         button.focus();
         act(() => palette!.dispatch.openPalette('objects'));
         expect(palette!.state.focusContext).toEqual({inMonaco: true, inEditable: true});
+        button.blur();
         act(() => palette!.dispatch.closePalette());
         expect(palette!.state.focusContext).toBeNull();
         await waitFor(() => expect(editorInput).toHaveFocus());
@@ -264,8 +265,11 @@ describe('CommandPaletteProvider', () => {
 
     it('should restore focus when the palette is closed through its dispatch', async () => {
         const trigger = document.createElement('button');
+        const paletteDialog = document.createElement('div');
+        paletteDialog.setAttribute('data-spotlight-palette', '');
         const paletteInput = document.createElement('input');
-        document.body.append(trigger, paletteInput);
+        paletteDialog.append(paletteInput);
+        document.body.append(trigger, paletteDialog);
         trigger.focus();
         let palette: PaletteContexts | undefined;
 
@@ -285,7 +289,34 @@ describe('CommandPaletteProvider', () => {
 
         await waitFor(() => expect(trigger).toHaveFocus());
         trigger.remove();
-        paletteInput.remove();
+        paletteDialog.remove();
+    });
+
+    it('should leave focus in a dialog that a command opened', async () => {
+        const trigger = document.createElement('button');
+        const commandDialogInput = document.createElement('textarea');
+        document.body.append(trigger, commandDialogInput);
+        trigger.focus();
+        let palette: PaletteContexts | undefined;
+
+        render(
+            <CommandPaletteProvider>
+                <PaletteTestHarness
+                    onContexts={(contexts) => {
+                        palette = contexts;
+                    }}
+                />
+            </CommandPaletteProvider>,
+        );
+
+        act(() => palette!.dispatch.openPalette('actions'));
+        commandDialogInput.focus();
+        act(() => palette!.dispatch.closePalette());
+        await new Promise((resolve) => window.requestAnimationFrame(resolve));
+
+        expect(commandDialogInput).toHaveFocus();
+        trigger.remove();
+        commandDialogInput.remove();
     });
 
     it('should keep object search closed without an active connection', () => {
