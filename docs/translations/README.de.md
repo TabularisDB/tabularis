@@ -317,6 +317,7 @@ Optionale Text-to-SQL- und Query-Erklärungsfunktionen mit:
 - MiniMax
 - OpenRouter
 - Requesty
+- Opper
 - Ollama
 - OpenAI-kompatiblen APIs
 

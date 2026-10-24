@@ -317,6 +317,7 @@ Opsyonal na Text-to-SQL at query explanation gamit ang mga provider:
 - MiniMax
 - OpenRouter
 - Requesty
+- Opper
 - Ollama
 - OpenAI-compatible APIs
 
