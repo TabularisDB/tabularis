@@ -34,6 +34,7 @@ vi.mock('@/hooks/usePlatformCapabilities', () => ({
     usePlatformCapabilities: () => ({
         openExternalUrl: openUrl,
         writeClipboardHtml: writeHtmlMock,
+        downloadFile: downloadFileMock,
     }),
 }));
 
@@ -47,6 +48,7 @@ const {
     virtualizerRenderControl,
     sidebarState,
     writeHtmlMock,
+    downloadFileMock,
     databaseMock,
 } = vi.hoisted(() => ({
     openJsonViewerMock: vi.fn(),
@@ -60,6 +62,7 @@ const {
     virtualizerRenderControl: {forceEmpty: false},
     sidebarState: {isOpen: false, activePanel: null as string | null},
     writeHtmlMock: vi.fn(),
+    downloadFileMock: vi.fn(),
     databaseMock: vi.fn((): Record<string, unknown> => ({
         activeSchema: null,
         connections: [],
@@ -3279,5 +3282,126 @@ describe('DataGrid column resizing (#1151)', () => {
         );
         expect(col(1).style.width).toBe(`${MEASURED}px`);
         expect(separators()).toHaveLength(2);
+    });
+});
+
+describe('DataGrid selected-row export (#1154)', () => {
+    const columns = ['id', 'name'];
+    const data: unknown[][] = [
+        [1, 'Alice'],
+        [2, 'Bob'],
+        [3, 'Carol'],
+    ];
+
+    const renderWithSelection = (selectedRows: Set<number>) =>
+        render(
+            <DataGrid
+                columns={columns}
+                data={data}
+                selectedRows={selectedRows}
+                onSelectionChange={vi.fn()}
+            />,
+        );
+
+    const openExportEntry = async (container: HTMLElement) => {
+        fireEvent.contextMenu(container.querySelector('td[data-col-index="0"]')!);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRows'));
+    };
+
+    const decodedDownload = (call: number) =>
+        new TextDecoder().decode(downloadFileMock.mock.calls[call][0].contents);
+
+    beforeEach(() => {
+        downloadFileMock.mockReset().mockResolvedValue(true);
+        showToastMock.mockClear();
+    });
+
+    it('downloads the selected rows as CSV, in grid order', async () => {
+        const {container} = renderWithSelection(new Set([2, 0]));
+
+        await openExportEntry(container);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRowsCsv'));
+
+        await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
+        expect(decodedDownload(0)).toBe('id,name\n1,Alice\n3,Carol\n');
+        expect(downloadFileMock.mock.calls[0][0]).toMatchObject({
+            fileName: expect.stringMatching(/^result_\d{4}-\d{2}-\d{2}_\d{4}\.csv$/),
+            mimeType: 'text/csv',
+            filters: [{name: 'CSV', extensions: ['csv']}],
+        });
+        expect(showToastMock).toHaveBeenCalledWith(expect.anything(), {
+            kind: 'success',
+        });
+    });
+
+    it('downloads the selected rows as JSON keyed by column name', async () => {
+        const {container} = renderWithSelection(new Set([2, 0]));
+
+        await openExportEntry(container);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRowsJson'));
+
+        await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
+        expect(JSON.parse(decodedDownload(0))).toEqual([
+            {id: 1, name: 'Alice'},
+            {id: 3, name: 'Carol'},
+        ]);
+        expect(downloadFileMock.mock.calls[0][0]).toMatchObject({
+            mimeType: 'application/json',
+            filters: [{name: 'JSON', extensions: ['json']}],
+        });
+    });
+
+    it('downloads only the right-clicked row when nothing is selected', async () => {
+        const {container} = renderWithSelection(new Set());
+
+        await openExportEntry(container);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRowsCsv'));
+
+        await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
+        expect(decodedDownload(0)).toBe('id,name\n1,Alice\n');
+    });
+
+    it('writes nothing when the download is cancelled', async () => {
+        downloadFileMock.mockResolvedValue(false);
+        const {container} = renderWithSelection(new Set([1]));
+
+        await openExportEntry(container);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRowsCsv'));
+
+        await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
+        expect(showToastMock).not.toHaveBeenCalled();
+    });
+
+    it('exports the rows captured when the entry was clicked', async () => {
+        // The grid can be re-rendered with other rows while the download is
+        // being prepared; the export has to stay the snapshot the user asked for.
+        let resolveDownload: (downloaded: boolean) => void = () => {};
+        downloadFileMock.mockImplementation(
+            () =>
+                new Promise<boolean>((resolve) => {
+                    resolveDownload = resolve;
+                }),
+        );
+
+        const {container, rerender} = renderWithSelection(new Set([0]));
+
+        await openExportEntry(container);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRowsCsv'));
+
+        rerender(
+            <DataGrid
+                columns={columns}
+                data={[[9, 'Replaced']]}
+                selectedRows={new Set([0])}
+                onSelectionChange={vi.fn()}
+            />,
+        );
+
+        await act(async () => {
+            resolveDownload(true);
+        });
+
+        await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
+        expect(decodedDownload(0)).toBe('id,name\n1,Alice\n');
     });
 });

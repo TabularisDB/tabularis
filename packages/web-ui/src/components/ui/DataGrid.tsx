@@ -35,6 +35,8 @@ import {
     Ban,
     Eraser,
     FileDigit,
+    Download,
+    FileText,
     ExternalLink,
     Filter,
     PanelBottomOpen,
@@ -130,6 +132,9 @@ import {
 } from '@/utils/clipboard';
 import {formatColumnNamesAsSqlList} from '@/utils/objectNameCopy';
 import {quoteIdentifier} from '@/utils/identifiers';
+import {buildExportFileName} from '@/utils/exportFileName';
+import {formatRowsForExport} from '@/utils/resultExport';
+import {downloadTextFile} from '@/utils/fileDownloads';
 import {DEFAULT_MASKING_PATTERNS, isColumnMasked} from '@/utils/columnMasking';
 import type {PendingInsertion, TableColumn, ForeignKey} from '@/types/editor';
 import type {ResultCommands} from '@/types/commands';
@@ -1989,6 +1994,42 @@ export const DataGrid = React.memo(function DataGrid({
         );
     }, [getContextRows, columns, formatRows, writeToClipboard, rowsCopiedToast, platform]);
 
+    // Writes the rows the row context menu acts on to a file (#1154).
+    //
+    // The rows are read once, before the download starts: the grid keeps
+    // living while the dialog is up (a refresh can replace the rows), and the
+    // export has to stay the snapshot the user clicked on. Cancelling the
+    // dialog writes nothing, and no query is re-run and no page is fetched —
+    // only rows already loaded in the grid are ever exported.
+    const exportContextRows = useCallback(
+        async (format: 'csv' | 'json') => {
+            const rows = getContextRows();
+            if (!rows || rows.length === 0) return;
+            setContextMenu(null);
+
+            try {
+                const downloaded = await downloadTextFile(platform, {
+                    fileName: buildExportFileName({tableName, extension: format}),
+                    contents: formatRowsForExport(rows, columns, format, csvDelimiter),
+                    mimeType: format === 'csv' ? 'text/csv' : 'application/json',
+                    filters: [{name: format.toUpperCase(), extensions: [format]}],
+                });
+                if (!downloaded) return;
+
+                showToast(t('dataGrid.exportedRows', {count: rows.length}), {
+                    kind: 'success',
+                });
+            } catch (e) {
+                console.error(`${format.toUpperCase()} export failed:`, e);
+                showAlert(t('common.error') + ': ' + e, {
+                    title: t('common.error'),
+                    kind: 'error',
+                });
+            }
+        },
+        [getContextRows, columns, tableName, csvDelimiter, platform, showToast, showAlert, t],
+    );
+
     // "Column statistics" (issue #1001). Masked columns only get counts:
     // min / max and top values would show the hidden values.
     const openColumnStats = useCallback(() => {
@@ -3486,6 +3527,31 @@ export const DataGrid = React.memo(function DataGrid({
                             label: t('dataGrid.copyAsHtmlTable'),
                             icon: Table,
                             action: copySelectedOrContextRowAsHtml,
+                        });
+
+                        // "Export selected rows…" (issue #1154): the same scope as
+                        // the copy actions above, written to a file instead.
+                        menuItems.push({
+                            label: t('dataGrid.exportSelectedRows', {
+                                count: selectedRowIndices.size > 0 ? selectedRowIndices.size : 1,
+                            }),
+                            icon: Download,
+                            submenu: [
+                                {
+                                    label: t('dataGrid.exportSelectedRowsCsv'),
+                                    icon: FileText,
+                                    action: () => {
+                                        void exportContextRows('csv');
+                                    },
+                                },
+                                {
+                                    label: t('dataGrid.exportSelectedRowsJson'),
+                                    icon: Braces,
+                                    action: () => {
+                                        void exportContextRows('json');
+                                    },
+                                },
+                            ],
                         });
 
                         // Direct one-click path to copy the entire result set when the
