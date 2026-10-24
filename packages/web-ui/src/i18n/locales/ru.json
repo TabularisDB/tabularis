@@ -1405,6 +1405,8 @@
     "copyAsHtmlTable": "Скопировать как HTML-таблицу",
     "selectColumn": "Выбрать столбец",
     "deselectColumn": "Снять выбор столбца",
+    "freezeFirstColumn": "Закрепить первый столбец",
+    "unfreezeFirstColumn": "Открепить первый столбец",
     "copySelectedColumns": "Копировать выбранные столбцы ({{count}})",
     "copyRangeN": "Копировать диапазон ({{rows}}×{{cols}})",
     "copyAllRows": "Скопировать все ({{count}})",

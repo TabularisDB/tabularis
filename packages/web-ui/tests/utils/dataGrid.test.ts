@@ -25,6 +25,8 @@ import {
     resolveLockedColumnWidths,
     resizeLockedColumn,
     getResizedTableWidth,
+    getFrozenFirstColumnLayout,
+    getFrozenCellBackdropClass,
     isUuidColumnType,
     isOriginalCellValue,
 } from '@/utils/dataGrid';
@@ -1361,6 +1363,82 @@ describe('resolveLockedColumnWidths', () => {
 
     it('should return null when the column count does not match', () => {
         expect(resolveLockedColumnWidths({key, widths: [50, 80]}, key, 3)).toBeNull();
+    });
+});
+
+describe('getFrozenFirstColumnLayout', () => {
+    it('should sit after the fallback gutter width before columns are measured', () => {
+        expect(getFrozenFirstColumnLayout(null)).toEqual({
+            left: 49,
+            scrollPaddingLeft: 50,
+        });
+    });
+
+    // The collapsed border between the gutter and the column belongs to the
+    // column's box but is painted by the table where the column started, so the
+    // sticky cell is pulled 1px under the gutter to cover it.
+    it('should overlap the gutter by the shared 1px border', () => {
+        expect(getFrozenFirstColumnLayout([58, 120, 200])).toEqual({
+            left: 57,
+            scrollPaddingLeft: 178,
+        });
+    });
+});
+
+describe('getFrozenCellBackdropClass', () => {
+    const row = {
+        isSelected: false,
+        isInsertion: false,
+        isPendingDelete: false,
+        isZebra: false,
+    };
+
+    it('should paint an opaque elevated backdrop with the default row hover', () => {
+        const cls = getFrozenCellBackdropClass(row);
+        expect(cls).toContain('before:bg-elevated');
+        expect(cls).toContain(
+            'group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_50%,var(--bg-elevated))]',
+        );
+    });
+
+    it('should repaint the cell tint above the backdrop', () => {
+        expect(getFrozenCellBackdropClass(row)).toContain('after:bg-inherit');
+    });
+
+    it('should match the zebra stripe and its hover', () => {
+        const cls = getFrozenCellBackdropClass({...row, isZebra: true});
+        expect(cls).toContain(
+            'before:bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-elevated))]',
+        );
+        expect(cls).toContain(
+            'group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_90%,var(--bg-elevated))]',
+        );
+    });
+
+    it('should follow the row state precedence: selected, insertion, pending delete', () => {
+        expect(
+            getFrozenCellBackdropClass({
+                ...row,
+                isSelected: true,
+                isInsertion: true,
+                isPendingDelete: true,
+                isZebra: true,
+            }),
+        ).toContain('before:bg-[color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-elevated))]');
+        expect(getFrozenCellBackdropClass({...row, isInsertion: true, isZebra: true})).toContain(
+            'before:bg-[color-mix(in_srgb,var(--semantic-new)_8%,var(--bg-elevated))]',
+        );
+        expect(
+            getFrozenCellBackdropClass({...row, isPendingDelete: true, isZebra: true}),
+        ).toContain(
+            'before:bg-[color-mix(in_srgb,var(--semantic-deleted)_10%,var(--bg-elevated))]',
+        );
+    });
+
+    it('should not add a hover tint to selected, inserted or deleted rows', () => {
+        for (const state of [{isSelected: true}, {isInsertion: true}, {isPendingDelete: true}]) {
+            expect(getFrozenCellBackdropClass({...row, ...state})).not.toContain('group-hover:');
+        }
     });
 });
 

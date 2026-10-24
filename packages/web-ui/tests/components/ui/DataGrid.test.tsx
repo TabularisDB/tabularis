@@ -3280,4 +3280,180 @@ describe('DataGrid column resizing (#1151)', () => {
         expect(col(1).style.width).toBe(`${MEASURED}px`);
         expect(separators()).toHaveLength(2);
     });
+
+    it('resizes a frozen first column with its offset and scroll padding in step', async () => {
+        const {container, col} = renderGrid();
+        const header = (index: number) =>
+            container.querySelector<HTMLElement>(`th[data-col-index="${index}"]`)!;
+        const grid = container.querySelector<HTMLElement>('div[tabindex="0"]')!;
+        fireEvent.contextMenu(header(2));
+        fireEvent.click(await screen.findByText('dataGrid.freezeFirstColumn'));
+
+        // The sticky cell is the handle's containing block, so it is not also
+        // made relative; the other headers still are.
+        expect(header(0)).toHaveClass('sticky');
+        expect(header(0)).not.toHaveClass('relative');
+        expect(header(1)).toHaveClass('relative');
+        expect(header(0)).toContainElement(separators()[0]);
+        // Right after the gutter, under its 1px collapsed border.
+        const frozenLeft = `${MEASURED - 1}px`;
+        expect(header(0).style.left).toBe(frozenLeft);
+        expect(grid.style.scrollPaddingLeft).toBe(`${MEASURED * 2}px`);
+
+        fireEvent.mouseDown(separators()[0], {button: 0, clientX: 300});
+        fireEvent.mouseMove(window, {clientX: 360});
+        fireEvent.mouseUp(window);
+        expect(col(1).style.width).toBe('160px');
+        // The column still starts right after the gutter; the padding follows its width.
+        expect(header(0).style.left).toBe(frozenLeft);
+        expect(container.querySelector<HTMLElement>('td[data-col-index="0"]')!.style.left).toBe(
+            frozenLeft,
+        );
+        expect(grid.style.scrollPaddingLeft).toBe(`${MEASURED + 160}px`);
+
+        fireEvent.keyDown(separators()[0], {key: 'ArrowLeft', shiftKey: true});
+        expect(col(1).style.width).toBe('110px');
+        expect(grid.style.scrollPaddingLeft).toBe(`${MEASURED + 110}px`);
+    });
+});
+
+describe('DataGrid freeze first column (#1152)', () => {
+    beforeAll(() => {
+        vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+        vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400);
+    });
+    afterAll(() => {
+        vi.restoreAllMocks();
+    });
+
+    const cellAt = (container: HTMLElement, rowIndex: number, colIndex: number) =>
+        container.querySelector<HTMLElement>(
+            `tr[data-row-index="${rowIndex}"] td[data-col-index="${colIndex}"]`,
+        )!;
+    const headerAt = (container: HTMLElement, colIndex: number) =>
+        container.querySelector<HTMLElement>(`th[data-col-index="${colIndex}"]`)!;
+    const gridOf = (container: HTMLElement) =>
+        container.querySelector<HTMLElement>('div[tabindex="0"]')!;
+
+    const renderGrid = () =>
+        render(
+            <DataGrid
+                columns={['id', 'name', 'city']}
+                data={[
+                    [1, 'Alice', 'Portland'],
+                    [2, 'Bob', 'Seattle'],
+                ]}
+                tableName="users"
+                pkColumns={['id']}
+                onPendingChange={vi.fn()}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+            />,
+        );
+
+    const toggleFreeze = async (container: HTMLElement, label: string) => {
+        fireEvent.contextMenu(headerAt(container, 2));
+        fireEvent.click(await screen.findByText(label));
+    };
+
+    it('freezes the first data column from the header menu and unfreezes it again', async () => {
+        const {container} = renderGrid();
+        expect(headerAt(container, 0)).not.toHaveClass('sticky');
+        expect(cellAt(container, 0, 0)).not.toHaveClass('sticky');
+
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+
+        for (const cell of [
+            headerAt(container, 0),
+            cellAt(container, 0, 0),
+            cellAt(container, 1, 0),
+        ]) {
+            expect(cell).toHaveClass('sticky');
+            expect(cell.style.left).toBe('49px');
+        }
+        // The cell's own tint is repainted above the opaque backdrop.
+        expect(cellAt(container, 0, 0)).toHaveClass('after:bg-inherit');
+        // Only the first data column is frozen.
+        expect(headerAt(container, 1)).not.toHaveClass('sticky');
+        expect(cellAt(container, 0, 1)).not.toHaveClass('sticky');
+
+        await toggleFreeze(container, 'dataGrid.unfreezeFirstColumn');
+
+        expect(headerAt(container, 0)).not.toHaveClass('sticky');
+        expect(cellAt(container, 0, 0)).not.toHaveClass('sticky');
+        expect(cellAt(container, 0, 0).style.left).toBe('');
+    });
+
+    it('keeps keyboard scrolling clear of the frozen column', async () => {
+        const {container} = renderGrid();
+        expect(gridOf(container).style.scrollPaddingLeft).toBe('');
+
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+        expect(gridOf(container).style.scrollPaddingLeft).toBe('50px');
+
+        await toggleFreeze(container, 'dataGrid.unfreezeFirstColumn');
+        expect(gridOf(container).style.scrollPaddingLeft).toBe('');
+    });
+
+    it('does not scroll back to the start when a frozen cell gets focus', async () => {
+        const {container} = renderGrid();
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+        const grid = gridOf(container);
+        grid.scrollLeft = 300;
+        // Scroll padding makes the browser scroll a sticky cell back to the start.
+        const scrollIntoView = vi
+            .spyOn(Element.prototype, 'scrollIntoView')
+            .mockImplementation(() => {
+                grid.scrollLeft = 0;
+            });
+
+        fireEvent.click(cellAt(container, 1, 0));
+        await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+        expect(grid.scrollLeft).toBe(300);
+
+        // Other columns still scroll into view.
+        fireEvent.click(cellAt(container, 1, 1));
+        await waitFor(() => expect(grid.scrollLeft).toBe(0));
+        scrollIntoView.mockRestore();
+    });
+
+    it('keeps a frozen cell sticky while it is edited', async () => {
+        const {container} = renderGrid();
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+
+        fireEvent.doubleClick(cellAt(container, 0, 0));
+
+        expect(cellAt(container, 0, 0).querySelector('textarea')).toBeInTheDocument();
+        expect(cellAt(container, 0, 0)).toHaveClass('sticky');
+        expect(cellAt(container, 0, 0)).not.toHaveClass('relative');
+    });
+
+    it("focuses a frozen cell's editor without scrolling the grid", async () => {
+        const {container} = renderGrid();
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+        const focus = vi.spyOn(HTMLTextAreaElement.prototype, 'focus');
+
+        fireEvent.doubleClick(cellAt(container, 0, 0));
+        expect(focus).toHaveBeenLastCalledWith({preventScroll: true});
+
+        fireEvent.keyDown(container.querySelector('textarea')!, {key: 'Escape'});
+        fireEvent.doubleClick(cellAt(container, 0, 1));
+        expect(focus).toHaveBeenLastCalledWith({preventScroll: false});
+        focus.mockRestore();
+    });
+
+    it('draws the focus indicator of a frozen cell above its backdrop', async () => {
+        const {container} = renderGrid();
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+
+        fireEvent.click(cellAt(container, 0, 0));
+
+        // An inset ring is a box-shadow, painted under the backdrop layers; an
+        // outline is painted above them.
+        expect(cellAt(container, 0, 0)).toHaveClass('outline-accent-primary');
+        expect(cellAt(container, 0, 0)).not.toHaveClass('ring-2');
+
+        fireEvent.click(cellAt(container, 0, 1));
+        expect(cellAt(container, 0, 1)).toHaveClass('ring-2');
+    });
 });

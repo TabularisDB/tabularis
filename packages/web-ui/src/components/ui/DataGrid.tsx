@@ -51,6 +51,8 @@ import {
     CaseSensitive,
     Table,
     ChartColumn,
+    Pin,
+    PinOff,
 } from 'lucide-react';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
 import {getJsonViewerSessionHost} from '@/platform/secondaryWindowSessions';
@@ -88,6 +90,8 @@ import {
     type LockedColumnWidths,
     createDataGridResultCommands,
     type RangeExtendKey,
+    getFrozenFirstColumnLayout,
+    FROZEN_HEADER_CELL_CLASS,
 } from '@/utils/dataGrid';
 import {isTypingTarget} from '@/utils/keyboardEvents';
 import {getSortButtonAction} from '@/utils/tableToolbar';
@@ -426,6 +430,9 @@ export const DataGrid = React.memo(function DataGrid({
         colName: string;
         colIndex: number;
     } | null>(null);
+    // Keeps the first data column next to the gutter on wide results (#1152).
+    // Grid-local and not persisted.
+    const [isFirstColumnFrozen, setIsFirstColumnFrozen] = useState(false);
     const [columnStatsTarget, setColumnStatsTarget] = useState<{
         x: number;
         y: number;
@@ -850,9 +857,13 @@ export const DataGrid = React.memo(function DataGrid({
 
     useEffect(() => {
         if (editingCell && editInputRef.current) {
-            editInputRef.current.focus();
+            // A frozen cell's editor is already in view, and a scrolling focus
+            // would honor the scroll padding and jump back to the start (#1152).
+            editInputRef.current.focus({
+                preventScroll: isFirstColumnFrozen && editingCell.colIndex === 0,
+            });
         }
-    }, [editingCell]);
+    }, [editingCell, isFirstColumnFrozen]);
 
     const buildRowDataWithPending = useCallback(
         (rowArray: unknown[], isInsertion: boolean): Record<string, unknown> => {
@@ -1584,6 +1595,8 @@ export const DataGrid = React.memo(function DataGrid({
         columnLayoutKey,
         tableColumns.length + 1,
     );
+    const frozenLayout = isFirstColumnFrozen ? getFrozenFirstColumnLayout(columnWidths) : null;
+    const frozenFirstColumnLeft = frozenLayout?.left ?? null;
     useLayoutEffect(() => {
         if (columnWidths) return;
         // Wait until the grid is visible and its rows are rendered: a hidden
@@ -2803,14 +2816,19 @@ export const DataGrid = React.memo(function DataGrid({
         // outside the window is mounted on the next frame, so look the cell up
         // then rather than synchronously (a multi-row PageDown would miss it).
         const frame = requestAnimationFrame(() => {
-            parent
-                .querySelector<HTMLTableCellElement>(
-                    `tr[data-row-index="${focusedCell.rowIndex}"] td[data-col-index="${focusedCell.colIndex}"]`,
-                )
-                ?.scrollIntoView({block: 'nearest', inline: 'nearest'});
+            const cell = parent.querySelector<HTMLTableCellElement>(
+                `tr[data-row-index="${focusedCell.rowIndex}"] td[data-col-index="${focusedCell.colIndex}"]`,
+            );
+            if (!cell) return;
+            // A frozen cell is always in view horizontally (#1152), but the scroll
+            // padding would make the browser scroll it back to the start.
+            const keepScrollLeft =
+                isFirstColumnFrozen && focusedCell.colIndex === 0 ? parent.scrollLeft : null;
+            cell.scrollIntoView({block: 'nearest', inline: 'nearest'});
+            if (keepScrollLeft !== null) parent.scrollLeft = keepScrollLeft;
         });
         return () => cancelAnimationFrame(frame);
-    }, [focusedCell, rowVirtualizer]);
+    }, [focusedCell, rowVirtualizer, isFirstColumnFrozen]);
 
     // Handle keyboard shortcuts
     useEffect(() => {
@@ -2973,6 +2991,7 @@ export const DataGrid = React.memo(function DataGrid({
             openJsonViewerWindow,
             editInputRef,
             zebraStripes,
+            frozenFirstColumnLeft,
         }),
         [
             columns,
@@ -3018,6 +3037,7 @@ export const DataGrid = React.memo(function DataGrid({
             openJsonViewerWindow,
             editInputRef,
             zebraStripes,
+            frozenFirstColumnLeft,
         ],
     );
 
@@ -3068,6 +3088,9 @@ export const DataGrid = React.memo(function DataGrid({
                 onKeyDown={handleGridKeyDown}
                 onScroll={handleScroll}
                 className="h-full overflow-auto border border-default rounded bg-elevated relative focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+                style={
+                    frozenLayout ? {scrollPaddingLeft: frozenLayout.scrollPaddingLeft} : undefined
+                }
             >
                 <table
                     ref={tableRef}
@@ -3103,7 +3126,16 @@ export const DataGrid = React.memo(function DataGrid({
                                     <th
                                         key={header.id}
                                         data-col-index={headerColIndex}
-                                        className={`relative px-4 py-2 text-xs font-semibold tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap ${
+                                        style={
+                                            frozenFirstColumnLeft !== null && headerColIndex === 0
+                                                ? {left: frozenFirstColumnLeft}
+                                                : undefined
+                                        }
+                                        className={`${
+                                            frozenFirstColumnLeft !== null && headerColIndex === 0
+                                                ? FROZEN_HEADER_CELL_CLASS
+                                                : 'relative'
+                                        } px-4 py-2 text-xs font-semibold tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap ${
                                             selectedColIndices.has(headerColIndex)
                                                 ? 'text-primary bg-accent-primary/20'
                                                 : 'text-secondary'
@@ -3767,6 +3799,16 @@ export const DataGrid = React.memo(function DataGrid({
                                       } as ContextMenuItem,
                                   ]
                                 : []),
+                            {
+                                label: isFirstColumnFrozen
+                                    ? t('dataGrid.unfreezeFirstColumn')
+                                    : t('dataGrid.freezeFirstColumn'),
+                                icon: isFirstColumnFrozen ? PinOff : Pin,
+                                action: () => {
+                                    setIsFirstColumnFrozen((frozen) => !frozen);
+                                    setHeaderContextMenu(null);
+                                },
+                            },
                             {separator: true} as ContextMenuItem,
                             {
                                 label: t('dataGrid.copyColumnName'),

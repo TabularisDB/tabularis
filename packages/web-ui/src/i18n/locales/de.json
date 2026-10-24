@@ -1404,6 +1404,8 @@
     "copyAsHtmlTable": "Als HTML-Tabelle kopieren",
     "selectColumn": "Spalte auswählen",
     "deselectColumn": "Spalte abwählen",
+    "freezeFirstColumn": "Erste Spalte fixieren",
+    "unfreezeFirstColumn": "Erste Spalte lösen",
     "copySelectedColumns": "Ausgewählte Spalten kopieren ({{count}})",
     "copyRangeN": "Bereich kopieren ({{rows}}×{{cols}})",
     "copyAllRows": "Alle kopieren ({{count}})",

@@ -1379,6 +1379,8 @@
     "copyAsHtmlTable": "复制为 HTML 表格",
     "selectColumn": "选择列",
     "deselectColumn": "取消选择列",
+    "freezeFirstColumn": "冻结首列",
+    "unfreezeFirstColumn": "取消冻结首列",
     "copySelectedColumns": "复制选中列（{{count}}）",
     "copyRangeN": "复制范围（{{rows}}×{{cols}}）",
     "copyAllRows": "复制全部（{{count}}）",

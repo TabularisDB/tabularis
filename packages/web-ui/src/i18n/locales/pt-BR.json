@@ -1422,6 +1422,8 @@
     "copyAsHtmlTable": "Copiar como tabela HTML",
     "selectColumn": "Selecionar Coluna",
     "deselectColumn": "Desmarcar Coluna",
+    "freezeFirstColumn": "Congelar a primeira coluna",
+    "unfreezeFirstColumn": "Descongelar a primeira coluna",
     "copySelectedColumns": "Copiar Colunas Selecionadas ({{count}})",
     "copyRangeN": "Copiar Intervalo ({{rows}}×{{cols}})",
     "copyAllRows": "Copiar Tudo ({{count}})",

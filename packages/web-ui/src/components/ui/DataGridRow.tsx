@@ -10,6 +10,7 @@ import {
     buildPkMap,
     serializePkKey,
     isZebraStripedRow,
+    getFrozenCellBackdropClass,
     DATA_GRID_ROW_HEIGHT,
     type ColumnDisplayInfo,
     type MergedRow,
@@ -66,6 +67,11 @@ export interface RowCtx {
     readonly: boolean | undefined;
     /** Optional alternating row background (Settings > Appearance > Data Grid). */
     zebraStripes: boolean;
+    /**
+     * Sticky `left` offset of the first data column while it is frozen (#1152),
+     * or null when it scrolls with the rest.
+     */
+    frozenFirstColumnLeft: number | null;
     updateSelection: (s: Set<number>) => void;
     /** Sensitive-column masking (#485): columns rendered masked until revealed. */
     maskedColIndices: Set<number>;
@@ -185,6 +191,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
         parentViewportWidth,
         readonly: readonlyProp,
         zebraStripes,
+        frozenFirstColumnLeft,
         maskedColIndices,
         revealedColIndices,
         revealedCells,
@@ -352,6 +359,25 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                     const isFocused =
                         focusedCell?.rowIndex === rowIndex && focusedCell?.colIndex === colIndex;
 
+                    // Frozen first column (#1152): sticky after the gutter, on an opaque
+                    // backdrop. Sticky already anchors the inline editor, so the cell
+                    // must not switch to `relative` while editing, and its focus mark is
+                    // an outline because an inset ring would sit under the backdrop.
+                    const isFrozen = frozenFirstColumnLeft !== null && colIndex === 0;
+                    const frozenClass = isFrozen
+                        ? `sticky z-[5] ${getFrozenCellBackdropClass({
+                              isSelected,
+                              isInsertion,
+                              isPendingDelete,
+                              isZebra: isZebraStripedRow(rowIndex, zebraStripes),
+                          })}`
+                        : '';
+                    const focusClass = !isFocused
+                        ? ''
+                        : isFrozen
+                          ? 'outline outline-2 -outline-offset-2 outline-accent-primary'
+                          : 'ring-2 ring-inset ring-accent-primary';
+
                     // Sensitive-column masking (#485): the real value stays in `data`
                     // (copy/export unaffected); only the render is replaced.
                     const isCellRevealed = revealedCells.has(`${rowIndex}:${colIndex}`);
@@ -424,7 +450,8 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                             onContextMenu={(e) =>
                                 handleContextMenu(e, rowOriginal, rowIndex, colIndex, colName)
                             }
-                            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? 'relative' : 'whitespace-nowrap truncate max-w-[300px]'} ${fkForPreview ? 'cursor-pointer' : 'cursor-text'} ${stateClass} ${selectedColIndices.has(colIndex) || (rangeColBounds !== null && colIndex >= rangeColBounds.minCol && colIndex <= rangeColBounds.maxCol) ? 'bg-accent-primary/15' : ''} ${isFocused ? 'ring-2 ring-inset ring-accent-primary' : ''}`}
+                            style={isFrozen ? {left: frozenFirstColumnLeft} : undefined}
+                            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-result ${isEditing ? (isFrozen ? '' : 'relative') : 'whitespace-nowrap truncate max-w-[300px]'} ${frozenClass} ${fkForPreview ? 'cursor-pointer' : 'cursor-text'} ${stateClass} ${selectedColIndices.has(colIndex) || (rangeColBounds !== null && colIndex >= rangeColBounds.minCol && colIndex <= rangeColBounds.maxCol) ? 'bg-accent-primary/15' : ''} ${focusClass}`}
                             title={
                                 // The hover tooltip would leak the real value of a masked cell.
                                 !isEditing && !isMasked

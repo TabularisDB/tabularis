@@ -1435,6 +1435,8 @@
     "copyAsHtmlTable": "Kopyahin bilang HTML table",
     "selectColumn": "Piliin ang Column",
     "deselectColumn": "Alisin ang Pagpili ng Column",
+    "freezeFirstColumn": "I-freeze ang unang column",
+    "unfreezeFirstColumn": "I-unfreeze ang unang column",
     "copySelectedColumns": "Kopyahin ang Napiling Columns ({{count}})",
     "copyRangeN": "Kopyahin ang Range ({{rows}}×{{cols}})",
     "copyAllRows": "Kopyahin Lahat ({{count}})",
