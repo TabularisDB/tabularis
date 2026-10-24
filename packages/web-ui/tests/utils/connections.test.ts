@@ -14,6 +14,9 @@ import {
     planGroupDrop,
     connectionDropZone,
     groupDropZone,
+    unixSocketPathIssue,
+    effectiveLocalSocketPath,
+    hasUnixSockets,
     type ConnectionParams,
     type DatabaseDriver,
 } from '@/utils/connections';
@@ -919,6 +922,157 @@ describe('connections', () => {
 
         it('does nothing when dropped on itself', () => {
             expect(planGroupDrop(groups, 'pg', 'pg', 'before')).toBeNull();
+        });
+    });
+    describe('hasUnixSockets', () => {
+        it('is false only on Windows', () => {
+            expect(hasUnixSockets('Win32')).toBe(false);
+            expect(hasUnixSockets('MacIntel')).toBe(true);
+            expect(hasUnixSockets('Linux x86_64')).toBe(true);
+        });
+    });
+
+    describe('unixSocketPathIssue', () => {
+        it('should accept an empty path', () => {
+            expect(unixSocketPathIssue('')).toBeNull();
+            expect(unixSocketPathIssue('   ')).toBeNull();
+        });
+
+        it('should accept an absolute socket file path', () => {
+            expect(unixSocketPathIssue('/var/run/mysqld/mysqld.sock')).toBeNull();
+            expect(unixSocketPathIssue('/var/run/postgresql/.s.PGSQL.5432')).toBeNull();
+        });
+
+        it('should flag a relative path', () => {
+            expect(unixSocketPathIssue('mysqld.sock')).toBe('notAbsolute');
+            expect(unixSocketPathIssue('run/mysqld/mysqld.sock')).toBe('notAbsolute');
+        });
+
+        it('should flag a directory-looking path', () => {
+            expect(unixSocketPathIssue('/var/run/mysqld/')).toBe('looksLikeDirectory');
+            expect(unixSocketPathIssue('/')).toBe('looksLikeDirectory');
+        });
+
+        it('should trim surrounding whitespace before checking', () => {
+            expect(unixSocketPathIssue('  /tmp/db.sock  ')).toBeNull();
+            expect(unixSocketPathIssue('  tmp/db.sock  ')).toBe('notAbsolute');
+        });
+    });
+
+    describe('effectiveLocalSocketPath', () => {
+        it('should return the trimmed socket path when set', () => {
+            expect(effectiveLocalSocketPath({unix_socket_path: ' /tmp/mysql.sock '})).toBe(
+                '/tmp/mysql.sock',
+            );
+        });
+
+        it('should return null when unset or blank', () => {
+            expect(effectiveLocalSocketPath({})).toBeNull();
+            expect(effectiveLocalSocketPath({unix_socket_path: ''})).toBeNull();
+            expect(effectiveLocalSocketPath({unix_socket_path: '   '})).toBeNull();
+        });
+
+        it('should return null while an SSH or K8s tunnel is enabled', () => {
+            expect(
+                effectiveLocalSocketPath({unix_socket_path: '/tmp/mysql.sock', ssh_enabled: true}),
+            ).toBeNull();
+            expect(
+                effectiveLocalSocketPath({unix_socket_path: '/tmp/mysql.sock', k8s_enabled: true}),
+            ).toBeNull();
+        });
+    });
+
+    describe('local unix socket connections', () => {
+        it('formatConnectionString should show the socket path instead of host:port', () => {
+            const params: ConnectionParams = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/tmp/mysql.sock',
+            };
+            expect(formatConnectionString(params)).toBe('/tmp/mysql.sock (mydb)');
+        });
+
+        it('formatConnectionString should ignore the socket while a tunnel is enabled', () => {
+            const params: ConnectionParams = {
+                driver: 'mysql',
+                database: 'mydb',
+                host: 'db.host',
+                port: 3306,
+                unix_socket_path: '/tmp/mysql.sock',
+                ssh_enabled: true,
+            };
+            expect(formatConnectionString(params)).toBe('db.host:3306/mydb');
+        });
+
+        it('validateConnectionParams should not require host when a socket is set', () => {
+            const params: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/tmp/mysql.sock',
+            };
+            expect(validateConnectionParams(params).isValid).toBe(true);
+        });
+
+        it('validateConnectionParams should not require host for an SSH-forwarded socket', () => {
+            const params: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/var/run/mysqld/mysqld.sock',
+                ssh_enabled: true,
+                ssh_host: 'bastion.example.com',
+                ssh_user: 'deploy',
+                ssh_password: 'secret',
+            };
+            expect(validateConnectionParams(params).isValid).toBe(true);
+        });
+
+        it('validateConnectionParams should ignore a socket path for Kubernetes', () => {
+            const params: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '/tmp/mysql.sock',
+                k8s_enabled: true,
+            };
+            const result = validateConnectionParams(params);
+            expect(result.isValid).toBe(false);
+            expect(result.error).toBe('Host is required for remote databases');
+        });
+
+        it('validateConnectionParams should capability-gate a local socket', () => {
+            const params: Partial<ConnectionParams> = {
+                driver: 'custom',
+                database: 'mydb',
+                unix_socket_path: '/tmp/custom.sock',
+            };
+            const result = validateConnectionParams(params, makeRemoteCaps());
+            expect(result.isValid).toBe(false);
+            expect(result.error).toBe('Host is required for remote databases');
+        });
+
+        it('validateConnectionParams should still require host when the socket is blank', () => {
+            const params: Partial<ConnectionParams> = {
+                driver: 'mysql',
+                database: 'mydb',
+                unix_socket_path: '   ',
+            };
+            const result = validateConnectionParams(params);
+            expect(result.isValid).toBe(false);
+            expect(result.error).toBe('Host is required for remote databases');
+        });
+
+        it('connectionSubtitle should show the socket path instead of host:port', () => {
+            const conn: SavedConnection = {
+                id: '1',
+                name: 'test',
+                params: {
+                    driver: 'postgres',
+                    database: 'mydb',
+                    unix_socket_path: '/var/run/postgresql/.s.PGSQL.5432',
+                },
+            };
+            expect(connectionSubtitle(conn, makeRemoteCaps())).toBe(
+                '/var/run/postgresql/.s.PGSQL.5432  ·  mydb',
+            );
         });
     });
 });

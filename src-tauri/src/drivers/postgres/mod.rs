@@ -2154,6 +2154,7 @@ impl PostgresDriver {
                     triggers: true,
                     supports_ssl: true,
                     user_management: false,
+                    unix_socket: true,
                     sql_dialect: Some(SqlDialect::Postgres),
                     sql_syntax: None,
                 },

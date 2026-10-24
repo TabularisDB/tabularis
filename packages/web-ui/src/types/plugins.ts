@@ -66,6 +66,10 @@ export interface DriverCapabilities {
     create_foreign_keys?: boolean;
     /** true for API-based plugins that need no host/port/credentials (e.g. public REST APIs). Hides the entire connection form. */
     no_connection_required?: boolean;
+    /** Supports connecting through a Unix socket on this machine instead of host:port
+     * (shows the local Socket Path field in the connection modal).
+     * Built-in network drivers (postgres, mysql) set this; plugins opt in via their manifest. Defaults to false. */
+    unix_socket?: boolean;
     /** Whether the driver supports table and column management (CREATE TABLE, ADD/MODIFY/DROP COLUMN, DROP TABLE). Does not control index or FK operations. Defaults to true. */
     manage_tables?: boolean;
     /** When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table/column management is also hidden regardless of manage_tables. Defaults to false. */

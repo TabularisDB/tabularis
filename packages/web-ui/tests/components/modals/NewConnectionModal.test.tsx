@@ -2015,6 +2015,46 @@ describe('NewConnectionModal keychain default', () => {
         });
     });
 
+    it('switches between host/port and Unix socket endpoint modes', async () => {
+        vi.mocked(invoke).mockImplementation((command) =>
+            command === 'get_connection_by_id'
+                ? Promise.reject(new Error('use initial params'))
+                : Promise.resolve('ok'),
+        );
+        renderModal(
+            createInitialConnection({
+                host: 'db.internal',
+                port: 3306,
+                unix_socket_path: '/var/run/mysqld/mysqld.sock',
+                ssh_enabled: true,
+            }),
+        );
+
+        const socketInput = await screen.findByDisplayValue('/var/run/mysqld/mysqld.sock');
+        expect(screen.queryByPlaceholderText('localhost')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('3306')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'newConnection.socketPath'})).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', {
+                name: 'newConnection.host / newConnection.port',
+            }),
+        );
+
+        expect(screen.getByPlaceholderText('localhost')).toHaveValue('db.internal');
+        expect(screen.getByPlaceholderText('3306')).toHaveValue(3306);
+        expect(socketInput).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', {name: 'newConnection.socketPath'}));
+
+        expect(screen.getByDisplayValue('/var/run/mysqld/mysqld.sock')).toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('localhost')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('3306')).not.toBeInTheDocument();
+    });
+
     it("keeps an existing connection's stored keychain setting", async () => {
         renderModal(
             createInitialConnection({
