@@ -5,6 +5,7 @@ import {Modal} from '@/components/ui/Modal';
 import type {TableTarget} from '@/types/databaseObjects';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
 import type {TableColumn} from '@/types/editor';
+import {formatColumnType} from '@/utils/columnType';
 
 interface SchemaModalProps {
     isOpen: boolean;
@@ -127,7 +128,7 @@ export const SchemaModal = ({isOpen, onClose, target}: SchemaModalProps) => {
                                             {col.name}
                                         </td>
                                         <td className="px-4 py-2.5 text-sm text-accent font-mono">
-                                            {col.data_type}
+                                            {formatColumnType(col)}
                                         </td>
                                         <td className="px-4 py-2.5 text-xs text-secondary text-center">
                                             {col.is_nullable ? t('schema.yes') : t('schema.no')}

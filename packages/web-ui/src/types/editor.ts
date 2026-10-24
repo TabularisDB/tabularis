@@ -19,7 +19,11 @@ export interface TableColumn {
     is_generated?: boolean;
     default_value?: string;
     character_maximum_length?: number;
+    numeric_precision?: number;
+    numeric_scale?: number;
     comment?: string | null;
+    /** Full declared type for display, see `TableColumn` in `types/schema.ts`. */
+    full_type?: string;
 }
 
 export interface TableSchema {

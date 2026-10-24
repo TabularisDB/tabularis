@@ -29,6 +29,7 @@ import {
     LockOpen,
 } from 'lucide-react';
 import {generateMermaidErDiagram, generateDbml} from '@/utils/schemaExport';
+import {formatColumnType} from '@/utils/columnType';
 import {useAlert} from '@/hooks/useAlert';
 import {toErrorMessage} from '@/utils/errors';
 import {useTranslation} from 'react-i18next';
@@ -283,7 +284,7 @@ const SchemaDiagramContent = ({
                             label: table.name,
                             columns: table.columns.map((c) => ({
                                 name: c.name,
-                                type: c.data_type,
+                                type: formatColumnType(c),
                                 isPk: c.is_pk,
                                 isFk: fkColumnNames.has(c.name), // O(1) lookup
                             })),

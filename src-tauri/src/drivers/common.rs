@@ -1,4 +1,5 @@
 mod blob;
+mod column_type;
 mod pooled;
 mod query;
 mod routines;
@@ -11,6 +12,7 @@ pub use blob::{
     decode_blob_wire_format, encode_blob, encode_blob_full, resolve_blob_file_ref,
     DEFAULT_MAX_BLOB_SIZE, MAX_BLOB_PREVIEW_SIZE,
 };
+pub use column_type::full_type_if_distinct;
 pub use pooled::DetachOnDrop;
 pub use query::{
     build_paginated_query, calculate_offset, calculate_query_timing,
