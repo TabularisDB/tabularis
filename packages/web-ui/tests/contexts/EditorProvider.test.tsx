@@ -382,6 +382,9 @@ describe('EditorProvider', () => {
     it("forgets a closed tab's result chart view", async () => {
         const wrapper = createWrapper('conn-1');
         const {result} = renderHook(() => useEditor(), {wrapper});
+        // Wait for the preferences load to create the initial tab, or it
+        // replaces the tabs added below.
+        await waitFor(() => expect(result.current.tabs).toHaveLength(1));
 
         act(() => {
             result.current.addTab({type: 'console'});
@@ -389,7 +392,7 @@ describe('EditorProvider', () => {
         act(() => {
             result.current.addTab({type: 'console'});
         });
-        const [closed, kept] = result.current.tabs.map((tab) => tab.id);
+        const [closed, kept] = result.current.tabs.slice(-2).map((tab) => tab.id);
         const chart = renderHook(() => ({
             closed: useResultChartState(closed),
             closedEntry: useResultChartState(`${closed}-result-0`),
