@@ -349,8 +349,8 @@ jobs:
           appimage=$(find src-tauri/target -path '*/bundle/appimage/*.AppImage' -print -quit)
           test -n "$deb"
           test -n "$appimage"
-          web-ui-project/scripts/verify-linux-web-package.sh assets "$deb"
-          web-ui-project/scripts/verify-linux-web-package.sh assets "$appimage"
+          scripts/web/verify-linux-web-package.sh assets "$deb"
+          scripts/web/verify-linux-web-package.sh assets "$appimage"
 
       - name: Smoke-test headless Web mode (Linux)
         if: matrix.platform == 'ubuntu-24.04'
@@ -359,7 +359,7 @@ jobs:
           set -euo pipefail
           deb=$(find src-tauri/target -path '*/bundle/deb/*.deb' -print -quit)
           test -n "$deb"
-          web-ui-project/scripts/verify-linux-web-package.sh headless "$deb"
+          scripts/web/verify-linux-web-package.sh headless "$deb"
 
       - name: Verify packaged Web UI (macOS)
         if: startsWith(matrix.platform, 'macos')

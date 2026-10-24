@@ -25,8 +25,8 @@ export default defineConfig({
             // environment via `pnpm --filter <pkg> test` (see packages.yml). They are
             // deliberately not included here: the jsdom environment breaks Node-only
             // tests (Vite rewrites `new URL(x, import.meta.url)` against location).
-            // Web UI project tooling tests live with the tracked migration process.
-            'web-ui-project/tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+            // Tests for the Web UI tooling under scripts/web/.
+            'tests/web/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
         ],
         coverage: {
             provider: 'v8',
