@@ -108,6 +108,8 @@
     "copied": "Copié !",
     "showDetails": "Afficher les détails",
     "hideDetails": "Masquer les détails",
+    "showPassword": "Afficher le mot de passe",
+    "hidePassword": "Masquer le mot de passe",
     "beta": "Bêta",
     "dismiss": "Fermer"
   },
@@ -1267,6 +1269,8 @@
     "saveAsCredentialProfile": "Enregistrer comme profil…",
     "saveAsCredentialProfileConfirm": "Créer le profil",
     "saveAsCredentialProfileCancel": "Annuler l'enregistrement comme profil",
+    "saveAsCredentialProfileNameLabel": "Nom du profil",
+    "saveAsCredentialProfilePending": "Le profil « {{name}} » sera créé lors de l'enregistrement de cette connexion.",
     "saveAsProfileFailed": "Échec de la création du profil : {{error}}",
     "saveAsProfileIamUnsupported": "Les jetons IAM AWS ne peuvent pas être enregistrés comme profil partagé.",
     "missingCredentialProfile": "Profil manquant ({{id}})",

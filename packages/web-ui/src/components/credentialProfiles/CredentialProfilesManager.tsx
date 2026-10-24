@@ -38,6 +38,7 @@ function ProfileField({
     autoFocus,
     describedBy,
 }: ProfileFieldProps) {
+    const {t} = useTranslation();
     const [showPassword, setShowPassword] = useState(false);
     const isPassword = type === 'password';
 
@@ -64,7 +65,9 @@ function ProfileField({
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-primary transition-colors focus:outline-none"
                         tabIndex={-1}
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-label={
+                            showPassword ? t('common.hidePassword') : t('common.showPassword')
+                        }
                     >
                         {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>

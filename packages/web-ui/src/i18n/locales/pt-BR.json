@@ -85,6 +85,8 @@
     "copied": "Copiado!",
     "showDetails": "Mostrar detalhes",
     "hideDetails": "Ocultar detalhes",
+    "showPassword": "Mostrar senha",
+    "hidePassword": "Ocultar senha",
     "beta": "Beta",
     "dismiss": "Fechar"
   },
@@ -1247,6 +1249,8 @@
     "saveAsCredentialProfile": "Salvar como perfil…",
     "saveAsCredentialProfileConfirm": "Criar perfil",
     "saveAsCredentialProfileCancel": "Cancelar salvar como perfil",
+    "saveAsCredentialProfileNameLabel": "Nome do perfil",
+    "saveAsCredentialProfilePending": "O perfil \"{{name}}\" será criado quando você salvar esta conexão.",
     "saveAsProfileFailed": "Falha ao criar perfil: {{error}}",
     "saveAsProfileIamUnsupported": "Tokens IAM da AWS não podem ser salvos como perfil compartilhado.",
     "missingCredentialProfile": "Perfil ausente ({{id}})",

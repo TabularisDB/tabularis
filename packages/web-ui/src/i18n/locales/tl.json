@@ -108,6 +108,8 @@
     "copied": "Nakopya!",
     "showDetails": "Ipakita ang detalye",
     "hideDetails": "Itago ang detalye",
+    "showPassword": "Ipakita ang password",
+    "hidePassword": "Itago ang password",
     "beta": "Beta",
     "dismiss": "Isara"
   },
@@ -1260,6 +1262,8 @@
     "saveAsCredentialProfile": "I-save bilang profile…",
     "saveAsCredentialProfileConfirm": "Gumawa ng profile",
     "saveAsCredentialProfileCancel": "Kanselahin ang save bilang profile",
+    "saveAsCredentialProfileNameLabel": "Pangalan ng profile",
+    "saveAsCredentialProfilePending": "Gagawin ang profile na \"{{name}}\" kapag na-save mo ang koneksyong ito.",
     "saveAsProfileFailed": "Hindi nagawa ang profile: {{error}}",
     "saveAsProfileIamUnsupported": "Hindi suportado ang AWS IAM token bilang shared profile.",
     "missingCredentialProfile": "Nawawalang profile ({{id}})",

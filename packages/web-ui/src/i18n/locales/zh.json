@@ -107,6 +107,8 @@
     "copied": "已复制！",
     "showDetails": "显示详情",
     "hideDetails": "隐藏详情",
+    "showPassword": "显示密码",
+    "hidePassword": "隐藏密码",
     "beta": "测试版",
     "dismiss": "关闭"
   },
@@ -1206,6 +1208,8 @@
     "saveAsCredentialProfile": "另存为配置文件…",
     "saveAsCredentialProfileConfirm": "创建配置文件",
     "saveAsCredentialProfileCancel": "取消另存为配置文件",
+    "saveAsCredentialProfileNameLabel": "配置文件名称",
+    "saveAsCredentialProfilePending": "保存此连接时将创建配置文件“{{name}}”。",
     "saveAsProfileFailed": "创建配置文件失败：{{error}}",
     "saveAsProfileIamUnsupported": "不支持将 AWS IAM 令牌保存为共享配置文件。",
     "missingCredentialProfile": "缺少配置文件 ({{id}})",

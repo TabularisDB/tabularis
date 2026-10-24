@@ -13,7 +13,8 @@ export async function loadCredentialProfiles(
     client?: TypedCommandCaller,
 ): Promise<CredentialProfile[]> {
     try {
-        return await commandClient(client).call('list_credential_profiles', undefined);
+        const profiles = await commandClient(client).call('list_credential_profiles', undefined);
+        return Array.isArray(profiles) ? profiles : [];
     } catch (error) {
         console.error('Failed to load credential profiles:', error);
         return [];

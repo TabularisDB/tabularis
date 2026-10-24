@@ -85,6 +85,8 @@
     "copied": "복사됨!",
     "showDetails": "세부 정보 표시",
     "hideDetails": "세부 정보 숨기기",
+    "showPassword": "비밀번호 표시",
+    "hidePassword": "비밀번호 숨기기",
     "beta": "베타",
     "dismiss": "닫기"
   },
@@ -1205,6 +1207,8 @@
     "saveAsCredentialProfile": "프로필로 저장…",
     "saveAsCredentialProfileConfirm": "프로필 만들기",
     "saveAsCredentialProfileCancel": "프로필로 저장 취소",
+    "saveAsCredentialProfileNameLabel": "프로필 이름",
+    "saveAsCredentialProfilePending": "연결을 저장하면 프로필 \"{{name}}\"이(가) 생성됩니다.",
     "saveAsProfileFailed": "프로필 생성 실패: {{error}}",
     "saveAsProfileIamUnsupported": "AWS IAM 토큰은 공유 프로필로 저장할 수 없습니다.",
     "missingCredentialProfile": "누락된 프로필 ({{id}})",

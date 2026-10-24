@@ -81,7 +81,13 @@ import {classifyConnectionError, type ClassifiedConnectionError} from '@/utils/c
 import {ConnectionDiagnosticsModal} from './connection/ConnectionDiagnosticsModal';
 import {testStepLabelKey, type ConnectionTestLogEntry} from '@/utils/connectionTest';
 import {fetchConnectionWithCredentials} from '@/utils/credentials';
-import {loadCredentialProfiles, type CredentialProfile} from '@/utils/credentialProfiles';
+import {
+    createCredentialProfile,
+    deleteCredentialProfile,
+    loadCredentialProfiles,
+    validateCredentialProfileForm,
+    type CredentialProfile,
+} from '@/utils/credentialProfiles';
 import {
     isCredentialProfileLinked,
     shouldLockUsernameToProfile,
@@ -229,6 +235,7 @@ const FieldInput = ({
     autoFocus,
     className,
     readOnly,
+    inputId,
 }: {
     label: string;
     value: string | number | undefined;
@@ -238,17 +245,25 @@ const FieldInput = ({
     autoFocus?: boolean;
     className?: string;
     readOnly?: boolean;
+    inputId?: string;
 }) => {
+    const {t} = useTranslation();
+    const generatedId = useId();
+    const fieldId = inputId ?? generatedId;
     const [showPassword, setShowPassword] = useState(false);
     const isPassword = type === 'password';
 
     return (
         <div className={clsx('flex flex-col gap-1', className)}>
-            <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
+            <label
+                className="text-[10px] uppercase font-semibold tracking-wider text-muted"
+                htmlFor={fieldId}
+            >
                 {label}
             </label>
             <div className="relative group">
                 <input
+                    id={fieldId}
                     type={isPassword ? (showPassword ? 'text' : 'password') : type}
                     value={value ?? ''}
                     onChange={(e) => onChange(e.target.value)}
@@ -271,6 +286,9 @@ const FieldInput = ({
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-primary transition-colors focus:outline-none"
                         tabIndex={-1}
+                        aria-label={
+                            showPassword ? t('common.hidePassword') : t('common.showPassword')
+                        }
                     >
                         {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>
@@ -478,6 +496,7 @@ export const NewConnectionModal = ({
     // ── SSH ──
     const [sshConnections, setSshConnections] = useState<SshConnection[]>([]);
     const [credentialProfiles, setCredentialProfiles] = useState<CredentialProfile[]>([]);
+    const [pendingSaveAsProfileName, setPendingSaveAsProfileName] = useState<string | undefined>();
     const [isSshModalOpen, setIsSshModalOpen] = useState(false);
     const [isCredentialProfilesModalOpen, setIsCredentialProfilesModalOpen] = useState(false);
     const [sshMode, setSshMode] = useState<'existing' | 'inline'>('existing');
@@ -1072,6 +1091,7 @@ export const NewConnectionModal = ({
                 setTestLog([]);
                 setIsDiagnosticsOpen(false);
                 testProgressIdRef.current = null;
+                setPendingSaveAsProfileName(undefined);
             });
         }
     }, [cancelInlineK8sWork, isOpen]);
@@ -2434,6 +2454,31 @@ export const NewConnectionModal = ({
             let params = withoutBlankSslMode(
                 withInlineK8sPaths(paramsBase, inlinePaths.options),
             ) as ConnectionParams;
+
+            let createdProfileIdForRollback: string | undefined;
+            if (pendingSaveAsProfileName) {
+                if (formData.use_iam_auth === true) {
+                    setStatus('error');
+                    setMessage(t('newConnection.saveAsProfileIamUnsupported'));
+                    setTestResult('error');
+                    return;
+                }
+                const pendingValidation = validateCredentialProfileForm(
+                    {
+                        name: pendingSaveAsProfileName,
+                        username: formData.username,
+                        password: formData.password,
+                    },
+                    {requirePassword: true},
+                );
+                if (!pendingValidation.isValid) {
+                    setStatus('error');
+                    setMessage(t(pendingValidation.errorKey!));
+                    setTestResult('error');
+                    return;
+                }
+            }
+
             params = stripInlineSecretsForCredentialProfile(params);
             if (!isCredentialProfileLinked(params)) {
                 delete params.credential_profile_id;
@@ -2457,6 +2502,20 @@ export const NewConnectionModal = ({
             setErrorFeedback(null);
             setTestResult(null);
             try {
+                if (pendingSaveAsProfileName) {
+                    const created = await createCredentialProfile(
+                        pendingSaveAsProfileName,
+                        formData.username ?? '',
+                        formData.password ?? '',
+                        client,
+                    );
+                    createdProfileIdForRollback = created.id;
+                    params.credential_profile_id = created.id;
+                    params.username = created.username;
+                    params = stripInlineSecretsForCredentialProfile(params);
+                    await loadCredentialProfilesList();
+                }
+
                 let savedConnectionId: string;
                 let persistedInKeychain = params.save_in_keychain;
                 if (initialConnection) {
@@ -2529,6 +2588,8 @@ export const NewConnectionModal = ({
 
                 if (onSave) onSave();
                 wasSavedRef.current = true;
+                setPendingSaveAsProfileName(undefined);
+                createdProfileIdForRollback = undefined;
 
                 // Delete only paths owned by this save attempt. Paths uploaded by a
                 // superseding session remain tracked for that session's own cleanup.
@@ -2554,6 +2615,11 @@ export const NewConnectionModal = ({
                 setIsPersistencePending(false);
                 handleClose();
             } catch (err) {
+                if (createdProfileIdForRollback) {
+                    await deleteCredentialProfile(createdProfileIdForRollback, client).catch(
+                        () => {},
+                    );
+                }
                 if (
                     activeActionRef.current === actionId &&
                     actionSnapshotRef.current === startingSnapshot
@@ -2987,7 +3053,8 @@ export const NewConnectionModal = ({
                                 });
                             }}
                             onManageProfiles={() => setIsCredentialProfilesModalOpen(true)}
-                            onProfilesRefresh={loadCredentialProfilesList}
+                            pendingSaveAsProfileName={pendingSaveAsProfileName}
+                            onPendingSaveAsProfileNameChange={setPendingSaveAsProfileName}
                         />
                     )}
 

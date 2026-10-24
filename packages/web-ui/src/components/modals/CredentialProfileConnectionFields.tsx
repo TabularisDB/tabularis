@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useId, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Settings} from 'lucide-react';
 import clsx from 'clsx';
@@ -9,9 +9,7 @@ import {
     applySelectedCredentialProfile,
     findCredentialProfile,
 } from '@/utils/connectionCredentialProfile';
-import {createCredentialProfile, validateCredentialProfileForm} from '@/utils/credentialProfiles';
-import {useTabularisClient} from '@/hooks/useTabularisClient';
-import {toErrorMessage} from '@/utils/errors';
+import {validateCredentialProfileForm} from '@/utils/credentialProfiles';
 
 const LabelClass = 'text-[10px] uppercase font-semibold tracking-wider text-muted';
 
@@ -29,11 +27,12 @@ interface CredentialProfileConnectionFieldsProps {
     useIamAuth: boolean;
     disabled?: boolean;
     onManageProfiles: () => void;
-    onProfilesRefresh: () => Promise<void>;
+    pendingSaveAsProfileName?: string;
+    onPendingSaveAsProfileNameChange: (name: string | undefined) => void;
 }
 
 export function CredentialProfileConnectionFields({
-    profiles,
+    profiles = [],
     credentialProfileId,
     onCredentialProfileChange,
     username,
@@ -41,10 +40,11 @@ export function CredentialProfileConnectionFields({
     useIamAuth,
     disabled = false,
     onManageProfiles,
-    onProfilesRefresh,
+    pendingSaveAsProfileName,
+    onPendingSaveAsProfileNameChange,
 }: CredentialProfileConnectionFieldsProps) {
     const {t} = useTranslation();
-    const client = useTabularisClient();
+    const saveAsNameInputId = useId();
     const [saveAsOpen, setSaveAsOpen] = useState(false);
     const [saveAsName, setSaveAsName] = useState('');
     const [saveAsStatus, setSaveAsStatus] = useState<'idle' | 'error'>('idle');
@@ -72,6 +72,7 @@ export function CredentialProfileConnectionFields({
     }
 
     const handleSelect = (value: string) => {
+        onPendingSaveAsProfileNameChange(undefined);
         if (value === INLINE_CREDENTIAL_PROFILE_VALUE) {
             onCredentialProfileChange(applySelectedCredentialProfile(undefined));
             return;
@@ -83,7 +84,7 @@ export function CredentialProfileConnectionFields({
         onCredentialProfileChange(applySelectedCredentialProfile(profile));
     };
 
-    const handleSaveAsProfile = async () => {
+    const handleSaveAsProfile = () => {
         if (useIamAuth) {
             setSaveAsStatus('error');
             setSaveAsMessage(t('newConnection.saveAsProfileIamUnsupported'));
@@ -98,24 +99,16 @@ export function CredentialProfileConnectionFields({
             setSaveAsMessage(t(validation.errorKey!));
             return;
         }
-        try {
-            const created = await createCredentialProfile(saveAsName, username, password, client);
-            await onProfilesRefresh();
-            onCredentialProfileChange(applySelectedCredentialProfile(created));
-            setSaveAsOpen(false);
-            setSaveAsName('');
-            setSaveAsStatus('idle');
-            setSaveAsMessage('');
-        } catch (error) {
-            setSaveAsStatus('error');
-            setSaveAsMessage(
-                t('newConnection.saveAsProfileFailed', {error: toErrorMessage(error)}),
-            );
-        }
+        onPendingSaveAsProfileNameChange(saveAsName.trim());
+        setSaveAsOpen(false);
+        setSaveAsName('');
+        setSaveAsStatus('idle');
+        setSaveAsMessage('');
     };
 
     const canSaveAsProfile =
         !credentialProfileId &&
+        !pendingSaveAsProfileName &&
         !useIamAuth &&
         username.trim().length > 0 &&
         password.trim().length > 0 &&
@@ -143,6 +136,13 @@ export function CredentialProfileConnectionFields({
                 {selectedProfile && (
                     <p className="text-xs text-muted">
                         {t('newConnection.credentialProfilePasswordHint')}
+                    </p>
+                )}
+                {pendingSaveAsProfileName && !credentialProfileId && (
+                    <p className="text-xs text-muted" role="status">
+                        {t('newConnection.saveAsCredentialProfilePending', {
+                            name: pendingSaveAsProfileName,
+                        })}
                     </p>
                 )}
             </div>
@@ -178,7 +178,11 @@ export function CredentialProfileConnectionFields({
                     <p className="text-sm font-medium text-primary">
                         {t('newConnection.saveAsCredentialProfile')}
                     </p>
+                    <label className={LabelClass} htmlFor={saveAsNameInputId}>
+                        {t('newConnection.saveAsCredentialProfileNameLabel')}
+                    </label>
                     <input
+                        id={saveAsNameInputId}
                         type="text"
                         value={saveAsName}
                         onChange={(event) => setSaveAsName(event.target.value)}
@@ -197,6 +201,7 @@ export function CredentialProfileConnectionFields({
                             aria-label={t('newConnection.saveAsCredentialProfileCancel')}
                             onClick={() => {
                                 setSaveAsOpen(false);
+                                setSaveAsName('');
                                 setSaveAsStatus('idle');
                                 setSaveAsMessage('');
                             }}
@@ -206,7 +211,7 @@ export function CredentialProfileConnectionFields({
                         </button>
                         <button
                             type="button"
-                            onClick={() => void handleSaveAsProfile()}
+                            onClick={handleSaveAsProfile}
                             className={clsx(
                                 'px-3 py-1.5 text-xs rounded-md text-inverse transition-colors',
                                 'bg-accent-primary hover:bg-accent-primary/90',

@@ -108,6 +108,8 @@
     "copied": "Kopiert!",
     "showDetails": "Details anzeigen",
     "hideDetails": "Details ausblenden",
+    "showPassword": "Passwort anzeigen",
+    "hidePassword": "Passwort ausblenden",
     "beta": "Beta",
     "dismiss": "Schließen"
   },
@@ -1230,6 +1232,8 @@
     "saveAsCredentialProfile": "Als Profil speichern…",
     "saveAsCredentialProfileConfirm": "Profil erstellen",
     "saveAsCredentialProfileCancel": "Als Profil speichern abbrechen",
+    "saveAsCredentialProfileNameLabel": "Profilname",
+    "saveAsCredentialProfilePending": "Profil „{{name}}“ wird erstellt, wenn Sie diese Verbindung speichern.",
     "saveAsProfileFailed": "Anmeldeprofil konnte nicht erstellt werden: {{error}}",
     "saveAsProfileIamUnsupported": "AWS-IAM-Token können nicht als gemeinsames Profil gespeichert werden.",
     "missingCredentialProfile": "Fehlendes Profil ({{id}})",

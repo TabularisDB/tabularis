@@ -108,6 +108,8 @@
     "copied": "コピーしました！",
     "showDetails": "詳細を表示",
     "hideDetails": "詳細を非表示",
+    "showPassword": "パスワードを表示",
+    "hidePassword": "パスワードを非表示",
     "beta": "ベータ",
     "dismiss": "閉じる"
   },
@@ -1244,6 +1246,8 @@
     "saveAsCredentialProfile": "プロファイルとして保存…",
     "saveAsCredentialProfileConfirm": "プロファイルを作成",
     "saveAsCredentialProfileCancel": "プロファイルとして保存をキャンセル",
+    "saveAsCredentialProfileNameLabel": "プロファイル名",
+    "saveAsCredentialProfilePending": "プロファイル「{{name}}」は、この接続を保存すると作成されます。",
     "saveAsProfileFailed": "プロファイルの作成に失敗しました: {{error}}",
     "saveAsProfileIamUnsupported": "AWS IAM トークンは共有プロファイルとして保存できません。",
     "missingCredentialProfile": "不足しているプロファイル ({{id}})",

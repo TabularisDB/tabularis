@@ -108,6 +108,8 @@
     "copied": "Скопировано!",
     "showDetails": "Показать подробности",
     "hideDetails": "Скрыть подробности",
+    "showPassword": "Показать пароль",
+    "hidePassword": "Скрыть пароль",
     "beta": "Бета",
     "dismiss": "Закрыть"
   },
@@ -1229,6 +1231,8 @@
     "saveAsCredentialProfile": "Сохранить как профиль…",
     "saveAsCredentialProfileConfirm": "Создать профиль",
     "saveAsCredentialProfileCancel": "Отменить сохранение как профиль",
+    "saveAsCredentialProfileNameLabel": "Имя профиля",
+    "saveAsCredentialProfilePending": "Профиль «{{name}}» будет создан при сохранении этого подключения.",
     "saveAsProfileFailed": "Не удалось создать профиль: {{error}}",
     "saveAsProfileIamUnsupported": "Токены AWS IAM нельзя сохранить как общий профиль.",
     "missingCredentialProfile": "Отсутствующий профиль ({{id}})",
