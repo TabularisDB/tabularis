@@ -19,6 +19,9 @@ import {formatRowsForCopy, copyTextToClipboard} from '@/utils/clipboard';
 import {onActivationKey, isTypingTarget} from '@/utils/keyboardEvents';
 import {
     formatResultForExport,
+    hasUnloadedRows,
+    resolveExportScope,
+    type ExportScope,
     getLoadedRowsExportLimit,
     type ResultExportFormat,
 } from '@/utils/resultExport';
@@ -497,6 +500,10 @@ export const Editor = ({commandScopeId}: EditorProps) => {
 
     const [showNewRowModal, setShowNewRowModal] = useState(false);
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
+    const [exportScopeChoice, setExportScopeChoice] = useState<{
+        target: string;
+        scope: ExportScope;
+    } | null>(null);
     const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
     const [editorHeight, setEditorHeight] = useState(300);
     const editorHeightRef = useRef(300);
@@ -692,11 +699,18 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         [activeTab?.activeResultId, activeTab?.results],
     );
     const activeExportResult = activeResultEntry?.result ?? activeTab?.result;
-    // A header-only grid can still be saved as HTML. CSV, JSON and Markdown
-    // stay disabled then: with no loaded rows those actions re-run the query.
-    const hasLoadedExportRows = (activeExportResult?.rows.length ?? 0) > 0;
     const canExportActiveResult =
-        hasLoadedExportRows || (activeExportResult?.columns.length ?? 0) > 0;
+        (activeExportResult?.rows.length ?? 0) > 0 || (activeExportResult?.columns.length ?? 0) > 0;
+    // A result set split from a multi-set statement cannot be re-run on its own.
+    const canStreamActiveResult = !activeResultEntry?.fromResultSets;
+    const showExportScope =
+        !!activeExportResult && canStreamActiveResult && hasUnloadedRows(activeExportResult);
+    // The scope choice belongs to the tab and result it was made on. Anywhere
+    // else the export falls back to "All rows", so a "Current results" pick
+    // never silently truncates another result's export.
+    const exportScopeTarget = `${activeTab?.id ?? ''}:${activeResultEntry?.id ?? ''}`;
+    const exportScope: ExportScope =
+        exportScopeChoice?.target === exportScopeTarget ? exportScopeChoice.scope : 'all';
 
     const activeTabFlatDatabase = isMultiDb
         ? resolveFlatMultiDbTabDatabase(activeTab, selectedDatabases)
@@ -4732,32 +4746,24 @@ export const Editor = ({commandScopeId}: EditorProps) => {
         }
     };
 
-    // HTML only exports the loaded grid (handleExportHtml), never the streaming exporter.
-    const handleExportCommon = async (format: Exclude<ResultExportFormat, 'html'>) => {
-        if (!activeTab || !activeConnectionId) return;
+    const handleExportCommon = async (format: ResultExportFormat) => {
+        if (!activeTab || !activeConnectionId || !activeExportResult) return;
 
-        if (format === 'ndjson') {
-            if (!activeExportResult) return;
-            await handleExportLoadedRows(activeExportResult, 'ndjson');
+        const scope = resolveExportScope(activeExportResult, exportScope, canStreamActiveResult);
+        if (scope === 'loaded') {
+            await handleExportLoadedRows(activeExportResult, format);
             return;
         }
 
         const extension = format === 'markdown' ? 'md' : format;
-        const multiResult = activeResultEntry?.result;
-        if (multiResult?.rows.length) {
-            await handleExportLoadedRows(multiResult, format);
-            return;
-        }
-
         const effectiveSchema = activeCapabilities?.schemas === true ? activeTab.schema : undefined;
         const tabForQuery = {...activeTab, schema: effectiveSchema};
-        const query =
-            activeTab.type === 'table' && activeTab.activeTable
-                ? reconstructTableQuery(
-                      tabForQuery,
-                      activeCapabilities ?? activeDriver ?? undefined,
-                  )
-                : activeTab.query;
+        // On a multi-result tab, re-run only the active statement.
+        const query = activeResultEntry
+            ? activeResultEntry.query
+            : activeTab.type === 'table' && activeTab.activeTable
+              ? reconstructTableQuery(tabForQuery, activeCapabilities ?? activeDriver ?? undefined)
+              : activeTab.query;
 
         if (!query || !query.trim()) return;
 
@@ -4841,12 +4847,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
     const handleExportJSON = () => handleExportCommon('json');
     const handleExportNDJSON = () => handleExportCommon('ndjson');
     const handleExportMarkdown = () => handleExportCommon('markdown');
-
-    // Writes the grid already on screen. Never calls the streaming exporter.
-    const handleExportHtml = async () => {
-        if (!activeConnectionId || !activeExportResult) return;
-        await handleExportLoadedRows(activeExportResult, 'html');
-    };
+    const handleExportHtml = () => handleExportCommon('html');
 
     const handleRunDropdownToggle = useCallback(() => {
         if (!isRunDropdownOpen) {
@@ -5492,12 +5493,43 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                 role="menu"
                                 className="absolute top-full right-0 mt-1 min-w-44 w-max max-w-[calc(100cqw-1rem)] bg-elevated border border-strong rounded-md shadow-xl z-50 flex flex-col py-1 overflow-hidden"
                             >
+                                {showExportScope && (
+                                    <div
+                                        role="group"
+                                        aria-label={t('editor.exportScope')}
+                                        className="flex gap-1 mx-2 mt-1 mb-1.5 p-0.5 rounded bg-surface-secondary border border-strong"
+                                    >
+                                        {(['all', 'loaded'] as const).map((scope) => (
+                                            <button
+                                                key={scope}
+                                                type="button"
+                                                role="menuitemradio"
+                                                aria-checked={exportScope === scope}
+                                                onClick={() =>
+                                                    setExportScopeChoice({
+                                                        target: exportScopeTarget,
+                                                        scope,
+                                                    })
+                                                }
+                                                className={clsx(
+                                                    'flex-1 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+                                                    exportScope === scope
+                                                        ? 'bg-accent-primary/15 text-accent'
+                                                        : 'text-secondary hover:text-primary',
+                                                )}
+                                            >
+                                                {scope === 'all'
+                                                    ? t('editor.exportScopeAll')
+                                                    : t('editor.exportScopeLoaded')}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                                 <button
                                     type="button"
                                     role="menuitem"
                                     onClick={handleExportCSV}
-                                    disabled={!hasLoadedExportRows}
-                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-accent-primary/15 enabled:hover:text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                                 >
                                     <FileText size={14} className="shrink-0 opacity-80" />
                                     <span className="flex-1">CSV</span>
@@ -5507,8 +5539,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                     type="button"
                                     role="menuitem"
                                     onClick={handleExportJSON}
-                                    disabled={!hasLoadedExportRows}
-                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-accent-primary/15 enabled:hover:text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                                 >
                                     <FileJson size={14} className="shrink-0 opacity-80" />
                                     <span className="flex-1">JSON</span>
@@ -5518,17 +5549,17 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                     type="button"
                                     role="menuitem"
                                     onClick={handleExportNDJSON}
-                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap"
+                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                                 >
                                     <FileJson size={14} className="shrink-0 opacity-80" />
-                                    <span className="flex-1">{t('editor.exportLoadedNdjson')}</span>
+                                    <span className="flex-1">NDJSON</span>
                                     <span className="text-xs text-muted">.ndjson</span>
                                 </button>
                                 <button
+                                    type="button"
                                     role="menuitem"
                                     onClick={handleExportMarkdown}
-                                    disabled={!hasLoadedExportRows}
-                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary enabled:hover:bg-accent-primary/15 enabled:hover:text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                                 >
                                     <FileText size={14} className="shrink-0 opacity-80" />
                                     <span className="flex-1">Markdown</span>
@@ -5541,7 +5572,7 @@ export const Editor = ({commandScopeId}: EditorProps) => {
                                     className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-accent-primary/15 hover:text-accent transition-colors whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
                                 >
                                     <FileCode size={14} className="shrink-0 opacity-80" />
-                                    <span className="flex-1">{t('editor.exportLoadedHtml')}</span>
+                                    <span className="flex-1">HTML</span>
                                     <span className="text-xs text-muted">.html</span>
                                 </button>
                             </div>

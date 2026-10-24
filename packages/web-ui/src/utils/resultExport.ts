@@ -4,19 +4,62 @@ import {csvField, rowsToHtmlTable, rowsToMarkdown} from './clipboard';
 export type ResultExportFormat = 'csv' | 'json' | 'ndjson' | 'markdown' | 'html';
 
 /**
+ * Which rows an export writes: every row of the query, streamed by the
+ * backend (`export_query_to_file`), or only the rows loaded in the grid.
+ */
+export type ExportScope = 'all' | 'loaded';
+
+/**
+ * Whether the grid holds fewer rows than the query returns (see
+ * `getLoadedRowsExportLimit`). Only then do the two export scopes differ,
+ * so the scope selector is shown.
+ */
+export function hasUnloadedRows(result: QueryResult): boolean {
+    return getLoadedRowsExportLimit(result) !== null;
+}
+
+/**
+ * Picks the scope an export actually runs with. The requested scope only
+ * applies when the grid is missing rows. When the grid already holds every
+ * row, the export writes what is on screen: re-running the query would gain
+ * nothing and is not harmless (an `INSERT ... RETURNING` would execute again,
+ * and `now()` or `random()` would stop matching what the user sees). The
+ * backend streams only when rows are actually missing and the user asked for
+ * all of them. `canStream` is false for result sets that cannot be re-run on
+ * their own (e.g. the extra sets of a MySQL `CALL`), which always use the grid.
+ */
+export function resolveExportScope(
+    result: QueryResult,
+    requested: ExportScope,
+    canStream: boolean,
+): ExportScope {
+    if (!canStream) return 'loaded';
+    return hasUnloadedRows(result) ? requested : 'loaded';
+}
+
+/**
  * Describes a loaded-rows export that may not contain the whole query result.
  * `totalRows` is null when the backend did not report a count, in which case
  * the result is treated as partial if more pages exist or the loaded page is
  * not the first one.
+ *
+ * When drivers execute queries that are not standard SELECTs (e.g. `WITH ... SELECT`,
+ * `VALUES`, `SHOW`, `PRAGMA`), they do not populate `pagination`, but cap the
+ * row set with `truncated: true`. A truncated result is also partial.
  */
 export function getLoadedRowsExportLimit(result: QueryResult): {
     loadedRows: number;
     totalRows: number | null;
 } | null {
+    const loadedRows = result.rows.length;
     const pagination = result.pagination;
+
+    if (result.truncated) {
+        return {loadedRows, totalRows: null};
+    }
+
     if (!pagination) return null;
 
-    const loadedRows = result.rows.length;
     const totalRows = pagination.total_rows;
 
     if (typeof totalRows === 'number' && Number.isFinite(totalRows)) {
