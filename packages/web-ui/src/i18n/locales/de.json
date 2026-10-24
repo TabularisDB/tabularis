@@ -1914,6 +1914,25 @@
       "explainNth": "n-te erklären",
       "cancel": "abbrechen"
     },
+    "resultChart": {
+      "viewLabel": "Ergebnisansicht",
+      "viewGrid": "Tabelle",
+      "viewChart": "Diagramm",
+      "chartType": "Diagrammtyp",
+      "typeBar": "Balken",
+      "typeLine": "Linie",
+      "xAxis": "X-Achse",
+      "yAxis": "Y-Achse",
+      "scopeLoaded": "Dargestellte Zeilen: {{count}}",
+      "scopeCapped": "Dargestellte Zeilen: erste {{plotted}} von {{loaded}} geladenen",
+      "scopeMore": "weitere Zeilen nicht geladen",
+      "emptyNoRowsTitle": "Keine Zeilen für ein Diagramm",
+      "emptyNoNumericTitle": "Keine numerischen Spalten zum Darstellen",
+      "emptyNoNumericHint": "Ein Diagramm braucht mindestens eine numerische Spalte. Die Tabelle zeigt weiterhin alle Werte.",
+      "showGrid": "Tabelle anzeigen",
+      "maxSeries": "Bis zu {{max}} Reihen gleichzeitig",
+      "summary": "Diagramm ({{type}}) von {{values}} nach {{label}}, dargestellte Zeilen: {{count}}"
+    },
     "multiResult": {
       "query": "Abfrage {{index}}",
       "summary": "{{total}} Abfragen: {{succeeded}} erfolgreich, {{failed}} fehlgeschlagen",

@@ -1954,6 +1954,25 @@
       "explainNth": "expliquer la n-ième",
       "cancel": "annuler"
     },
+    "resultChart": {
+      "viewLabel": "Vue du résultat",
+      "viewGrid": "Grille",
+      "viewChart": "Graphique",
+      "chartType": "Type de graphique",
+      "typeBar": "Barres",
+      "typeLine": "Lignes",
+      "xAxis": "Axe X",
+      "yAxis": "Axe Y",
+      "scopeLoaded": "Lignes tracées : {{count}}",
+      "scopeCapped": "Lignes tracées : {{plotted}} premières sur {{loaded}} chargées",
+      "scopeMore": "d'autres lignes ne sont pas chargées",
+      "emptyNoRowsTitle": "Aucune ligne à représenter",
+      "emptyNoNumericTitle": "Aucune colonne numérique à tracer",
+      "emptyNoNumericHint": "Un graphique a besoin d'au moins une colonne numérique. La grille affiche toujours toutes les valeurs.",
+      "showGrid": "Afficher la grille",
+      "maxSeries": "Jusqu'à {{max}} séries à la fois",
+      "summary": "Graphique ({{type}}) de {{values}} par {{label}}, lignes tracées : {{count}}"
+    },
     "multiResult": {
       "query": "Requête {{index}}",
       "summary": "{{total}} requêtes : {{succeeded}} réussies, {{failed}} échouées",

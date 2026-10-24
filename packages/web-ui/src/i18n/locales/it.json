@@ -1974,6 +1974,25 @@
       "explainNth": "analizza N-esima",
       "cancel": "annulla"
     },
+    "resultChart": {
+      "viewLabel": "Vista del risultato",
+      "viewGrid": "Griglia",
+      "viewChart": "Grafico",
+      "chartType": "Tipo di grafico",
+      "typeBar": "Barre",
+      "typeLine": "Linee",
+      "xAxis": "Asse X",
+      "yAxis": "Asse Y",
+      "scopeLoaded": "Righe tracciate: {{count}}",
+      "scopeCapped": "Righe tracciate: prime {{plotted}} di {{loaded}} caricate",
+      "scopeMore": "altre righe non caricate",
+      "emptyNoRowsTitle": "Nessuna riga da rappresentare",
+      "emptyNoNumericTitle": "Nessuna colonna numerica da tracciare",
+      "emptyNoNumericHint": "Un grafico richiede almeno una colonna numerica. La griglia mostra comunque tutti i valori.",
+      "showGrid": "Mostra griglia",
+      "maxSeries": "Fino a {{max}} serie alla volta",
+      "summary": "Grafico a {{type}} di {{values}} per {{label}}, righe tracciate: {{count}}"
+    },
     "multiResult": {
       "query": "Query {{index}}",
       "summary": "{{total}} query: {{succeeded}} completate, {{failed}} fallite",

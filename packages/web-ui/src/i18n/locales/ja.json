@@ -1925,6 +1925,25 @@
       "explainNth": "N 番目を説明",
       "cancel": "キャンセル"
     },
+    "resultChart": {
+      "viewLabel": "結果の表示",
+      "viewGrid": "グリッド",
+      "viewChart": "チャート",
+      "chartType": "チャートの種類",
+      "typeBar": "棒",
+      "typeLine": "折れ線",
+      "xAxis": "X 軸",
+      "yAxis": "Y 軸",
+      "scopeLoaded": "描画した行: {{count}}",
+      "scopeCapped": "描画した行: 読み込み済み {{loaded}} 行のうち先頭 {{plotted}} 行",
+      "scopeMore": "未読み込みの行があります",
+      "emptyNoRowsTitle": "チャートにする行がありません",
+      "emptyNoNumericTitle": "描画できる数値列がありません",
+      "emptyNoNumericHint": "チャートには数値列が 1 つ以上必要です。グリッドではすべての値を表示できます。",
+      "showGrid": "グリッドを表示",
+      "maxSeries": "同時に表示できる系列は最大 {{max}} 件です",
+      "summary": "{{label}} 別の {{values}} の{{type}}チャート、描画した行: {{count}}"
+    },
     "multiResult": {
       "query": "クエリ {{index}}",
       "summary": "{{total}} 件のクエリ: {{succeeded}} 件成功、{{failed}} 件失敗",

@@ -1945,6 +1945,25 @@
       "explainNth": "i-explain ang Nth",
       "cancel": "kanselahin"
     },
+    "resultChart": {
+      "viewLabel": "View ng resulta",
+      "viewGrid": "Grid",
+      "viewChart": "Chart",
+      "chartType": "Uri ng chart",
+      "typeBar": "Bar",
+      "typeLine": "Line",
+      "xAxis": "X axis",
+      "yAxis": "Y axis",
+      "scopeLoaded": "Mga row na naka-plot: {{count}}",
+      "scopeCapped": "Mga row na naka-plot: unang {{plotted}} sa {{loaded}} na na-load",
+      "scopeMore": "may mga row pang hindi na-load",
+      "emptyNoRowsTitle": "Walang row na maipapakita sa chart",
+      "emptyNoNumericTitle": "Walang numeric na column na maipa-plot",
+      "emptyNoNumericHint": "Kailangan ng chart ng kahit isang numeric na column. Makikita pa rin sa grid ang lahat ng value.",
+      "showGrid": "Ipakita ang grid",
+      "maxSeries": "Hanggang {{max}} series nang sabay",
+      "summary": "{{type}} chart ng {{values}} ayon sa {{label}}, mga row na naka-plot: {{count}}"
+    },
     "multiResult": {
       "query": "Query {{index}}",
       "summary": "{{total}} query: {{succeeded}} matagumpay, {{failed}} nabigo",

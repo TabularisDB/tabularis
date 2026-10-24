@@ -4,6 +4,9 @@ import {CheckCircle2} from 'lucide-react';
 import {DataGrid, type DataGridCommandTarget} from './DataGrid';
 import {ErrorDisplay} from './ErrorDisplay';
 import {PaginationControls} from './PaginationControls';
+import {ResultChart} from './ResultChart';
+import {ResultViewToggle} from './ResultViewToggle';
+import {useResultChartState} from '@/hooks/useResultChartState';
 import {formatDuration, formatTimingTooltip} from '@/utils/formatTime';
 import {useTimingLabels} from '@/hooks/useTimingLabels';
 import {getStackedGridHeight} from '@/utils/multiResult';
@@ -21,6 +24,8 @@ interface ResultEntryContentProps {
     commandTargetRef?: Ref<DataGridCommandTarget>;
     initialScrollTop?: number;
     onScrollTopChange?: (scrollTop: number) => void;
+    /** Offer the Grid | Chart toggle in the status bar (non-compact only). */
+    allowChart?: boolean;
 }
 
 export function ResultEntryContent({
@@ -35,9 +40,12 @@ export function ResultEntryContent({
     commandTargetRef,
     initialScrollTop,
     onScrollTopChange,
+    allowChart = false,
 }: ResultEntryContentProps) {
     const {t} = useTranslation();
     const timingLabels = useTimingLabels();
+    const chartEnabled = allowChart && !compact;
+    const chartState = useResultChartState(chartEnabled ? entry.id : null);
 
     if (entry.isLoading) {
         if (compact) {
@@ -183,6 +191,13 @@ export function ResultEntryContent({
                         </span>
                     )}
                 </div>
+                {chartEnabled && (
+                    <ResultViewToggle
+                        className="ml-auto"
+                        view={chartState.view}
+                        onChange={chartState.setView}
+                    />
+                )}
                 {entry.result.pagination && (
                     <PaginationControls
                         pagination={entry.result.pagination}
@@ -191,28 +206,37 @@ export function ResultEntryContent({
                     />
                 )}
             </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
-                <DataGrid
-                    ref={commandTargetRef}
-                    key={`${entry.id}-${entry.result.rows.length}`}
-                    columns={entry.result.columns}
-                    data={entry.result.rows}
-                    tableName={null}
-                    pkColumns={null}
-                    connectionId={connectionId}
-                    selectedRows={new Set()}
-                    onSelectionChange={() => {}}
-                    copyFormat={copyFormat}
-                    csvDelimiter={csvDelimiter}
-                    csvIncludeHeaders={csvIncludeHeaders}
-                    readonly={true}
-                    totalRows={entry.result.pagination?.total_rows}
-                    hasMore={entry.result.pagination?.has_more}
-                    initialScrollTop={initialScrollTop}
-                    onScrollTopChange={onScrollTopChange}
-                    onCopyAllRows={onCopyAllRows}
+            {chartEnabled && chartState.view === 'chart' ? (
+                <ResultChart
+                    result={entry.result}
+                    config={chartState.config}
+                    onConfigChange={chartState.setConfig}
+                    onShowGrid={() => chartState.setView('grid')}
                 />
-            </div>
+            ) : (
+                <div className="flex-1 min-h-0 overflow-hidden">
+                    <DataGrid
+                        ref={commandTargetRef}
+                        key={`${entry.id}-${entry.result.rows.length}`}
+                        columns={entry.result.columns}
+                        data={entry.result.rows}
+                        tableName={null}
+                        pkColumns={null}
+                        connectionId={connectionId}
+                        selectedRows={new Set()}
+                        onSelectionChange={() => {}}
+                        copyFormat={copyFormat}
+                        csvDelimiter={csvDelimiter}
+                        csvIncludeHeaders={csvIncludeHeaders}
+                        readonly={true}
+                        totalRows={entry.result.pagination?.total_rows}
+                        hasMore={entry.result.pagination?.has_more}
+                        initialScrollTop={initialScrollTop}
+                        onScrollTopChange={onScrollTopChange}
+                        onCopyAllRows={onCopyAllRows}
+                    />
+                </div>
+            )}
         </div>
     );
 }

@@ -206,6 +206,7 @@ export const ResultsWindowPage = () => {
                     onPageChange={(page) =>
                         send({type: 'run-query-page', query: payload.query, page})
                     }
+                    allowChart
                 />
             ) : (
                 <div className="flex items-center justify-center h-full text-surface-tertiary text-sm">

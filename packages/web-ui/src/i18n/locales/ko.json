@@ -1889,6 +1889,25 @@
       "explainNth": "N번째 쿼리 설명",
       "cancel": "취소"
     },
+    "resultChart": {
+      "viewLabel": "결과 보기",
+      "viewGrid": "그리드",
+      "viewChart": "차트",
+      "chartType": "차트 유형",
+      "typeBar": "막대",
+      "typeLine": "선",
+      "xAxis": "X축",
+      "yAxis": "Y축",
+      "scopeLoaded": "표시된 행: {{count}}",
+      "scopeCapped": "표시된 행: 불러온 {{loaded}}개 중 처음 {{plotted}}개",
+      "scopeMore": "불러오지 않은 행이 더 있음",
+      "emptyNoRowsTitle": "차트로 표시할 행이 없습니다",
+      "emptyNoNumericTitle": "표시할 숫자 열이 없습니다",
+      "emptyNoNumericHint": "차트에는 숫자 열이 하나 이상 필요합니다. 그리드에서는 모든 값을 볼 수 있습니다.",
+      "showGrid": "그리드 보기",
+      "maxSeries": "한 번에 최대 {{max}}개 계열",
+      "summary": "{{label}}별 {{values}}의 {{type}} 차트, 표시된 행: {{count}}"
+    },
     "multiResult": {
       "query": "쿼리 {{index}}",
       "summary": "총 {{total}}개 쿼리: 성공 {{succeeded}}개, 실패 {{failed}}개",
