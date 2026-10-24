@@ -261,6 +261,7 @@
     "splitGroup": "Разделить группу",
     "resizePanels": "Изменить размер панелей",
     "filterTables": "Фильтр таблиц...",
+    "clearTableFilter": "Очистить фильтр",
     "noTablesMatch": "Таблицы не найдены",
     "filterDatabases": "Фильтр баз данных...",
     "manageDatabases": "Управление базами данных",

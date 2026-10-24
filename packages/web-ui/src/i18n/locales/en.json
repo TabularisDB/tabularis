@@ -261,6 +261,7 @@
     "splitGroup": "Split Group",
     "resizePanels": "Resize panels",
     "filterTables": "Filter tables...",
+    "clearTableFilter": "Clear filter",
     "noTablesMatch": "No tables match",
     "filterDatabases": "Filter databases...",
     "manageDatabases": "Manage Databases",

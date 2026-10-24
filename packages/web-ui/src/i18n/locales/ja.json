@@ -261,6 +261,7 @@
     "splitGroup": "グループを分割",
     "resizePanels": "パネルのサイズを変更",
     "filterTables": "テーブルをフィルター...",
+    "clearTableFilter": "フィルターをクリア",
     "noTablesMatch": "一致するテーブルがありません",
     "filterDatabases": "データベースをフィルター...",
     "manageDatabases": "データベースを管理",

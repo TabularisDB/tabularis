@@ -261,6 +261,7 @@
     "splitGroup": "Hatiin ang Grupo",
     "resizePanels": "Baguhin ang laki ng mga panel",
     "filterTables": "I-filter ang mga table...",
+    "clearTableFilter": "Burahin ang filter",
     "noTablesMatch": "Walang table na tumugma",
     "filterDatabases": "I-filter ang mga database...",
     "manageDatabases": "Pamahalaan ang mga Database",

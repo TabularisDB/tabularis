@@ -255,6 +255,7 @@
     "splitGroup": "Gruppo Diviso",
     "resizePanels": "Ridimensiona pannelli",
     "filterTables": "Filtra tabelle...",
+    "clearTableFilter": "Cancella filtro",
     "noTablesMatch": "Nessuna tabella trovata",
     "filterDatabases": "Filtra database...",
     "manageDatabases": "Gestisci Database",

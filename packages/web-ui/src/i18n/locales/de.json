@@ -248,6 +248,7 @@
     "splitGroup": "Gruppe teilen",
     "resizePanels": "Größe der Bereiche ändern",
     "filterTables": "Tabellen filtern...",
+    "clearTableFilter": "Filter löschen",
     "noTablesMatch": "Keine passende Tabelle",
     "filterDatabases": "Datenbanken filtern...",
     "manageDatabases": "Datenbanken verwalten",

@@ -238,6 +238,7 @@
     "splitGroup": "그룹 분할",
     "resizePanels": "패널 크기 조정",
     "filterTables": "테이블 필터...",
+    "clearTableFilter": "필터 지우기",
     "noTablesMatch": "일치하는 테이블이 없습니다",
     "filterDatabases": "데이터베이스 필터...",
     "manageDatabases": "데이터베이스 관리",

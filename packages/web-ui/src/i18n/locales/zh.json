@@ -247,6 +247,7 @@
     "splitGroup": "分割组",
     "resizePanels": "调整面板大小",
     "filterTables": "筛选表...",
+    "clearTableFilter": "清除筛选",
     "noTablesMatch": "无匹配的表",
     "filterDatabases": "筛选数据库...",
     "manageDatabases": "管理数据库",
