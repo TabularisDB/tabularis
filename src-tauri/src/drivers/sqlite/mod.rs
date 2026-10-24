@@ -1074,6 +1074,7 @@ impl SqliteDriver {
                     triggers: true,
                     supports_ssl: false,
                     user_management: false,
+                    unix_socket: false,
                     sql_dialect: Some(SqlDialect::Sqlite),
                     sql_syntax: None,
                 },

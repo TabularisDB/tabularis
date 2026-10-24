@@ -63,6 +63,11 @@ export interface ConnectionParams {
     host?: string;
     database: string;
     port?: number;
+    /**
+     * Unix socket at the connection's destination, replacing host:port:
+     * dialed locally without a tunnel, by the SSH server with SSH enabled.
+     */
+    unix_socket_path?: string;
     username?: string;
     password?: string;
     /** TLS mode selected for the server connection. */
@@ -151,6 +156,59 @@ export function updateExtraField(
     return Object.keys(next).length > 0 ? next : undefined;
 }
 
+export type UnixSocketPathIssue = 'notAbsolute' | 'looksLikeDirectory';
+
+/**
+ * Advisory check for a Unix socket path (local or SSH forward destination).
+ * Both consumers need the socket file itself, as an absolute path on the
+ * machine that dials it (this one, or the SSH server).
+ * @param rawPath - The socket path as typed by the user
+ * @returns The detected issue, or null when the path looks plausible or is empty
+ */
+export function unixSocketPathIssue(rawPath: string): UnixSocketPathIssue | null {
+    const path = rawPath.trim();
+    if (!path) {
+        return null;
+    }
+    if (!path.startsWith('/')) {
+        return 'notAbsolute';
+    }
+    if (path.endsWith('/')) {
+        return 'looksLikeDirectory';
+    }
+    return null;
+}
+
+/**
+ * Whether this platform has Unix domain sockets. Windows has none, so a local
+ * socket is not offered there (a socket reached through the SSH tunnel still
+ * is: the SSH server dials it).
+ */
+export function hasUnixSockets(
+    platform: string = typeof navigator !== 'undefined' ? navigator.platform : '',
+): boolean {
+    return !/^win/i.test(platform);
+}
+
+/**
+ * The local Unix socket path in effect for a connection: set and non-empty,
+ * with no SSH or Kubernetes tunnel overriding it (the tunnel owns the route
+ * to the database, so the socket is ignored while one is enabled).
+ * @param params - Connection parameters (any object carrying the three fields)
+ * @returns The trimmed socket path, or null when none applies
+ */
+export function effectiveLocalSocketPath(params: {
+    unix_socket_path?: string;
+    ssh_enabled?: boolean;
+    k8s_enabled?: boolean;
+}): string | null {
+    if (params.ssh_enabled || params.k8s_enabled) {
+        return null;
+    }
+    const path = params.unix_socket_path?.trim();
+    return path ? path : null;
+}
+
 /**
  * Format a connection string for display.
  * When capabilities are provided, uses file_based/folder_based to determine local vs remote.
@@ -167,6 +225,12 @@ export function formatConnectionString(
 
     if (local) {
         return params.database;
+    }
+
+    const socketPath = effectiveLocalSocketPath(params);
+    if (socketPath) {
+        // `/path/to.sock/db` would read like a path inside the socket file.
+        return params.database ? `${socketPath} (${params.database})` : socketPath;
     }
 
     const host = params.host || 'localhost';
@@ -226,7 +290,14 @@ export function validateConnectionParams(
 
     // For remote drivers, host is required
     const local = capabilities != null ? isLocalDriver(capabilities) : params.driver === 'sqlite';
-    if (!local && !params.host) {
+    const isBuiltInSocketDriver = params.driver === 'mysql' || params.driver === 'postgres';
+    const socketDestination =
+        !params.k8s_enabled &&
+        !!params.unix_socket_path?.trim() &&
+        (params.ssh_enabled ||
+            capabilities?.unix_socket === true ||
+            (capabilities == null && isBuiltInSocketDriver));
+    if (!local && !params.host && !socketDestination) {
         return {isValid: false, error: 'Host is required for remote databases'};
     }
 
@@ -331,6 +402,10 @@ export function connectionSubtitle(
         : Array.isArray(db)
           ? (labels?.databaseCount?.(db.length) ?? `${db.length} databases`)
           : db;
+    const socketPath = effectiveLocalSocketPath(conn.params);
+    if (socketPath) {
+        return `${socketPath}  ·  ${dbStr}`;
+    }
     return `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}  ·  ${dbStr}`;
 }
 

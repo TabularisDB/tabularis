@@ -67,7 +67,12 @@ import {
     isSchemaBasedMultiDbCapable,
     hasOptedIntoDatabaseSelection,
 } from '@/utils/database';
-import {updateExtraField, withoutBlankSslMode} from '@/utils/connections';
+import {
+    hasUnixSockets,
+    unixSocketPathIssue,
+    updateExtraField,
+    withoutBlankSslMode,
+} from '@/utils/connections';
 import {normalizeLocalDatabasePath, sanitizeLocalFilePath} from '@/utils/fsPath';
 import {
     IN_MEMORY_DATABASE,
@@ -150,6 +155,9 @@ interface ConnectionParams {
     ssh_key_file?: string;
     ssh_key_passphrase?: string;
     ssh_allow_passphrase_prompt?: boolean;
+    // Unix socket at the connection's destination, replacing host:port:
+    // dialed locally without a tunnel, by the SSH server with SSH enabled
+    unix_socket_path?: string;
     save_in_keychain?: boolean;
     // K8s
     k8s_enabled?: boolean;
@@ -637,6 +645,28 @@ export const NewConnectionModal = ({
         !noConnectionRequired &&
         activeDriver?.capabilities?.file_based === false &&
         !activeDriver?.capabilities?.folder_based;
+    // A local socket needs the driver capability and a platform with Unix
+    // sockets; through SSH the server dials it, so Windows can use that too.
+    const supportsUnixSocket = activeDriver?.capabilities?.unix_socket === true && hasUnixSockets();
+    const tunnelEnabled = !!formData.ssh_enabled || !!formData.k8s_enabled;
+    const socketPathSet = !!formData.unix_socket_path?.trim();
+    const canUseSocket =
+        !isUriPassthrough &&
+        (supportsUnixSocket || !!formData.ssh_enabled) &&
+        !formData.k8s_enabled;
+    const socketMode = canUseSocket && formData.unix_socket_path !== undefined;
+    // The socket replaces host:port at the destination: dialed by the SSH
+    // server when SSH is enabled, locally otherwise (capability-gated). A K8s
+    // tunnel ignores it.
+    const usesForwardSocket = !!formData.ssh_enabled && socketPathSet;
+    const usesLocalSocket = supportsUnixSocket && !tunnelEnabled && socketPathSet;
+    const usesSocket = usesForwardSocket || usesLocalSocket;
+    const socketPathIssue = unixSocketPathIssue(formData.unix_socket_path ?? '');
+    const socketPathPlaceholder = isPostgresDialect
+        ? '/var/run/postgresql/.s.PGSQL.5432'
+        : formData.ssh_enabled
+          ? '/var/run/mysqld/mysqld.sock'
+          : '/tmp/mysql.sock';
     const k8sDefaultPort = activeDriver?.default_port ?? undefined;
     // Derive K8s ports instead of seeding formData so edit flows with no saved port are covered.
     const getK8sAutoPort = (params: Partial<ConnectionParams>) =>
@@ -2142,6 +2172,7 @@ export const NewConnectionModal = ({
                 const testParamsBase: Partial<ConnectionParams> = {
                     driver,
                     ...formData,
+                    unix_socket_path: socketMode ? formData.unix_socket_path : undefined,
                     port: formData.port != null ? Number(formData.port) : undefined,
                     k8s_port: effectiveK8sPort,
                     database: isOptedInMultiDb
@@ -2360,6 +2391,7 @@ export const NewConnectionModal = ({
             const paramsBase: Partial<ConnectionParams> = {
                 driver,
                 ...formData,
+                unix_socket_path: socketMode ? formData.unix_socket_path : undefined,
                 port: formData.port != null ? Number(formData.port) : undefined,
                 k8s_port: effectiveK8sPort,
                 database: isOptedInMultiDb
@@ -2572,6 +2604,11 @@ export const NewConnectionModal = ({
             );
 
             const driverChanged = newDriver !== driver;
+            // The socket field is hidden on Windows (unless the SSH server dials it),
+            // so an imported path would be saved with no way to see or fix it.
+            const socketFieldAvailable =
+                parsedDriver?.capabilities?.unix_socket === true &&
+                (hasUnixSockets() || !!formData.ssh_enabled);
             const parsedFields: Partial<ConnectionParams> = {
                 driver: newDriver,
                 host: parsed.host || 'localhost',
@@ -2584,6 +2621,9 @@ export const NewConnectionModal = ({
                 database: parsed.database || '',
                 connection_uri: parsed.connection_uri,
                 connection_uri_in_keychain: false,
+                // `?socket=` switches the form to the socket endpoint; a string
+                // without it goes back to host and port.
+                unix_socket_path: socketFieldAvailable ? parsed.unix_socket_path : undefined,
             };
 
             const importingMysql =
@@ -2877,42 +2917,119 @@ export const NewConnectionModal = ({
                         </div>
                     )}
 
-                    {!isUriPassthrough && (!hostField?.hidden || !portField?.hidden) && (
+                    {/* DataGrip-style endpoint type selector. */}
+                    {canUseSocket && (
                         <div
-                            className={clsx(
-                                'grid gap-3',
-                                !hostField?.hidden && !portField?.hidden
-                                    ? isPostgresDialect
-                                        ? 'grid-cols-4'
-                                        : 'grid-cols-3'
-                                    : 'grid-cols-1',
-                            )}
+                            role="group"
+                            aria-label={`${t('newConnection.host')} / ${t('newConnection.socketPath')}`}
+                            className="grid grid-cols-2 gap-1 p-1 bg-base border border-strong rounded-md"
                         >
-                            {!hostField?.hidden && (
-                                <FieldInput
-                                    className={!portField?.hidden ? 'col-span-2' : undefined}
-                                    label={hostField?.label ?? t('newConnection.host')}
-                                    value={formData.host}
-                                    onChange={(v) => updateField('host', v)}
-                                    placeholder={hostField?.placeholder ?? 'localhost'}
-                                />
+                            <button
+                                type="button"
+                                aria-pressed={!socketMode}
+                                onClick={() => updateField('unix_socket_path', undefined)}
+                                className={clsx(
+                                    'px-3 py-1.5 rounded text-xs font-medium transition-colors',
+                                    !socketMode
+                                        ? 'bg-surface-secondary text-primary shadow-sm'
+                                        : 'text-muted hover:text-secondary hover:bg-surface-secondary/50',
+                                )}
+                            >
+                                {t('newConnection.host')} / {t('newConnection.port')}
+                            </button>
+                            <button
+                                type="button"
+                                aria-pressed={socketMode}
+                                onClick={() =>
+                                    updateField('unix_socket_path', socketPathPlaceholder)
+                                }
+                                className={clsx(
+                                    'px-3 py-1.5 rounded text-xs font-medium transition-colors',
+                                    socketMode
+                                        ? 'bg-surface-secondary text-primary shadow-sm'
+                                        : 'text-muted hover:text-secondary hover:bg-surface-secondary/50',
+                                )}
+                            >
+                                {t('newConnection.socketPath')}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Unix socket instead of host:port: dialed locally (capability-gated)
+                        or by the SSH server when the tunnel is enabled. */}
+                    {socketMode && (
+                        <div className="flex flex-col gap-1">
+                            <FieldInput
+                                label={t('newConnection.socketPath')}
+                                value={formData.unix_socket_path}
+                                onChange={(v) => updateField('unix_socket_path', v)}
+                                placeholder={socketPathPlaceholder}
+                            />
+                            {socketPathIssue === 'notAbsolute' && (
+                                <p className="text-[10px] text-accent-warning flex items-center gap-1 mt-0.5">
+                                    <AlertCircle size={10} />{' '}
+                                    {t('newConnection.socketPathNotAbsolute')}
+                                </p>
                             )}
-                            {!portField?.hidden && (
-                                <FieldInput
-                                    label={portField?.label ?? t('newConnection.port')}
-                                    value={formData.port}
-                                    onChange={(v) =>
-                                        updateField('port', v === '' ? undefined : Number(v))
-                                    }
-                                    type="number"
-                                    placeholder={
-                                        portField?.placeholder ??
-                                        (driver === 'mysql' ? '3306' : '5432')
-                                    }
-                                />
+                            {socketPathIssue === 'looksLikeDirectory' && (
+                                <p className="text-[10px] text-accent-warning flex items-center gap-1 mt-0.5">
+                                    <AlertCircle size={10} />{' '}
+                                    {t('newConnection.socketPathDirectory')}
+                                </p>
+                            )}
+                            {!socketPathIssue && (
+                                <p className="text-[10px] text-muted mt-0.5">
+                                    {formData.ssh_enabled
+                                        ? usesForwardSocket
+                                            ? t('newConnection.socketPathForwardActive')
+                                            : t('newConnection.socketPathForwardHint')
+                                        : usesLocalSocket
+                                          ? t('newConnection.socketPathActive')
+                                          : t('newConnection.socketPathHint')}
+                                </p>
                             )}
                         </div>
                     )}
+
+                    {/* A Unix socket replaces the database host and port entirely. */}
+                    {!isUriPassthrough &&
+                        !socketMode &&
+                        (!hostField?.hidden || !portField?.hidden) && (
+                            <div
+                                className={clsx(
+                                    'grid gap-3',
+                                    !hostField?.hidden && !portField?.hidden
+                                        ? isPostgresDialect
+                                            ? 'grid-cols-4'
+                                            : 'grid-cols-3'
+                                        : 'grid-cols-1',
+                                )}
+                            >
+                                {!hostField?.hidden && (
+                                    <FieldInput
+                                        className={!portField?.hidden ? 'col-span-2' : undefined}
+                                        label={hostField?.label ?? t('newConnection.host')}
+                                        value={formData.host}
+                                        onChange={(v) => updateField('host', v)}
+                                        placeholder={hostField?.placeholder ?? 'localhost'}
+                                    />
+                                )}
+                                {!portField?.hidden && (
+                                    <FieldInput
+                                        label={portField?.label ?? t('newConnection.port')}
+                                        value={formData.port}
+                                        onChange={(v) =>
+                                            updateField('port', v === '' ? undefined : Number(v))
+                                        }
+                                        type="number"
+                                        placeholder={
+                                            portField?.placeholder ??
+                                            (driver === 'mysql' ? '3306' : '5432')
+                                        }
+                                    />
+                                )}
+                            </div>
+                        )}
 
                     {/* Plugin-owned extra connection fields (opaque `extra` map) */}
                     <SlotAnchor
@@ -2987,7 +3104,9 @@ export const NewConnectionModal = ({
                                             onClick={() => {
                                                 void loadDatabases();
                                             }}
-                                            disabled={loadingDatabases || !formData.host}
+                                            disabled={
+                                                loadingDatabases || (!formData.host && !usesSocket)
+                                            }
                                             className="flex items-center gap-1 text-xs text-accent disabled:text-muted disabled:cursor-not-allowed transition-colors"
                                         >
                                             {loadingDatabases ? (
@@ -3335,7 +3454,7 @@ export const NewConnectionModal = ({
                             onClick={() => {
                                 void loadDatabases();
                             }}
-                            disabled={loadingDatabases || !formData.host}
+                            disabled={loadingDatabases || (!formData.host && !usesSocket)}
                             className="flex items-center gap-1 text-xs text-accent disabled:text-muted disabled:cursor-not-allowed transition-colors shrink-0"
                         >
                             {loadingDatabases ? (
