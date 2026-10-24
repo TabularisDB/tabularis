@@ -1006,6 +1006,8 @@ Get column information for a table.
 >
 > **Type precision/length fields:** `character_maximum_length`, `numeric_precision`, and `numeric_scale` are optional additive fields (same backward-compatibility rules as `comment`). When present, Tabularis preserves them in generated `CREATE TABLE` DDL — e.g. `numeric(10,2)` or `varchar(50)` instead of the bare type name — and the host may surface them in the column inspector. Omit them or return `null` for types that have no such modifier.
 >
+> **Full column type:** `full_type` is an optional additive field (same backward-compatibility rules as `comment`) carrying the full declared type with its modifiers, e.g. `varchar(255)`, `decimal(10,2)`, `int unsigned` or `integer[]`. When present, the explorer's Columns list, the table schema view and the ER diagram show it instead of `data_type`; keep the base type name in `data_type`, since value handling, editing and DDL generation match on it. Send it only when it says more than `data_type`. Without it, the host shows `data_type` with `character_maximum_length` / `numeric_precision` / `numeric_scale` appended when present (e.g. `varchar(50)`, `numeric(10,2)`), so a plugin whose `data_type` already embeds the modifiers needs no change.
+>
 > **JSON / JSONB columns:** Set `data_type` to `"JSON"` or `"JSONB"` (matched case-insensitively) to make Tabularis render the cell with syntax highlighting and expose the JSON editor window. In `execute_query` row data, send the cell as either a native JSON value (object/array/scalar) or a JSON-formatted string — both are accepted. For text-typed columns that hold JSON, end users can opt in per connection via the **Detect JSON in text columns** setting; no plugin change required.
 
 ---

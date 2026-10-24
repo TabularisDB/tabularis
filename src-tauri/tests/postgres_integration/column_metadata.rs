@@ -163,3 +163,43 @@ async fn test_get_columns_enum_type() {
         mood_col.data_type
     );
 }
+
+#[tokio::test]
+#[ignore]
+async fn test_get_columns_full_type() {
+    require_pg!();
+    let params = pg_params();
+
+    let columns = postgres::get_columns(&params, "all_types", "test_schema")
+        .await
+        .expect("get_columns should succeed");
+    let full_type = |name: &str| {
+        let column = columns
+            .iter()
+            .find(|c| c.name == name)
+            .unwrap_or_else(|| panic!("{name} column should exist"));
+        (column.data_type.as_str(), column.full_type.as_deref())
+    };
+
+    // `data_type` keeps the base name; `full_type` is `format_type(...)` when
+    // it says more (#1277).
+    assert_eq!(
+        full_type("col_varchar"),
+        ("character varying", Some("character varying(255)"))
+    );
+    assert_eq!(full_type("col_numeric"), ("numeric", Some("numeric(10,2)")));
+    assert_eq!(full_type("col_int_array"), ("ARRAY", Some("integer[]")));
+    assert_eq!(full_type("col_text"), ("text", None));
+    assert_eq!(full_type("col_int"), ("integer", None));
+
+    // Enums keep their values in `data_type` and get no full type.
+    let enum_columns = postgres::get_columns(&params, "with_enum", "test_schema")
+        .await
+        .expect("get_columns should succeed");
+    let mood = enum_columns
+        .iter()
+        .find(|c| c.name == "current_mood")
+        .unwrap();
+    assert!(mood.data_type.starts_with("enum("), "{}", mood.data_type);
+    assert_eq!(mood.full_type, None);
+}

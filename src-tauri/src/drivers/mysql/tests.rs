@@ -1,6 +1,8 @@
 use super::build_mysql_pk_where;
 use super::{is_text_protocol_stmt, push_mysql_update_value, MysqlDriver, TextProto};
-use super::helpers::{inline_str_placeholders, mysql_bytes_literal, mysql_string_literal};
+use super::helpers::{
+    inline_str_placeholders, mysql_bytes_literal, mysql_column_types, mysql_string_literal,
+};
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::{ConnectionParams, DatabaseSelection};
 
@@ -242,6 +244,61 @@ fn spaced_definer_view_with_routine_words_in_body_is_not_text_protocol() {
         assert!(
             !is_text_protocol_stmt(sql),
             "spaced definer VIEW with routine words in body must not route through text protocol: {sql}"
+        );
+    }
+}
+
+mod mysql_column_types_tests {
+    use super::*;
+
+    fn types(data_type: &str, column_type: &str) -> (String, Option<String>) {
+        mysql_column_types(data_type.to_string(), column_type.to_string())
+    }
+
+    #[test]
+    fn keeps_the_base_name_and_moves_the_column_type_to_full_type() {
+        assert_eq!(
+            types("varchar", "varchar(255)"),
+            ("varchar".to_string(), Some("varchar(255)".to_string()))
+        );
+        assert_eq!(
+            types("decimal", "decimal(10,2)"),
+            ("decimal".to_string(), Some("decimal(10,2)".to_string()))
+        );
+        assert_eq!(
+            types("tinyint", "tinyint(1)"),
+            ("tinyint".to_string(), Some("tinyint(1)".to_string()))
+        );
+        assert_eq!(
+            types("int", "int unsigned"),
+            ("int".to_string(), Some("int unsigned".to_string()))
+        );
+        assert_eq!(
+            types("int", "int(11)"),
+            ("int".to_string(), Some("int(11)".to_string()))
+        );
+        assert_eq!(
+            types("datetime", "datetime(3)"),
+            ("datetime".to_string(), Some("datetime(3)".to_string()))
+        );
+    }
+
+    #[test]
+    fn omits_full_type_when_the_column_type_adds_nothing() {
+        assert_eq!(types("text", "text"), ("text".to_string(), None));
+        assert_eq!(types("json", "json"), ("json".to_string(), None));
+        assert_eq!(types("int", ""), ("int".to_string(), None));
+    }
+
+    #[test]
+    fn enum_and_set_keep_their_values_in_data_type() {
+        assert_eq!(
+            types("enum", "enum('pending','approved')"),
+            ("enum('pending','approved')".to_string(), None)
+        );
+        assert_eq!(
+            types("SET", "set('a','b')"),
+            ("set('a','b')".to_string(), None)
         );
     }
 }
