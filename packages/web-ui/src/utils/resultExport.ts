@@ -42,15 +42,24 @@ export function resolveExportScope(
  * `totalRows` is null when the backend did not report a count, in which case
  * the result is treated as partial if more pages exist or the loaded page is
  * not the first one.
+ *
+ * When drivers execute queries that are not standard SELECTs (e.g. `WITH ... SELECT`,
+ * `VALUES`, `SHOW`, `PRAGMA`), they do not populate `pagination`, but cap the
+ * row set with `truncated: true`. A truncated result is also partial.
  */
 export function getLoadedRowsExportLimit(result: QueryResult): {
     loadedRows: number;
     totalRows: number | null;
 } | null {
+    const loadedRows = result.rows.length;
     const pagination = result.pagination;
+
+    if (result.truncated) {
+        return {loadedRows, totalRows: null};
+    }
+
     if (!pagination) return null;
 
-    const loadedRows = result.rows.length;
     const totalRows = pagination.total_rows;
 
     if (typeof totalRows === 'number' && Number.isFinite(totalRows)) {

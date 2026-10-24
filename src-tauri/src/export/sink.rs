@@ -243,7 +243,7 @@ impl<W: Write> HtmlSink<W> {
 }
 
 /// Escapes the five HTML-significant characters, matching `escapeHtml` in
-/// `src/utils/clipboard.ts`.
+/// `packages/web-ui/src/utils/clipboard.ts`.
 pub(crate) fn escape_html(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     for c in raw.chars() {
@@ -260,7 +260,7 @@ pub(crate) fn escape_html(raw: &str) -> String {
 }
 
 /// Cell text for the HTML table, matching `htmlCell` in
-/// `src/utils/clipboard.ts`: NULL becomes `null`, the text is escaped and
+/// `packages/web-ui/src/utils/clipboard.ts`: NULL becomes `null`, the text is escaped and
 /// `\r\n` / `\n` line breaks become `<br>`.
 pub(crate) fn html_cell(val: &Value) -> String {
     let text = match val {
@@ -279,7 +279,12 @@ impl<W: Write> RowSink for HtmlSink<W> {
         }
         // One cell per header, padding a short row with null like the JSON writers do.
         let cells: String = (0..headers.len().max(values.len()))
-            .map(|i| format!("<td>{}</td>", html_cell(values.get(i).unwrap_or(&Value::Null))))
+            .map(|i| {
+                format!(
+                    "<td>{}</td>",
+                    html_cell(values.get(i).unwrap_or(&Value::Null))
+                )
+            })
             .collect();
         write!(self.writer, "<tr>{cells}</tr>").map_err(|e| e.to_string())
     }

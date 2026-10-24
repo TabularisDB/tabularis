@@ -251,6 +251,15 @@ describe('resultExport', () => {
         ).toBeNull();
     });
 
+    it('warns when a non-paginated result was truncated by the driver limit', () => {
+        expect(
+            getLoadedRowsExportLimit({
+                ...result,
+                truncated: true,
+            }),
+        ).toEqual({loadedRows: 2, totalRows: null});
+    });
+
     it('warns without a total when more pages exist', () => {
         expect(
             getLoadedRowsExportLimit({
@@ -293,6 +302,10 @@ describe('resultExport', () => {
 
         it('is false without pagination', () => {
             expect(hasUnloadedRows(result)).toBe(false);
+        });
+
+        it('is true when truncated is set without pagination', () => {
+            expect(hasUnloadedRows({...result, truncated: true})).toBe(true);
         });
 
         it('is true when fewer rows are loaded than the known total', () => {
