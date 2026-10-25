@@ -460,13 +460,13 @@ pub struct ExportPayload {
     pub tags: Vec<ConnectionTag>,
     #[serde(default)]
     pub credential_profiles: Vec<CredentialProfile>,
-    /// Export-only secret material keyed by connection id and plugin field.
-    /// This remains empty for metadata-only exports and never appears in
-    /// `connections.json`.
     /// Export-only DB passwords keyed by [`CredentialProfile::id`]. Never written
     /// to `connections.json` or duplicated on connection records.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub credential_profile_secrets: HashMap<String, String>,
+    /// Export-only secret material keyed by connection id and plugin field.
+    /// This remains empty for metadata-only exports and never appears in
+    /// `connections.json`.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub plugin_secrets: HashMap<String, HashMap<String, String>>,
 }

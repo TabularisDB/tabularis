@@ -509,6 +509,11 @@ fn lookup_saved_connection<R: Runtime>(
 /// SSH secrets, connection URI) but without plugin-owned secrets. Used by the
 /// edit modal and by the Test Connection / Load Databases flows, which resolve
 /// plugin secrets themselves once the pending changes are known.
+///
+/// A referenced credential profile is deliberately left unresolved: the
+/// reference is kept and the password stays `None`, matching the web transport,
+/// so a missing profile secret can never fail the edit form. Execution reads go
+/// through [`find_connection_by_id`], which resolves the profile.
 pub fn find_connection_metadata_by_id<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
@@ -523,8 +528,9 @@ pub fn find_connection_metadata_by_id<R: Runtime>(
     // cold miss = keychain call + cache). Skip IAM-auth connections: their
     // 15-min tokens must come from the `password` field, never the keychain,
     // so a stale token from an older release can't be surfaced in the modal.
-    // A referenced credential profile owns the DB password, so it is resolved
-    // below instead of reading the connection's own keychain entry.
+    // A referenced credential profile owns the DB password: the connection's own
+    // keychain entry is skipped here, and the profile is resolved on the
+    // execution path (`find_connection_by_id`) rather than on this metadata read.
     if conn.params.save_in_keychain.unwrap_or(false) && !conn.params.use_iam_auth.unwrap_or(false) {
         if !has_profile {
             match credential_cache::get_db_password_cached(&cache, &conn.id) {
@@ -551,9 +557,20 @@ pub fn find_connection_metadata_by_id<R: Runtime>(
         }
     }
 
-    if has_profile {
+    Ok(conn)
+}
+
+/// Load a connection for driver execution. Unlike the metadata/edit path,
+/// this resolves the referenced credential profile and hydrates plugin-owned
+/// secrets into `params.extra` only in memory.
+pub fn find_connection_by_id<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+) -> Result<SavedConnection, String> {
+    let mut conn = find_connection_metadata_by_id(app, id)?;
+    if conn.params.credential_profile_id.is_some() {
         let runtime = app.state::<crate::runtime::RuntimeContext>();
-        let file = persistence::load_connections_file(&get_config_path(app)?)?;
+        let file = persistence::load_connections_file(&runtime.paths.connections_file())?;
         crate::application::connections::resolve_credential_profile(
             &mut conn.params,
             &file.credential_profiles,
@@ -567,17 +584,6 @@ pub fn find_connection_metadata_by_id<R: Runtime>(
         )
         .map_err(|error| format!("Failed to load connection '{id}': {error}"))?;
     }
-
-    Ok(conn)
-}
-
-/// Load a connection for driver execution. Unlike the metadata/edit path,
-/// this resolves plugin-owned secrets into `params.extra` only in memory.
-pub fn find_connection_by_id<R: Runtime>(
-    app: &AppHandle<R>,
-    id: &str,
-) -> Result<SavedConnection, String> {
-    let mut conn = find_connection_metadata_by_id(app, id)?;
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     crate::plugin_secrets::hydrate_connection(&cache, &mut conn);
     Ok(conn)

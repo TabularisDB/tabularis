@@ -1200,7 +1200,10 @@ async fn tool_run_query(
             data: None,
         })?;
 
-    let max_rows = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as u32;
+    let max_rows = args
+        .get("limit")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(100) as u32;
 
     audit.connection_id = Some(conn_id.to_string());
     audit.query = Some(query.to_string());
@@ -1333,7 +1336,8 @@ async fn tool_run_query(
                         audit.query = Some(effective_query.clone());
                         audit.query_kind = Some(new_kind.to_string());
 
-                        if config::is_connection_readonly(config, &conn.id) && new_kind != "select"
+                        if config::is_connection_readonly(config, &conn.id)
+                            && new_kind != "select"
                         {
                             audit.status = "blocked_readonly".to_string();
                             let msg = "Edited query blocked by Tabularis read-only mode. Enable writes for this connection in Settings → MCP → Read-only mode.".to_string();
@@ -1424,3 +1428,4 @@ async fn tool_run_query(
 
     tool_result(&result, format)
 }
+

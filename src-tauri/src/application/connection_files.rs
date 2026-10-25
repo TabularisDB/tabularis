@@ -199,13 +199,8 @@ pub async fn execute(
             .await?;
             Ok(Value::Null)
         }
-        ConnectionFilesCommand::GetDatabaseBackupStatus => {
-            json(crate::database_backup::get_database_backup_status(runtime).await?)
-        }
-        ConnectionFilesCommand::RunDatabaseBackup => json(
-            crate::database_backup::run_database_backup_now(runtime, &state.dump_cancellation)
-                .await?,
-        ),
+        ConnectionFilesCommand::GetDatabaseBackupStatus => json(crate::database_backup::get_database_backup_status(runtime).await?),
+        ConnectionFilesCommand::RunDatabaseBackup => json(crate::database_backup::run_database_backup_now(runtime, &state.dump_cancellation).await?),
         ConnectionFilesCommand::CancelDatabaseBackup => {
             crate::database_backup::cancel_database_backup(&state.dump_cancellation).await?;
             Ok(Value::Null)
@@ -323,7 +318,8 @@ pub async fn export_payload(
         if include_secrets {
             // A missing keychain entry must not abort the whole export (or a
             // scheduled backup): the connection is exported without that value.
-            let values = crate::application::connections::load_plugin_secrets(runtime, connection);
+            let values =
+                crate::application::connections::load_plugin_secrets(runtime, connection);
             if !values.is_empty() {
                 plugin_secrets.insert(connection.id.clone(), values);
             }
@@ -831,13 +827,6 @@ fn apply_imported_credential_profile_secrets(
     if let Err(error) = result {
         writes.rollback(runtime);
         return Err(error);
-    }
-    for profile_id in profile_secrets.keys() {
-        crate::credential_cache::set_db_password_cached(
-            credential_cache,
-            profile_id,
-            &profile_secrets[profile_id],
-        );
     }
     for connection_id in stale_connection_db_deletes {
         crate::credential_cache::invalidate_db_password(credential_cache, &connection_id);

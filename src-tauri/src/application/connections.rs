@@ -622,7 +622,6 @@ fn persist_credential_profile_password(
     for connection_id in crate::credential_profiles::connection_ids_for_profile(file, profile_id) {
         crate::credential_cache::invalidate_db_password(cache, &connection_id);
     }
-    crate::credential_cache::set_db_password_cached(cache, profile_id, password);
     Ok(())
 }
 

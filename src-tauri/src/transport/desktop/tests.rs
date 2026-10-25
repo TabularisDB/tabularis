@@ -1,4 +1,8 @@
+use crate::models::{
+    ConnectionParams, ConnectionsFile, CredentialProfile, DatabaseSelection, SavedConnection,
+};
 use crate::runtime::events::NoopRuntimeEvents;
+use crate::runtime::paths::FixedRuntimePaths;
 use crate::runtime::secrets::RuntimeSecrets;
 use crate::runtime::RuntimeContext;
 use std::sync::Arc;
@@ -152,4 +156,109 @@ async fn desktop_productivity_commands_use_the_managed_custom_config_directory()
         .join("query_history")
         .join(format!("{connection}.json"))
         .exists());
+}
+
+fn linked_connection(id: &str, profile_id: &str) -> SavedConnection {
+    SavedConnection {
+        id: id.to_string(),
+        name: "Linked".to_string(),
+        params: ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some("127.0.0.1".to_string()),
+            port: Some(5432),
+            username: Some("inline-user".to_string()),
+            database: DatabaseSelection::Single("db".to_string()),
+            save_in_keychain: Some(true),
+            credential_profile_id: Some(profile_id.to_string()),
+            ..ConnectionParams::default()
+        },
+        plugin_secret_keys: Vec::new(),
+        group_id: None,
+        sort_order: None,
+        detect_json_in_text_columns: None,
+        appearance: None,
+        tag_ids: None,
+        environment: None,
+    }
+}
+
+/// The edit/metadata read must never resolve a credential profile: a missing
+/// profile password has to reach the edit form as a plain reference, exactly
+/// like the web transport.
+#[tokio::test]
+async fn desktop_connections_metadata_read_keeps_the_profile_unresolved() {
+    use crate::transport::desktop::commands::find_connection_metadata_by_id;
+
+    let root = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.path().to_path_buf(),
+            root.path().to_path_buf(),
+        )),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(NoSecrets),
+    );
+    let connection_cache = Arc::new(crate::connection_cache::ConnectionCache::default());
+    connection_cache.populate(&[linked_connection("conn-1", "profile-1")]);
+    let app = tauri::test::mock_builder()
+        .manage(runtime)
+        .manage(connection_cache)
+        .manage(Arc::new(crate::credential_cache::CredentialCache::default()))
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+
+    let conn = find_connection_metadata_by_id(app.handle(), "conn-1")
+        .expect("a missing profile password must not fail the edit/metadata read");
+    assert_eq!(
+        conn.params.credential_profile_id.as_deref(),
+        Some("profile-1")
+    );
+    assert!(
+        conn.params.password.is_none(),
+        "the shared password must stay out of the edit form"
+    );
+}
+
+/// Execution reads (`health_check`, disconnect, query execution) still resolve
+/// the profile and fail closed when its password is missing.
+#[tokio::test]
+async fn desktop_connections_execution_read_resolves_and_fails_closed() {
+    use crate::transport::desktop::commands::find_connection_by_id;
+
+    let root = tempfile::tempdir().unwrap();
+    let runtime = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.path().to_path_buf(),
+            root.path().to_path_buf(),
+        )),
+        Arc::new(NoopRuntimeEvents),
+        Arc::new(NoSecrets),
+    );
+    // The profile exists, but `NoSecrets` holds no password for it.
+    let file = ConnectionsFile {
+        connections: vec![linked_connection("conn-1", "profile-1")],
+        credential_profiles: vec![CredentialProfile {
+            id: "profile-1".to_string(),
+            name: "Shared".to_string(),
+            username: "shared-user".to_string(),
+        }],
+        ..ConnectionsFile::default()
+    };
+    crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
+
+    let connection_cache = Arc::new(crate::connection_cache::ConnectionCache::default());
+    connection_cache.populate(&[linked_connection("conn-1", "profile-1")]);
+    let app = tauri::test::mock_builder()
+        .manage(runtime)
+        .manage(connection_cache)
+        .manage(Arc::new(crate::credential_cache::CredentialCache::default()))
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+
+    let error = find_connection_by_id(app.handle(), "conn-1")
+        .expect_err("execution must fail closed when the profile password is missing");
+    assert!(
+        error.contains("profile-1"),
+        "the failure must name the credential profile: {error}"
+    );
 }
