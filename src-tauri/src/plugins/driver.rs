@@ -243,6 +243,10 @@ impl PluginProcess {
                 )
             })?;
 
+        // `kill_on_drop` and the shutdown path only run while this process is
+        // alive. Also stop the plugin when it is killed outright (#1280).
+        crate::plugins::process_lifetime::bind_to_host(&child);
+
         let pid = child.id();
         let shutdown_plugin_id = plugin_id.clone();
 
