@@ -515,10 +515,16 @@ fn profile_import_payload(
     }
 }
 
-fn set_connections_file_readonly(path: &std::path::Path, readonly: bool) {
-    let mut perms = fs::metadata(path).unwrap().permissions();
-    perms.set_readonly(readonly);
-    fs::set_permissions(path, perms).unwrap();
+/// Forces the next metadata write to fail on every OS by replacing
+/// `connections.json` with a same-named directory: writing a file over a
+/// directory fails on Unix (`EISDIR`) and Windows alike. A read-only
+/// permission bit is not portable here because `write_private_file` resets the
+/// mode to `0o600` on Unix before writing.
+fn block_connections_file(path: &std::path::Path) {
+    if path.is_file() {
+        fs::remove_file(path).unwrap();
+    }
+    fs::create_dir(path).unwrap();
 }
 
 struct FailingOnSetSecrets {
@@ -603,7 +609,7 @@ async fn failed_metadata_save_preserves_existing_profile_password() {
         .unwrap();
     let path = runtime.paths.connections_file();
     let payload = profile_import_payload("connection-1", "shared-profile", "rotated-password");
-    set_connections_file_readonly(&path, true);
+    block_connections_file(&path);
 
     let error = apply_export_payload(
         &runtime,
@@ -614,7 +620,7 @@ async fn failed_metadata_save_preserves_existing_profile_password() {
     .await
     .unwrap_err();
 
-    set_connections_file_readonly(&path, false);
+    fs::remove_dir(&path).unwrap();
     assert!(!error.is_empty());
     assert_eq!(
         secrets
@@ -639,7 +645,7 @@ async fn failed_metadata_save_does_not_delete_stale_connection_db_secret() {
         .unwrap();
     let path = runtime.paths.connections_file();
     let payload = profile_import_payload("connection-1", "shared-profile", "rotated-password");
-    set_connections_file_readonly(&path, true);
+    block_connections_file(&path);
 
     let _ = apply_export_payload(
         &runtime,
@@ -649,7 +655,7 @@ async fn failed_metadata_save_does_not_delete_stale_connection_db_secret() {
     )
     .await;
 
-    set_connections_file_readonly(&path, false);
+    fs::remove_dir(&path).unwrap();
     assert_eq!(
         secrets.get("connection-1:db").unwrap().as_deref(),
         Some("stale-connection-password")
