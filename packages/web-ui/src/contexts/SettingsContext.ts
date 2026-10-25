@@ -191,7 +191,7 @@ export interface Settings {
     /** Per built-in driver id → migration mode. Defaults to "opt-in" when unset;
      * flipping an entry to "forced" is a separate, later decision. */
     migrationModeByDriver?: Record<string, MigrationMode>;
-    /** Global HTTP/SOCKS5 proxy and opt-in traffic scopes. */
+    /** Shared custom proxy endpoint and per-scope routing modes. */
     proxy?: GlobalProxySettings;
     /** Per AI-provider proxy overrides. */
     aiProviderProxies?: Partial<Record<AiProvider, ProxyOverride>>;
