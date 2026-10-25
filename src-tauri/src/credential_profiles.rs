@@ -46,10 +46,12 @@ pub fn validate_profile_id_not_connection_id(
     file: &ConnectionsFile,
     profile_id: &str,
 ) -> Result<(), String> {
-    if file.connections.iter().any(|connection| connection.id == profile_id) {
-        return Err(
-            "Credential profile id cannot match an existing connection id".to_string(),
-        );
+    if file
+        .connections
+        .iter()
+        .any(|connection| connection.id == profile_id)
+    {
+        return Err("Credential profile id cannot match an existing connection id".to_string());
     }
     Ok(())
 }
@@ -71,7 +73,11 @@ pub fn validate_profile_keychain_namespace(
 ) -> Result<(), String> {
     validate_profile_id_not_connection_id(file, profile_id)?;
     let conflicting = connection_id_conflicting_with_profile_keychain(profile_id);
-    if file.connections.iter().any(|connection| connection.id == conflicting) {
+    if file
+        .connections
+        .iter()
+        .any(|connection| connection.id == conflicting)
+    {
         return Err(format!(
             "Credential profile id '{profile_id}' cannot be used while connection '{conflicting}' exists"
         ));
@@ -139,13 +145,7 @@ pub fn dependent_connections_for_profile(
 ) -> Vec<CredentialProfileDependentConnection> {
     file.connections
         .iter()
-        .filter(|connection| {
-            connection
-                .params
-                .credential_profile_id
-                .as_deref()
-                == Some(profile_id)
-        })
+        .filter(|connection| connection.params.credential_profile_id.as_deref() == Some(profile_id))
         .map(|connection| CredentialProfileDependentConnection {
             id: connection.id.clone(),
             name: connection.name.clone(),
@@ -158,9 +158,8 @@ pub fn credential_profile_delete_blocked_error(
     connections: Vec<CredentialProfileDependentConnection>,
 ) -> String {
     let count = connections.len();
-    let fallback = format!(
-        "Credential profile '{profile_id}' is still used by {count} connection(s)"
-    );
+    let fallback =
+        format!("Credential profile '{profile_id}' is still used by {count} connection(s)");
     serde_json::to_string(&CredentialProfileDeleteBlockedError {
         code: CREDENTIAL_PROFILE_DELETE_BLOCKED_CODE.to_string(),
         message: fallback.clone(),
@@ -231,7 +230,10 @@ mod tests {
     #[test]
     fn profile_abc_collides_with_connection_abc_profile_keychain_accounts() {
         assert!(connection_db_collides_with_profile_db("abc:profile", "abc"));
-        assert!(!connection_db_collides_with_profile_db("abc:profile:extra", "abc"));
+        assert!(!connection_db_collides_with_profile_db(
+            "abc:profile:extra",
+            "abc"
+        ));
         assert!(validate_connection_profile_link("abc:profile", "abc").is_err());
     }
 }

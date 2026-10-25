@@ -53,7 +53,7 @@ export function CredentialProfileConnectionFields({
     const [saveAsMessage, setSaveAsMessage] = useState('');
 
     const selectedProfile = findCredentialProfile(profiles, credentialProfileId);
-    const missingProfile = Boolean(credentialProfileId) && !selectedProfile && profiles.length >= 0;
+    const missingProfile = Boolean(credentialProfileId) && !selectedProfile;
     const profileOptions = canManageProfiles
         ? [INLINE_CREDENTIAL_PROFILE_VALUE, ...profiles.map((profile) => profile.id)]
         : [INLINE_CREDENTIAL_PROFILE_VALUE, ...(credentialProfileId ? [credentialProfileId] : [])];

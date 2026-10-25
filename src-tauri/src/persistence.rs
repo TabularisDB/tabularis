@@ -94,9 +94,7 @@ pub(crate) fn write_connections_file(path: &Path, file: &ConnectionsFile) -> Res
         for key in &c.plugin_secret_keys {
             c.params.extra.remove(key);
         }
-        if c.params.save_in_keychain.unwrap_or(false)
-            || c.params.credential_profile_id.is_some()
-        {
+        if c.params.save_in_keychain.unwrap_or(false) || c.params.credential_profile_id.is_some() {
             // Passwords live in the keychain (connection or shared profile), not JSON.
             c.params.password = None;
             if c.params.save_in_keychain.unwrap_or(false) {

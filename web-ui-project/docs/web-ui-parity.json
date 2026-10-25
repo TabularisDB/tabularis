@@ -56,11 +56,11 @@
     "literalCommandCount": 15,
     "literalCallSiteCount": 16,
     "dynamicCallSiteCount": 0,
-    "handlerRegistrationCount": 296,
-    "registeredCommandCount": 296,
+    "handlerRegistrationCount": 300,
+    "registeredCommandCount": 300,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 281
+    "registeredCommandsWithoutFrontendCall": 285
   },
   "commands": [
     {
@@ -304,6 +304,7 @@
     "count_query",
     "create_connection_group",
     "create_connection_tag",
+    "create_credential_profile",
     "create_db_user",
     "create_group_path",
     "create_notebook",
@@ -320,6 +321,7 @@
     "delete_connection_group",
     "delete_connection_icon",
     "delete_connection_tag",
+    "delete_credential_profile",
     "delete_custom_theme",
     "delete_editor_preferences",
     "delete_k8s_connection",
@@ -467,6 +469,7 @@
     "kill_plugin_process",
     "list_connection_import_sources",
     "list_connection_tags",
+    "list_credential_profiles",
     "list_databases",
     "list_notebooks",
     "list_pending_approvals",
@@ -553,6 +556,7 @@
     "update_connection",
     "update_connection_group",
     "update_connection_tag",
+    "update_credential_profile",
     "update_k8s_connection",
     "update_personal_snapshot",
     "update_personal_theme",

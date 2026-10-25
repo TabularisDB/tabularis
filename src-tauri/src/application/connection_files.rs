@@ -199,8 +199,13 @@ pub async fn execute(
             .await?;
             Ok(Value::Null)
         }
-        ConnectionFilesCommand::GetDatabaseBackupStatus => json(crate::database_backup::get_database_backup_status(runtime).await?),
-        ConnectionFilesCommand::RunDatabaseBackup => json(crate::database_backup::run_database_backup_now(runtime, &state.dump_cancellation).await?),
+        ConnectionFilesCommand::GetDatabaseBackupStatus => {
+            json(crate::database_backup::get_database_backup_status(runtime).await?)
+        }
+        ConnectionFilesCommand::RunDatabaseBackup => json(
+            crate::database_backup::run_database_backup_now(runtime, &state.dump_cancellation)
+                .await?,
+        ),
         ConnectionFilesCommand::CancelDatabaseBackup => {
             crate::database_backup::cancel_database_backup(&state.dump_cancellation).await?;
             Ok(Value::Null)
@@ -318,8 +323,7 @@ pub async fn export_payload(
         if include_secrets {
             // A missing keychain entry must not abort the whole export (or a
             // scheduled backup): the connection is exported without that value.
-            let values =
-                crate::application::connections::load_plugin_secrets(runtime, connection);
+            let values = crate::application::connections::load_plugin_secrets(runtime, connection);
             if !values.is_empty() {
                 plugin_secrets.insert(connection.id.clone(), values);
             }
@@ -330,12 +334,14 @@ pub async fn export_payload(
             )?;
             if let Some(profile_id) = connection.params.credential_profile_id.clone() {
                 connection.params.password = None;
-                if !credential_profile_secrets.contains_key(&profile_id) {
+                if let std::collections::hash_map::Entry::Vacant(entry) =
+                    credential_profile_secrets.entry(profile_id)
+                {
                     if let Ok(Some(password)) = runtime.secrets.get(
-                        &crate::application::connections::profile_db_secret_account(&profile_id),
+                        &crate::application::connections::profile_db_secret_account(entry.key()),
                     ) {
                         if !password.is_empty() {
-                            credential_profile_secrets.insert(profile_id, password);
+                            entry.insert(password);
                         }
                     }
                 }
@@ -502,7 +508,7 @@ pub async fn apply_export_payload(
     runtime: &RuntimeContext,
     connection_cache: &crate::connection_cache::ConnectionCache,
     credential_cache: &crate::credential_cache::CredentialCache,
-    mut payload: ExportPayload,
+    payload: ExportPayload,
 ) -> Result<(), String> {
     crate::persistence::with_connections_file_exclusive(|| {
         apply_export_payload_locked(runtime, connection_cache, credential_cache, payload)
@@ -516,8 +522,8 @@ fn apply_export_payload_locked(
     mut payload: ExportPayload,
 ) -> Result<(), String> {
     let connections_path = runtime.paths.connections_file();
-    let mut current = crate::persistence::read_connections_file(&connections_path)
-        .unwrap_or_default();
+    let mut current =
+        crate::persistence::read_connections_file(&connections_path).unwrap_or_default();
     let connections_snapshot = current.clone();
     let mut imported_plugin_secrets = std::mem::take(&mut payload.plugin_secrets);
     let imported_profile_secrets = std::mem::take(&mut payload.credential_profile_secrets);
@@ -807,11 +813,7 @@ fn apply_imported_credential_profile_secrets(
             let password = profile_secrets
                 .get(&profile_id)
                 .expect("profile id was collected from the same map");
-            writes.set(
-                runtime,
-                profile_db_secret_account(&profile_id),
-                password,
-            )?;
+            writes.set(runtime, profile_db_secret_account(&profile_id), password)?;
         }
         for connection_id in &stale_connection_db_deletes {
             if profile_secrets.keys().any(|profile_id| {

@@ -1,5 +1,5 @@
 import {createContext} from 'react';
-import type {ServerBuildInformation, SessionNegotiation} from '@/api/session';
+import type {ServerBuildInformation} from '@/api/session';
 
 export interface UpdateCheckResult {
     hasUpdate: boolean;
@@ -26,7 +26,6 @@ export interface ServerRuntimeInformation {
 }
 
 interface UpdateContextType {
-    session: SessionNegotiation | null;
     availableUpdate: UpdateCheckResult | null;
     updateInfo: UpdateCheckResult | null;
     isChecking: boolean;

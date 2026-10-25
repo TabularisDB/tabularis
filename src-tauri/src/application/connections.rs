@@ -335,14 +335,14 @@ pub async fn execute_for_session(
             save_file(runtime, state, &file)?;
             Ok(Value::Null)
         }
-        ConnectionCommand::ListCredentialProfiles => {
-            json(load_file(runtime)?.credential_profiles)
-        }
+        ConnectionCommand::ListCredentialProfiles => json(load_file(runtime)?.credential_profiles),
         ConnectionCommand::CreateCredentialProfile {
             name,
             username,
             password,
-        } => json(create_credential_profile(runtime, state, name, username, password)?),
+        } => json(create_credential_profile(
+            runtime, state, name, username, password,
+        )?),
         ConnectionCommand::UpdateCredentialProfile {
             id,
             name,
@@ -562,7 +562,11 @@ fn validate_credential_profile_reference(
     params: &ConnectionParams,
 ) -> Result<(), String> {
     if let Some(profile_id) = params.credential_profile_id.as_deref() {
-        if !file.credential_profiles.iter().any(|profile| profile.id == profile_id) {
+        if !file
+            .credential_profiles
+            .iter()
+            .any(|profile| profile.id == profile_id)
+        {
             return Err(format!("Credential profile '{profile_id}' not found"));
         }
         crate::credential_profiles::validate_connection_profile_link(connection_id, profile_id)?;
@@ -600,10 +604,7 @@ fn skip_connection_db_keychain_delete(connection: &SavedConnection) -> bool {
     let Some(profile_id) = connection.params.credential_profile_id.as_deref() else {
         return false;
     };
-    crate::credential_profiles::connection_db_collides_with_profile_db(
-        &connection.id,
-        profile_id,
-    )
+    crate::credential_profiles::connection_db_collides_with_profile_db(&connection.id, profile_id)
 }
 
 fn persist_credential_profile_password(
@@ -662,15 +663,19 @@ fn delete_credential_profile(
     let path = runtime.paths.connections_file();
     let profile = crate::persistence::with_connections_file_exclusive(|| {
         let mut file = crate::persistence::read_connections_file(&path)?;
-        let dependents =
-            crate::credential_profiles::dependent_connections_for_profile(&file, &id);
+        let dependents = crate::credential_profiles::dependent_connections_for_profile(&file, &id);
         if !dependents.is_empty() {
-            return Err(crate::credential_profiles::credential_profile_delete_blocked_error(
-                &id,
-                dependents,
-            ));
+            return Err(
+                crate::credential_profiles::credential_profile_delete_blocked_error(
+                    &id, dependents,
+                ),
+            );
         }
-        if !file.credential_profiles.iter().any(|profile| profile.id == id) {
+        if !file
+            .credential_profiles
+            .iter()
+            .any(|profile| profile.id == id)
+        {
             return Err("Credential profile not found".to_string());
         }
         crate::credential_profiles::validate_profile_keychain_namespace(&file, &id)?;
@@ -685,7 +690,11 @@ fn delete_credential_profile(
     if let Err(error) = writes.delete(runtime, account) {
         let restore_result = crate::persistence::with_connections_file_exclusive(|| {
             let mut file = crate::persistence::read_connections_file(&path)?;
-            if !file.credential_profiles.iter().any(|profile| profile.id == id) {
+            if !file
+                .credential_profiles
+                .iter()
+                .any(|profile| profile.id == id)
+            {
                 file.credential_profiles.push(profile);
                 crate::persistence::write_connections_file(&path, &file)?;
             }
@@ -713,7 +722,11 @@ fn update_credential_profile(
     password: Option<String>,
 ) -> Result<(), String> {
     let mut file = load_file(runtime)?;
-    if !file.credential_profiles.iter().any(|profile| profile.id == id) {
+    if !file
+        .credential_profiles
+        .iter()
+        .any(|profile| profile.id == id)
+    {
         return Err("Credential profile not found".to_string());
     }
     let mut writes = SecretWrites::default();

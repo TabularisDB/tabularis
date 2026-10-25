@@ -4,14 +4,14 @@ import {listen} from '@tauri-apps/api/event';
 import {UpdateContext, type UpdateCheckResult} from './UpdateContext';
 import {toErrorMessage} from '@/utils/errors';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
-import type {SessionNegotiation} from '@/api/session';
+import {useWebSession} from '@/hooks/useWebSession';
 
 interface UpdateProviderProps {
     readonly children: ReactNode;
-    readonly session?: SessionNegotiation | null;
 }
 
-export const UpdateProvider = ({children, session = null}: UpdateProviderProps) => {
+export const UpdateProvider = ({children}: UpdateProviderProps) => {
+    const session = useWebSession();
     const client = useTabularisClient();
     const nativeUpdater = session?.capabilities.nativeUpdater ?? true;
     const updaterMode = nativeUpdater ? 'native' : 'server-managed';
@@ -145,7 +145,6 @@ export const UpdateProvider = ({children, session = null}: UpdateProviderProps) 
     return (
         <UpdateContext.Provider
             value={{
-                session,
                 availableUpdate,
                 updateInfo,
                 isChecking,

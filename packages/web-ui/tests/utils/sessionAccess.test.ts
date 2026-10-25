@@ -55,4 +55,28 @@ describe('canManageCredentialProfiles', () => {
     it('denies management when the browser session is not negotiated yet', () => {
         expect(canManageCredentialProfiles('browser', null)).toBe(false);
     });
+
+    it('denies management when a remote session is downgraded to database authorization', () => {
+        const downgraded: SessionNegotiation = {
+            ...WEB_SESSION_BASE,
+            access: {
+                remote: true,
+                authorizationLevel: 'database',
+                highRiskCapabilities: false,
+            },
+        };
+        expect(canManageCredentialProfiles('browser', downgraded)).toBe(false);
+    });
+
+    it('allows management after bootstrap negotiates local-admin access', () => {
+        const elevated: SessionNegotiation = {
+            ...WEB_SESSION_BASE,
+            access: {
+                remote: true,
+                authorizationLevel: 'local-admin',
+                highRiskCapabilities: true,
+            },
+        };
+        expect(canManageCredentialProfiles('browser', elevated)).toBe(true);
+    });
 });

@@ -1,9 +1,9 @@
+import {useWebSession} from '@/hooks/useWebSession';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
-import {useUpdate} from '@/hooks/useUpdate';
 import {canManageCredentialProfiles} from '@/utils/sessionAccess';
 
 export function useCanManageCredentialProfiles(): boolean {
     const platform = usePlatformCapabilities();
-    const {session} = useUpdate();
+    const session = useWebSession();
     return canManageCredentialProfiles(platform.negotiation.environment, session);
 }

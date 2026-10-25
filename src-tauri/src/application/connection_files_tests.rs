@@ -42,10 +42,12 @@ fn fixture() -> (tempfile::TempDir, RuntimeContext, Arc<TestSecrets>) {
         Arc::new(NoopRuntimeEvents),
         secrets.clone(),
     );
-    let mut params = crate::models::ConnectionParams::default();
-    params.driver = "sqlite".to_string();
-    params.database = crate::models::DatabaseSelection::Single("fixture.db".to_string());
-    params.save_in_keychain = Some(true);
+    let params = crate::models::ConnectionParams {
+        driver: "sqlite".to_string(),
+        database: crate::models::DatabaseSelection::Single("fixture.db".to_string()),
+        save_in_keychain: Some(true),
+        ..Default::default()
+    };
     let file = crate::models::ConnectionsFile {
         connections: vec![SavedConnection {
             id: "connection-1".to_string(),
@@ -282,10 +284,7 @@ async fn encrypted_upload_survives_a_wrong_password_for_retry() {
     assert_eq!(preview.items.len(), 1);
 }
 
-fn postgres_profile_connection(
-    id: &str,
-    profile_id: &str,
-) -> crate::models::SavedConnection {
+fn postgres_profile_connection(id: &str, profile_id: &str) -> crate::models::SavedConnection {
     crate::models::SavedConnection {
         id: id.to_string(),
         name: id.to_string(),
@@ -314,7 +313,9 @@ fn postgres_profile_connection(
 async fn export_reads_profile_secrets_from_dedicated_keychain_namespace() {
     let (_temp, runtime, secrets) = fixture();
     let shared_id = "shared-id";
-    secrets.set(&format!("{shared_id}:db"), "connection-password").unwrap();
+    secrets
+        .set(&format!("{shared_id}:db"), "connection-password")
+        .unwrap();
     secrets
         .set(&profile_db_secret_account(shared_id), "profile-password")
         .unwrap();
@@ -341,7 +342,10 @@ async fn export_reads_profile_secrets_from_dedicated_keychain_namespace() {
 async fn secrets_free_export_keeps_profile_references_without_passwords() {
     let (_temp, runtime, secrets) = fixture();
     secrets
-        .set(&profile_db_secret_account("shared-profile"), "shared-password")
+        .set(
+            &profile_db_secret_account("shared-profile"),
+            "shared-password",
+        )
         .unwrap();
     let file = crate::models::ConnectionsFile {
         credential_profiles: vec![crate::models::CredentialProfile {
@@ -361,20 +365,24 @@ async fn secrets_free_export_keeps_profile_references_without_passwords() {
 
     assert!(payload.credential_profile_secrets.is_empty());
     assert_eq!(payload.credential_profiles.len(), 1);
-    assert!(payload.connections.iter().all(|c| c.params.password.is_none()));
-    assert!(
-        payload
-            .connections
-            .iter()
-            .all(|c| c.params.credential_profile_id.as_deref() == Some("shared-profile"))
-    );
+    assert!(payload
+        .connections
+        .iter()
+        .all(|c| c.params.password.is_none()));
+    assert!(payload
+        .connections
+        .iter()
+        .all(|c| c.params.credential_profile_id.as_deref() == Some("shared-profile")));
 }
 
 #[tokio::test]
 async fn shared_profile_secrets_survive_export_import_as_new_with_one_keychain_entry() {
     let (_temp, runtime, secrets) = fixture();
     secrets
-        .set(&profile_db_secret_account("shared-profile"), "shared-password")
+        .set(
+            &profile_db_secret_account("shared-profile"),
+            "shared-password",
+        )
         .unwrap();
     let file = crate::models::ConnectionsFile {
         credential_profiles: vec![crate::models::CredentialProfile {
@@ -418,8 +426,7 @@ async fn shared_profile_secrets_survive_export_import_as_new_with_one_keychain_e
             new_group_parent_id: None,
         },
     ];
-    let remapped =
-        crate::connection_import::tabularis::apply(&exported, &resolutions, &[]);
+    let remapped = crate::connection_import::tabularis::apply(&exported, &resolutions, &[]);
     assert_eq!(remapped.credential_profiles.len(), 1);
     let new_profile_id = remapped.credential_profiles[0].id.clone();
     assert_eq!(remapped.credential_profile_secrets.len(), 1);
@@ -428,11 +435,17 @@ async fn shared_profile_secrets_survive_export_import_as_new_with_one_keychain_e
         Some(&"shared-password".to_string())
     );
     assert_eq!(
-        remapped.connections[0].params.credential_profile_id.as_deref(),
+        remapped.connections[0]
+            .params
+            .credential_profile_id
+            .as_deref(),
         Some(new_profile_id.as_str())
     );
     assert_eq!(
-        remapped.connections[1].params.credential_profile_id.as_deref(),
+        remapped.connections[1]
+            .params
+            .credential_profile_id
+            .as_deref(),
         Some(new_profile_id.as_str())
     );
 
@@ -562,7 +575,9 @@ impl RuntimeSecrets for AttemptCountingSecrets {
             .get(account)
             .is_some_and(|fail_on| *fail_on == attempt)
         {
-            return Err(format!("injected keychain failure on attempt {attempt} for {account}"));
+            return Err(format!(
+                "injected keychain failure on attempt {attempt} for {account}"
+            ));
         }
         self.inner
             .lock()
@@ -581,7 +596,10 @@ impl RuntimeSecrets for AttemptCountingSecrets {
 async fn failed_metadata_save_preserves_existing_profile_password() {
     let (_temp, runtime, secrets) = fixture();
     secrets
-        .set(&profile_db_secret_account("shared-profile"), "original-password")
+        .set(
+            &profile_db_secret_account("shared-profile"),
+            "original-password",
+        )
         .unwrap();
     let path = runtime.paths.connections_file();
     let payload = profile_import_payload("connection-1", "shared-profile", "rotated-password");
@@ -611,9 +629,14 @@ async fn failed_metadata_save_preserves_existing_profile_password() {
 async fn failed_metadata_save_does_not_delete_stale_connection_db_secret() {
     let (_temp, runtime, secrets) = fixture();
     secrets
-        .set(&profile_db_secret_account("shared-profile"), "profile-password")
+        .set(
+            &profile_db_secret_account("shared-profile"),
+            "profile-password",
+        )
         .unwrap();
-    secrets.set("connection-1:db", "stale-connection-password").unwrap();
+    secrets
+        .set("connection-1:db", "stale-connection-password")
+        .unwrap();
     let path = runtime.paths.connections_file();
     let payload = profile_import_payload("connection-1", "shared-profile", "rotated-password");
     set_connections_file_readonly(&path, true);
@@ -692,7 +715,10 @@ async fn failed_profile_keychain_write_preserves_previous_password() {
 async fn failed_profile_keychain_write_keeps_resolved_username_and_password_aligned() {
     let (_temp, runtime, secrets) = fixture();
     secrets
-        .set(&profile_db_secret_account("shared-profile"), "original-password")
+        .set(
+            &profile_db_secret_account("shared-profile"),
+            "original-password",
+        )
         .unwrap();
     let file = crate::models::ConnectionsFile {
         credential_profiles: vec![crate::models::CredentialProfile {
@@ -700,7 +726,10 @@ async fn failed_profile_keychain_write_keeps_resolved_username_and_password_alig
             name: "Original".to_string(),
             username: "original-user".to_string(),
         }],
-        connections: vec![postgres_profile_connection("connection-1", "shared-profile")],
+        connections: vec![postgres_profile_connection(
+            "connection-1",
+            "shared-profile",
+        )],
         ..Default::default()
     };
     crate::persistence::save_connections_file(&runtime.paths.connections_file(), &file).unwrap();
@@ -714,11 +743,7 @@ async fn failed_profile_keychain_write_keeps_resolved_username_and_password_alig
         fail_account: profile_db_secret_account("shared-profile"),
         on_fail: None,
     });
-    let runtime = RuntimeContext::new(
-        runtime.paths.clone(),
-        runtime.events.clone(),
-        failing,
-    );
+    let runtime = RuntimeContext::new(runtime.paths.clone(), runtime.events.clone(), failing);
     let mut payload = profile_import_payload("connection-1", "shared-profile", "rotated-password");
     payload.credential_profiles[0].name = "Imported".to_string();
     payload.credential_profiles[0].username = "imported-user".to_string();
@@ -861,7 +886,10 @@ async fn partial_multi_profile_import_rolls_back_prior_profile_secrets_and_metad
 async fn concurrent_connection_edit_survives_failed_profile_import_recovery() {
     let (_temp, runtime, secrets) = fixture();
     secrets
-        .set(&profile_db_secret_account("shared-profile"), "original-password")
+        .set(
+            &profile_db_secret_account("shared-profile"),
+            "original-password",
+        )
         .unwrap();
     let mut file = crate::models::ConnectionsFile {
         credential_profiles: vec![crate::models::CredentialProfile {
@@ -888,11 +916,7 @@ async fn concurrent_connection_edit_survives_failed_profile_import_recovery() {
         fail_account: profile_db_secret_account("shared-profile"),
         on_fail: None,
     });
-    let runtime = RuntimeContext::new(
-        runtime.paths.clone(),
-        runtime.events.clone(),
-        failing,
-    );
+    let runtime = RuntimeContext::new(runtime.paths.clone(), runtime.events.clone(), failing);
     let payload = profile_import_payload("connection-1", "shared-profile", "rotated-password");
 
     let (concurrent_done, wait_for_concurrent) = mpsc::channel();

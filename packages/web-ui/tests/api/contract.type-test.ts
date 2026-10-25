@@ -311,6 +311,10 @@ type DatabaseDroppedEnvelope = EventEnvelope<'database-dropped'>;
 
 const executeQueryAuthorization: CommandAuthorization<'execute_query'> = 'database';
 const sshAuthorization: CommandAuthorization<'get_ssh_connections'> = 'local-admin';
+const listCredentialProfilesAuthorization: CommandAuthorization<'list_credential_profiles'> =
+    'local-admin';
+const createCredentialProfileAuthorization: CommandAuthorization<'create_credential_profile'> =
+    'local-admin';
 const askpassAuthorization: CommandAuthorization<'respond_ssh_askpass'> = 'sensitive';
 const passwordAuthorization: CommandAuthorization<'set_db_user_password'> = 'sensitive';
 const userListAuthorization: CommandAuthorization<'get_db_users'> = 'sensitive';
@@ -361,6 +365,8 @@ void (null as unknown as ExecuteQueryResponse);
 void (null as unknown as DatabaseDroppedEnvelope);
 void executeQueryAuthorization;
 void sshAuthorization;
+void listCredentialProfilesAuthorization;
+void createCredentialProfileAuthorization;
 void askpassAuthorization;
 void passwordAuthorization;
 void userListAuthorization;

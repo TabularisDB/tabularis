@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useId, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Plus, Edit2, Trash2, Check, Eye, EyeOff, X} from 'lucide-react';
 import clsx from 'clsx';
@@ -20,6 +20,7 @@ const InputClass =
 const LabelClass = 'block text-xs uppercase font-bold text-muted';
 
 interface ProfileFieldProps {
+    id: string;
     label: string;
     value: string;
     onChange: (value: string) => void;
@@ -30,6 +31,7 @@ interface ProfileFieldProps {
 }
 
 function ProfileField({
+    id,
     label,
     value,
     onChange,
@@ -44,9 +46,12 @@ function ProfileField({
 
     return (
         <div className="flex flex-col">
-            <label className={LabelClass}>{label}</label>
+            <label className={LabelClass} htmlFor={id}>
+                {label}
+            </label>
             <div className="relative group">
                 <input
+                    id={id}
                     autoCorrect="off"
                     autoCapitalize="off"
                     autoComplete="off"
@@ -97,6 +102,9 @@ export function CredentialProfilesManager({
     const [status, setStatus] = useState<'idle' | 'error'>('idle');
     const [statusMessage, setStatusMessage] = useState('');
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+    const nameInputId = useId();
+    const usernameInputId = useId();
+    const passwordInputId = useId();
 
     const refresh = useCallback(async () => {
         const result = await loadCredentialProfiles(client);
@@ -267,6 +275,7 @@ export function CredentialProfilesManager({
             ) : (
                 <div className="space-y-4">
                     <ProfileField
+                        id={nameInputId}
                         label={t('credentialProfiles.name')}
                         value={name}
                         onChange={setName}
@@ -274,12 +283,14 @@ export function CredentialProfilesManager({
                         autoFocus
                     />
                     <ProfileField
+                        id={usernameInputId}
                         label={t('credentialProfiles.username')}
                         value={username}
                         onChange={setUsername}
                         placeholder={t('credentialProfiles.usernamePlaceholder')}
                     />
                     <ProfileField
+                        id={passwordInputId}
                         label={
                             editingId
                                 ? t('credentialProfiles.rotatePassword')

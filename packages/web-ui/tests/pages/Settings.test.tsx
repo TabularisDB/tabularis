@@ -155,7 +155,6 @@ describe('update navigation', () => {
             refresh: vi.fn(),
         });
         vi.mocked(useUpdate).mockReturnValue({
-            session: null,
             updateInfo: null,
             availableUpdate: null,
             isChecking: false,
@@ -184,7 +183,6 @@ describe('update navigation', () => {
 
     it('aggregates the rail counter and splits core/plugin counts in the settings navigation', () => {
         vi.mocked(useUpdate).mockReturnValue({
-            session: null,
             updaterMode: 'native',
             serverInfo: null,
             updateInfo: null,

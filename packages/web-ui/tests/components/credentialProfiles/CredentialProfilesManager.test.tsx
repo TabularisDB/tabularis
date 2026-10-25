@@ -95,6 +95,15 @@ describe('CredentialProfilesManager', () => {
         expect(screen.queryByDisplayValue('db_user')).not.toBeInTheDocument();
     });
 
+    it('associates profile form labels with their inputs', async () => {
+        render(<CredentialProfilesManager />);
+        await screen.findByText('Shared login');
+        fireEvent.click(screen.getByText('credentialProfiles.createNew'));
+        expect(screen.getByLabelText('credentialProfiles.name')).toBeInTheDocument();
+        expect(screen.getByLabelText('credentialProfiles.username')).toBeInTheDocument();
+        expect(screen.getByLabelText('credentialProfiles.password')).toBeInTheDocument();
+    });
+
     it('creates a profile with name, username, and password', async () => {
         render(<CredentialProfilesManager />);
         await screen.findByText('Shared login');
