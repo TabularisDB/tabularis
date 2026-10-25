@@ -14,6 +14,9 @@ vi.mock('@/hooks/usePlatformCapabilities', () => ({
         chooseServerPath: vi.fn(),
     }),
 }));
+vi.mock('@/hooks/useCanManageCredentialProfiles', () => ({
+    useCanManageCredentialProfiles: () => true,
+}));
 import {NewConnectionModal} from '@/components/modals/NewConnectionModal';
 import {PluginSlotContext} from '@/contexts/PluginSlotContext';
 import type {PluginSlotRegistryType} from '@/contexts/PluginSlotContext';

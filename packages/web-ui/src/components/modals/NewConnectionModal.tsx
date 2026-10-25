@@ -34,6 +34,7 @@ import {
 import {TagSelector} from './NewConnectionModal/TagSelector';
 import {EnvironmentSelect} from './NewConnectionModal/EnvironmentSelect';
 import {usePlatformCapabilities} from '@/hooks/usePlatformCapabilities';
+import {useCanManageCredentialProfiles} from '@/hooks/useCanManageCredentialProfiles';
 import {choosePlatformSavePath, choosePlatformServerPath} from '@/platform/dialogs';
 import clsx from 'clsx';
 import {SshConnectionsModal} from './SshConnectionsModal';
@@ -309,6 +310,7 @@ export const NewConnectionModal = ({
 }: NewConnectionModalProps) => {
     const client = useTabularisClient();
     const platform = usePlatformCapabilities();
+    const canManageCredentialProfiles = useCanManageCredentialProfiles();
     const open = (options: Parameters<typeof choosePlatformServerPath>[1]) =>
         choosePlatformServerPath(platform, options);
     const save = (options: Parameters<typeof choosePlatformSavePath>[1]) =>
@@ -2049,17 +2051,20 @@ export const NewConnectionModal = ({
             if (!isCurrentInit()) return;
             setSshConnections(nextSshConnections);
 
-            const nextCredentialProfiles = await loadCredentialProfiles(client);
-            if (!isCurrentInit()) return;
-            setCredentialProfiles(nextCredentialProfiles);
+            if (canManageCredentialProfiles) {
+                const nextCredentialProfiles = await loadCredentialProfiles(client);
+                if (!isCurrentInit()) return;
+                setCredentialProfiles(nextCredentialProfiles);
+            } else {
+                setCredentialProfiles([]);
+            }
 
             const nextK8sConnections = await loadK8sConnections(client);
             if (!isCurrentInit()) return;
             setK8sConnections(nextK8sConnections);
         };
         void init();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen, initialConnection]);
+    }, [isOpen, initialConnection, canManageCredentialProfiles, client]);
 
     const handleDriverChange = (newDriver: string) => {
         setDriver(newDriver);
@@ -3072,6 +3077,7 @@ export const NewConnectionModal = ({
                                 });
                             }}
                             onManageProfiles={() => setIsCredentialProfilesModalOpen(true)}
+                            canManageProfiles={canManageCredentialProfiles}
                             pendingSaveAsProfileName={pendingSaveAsProfileName}
                             onPendingSaveAsProfileNameChange={setPendingSaveAsProfileName}
                         />
@@ -5130,14 +5136,16 @@ export const NewConnectionModal = ({
                     await loadSshConnectionsList();
                 }}
             />
-            <CredentialProfilesModal
-                isOpen={isCredentialProfilesModalOpen}
-                onClose={async () => {
-                    setIsCredentialProfilesModalOpen(false);
-                    await loadCredentialProfilesList();
-                }}
-                onProfilesChanged={() => void loadCredentialProfilesList()}
-            />
+            {canManageCredentialProfiles && (
+                <CredentialProfilesModal
+                    isOpen={isCredentialProfilesModalOpen}
+                    onClose={async () => {
+                        setIsCredentialProfilesModalOpen(false);
+                        await loadCredentialProfilesList();
+                    }}
+                    onProfilesChanged={() => void loadCredentialProfilesList()}
+                />
+            )}
             <K8sConnectionsModal
                 isOpen={isK8sModalOpen}
                 onClose={async () => {

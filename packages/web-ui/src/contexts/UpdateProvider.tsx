@@ -145,6 +145,7 @@ export const UpdateProvider = ({children, session = null}: UpdateProviderProps) 
     return (
         <UpdateContext.Provider
             value={{
+                session,
                 availableUpdate,
                 updateInfo,
                 isChecking,

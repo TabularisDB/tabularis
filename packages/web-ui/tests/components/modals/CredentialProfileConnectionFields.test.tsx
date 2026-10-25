@@ -108,4 +108,26 @@ describe('CredentialProfileConnectionFields save-as lifecycle', () => {
         expect(onPendingSaveAsProfileNameChange).toHaveBeenCalledWith(undefined);
         expect(onCredentialProfileChange).toHaveBeenCalled();
     });
+
+    it('hides profile management controls when the session cannot manage profiles', () => {
+        renderFields({canManageProfiles: false});
+        expect(
+            screen.queryByText('newConnection.manageCredentialProfiles'),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText('newConnection.saveAsCredentialProfile')).not.toBeInTheDocument();
+    });
+
+    it('still allows unlinking a linked profile without management access', () => {
+        renderFields({
+            canManageProfiles: false,
+            credentialProfileId: 'profile-1',
+            profiles: [],
+        });
+        const select = screen.getByRole('combobox', {
+            name: 'newConnection.selectCredentialProfile',
+        });
+        expect(select).not.toBeDisabled();
+        fireEvent.change(select, {target: {value: ''}});
+        expect(onCredentialProfileChange).toHaveBeenCalled();
+    });
 });

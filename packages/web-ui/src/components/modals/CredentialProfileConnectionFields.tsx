@@ -27,6 +27,7 @@ interface CredentialProfileConnectionFieldsProps {
     useIamAuth: boolean;
     disabled?: boolean;
     onManageProfiles: () => void;
+    canManageProfiles?: boolean;
     pendingSaveAsProfileName?: string;
     onPendingSaveAsProfileNameChange: (name: string | undefined) => void;
 }
@@ -40,6 +41,7 @@ export function CredentialProfileConnectionFields({
     useIamAuth,
     disabled = false,
     onManageProfiles,
+    canManageProfiles = true,
     pendingSaveAsProfileName,
     onPendingSaveAsProfileNameChange,
 }: CredentialProfileConnectionFieldsProps) {
@@ -52,11 +54,10 @@ export function CredentialProfileConnectionFields({
 
     const selectedProfile = findCredentialProfile(profiles, credentialProfileId);
     const missingProfile = Boolean(credentialProfileId) && !selectedProfile && profiles.length >= 0;
-    const profileOptions = [
-        INLINE_CREDENTIAL_PROFILE_VALUE,
-        ...profiles.map((profile) => profile.id),
-    ];
-    if (missingProfile && credentialProfileId) {
+    const profileOptions = canManageProfiles
+        ? [INLINE_CREDENTIAL_PROFILE_VALUE, ...profiles.map((profile) => profile.id)]
+        : [INLINE_CREDENTIAL_PROFILE_VALUE, ...(credentialProfileId ? [credentialProfileId] : [])];
+    if (canManageProfiles && missingProfile && credentialProfileId) {
         profileOptions.push(credentialProfileId);
     }
     const profileLabels: Record<string, string> = {
@@ -70,6 +71,7 @@ export function CredentialProfileConnectionFields({
             id: credentialProfileId,
         });
     }
+    const profileSelectDisabled = disabled || (!canManageProfiles && !credentialProfileId);
 
     const handleSelect = (value: string) => {
         onPendingSaveAsProfileNameChange(undefined);
@@ -107,6 +109,7 @@ export function CredentialProfileConnectionFields({
     };
 
     const canSaveAsProfile =
+        canManageProfiles &&
         !credentialProfileId &&
         !pendingSaveAsProfileName &&
         !useIamAuth &&
@@ -126,7 +129,7 @@ export function CredentialProfileConnectionFields({
                     onChange={handleSelect}
                     placeholder={t('newConnection.selectCredentialProfile')}
                     searchable={profiles.length > 8}
-                    disabled={disabled}
+                    disabled={profileSelectDisabled}
                 />
                 {missingProfile && (
                     <p className="text-xs text-accent-warning" role="status">
@@ -147,31 +150,33 @@ export function CredentialProfileConnectionFields({
                 )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-                <button
-                    type="button"
-                    onClick={onManageProfiles}
-                    className="flex items-center gap-1.5 text-xs text-accent font-medium transition-colors"
-                    disabled={disabled}
-                >
-                    <Settings size={12} />
-                    {t('newConnection.manageCredentialProfiles')}
-                </button>
-                {canSaveAsProfile && !saveAsOpen && (
+            {canManageProfiles && (
+                <div className="flex flex-wrap items-center gap-3">
                     <button
                         type="button"
-                        onClick={() => {
-                            setSaveAsOpen(true);
-                            setSaveAsStatus('idle');
-                            setSaveAsMessage('');
-                            setSaveAsName('');
-                        }}
-                        className="text-xs text-accent font-medium transition-colors"
+                        onClick={onManageProfiles}
+                        className="flex items-center gap-1.5 text-xs text-accent font-medium transition-colors"
+                        disabled={disabled}
                     >
-                        {t('newConnection.saveAsCredentialProfile')}
+                        <Settings size={12} />
+                        {t('newConnection.manageCredentialProfiles')}
                     </button>
-                )}
-            </div>
+                    {canSaveAsProfile && !saveAsOpen && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSaveAsOpen(true);
+                                setSaveAsStatus('idle');
+                                setSaveAsMessage('');
+                                setSaveAsName('');
+                            }}
+                            className="text-xs text-accent font-medium transition-colors"
+                        >
+                            {t('newConnection.saveAsCredentialProfile')}
+                        </button>
+                    )}
+                </div>
+            )}
 
             {saveAsOpen && (
                 <div className="rounded-lg border border-default bg-elevated p-3 space-y-3">
