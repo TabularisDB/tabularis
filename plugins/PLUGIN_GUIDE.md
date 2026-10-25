@@ -44,8 +44,9 @@ Single-database values and requests with no matching selection are unchanged.
    - **Windows:** `%APPDATA%\tabularis\plugins\`
 2. It reads each plugin's `.tabularium` manifest (or a legacy `manifest.json`) to discover its capabilities and data types.
 3. The plugin is registered as a driver and appears in the "Database Type" list.
-4. When the user opens a connection using the plugin's driver, Tabularis spawns the executable and begins sending JSON-RPC messages.
-5. The same process instance is reused for all operations in that session.
+4. Tabularis spawns the executable when it registers the driver, and sends JSON-RPC messages once a connection uses it. The desktop app and each `tabularis --mcp` server start their own process.
+5. The same process instance is reused for all connections and operations in that session.
+6. When the session ends, Tabularis kills the process. **Exit when `stdin` reaches EOF** as well: if Tabularis is killed (for example an MCP client force-quitting `tabularis --mcp`), EOF may be the only signal the plugin gets. On Windows, Tabularis also places the plugin in a job object that is killed with it.
 
 ---
 
