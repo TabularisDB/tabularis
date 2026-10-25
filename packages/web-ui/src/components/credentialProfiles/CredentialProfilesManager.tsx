@@ -400,8 +400,7 @@ export function CredentialProfilesManager({
                         ? t('credentialProfiles.deleteBlockedCount', {count: dependents.length})
                         : t('credentialProfiles.confirmDelete')
                 }
-                busy={isCheckingDependents}
-                confirmDisabled={deleteBlocked || deleteLookupFailed}
+                confirmDisabled={isCheckingDependents || deleteBlocked || deleteLookupFailed}
                 onConfirm={() => deleteTargetId && void handleDelete(deleteTargetId)}
                 overlayClassName={confirmOverlayClassName}
             >

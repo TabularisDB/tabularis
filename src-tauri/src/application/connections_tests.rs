@@ -116,6 +116,57 @@ async fn browser_connection_responses_keep_stored_secrets_write_only() {
     assert!(listed["connections"][0]["params"]["password"].is_null());
 }
 
+/// The frontend derives delete dependents from exactly this payload, so the
+/// redacted list must keep `credential_profile_id` while dropping the password.
+#[tokio::test]
+async fn get_connections_redacts_the_password_but_keeps_the_credential_profile_id() {
+    let (_temp, runtime, state) = fixture();
+    let profile = execute(
+        &runtime,
+        &state,
+        ConnectionCommand::CreateCredentialProfile {
+            name: "Shared".to_string(),
+            username: "shared-user".to_string(),
+            password: "profile-secret".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let profile_id = profile["id"].as_str().unwrap().to_string();
+
+    let mut params = connection_params("inline-secret");
+    params.credential_profile_id = Some(profile_id.clone());
+    let saved = execute(
+        &runtime,
+        &state,
+        ConnectionCommand::SaveConnection {
+            name: "Linked".to_string(),
+            params,
+            plugin_secret_changes: None,
+            detect_json_in_text_columns: None,
+            environment: None,
+        },
+    )
+    .await
+    .unwrap();
+    let connection_id = saved["id"].as_str().unwrap().to_string();
+
+    let listed = execute(&runtime, &state, ConnectionCommand::GetConnections)
+        .await
+        .unwrap();
+    let connection = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|connection| connection["id"] == connection_id.as_str())
+        .expect("the saved connection is listed");
+    assert_eq!(
+        connection["params"]["credential_profile_id"].as_str(),
+        Some(profile_id.as_str())
+    );
+    assert!(connection["params"]["password"].is_null());
+}
+
 #[tokio::test]
 async fn connection_groups_tags_ordering_and_duplication_share_one_service() {
     let (_temp, runtime, state) = fixture();

@@ -2,7 +2,10 @@ import {describe, it, expect, vi, beforeEach} from 'vitest';
 import {render, screen, fireEvent, waitFor} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
 import {CredentialProfilesManager} from '@/components/credentialProfiles/CredentialProfilesManager';
-import type {CredentialProfile} from '@/utils/credentialProfiles';
+import type {
+    CredentialProfile,
+    CredentialProfileDependentConnection,
+} from '@/utils/credentialProfiles';
 import {CREDENTIAL_PROFILE_DELETE_BLOCKED_CODE} from '@/utils/credentialProfileErrors';
 
 const profileMocks = vi.hoisted(() => ({
@@ -33,7 +36,6 @@ vi.mock('lucide-react', () => ({
     EyeOff: () => null,
     X: () => null,
     AlertTriangle: () => null,
-    Loader2: () => null,
 }));
 
 vi.mock('@/utils/credentialProfiles', () => ({
@@ -54,6 +56,16 @@ vi.mock('@/utils/credentialProfiles', () => ({
 const PROFILES: CredentialProfile[] = [
     {id: 'profile-1', name: 'Shared login', username: 'db_user'},
 ];
+
+function createDeferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+    return {promise, resolve, reject};
+}
 
 describe('CredentialProfilesManager', () => {
     beforeEach(() => {
@@ -235,5 +247,50 @@ describe('CredentialProfilesManager', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent(
             /credentialProfiles\.deleteBlocked/,
         );
+    });
+
+    it('keeps deletion disabled while the dependents lookup is pending', async () => {
+        const pending = createDeferred<CredentialProfileDependentConnection[]>();
+        profileMocks.getCredentialProfileDependents.mockReturnValue(pending.promise);
+        render(<CredentialProfilesManager />);
+        await screen.findByText('Shared login');
+        fireEvent.click(screen.getByTitle('credentialProfiles.delete'));
+
+        const confirm = await screen.findByRole('button', {name: 'common.delete'});
+        expect(confirm).toBeDisabled();
+        fireEvent.click(confirm);
+        expect(profileMocks.deleteCredentialProfile).not.toHaveBeenCalled();
+
+        pending.resolve([]);
+        await waitFor(() => expect(confirm).toBeEnabled());
+    });
+
+    it('ignores a stale dependents lookup after closing and reopening the dialog', async () => {
+        const stale = createDeferred<CredentialProfileDependentConnection[]>();
+        const fresh = createDeferred<CredentialProfileDependentConnection[]>();
+        profileMocks.getCredentialProfileDependents
+            .mockReturnValueOnce(stale.promise)
+            .mockReturnValueOnce(fresh.promise);
+
+        render(<CredentialProfilesManager />);
+        await screen.findByText('Shared login');
+
+        // Open, then dismiss while the first lookup is still in flight.
+        fireEvent.click(screen.getByTitle('credentialProfiles.delete'));
+        fireEvent.click(await screen.findByRole('button', {name: 'common.cancel'}));
+
+        // Reopen: a second lookup is now in flight.
+        fireEvent.click(screen.getByTitle('credentialProfiles.delete'));
+        await waitFor(() =>
+            expect(profileMocks.getCredentialProfileDependents).toHaveBeenCalledTimes(2),
+        );
+
+        // The first lookup settles late and must not touch the reopened dialog.
+        stale.resolve([{id: 'stale', name: 'Stale DB'}]);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(screen.queryByText('Stale DB')).not.toBeInTheDocument();
+
+        fresh.resolve([{id: 'fresh', name: 'Fresh DB'}]);
+        expect(await screen.findByText('Fresh DB')).toBeInTheDocument();
     });
 });
