@@ -469,6 +469,13 @@ pub trait DatabaseDriver: Send + Sync {
     /// Built-in sqlx-based drivers hold no background process; the default is a no-op.
     async fn shutdown(&self) {}
 
+    /// Like [`shutdown`](Self::shutdown), but stops the background process at
+    /// once instead of letting in-flight calls finish. For a host that is
+    /// exiting, when no caller is left to read their results.
+    async fn terminate(&self) {
+        self.shutdown().await
+    }
+
     /// Returns the OS process ID of the subprocess backing this driver, if any.
     /// Built-in drivers always return `None`.
     fn pid(&self) -> Option<u32> {

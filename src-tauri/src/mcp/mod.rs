@@ -28,6 +28,7 @@ mod keychain;
 mod output;
 pub mod preflight;
 pub mod protocol;
+mod termination;
 use cooldown::{DISABLE_CHECK_COOLDOWN, RELOAD_COOLDOWN};
 use keychain::{read_stored_secret, StoredSecret};
 use output::{OutputFormatError, ToolOutputFormat};
@@ -479,6 +480,7 @@ fn resolve_default_schema<'a>(
 pub async fn run_mcp_server() {
     eprintln!("[MCP] Starting Tabularis MCP Server...");
 
+    termination::stop_plugins_on_termination_signal();
     register_drivers_for_mcp().await;
 
     let stdin = io::stdin();

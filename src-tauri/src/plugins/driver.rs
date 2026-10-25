@@ -412,12 +412,23 @@ impl PluginProcess {
     }
 
     async fn shutdown(&self) {
+        // Resolved once and handed to the manager so the drain deadline and
+        // the join bound in `stop` cannot disagree.
+        self.stop(crate::plugins::shutdown_grace::for_plugin(&self.plugin_id))
+            .await;
+    }
+
+    /// Stops the child without draining in-flight calls.
+    async fn terminate(&self) {
+        self.stop(Some(Duration::ZERO)).await;
+    }
+
+    /// Lets in-flight calls run for `grace` (`None`: until they finish), then
+    /// kills the child.
+    async fn stop(&self, grace: Option<Duration>) {
         // Unregistered drivers may still be held by existing Arc references;
         // reject their new calls immediately rather than silently enqueueing.
         self.accepting_calls.store(false, Ordering::Release);
-        // Resolved once and handed to the manager so the drain deadline and
-        // this join bound cannot disagree.
-        let grace = crate::plugins::shutdown_grace::for_plugin(&self.plugin_id);
         {
             let mut guard = self.shutdown_tx.lock().await;
             if let Some(tx) = guard.take() {
@@ -739,6 +750,10 @@ impl DatabaseDriver for RpcDriver {
 
     async fn shutdown(&self) {
         self.process.shutdown().await;
+    }
+
+    async fn terminate(&self) {
+        self.process.terminate().await;
     }
 
     fn pid(&self) -> Option<u32> {
@@ -3801,3 +3816,7 @@ mod cancel_tests;
 #[cfg(test)]
 #[path = "ddl_context_tests.rs"]
 mod ddl_context_tests;
+
+#[cfg(all(test, unix))]
+#[path = "process_exit_tests.rs"]
+mod process_exit_tests;
