@@ -2039,8 +2039,8 @@ impl RpcCommand {
                 application_error_code: "QUERY_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
-            Self::Connection(_) => CommandMetadata {
-                authorization: AuthorizationLevel::Database,
+            Self::Connection(command) => CommandMetadata {
+                authorization: command.authorization(),
                 application_error_code: "CONNECTION_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
@@ -2583,6 +2583,16 @@ impl ConnectionRpcCommand {
             "list_databases" => Self::ListDatabases,
             _ => return None,
         })
+    }
+
+    fn authorization(self) -> AuthorizationLevel {
+        match self {
+            Self::ListCredentialProfiles
+            | Self::CreateCredentialProfile
+            | Self::UpdateCredentialProfile
+            | Self::DeleteCredentialProfile => AuthorizationLevel::LocalAdmin,
+            _ => AuthorizationLevel::Database,
+        }
     }
 }
 

@@ -91,8 +91,11 @@ import {
 import {
     isCredentialProfileLinked,
     shouldLockUsernameToProfile,
+    applySaveAsPersistenceErrorToRollbackState,
+    shouldRollbackSaveAsCredentialProfile,
     shouldShowDatabasePasswordField,
     stripInlineSecretsForCredentialProfile,
+    type SaveAsCredentialProfileRollbackState,
 } from '@/utils/connectionCredentialProfile';
 import {getDriverIcon, getDriverColorStyle, isUrlIcon} from '@/utils/driverUI';
 import {
@@ -2455,7 +2458,11 @@ export const NewConnectionModal = ({
                 withInlineK8sPaths(paramsBase, inlinePaths.options),
             ) as ConnectionParams;
 
-            let createdProfileIdForRollback: string | undefined;
+            const saveAsRollbackState: SaveAsCredentialProfileRollbackState = {
+                createdProfileId: undefined,
+                connectionPersistenceCommitted: false,
+                persistenceOutcomeUncertain: false,
+            };
             if (pendingSaveAsProfileName) {
                 if (formData.use_iam_auth === true) {
                     setStatus('error');
@@ -2509,7 +2516,7 @@ export const NewConnectionModal = ({
                         formData.password ?? '',
                         client,
                     );
-                    createdProfileIdForRollback = created.id;
+                    saveAsRollbackState.createdProfileId = created.id;
                     params.credential_profile_id = created.id;
                     params.username = created.username;
                     params = stripInlineSecretsForCredentialProfile(params);
@@ -2518,48 +2525,59 @@ export const NewConnectionModal = ({
 
                 let savedConnectionId: string;
                 let persistedInKeychain = params.save_in_keychain;
-                if (initialConnection) {
-                    // An omitted password means "keep the stored one". While a plugin
-                    // hides the login inputs the empty password is deliberate: it is
-                    // sent as-is so the backend drops the keychain entry too.
-                    if (
-                        !params.credential_profile_id &&
-                        !params.password?.trim() &&
-                        !credentialFieldsHidden
-                    ) {
-                        delete params.password;
-                    }
-                    if (!params.ssh_password?.trim()) delete params.ssh_password;
-                    const updated = await client.call('update_connection', {
-                        id: initialConnection.id,
-                        name,
-                        params,
-                        pluginSecretChanges,
-                        detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
-                        environment: environment || null,
-                    });
-                    persistedInKeychain = updated?.params?.save_in_keychain;
-                    savedConnectionId = initialConnection.id;
-                    await client.call('set_connection_appearance', {
-                        id: initialConnection.id,
-                        appearance: appearancePayload,
-                    });
-                } else {
-                    const saved = await client.call('save_connection', {
-                        name,
-                        params,
-                        pluginSecretChanges,
-                        detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
-                        environment: environment || null,
-                    });
-                    persistedInKeychain = saved.params?.save_in_keychain;
-                    savedConnectionId = saved.id;
-                    if (appearancePayload) {
+                try {
+                    if (initialConnection) {
+                        // An omitted password means "keep the stored one". While a plugin
+                        // hides the login inputs the empty password is deliberate: it is
+                        // sent as-is so the backend drops the keychain entry too.
+                        if (
+                            !params.credential_profile_id &&
+                            !params.password?.trim() &&
+                            !credentialFieldsHidden
+                        ) {
+                            delete params.password;
+                        }
+                        if (!params.ssh_password?.trim()) delete params.ssh_password;
+                        const updated = await client.call('update_connection', {
+                            id: initialConnection.id,
+                            name,
+                            params,
+                            pluginSecretChanges,
+                            detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
+                            environment: environment || null,
+                        });
+                        persistedInKeychain = updated?.params?.save_in_keychain;
+                        savedConnectionId = initialConnection.id;
+                        saveAsRollbackState.connectionPersistenceCommitted = true;
                         await client.call('set_connection_appearance', {
-                            id: saved.id,
+                            id: initialConnection.id,
                             appearance: appearancePayload,
                         });
+                    } else {
+                        const saved = await client.call('save_connection', {
+                            name,
+                            params,
+                            pluginSecretChanges,
+                            detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
+                            environment: environment || null,
+                        });
+                        if (!saved?.id?.trim()) {
+                            saveAsRollbackState.persistenceOutcomeUncertain = true;
+                            throw new Error('Connection save returned no id');
+                        }
+                        persistedInKeychain = saved.params?.save_in_keychain;
+                        savedConnectionId = saved.id;
+                        saveAsRollbackState.connectionPersistenceCommitted = true;
+                        if (appearancePayload) {
+                            await client.call('set_connection_appearance', {
+                                id: saved.id,
+                                appearance: appearancePayload,
+                            });
+                        }
                     }
+                } catch (persistErr) {
+                    applySaveAsPersistenceErrorToRollbackState(saveAsRollbackState, persistErr);
+                    throw persistErr;
                 }
 
                 await client.call('set_connection_tags', {
@@ -2589,7 +2607,7 @@ export const NewConnectionModal = ({
                 if (onSave) onSave();
                 wasSavedRef.current = true;
                 setPendingSaveAsProfileName(undefined);
-                createdProfileIdForRollback = undefined;
+                saveAsRollbackState.createdProfileId = undefined;
 
                 // Delete only paths owned by this save attempt. Paths uploaded by a
                 // superseding session remain tracked for that session's own cleanup.
@@ -2615,10 +2633,11 @@ export const NewConnectionModal = ({
                 setIsPersistencePending(false);
                 handleClose();
             } catch (err) {
-                if (createdProfileIdForRollback) {
-                    await deleteCredentialProfile(createdProfileIdForRollback, client).catch(
-                        () => {},
-                    );
+                if (shouldRollbackSaveAsCredentialProfile(saveAsRollbackState)) {
+                    await deleteCredentialProfile(
+                        saveAsRollbackState.createdProfileId!,
+                        client,
+                    ).catch(() => {});
                 }
                 if (
                     activeActionRef.current === actionId &&

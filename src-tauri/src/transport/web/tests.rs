@@ -749,6 +749,18 @@ async fn authenticates_remote_password_and_proxy_requests_with_auditing() {
         .unwrap();
     assert_eq!(blocked.status(), reqwest::StatusCode::FORBIDDEN);
 
+    let blocked_profiles = client
+        .post(format!("{base_url}/api/v1/rpc/list_credential_profiles"))
+        .header(HOST, "tabularis.example.com")
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, public_origin)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&Value::Null)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(blocked_profiles.status(), reqwest::StatusCode::FORBIDDEN);
+
     shutdown_tx.send(()).unwrap();
     server.await.unwrap().unwrap();
 

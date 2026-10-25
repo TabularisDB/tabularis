@@ -1,4 +1,5 @@
 import type {CredentialProfile} from '@/api/contract';
+import {toErrorMessage} from '@/utils/errors';
 
 export const INLINE_CREDENTIAL_PROFILE_VALUE = '';
 
@@ -60,6 +61,55 @@ export function stripInlineSecretsForCredentialProfile<T extends ConnectionCrede
     const next = {...params};
     delete next.password;
     return next;
+}
+
+export interface SaveAsCredentialProfileRollbackState {
+    createdProfileId?: string;
+    connectionPersistenceCommitted: boolean;
+    persistenceOutcomeUncertain: boolean;
+}
+
+/**
+ * Backend validation errors returned before `save_connections_file` commits.
+ * Transport failures and generic RPC rejections are treated as ambiguous.
+ */
+export function isProvablyPrePersistenceConnectionSaveError(error: unknown): boolean {
+    const message = toErrorMessage(error).trim();
+    if (!message) {
+        return false;
+    }
+    if (/^Credential profile/i.test(message)) {
+        return true;
+    }
+    if (/^Invalid environment:/i.test(message)) {
+        return true;
+    }
+    return false;
+}
+
+export function applySaveAsPersistenceErrorToRollbackState(
+    state: SaveAsCredentialProfileRollbackState,
+    error: unknown,
+): void {
+    if (!isProvablyPrePersistenceConnectionSaveError(error)) {
+        state.persistenceOutcomeUncertain = true;
+    }
+}
+
+/** Deletes a save-as profile only when creation succeeded and connection persistence did not. */
+export function shouldRollbackSaveAsCredentialProfile(
+    state: SaveAsCredentialProfileRollbackState,
+): boolean {
+    if (!state.createdProfileId?.trim()) {
+        return false;
+    }
+    if (state.connectionPersistenceCommitted) {
+        return false;
+    }
+    if (state.persistenceOutcomeUncertain) {
+        return false;
+    }
+    return true;
 }
 
 export function applySelectedCredentialProfile(
