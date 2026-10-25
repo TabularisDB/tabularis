@@ -43,6 +43,14 @@ fn disabled_legacy_master_switch_uses_scope_defaults() {
     for value in [
         json!({"enabled": false}),
         json!({"enabled": false, "scopes": {}}),
+    ] {
+        assert_eq!(migrate(value), ProxyScopeModes::default());
+    }
+}
+
+#[test]
+fn disabled_legacy_master_switch_preserves_explicit_scope_choices() {
+    for value in [
         json!({
             "enabled": false,
             "scopes": {"app_http": false, "ai": false, "database": false, "ssh_tunnel": false}
@@ -51,9 +59,22 @@ fn disabled_legacy_master_switch_uses_scope_defaults() {
             "enabled": false,
             "scopes": {"app_http": true, "ai": true, "database": true, "ssh_tunnel": true}
         }),
-        json!({"enabled": false, "scopes": {"app_http": true, "database": true}}),
     ] {
-        assert_eq!(migrate(value), ProxyScopeModes::default());
+        let modes = migrate(value);
+        assert_eq!(modes.app_http, HttpProxyMode::Disabled);
+        assert_eq!(modes.ai, HttpProxyMode::Disabled);
+        assert_eq!(modes.database, TcpProxyMode::Disabled);
+        assert_eq!(modes.ssh_tunnel, TcpProxyMode::Disabled);
+    }
+    for choice in [false, true] {
+        let modes = migrate(json!({
+            "enabled": false,
+            "scopes": {"app_http": choice, "database": choice}
+        }));
+        assert_eq!(modes.app_http, HttpProxyMode::Disabled);
+        assert_eq!(modes.ai, HttpProxyMode::System);
+        assert_eq!(modes.database, TcpProxyMode::Disabled);
+        assert_eq!(modes.ssh_tunnel, TcpProxyMode::Disabled);
     }
 }
 

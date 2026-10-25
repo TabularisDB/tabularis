@@ -153,14 +153,11 @@ impl From<GlobalProxySettingsWire> for GlobalProxySettings {
                     .unwrap_or(false)
         };
         let old_http_mode = |scope| {
-            // A disabled legacy master switch adopts the new scope defaults.
-            // Otherwise distinguish untouched scopes from explicit false values.
-            if enabled == Some(false) {
-                return HttpProxyMode::System;
-            }
+            // Preserve explicit scope choices and keep selected legacy routes off
+            // when the master switch was disabled. Untouched scopes use defaults.
             match scopes.as_ref().and_then(|scopes| scopes.get(scope)) {
-                Some(true) => HttpProxyMode::Custom,
-                Some(false) => HttpProxyMode::Disabled,
+                Some(true) if enabled != Some(false) => HttpProxyMode::Custom,
+                Some(_) => HttpProxyMode::Disabled,
                 None => HttpProxyMode::System,
             }
         };
