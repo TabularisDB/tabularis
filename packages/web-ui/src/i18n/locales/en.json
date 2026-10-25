@@ -1470,6 +1470,9 @@
     "failSave": "Failed to save credential profile: {{error}}",
     "failDelete": "Failed to delete credential profile: {{error}}",
     "deleteBlocked": "This profile is still used by {{count}} connection(s): {{names}}",
+    "deleteBlockedCount": "This profile is still used by {{count}} connection(s):",
+    "deleteBlockedHint": "Unlink these connections before deleting the profile.",
+    "deleteDependentsError": "Couldn't check which connections use this profile. Try again.",
     "manageDesc": "Reusable database logins for your connections. Passwords are stored in the system keychain and never shown here.",
     "errors": {
       "nameRequired": "Profile name is required",

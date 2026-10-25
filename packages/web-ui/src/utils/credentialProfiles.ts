@@ -59,6 +59,26 @@ export async function deleteCredentialProfile(
     await commandClient(client).call('delete_credential_profile', {id});
 }
 
+export interface CredentialProfileDependentConnection {
+    id: string;
+    name: string;
+}
+
+/**
+ * Connections that reference a profile, resolved from the redacted connection
+ * list so the delete confirmation can name them before the backend guard runs.
+ * Passwords and other secrets are stripped from that list by the backend.
+ */
+export async function getCredentialProfileDependents(
+    id: string,
+    client?: TypedCommandCaller,
+): Promise<CredentialProfileDependentConnection[]> {
+    const connections = await commandClient(client).call('get_connections', undefined);
+    return connections
+        .filter((connection) => connection.params.credential_profile_id === id)
+        .map((connection) => ({id: connection.id, name: connection.name}));
+}
+
 export function validateCredentialProfileForm(
     data: {name?: string; username?: string; password?: string},
     options: {requirePassword: boolean},

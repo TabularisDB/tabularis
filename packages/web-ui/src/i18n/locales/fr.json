@@ -1440,6 +1440,9 @@
     "failSave": "Échec de l'enregistrement du profil : {{error}}",
     "failDelete": "Échec de la suppression du profil : {{error}}",
     "deleteBlocked": "Ce profil est encore utilisé par {{count}} connexion(s) : {{names}}",
+    "deleteBlockedCount": "Ce profil est encore utilisé par {{count}} connexion(s) :",
+    "deleteBlockedHint": "Dissociez ces connexions avant de supprimer le profil.",
+    "deleteDependentsError": "Impossible de vérifier quelles connexions utilisent ce profil. Réessayez.",
     "manageDesc": "Identifiants de base de données réutilisables pour vos connexions. Les mots de passe sont stockés dans le trousseau système et ne sont jamais affichés ici.",
     "errors": {
       "nameRequired": "Le nom du profil est requis",

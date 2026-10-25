@@ -10,6 +10,7 @@ const profileMocks = vi.hoisted(() => ({
     createCredentialProfile: vi.fn(),
     updateCredentialProfile: vi.fn(),
     deleteCredentialProfile: vi.fn(),
+    getCredentialProfileDependents: vi.fn(),
     validateCredentialProfileForm: vi.fn(),
 }));
 
@@ -32,6 +33,7 @@ vi.mock('lucide-react', () => ({
     EyeOff: () => null,
     X: () => null,
     AlertTriangle: () => null,
+    Loader2: () => null,
 }));
 
 vi.mock('@/utils/credentialProfiles', () => ({
@@ -45,6 +47,7 @@ vi.mock('@/utils/credentialProfiles', () => ({
         password: string | undefined,
     ) => profileMocks.updateCredentialProfile(id, name, username, password),
     deleteCredentialProfile: (id: string) => profileMocks.deleteCredentialProfile(id),
+    getCredentialProfileDependents: (id: string) => profileMocks.getCredentialProfileDependents(id),
     validateCredentialProfileForm: profileMocks.validateCredentialProfileForm,
 }));
 
@@ -80,6 +83,7 @@ describe('CredentialProfilesManager', () => {
         });
         profileMocks.updateCredentialProfile.mockResolvedValue(undefined);
         profileMocks.deleteCredentialProfile.mockResolvedValue(undefined);
+        profileMocks.getCredentialProfileDependents.mockResolvedValue([]);
     });
 
     it('shows the empty state when no profiles exist', async () => {
@@ -166,18 +170,55 @@ describe('CredentialProfilesManager', () => {
         });
     });
 
-    it('deletes a profile after confirmation', async () => {
+    it('deletes an unused profile after confirmation', async () => {
         render(<CredentialProfilesManager />);
         await screen.findByText('Shared login');
         fireEvent.click(screen.getByTitle('credentialProfiles.delete'));
         expect(await screen.findByText('credentialProfiles.confirmDelete')).toBeInTheDocument();
-        fireEvent.click(screen.getByText('common.delete'));
+        const confirm = screen.getByRole('button', {name: 'common.delete'});
+        await waitFor(() => expect(confirm).toBeEnabled());
+        fireEvent.click(confirm);
         await waitFor(() => {
             expect(profileMocks.deleteCredentialProfile).toHaveBeenCalledWith('profile-1');
         });
     });
 
-    it('surfaces blocked deletion with dependent connection names', async () => {
+    it('lists dependent connections and blocks deletion before confirming', async () => {
+        profileMocks.getCredentialProfileDependents.mockResolvedValue([
+            {id: 'conn-1', name: 'Linked DB'},
+            {id: 'conn-2', name: 'Replica DB'},
+        ]);
+        render(<CredentialProfilesManager />);
+        await screen.findByText('Shared login');
+        fireEvent.click(screen.getByTitle('credentialProfiles.delete'));
+
+        expect(await screen.findByText('Linked DB')).toBeInTheDocument();
+        expect(screen.getByText('Replica DB')).toBeInTheDocument();
+        expect(screen.getByText('credentialProfiles.deleteBlockedCount')).toBeInTheDocument();
+        expect(screen.getByText('credentialProfiles.deleteBlockedHint')).toBeInTheDocument();
+
+        const confirm = screen.getByRole('button', {name: 'common.delete'});
+        expect(confirm).toBeDisabled();
+        fireEvent.click(confirm);
+        expect(profileMocks.deleteCredentialProfile).not.toHaveBeenCalled();
+    });
+
+    it('disables deletion and explains when the dependents lookup fails', async () => {
+        profileMocks.getCredentialProfileDependents.mockRejectedValue(new Error('offline'));
+        render(<CredentialProfilesManager />);
+        await screen.findByText('Shared login');
+        fireEvent.click(screen.getByTitle('credentialProfiles.delete'));
+
+        expect(
+            await screen.findByText('credentialProfiles.deleteDependentsError'),
+        ).toBeInTheDocument();
+        const confirm = screen.getByRole('button', {name: 'common.delete'});
+        expect(confirm).toBeDisabled();
+        fireEvent.click(confirm);
+        expect(profileMocks.deleteCredentialProfile).not.toHaveBeenCalled();
+    });
+
+    it('surfaces a blocked deletion when a connection links after the lookup', async () => {
         profileMocks.deleteCredentialProfile.mockRejectedValue(
             JSON.stringify({
                 code: CREDENTIAL_PROFILE_DELETE_BLOCKED_CODE,
@@ -188,7 +229,9 @@ describe('CredentialProfilesManager', () => {
         render(<CredentialProfilesManager />);
         await screen.findByText('Shared login');
         fireEvent.click(screen.getByTitle('credentialProfiles.delete'));
-        fireEvent.click(await screen.findByText('common.delete'));
+        const confirm = screen.getByRole('button', {name: 'common.delete'});
+        await waitFor(() => expect(confirm).toBeEnabled());
+        fireEvent.click(confirm);
         expect(await screen.findByRole('alert')).toHaveTextContent(
             /credentialProfiles\.deleteBlocked/,
         );

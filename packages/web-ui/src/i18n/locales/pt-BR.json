@@ -1419,6 +1419,9 @@
     "failSave": "Falha ao salvar o perfil de credenciais: {{error}}",
     "failDelete": "Falha ao excluir o perfil de credenciais: {{error}}",
     "deleteBlocked": "Este perfil ainda é usado por {{count}} conexão(ões): {{names}}",
+    "deleteBlockedCount": "Este perfil ainda é usado por {{count}} conexão(ões):",
+    "deleteBlockedHint": "Desvincule estas conexões antes de excluir o perfil.",
+    "deleteDependentsError": "Não foi possível verificar quais conexões usam este perfil. Tente novamente.",
     "manageDesc": "Logins de banco reutilizáveis para suas conexões. As senhas ficam no chaveiro do sistema e nunca são exibidas aqui.",
     "errors": {
       "nameRequired": "O nome do perfil é obrigatório",

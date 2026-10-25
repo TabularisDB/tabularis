@@ -1466,6 +1466,9 @@
     "failSave": "Salvataggio profilo non riuscito: {{error}}",
     "failDelete": "Eliminazione profilo non riuscita: {{error}}",
     "deleteBlocked": "Questo profilo è ancora usato da {{count}} connessione/i: {{names}}",
+    "deleteBlockedCount": "Questo profilo è ancora usato da {{count}} connessione/i:",
+    "deleteBlockedHint": "Scollega queste connessioni prima di eliminare il profilo.",
+    "deleteDependentsError": "Impossibile verificare quali connessioni usano questo profilo. Riprova.",
     "manageDesc": "Accessi database riutilizzabili per le tue connessioni. Le password sono nel portachiavi di sistema e non vengono mai mostrate qui.",
     "errors": {
       "nameRequired": "Il nome del profilo è obbligatorio",

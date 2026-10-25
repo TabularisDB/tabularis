@@ -1416,6 +1416,9 @@
     "failSave": "認証情報プロファイルの保存に失敗しました: {{error}}",
     "failDelete": "認証情報プロファイルの削除に失敗しました: {{error}}",
     "deleteBlocked": "このプロファイルは {{count}} 件の接続で使用中です: {{names}}",
+    "deleteBlockedCount": "このプロファイルは {{count}} 件の接続で使用中です:",
+    "deleteBlockedHint": "このプロファイルを削除する前に、これらの接続の関連付けを解除してください。",
+    "deleteDependentsError": "このプロファイルを使用している接続を確認できませんでした。もう一度お試しください。",
     "manageDesc": "接続で再利用できるデータベースログイン。パスワードはシステムキーチェーンに保存され、ここでは表示されません。",
     "errors": {
       "nameRequired": "プロファイル名は必須です",

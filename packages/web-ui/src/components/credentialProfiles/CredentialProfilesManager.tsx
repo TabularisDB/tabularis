@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useId, useState} from 'react';
+import {useCallback, useEffect, useId, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {Plus, Edit2, Trash2, Check, Eye, EyeOff, X} from 'lucide-react';
 import clsx from 'clsx';
@@ -7,10 +7,12 @@ import {ConfirmModal} from '@/components/modals/ConfirmModal';
 import {
     createCredentialProfile,
     deleteCredentialProfile,
+    getCredentialProfileDependents,
     loadCredentialProfiles,
     updateCredentialProfile,
     validateCredentialProfileForm,
     type CredentialProfile,
+    type CredentialProfileDependentConnection,
 } from '@/utils/credentialProfiles';
 import {parseCredentialProfileDeleteBlockedError} from '@/utils/credentialProfileErrors';
 import {toErrorMessage} from '@/utils/errors';
@@ -102,6 +104,12 @@ export function CredentialProfilesManager({
     const [status, setStatus] = useState<'idle' | 'error'>('idle');
     const [statusMessage, setStatusMessage] = useState('');
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+    const [deleteDependents, setDeleteDependents] = useState<
+        CredentialProfileDependentConnection[] | null
+    >(null);
+    const [deleteLookupFailed, setDeleteLookupFailed] = useState(false);
+    const [isCheckingDependents, setIsCheckingDependents] = useState(false);
+    const deleteRequestRef = useRef(0);
     const nameInputId = useId();
     const usernameInputId = useId();
     const passwordInputId = useId();
@@ -175,14 +183,50 @@ export function CredentialProfilesManager({
         }
     };
 
-    const handleDelete = async (id: string) => {
+    const closeDelete = useCallback(() => {
+        deleteRequestRef.current += 1;
         setDeleteTargetId(null);
+        setDeleteDependents(null);
+        setDeleteLookupFailed(false);
+        setIsCheckingDependents(false);
+    }, []);
+
+    // Resolve dependents before the destructive action so the confirmation can
+    // name the connections the profile is shared with and refuse to orphan them.
+    const openDelete = useCallback(
+        async (id: string) => {
+            const request = deleteRequestRef.current + 1;
+            deleteRequestRef.current = request;
+            setDeleteTargetId(id);
+            setDeleteDependents(null);
+            setDeleteLookupFailed(false);
+            setIsCheckingDependents(true);
+            try {
+                const dependents = await getCredentialProfileDependents(id, client);
+                if (deleteRequestRef.current !== request) return;
+                setDeleteDependents(dependents);
+            } catch {
+                if (deleteRequestRef.current !== request) return;
+                setDeleteLookupFailed(true);
+            } finally {
+                if (deleteRequestRef.current === request) {
+                    setIsCheckingDependents(false);
+                }
+            }
+        },
+        [client],
+    );
+
+    const handleDelete = async (id: string) => {
+        closeDelete();
         try {
             await deleteCredentialProfile(id, client);
             await refresh();
             setStatus('idle');
             setStatusMessage('');
         } catch (error) {
+            // The lookup ran on open; a connection linked in the meantime still
+            // trips the backend guard, which returns the same blocked payload.
             const blocked = parseCredentialProfileDeleteBlockedError(error);
             if (blocked) {
                 const names = blocked.connections.map((connection) => connection.name).join(', ');
@@ -199,6 +243,9 @@ export function CredentialProfilesManager({
             setStatusMessage(t('credentialProfiles.failDelete', {error: toErrorMessage(error)}));
         }
     };
+
+    const dependents = deleteDependents ?? [];
+    const deleteBlocked = dependents.length > 0;
 
     return (
         <>
@@ -260,7 +307,7 @@ export function CredentialProfilesManager({
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setDeleteTargetId(profile.id)}
+                                            onClick={() => void openDelete(profile.id)}
                                             className="p-2 text-accent-error hover:bg-accent-error/10 rounded-lg transition-colors"
                                             title={t('credentialProfiles.delete')}
                                         >
@@ -346,12 +393,38 @@ export function CredentialProfilesManager({
 
             <ConfirmModal
                 isOpen={deleteTargetId !== null}
-                onClose={() => setDeleteTargetId(null)}
+                onClose={closeDelete}
                 title={t('credentialProfiles.delete')}
-                message={t('credentialProfiles.confirmDelete')}
+                message={
+                    deleteBlocked
+                        ? t('credentialProfiles.deleteBlockedCount', {count: dependents.length})
+                        : t('credentialProfiles.confirmDelete')
+                }
+                busy={isCheckingDependents}
+                confirmDisabled={deleteBlocked || deleteLookupFailed}
                 onConfirm={() => deleteTargetId && void handleDelete(deleteTargetId)}
                 overlayClassName={confirmOverlayClassName}
-            />
+            >
+                {deleteBlocked && (
+                    <>
+                        <ul className="space-y-1 text-sm text-secondary">
+                            {dependents.map((connection) => (
+                                <li key={connection.id} className="truncate">
+                                    {connection.name}
+                                </li>
+                            ))}
+                        </ul>
+                        <p className="text-xs text-muted">
+                            {t('credentialProfiles.deleteBlockedHint')}
+                        </p>
+                    </>
+                )}
+                {deleteLookupFailed && (
+                    <p role="alert" className="text-xs text-accent-error">
+                        {t('credentialProfiles.deleteDependentsError')}
+                    </p>
+                )}
+            </ConfirmModal>
         </>
     );
 }

@@ -1431,6 +1431,9 @@
     "failSave": "No se pudo guardar el perfil de credenciales: {{error}}",
     "failDelete": "No se pudo eliminar el perfil de credenciales: {{error}}",
     "deleteBlocked": "Este perfil aún lo usan {{count}} conexión(es): {{names}}",
+    "deleteBlockedCount": "Este perfil aún lo usan {{count}} conexión(es):",
+    "deleteBlockedHint": "Desvincula estas conexiones antes de eliminar el perfil.",
+    "deleteDependentsError": "No se pudo comprobar qué conexiones usan este perfil. Inténtalo de nuevo.",
     "manageDesc": "Inicios de sesión de base de datos reutilizables para tus conexiones. Las contraseñas se guardan en el llavero del sistema y nunca se muestran aquí.",
     "errors": {
       "nameRequired": "El nombre del perfil es obligatorio",

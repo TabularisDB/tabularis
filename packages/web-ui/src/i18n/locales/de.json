@@ -1403,6 +1403,9 @@
     "failSave": "Speichern des Anmeldeprofils fehlgeschlagen: {{error}}",
     "failDelete": "Löschen des Anmeldeprofils fehlgeschlagen: {{error}}",
     "deleteBlocked": "Dieses Profil wird noch von {{count}} Verbindung(en) verwendet: {{names}}",
+    "deleteBlockedCount": "Dieses Profil wird noch von {{count}} Verbindung(en) verwendet:",
+    "deleteBlockedHint": "Trenne diese Verbindungen, bevor du das Profil löschst.",
+    "deleteDependentsError": "Es konnte nicht geprüft werden, welche Verbindungen dieses Profil verwenden. Versuche es erneut.",
     "manageDesc": "Wiederverwendbare Datenbank-Logins für deine Verbindungen. Passwörter werden im System-Keychain gespeichert und hier nie angezeigt.",
     "errors": {
       "nameRequired": "Profilname ist erforderlich",

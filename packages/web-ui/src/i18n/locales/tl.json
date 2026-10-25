@@ -1432,6 +1432,9 @@
     "failSave": "Hindi na-save ang credential profile: {{error}}",
     "failDelete": "Hindi natanggal ang credential profile: {{error}}",
     "deleteBlocked": "Ginagamit pa ng {{count}} koneksyon ang profile na ito: {{names}}",
+    "deleteBlockedCount": "Ginagamit pa ng {{count}} koneksyon ang profile na ito:",
+    "deleteBlockedHint": "I-unlink ang mga koneksyong ito bago tanggalin ang profile.",
+    "deleteDependentsError": "Hindi matukoy kung aling mga koneksyon ang gumagamit ng profile na ito. Subukang muli.",
     "manageDesc": "Muling magagamit na database login para sa mga koneksyon mo. Naka-imbak ang mga password sa system keychain at hindi ipinapakita dito.",
     "errors": {
       "nameRequired": "Kailangan ang pangalan ng profile",

@@ -1378,6 +1378,9 @@
     "failSave": "保存凭据配置文件失败：{{error}}",
     "failDelete": "删除凭据配置文件失败：{{error}}",
     "deleteBlocked": "此配置文件仍被 {{count}} 个连接使用：{{names}}",
+    "deleteBlockedCount": "此配置文件仍被 {{count}} 个连接使用：",
+    "deleteBlockedHint": "删除此配置文件前，请先解除这些连接的关联。",
+    "deleteDependentsError": "无法检查哪些连接使用了此配置文件。请重试。",
     "manageDesc": "可在连接中复用的数据库登录。密码保存在系统钥匙串中，此处不会显示。",
     "errors": {
       "nameRequired": "配置文件名称必填",
