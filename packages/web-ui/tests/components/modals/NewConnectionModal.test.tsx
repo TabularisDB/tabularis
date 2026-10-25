@@ -78,13 +78,7 @@ vi.mock('@tauri-apps/api/event', () => ({
     listen: eventMocks.listen,
 }));
 
-vi.mock('@/hooks/useTabularisClient', () => ({
-    useTabularisClient: () => ({
-        call: (command: string, request: unknown) => invoke(command, request),
-        subscribe: (event: string, handler: (payload: unknown) => void) =>
-            eventMocks.listen(event, ({payload}: {payload: unknown}) => handler(payload)),
-    }),
-}));
+vi.mock('@/hooks/useTabularisClient', () => import('../../support/tauriBackedHooks'));
 
 vi.mock('@/hooks/useAlert', () => ({
     useAlert: () => ({showAlert: alertMocks.showAlert}),
