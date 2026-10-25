@@ -145,7 +145,7 @@ impl From<GlobalProxySettingsWire> for GlobalProxySettings {
         } = wire;
         let has_legacy_scopes = enabled.is_some() || scopes.is_some();
         let old_custom = |scope: &str| {
-            enabled.unwrap_or(false)
+            enabled.unwrap_or(true)
                 && scopes
                     .as_ref()
                     .and_then(|scopes| scopes.get(scope))
@@ -153,10 +153,15 @@ impl From<GlobalProxySettingsWire> for GlobalProxySettings {
                     .unwrap_or(false)
         };
         let old_http_mode = |scope| {
-            if old_custom(scope) {
-                HttpProxyMode::Custom
-            } else {
-                HttpProxyMode::Disabled
+            // A disabled legacy master switch adopts the new scope defaults.
+            // Otherwise distinguish untouched scopes from explicit false values.
+            if enabled == Some(false) {
+                return HttpProxyMode::System;
+            }
+            match scopes.as_ref().and_then(|scopes| scopes.get(scope)) {
+                Some(true) => HttpProxyMode::Custom,
+                Some(false) => HttpProxyMode::Disabled,
+                None => HttpProxyMode::System,
             }
         };
         let old_tcp_mode = |scope| {
@@ -202,3 +207,6 @@ impl GlobalProxySettings {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
