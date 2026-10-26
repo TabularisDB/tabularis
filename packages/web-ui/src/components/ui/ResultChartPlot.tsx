@@ -34,7 +34,10 @@ const Y_AXIS_WIDTH = 48;
 const ANIMATION_MS = 250;
 
 export interface ResultChartSeries {
-    column: string;
+    /** Data key of the series in the chart points (`chartSeriesKey`). */
+    key: string;
+    /** Column name shown to the user. */
+    name: string;
     color: string;
     /** Dash pattern for line charts; undefined is a solid line. */
     dash?: string;
@@ -73,12 +76,12 @@ function ChartTooltip({
             </div>
             <ul className="space-y-0.5">
                 {series.map((s) => {
-                    const entry = payload.find((p) => p.dataKey === s.column);
+                    const entry = payload.find((p) => p.dataKey === s.key);
                     if (!entry) return null;
                     // NULL rows show a dash rather than disappearing, so the gap reads as missing data.
                     const missing = typeof entry.value !== 'number';
                     return (
-                        <li key={s.column} className="flex items-center gap-2">
+                        <li key={s.key} className="flex items-center gap-2">
                             <SeriesKey type={type} color={s.color} dash={s.dash} />
                             <span
                                 className={
@@ -89,7 +92,7 @@ function ChartTooltip({
                             >
                                 {formatChartValue(entry.value, locale)}
                             </span>
-                            <span className="text-primary truncate">{s.column}</span>
+                            <span className="text-primary truncate">{s.name}</span>
                         </li>
                     );
                 })}
@@ -184,13 +187,13 @@ export function ResultChartPlot({
                         {series.map((s) => {
                             // Without markers, a value with NULLs on both sides has no
                             // segment to draw, so it gets a marker of its own.
-                            const isolated = showMarkers ? null : getIsolatedPoints(data, s.column);
+                            const isolated = showMarkers ? null : getIsolatedPoints(data, s.key);
                             return (
                                 <Line
-                                    key={s.column}
+                                    key={s.key}
                                     type="linear"
-                                    dataKey={s.column}
-                                    name={s.column}
+                                    dataKey={s.key}
+                                    name={s.name}
                                     stroke={s.color}
                                     strokeWidth={2}
                                     strokeDasharray={s.dash}
@@ -236,9 +239,9 @@ export function ResultChartPlot({
                         {tooltip}
                         {series.map((s) => (
                             <Bar
-                                key={s.column}
-                                dataKey={s.column}
-                                name={s.column}
+                                key={s.key}
+                                dataKey={s.key}
+                                name={s.name}
                                 fill={s.color}
                                 maxBarSize={MAX_BAR_SIZE}
                                 radius={[palette.barRadius, palette.barRadius, 0, 0]}

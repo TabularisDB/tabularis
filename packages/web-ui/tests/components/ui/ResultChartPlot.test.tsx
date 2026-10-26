@@ -45,8 +45,8 @@ describe('ResultChartPlot', () => {
                 type="bar"
                 data={data}
                 series={[
-                    {column: 'revenue', color: '#111111'},
-                    {column: 'cost', color: '#222222'},
+                    {key: 'revenue', name: 'revenue', color: '#111111'},
+                    {key: 'cost', name: 'cost', color: '#222222'},
                 ]}
                 palette={palette}
                 locale="en"
@@ -72,8 +72,8 @@ describe('ResultChartPlot', () => {
                     {label: 'b', revenue: 2500, cost: 8000},
                 ]}
                 series={[
-                    {column: 'revenue', color: '#111111'},
-                    {column: 'cost', color: '#222222', dash: '6 3'},
+                    {key: 'revenue', name: 'revenue', color: '#111111'},
+                    {key: 'cost', name: 'cost', color: '#222222', dash: '6 3'},
                 ]}
                 palette={palette}
                 locale="en"
@@ -87,19 +87,20 @@ describe('ResultChartPlot', () => {
     });
 
     describe('missing values', () => {
+        // Points are keyed by column index; the series carries the name to show.
         const sparse: ResultChartPoint[] = [
-            {label: 'Jan', signups: 4},
-            {label: 'Feb', signups: 6},
-            {label: 'Mar', signups: null},
-            {label: 'Apr', signups: 5},
-            {label: 'May', signups: 8},
+            {label: 'Jan', c1: 4},
+            {label: 'Feb', c1: 6},
+            {label: 'Mar', c1: null},
+            {label: 'Apr', c1: 5},
+            {label: 'May', c1: 8},
         ];
         const renderPlot = (type: 'bar' | 'line', data: ResultChartPoint[]) =>
             render(
                 <ResultChartPlot
                     type={type}
                     data={data}
-                    series={[{column: 'signups', color: '#111111'}]}
+                    series={[{key: 'c1', name: 'signups', color: '#111111'}]}
                     palette={palette}
                     locale="en"
                     temporal={null}
@@ -123,7 +124,7 @@ describe('ResultChartPlot', () => {
         it('marks a value isolated between NULLs when line markers are off', () => {
             const many: ResultChartPoint[] = Array.from({length: 60}, (_, i) => ({
                 label: `p${i}`,
-                signups: i === 30 ? 7 : i > 30 && i < 33 ? null : i === 29 ? null : i,
+                c1: i === 30 ? 7 : i > 30 && i < 33 ? null : i === 29 ? null : i,
             }));
             const {container} = renderPlot('line', many);
             expect(container.querySelectorAll('.recharts-dot')).toHaveLength(1);

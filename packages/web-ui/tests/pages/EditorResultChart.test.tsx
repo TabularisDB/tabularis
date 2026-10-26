@@ -251,7 +251,7 @@ describe('Editor result grid/chart toggle', () => {
         fireEvent.click(chartButton());
         expect(screen.queryByTestId('grid')).not.toBeInTheDocument();
         expect(screen.getByTestId('bar-chart')).toBeInTheDocument();
-        expect(screen.getByLabelText('editor.resultChart.xAxis')).toHaveValue('region');
+        expect(screen.getByLabelText('editor.resultChart.xAxis')).toHaveDisplayValue('region');
 
         fireEvent.click(gridButton());
         expect(screen.getByTestId('grid-selection')).toHaveTextContent('[1]');

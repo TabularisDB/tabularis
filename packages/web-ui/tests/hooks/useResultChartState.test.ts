@@ -5,12 +5,13 @@ import {
     resetResultChartStates,
     useResultChartState,
 } from '@/hooks/useResultChartState';
-import type {CellChartConfig} from '@/types/notebook';
+import type {ResultChartConfig} from '@/utils/resultChart';
 
-const config: CellChartConfig = {
+const config: ResultChartConfig = {
     type: 'line',
-    labelColumn: 'month',
-    valueColumns: ['revenue'],
+    labelIndex: 0,
+    valueIndices: [1],
+    columns: ['month', 'revenue'],
 };
 
 describe('useResultChartState', () => {

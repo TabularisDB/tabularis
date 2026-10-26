@@ -1,12 +1,11 @@
 import {useCallback, useSyncExternalStore} from 'react';
-import type {CellChartConfig} from '@/types/notebook';
-import type {ResultView} from '@/utils/resultChart';
+import type {ResultChartConfig, ResultView} from '@/utils/resultChart';
 import {resultEntryIdPrefix} from '@/utils/multiResult';
 
 export interface ResultChartState {
     view: ResultView;
     /** Last chart config the user picked; null until they change something. */
-    config: CellChartConfig | null;
+    config: ResultChartConfig | null;
 }
 
 const DEFAULT_STATE: ResultChartState = {view: 'grid', config: null};
@@ -65,7 +64,7 @@ export function useResultChartState(key: string | null) {
         [key],
     );
     const setConfig = useCallback(
-        (config: CellChartConfig) => {
+        (config: ResultChartConfig) => {
             if (key !== null) update(key, {config});
         },
         [key],

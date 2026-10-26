@@ -2,7 +2,7 @@ import {describe, it, expect, vi} from 'vitest';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {ResultChart} from '@/components/ui/ResultChart';
 import type {QueryResult} from '@/types/editor';
-import type {CellChartConfig} from '@/types/notebook';
+import type {ResultChartConfig} from '@/utils/resultChart';
 
 const translations = vi.hoisted(() => [] as {key: string; options?: Record<string, unknown>}[]);
 vi.mock('react-i18next', () => ({
@@ -36,7 +36,7 @@ vi.mock('@/hooks/useChartPalette', () => ({
 interface MockPlotProps {
     type: string;
     data: unknown[];
-    series: {column: string; color: string; dash?: string}[];
+    series: {key: string; name: string; color: string; dash?: string}[];
     animate: boolean;
 }
 
@@ -45,7 +45,7 @@ vi.mock('@/components/ui/ResultChartPlot', () => ({
         <div
             data-testid={`${type}-chart`}
             data-points={data.length}
-            data-series={series.map((s) => s.column).join(',')}
+            data-series={series.map((s) => s.name).join(',')}
             data-colors={series.map((s) => s.color).join(',')}
             data-dashes={series.map((s) => s.dash ?? 'solid').join(',')}
             data-animate={String(animate)}
@@ -72,10 +72,11 @@ describe('ResultChart', () => {
     });
 
     it('gives line series after the first a dash pattern', () => {
-        const config: CellChartConfig = {
+        const config: ResultChartConfig = {
             type: 'line',
-            labelColumn: 'region',
-            valueColumns: ['revenue', 'cost'],
+            labelIndex: 1,
+            valueIndices: [2, 3],
+            columns: sales.columns,
         };
         render(<ResultChart result={sales} config={config} onConfigChange={vi.fn()} />);
         const chart = screen.getByTestId('line-chart');
@@ -86,10 +87,11 @@ describe('ResultChart', () => {
     });
 
     it('keeps each series colour when another series is hidden', () => {
-        const both: CellChartConfig = {
+        const both: ResultChartConfig = {
             type: 'bar',
-            labelColumn: 'region',
-            valueColumns: ['revenue', 'cost'],
+            labelIndex: 1,
+            valueIndices: [2, 3],
+            columns: sales.columns,
         };
         const {rerender} = render(
             <ResultChart result={sales} config={both} onConfigChange={vi.fn()} />,
@@ -98,7 +100,7 @@ describe('ResultChart', () => {
         rerender(
             <ResultChart
                 result={sales}
-                config={{...both, valueColumns: ['cost']}}
+                config={{...both, valueIndices: [3]}}
                 onConfigChange={vi.fn()}
             />,
         );
@@ -118,8 +120,9 @@ describe('ResultChart', () => {
         fireEvent.click(screen.getByRole('button', {name: 'editor.resultChart.typeLine'}));
         expect(onConfigChange).toHaveBeenCalledWith({
             type: 'line',
-            labelColumn: 'region',
-            valueColumns: ['revenue'],
+            labelIndex: 1,
+            valueIndices: [2],
+            columns: sales.columns,
         });
     });
 
@@ -127,12 +130,13 @@ describe('ResultChart', () => {
         const onConfigChange = vi.fn();
         render(<ResultChart result={sales} config={null} onConfigChange={onConfigChange} />);
         const select = screen.getByLabelText('editor.resultChart.xAxis');
-        expect(select).toHaveValue('region');
-        fireEvent.change(select, {target: {value: 'id'}});
+        expect(select).toHaveDisplayValue('region');
+        fireEvent.change(select, {target: {value: '0'}});
         expect(onConfigChange).toHaveBeenCalledWith({
             type: 'bar',
-            labelColumn: 'id',
-            valueColumns: ['revenue'],
+            labelIndex: 0,
+            valueIndices: [2],
+            columns: sales.columns,
         });
     });
 
@@ -151,8 +155,9 @@ describe('ResultChart', () => {
         fireEvent.click(screen.getByRole('button', {name: 'cost'}));
         expect(onConfigChange).toHaveBeenCalledWith({
             type: 'bar',
-            labelColumn: 'region',
-            valueColumns: ['revenue', 'cost'],
+            labelIndex: 1,
+            valueIndices: [2, 3],
+            columns: sales.columns,
         });
     });
 
@@ -163,10 +168,11 @@ describe('ResultChart', () => {
             rows: [['x', 1, 2, 3, 4, 5, 6, 7]],
             affected_rows: 0,
         };
-        const config: CellChartConfig = {
+        const config: ResultChartConfig = {
             type: 'bar',
-            labelColumn: 'label',
-            valueColumns: ['a', 'b', 'c', 'd', 'e'],
+            labelIndex: 0,
+            valueIndices: [1, 2, 3, 4, 5],
+            columns,
         };
         render(<ResultChart result={wide} config={config} onConfigChange={vi.fn()} />);
         const extra = screen.getByRole('button', {name: 'f'});
@@ -275,13 +281,75 @@ describe('ResultChart', () => {
     });
 
     it('recovers from a stored config whose columns changed', () => {
-        const stale: CellChartConfig = {
+        const stale: ResultChartConfig = {
             type: 'line',
-            labelColumn: 'month',
-            valueColumns: ['orders'],
+            labelIndex: 0,
+            valueIndices: [1],
+            columns: ['month', 'orders'],
         };
         render(<ResultChart result={sales} config={stale} onConfigChange={vi.fn()} />);
         expect(screen.getByTestId('line-chart')).toHaveAttribute('data-series', 'revenue');
-        expect(screen.getByLabelText('editor.resultChart.xAxis')).toHaveValue('region');
+        expect(screen.getByLabelText('editor.resultChart.xAxis')).toHaveDisplayValue('region');
+    });
+
+    describe('with repeated column names', () => {
+        // SELECT o.id, c.id, c.name, o.total ...
+        const joined: QueryResult = {
+            columns: ['id', 'id', 'name', 'total'],
+            rows: [
+                [1, 10, 'Ada', 5],
+                [2, 20, 'Lin', 6],
+            ],
+            affected_rows: 0,
+        };
+
+        it('gives every X option its own value and a distinct label', () => {
+            const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+            try {
+                render(<ResultChart result={joined} config={null} onConfigChange={vi.fn()} />);
+                const options = Array.from(
+                    screen.getByLabelText('editor.resultChart.xAxis').querySelectorAll('option'),
+                );
+                expect(options.map((o) => o.value)).toEqual(['0', '1', '2', '3']);
+                expect(options.map((o) => o.textContent)).toEqual([
+                    'id',
+                    'id (2)',
+                    'name',
+                    'total',
+                ]);
+                // No duplicate React keys.
+                expect(errors).not.toHaveBeenCalled();
+            } finally {
+                errors.mockRestore();
+            }
+        });
+
+        it('puts the second column on X when its option is picked', () => {
+            const onConfigChange = vi.fn();
+            render(<ResultChart result={joined} config={null} onConfigChange={onConfigChange} />);
+            fireEvent.change(screen.getByLabelText('editor.resultChart.xAxis'), {
+                target: {value: '1'},
+            });
+            expect(onConfigChange).toHaveBeenLastCalledWith(
+                expect.objectContaining({labelIndex: 1}),
+            );
+        });
+
+        it('offers both columns as separate Y series', () => {
+            const config: ResultChartConfig = {
+                type: 'bar',
+                labelIndex: 2,
+                valueIndices: [0, 1],
+                columns: joined.columns,
+            };
+            render(<ResultChart result={joined} config={config} onConfigChange={vi.fn()} />);
+            const chart = screen.getByTestId('bar-chart');
+            expect(chart).toHaveAttribute('data-series', 'id,id (2)');
+            expect(chart.getAttribute('data-colors')!.split(',')).toHaveLength(2);
+            expect(screen.getByRole('button', {name: 'id (2)'})).toHaveAttribute(
+                'aria-pressed',
+                'true',
+            );
+        });
     });
 });

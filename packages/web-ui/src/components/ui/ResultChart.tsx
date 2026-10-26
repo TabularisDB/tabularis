@@ -7,13 +7,14 @@ import {usePrefersReducedMotion} from '@/hooks/usePrefersReducedMotion';
 import {ResultChartPlot, type ResultChartSeries} from './ResultChartPlot';
 import {SeriesKey} from './SeriesKey';
 import type {QueryResult} from '@/types/editor';
-import type {CellChartConfig} from '@/types/notebook';
 import {
     MAX_CHART_SERIES,
     RESULT_CHART_TYPES,
     buildTemporalFormatters,
+    chartSeriesKey,
     classifyResultColumns,
     formatChartCount,
+    getChartColumnLabels,
     getChartUnavailableReason,
     getResultChartScope,
     getSeriesDash,
@@ -22,14 +23,15 @@ import {
     setChartLabelColumn,
     shapeResultChartData,
     toggleChartValueColumn,
+    type ResultChartConfig,
     type ResultChartType,
 } from '@/utils/resultChart';
 
 interface ResultChartProps {
     result: QueryResult;
     /** Stored config for this result; null means "use the defaults". */
-    config: CellChartConfig | null;
-    onConfigChange: (config: CellChartConfig) => void;
+    config: ResultChartConfig | null;
+    onConfigChange: (config: ResultChartConfig) => void;
     /** Switches the panel back to the grid (offered from the empty states). */
     onShowGrid?: () => void;
     /** A refresh is running: keep the chart, dimmed, instead of blanking it. */
@@ -66,11 +68,11 @@ export function ResultChart({
         () => (effective ? shapeResultChartData(result, effective) : []),
         [result, effective],
     );
-    const labelIsTemporal = useMemo(() => {
-        if (!effective) return false;
-        const kinds = classifyResultColumns(result);
-        return kinds[result.columns.indexOf(effective.labelColumn)] === 'temporal';
-    }, [result, effective]);
+    const labels = useMemo(() => getChartColumnLabels(result.columns), [result.columns]);
+    const labelIsTemporal = useMemo(
+        () => !!effective && classifyResultColumns(result)[effective.labelIndex] === 'temporal',
+        [result, effective],
+    );
     const temporal = useMemo(
         () =>
             labelIsTemporal
@@ -82,7 +84,8 @@ export function ResultChart({
         [labelIsTemporal, data, locale],
     );
     const slots = useMemo(
-        () => (effective ? getSeriesSlots(result, effective.labelColumn) : {}),
+        () =>
+            effective ? getSeriesSlots(result, effective.labelIndex) : new Map<number, number>(),
         [result, effective],
     );
 
@@ -120,23 +123,25 @@ export function ResultChart({
     const scope = getResultChartScope(result);
     // Passed as strings: these keys have no plural forms, so i18next uses them as written.
     const plotted = formatChartCount(scope.plotted, locale);
-    const chartType: ResultChartType = effective.type === 'line' ? 'line' : 'bar';
-    const yCandidates = Object.keys(slots).sort((a, b) => slots[a] - slots[b]);
-    const colorFor = (column: string) =>
-        palette.categorical[(slots[column] ?? 0) % palette.categorical.length];
-    const visible = yCandidates.filter((col) => effective.valueColumns.includes(col));
+    const chartType = effective.type;
+    // Map iteration follows slot order.
+    const yCandidates = [...slots.keys()];
+    const colorFor = (index: number) =>
+        palette.categorical[(slots.get(index) ?? 0) % palette.categorical.length];
+    const visible = yCandidates.filter((index) => effective.valueIndices.includes(index));
     // Colour follows the column; the dash follows the visible order, so the
     // first line drawn is always solid.
-    const dashFor = (column: string) =>
-        chartType === 'line' ? getSeriesDash(visible.indexOf(column)) : undefined;
-    const series: ResultChartSeries[] = visible.map((column) => ({
-        column,
-        color: colorFor(column),
-        dash: dashFor(column),
+    const dashFor = (index: number) =>
+        chartType === 'line' ? getSeriesDash(visible.indexOf(index)) : undefined;
+    const series: ResultChartSeries[] = visible.map((index) => ({
+        key: chartSeriesKey(index),
+        name: labels[index],
+        color: colorFor(index),
+        dash: dashFor(index),
     }));
     // A custom theme with fewer distinct colours lowers the limit so colours never repeat.
     const maxSeries = Math.max(1, Math.min(MAX_CHART_SERIES, palette.categorical.length));
-    const atSeriesLimit = effective.valueColumns.length >= maxSeries;
+    const atSeriesLimit = effective.valueIndices.length >= maxSeries;
 
     return (
         <div className="flex-1 min-h-0 flex flex-col">
@@ -176,18 +181,21 @@ export function ResultChart({
                     </label>
                     <select
                         id={xSelectId}
-                        value={effective.labelColumn}
+                        value={effective.labelIndex}
                         onChange={(e) =>
-                            onConfigChange(setChartLabelColumn(effective, e.target.value, result))
+                            onConfigChange(
+                                setChartLabelColumn(effective, Number(e.target.value), result),
+                            )
                         }
                         className={clsx(
                             'bg-surface-secondary border border-strong rounded px-1 py-0.5 text-primary max-w-[180px] truncate',
                             FOCUS_RING,
                         )}
                     >
-                        {result.columns.map((col) => (
-                            <option key={col} value={col}>
-                                {col}
+                        {/* Keyed by index: a result can repeat a column name. */}
+                        {labels.map((label, index) => (
+                            <option key={index} value={index}>
+                                {label}
                             </option>
                         ))}
                     </select>
@@ -202,12 +210,12 @@ export function ResultChart({
                         aria-labelledby={yLabelId}
                         className="flex items-center gap-1 flex-wrap"
                     >
-                        {yCandidates.map((col) => {
-                            const selected = effective.valueColumns.includes(col);
+                        {yCandidates.map((index) => {
+                            const selected = effective.valueIndices.includes(index);
                             const blocked = !selected && atSeriesLimit;
                             return (
                                 <button
-                                    key={col}
+                                    key={index}
                                     type="button"
                                     aria-pressed={selected}
                                     disabled={blocked}
@@ -218,7 +226,7 @@ export function ResultChart({
                                     }
                                     onClick={() =>
                                         onConfigChange(
-                                            toggleChartValueColumn(effective, col, maxSeries),
+                                            toggleChartValueColumn(effective, index, maxSeries),
                                         )
                                     }
                                     className={clsx(
@@ -232,11 +240,11 @@ export function ResultChart({
                                     {selected && (
                                         <SeriesKey
                                             type={chartType}
-                                            color={colorFor(col)}
-                                            dash={dashFor(col)}
+                                            color={colorFor(index)}
+                                            dash={dashFor(index)}
                                         />
                                     )}
-                                    <span className="truncate">{col}</span>
+                                    <span className="truncate">{labels[index]}</span>
                                 </button>
                             );
                         })}
@@ -271,8 +279,8 @@ export function ResultChart({
                 <figcaption id={captionId} className="sr-only">
                     {t('editor.resultChart.summary', {
                         type: t(CHART_TYPES[chartType].labelKey),
-                        values: series.map((s) => s.column).join(', '),
-                        label: effective.labelColumn,
+                        values: series.map((s) => s.name).join(', '),
+                        label: labels[effective.labelIndex],
                         count: plotted,
                     })}
                 </figcaption>
