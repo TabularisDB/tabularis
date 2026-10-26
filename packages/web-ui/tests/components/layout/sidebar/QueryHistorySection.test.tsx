@@ -303,3 +303,31 @@ describe('QueryHistorySection custom date range (#1226)', () => {
         expect(visibleIds()).toEqual(['a-sales', 'a-hr', 'a-legacy']);
     });
 });
+
+describe('QueryHistorySection custom date fields', () => {
+    it('opens the native picker when a date field is clicked', () => {
+        render(<PausableSection />);
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+        const from = fromInput() as HTMLInputElement;
+        const showPicker = vi.fn();
+        from.showPicker = showPicker;
+
+        fireEvent.click(from);
+
+        // The native indicator is hidden to match the selects, so the click
+        // is the way to reach the calendar.
+        expect(showPicker).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps each label inside its field', () => {
+        render(<PausableSection />);
+        fireEvent.change(timeRangeSelect(), {target: {value: 'custom'}});
+
+        const fromField = (fromInput() as HTMLInputElement).closest('label');
+        const toField = (toInput() as HTMLInputElement).closest('label');
+
+        expect(fromField).toHaveTextContent('sidebar.historyDateFrom');
+        expect(toField).toHaveTextContent('sidebar.historyDateTo');
+        expect(fromField).not.toBe(toField);
+    });
+});

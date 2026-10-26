@@ -8,12 +8,14 @@ import {
     AlertTriangle,
     X,
     ChevronDown,
+    Calendar,
     Pause,
 } from 'lucide-react';
 import {groupByDate, formatHistoryTime} from '@/utils/dateGroups';
 import {SqlHighlight} from '@/components/ui/SqlHighlight';
 import {formatSqlPreview} from '@/utils/sqlHighlight';
 import {useSettings} from '@/hooks/useSettings';
+import {openNativePicker} from '@/utils/nativePicker';
 import {
     filterQueryHistoryEntries,
     getQueryHistoryDatabaseChoices,
@@ -45,8 +47,47 @@ interface QueryHistorySectionProps {
 const selectClassName =
     'w-full appearance-none bg-surface-secondary border border-default rounded px-1.5 pr-5 py-1 text-[11px] text-primary focus:outline-none focus:border-focus/50 cursor-pointer';
 
+// The date fields mirror the selects above: same box, background and text, the
+// label inside the box, and a calendar icon where the selects show a chevron.
+// The native WebKit indicator and the padding around the date parts are
+// removed so the value lines up with the select labels. WebKit sizes each date
+// part for its widest digits, so tabular figures keep "10/20" from gaining a
+// gap before the slash.
+const dateFieldClassName =
+    'relative flex-1 min-w-0 flex items-center gap-1 bg-input border border-default rounded pl-1.5 cursor-pointer focus-within:border-focus/50';
+
 const dateInputClassName =
-    'w-full min-w-0 bg-surface-secondary border border-default rounded px-1.5 py-1 text-[11px] text-primary focus:outline-none focus:border-focus/50';
+    'w-full min-w-0 appearance-none bg-transparent pr-5 py-1 text-[11px] text-primary tabular-nums focus:outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-datetime-edit]:p-0 [&::-webkit-datetime-edit-fields-wrapper]:p-0 [&::-webkit-datetime-edit-month-field]:p-0 [&::-webkit-datetime-edit-day-field]:p-0 [&::-webkit-datetime-edit-year-field]:p-0';
+
+function HistoryDateField({
+    label,
+    value,
+    onChange,
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+}) {
+    return (
+        // The label wraps the input, so a click anywhere in the box reaches it.
+        <label className={dateFieldClassName}>
+            <span className="text-[11px] text-muted shrink-0">{label}</span>
+            <input
+                type="date"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                // With the native indicator hidden, a click opens the picker.
+                onClick={(e) => openNativePicker(e.currentTarget)}
+                aria-label={label}
+                className={dateInputClassName}
+            />
+            <Calendar
+                size={10}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+            />
+        </label>
+    );
+}
 
 const RANGE_ERROR_LABEL_KEYS: Record<QueryHistoryDateRangeError, string> = {
     invalidFrom: 'sidebar.historyDateRangeInvalidFrom',
@@ -365,32 +406,16 @@ export function QueryHistorySection({
                 inputs only exist while the custom mode is selected. */}
             {isCustomRange && (
                 <div className="px-2 pb-1.5 flex items-center gap-1">
-                    {/* Each pair is a label wrapping its input, so a click on the
-                        text focuses the field, not just the input itself. */}
-                    <label className="flex-1 min-w-0 flex items-center gap-1">
-                        <span className="text-[10px] text-muted shrink-0">
-                            {t('sidebar.historyDateFrom')}
-                        </span>
-                        <input
-                            type="date"
-                            value={from}
-                            onChange={(e) => setFrom(e.target.value)}
-                            aria-label={t('sidebar.historyDateFrom')}
-                            className={dateInputClassName}
-                        />
-                    </label>
-                    <label className="flex-1 min-w-0 flex items-center gap-1">
-                        <span className="text-[10px] text-muted shrink-0">
-                            {t('sidebar.historyDateTo')}
-                        </span>
-                        <input
-                            type="date"
-                            value={to}
-                            onChange={(e) => setTo(e.target.value)}
-                            aria-label={t('sidebar.historyDateTo')}
-                            className={dateInputClassName}
-                        />
-                    </label>
+                    <HistoryDateField
+                        label={t('sidebar.historyDateFrom')}
+                        value={from}
+                        onChange={setFrom}
+                    />
+                    <HistoryDateField
+                        label={t('sidebar.historyDateTo')}
+                        value={to}
+                        onChange={setTo}
+                    />
                 </div>
             )}
 
