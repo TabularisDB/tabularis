@@ -440,7 +440,7 @@ export interface DatabaseImportRequest extends ConnectionIdRequest {
 export interface QueryExportRequest extends ConnectionIdRequest {
     sessionId?: string;
     query: string;
-    format: 'csv' | 'json' | 'markdown';
+    format: 'csv' | 'json' | 'ndjson' | 'markdown' | 'html';
     csvDelimiter?: string;
     database?: string;
     /** Desktop-only save path. Browser requests omit this and receive a download. */
