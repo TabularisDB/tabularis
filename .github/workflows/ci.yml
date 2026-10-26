@@ -12,6 +12,7 @@ on:
       - 'src-tauri/**'
       - 'tests/**'
       - 'packages/explain/**' # imported from source by the host
+      - 'packages/plugin-guest/**' # bundled into the Rust-embedded guest runtime
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'eslint.config.js'
@@ -24,6 +25,7 @@ on:
       - 'src-tauri/**'
       - 'tests/**'
       - 'packages/explain/**' # imported from source by the host
+      - 'packages/plugin-guest/**' # bundled into the Rust-embedded guest runtime
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'eslint.config.js'
@@ -53,6 +55,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      - name: Check embedded plugin guest runtime is up to date
+        run: |
+          pnpm run build:plugin-guest
+          git diff --exit-code -- src-tauri/resources/guest/runtime.js
 
       - name: Typecheck
         run: pnpm run typecheck

@@ -442,6 +442,12 @@
     "import": "Import Connections",
     "exportTitle": "Export Connections",
     "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely.",
+    "exportSecretsConfirmation": {
+      "title": "Confirm secret export",
+      "message": "Export saved passwords, SSH keys and connection URIs as plain text?",
+      "export": "Export",
+      "cancel": "Cancel"
+    },
     "exportModal": {
       "title": "Export Connections",
       "subtitle": "Choose how to export your connections",
@@ -955,6 +961,7 @@
       "enabled": "Enabled",
       "disabled": "Disabled",
       "openFolder": "Open plugins folder",
+      "legacyGoogleSheetsOAuthHint": "Update the Google Sheets plugin to restore Google sign-in in this Tabularis version.",
       "installError": {
         "title": "Installation Failed",
         "subtitle": "An error occurred while installing the plugin. See the details below.",

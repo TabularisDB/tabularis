@@ -45,22 +45,22 @@ const POSTGRES_NESTED = `[
 
 describe('postgres parsers', () => {
     describe('detectFormat', () => {
-        it('accepts a JSON array', () => {
-            expect(detectFormat(' \n [\n  {} ]')).toBe('postgres-json');
+        it('accepts a JSON array', async () => {
+            expect(await detectFormat(' \n [\n  {} ]')).toBe('postgres-json');
         });
 
-        it('accepts a JSON object', () => {
-            expect(detectFormat('{ "Plan": {} }')).toBe('postgres-json');
+        it('accepts a JSON object', async () => {
+            expect(await detectFormat('{ "Plan": {} }')).toBe('postgres-json');
         });
 
-        it('rejects plain text without a cost header', () => {
-            expect(() => detectFormat('Seq Scan on users  (cost=0.00..12.34 rows=100)')).toThrow(
-                /Unsupported/,
-            );
+        it('rejects plain text without a cost header', async () => {
+            await expect(
+                detectFormat('Seq Scan on users  (cost=0.00..12.34 rows=100)'),
+            ).rejects.toThrow(/Unsupported/);
         });
 
-        it('recognises text output with a cost header', () => {
-            expect(detectFormat(POSTGRES_TEXT_FLAT)).toBe('postgres-text');
+        it('recognises text output with a cost header', async () => {
+            expect(await detectFormat(POSTGRES_TEXT_FLAT)).toBe('postgres-text');
         });
     });
 
@@ -109,20 +109,22 @@ describe('postgres parsers', () => {
     });
 
     describe('parseExplain error paths', () => {
-        it('rejects an empty array', () => {
-            expect(() => parseExplain('[]')).toThrow(/empty/);
+        it('rejects an empty array', async () => {
+            await expect(parseExplain('[]')).rejects.toThrow(/empty/);
         });
 
-        it('rejects a missing Plan key', () => {
-            expect(() => parseExplain('[{"NotAPlan": 1}]')).toThrow(/Plan/);
+        it('rejects a missing Plan key', async () => {
+            await expect(parseExplain('[{"NotAPlan": 1}]')).rejects.toThrow(/Plan/);
         });
 
-        it('rejects invalid JSON', () => {
-            expect(() => parseExplain('[not json]')).toThrow(/Failed to parse/);
+        it('rejects invalid JSON', async () => {
+            await expect(parseExplain('[not json]')).rejects.toThrow(/Failed to parse/);
         });
 
-        it('rejects an unsupported format', () => {
-            expect(() => parseExplain('-> Nested Loop  (cost=0.00..1.23)')).toThrow(/Unsupported/);
+        it('rejects an unsupported format', async () => {
+            await expect(parseExplain('-> Nested Loop  (cost=0.00..1.23)')).rejects.toThrow(
+                /Unsupported/,
+            );
         });
     });
 
@@ -187,8 +189,8 @@ describe('postgres parsers', () => {
     });
 
     describe('parseExplain routing', () => {
-        it('routes text output to the text parser', () => {
-            const plan = parseExplain(POSTGRES_TEXT_FLAT);
+        it('routes text output to the text parser', async () => {
+            const plan = await parseExplain(POSTGRES_TEXT_FLAT);
             expect(plan.root.node_type).toBe('Seq Scan');
         });
     });

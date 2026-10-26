@@ -442,6 +442,12 @@
     "import": "接続をインポート",
     "exportTitle": "接続をエクスポート",
     "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。",
+    "exportSecretsConfirmation": {
+      "title": "シークレットのエクスポートを確認",
+      "message": "保存済みのパスワード、SSH キー、接続 URI を平文でエクスポートしますか？",
+      "export": "エクスポート",
+      "cancel": "キャンセル"
+    },
     "exportModal": {
       "title": "接続をエクスポート",
       "subtitle": "接続のエクスポート方法を選択してください",
@@ -904,6 +910,7 @@
       "enabled": "有効",
       "disabled": "無効",
       "openFolder": "プラグインフォルダーを開く",
+      "legacyGoogleSheetsOAuthHint": "この Tabularis バージョンで Google ログインを再開するには、Google Sheets プラグインを更新してください。",
       "installError": {
         "title": "インストール失敗",
         "subtitle": "プラグインのインストール中にエラーが発生しました。詳細は下記を参照してください。",

@@ -429,6 +429,12 @@
     "import": "Verbindungen importieren",
     "exportTitle": "Verbindungen exportieren",
     "exportWarning": "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf.",
+    "exportSecretsConfirmation": {
+      "title": "Export sensibler Daten bestätigen",
+      "message": "Gespeicherte Passwörter, SSH-Schlüssel und Verbindungs-URIs im Klartext exportieren?",
+      "export": "Exportieren",
+      "cancel": "Abbrechen"
+    },
     "exportModal": {
       "title": "Verbindungen exportieren",
       "subtitle": "Wählen Sie, wie Ihre Verbindungen exportiert werden sollen",
@@ -890,6 +896,7 @@
       "enabled": "Aktiviert",
       "disabled": "Deaktiviert",
       "openFolder": "Plugin-Ordner öffnen",
+      "legacyGoogleSheetsOAuthHint": "Aktualisieren Sie das Google-Sheets-Plugin, um die Google-Anmeldung mit dieser Tabularis-Version wiederherzustellen.",
       "installError": {
         "title": "Installation fehlgeschlagen",
         "subtitle": "Bei der Installation des Plugins ist ein Fehler aufgetreten. Siehe Details unten.",

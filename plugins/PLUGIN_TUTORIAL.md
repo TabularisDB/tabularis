@@ -407,7 +407,7 @@ ui/
     "build:db-field": "vite build --config vite.db-field.config.ts",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": { "@tabularis/plugin-api": "^0.1.0" },
+  "dependencies": { "@tabularis/plugin-api": "^0.4.0" },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
@@ -456,26 +456,17 @@ Slot: `connection-modal.connection_content`. Replaces the default host/port/user
 
 ```tsx
 import { defineSlot } from "@tabularis/plugin-api";
-import type { TypedSlotProps } from "@tabularis/plugin-api";
 import { PLUGIN_ID } from "./styles";
-
-// plugin-api v0.1.0 only declares `{ driver: string }` for this slot, but the
-// host also passes `database` and `onDatabaseChange`. Augment locally.
-type FieldContext = TypedSlotProps<"connection-modal.connection_content">["context"]
-  & { database?: string; onDatabaseChange?: (value: string) => void };
 
 const GoogleSheetsDatabaseField = defineSlot(
   "connection-modal.connection_content",
   ({ context }) => {
-    const c = context as FieldContext;
-    if (c.driver !== PLUGIN_ID) return null;
-    const value = typeof c.database === "string" ? c.database : "";
-    const onChange = c.onDatabaseChange ?? (() => {});
+    if (context.driver !== PLUGIN_ID) return null;
     return (
       <div>
         <label>Spreadsheet ID or URL</label>
-        <input type="text" value={value}
-               onChange={e => onChange(e.target.value)}
+        <input type="text" value={context.database}
+               onChange={e => context.onDatabaseChange(e.target.value)}
                placeholder="https://docs.google.com/spreadsheets/d/… or id" />
       </div>
     );
@@ -484,7 +475,10 @@ const GoogleSheetsDatabaseField = defineSlot(
 export default GoogleSheetsDatabaseField.component;
 ```
 
-The `as FieldContext` cast is a rough edge: `plugin-api@0.1.0` types the slot context too loosely. The host runtime provides more fields than are typed. Future versions of plugin-api should tighten this.
+With `@tabularis/plugin-api` `0.4.0`, the connection-modal context types include
+`database` and the `onDatabaseChange` callback. The callback is recreated in the
+guest and forwarded through a slot-specific host RPC; it is never sent as a
+function through `postMessage`.
 
 ### 6c. `src/google-auth.tsx` — OAuth wizard
 
@@ -493,6 +487,7 @@ Slot: `settings.plugin.before_settings`. A two-step modal wizard using three hoo
 - `usePluginSetting(PLUGIN_ID)` — typed `getSetting` / `setSetting` / `setSettings` for the five settings declared in step 2a.
 - `usePluginModal()` — host-managed modal for the two-step flow (credentials → paste redirect URL).
 - `openUrl(url)` — launches the Google consent URL in the **system browser**. Critical: `window.open` doesn't open external URLs inside a Tauri webview; `openUrl` routes through `@tauri-apps/plugin-opener`.
+- `exchangeGoogleOAuthToken(request)` — exchanges or refreshes tokens through the host's fixed Google endpoint. Guest network requests remain blocked.
 
 The slot component:
 
@@ -525,7 +520,24 @@ const GoogleSheetsOAuth = defineSlot(
 export default GoogleSheetsOAuth.component;
 ```
 
-Inside `OAuthWizard`, `openUrl(buildAuthUrl(clientId))` opens the consent page; `fetch(TOKEN_URL, ...)` exchanges the code; `setSettings({access_token, refresh_token, token_expiry})` persists the tokens — the Rust side reads them on the next `initialize`.
+Inside `OAuthWizard`, `openUrl(buildAuthUrl(clientId))` opens the consent page. Replace direct `fetch(TOKEN_URL, ...)` with the API call below; `setSettings({access_token, refresh_token, token_expiry})` persists the tokens, which the Rust side reads on the next `initialize`:
+
+```ts
+import { exchangeGoogleOAuthToken } from "@tabularis/plugin-api";
+
+const token = await exchangeGoogleOAuthToken({
+  grant_type: "authorization_code",
+  code,
+  client_id: clientId,
+  client_secret: clientSecret,
+  redirect_uri: redirectUri,
+});
+await setSettings({
+  access_token: token.access_token,
+  refresh_token: token.refresh_token,
+  token_expiry: Date.now() + token.expires_in * 1000,
+});
+```
 
 ~330 lines with the full wizard UI and styling. Copy from [`ui/src/google-auth.tsx`](https://github.com/TabularisDB/tabularis-google-sheets-plugin/blob/main/ui/src/google-auth.tsx) in the companion repo.
 

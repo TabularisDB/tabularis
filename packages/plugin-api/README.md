@@ -35,14 +35,39 @@ export default MySlot.component;
 
 | Hook | Returns | Purpose |
 |------|---------|---------|
-| `usePluginQuery()` | `{ executeQuery, loading, error }` | Execute read-only queries on the active connection |
+| `usePluginQuery()` | `{ executeQuery, loading, error }` | Execute classified read-only SQL on supported built-in drivers; unsupported drivers reject the call |
 | `usePluginConnection()` | `{ connectionId, driver, schema }` | Active connection metadata |
 | `usePluginToast()` | `{ showInfo, showError, showWarning }` | System notifications |
-| `usePluginModal()` | `{ openModal, closeModal }` | Host-managed modal with custom content |
+| `usePluginModal()` | `{ openModal, closeModal }` | Modal with custom React content rendered inside the plugin iframe |
 | `usePluginSetting(pluginId)` | `{ getSetting, setSetting, setSettings }` | Read/write the plugin's own settings |
 | `usePluginTheme()` | `{ themeId, themeName, isDark, colors }` | Current theme tokens |
 | `usePluginTranslation(pluginId)` | `t(key)` | Plugin-scoped i18next translator |
 | `openUrl(url)` | `Promise<void>` | Open a URL in the system browser |
+| `exchangeGoogleOAuthToken(request)` | `Promise<GoogleOAuthTokenResponse>` | Exchange or refresh Google OAuth tokens through the fixed Google token endpoint |
+
+Plugin UI runs in a sandboxed iframe and has no direct Tauri `invoke` access.
+The host exposes only the operations represented by these APIs. The guest CSP
+blocks plugin `fetch`/XHR connections; it does not prevent the iframe from
+navigating itself. Google OAuth is proxied to one fixed endpoint, with an
+allow-list of form fields. Modal content stays inside the plugin iframe, and
+the host expands that iframe to a full-viewport overlay while the modal is open.
+Setting writes are asynchronous; await `setSetting` or `setSettings` when
+subsequent work depends on persistence.
+
+`usePluginQuery` rejects statement types that the host classifier recognizes as
+writes. The host repeats this check with its Rust classifier and runs the query
+in a database-enforced read-only context for built-in SQLite, PostgreSQL, and
+MySQL drivers. Drivers that do not support this mode reject the call. Use
+read-only database credentials as an additional safeguard, especially when
+the database exposes custom side-effecting functions. The API returns all rows
+provided by the driver; it does not silently cap results at 100 rows. Add a
+`LIMIT` clause when a plugin only needs a bounded result set.
+
+For a Google OAuth token exchange, import `exchangeGoogleOAuthToken` and pass
+the form fields needed for an `authorization_code` or `refresh_token` grant.
+The host fixes the destination to `https://oauth2.googleapis.com/token`; plugins
+cannot choose a URL or HTTP method. Replace direct `fetch` token exchanges with
+this API when migrating an OAuth UI extension.
 
 All hooks must run inside a React component loaded by Tabularis. Calling them outside the host throws a clear error instead of failing silently.
 
@@ -59,6 +84,8 @@ assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VE
 |-----------------|-------------------|-------|
 | `0.1.0`         | `0.1.0` | Initial release |
 | `0.1.1`         | `0.1.0` | Typed slots and automatic manifest compatibility gate |
+| `0.3.0`         | `0.3.0` | Sandboxed UI API and callback RPC |
+| `0.4.0`         | `0.4.0` | Secret-field slot callback and fixed Google OAuth exchange |
 
 ## Slot reference
 

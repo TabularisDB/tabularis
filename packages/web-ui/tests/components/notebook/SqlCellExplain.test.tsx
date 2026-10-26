@@ -1,11 +1,11 @@
 import {StrictMode, type ComponentProps} from 'react';
 import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {invoke} from '@tauri-apps/api/core';
-import {parseExplain, type ExplainQueryOutput} from '@tabularis/explain';
+import {parsePostgresJson, type ExplainQueryOutput} from '@tabularis/explain';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {SqlCellExplain} from '@/components/notebook/SqlCellExplain';
-import type {VisualExplainViewProps} from '@/components/explain/VisualExplainView';
-import {isDataModifyingQuery} from '@/utils/sql';
+import {SqlCellExplain} from '../../../src/components/notebook/SqlCellExplain';
+import type {VisualExplainViewProps} from '../../../src/components/explain/VisualExplainView';
+import {isDataModifyingQuery} from '../../../src/utils/sql';
 
 vi.mock('@/hooks/useTabularisClient', () => import('../../support/tauriBackedHooks'));
 vi.mock('@/hooks/usePlatformCapabilities', () => import('../../support/tauriBackedHooks'));
@@ -19,18 +19,18 @@ vi.mock('react-i18next', () => {
     return {useTranslation: () => ({t})};
 });
 vi.mock('lucide-react', () => vi.importActual('lucide-react'));
-vi.mock('@/hooks/useDatabase', () => ({
+vi.mock('../../../src/hooks/useDatabase', () => ({
     useDatabase: () => ({...database, connections: []}),
 }));
-vi.mock('@/hooks/useSettings', () => ({
+vi.mock('../../../src/hooks/useSettings', () => ({
     useSettings: () => ({settings: {aiEnabled: true}}),
 }));
-vi.mock('@/hooks/useDrivers', () => ({
+vi.mock('../../../src/hooks/useDrivers', () => ({
     useDrivers: () => ({allDrivers: []}),
 }));
-vi.mock('@/utils/driverUI', () => ({getConnectionIcon: () => null}));
+vi.mock('../../../src/utils/driverUI', () => ({getConnectionIcon: () => null}));
 // Keep the real execution hook, modal and resize handle; replace only the heavy view.
-vi.mock('@/components/explain/VisualExplainView', () => ({
+vi.mock('../../../src/components/explain/VisualExplainView', () => ({
     VisualExplainView: (props: VisualExplainViewProps) => (
         <section data-testid="explain-view">
             {props.plan && <div data-testid="plan">{props.plan.original_query}</div>}
@@ -57,7 +57,7 @@ const defaults: Props = {
 const mockInvoke = vi.mocked(invoke);
 
 function output(id = 'initial'): ExplainQueryOutput {
-    const plan = parseExplain('[{"Plan":{"Node Type":"Result"}}]');
+    const plan = parsePostgresJson('[{"Plan":{"Node Type":"Result"}}]');
     return {kind: 'plan', plan: {...plan, original_query: id, root: {...plan.root, id}}};
 }
 

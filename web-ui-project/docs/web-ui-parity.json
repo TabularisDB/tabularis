@@ -56,11 +56,11 @@
     "literalCommandCount": 15,
     "literalCallSiteCount": 16,
     "dynamicCallSiteCount": 0,
-    "handlerRegistrationCount": 296,
-    "registeredCommandCount": 296,
+    "handlerRegistrationCount": 297,
+    "registeredCommandCount": 297,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 281
+    "registeredCommandsWithoutFrontendCall": 282
   },
   "commands": [
     {
@@ -346,6 +346,7 @@
     "duplicate_personal_theme",
     "enable_plugin",
     "execute_clipboard_import",
+    "execute_plugin_read_only_query",
     "execute_query",
     "execute_query_batch",
     "explain_ai_query",

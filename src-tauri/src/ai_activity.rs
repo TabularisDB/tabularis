@@ -606,6 +606,11 @@ const SIDE_EFFECT_FUNCTIONS: &[&str] = &[
     "PG_PROMOTE",
     "PG_CREATE_RESTORE_POINT",
     "PG_LOG_BACKEND_MEMORY_CONTEXTS",
+    "PG_READ_FILE",
+    "PG_READ_BINARY_FILE",
+    "PG_LS_DIR",
+    "PG_STAT_FILE",
+    "LOAD_EXTENSION",
     "LO_IMPORT",
     "LO_EXPORT",
     "LO_UNLINK",
@@ -622,6 +627,10 @@ const SIDE_EFFECT_FUNCTIONS: &[&str] = &[
     "DBLINK_SEND_QUERY",
     "SETVAL",
     "NEXTVAL",
+    "WRITEFILE",
+    "LOAD_FILE",
+    "SYS_EXEC",
+    "SYS_EVAL",
 ];
 
 /// Classify a statement that reads like a query (`SELECT …`, `VALUES …`, or

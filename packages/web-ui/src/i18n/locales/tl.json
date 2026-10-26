@@ -442,6 +442,12 @@
     "import": "I-import ang mga Koneksyon",
     "exportTitle": "I-export ang mga Koneksyon",
     "exportWarning": "Ang na-export na file ay maglalaman ng iyong database at SSH passwords sa plaintext. Pakitago ito nang ligtas.",
+    "exportSecretsConfirmation": {
+      "title": "Kumpirmahin ang pag-export ng mga lihim",
+      "message": "I-export bilang plain text ang mga naka-save na password, SSH key, at connection URI?",
+      "export": "I-export",
+      "cancel": "Kanselahin"
+    },
     "exportModal": {
       "title": "I-export ang mga Koneksyon",
       "subtitle": "Piliin kung paano i-export ang iyong mga koneksyon",
@@ -923,6 +929,7 @@
       "enabled": "Naka-enable",
       "disabled": "Naka-disable",
       "openFolder": "Buksan ang folder ng mga plugin",
+      "legacyGoogleSheetsOAuthHint": "I-update ang Google Sheets plugin upang maibalik ang Google sign-in sa bersyong ito ng Tabularis.",
       "installError": {
         "title": "Nabigo ang Pag-install",
         "subtitle": "May error habang ini-install ang plugin. Tingnan ang mga detalye sa ibaba.",

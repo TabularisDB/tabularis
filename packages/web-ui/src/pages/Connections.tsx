@@ -67,17 +67,17 @@ import {buildPluginIssueUrl, resolvePluginRepoUrl} from '@/utils/pluginIssueRepo
 import {APP_VERSION} from '@/version';
 
 const NewConnectionModal = lazy(() =>
-    import('@/components/modals/NewConnectionModal').then((m) => ({
+    import('../components/modals/NewConnectionModal').then((m) => ({
         default: m.NewConnectionModal,
     })),
 );
 const ImportFromAppModal = lazy(() =>
-    import('@/components/modals/ImportFromAppModal').then((m) => ({
+    import('../components/modals/ImportFromAppModal').then((m) => ({
         default: m.ImportFromAppModal,
     })),
 );
 const MigrationChecklistModal = lazy(() =>
-    import('@/components/modals/MigrationChecklistModal').then((m) => ({
+    import('../components/modals/MigrationChecklistModal').then((m) => ({
         default: m.MigrationChecklistModal,
     })),
 );
@@ -522,6 +522,7 @@ export const Connections = () => {
             });
             await saveGeneratedFile(client, platform, generated);
         } catch (e) {
+            if (String(e).includes('SECRET_EXPORT_CANCELLED')) return;
             console.error('Export failed:', e);
             setError(toErrorMessage(e));
         }

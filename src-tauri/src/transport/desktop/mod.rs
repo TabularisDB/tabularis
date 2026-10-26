@@ -28,6 +28,7 @@ pub mod preferences;
 pub mod proxy;
 pub mod query_history;
 pub mod runtime;
+pub mod sandbox_protocol;
 pub mod saved_queries;
 pub mod sql_file;
 pub mod sqlite_database;
@@ -106,7 +107,10 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_deep_link::init());
+        .plugin(tauri_plugin_deep_link::init())
+        .register_uri_scheme_protocol("tabularis-plugin", |ctx, request| {
+            crate::transport::desktop::sandbox_protocol::handle(ctx.app_handle(), request)
+        });
 
     // Dialog plugin: real in production, mocked under e2e-testing (the mock
     // auto-accepts ask()/confirm() so native Tauri confirm dialogs — which
@@ -419,6 +423,7 @@ pub fn run(args: crate::cli::Args, log_buffer: crate::logger::SharedLogBuffer) {
             commands::get_file_stats,
             commands::read_file_as_data_url,
             commands::execute_query,
+            commands::execute_plugin_read_only_query,
             commands::execute_query_batch,
             commands::release_query_session,
             commands::get_server_now,

@@ -95,7 +95,7 @@ describe('VisualExplainPage', () => {
         'uses the embedded plan without invoking, compact=%s',
         async (compactMode) => {
             mocks.search = `${deepLink()}&file=%2Ftmp%2Fignored.json`;
-            const initialPlan = parseExplain(makeFile('embedded').content);
+            const initialPlan = await parseExplain(makeFile('embedded').content);
             renderPage({initialPlan, compactMode});
             await act(async () => {
                 await Promise.resolve();
@@ -132,7 +132,7 @@ describe('VisualExplainPage', () => {
 
     it('prefers a deep link over a file and preserves safe invoke options', async () => {
         mocks.search = `${deepLink('SELECT * FROM users')}&file=%2Ftmp%2Fignored.json&analyze=true&schema=private`;
-        const plan = parseExplain(makeFile('deep link').content);
+        const plan = await parseExplain(makeFile('deep link').content);
         vi.mocked(invoke).mockResolvedValue({kind: 'plan', plan});
         renderPage();
         await waitFor(() => expect(screen.getByTestId('plan')).toHaveTextContent('deep link'));
@@ -210,7 +210,7 @@ describe('VisualExplainPage', () => {
     it.each([{selection: null}, {selection: '   '}, {selection: ['/tmp/ignored.json']}])(
         'ignores a cancelled or invalid picker selection: $selection',
         async ({selection}) => {
-            const initialPlan = parseExplain(makeFile('existing').content);
+            const initialPlan = await parseExplain(makeFile('existing').content);
             renderPage({initialPlan});
             vi.mocked(openDialog).mockResolvedValue(selection);
             await act(async () => {
@@ -330,7 +330,10 @@ describe('VisualExplainPage', () => {
             await waitFor(() => expect(screen.getByTestId('plan')).toHaveTextContent('chosen'));
             await act(async () => {
                 if (outcome === 'resolve')
-                    old.resolve({kind: 'plan', plan: parseExplain(makeFile('obsolete').content)});
+                    old.resolve({
+                        kind: 'plan',
+                        plan: await parseExplain(makeFile('obsolete').content),
+                    });
                 else old.reject(new Error('obsolete explain failure'));
             });
             expect(screen.getByTestId('plan')).toHaveTextContent('chosen');
@@ -348,7 +351,7 @@ describe('VisualExplainPage', () => {
         mocks.search = deepLink('SELECT 2');
         vi.mocked(invoke).mockResolvedValue({
             kind: 'plan',
-            plan: parseExplain(makeFile('new deep link').content),
+            plan: await parseExplain(makeFile('new deep link').content),
         });
         rerender(
             <StrictMode>
@@ -367,7 +370,7 @@ describe('VisualExplainPage', () => {
         'discards a stale picker %s after a newer file selection',
         async (outcome) => {
             const old = createDeferred<string | null>();
-            const initialPlan = parseExplain(makeFile('initial').content);
+            const initialPlan = await parseExplain(makeFile('initial').content);
             renderPage({initialPlan});
             vi.mocked(openDialog)
                 .mockReturnValueOnce(old.promise)

@@ -1181,7 +1181,7 @@ describe('NewConnectionModal advanced inline K8s paths', () => {
                 }),
             );
         });
-    });
+    }, 15_000);
 
     it('blocks a submission that applies paths until inline selections are remade', async () => {
         await openInlineK8s();

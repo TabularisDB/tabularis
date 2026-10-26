@@ -15,8 +15,8 @@ function raw(overrides: Partial<RawExplainOutput>): RawExplainOutput {
 
 describe('raw', () => {
     describe('parseRawExplain', () => {
-        it('parses a postgres-json payload and stamps engine and query', () => {
-            const plan = parseRawExplain(
+        it('parses a postgres-json payload and stamps engine and query', async () => {
+            const plan = await parseRawExplain(
                 raw({
                     payload: '[{ "Plan": { "Node Type": "Seq Scan", "Relation Name": "users" } }]',
                     original_query: 'SELECT * FROM users',
@@ -28,8 +28,8 @@ describe('raw', () => {
             expect(plan.root.node_type).toBe('Seq Scan');
         });
 
-        it('parses a mysql-json payload', () => {
-            const plan = parseRawExplain(
+        it('parses a mysql-json payload', async () => {
+            const plan = await parseRawExplain(
                 raw({
                     engine: 'mysql',
                     format: 'mysql-json',
@@ -43,8 +43,8 @@ describe('raw', () => {
             expect(plan.root.relation).toBe('users');
         });
 
-        it('parses a mysql-analyze-text payload', () => {
-            const plan = parseRawExplain(
+        it('parses a mysql-analyze-text payload', async () => {
+            const plan = await parseRawExplain(
                 raw({
                     engine: 'mysql',
                     format: 'mysql-analyze-text',
@@ -57,8 +57,8 @@ describe('raw', () => {
             expect(plan.has_analyze_data).toBe(true);
         });
 
-        it('parses mysql-tabular-rows from a JSON array payload', () => {
-            const plan = parseRawExplain(
+        it('parses mysql-tabular-rows from a JSON array payload', async () => {
+            const plan = await parseRawExplain(
                 raw({
                     engine: 'mysql',
                     format: 'mysql-tabular-rows',
@@ -82,8 +82,8 @@ describe('raw', () => {
             expect(plan.root.children[0].plan_rows).toBe(42);
         });
 
-        it('parses sqlite-eqp-rows from a JSON array payload', () => {
-            const plan = parseRawExplain(
+        it('parses sqlite-eqp-rows from a JSON array payload', async () => {
+            const plan = await parseRawExplain(
                 raw({
                     engine: 'sqlite',
                     format: 'sqlite-eqp-rows',
@@ -96,15 +96,15 @@ describe('raw', () => {
             expect(plan.root.relation).toBe('users');
         });
 
-        it('rejects a rows payload that is not a JSON array', () => {
-            expect(() =>
+        it('rejects a rows payload that is not a JSON array', async () => {
+            await expect(
                 parseRawExplain(raw({engine: 'sqlite', format: 'sqlite-eqp-rows', payload: '{}'})),
-            ).toThrow(/JSON array/);
+            ).rejects.toThrow(/JSON array/);
         });
     });
 
     describe('resolveExplainOutput', () => {
-        it("passes a plugin's already parsed plan through untouched", () => {
+        it("passes a plugin's already parsed plan through untouched", async () => {
             const plan: ExplainPlan = {
                 root: {
                     id: 'node_0',
@@ -133,11 +133,11 @@ describe('raw', () => {
                 raw_output: null,
             };
 
-            expect(resolveExplainOutput({kind: 'plan', plan})).toBe(plan);
+            await expect(resolveExplainOutput({kind: 'plan', plan})).resolves.toBe(plan);
         });
 
-        it('parses a raw payload from a built-in driver', () => {
-            const resolved = resolveExplainOutput({
+        it('parses a raw payload from a built-in driver', async () => {
+            const resolved = await resolveExplainOutput({
                 kind: 'raw',
                 raw: raw({
                     payload: '{ "Plan": { "Node Type": "Result" } }',

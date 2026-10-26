@@ -1,10 +1,11 @@
 #[cfg(test)]
 mod tests {
     use crate::ai_activity::{
-        append_event_in, classify_query_kind, classify_query_kind_for_dialect, clear_in, compute_or_rotate_session_id_in,
-        load_session_state_in, read_events_in, read_session_events_in, read_sessions_in,
-        rotate_if_needed_in, save_session_state_in, set_client_hint_in,
-        strip_strings_and_comments, to_local_rfc3339, AiActivityEvent, EventFilter, SessionState,
+        append_event_in, classify_query_kind, classify_query_kind_for_dialect, clear_in,
+        compute_or_rotate_session_id_in, load_session_state_in, read_events_in,
+        read_session_events_in, read_sessions_in, rotate_if_needed_in, save_session_state_in,
+        set_client_hint_in, strip_strings_and_comments, to_local_rfc3339, AiActivityEvent,
+        EventFilter, SessionState,
     };
     use crate::drivers::driver_trait::SqlDialect;
     use std::path::Path;
@@ -381,6 +382,25 @@ mod tests {
         assert_eq!(classify_query_kind("DELETE FROM t"), "write");
         assert_eq!(classify_query_kind("MERGE INTO t USING s ON ..."), "write");
         assert_eq!(classify_query_kind("REPLACE INTO t VALUES (1)"), "write");
+    }
+
+    #[test]
+    fn classify_read_statements_with_side_effects_as_non_read_only() {
+        for query in [
+            "WITH d AS (DELETE FROM users RETURNING *) SELECT * FROM d",
+            "SELECT * INTO t2 FROM users",
+            "SELECT * INTO OUTFILE '/tmp/export' FROM users",
+            "PRAGMA user_version = 42",
+            "PRAGMA writable_schema = 1",
+            "SELECT pg_terminate_backend(123)",
+            "SELECT \"pg_terminate_backend\"(123)",
+            "SELECT lo_export(1, '/tmp/export')",
+            "SELECT pg_read_file('/etc/passwd')",
+            "SELECT dblink_exec('conn', 'DELETE FROM users')",
+            "SELECT nextval('dangerous_sequence')",
+        ] {
+            assert_ne!(classify_query_kind(query), "select", "{query}");
+        }
     }
 
     #[test]
@@ -855,27 +875,56 @@ mod tests {
 
     #[test]
     fn classify_side_effect_functions_are_write() {
+        let pg = Some(SqlDialect::Postgres);
         assert_eq!(
-            classify_query_kind("SELECT pg_terminate_backend(pid) FROM pg_stat_activity"),
+            classify_query_kind_for_dialect(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity",
+                pg
+            ),
             "write"
         );
         assert_eq!(
-            classify_query_kind("SELECT setval('users_id_seq', 1)"),
+            classify_query_kind_for_dialect("SELECT setval('users_id_seq', 1)", pg),
             "write"
         );
         assert_eq!(
-            classify_query_kind("SELECT nextval ('users_id_seq')"),
+            classify_query_kind_for_dialect("SELECT nextval ('users_id_seq')", pg),
             "write"
         );
         assert_eq!(
-            classify_query_kind("SELECT lo_export(16409, '/tmp/x')"),
+            classify_query_kind_for_dialect("SELECT lo_export(16409, '/tmp/x')", pg),
             "write"
         );
         assert_eq!(
-            classify_query_kind("SELECT dblink_exec('dbname=x', 'DROP TABLE t')"),
+            classify_query_kind_for_dialect(
+                "SELECT dblink_exec('dbname=x', 'DROP TABLE t')",
+                pg
+            ),
             "write"
         );
-        assert_eq!(classify_query_kind("SELECT pg_reload_conf()"), "write");
+        assert_eq!(
+            classify_query_kind_for_dialect("SELECT pg_reload_conf()", pg),
+            "write"
+        );
+
+        for function in [
+            "pg_read_file('/etc/passwd')",
+            "pg_read_binary_file('/etc/passwd')",
+            "pg_ls_dir('/tmp')",
+            "pg_stat_file('/etc/passwd')",
+            "load_extension('x')",
+            "writefile('/tmp/x', 'x')",
+            "load_file('/etc/passwd')",
+            "sys_exec('id')",
+            "sys_eval('id')",
+        ] {
+            let query = format!("SELECT {function}");
+            assert_eq!(
+                classify_query_kind_for_dialect(&query, pg),
+                "write",
+                "{query}"
+            );
+        }
     }
 
     #[test]
@@ -883,6 +932,7 @@ mod tests {
         // Quoting the function name hides it from the bare-name denylist. A
         // read-only transaction does not stop `lo_export` (it writes a file on
         // the host), so this must not be classified as a clean read.
+        let pg = Some(SqlDialect::Postgres);
         for q in [
             "SELECT \"lo_export\"(16409, '/tmp/x')",
             "SELECT pg_catalog.\"lo_export\"(16409, '/tmp/x')",
@@ -890,7 +940,7 @@ mod tests {
             "SELECT \"pg_terminate_backend\"(pid) FROM pg_stat_activity",
             "SELECT `lo_export`(16409, '/tmp/x')",
         ] {
-            assert_ne!(classify_query_kind(q), "select", "query: {q}");
+            assert_ne!(classify_query_kind_for_dialect(q, pg), "select", "query: {q}");
         }
     }
 
@@ -899,6 +949,7 @@ mod tests {
         // Dollar-quoted and escape-string literals must be skipped whole, or a
         // `'` inside them desynchronises the scanner and masks the call that
         // follows.
+        let pg = Some(SqlDialect::Postgres);
         for q in [
             "SELECT $$'$$, lo_export(16409, '/tmp/x')",
             "SELECT $tag$'$tag$, lo_export(16409, '/tmp/x')",
@@ -908,72 +959,126 @@ mod tests {
             "SELECT U&'\\0041\\\\', lo_export(16409, '/tmp/x')",
             "SELECT U&'d!0061t!+000061' UESCAPE '!', lo_export(16409, '/tmp/x')",
         ] {
-            assert_ne!(classify_query_kind(q), "select", "query: {q}");
+            assert_ne!(classify_query_kind_for_dialect(q, pg), "select", "query: {q}");
         }
     }
 
     #[test]
     fn classify_quoted_non_call_identifiers_stay_select() {
         // A quoted identifier not used as a function call is still a read.
-        assert_eq!(classify_query_kind("SELECT \"lo_export\" FROM t"), "select");
-        assert_eq!(classify_query_kind("SELECT count(\"x\") FROM t"), "select");
+        let pg = Some(SqlDialect::Postgres);
         assert_eq!(
-            classify_query_kind("SELECT \"a b\", \"c\" FROM t"),
+            classify_query_kind_for_dialect("SELECT \"lo_export\" FROM t", pg),
+            "select"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("SELECT count(\"x\") FROM t", pg),
+            "select"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("SELECT \"a b\", \"c\" FROM t", pg),
             "select"
         );
         // A dollar-quoted / escape-string body with no trailing call is a read
         // on PostgreSQL. Without a dialect the `;` inside `$$…$$` is a real
         // separator for MySQL-like engines, so it fails closed.
-        let pg = Some(SqlDialect::Postgres);
         assert_eq!(
             classify_query_kind_for_dialect("SELECT $$hello ; world$$", pg),
             "select"
         );
-        assert_eq!(classify_query_kind("SELECT $$hello ; world$$"), "unknown");
-        assert_eq!(classify_query_kind("SELECT E'line\\n'"), "select");
+        assert_eq!(
+            classify_query_kind_for_dialect("SELECT $$hello ; world$$", None),
+            "unknown"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("SELECT E'line\\n'", pg),
+            "select"
+        );
     }
 
     #[test]
     fn classify_side_effect_names_without_a_call_stay_select() {
+        let pg = Some(SqlDialect::Postgres);
         // A column or table named like a function is not a call.
-        assert_eq!(classify_query_kind("SELECT setval FROM t"), "select");
-        assert_eq!(classify_query_kind("SELECT * FROM dblink_log"), "select");
-        // Names inside literals and quoted identifiers are ignored.
-        assert_eq!(classify_query_kind("SELECT 'setval(1)' AS s"), "select");
-        assert_eq!(classify_query_kind("SELECT \"into\" FROM t"), "select");
         assert_eq!(
-            classify_query_kind("SELECT 'a' AS \"for update\""),
+            classify_query_kind_for_dialect("SELECT setval FROM t", pg),
+            "select"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("SELECT * FROM dblink_log", pg),
+            "select"
+        );
+        // Names inside literals and quoted identifiers are ignored.
+        assert_eq!(
+            classify_query_kind_for_dialect("SELECT 'setval(1)' AS s", pg),
+            "select"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("SELECT \"into\" FROM t", pg),
+            "select"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("SELECT 'a' AS \"for update\"", pg),
             "select"
         );
     }
 
     #[test]
     fn classify_pragma_assignment_is_write() {
-        assert_eq!(classify_query_kind("PRAGMA user_version = 42"), "write");
-        assert_eq!(classify_query_kind("PRAGMA journal_mode = DELETE"), "write");
-        assert_eq!(classify_query_kind("PRAGMA query_only = 0"), "write");
-        assert_eq!(classify_query_kind("PRAGMA main.user_version=1;"), "write");
-        assert_eq!(classify_query_kind("PRAGMA journal_mode(DELETE)"), "write");
-        assert_eq!(classify_query_kind("PRAGMA optimize"), "write");
+        let sqlite = Some(SqlDialect::Sqlite);
         assert_eq!(
-            classify_query_kind("PRAGMA wal_checkpoint(TRUNCATE)"),
+            classify_query_kind_for_dialect("PRAGMA user_version = 42", sqlite),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("PRAGMA journal_mode = DELETE", sqlite),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("PRAGMA query_only = 0", sqlite),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("PRAGMA main.user_version=1;", sqlite),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("PRAGMA journal_mode(DELETE)", sqlite),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("PRAGMA optimize", sqlite),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("PRAGMA wal_checkpoint(TRUNCATE)", sqlite),
             "write"
         );
     }
 
     #[test]
     fn classify_pragma_reads_stay_select() {
-        assert_eq!(classify_query_kind("PRAGMA user_version"), "select");
-        assert_eq!(classify_query_kind("PRAGMA journal_mode;"), "select");
+        let sqlite = Some(SqlDialect::Sqlite);
         assert_eq!(
-            classify_query_kind("PRAGMA main.table_info(users)"),
+            classify_query_kind_for_dialect("PRAGMA user_version", sqlite),
             "select"
         );
         assert_eq!(
-            classify_query_kind("PRAGMA foreign_key_list('orders')"),
+            classify_query_kind_for_dialect("PRAGMA journal_mode;", sqlite),
             "select"
         );
-        assert_eq!(classify_query_kind("PRAGMA index_list(t)"), "select");
+        assert_eq!(
+            classify_query_kind_for_dialect("PRAGMA main.table_info(users)", sqlite),
+            "select"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("PRAGMA foreign_key_list('orders')", sqlite),
+            "select"
+        );
+        assert_eq!(
+            classify_query_kind_for_dialect("PRAGMA index_list(t)", sqlite),
+            "select"
+        );
     }
 
     // -----------------------------------------------------------------------

@@ -278,6 +278,10 @@ export interface ExecuteQueryRequest extends MetadataRequest {
     page?: number;
 }
 
+export interface ExecutePluginReadOnlyQueryRequest extends MetadataRequest {
+    query: string;
+}
+
 export interface ExecuteQueryBatchRequest extends MetadataRequest {
     sessionId?: string;
     queries: string[];
@@ -924,6 +928,11 @@ export interface CommandMap {
     >;
 
     execute_query: CommandDefinition<ExecuteQueryRequest, QueryResult, 'database'>;
+    execute_plugin_read_only_query: CommandDefinition<
+        ExecutePluginReadOnlyQueryRequest,
+        QueryResult,
+        'database'
+    >;
     execute_query_batch: CommandDefinition<
         ExecuteQueryBatchRequest,
         BatchStatementResult[],

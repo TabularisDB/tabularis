@@ -7,10 +7,13 @@ import type {
     UsePluginThemeReturn,
     UsePluginToastReturn,
     PluginTranslator,
+    GoogleOAuthTokenRequest,
+    GoogleOAuthTokenResponse,
 } from './types';
 
 /**
- * Execute read-only SQL queries against the active connection.
+ * Execute SQL against the active connection after a best-effort statement filter.
+ * This is not a security boundary; use read-only database grants for that guarantee.
  * Returns `{ executeQuery, loading, error }` — `executeQuery` resolves with
  * `{ columns, rows }` or throws a plain Error with the host's error message.
  */
@@ -68,4 +71,11 @@ export function usePluginTheme(): UsePluginThemeReturn {
  */
 export async function openUrl(url: string): Promise<void> {
     return getHost().openUrl(url);
+}
+
+/** Exchange or refresh Google OAuth tokens through the host's fixed token endpoint. */
+export function exchangeGoogleOAuthToken(
+    request: GoogleOAuthTokenRequest,
+): Promise<GoogleOAuthTokenResponse> {
+    return getHost().exchangeGoogleOAuthToken(request);
 }

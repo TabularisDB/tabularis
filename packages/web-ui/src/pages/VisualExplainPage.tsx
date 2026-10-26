@@ -60,7 +60,7 @@ export const VisualExplainPage = ({
                     'load_explain_from_file',
                     {path},
                 );
-                return withSourceLabel(parseExplain(file.content), file.display_name);
+                return withSourceLabel(await parseExplain(file.content), file.display_name);
             }),
         [loadPlan],
     );
@@ -129,7 +129,7 @@ export const VisualExplainPage = ({
             loadPlan(async () => {
                 const contents = await platform.readInputFile(selected.reference);
                 return withSourceLabel(
-                    parseExplain(new TextDecoder().decode(contents)),
+                    await parseExplain(new TextDecoder().decode(contents)),
                     selected.name,
                 );
             }),

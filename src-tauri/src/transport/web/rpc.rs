@@ -341,6 +341,7 @@ enum PersistenceRpcCommand {
 enum QueryRpcCommand {
     ReleaseSession,
     Execute,
+    PluginReadOnly,
     ExecuteBatch,
     Count,
     Explain,
@@ -2390,6 +2391,7 @@ impl QueryRpcCommand {
         Some(match name {
             "release_query_session" => Self::ReleaseSession,
             "execute_query" => Self::Execute,
+            "execute_plugin_read_only_query" => Self::PluginReadOnly,
             "execute_query_batch" => Self::ExecuteBatch,
             "count_query" => Self::Count,
             "explain_query_plan" => Self::Explain,
@@ -3240,6 +3242,14 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
                 schema: request.schema,
                 query_session_id: request.session_id,
                 database: request.database,
+            }
+        }
+        QueryRpcCommand::PluginReadOnly => {
+            let request: ExecuteQueryRequest = decode_payload(body)?;
+            QueryCommand::PluginReadOnly {
+                connection_id: request.connection_id,
+                query: request.query,
+                schema: request.schema,
             }
         }
         QueryRpcCommand::ExecuteBatch => {

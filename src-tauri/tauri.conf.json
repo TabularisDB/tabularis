@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../packages/web-ui/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "beforeDevCommand": "pnpm build:plugin-guest && pnpm dev",
+    "beforeBuildCommand": "pnpm build:plugin-guest && pnpm build"
   },
   "app": {
     "windows": [
@@ -22,7 +22,20 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "worker-src": "'self' blob:",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob: asset: http://asset.localhost https:",
+        "font-src": "'self' data:",
+        "connect-src": "ipc: http://ipc.localhost https://raw.githubusercontent.com https://oauth2.googleapis.com",
+        "frame-src": "tabularis-plugin: http://tabularis-plugin.localhost",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'none'"
+      },
+      "dangerousDisableAssetCspModification": ["style-src"],
       "assetProtocol": {
         "enable": true,
         "scope": [

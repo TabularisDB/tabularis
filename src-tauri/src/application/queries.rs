@@ -27,6 +27,11 @@ pub enum QueryCommand {
         query_session_id: Option<String>,
         database: Option<String>,
     },
+    PluginReadOnly {
+        connection_id: String,
+        query: String,
+        schema: Option<String>,
+    },
     ExecuteBatch {
         connection_id: String,
         queries: Vec<String>,
@@ -139,6 +144,13 @@ pub async fn execute(
         )
         .await
         .and_then(json),
+        QueryCommand::PluginReadOnly {
+            connection_id,
+            query,
+            schema,
+        } => execute_plugin_read_only_query(runtime, connection_id, query, schema)
+            .await
+            .and_then(json),
         QueryCommand::ExecuteBatch {
             connection_id,
             queries,
@@ -236,6 +248,7 @@ impl QueryCommand {
     fn connection_id(&self) -> &str {
         match self {
             Self::Execute { connection_id, .. }
+            | Self::PluginReadOnly { connection_id, .. }
             | Self::ExecuteBatch { connection_id, .. }
             | Self::Count { connection_id, .. }
             | Self::Explain { connection_id, .. }
@@ -338,6 +351,40 @@ pub async fn execute_query(
             Err("Query cancelled".to_string())
         }
         Err(error) => Err(format!("Query task failed: {error}")),
+    }
+}
+
+/// Execute a query requested by a sandboxed UI plugin.
+///
+/// Plugin queries must pass the Rust classifier and then use the driver's
+/// read-only execution mode so SQL text alone is never the security boundary.
+pub async fn execute_plugin_read_only_query(
+    runtime: &RuntimeContext,
+    connection_id: String,
+    query: String,
+    schema: Option<String>,
+) -> Result<QueryResult, String> {
+    if query.trim().is_empty() || query.len() > 100_000 {
+        return Err("Plugin query must contain between 1 and 100,000 characters".to_string());
+    }
+
+    let query = sanitize_user_query(&query);
+    let (driver, params) = driver_and_params(runtime, None, &connection_id, None).await?;
+    if crate::ai_activity::classify_query_kind_for_capabilities(
+        &query,
+        Some(&driver.manifest().capabilities),
+    ) != "select"
+    {
+        return Err("Plugin queries must be classified as read-only".to_string());
+    }
+
+    match params.driver.as_str() {
+        "sqlite" | "postgres" | "mysql" | "mariadb" => {
+            driver
+                .execute_read_only_query(&params, &query, None, 1, schema.as_deref())
+                .await
+        }
+        _ => Err("This driver does not support sandboxed read-only queries".to_string()),
     }
 }
 
