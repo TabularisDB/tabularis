@@ -2,6 +2,7 @@ import {describe, it, expect} from 'vitest';
 import {
     getQuoteChar,
     quoteIdentifier,
+    quoteIdentifierWith,
     quoteTableRef,
     formatSqlIdentifier,
     identifierNeedsQuoting,
@@ -142,6 +143,31 @@ describe('quoteIdentifier', () => {
         expect(quoteIdentifier('a]b', brackets)).toBe('[a]]b]');
         // `[` needs no escaping inside a bracket-quoted name.
         expect(quoteIdentifier('a[b', brackets)).toBe('[a[b]');
+    });
+});
+
+describe('quoteIdentifierWith', () => {
+    it('should wrap with a symmetric quote and double it inside the name', () => {
+        expect(quoteIdentifierWith('my col', '"')).toBe('"my col"');
+        expect(quoteIdentifierWith('we"ird', '"')).toBe('"we""ird"');
+        expect(quoteIdentifierWith('we`ird', '`')).toBe('`we``ird`');
+        // Only the active quote is doubled.
+        expect(quoteIdentifierWith('a`b"c', '"')).toBe('"a`b""c"');
+    });
+
+    it('should close a bracket quote with ] and double only ]', () => {
+        expect(quoteIdentifierWith('my col', '[')).toBe('[my col]');
+        expect(quoteIdentifierWith('a]b', '[')).toBe('[a]]b]');
+        expect(quoteIdentifierWith('a[b', '[')).toBe('[a[b]');
+    });
+
+    it('should match quoteIdentifier for the resolved quote char', () => {
+        const brackets = pluginManifest({identifier_quote: '[', sql_dialect: 'mssql'});
+        for (const driver of ['mysql', 'postgres', brackets]) {
+            expect(quoteIdentifierWith('x]y`z"', getQuoteChar(driver))).toBe(
+                quoteIdentifier('x]y`z"', driver),
+            );
+        }
     });
 });
 

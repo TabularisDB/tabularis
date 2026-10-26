@@ -133,8 +133,16 @@ export function quoteIdentifier(
     identifier: string,
     driver: string | PluginManifest | DriverCapabilities | null | undefined,
 ): string {
-    const quote = getQuoteChar(driver);
-    // `[` (SQL Server style) closes with `]`, and a `]` in the name is doubled.
+    return quoteIdentifierWith(identifier, getQuoteChar(driver));
+}
+
+/**
+ * Quotes `identifier` with an explicit opening quote character, for callers
+ * that already resolved the driver's `identifier_quote` (see `getQuoteChar`).
+ * `[` (SQL Server style) closes with `]`, and the closing character is doubled
+ * inside the name.
+ */
+export function quoteIdentifierWith(identifier: string, quote: string): string {
     const close = quote === '[' ? ']' : quote;
     const escaped = identifier.replaceAll(close, `${close}${close}`);
     return `${quote}${escaped}${close}`;
