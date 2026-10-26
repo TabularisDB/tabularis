@@ -1,4 +1,4 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {tauriBackedClient} from '../support/tauriBackedHooks';
 import {registerActivePlatformCapabilities} from '@/platform/activeCapabilities';
 import {TauriPlatformCapabilities} from '@/platform/tauriCapabilities';
@@ -7,6 +7,9 @@ import React from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
 import {ThemeProvider} from '@/contexts/ThemeProvider';
+import {SettingsProvider} from '@/contexts/SettingsProvider';
+import {useSettings} from '@/hooks/useSettings';
+import {FONT_MAP} from '@/utils/settings';
 import {useTheme} from '@/hooks/useTheme';
 import {themeRegistry} from '@/themes/themeRegistry';
 import {applyThemeToCSS} from '@/themes/themeUtils';
@@ -816,5 +819,96 @@ describe('native and portal system theme compatibility', () => {
         await act(async () => result.current.deleteCustomTheme('custom-light'));
         expect(result.current.currentTheme.id).toBe('tabularis-light');
         expect(result.current.settings.lightThemeId).toBe('tabularis-light');
+    });
+});
+
+describe('ThemeProvider interface font integration', () => {
+    const fontWrapper = ({children}: {children: React.ReactNode}) => (
+        <React.StrictMode>
+            <ThemeProvider>
+                <SettingsProvider>{children}</SettingsProvider>
+            </ThemeProvider>
+        </React.StrictMode>
+    );
+
+    beforeEach(async () => {
+        const actual =
+            await vi.importActual<typeof import('@/themes/themeUtils')>('@/themes/themeUtils');
+        vi.mocked(applyThemeToCSS).mockImplementation(actual.applyThemeToCSS);
+        document.documentElement.style.cssText = '';
+        document.body.style.cssText = '';
+        const entry = legacy('custom-font');
+        const theme = JSON.parse(entry.source) as Theme;
+        theme.typography.fontFamily.base = 'Georgia, serif';
+        personal = [{...entry, source: JSON.stringify(theme)}];
+        config = {theme: entry.id, fontFamily: 'System', language: 'en'};
+    });
+
+    afterEach(() => {
+        document.documentElement.style.cssText = '';
+        document.body.style.cssText = '';
+    });
+
+    it('restores System and follows theme selections, previews and cancellation', async () => {
+        const {result} = renderHook(() => ({theme: useTheme(), settings: useSettings()}), {
+            wrapper: fontWrapper,
+        });
+        await waitFor(() => {
+            expect(result.current.theme.isLoading).toBe(false);
+            expect(result.current.settings.isLoading).toBe(false);
+        });
+        expect(document.documentElement.style.getPropertyValue('--font-base')).toBe(
+            'Georgia, serif',
+        );
+        expect(document.body.style.fontFamily).toBe('');
+
+        await act(async () => {
+            await result.current.settings.updateSetting('fontFamily', 'Hack');
+        });
+        expect(document.documentElement.style.getPropertyValue('--font-base')).toBe(FONT_MAP.Hack);
+        await act(async () => {
+            await result.current.settings.updateSetting('fontFamily', 'System');
+        });
+        expect(document.documentElement.style.getPropertyValue('--font-base')).toBe(
+            'Georgia, serif',
+        );
+        expect(document.body.style.fontFamily).toBe('');
+
+        await act(async () => {
+            await result.current.theme.setTheme('tabularis-light');
+        });
+        const lightFont = themeRegistry.getPreset('tabularis-light')!.typography.fontFamily.base;
+        expect(document.documentElement.style.getPropertyValue('--font-base')).toBe(lightFont);
+        act(() => result.current.theme.previewTheme('custom-font'));
+        expect(document.documentElement.style.getPropertyValue('--font-base')).toBe(
+            'Georgia, serif',
+        );
+        act(() => result.current.theme.cancelPreview());
+        expect(document.documentElement.style.getPropertyValue('--font-base')).toBe(lightFont);
+        expect(document.body.style.fontFamily).toBe('');
+    });
+
+    it('does not apply the fallback font while the saved theme is still loading', async () => {
+        const catalog = deferred<NativeThemeCatalog>();
+        const native = vi.mocked(invoke).getMockImplementation()!;
+        vi.mocked(invoke).mockImplementation((command, args) =>
+            command === 'get_theme_catalog' ? catalog.promise : native(command, args),
+        );
+        const {result} = renderHook(() => ({theme: useTheme(), settings: useSettings()}), {
+            wrapper: fontWrapper,
+        });
+        await waitFor(() => expect(result.current.settings.isLoading).toBe(false));
+        expect(result.current.theme.isLoading).toBe(true);
+        expect(document.documentElement.style.getPropertyValue('--font-base')).toBe('');
+        expect(document.body.style.fontFamily).toBe('');
+
+        await act(async () => {
+            catalog.resolve(snapshot());
+        });
+        await waitFor(() => expect(result.current.theme.isLoading).toBe(false));
+        expect(document.documentElement.style.getPropertyValue('--font-base')).toBe(
+            'Georgia, serif',
+        );
+        expect(document.body.style.fontFamily).toBe('');
     });
 });

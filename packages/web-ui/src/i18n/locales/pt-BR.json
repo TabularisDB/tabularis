@@ -59,7 +59,9 @@
     "opStartsWith": "começa com",
     "opEndsWith": "termina com",
     "opIsEmpty": "está vazio",
-    "opIsNotEmpty": "não está vazio"
+    "opIsNotEmpty": "não está vazio",
+    "matchCase": "Diferenciar maiúsculas",
+    "matchCaseHint": "Diferencia maiúsculas de minúsculas (LIKE). Desmarque para ignorar (ILIKE)."
   },
   "common": {
     "save": "Salvar",
@@ -236,6 +238,7 @@
     "splitGroup": "Dividir Grupo",
     "resizePanels": "Redimensionar painéis",
     "filterTables": "Filtrar tabelas...",
+    "clearTableFilter": "Limpar filtro",
     "noTablesMatch": "Nenhuma tabela corresponde",
     "filterDatabases": "Filtrar bancos de dados...",
     "manageDatabases": "Gerenciar Bancos de Dados",
@@ -260,6 +263,13 @@
     "historyDatabaseFilter": "Filtrar por banco de dados",
     "historyDatabaseAll": "Todos os bancos de dados",
     "historyDatabaseNone": "Nenhum banco de dados registrado",
+    "historyTimeCustom": "Intervalo personalizado…",
+    "historyDateFrom": "De",
+    "historyDateTo": "Até",
+    "historyDateRangeInvalidFrom": "Informe uma data inicial válida.",
+    "historyDateRangeInvalidTo": "Informe uma data final válida.",
+    "historyDateRangeInverted": "A data inicial deve ser igual ou anterior à data final.",
+    "historyClearFilters": "Limpar filtros",
     "clearAllHistory": "Limpar Todo o Histórico",
     "pauseHistoryCapture": "Pausar captura do histórico",
     "resumeHistoryCapture": "Retomar captura do histórico",
@@ -1418,8 +1428,14 @@
     "deselectAll": "Desmarcar Tudo",
     "copySelectedN": "Copiar Selecionadas ({{count}})",
     "copyAsHtmlTable": "Copiar como tabela HTML",
+    "exportSelectedRows": "Exportar selecionadas ({{count}})…",
+    "exportSelectedRowsCsv": "CSV",
+    "exportSelectedRowsJson": "JSON",
+    "exportedRows": "{{count}} linha(s) exportada(s)",
     "selectColumn": "Selecionar Coluna",
     "deselectColumn": "Desmarcar Coluna",
+    "freezeFirstColumn": "Congelar a primeira coluna",
+    "unfreezeFirstColumn": "Descongelar a primeira coluna",
     "copySelectedColumns": "Copiar Colunas Selecionadas ({{count}})",
     "copyRangeN": "Copiar Intervalo ({{rows}}×{{cols}})",
     "copyAllRows": "Copiar Tudo ({{count}})",
@@ -1490,7 +1506,8 @@
       "unsupportedNote": "Indisponível para este tipo de coluna",
       "filterBy": "Filtrar por {{value}}",
       "clickToFilter": "Clique em um valor para filtrar a tabela por ele",
-      "sampled": "Valores distintos, mín. / máx. e mais frequentes se baseiam em uma amostra de {{size}} valores"
+      "sampled": "Valores distintos, mín. / máx. e mais frequentes se baseiam em uma amostra de {{size}} valores",
+      "unavailable": "Este driver não fornece estatísticas de coluna"
     },
     "copyCells": "Copiar {{count}} Células",
     "copyRows": "Copiar {{count}} Linhas",
@@ -1509,7 +1526,8 @@
     "revealCell": "Revelar célula",
     "maskCell": "Mascarar célula",
     "revealColumn": "Revelar coluna",
-    "maskColumn": "Mascarar coluna"
+    "maskColumn": "Mascarar coluna",
+    "resizeColumn": "Redimensionar coluna {{col}}"
   },
   "editRow": {
     "title": "Editar Linha",
@@ -1928,6 +1946,25 @@
       "explainFocused": "explicar em foco",
       "explainNth": "explicar Nª",
       "cancel": "cancelar"
+    },
+    "resultChart": {
+      "viewLabel": "Visualização do resultado",
+      "viewGrid": "Grade",
+      "viewChart": "Gráfico",
+      "chartType": "Tipo de gráfico",
+      "typeBar": "Barras",
+      "typeLine": "Linhas",
+      "xAxis": "Eixo X",
+      "yAxis": "Eixo Y",
+      "scopeLoaded": "Linhas plotadas: {{count}}",
+      "scopeCapped": "Linhas plotadas: primeiras {{plotted}} de {{loaded}} carregadas",
+      "scopeMore": "há mais linhas não carregadas",
+      "emptyNoRowsTitle": "Nenhuma linha para plotar",
+      "emptyNoNumericTitle": "Nenhuma coluna numérica para plotar",
+      "emptyNoNumericHint": "Um gráfico precisa de pelo menos uma coluna numérica. A grade continua mostrando todos os valores.",
+      "showGrid": "Mostrar grade",
+      "maxSeries": "Até {{max}} séries por vez",
+      "summary": "Gráfico de {{type}} de {{values}} por {{label}}, linhas plotadas: {{count}}"
     },
     "multiResult": {
       "query": "Consulta {{index}}",

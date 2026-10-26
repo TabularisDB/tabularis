@@ -15,6 +15,12 @@ export const USE_DEFAULT_SENTINEL = '__USE_DEFAULT__';
 /** Fixed height of a grid row, shared by the row markup and the virtualizer. */
 export const DATA_GRID_ROW_HEIGHT = 35;
 
+/** Narrowest a data column can be resized to: its padding plus a few characters. */
+export const DATA_GRID_MIN_COLUMN_WIDTH = 48;
+
+/** Widest a data column can be resized to. */
+export const DATA_GRID_MAX_COLUMN_WIDTH = 2000;
+
 /** Whether a database column stores UUID values supported by the grid. */
 export function isUuidColumnType(dataType: string): boolean {
     const normalizedType = dataType.trim().toLowerCase();
@@ -798,6 +804,8 @@ export function computePasteTargets(
 export interface LockedColumnWidths {
     key: string;
     widths: number[];
+    /** Set once the user resized a column of this layout (#1151). */
+    resized?: boolean;
 }
 
 /**
@@ -822,4 +830,119 @@ export function resolveLockedColumnWidths(
     if (!locked || locked.key !== key) return null;
     if (locked.widths.length !== columnCount) return null;
     return locked.widths;
+}
+
+/**
+ * The locked widths with one column set to `width` (rounded to whole pixels)
+ * and marked as resized. Every other column keeps its width.
+ */
+export function resizeLockedColumn(
+    locked: LockedColumnWidths,
+    index: number,
+    width: number,
+): LockedColumnWidths {
+    if (index < 0 || index >= locked.widths.length) return locked;
+    return {
+        ...locked,
+        widths: locked.widths.map((w, i) => (i === index ? Math.round(width) : w)),
+        resized: true,
+    };
+}
+
+/**
+ * The explicit table width for a resized layout: the sum of its columns.
+ * A fixed-layout table stretched to the container would hand any width a
+ * column gives up to the other columns, so once the user resizes, the table
+ * is exactly as wide as its columns. Before that it keeps filling the
+ * container (undefined).
+ */
+export function getResizedTableWidth(
+    locked: LockedColumnWidths | null,
+    widths: readonly number[] | null,
+): number | undefined {
+    if (!locked?.resized || !widths) return undefined;
+    return widths.reduce((sum, w) => sum + w, 0);
+}
+
+/** Row-number gutter width before the grid has measured its columns. */
+export const DATA_GRID_GUTTER_FALLBACK_WIDTH = 50;
+
+/**
+ * Width of the collapsed border between the gutter and the first column. The
+ * table paints it where the column started, inside the column's box, so a
+ * sticky cell at the full gutter width leaves a 1px strip of scrolled content
+ * showing at the gutter edge.
+ */
+const DATA_GRID_GUTTER_BORDER_WIDTH = 1;
+
+export interface FrozenFirstColumnLayout {
+    /**
+     * Sticky `left` offset of the frozen column: right after the gutter, pulled
+     * under its shared border so the border strip is covered too.
+     */
+    left: number;
+    /**
+     * Scroll padding that keeps `scrollIntoView` from parking the active cell
+     * under the gutter and the frozen column.
+     */
+    scrollPaddingLeft: number;
+}
+
+/**
+ * Offsets for the frozen first data column (#1152). `columnWidths` are the
+ * locked widths (gutter first); before they are measured the gutter falls back
+ * to its CSS width and the frozen column adds no scroll padding.
+ */
+export function getFrozenFirstColumnLayout(
+    columnWidths: readonly number[] | null,
+): FrozenFirstColumnLayout {
+    const gutter = columnWidths?.[0] ?? DATA_GRID_GUTTER_FALLBACK_WIDTH;
+    return {
+        left: gutter - DATA_GRID_GUTTER_BORDER_WIDTH,
+        scrollPaddingLeft: gutter + (columnWidths?.[1] ?? 0),
+    };
+}
+
+export interface FrozenCellRowState {
+    isSelected: boolean;
+    isInsertion: boolean;
+    isPendingDelete: boolean;
+    isZebra: boolean;
+}
+
+// Both layers sit under the cell content. `::before` is the opaque row
+// background, `::after` repaints the cell's own tint (selection, edits) on top.
+// Collapsed table borders stay where the column started, so `::before` also
+// draws the frozen column's right border.
+const FROZEN_CELL_LAYERS =
+    'before:absolute before:inset-0 before:-z-10 before:pointer-events-none before:transition-colors before:border-r before:border-default after:absolute after:inset-0 after:-z-10 after:pointer-events-none after:bg-inherit';
+
+/**
+ * Frozen header cell: the header background under its own tint, stacked below
+ * the gutter header (z-20).
+ */
+export const FROZEN_HEADER_CELL_CLASS = `sticky z-[15] ${FROZEN_CELL_LAYERS} before:bg-base`;
+
+/**
+ * Backdrop for a frozen (sticky) body cell. The row tints are translucent, so
+ * a sticky cell would show the cells scrolling under it; this paints the same
+ * tint pre-mixed over the grid background instead. Mirrors the row classes in
+ * DataGridRow, in the same precedence.
+ */
+export function getFrozenCellBackdropClass(row: FrozenCellRowState): string {
+    let backdrop: string;
+    if (row.isSelected) {
+        backdrop = 'before:bg-[color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-elevated))]';
+    } else if (row.isInsertion) {
+        backdrop = 'before:bg-[color-mix(in_srgb,var(--semantic-new)_8%,var(--bg-elevated))]';
+    } else if (row.isPendingDelete) {
+        backdrop = 'before:bg-[color-mix(in_srgb,var(--semantic-deleted)_10%,var(--bg-elevated))]';
+    } else if (row.isZebra) {
+        backdrop =
+            'before:bg-[color-mix(in_srgb,var(--surface-secondary)_40%,var(--bg-elevated))] group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_90%,var(--bg-elevated))]';
+    } else {
+        backdrop =
+            'before:bg-elevated group-hover:before:bg-[color-mix(in_srgb,var(--surface-secondary)_50%,var(--bg-elevated))]';
+    }
+    return `${FROZEN_CELL_LAYERS} ${backdrop}`;
 }

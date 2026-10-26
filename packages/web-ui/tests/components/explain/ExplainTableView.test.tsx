@@ -113,4 +113,47 @@ describe('ExplainTableView', () => {
         fireEvent.click(button);
         expect(onExportCsv).not.toHaveBeenCalled();
     });
+    it('renders the same cost, rows and estimate gap values the CSV export uses', () => {
+        const plan = makePlan();
+        // 100 estimated, 20 actual: a 5x overestimate.
+        plan.root = {...plan.root, actual_rows: 20, actual_time_ms: 2, actual_loops: 1};
+        plan.has_analyze_data = true;
+        const metrics: ExplainMetrics = computeExplainMetrics(plan);
+
+        render(
+            <ExplainTableView
+                plan={plan}
+                metrics={metrics}
+                diagnostics={new Map<string, ExplainDiagnostic[]>()}
+                selectedId={null}
+                onSelect={vi.fn()}
+            />,
+        );
+
+        expect(screen.getByText('0.00 - 25.5')).toBeInTheDocument();
+        expect(screen.getByText('100')).toBeInTheDocument();
+        expect(screen.getByText('20')).toBeInTheDocument();
+        expect(screen.getByText('2.00 ms')).toBeInTheDocument();
+        expect(screen.getByText('5.00x')).toBeInTheDocument();
+    });
+
+    it('shows placeholders instead of zero when metrics are unavailable', () => {
+        const plan = makePlan();
+        plan.root = {...plan.root, startup_cost: null, total_cost: null, plan_rows: null};
+        const metrics: ExplainMetrics = computeExplainMetrics(plan);
+
+        render(
+            <ExplainTableView
+                plan={plan}
+                metrics={metrics}
+                diagnostics={new Map<string, ExplainDiagnostic[]>()}
+                selectedId={null}
+                onSelect={vi.fn()}
+            />,
+        );
+
+        // cost, est rows, self time and estimate gap
+        expect(screen.getAllByText('-')).toHaveLength(4);
+        expect(screen.queryByText('0')).toBeNull();
+    });
 });

@@ -59,7 +59,9 @@
     "opStartsWith": "beginnt mit",
     "opEndsWith": "endet mit",
     "opIsEmpty": "ist leer",
-    "opIsNotEmpty": "ist nicht leer"
+    "opIsNotEmpty": "ist nicht leer",
+    "matchCase": "Groß-/Kleinschreibung",
+    "matchCaseHint": "Groß-/Kleinschreibung beachten (LIKE). Abwählen für eine Suche ohne Beachtung (ILIKE)."
   },
   "tags": {
     "label": "Tags",
@@ -246,6 +248,7 @@
     "splitGroup": "Gruppe teilen",
     "resizePanels": "Größe der Bereiche ändern",
     "filterTables": "Tabellen filtern...",
+    "clearTableFilter": "Filter löschen",
     "noTablesMatch": "Keine passende Tabelle",
     "filterDatabases": "Datenbanken filtern...",
     "manageDatabases": "Datenbanken verwalten",
@@ -270,6 +273,13 @@
     "historyDatabaseFilter": "Nach Datenbank filtern",
     "historyDatabaseAll": "Alle Datenbanken",
     "historyDatabaseNone": "Keine Datenbank erfasst",
+    "historyTimeCustom": "Benutzerdefinierter Zeitraum…",
+    "historyDateFrom": "Von",
+    "historyDateTo": "Bis",
+    "historyDateRangeInvalidFrom": "Bitte ein gültiges Von-Datum eingeben.",
+    "historyDateRangeInvalidTo": "Bitte ein gültiges Bis-Datum eingeben.",
+    "historyDateRangeInverted": "Das Von-Datum muss am oder vor dem Bis-Datum liegen.",
+    "historyClearFilters": "Filter zurücksetzen",
     "clearAllHistory": "Gesamten Verlauf löschen",
     "pauseHistoryCapture": "Verlaufsaufzeichnung pausieren",
     "resumeHistoryCapture": "Verlaufsaufzeichnung fortsetzen",
@@ -1400,8 +1410,14 @@
     "deselectAll": "Alle abwählen",
     "copySelectedN": "Auswahl kopieren ({{count}})",
     "copyAsHtmlTable": "Als HTML-Tabelle kopieren",
+    "exportSelectedRows": "Auswahl exportieren ({{count}})…",
+    "exportSelectedRowsCsv": "CSV",
+    "exportSelectedRowsJson": "JSON",
+    "exportedRows": "{{count}} Zeile(n) exportiert",
     "selectColumn": "Spalte auswählen",
     "deselectColumn": "Spalte abwählen",
+    "freezeFirstColumn": "Erste Spalte fixieren",
+    "unfreezeFirstColumn": "Erste Spalte lösen",
     "copySelectedColumns": "Ausgewählte Spalten kopieren ({{count}})",
     "copyRangeN": "Bereich kopieren ({{rows}}×{{cols}})",
     "copyAllRows": "Alle kopieren ({{count}})",
@@ -1471,7 +1487,8 @@
       "unsupportedNote": "Für diesen Spaltentyp nicht verfügbar",
       "filterBy": "Nach {{value}} filtern",
       "clickToFilter": "Auf einen Wert klicken, um die Tabelle danach zu filtern",
-      "sampled": "Eindeutige Werte, Min / Max und häufigste Werte beruhen auf einer Stichprobe von {{size}} Werten"
+      "sampled": "Eindeutige Werte, Min / Max und häufigste Werte beruhen auf einer Stichprobe von {{size}} Werten",
+      "unavailable": "Dieser Treiber bietet keine Spaltenstatistiken"
     },
     "copyCells": "{{count}} Zelle(n) kopieren",
     "copyRows": "{{count}} Zeile(n) kopieren",
@@ -1490,7 +1507,8 @@
     "revealCell": "Zelle anzeigen",
     "maskCell": "Zelle maskieren",
     "revealColumn": "Spalte anzeigen",
-    "maskColumn": "Spalte maskieren"
+    "maskColumn": "Spalte maskieren",
+    "resizeColumn": "Breite der Spalte {{col}} ändern"
   },
   "editRow": {
     "title": "Zeile bearbeiten",
@@ -1910,6 +1928,25 @@
       "explainFocused": "fokussierte erklären",
       "explainNth": "n-te erklären",
       "cancel": "abbrechen"
+    },
+    "resultChart": {
+      "viewLabel": "Ergebnisansicht",
+      "viewGrid": "Tabelle",
+      "viewChart": "Diagramm",
+      "chartType": "Diagrammtyp",
+      "typeBar": "Balken",
+      "typeLine": "Linie",
+      "xAxis": "X-Achse",
+      "yAxis": "Y-Achse",
+      "scopeLoaded": "Dargestellte Zeilen: {{count}}",
+      "scopeCapped": "Dargestellte Zeilen: erste {{plotted}} von {{loaded}} geladenen",
+      "scopeMore": "weitere Zeilen nicht geladen",
+      "emptyNoRowsTitle": "Keine Zeilen für ein Diagramm",
+      "emptyNoNumericTitle": "Keine numerischen Spalten zum Darstellen",
+      "emptyNoNumericHint": "Ein Diagramm braucht mindestens eine numerische Spalte. Die Tabelle zeigt weiterhin alle Werte.",
+      "showGrid": "Tabelle anzeigen",
+      "maxSeries": "Bis zu {{max}} Reihen gleichzeitig",
+      "summary": "Diagramm ({{type}}) von {{values}} nach {{label}}, dargestellte Zeilen: {{count}}"
     },
     "multiResult": {
       "query": "Abfrage {{index}}",

@@ -4,6 +4,7 @@ import type {Tab, SchemaCache, TableSchema, QueryResultEntry} from '@/types/edit
 import {EditorContext, type AddTabOptions} from './EditorContext';
 import {useDatabase} from '@/hooks/useDatabase';
 import {useTabularisClient} from '@/hooks/useTabularisClient';
+import {forgetResultChartStates} from '@/hooks/useResultChartState';
 import {
     generateTabId,
     loadEditorPreferences,
@@ -128,17 +129,19 @@ export const EditorProvider = ({children}: {children: ReactNode}) => {
     }, [tabs]);
 
     // Every tab close ends here, so a tab leaving the list releases its pinned
-    // connection, rolling back any transaction it left open. The list cleared with
-    // no active connection is skipped: disconnect and a failed health check release
-    // in the backend, and a detached window reopens the same tabs and continues them.
+    // connection, rolling back any transaction it left open, and drops its result
+    // chart view and config. The list cleared with no active connection is skipped:
+    // disconnect and a failed health check release in the backend, and a detached
+    // window reopens the same tabs and continues them.
     const releasedFromTabsRef = useRef<Tab[]>([]);
     useEffect(() => {
         const previous = releasedFromTabsRef.current;
         releasedFromTabsRef.current = tabs;
         if (!activeConnectionId) return;
         const open = new Set(tabs.map((t) => t.id));
-        for (const tab of previous) {
-            if (open.has(tab.id)) continue;
+        const closed = previous.filter((tab) => !open.has(tab.id));
+        forgetResultChartStates(closed.map((tab) => tab.id));
+        for (const tab of closed) {
             void client
                 .call('release_query_session', {
                     connectionId: tab.connectionId,

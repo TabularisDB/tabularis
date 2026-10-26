@@ -330,8 +330,13 @@ export function fromPluginColumnStats(
                   COLUMN_STATS_TOP_VALUES_LIMIT,
               )
             : null;
+    // Mirrors `restrict_column_stats` (Rust): the sample only qualifies the
+    // parts that are kept, so it goes when every part is excluded.
+    const hasSampledPart = support.distinct || support.minMax || support.topValues;
     const sampleSize =
-        typeof result.sample_size === 'number' && Number.isFinite(result.sample_size)
+        hasSampledPart &&
+        typeof result.sample_size === 'number' &&
+        Number.isFinite(result.sample_size)
             ? result.sample_size
             : null;
     return {

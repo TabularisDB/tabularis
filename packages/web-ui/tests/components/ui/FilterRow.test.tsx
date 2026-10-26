@@ -157,3 +157,39 @@ describe('FilterRow value picker', () => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 });
+
+describe('FilterRow match case toggle', () => {
+    const textFilter: StructuredFilter = {
+        id: 'f1',
+        column: 'status',
+        operator: 'contains',
+        value: 'a',
+    };
+    const toggle = () => screen.queryByRole('checkbox', {name: 'toolbar.matchCase'});
+
+    it('is hidden unless the connection supports it', () => {
+        renderRow(textFilter);
+        expect(toggle()).not.toBeInTheDocument();
+    });
+
+    it('is shown, checked by default, for text operators when supported', () => {
+        renderRow(textFilter, {supportsMatchCase: true});
+        expect(toggle()).toBeChecked();
+    });
+
+    it('is hidden for operators it does not affect', () => {
+        renderRow({...textFilter, operator: '='}, {supportsMatchCase: true});
+        expect(toggle()).not.toBeInTheDocument();
+    });
+
+    it('stores matchCase false when unticked', () => {
+        const {onChange} = renderRow(textFilter, {supportsMatchCase: true});
+        fireEvent.click(toggle()!);
+        expect(onChange).toHaveBeenCalledWith({...textFilter, matchCase: false});
+    });
+
+    it('reflects an unticked filter', () => {
+        renderRow({...textFilter, matchCase: false}, {supportsMatchCase: true});
+        expect(toggle()).not.toBeChecked();
+    });
+});

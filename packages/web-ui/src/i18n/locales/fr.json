@@ -59,7 +59,9 @@
     "opStartsWith": "commence par",
     "opEndsWith": "se termine par",
     "opIsEmpty": "est vide",
-    "opIsNotEmpty": "n'est pas vide"
+    "opIsNotEmpty": "n'est pas vide",
+    "matchCase": "Respecter la casse",
+    "matchCaseHint": "Respecte la casse (LIKE). Décochez pour ignorer la casse (ILIKE)."
   },
   "tags": {
     "label": "Tags",
@@ -259,6 +261,7 @@
     "splitGroup": "Diviser le groupe",
     "resizePanels": "Redimensionner les panneaux",
     "filterTables": "Filtrer les tables...",
+    "clearTableFilter": "Effacer le filtre",
     "noTablesMatch": "Aucune table correspondante",
     "filterDatabases": "Filtrer les bases de données...",
     "manageDatabases": "Gérer les bases de données",
@@ -283,6 +286,13 @@
     "historyDatabaseFilter": "Filtrer par base de données",
     "historyDatabaseAll": "Toutes les bases de données",
     "historyDatabaseNone": "Aucune base de données enregistrée",
+    "historyTimeCustom": "Plage personnalisée…",
+    "historyDateFrom": "Du",
+    "historyDateTo": "Au",
+    "historyDateRangeInvalidFrom": "Saisissez une date de début valide.",
+    "historyDateRangeInvalidTo": "Saisissez une date de fin valide.",
+    "historyDateRangeInverted": "La date de début doit être égale ou antérieure à la date de fin.",
+    "historyClearFilters": "Effacer les filtres",
     "clearAllHistory": "Effacer tout l’historique",
     "pauseHistoryCapture": "Mettre en pause la capture de l’historique",
     "resumeHistoryCapture": "Reprendre la capture de l’historique",
@@ -1439,8 +1449,14 @@
     "deselectAll": "Tout désélectionner",
     "copySelectedN": "Copier la sélection ({{count}})",
     "copyAsHtmlTable": "Copier en tableau HTML",
+    "exportSelectedRows": "Exporter la sélection ({{count}})…",
+    "exportSelectedRowsCsv": "CSV",
+    "exportSelectedRowsJson": "JSON",
+    "exportedRows": "{{count}} ligne(s) exportée(s)",
     "selectColumn": "Sélectionner la colonne",
     "deselectColumn": "Désélectionner la colonne",
+    "freezeFirstColumn": "Figer la première colonne",
+    "unfreezeFirstColumn": "Libérer la première colonne",
     "copySelectedColumns": "Copier les colonnes sélectionnées ({{count}})",
     "copyRangeN": "Copier la plage ({{rows}}×{{cols}})",
     "copyAllRows": "Tout Copier ({{count}})",
@@ -1511,7 +1527,8 @@
       "unsupportedNote": "Non disponible pour ce type de colonne",
       "filterBy": "Filtrer par {{value}}",
       "clickToFilter": "Cliquez sur une valeur pour filtrer la table",
-      "sampled": "Les valeurs distinctes, min / max et les plus fréquentes reposent sur un échantillon de {{size}} valeurs"
+      "sampled": "Les valeurs distinctes, min / max et les plus fréquentes reposent sur un échantillon de {{size}} valeurs",
+      "unavailable": "Ce pilote ne fournit pas de statistiques de colonne"
     },
     "copyCells": "Copier {{count}} cellule(s)",
     "copyRows": "Copier {{count}} ligne(s)",
@@ -1530,7 +1547,8 @@
     "revealCell": "Afficher la cellule",
     "maskCell": "Masquer la cellule",
     "revealColumn": "Afficher la colonne",
-    "maskColumn": "Masquer la colonne"
+    "maskColumn": "Masquer la colonne",
+    "resizeColumn": "Redimensionner la colonne {{col}}"
   },
   "editRow": {
     "title": "Modifier la ligne",
@@ -1950,6 +1968,25 @@
       "explainFocused": "expliquer la sélection",
       "explainNth": "expliquer la n-ième",
       "cancel": "annuler"
+    },
+    "resultChart": {
+      "viewLabel": "Vue du résultat",
+      "viewGrid": "Grille",
+      "viewChart": "Graphique",
+      "chartType": "Type de graphique",
+      "typeBar": "Barres",
+      "typeLine": "Lignes",
+      "xAxis": "Axe X",
+      "yAxis": "Axe Y",
+      "scopeLoaded": "Lignes tracées : {{count}}",
+      "scopeCapped": "Lignes tracées : {{plotted}} premières sur {{loaded}} chargées",
+      "scopeMore": "d'autres lignes ne sont pas chargées",
+      "emptyNoRowsTitle": "Aucune ligne à représenter",
+      "emptyNoNumericTitle": "Aucune colonne numérique à tracer",
+      "emptyNoNumericHint": "Un graphique a besoin d'au moins une colonne numérique. La grille affiche toujours toutes les valeurs.",
+      "showGrid": "Afficher la grille",
+      "maxSeries": "Jusqu'à {{max}} séries à la fois",
+      "summary": "Graphique ({{type}}) de {{values}} par {{label}}, lignes tracées : {{count}}"
     },
     "multiResult": {
       "query": "Requête {{index}}",

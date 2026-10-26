@@ -87,6 +87,7 @@ import {RunRoutineModal} from '@/components/modals/RunRoutineModal';
 import {Accordion} from './sidebar/Accordion';
 import {MetadataErrorIndicator} from './sidebar/MetadataErrorIndicator';
 import {SidebarTableItem} from './sidebar/SidebarTableItem';
+import {TableFilterInput} from './sidebar/TableFilterInput';
 import {buildTableItemSelector} from '@/utils/sidebarTableItem';
 import {fuzzyFilter} from '@/utils/fuzzy';
 import {formatHistoryEntryDetails} from '@/utils/queryHistoryDetails';
@@ -2815,189 +2816,193 @@ export const ExplorerSidebar = ({
                                                 </div>
                                             }
                                         >
-                                            {tables.length > 0 && (
-                                                <div className="px-2 py-1">
-                                                    <div className="relative flex items-center">
-                                                        <Search
-                                                            size={11}
-                                                            className="absolute left-2 text-muted pointer-events-none"
-                                                        />
-                                                        <input
-                                                            autoCorrect="off"
-                                                            autoCapitalize="off"
-                                                            autoComplete="off"
-                                                            spellCheck={false}
-                                                            type="text"
-                                                            data-table-filter
-                                                            value={tableFilter}
-                                                            onChange={(e) =>
-                                                                setTableFilter(e.target.value)
-                                                            }
-                                                            placeholder={t('sidebar.filterTables')}
-                                                            className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-focus/50"
-                                                        />
-                                                        {tableFilter && (
-                                                            <button
-                                                                onClick={() => setTableFilter('')}
-                                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded hover:bg-surface-secondary"
-                                                            >
-                                                                <X size={11} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
                                             {(() => {
-                                                const filtered = fuzzyFilter(
+                                                const filteredTables = fuzzyFilter(
                                                     tables,
                                                     tableFilter,
                                                     (tbl) => tbl.name,
                                                 );
-                                                return filtered.length === 0 ? (
-                                                    <div className="text-center p-2 text-xs text-muted italic">
-                                                        {tableFilter
-                                                            ? t('sidebar.noTablesMatch')
-                                                            : t('sidebar.noTables')}
-                                                    </div>
-                                                ) : (
-                                                    <div>
-                                                        {filtered.map((table) => (
-                                                            <SidebarTableItem
-                                                                key={table.name}
-                                                                table={table}
-                                                                activeTable={activeTable}
-                                                                onTableClick={handleTableClick}
-                                                                onTableDoubleClick={handleOpenTable}
-                                                                onContextMenu={handleContextMenu}
-                                                                connectionId={activeConnectionId!}
-                                                                driver={activeDriver!}
-                                                                capabilities={activeCapabilities}
-                                                                canManage={supportsManageTables(
-                                                                    activeCapabilities,
-                                                                )}
-                                                                onAddColumn={(t_name) =>
-                                                                    setModifyColumnModal({
-                                                                        isOpen: true,
-                                                                        tableName: t_name,
-                                                                        column: null,
-                                                                    })
+                                                return (
+                                                    <>
+                                                        {tables.length > 0 && (
+                                                            <TableFilterInput
+                                                                value={tableFilter}
+                                                                onChange={setTableFilter}
+                                                                hasMatch={filteredTables.length > 0}
+                                                                onOpenFirstMatch={() =>
+                                                                    handleOpenTable(
+                                                                        filteredTables[0].name,
+                                                                    )
                                                                 }
-                                                                onEditColumn={(t_name, c) =>
-                                                                    setModifyColumnModal({
-                                                                        isOpen: true,
-                                                                        tableName: t_name,
-                                                                        column: c,
-                                                                    })
-                                                                }
-                                                                onAddIndex={(t_name) =>
-                                                                    setCreateIndexModal({
-                                                                        isOpen: true,
-                                                                        tableName: t_name,
-                                                                    })
-                                                                }
-                                                                onDropIndex={async (
-                                                                    t_name,
-                                                                    name,
-                                                                ) => {
-                                                                    if (
-                                                                        await ask(
-                                                                            t(
-                                                                                'sidebar.deleteIndexConfirm',
-                                                                                {name},
-                                                                            ),
-                                                                            {
-                                                                                title: t(
-                                                                                    'sidebar.deleteIndex',
-                                                                                ),
-                                                                                kind: 'warning',
-                                                                            },
-                                                                        )
-                                                                    ) {
-                                                                        try {
-                                                                            await client.call(
-                                                                                'drop_index_action',
-                                                                                {
-                                                                                    connectionId:
-                                                                                        activeConnectionId!,
-                                                                                    table: t_name,
-                                                                                    indexName: name,
-                                                                                },
-                                                                            );
-                                                                            setSchemaVersion(
-                                                                                (v) => v + 1,
-                                                                            );
-                                                                        } catch (e) {
-                                                                            showAlert(
-                                                                                t(
-                                                                                    'sidebar.failDeleteIndex',
-                                                                                ) +
-                                                                                    toErrorMessage(
-                                                                                        e,
-                                                                                    ),
-                                                                                {
-                                                                                    title: t(
-                                                                                        'common.error',
-                                                                                    ),
-                                                                                    kind: 'error',
-                                                                                },
-                                                                            );
-                                                                        }
-                                                                    }
-                                                                }}
-                                                                onAddForeignKey={(t_name) =>
-                                                                    setCreateForeignKeyModal({
-                                                                        isOpen: true,
-                                                                        tableName: t_name,
-                                                                    })
-                                                                }
-                                                                onDropForeignKey={async (
-                                                                    t_name,
-                                                                    name,
-                                                                ) => {
-                                                                    if (
-                                                                        await ask(
-                                                                            t(
-                                                                                'sidebar.deleteFkConfirm',
-                                                                                {name},
-                                                                            ),
-                                                                            {
-                                                                                title: t(
-                                                                                    'sidebar.deleteFk',
-                                                                                ),
-                                                                                kind: 'warning',
-                                                                            },
-                                                                        )
-                                                                    ) {
-                                                                        try {
-                                                                            await client.call(
-                                                                                'drop_foreign_key_action',
-                                                                                {
-                                                                                    connectionId:
-                                                                                        activeConnectionId!,
-                                                                                    table: t_name,
-                                                                                    fkName: name,
-                                                                                },
-                                                                            );
-                                                                            setSchemaVersion(
-                                                                                (v) => v + 1,
-                                                                            );
-                                                                        } catch (e) {
-                                                                            showAlert(
-                                                                                toErrorMessage(e),
-                                                                                {
-                                                                                    title: t(
-                                                                                        'common.error',
-                                                                                    ),
-                                                                                    kind: 'error',
-                                                                                },
-                                                                            );
-                                                                        }
-                                                                    }
-                                                                }}
-                                                                schemaVersion={schemaVersion}
                                                             />
-                                                        ))}
-                                                    </div>
+                                                        )}
+                                                        {filteredTables.length === 0 ? (
+                                                            <div className="text-center p-2 text-xs text-muted italic">
+                                                                {tableFilter
+                                                                    ? t('sidebar.noTablesMatch')
+                                                                    : t('sidebar.noTables')}
+                                                            </div>
+                                                        ) : (
+                                                            <div>
+                                                                {filteredTables.map((table) => (
+                                                                    <SidebarTableItem
+                                                                        key={table.name}
+                                                                        table={table}
+                                                                        activeTable={activeTable}
+                                                                        onTableClick={
+                                                                            handleTableClick
+                                                                        }
+                                                                        onTableDoubleClick={
+                                                                            handleOpenTable
+                                                                        }
+                                                                        onContextMenu={
+                                                                            handleContextMenu
+                                                                        }
+                                                                        connectionId={
+                                                                            activeConnectionId!
+                                                                        }
+                                                                        driver={activeDriver!}
+                                                                        capabilities={
+                                                                            activeCapabilities
+                                                                        }
+                                                                        canManage={supportsManageTables(
+                                                                            activeCapabilities,
+                                                                        )}
+                                                                        onAddColumn={(t_name) =>
+                                                                            setModifyColumnModal({
+                                                                                isOpen: true,
+                                                                                tableName: t_name,
+                                                                                column: null,
+                                                                            })
+                                                                        }
+                                                                        onEditColumn={(t_name, c) =>
+                                                                            setModifyColumnModal({
+                                                                                isOpen: true,
+                                                                                tableName: t_name,
+                                                                                column: c,
+                                                                            })
+                                                                        }
+                                                                        onAddIndex={(t_name) =>
+                                                                            setCreateIndexModal({
+                                                                                isOpen: true,
+                                                                                tableName: t_name,
+                                                                            })
+                                                                        }
+                                                                        onDropIndex={async (
+                                                                            t_name,
+                                                                            name,
+                                                                        ) => {
+                                                                            if (
+                                                                                await ask(
+                                                                                    t(
+                                                                                        'sidebar.deleteIndexConfirm',
+                                                                                        {name},
+                                                                                    ),
+                                                                                    {
+                                                                                        title: t(
+                                                                                            'sidebar.deleteIndex',
+                                                                                        ),
+                                                                                        kind: 'warning',
+                                                                                    },
+                                                                                )
+                                                                            ) {
+                                                                                try {
+                                                                                    await client.call(
+                                                                                        'drop_index_action',
+                                                                                        {
+                                                                                            connectionId:
+                                                                                                activeConnectionId!,
+                                                                                            table: t_name,
+                                                                                            indexName:
+                                                                                                name,
+                                                                                        },
+                                                                                    );
+                                                                                    setSchemaVersion(
+                                                                                        (v) =>
+                                                                                            v + 1,
+                                                                                    );
+                                                                                } catch (e) {
+                                                                                    showAlert(
+                                                                                        t(
+                                                                                            'sidebar.failDeleteIndex',
+                                                                                        ) +
+                                                                                            toErrorMessage(
+                                                                                                e,
+                                                                                            ),
+                                                                                        {
+                                                                                            title: t(
+                                                                                                'common.error',
+                                                                                            ),
+                                                                                            kind: 'error',
+                                                                                        },
+                                                                                    );
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        onAddForeignKey={(t_name) =>
+                                                                            setCreateForeignKeyModal(
+                                                                                {
+                                                                                    isOpen: true,
+                                                                                    tableName:
+                                                                                        t_name,
+                                                                                },
+                                                                            )
+                                                                        }
+                                                                        onDropForeignKey={async (
+                                                                            t_name,
+                                                                            name,
+                                                                        ) => {
+                                                                            if (
+                                                                                await ask(
+                                                                                    t(
+                                                                                        'sidebar.deleteFkConfirm',
+                                                                                        {name},
+                                                                                    ),
+                                                                                    {
+                                                                                        title: t(
+                                                                                            'sidebar.deleteFk',
+                                                                                        ),
+                                                                                        kind: 'warning',
+                                                                                    },
+                                                                                )
+                                                                            ) {
+                                                                                try {
+                                                                                    await client.call(
+                                                                                        'drop_foreign_key_action',
+                                                                                        {
+                                                                                            connectionId:
+                                                                                                activeConnectionId!,
+                                                                                            table: t_name,
+                                                                                            fkName: name,
+                                                                                        },
+                                                                                    );
+                                                                                    setSchemaVersion(
+                                                                                        (v) =>
+                                                                                            v + 1,
+                                                                                    );
+                                                                                } catch (e) {
+                                                                                    showAlert(
+                                                                                        toErrorMessage(
+                                                                                            e,
+                                                                                        ),
+                                                                                        {
+                                                                                            title: t(
+                                                                                                'common.error',
+                                                                                            ),
+                                                                                            kind: 'error',
+                                                                                        },
+                                                                                    );
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        schemaVersion={
+                                                                            schemaVersion
+                                                                        }
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </>
                                                 );
                                             })()}
                                         </Accordion>

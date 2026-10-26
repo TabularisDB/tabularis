@@ -59,7 +59,9 @@
     "opStartsWith": "で始まる",
     "opEndsWith": "で終わる",
     "opIsEmpty": "空である",
-    "opIsNotEmpty": "空でない"
+    "opIsNotEmpty": "空でない",
+    "matchCase": "大文字小文字を区別",
+    "matchCaseHint": "大文字と小文字を区別します (LIKE)。オフにすると区別しません (ILIKE)。"
   },
   "tags": {
     "label": "タグ",
@@ -259,6 +261,7 @@
     "splitGroup": "グループを分割",
     "resizePanels": "パネルのサイズを変更",
     "filterTables": "テーブルをフィルター...",
+    "clearTableFilter": "フィルターをクリア",
     "noTablesMatch": "一致するテーブルがありません",
     "filterDatabases": "データベースをフィルター...",
     "manageDatabases": "データベースを管理",
@@ -283,6 +286,13 @@
     "historyDatabaseFilter": "データベースで絞り込み",
     "historyDatabaseAll": "すべてのデータベース",
     "historyDatabaseNone": "データベースの記録なし",
+    "historyTimeCustom": "カスタム範囲…",
+    "historyDateFrom": "開始日",
+    "historyDateTo": "終了日",
+    "historyDateRangeInvalidFrom": "開始日に有効な日付を入力してください。",
+    "historyDateRangeInvalidTo": "終了日に有効な日付を入力してください。",
+    "historyDateRangeInverted": "開始日は終了日と同じかそれ以前にしてください。",
+    "historyClearFilters": "フィルタをクリア",
     "clearAllHistory": "すべての履歴を削除",
     "pauseHistoryCapture": "履歴の記録を一時停止",
     "resumeHistoryCapture": "履歴の記録を再開",
@@ -1412,8 +1422,14 @@
     "deselectAll": "すべて解除",
     "copySelectedN": "選択をコピー（{{count}}）",
     "copyAsHtmlTable": "HTMLテーブルとしてコピー",
+    "exportSelectedRows": "選択をエクスポート（{{count}}）…",
+    "exportSelectedRowsCsv": "CSV",
+    "exportSelectedRowsJson": "JSON",
+    "exportedRows": "{{count}} 行をエクスポートしました",
     "selectColumn": "列を選択",
     "deselectColumn": "列の選択を解除",
+    "freezeFirstColumn": "最初の列を固定",
+    "unfreezeFirstColumn": "最初の列の固定を解除",
     "copySelectedColumns": "選択した列をコピー（{{count}}）",
     "copyRangeN": "範囲をコピー（{{rows}}×{{cols}}）",
     "copyAllRows": "すべてコピー（{{count}}）",
@@ -1483,7 +1499,8 @@
       "unsupportedNote": "この列の型では利用できません",
       "filterBy": "{{value}} で絞り込む",
       "clickToFilter": "値をクリックするとテーブルをその値で絞り込みます",
-      "sampled": "一意の値、最小 / 最大、上位の値は {{size}} 件のサンプルに基づいています"
+      "sampled": "一意の値、最小 / 最大、上位の値は {{size}} 件のサンプルに基づいています",
+      "unavailable": "このドライバーは列の統計情報を提供していません"
     },
     "copyCells": "{{count}} 個のセルをコピー",
     "copyRows": "{{count}} 行をコピー",
@@ -1502,7 +1519,8 @@
     "revealCell": "セルを表示",
     "maskCell": "セルをマスク",
     "revealColumn": "列を表示",
-    "maskColumn": "列をマスク"
+    "maskColumn": "列をマスク",
+    "resizeColumn": "列 {{col}} のサイズを変更"
   },
   "editRow": {
     "title": "行を編集",
@@ -1707,7 +1725,7 @@
       "close": "閉じる",
       "graphView": "グラフ",
       "tableView": "テーブル",
-      "tableTitle": "ツリー計画",
+      "tableTitle": "実行計画ツリー",
       "exportCsv": "CSVエクスポート",
       "exportingCsv": "エクスポート中...",
       "exportCsvSuccess": "ExplainテーブルをCSVとしてエクスポートしました",
@@ -1921,6 +1939,25 @@
       "explainFocused": "フォーカス中のものを説明",
       "explainNth": "N 番目を説明",
       "cancel": "キャンセル"
+    },
+    "resultChart": {
+      "viewLabel": "結果の表示",
+      "viewGrid": "グリッド",
+      "viewChart": "チャート",
+      "chartType": "チャートの種類",
+      "typeBar": "棒",
+      "typeLine": "折れ線",
+      "xAxis": "X 軸",
+      "yAxis": "Y 軸",
+      "scopeLoaded": "描画した行: {{count}}",
+      "scopeCapped": "描画した行: 読み込み済み {{loaded}} 行のうち先頭 {{plotted}} 行",
+      "scopeMore": "未読み込みの行があります",
+      "emptyNoRowsTitle": "チャートにする行がありません",
+      "emptyNoNumericTitle": "描画できる数値列がありません",
+      "emptyNoNumericHint": "チャートには数値列が 1 つ以上必要です。グリッドではすべての値を表示できます。",
+      "showGrid": "グリッドを表示",
+      "maxSeries": "同時に表示できる系列は最大 {{max}} 件です",
+      "summary": "{{label}} 別の {{values}} の{{type}}チャート、描画した行: {{count}}"
     },
     "multiResult": {
       "query": "クエリ {{index}}",

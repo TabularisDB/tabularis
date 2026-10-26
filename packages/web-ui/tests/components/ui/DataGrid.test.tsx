@@ -34,6 +34,7 @@ vi.mock('@/hooks/usePlatformCapabilities', () => ({
     usePlatformCapabilities: () => ({
         openExternalUrl: openUrl,
         writeClipboardHtml: writeHtmlMock,
+        downloadFile: downloadFileMock,
     }),
 }));
 
@@ -47,6 +48,7 @@ const {
     virtualizerRenderControl,
     sidebarState,
     writeHtmlMock,
+    downloadFileMock,
     databaseMock,
 } = vi.hoisted(() => ({
     openJsonViewerMock: vi.fn(),
@@ -60,6 +62,7 @@ const {
     virtualizerRenderControl: {forceEmpty: false},
     sidebarState: {isOpen: false, activePanel: null as string | null},
     writeHtmlMock: vi.fn(),
+    downloadFileMock: vi.fn(),
     databaseMock: vi.fn((): Record<string, unknown> => ({
         activeSchema: null,
         connections: [],
@@ -2965,6 +2968,30 @@ describe('DataGrid copy column names as SQL list', () => {
         });
     });
 
+    it('copies a quoted column name with the active driver quote and escaping', async () => {
+        databaseMock.mockReturnValue({
+            activeSchema: null,
+            connections: [],
+            activeDriver: 'postgres',
+            getConnectionData: vi.fn(),
+        });
+
+        const {container} = render(
+            <DataGrid
+                columns={['we"ird']}
+                data={[[1]]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+
+        fireEvent.contextMenu(container.querySelectorAll('th')[1]);
+        fireEvent.click(await screen.findByText('dataGrid.copyColumnNameQuoted'));
+
+        await waitFor(() => expect(writeText).toHaveBeenCalledWith('"we""ird"'));
+    });
+
     it("honors the grid connection's own capabilities and driver over the globally active connection", async () => {
         databaseMock.mockReturnValue({
             activeSchema: null,
@@ -3040,5 +3067,517 @@ describe('DataGrid copy column names as SQL list', () => {
         fireEvent.click(await screen.findByText('dataGrid.copyColumnNamesSqlList'));
 
         await waitFor(() => expect(writeText).toHaveBeenCalledWith('"col1", "col2"'));
+    });
+});
+
+describe('DataGrid column resizing (#1151)', () => {
+    const columns = ['id', 'name', 'email'];
+    const data = [
+        [1, 'Alice', 'alice@example.com'],
+        [2, 'Bob', 'bob@example.com'],
+    ];
+    // Every measured header cell (the row-number column included) is 100px.
+    const MEASURED = 100;
+    let frames: FrameRequestCallback[];
+    let clientWidthDescriptor: PropertyDescriptor | undefined;
+    const originalRaf = window.requestAnimationFrame;
+    const originalCancelRaf = window.cancelAnimationFrame;
+
+    const flushFrames = () =>
+        act(() => {
+            const pending = frames;
+            frames = [];
+            pending.forEach((cb) => cb(0));
+        });
+
+    beforeEach(() => {
+        frames = [];
+        // Frames run only when a test flushes them, like a real browser would.
+        window.requestAnimationFrame = (cb: FrameRequestCallback) => {
+            frames.push(cb);
+            return frames.length;
+        };
+        window.cancelAnimationFrame = vi.fn();
+        // JSDOM has no layout: give the grid a viewport and the headers a width
+        // so the widths get measured and locked like in the app (#844).
+        clientWidthDescriptor = Object.getOwnPropertyDescriptor(
+            HTMLElement.prototype,
+            'clientWidth',
+        );
+        Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+            configurable: true,
+            get: () => 800,
+        });
+        vi.spyOn(HTMLTableCellElement.prototype, 'getBoundingClientRect').mockReturnValue({
+            width: MEASURED,
+        } as DOMRect);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        window.requestAnimationFrame = originalRaf;
+        window.cancelAnimationFrame = originalCancelRaf;
+        if (clientWidthDescriptor) {
+            Object.defineProperty(HTMLElement.prototype, 'clientWidth', clientWidthDescriptor);
+        } else {
+            delete (HTMLElement.prototype as {clientWidth?: number}).clientWidth;
+        }
+    });
+
+    const renderGrid = (props: Partial<ComponentProps<typeof DataGrid>> = {}) => {
+        const onSort = vi.fn();
+        const utils = render(
+            <DataGrid
+                columns={columns}
+                data={data}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                onSort={onSort}
+                readonly
+                {...props}
+            />,
+        );
+        const table = utils.container.querySelector('table')!;
+        const col = (index: number) => table.querySelectorAll('col')[index] as HTMLTableColElement;
+        return {...utils, onSort, table, col};
+    };
+
+    const separators = () => screen.getAllByRole('separator');
+
+    it('adds a focusable, labelled resize separator to each data column', () => {
+        renderGrid();
+
+        expect(separators()).toHaveLength(columns.length);
+        const handle = separators()[1];
+        expect(handle).toHaveAttribute('tabindex', '0');
+        expect(handle).toHaveAttribute('aria-orientation', 'vertical');
+        expect(handle).toHaveAttribute('aria-valuenow', String(MEASURED));
+        expect(handle).toHaveAttribute('aria-valuemin', '48');
+        expect(handle).toHaveAttribute('aria-valuemax', '2000');
+        expect(handle).toHaveAttribute('aria-label', 'dataGrid.resizeColumn');
+        expect(translationMock).toHaveBeenCalledWith('dataGrid.resizeColumn', {
+            col: 'name',
+        });
+        expect(handle.className).toContain('cursor-col-resize');
+        expect(handle.className).toContain('focus-visible:outline-focus');
+    });
+
+    it('drags only the target column wider and narrower', () => {
+        const {col, table} = renderGrid();
+        expect(table.style.width).toBe('');
+
+        fireEvent.mouseDown(separators()[1], {button: 0, clientX: 300});
+        fireEvent.mouseMove(window, {clientX: 360});
+        flushFrames();
+        // Painted straight to the column while dragging.
+        expect(col(2).style.width).toBe('160px');
+        fireEvent.mouseUp(window);
+
+        expect(col(2).style.width).toBe('160px');
+        expect(separators()[1]).toHaveAttribute('aria-valuenow', '160');
+        expect(col(0).style.width).toBe(`${MEASURED}px`);
+        expect(col(1).style.width).toBe(`${MEASURED}px`);
+        expect(col(3).style.width).toBe(`${MEASURED}px`);
+        // The table is exactly as wide as its columns, so the others keep theirs.
+        expect(table.style.width).toBe('460px');
+
+        fireEvent.mouseDown(separators()[1], {button: 0, clientX: 300});
+        fireEvent.mouseMove(window, {clientX: 220});
+        fireEvent.mouseUp(window);
+        expect(col(2).style.width).toBe('80px');
+        expect(table.style.width).toBe('380px');
+    });
+
+    it('keeps a drag within the minimum and maximum widths', () => {
+        const {col} = renderGrid();
+
+        fireEvent.mouseDown(separators()[0], {button: 0, clientX: 300});
+        fireEvent.mouseMove(window, {clientX: -1000});
+        fireEvent.mouseUp(window);
+        expect(col(1).style.width).toBe('48px');
+
+        fireEvent.mouseDown(separators()[0], {button: 0, clientX: 0});
+        fireEvent.mouseMove(window, {clientX: 9000});
+        fireEvent.mouseUp(window);
+        expect(col(1).style.width).toBe('2000px');
+    });
+
+    it('does not sort or select the column while resizing', () => {
+        const {container, onSort} = renderGrid();
+        const handle = separators()[0];
+
+        fireEvent.mouseDown(handle, {button: 0, clientX: 300});
+        fireEvent.mouseMove(window, {clientX: 340});
+        fireEvent.mouseUp(handle);
+        fireEvent.click(handle);
+        fireEvent.doubleClick(handle);
+
+        expect(onSort).not.toHaveBeenCalled();
+        expect(container.querySelectorAll('th')[1]).not.toHaveClass('bg-accent-primary/20');
+    });
+
+    it('resizes from the keyboard in steps, Shift for larger steps, Home/End for the limits', () => {
+        const {col} = renderGrid();
+        const handle = () => separators()[2];
+
+        fireEvent.keyDown(handle(), {key: 'ArrowRight'});
+        expect(col(3).style.width).toBe('110px');
+        expect(handle()).toHaveAttribute('aria-valuenow', '110');
+
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft', shiftKey: true});
+        expect(col(3).style.width).toBe('60px');
+
+        fireEvent.keyDown(handle(), {key: 'Home'});
+        expect(handle()).toHaveAttribute('aria-valuenow', '48');
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        expect(handle()).toHaveAttribute('aria-valuenow', '48');
+
+        fireEvent.keyDown(handle(), {key: 'End'});
+        expect(handle()).toHaveAttribute('aria-valuenow', '2000');
+        expect(col(1).style.width).toBe(`${MEASURED}px`);
+    });
+
+    it("keeps keys on the separator away from the grid's keyboard model", () => {
+        const onSelectionChange = vi.fn();
+        const {container} = renderGrid({onSelectionChange});
+        fireEvent.click(container.querySelector('td[data-col-index="0"]')!);
+        const focusedBefore = container.querySelector('.ring-accent-primary');
+        expect(focusedBefore).toHaveAttribute('data-col-index', '0');
+        onSelectionChange.mockClear();
+
+        // Arrow keys resize instead of moving the focused cell, and Shift+Space
+        // does not select the focused cell's row.
+        fireEvent.keyDown(separators()[0], {key: 'ArrowRight'});
+        fireEvent.keyDown(separators()[0], {key: ' ', shiftKey: true});
+
+        expect(container.querySelector('.ring-accent-primary')).toBe(focusedBefore);
+        expect(onSelectionChange).not.toHaveBeenCalled();
+    });
+
+    it('keeps the resized widths while rows change and re-measures for new columns', () => {
+        const {col, rerender} = renderGrid();
+        fireEvent.keyDown(separators()[0], {key: 'ArrowRight', shiftKey: true});
+        expect(col(1).style.width).toBe('150px');
+
+        // More rows for the same columns (scrolling, paging, refreshing).
+        rerender(
+            <DataGrid
+                columns={columns}
+                data={[...data, [3, 'Carol', 'carol@example.com']]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+        expect(col(1).style.width).toBe('150px');
+
+        rerender(
+            <DataGrid
+                columns={['sku', 'price']}
+                data={[['a', 1]]}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+                readonly
+            />,
+        );
+        expect(col(1).style.width).toBe(`${MEASURED}px`);
+        expect(separators()).toHaveLength(2);
+    });
+
+    it('resizes a frozen first column with its offset and scroll padding in step', async () => {
+        const {container, col} = renderGrid();
+        const header = (index: number) =>
+            container.querySelector<HTMLElement>(`th[data-col-index="${index}"]`)!;
+        const grid = container.querySelector<HTMLElement>('div[tabindex="0"]')!;
+        fireEvent.contextMenu(header(2));
+        fireEvent.click(await screen.findByText('dataGrid.freezeFirstColumn'));
+
+        // The sticky cell is the handle's containing block, so it is not also
+        // made relative; the other headers still are.
+        expect(header(0)).toHaveClass('sticky');
+        expect(header(0)).not.toHaveClass('relative');
+        expect(header(1)).toHaveClass('relative');
+        expect(header(0)).toContainElement(separators()[0]);
+        // Right after the gutter, under its 1px collapsed border.
+        const frozenLeft = `${MEASURED - 1}px`;
+        expect(header(0).style.left).toBe(frozenLeft);
+        expect(grid.style.scrollPaddingLeft).toBe(`${MEASURED * 2}px`);
+
+        fireEvent.mouseDown(separators()[0], {button: 0, clientX: 300});
+        fireEvent.mouseMove(window, {clientX: 360});
+        fireEvent.mouseUp(window);
+        expect(col(1).style.width).toBe('160px');
+        // The column still starts right after the gutter; the padding follows its width.
+        expect(header(0).style.left).toBe(frozenLeft);
+        expect(container.querySelector<HTMLElement>('td[data-col-index="0"]')!.style.left).toBe(
+            frozenLeft,
+        );
+        expect(grid.style.scrollPaddingLeft).toBe(`${MEASURED + 160}px`);
+
+        fireEvent.keyDown(separators()[0], {key: 'ArrowLeft', shiftKey: true});
+        expect(col(1).style.width).toBe('110px');
+        expect(grid.style.scrollPaddingLeft).toBe(`${MEASURED + 110}px`);
+    });
+});
+
+describe('DataGrid freeze first column (#1152)', () => {
+    beforeAll(() => {
+        vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+        vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400);
+    });
+    afterAll(() => {
+        vi.restoreAllMocks();
+    });
+
+    const cellAt = (container: HTMLElement, rowIndex: number, colIndex: number) =>
+        container.querySelector<HTMLElement>(
+            `tr[data-row-index="${rowIndex}"] td[data-col-index="${colIndex}"]`,
+        )!;
+    const headerAt = (container: HTMLElement, colIndex: number) =>
+        container.querySelector<HTMLElement>(`th[data-col-index="${colIndex}"]`)!;
+    const gridOf = (container: HTMLElement) =>
+        container.querySelector<HTMLElement>('div[tabindex="0"]')!;
+
+    const renderGrid = () =>
+        render(
+            <DataGrid
+                columns={['id', 'name', 'city']}
+                data={[
+                    [1, 'Alice', 'Portland'],
+                    [2, 'Bob', 'Seattle'],
+                ]}
+                tableName="users"
+                pkColumns={['id']}
+                onPendingChange={vi.fn()}
+                selectedRows={new Set()}
+                onSelectionChange={vi.fn()}
+            />,
+        );
+
+    const toggleFreeze = async (container: HTMLElement, label: string) => {
+        fireEvent.contextMenu(headerAt(container, 2));
+        fireEvent.click(await screen.findByText(label));
+    };
+
+    it('freezes the first data column from the header menu and unfreezes it again', async () => {
+        const {container} = renderGrid();
+        expect(headerAt(container, 0)).not.toHaveClass('sticky');
+        expect(cellAt(container, 0, 0)).not.toHaveClass('sticky');
+
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+
+        for (const cell of [
+            headerAt(container, 0),
+            cellAt(container, 0, 0),
+            cellAt(container, 1, 0),
+        ]) {
+            expect(cell).toHaveClass('sticky');
+            expect(cell.style.left).toBe('49px');
+        }
+        // The cell's own tint is repainted above the opaque backdrop.
+        expect(cellAt(container, 0, 0)).toHaveClass('after:bg-inherit');
+        // Only the first data column is frozen.
+        expect(headerAt(container, 1)).not.toHaveClass('sticky');
+        expect(cellAt(container, 0, 1)).not.toHaveClass('sticky');
+
+        await toggleFreeze(container, 'dataGrid.unfreezeFirstColumn');
+
+        expect(headerAt(container, 0)).not.toHaveClass('sticky');
+        expect(cellAt(container, 0, 0)).not.toHaveClass('sticky');
+        expect(cellAt(container, 0, 0).style.left).toBe('');
+    });
+
+    it('keeps keyboard scrolling clear of the frozen column', async () => {
+        const {container} = renderGrid();
+        expect(gridOf(container).style.scrollPaddingLeft).toBe('');
+
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+        expect(gridOf(container).style.scrollPaddingLeft).toBe('50px');
+
+        await toggleFreeze(container, 'dataGrid.unfreezeFirstColumn');
+        expect(gridOf(container).style.scrollPaddingLeft).toBe('');
+    });
+
+    it('does not scroll back to the start when a frozen cell gets focus', async () => {
+        const {container} = renderGrid();
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+        const grid = gridOf(container);
+        grid.scrollLeft = 300;
+        // Scroll padding makes the browser scroll a sticky cell back to the start.
+        const scrollIntoView = vi
+            .spyOn(Element.prototype, 'scrollIntoView')
+            .mockImplementation(() => {
+                grid.scrollLeft = 0;
+            });
+
+        fireEvent.click(cellAt(container, 1, 0));
+        await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+        expect(grid.scrollLeft).toBe(300);
+
+        // Other columns still scroll into view.
+        fireEvent.click(cellAt(container, 1, 1));
+        await waitFor(() => expect(grid.scrollLeft).toBe(0));
+        scrollIntoView.mockRestore();
+    });
+
+    it('keeps a frozen cell sticky while it is edited', async () => {
+        const {container} = renderGrid();
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+
+        fireEvent.doubleClick(cellAt(container, 0, 0));
+
+        expect(cellAt(container, 0, 0).querySelector('textarea')).toBeInTheDocument();
+        expect(cellAt(container, 0, 0)).toHaveClass('sticky');
+        expect(cellAt(container, 0, 0)).not.toHaveClass('relative');
+    });
+
+    it("focuses a frozen cell's editor without scrolling the grid", async () => {
+        const {container} = renderGrid();
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+        const focus = vi.spyOn(HTMLTextAreaElement.prototype, 'focus');
+
+        fireEvent.doubleClick(cellAt(container, 0, 0));
+        expect(focus).toHaveBeenLastCalledWith({preventScroll: true});
+
+        fireEvent.keyDown(container.querySelector('textarea')!, {key: 'Escape'});
+        fireEvent.doubleClick(cellAt(container, 0, 1));
+        expect(focus).toHaveBeenLastCalledWith({preventScroll: false});
+        focus.mockRestore();
+    });
+
+    it('draws the focus indicator of a frozen cell above its backdrop', async () => {
+        const {container} = renderGrid();
+        await toggleFreeze(container, 'dataGrid.freezeFirstColumn');
+
+        fireEvent.click(cellAt(container, 0, 0));
+
+        // An inset ring is a box-shadow, painted under the backdrop layers; an
+        // outline is painted above them.
+        expect(cellAt(container, 0, 0)).toHaveClass('outline-accent-primary');
+        expect(cellAt(container, 0, 0)).not.toHaveClass('ring-2');
+
+        fireEvent.click(cellAt(container, 0, 1));
+        expect(cellAt(container, 0, 1)).toHaveClass('ring-2');
+    });
+});
+
+describe('DataGrid selected-row export (#1154)', () => {
+    const columns = ['id', 'name'];
+    const data: unknown[][] = [
+        [1, 'Alice'],
+        [2, 'Bob'],
+        [3, 'Carol'],
+    ];
+
+    const renderWithSelection = (selectedRows: Set<number>) =>
+        render(
+            <DataGrid
+                columns={columns}
+                data={data}
+                selectedRows={selectedRows}
+                onSelectionChange={vi.fn()}
+            />,
+        );
+
+    const openExportEntry = async (container: HTMLElement) => {
+        fireEvent.contextMenu(container.querySelector('td[data-col-index="0"]')!);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRows'));
+    };
+
+    const decodedDownload = (call: number) =>
+        new TextDecoder().decode(downloadFileMock.mock.calls[call][0].contents);
+
+    beforeEach(() => {
+        downloadFileMock.mockReset().mockResolvedValue(true);
+        showToastMock.mockClear();
+    });
+
+    it('downloads the selected rows as CSV, in grid order', async () => {
+        const {container} = renderWithSelection(new Set([2, 0]));
+
+        await openExportEntry(container);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRowsCsv'));
+
+        await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
+        expect(decodedDownload(0)).toBe('id,name\n1,Alice\n3,Carol\n');
+        expect(downloadFileMock.mock.calls[0][0]).toMatchObject({
+            fileName: expect.stringMatching(/^result_\d{4}-\d{2}-\d{2}_\d{4}\.csv$/),
+            mimeType: 'text/csv',
+            filters: [{name: 'CSV', extensions: ['csv']}],
+        });
+        expect(showToastMock).toHaveBeenCalledWith(expect.anything(), {
+            kind: 'success',
+        });
+    });
+
+    it('downloads the selected rows as JSON keyed by column name', async () => {
+        const {container} = renderWithSelection(new Set([2, 0]));
+
+        await openExportEntry(container);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRowsJson'));
+
+        await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
+        expect(JSON.parse(decodedDownload(0))).toEqual([
+            {id: 1, name: 'Alice'},
+            {id: 3, name: 'Carol'},
+        ]);
+        expect(downloadFileMock.mock.calls[0][0]).toMatchObject({
+            mimeType: 'application/json',
+            filters: [{name: 'JSON', extensions: ['json']}],
+        });
+    });
+
+    it('downloads only the right-clicked row when nothing is selected', async () => {
+        const {container} = renderWithSelection(new Set());
+
+        await openExportEntry(container);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRowsCsv'));
+
+        await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
+        expect(decodedDownload(0)).toBe('id,name\n1,Alice\n');
+    });
+
+    it('writes nothing when the download is cancelled', async () => {
+        downloadFileMock.mockResolvedValue(false);
+        const {container} = renderWithSelection(new Set([1]));
+
+        await openExportEntry(container);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRowsCsv'));
+
+        await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
+        expect(showToastMock).not.toHaveBeenCalled();
+    });
+
+    it('exports the rows captured when the entry was clicked', async () => {
+        // The grid can be re-rendered with other rows while the download is
+        // being prepared; the export has to stay the snapshot the user asked for.
+        let resolveDownload: (downloaded: boolean) => void = () => {};
+        downloadFileMock.mockImplementation(
+            () =>
+                new Promise<boolean>((resolve) => {
+                    resolveDownload = resolve;
+                }),
+        );
+
+        const {container, rerender} = renderWithSelection(new Set([0]));
+
+        await openExportEntry(container);
+        fireEvent.click(await screen.findByText('dataGrid.exportSelectedRowsCsv'));
+
+        rerender(
+            <DataGrid
+                columns={columns}
+                data={[[9, 'Replaced']]}
+                selectedRows={new Set([0])}
+                onSelectionChange={vi.fn()}
+            />,
+        );
+
+        await act(async () => {
+            resolveDownload(true);
+        });
+
+        await waitFor(() => expect(downloadFileMock).toHaveBeenCalledOnce());
+        expect(decodedDownload(0)).toBe('id,name\n1,Alice\n');
     });
 });

@@ -59,7 +59,9 @@
     "opStartsWith": "starts with",
     "opEndsWith": "ends with",
     "opIsEmpty": "is empty",
-    "opIsNotEmpty": "is not empty"
+    "opIsNotEmpty": "is not empty",
+    "matchCase": "Match case",
+    "matchCaseHint": "Case-sensitive match (LIKE). Untick for a case-insensitive match (ILIKE)."
   },
   "tags": {
     "label": "Tags",
@@ -259,6 +261,7 @@
     "splitGroup": "Split Group",
     "resizePanels": "Resize panels",
     "filterTables": "Filter tables...",
+    "clearTableFilter": "Clear filter",
     "noTablesMatch": "No tables match",
     "filterDatabases": "Filter databases...",
     "manageDatabases": "Manage Databases",
@@ -283,6 +286,13 @@
     "historyDatabaseFilter": "Filter by database",
     "historyDatabaseAll": "All databases",
     "historyDatabaseNone": "No database recorded",
+    "historyTimeCustom": "Custom range…",
+    "historyDateFrom": "From",
+    "historyDateTo": "To",
+    "historyDateRangeInvalidFrom": "Enter a valid start date.",
+    "historyDateRangeInvalidTo": "Enter a valid end date.",
+    "historyDateRangeInverted": "The start date must be on or before the end date.",
+    "historyClearFilters": "Clear filters",
     "clearAllHistory": "Clear All History",
     "pauseHistoryCapture": "Pause history capture",
     "resumeHistoryCapture": "Resume history capture",
@@ -1469,8 +1479,14 @@
     "deselectAll": "Deselect All",
     "copySelectedN": "Copy Selected ({{count}})",
     "copyAsHtmlTable": "Copy as HTML table",
+    "exportSelectedRows": "Export Selected ({{count}})…",
+    "exportSelectedRowsCsv": "CSV",
+    "exportSelectedRowsJson": "JSON",
+    "exportedRows": "Exported {{count}} row(s)",
     "selectColumn": "Select Column",
     "deselectColumn": "Deselect Column",
+    "freezeFirstColumn": "Freeze first column",
+    "unfreezeFirstColumn": "Unfreeze first column",
     "copySelectedColumns": "Copy Selected Columns ({{count}})",
     "copyRangeN": "Copy Range ({{rows}}×{{cols}})",
     "copyAllRows": "Copy All ({{count}})",
@@ -1541,7 +1557,8 @@
       "unsupportedNote": "Not available for this column type",
       "filterBy": "Filter by {{value}}",
       "clickToFilter": "Click a value to filter the table by it",
-      "sampled": "Distinct, min / max and top values are based on a sample of {{size}} values"
+      "sampled": "Distinct, min / max and top values are based on a sample of {{size}} values",
+      "unavailable": "This driver doesn't provide column statistics"
     },
     "copyCells": "Copy {{count}} Cells",
     "copyRows": "Copy {{count}} Rows",
@@ -1560,7 +1577,8 @@
     "revealCell": "Reveal cell",
     "maskCell": "Mask cell",
     "revealColumn": "Reveal column",
-    "maskColumn": "Mask column"
+    "maskColumn": "Mask column",
+    "resizeColumn": "Resize column {{col}}"
   },
   "editRow": {
     "title": "Edit Row",
@@ -1981,6 +1999,25 @@
       "explainFocused": "explain focused",
       "explainNth": "explain Nth",
       "cancel": "cancel"
+    },
+    "resultChart": {
+      "viewLabel": "Result view",
+      "viewGrid": "Grid",
+      "viewChart": "Chart",
+      "chartType": "Chart type",
+      "typeBar": "Bar",
+      "typeLine": "Line",
+      "xAxis": "X axis",
+      "yAxis": "Y axis",
+      "scopeLoaded": "Rows plotted: {{count}}",
+      "scopeCapped": "Rows plotted: first {{plotted}} of {{loaded}} loaded",
+      "scopeMore": "more rows not loaded",
+      "emptyNoRowsTitle": "No rows to chart",
+      "emptyNoNumericTitle": "No numeric columns to plot",
+      "emptyNoNumericHint": "A chart needs at least one numeric column. The grid still shows every value.",
+      "showGrid": "Show grid",
+      "maxSeries": "Up to {{max}} series at a time",
+      "summary": "{{type}} chart of {{values}} by {{label}}, rows plotted: {{count}}"
     },
     "multiResult": {
       "query": "Query {{index}}",

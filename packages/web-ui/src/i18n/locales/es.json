@@ -59,7 +59,9 @@
     "opStartsWith": "empieza con",
     "opEndsWith": "termina con",
     "opIsEmpty": "está vacío",
-    "opIsNotEmpty": "no está vacío"
+    "opIsNotEmpty": "no está vacío",
+    "matchCase": "Coincidir mayúsculas",
+    "matchCaseHint": "Distingue mayúsculas y minúsculas (LIKE). Desmarca para ignorarlas (ILIKE)."
   },
   "tags": {
     "label": "Etiquetas",
@@ -246,6 +248,7 @@
     "splitGroup": "Grupo Dividido",
     "resizePanels": "Redimensionar paneles",
     "filterTables": "Filtrar tablas...",
+    "clearTableFilter": "Limpiar filtro",
     "noTablesMatch": "No hay tablas que coincidan",
     "filterDatabases": "Filtrar bases de datos...",
     "manageDatabases": "Gestionar Bases de Datos",
@@ -270,6 +273,13 @@
     "historyDatabaseFilter": "Filtrar por base de datos",
     "historyDatabaseAll": "Todas las bases de datos",
     "historyDatabaseNone": "Sin base de datos registrada",
+    "historyTimeCustom": "Intervalo personalizado…",
+    "historyDateFrom": "Desde",
+    "historyDateTo": "Hasta",
+    "historyDateRangeInvalidFrom": "Introduce una fecha de inicio válida.",
+    "historyDateRangeInvalidTo": "Introduce una fecha de fin válida.",
+    "historyDateRangeInverted": "La fecha de inicio debe ser igual o anterior a la de fin.",
+    "historyClearFilters": "Borrar filtros",
     "clearAllHistory": "Borrar Todo el Historial",
     "pauseHistoryCapture": "Pausar captura del historial",
     "resumeHistoryCapture": "Reanudar captura del historial",
@@ -1428,8 +1438,14 @@
     "deselectAll": "Deseleccionar Todo",
     "copySelectedN": "Copiar Seleccionadas ({{count}})",
     "copyAsHtmlTable": "Copiar como tabla HTML",
+    "exportSelectedRows": "Exportar selección ({{count}})…",
+    "exportSelectedRowsCsv": "CSV",
+    "exportSelectedRowsJson": "JSON",
+    "exportedRows": "{{count}} fila(s) exportada(s)",
     "selectColumn": "Seleccionar Columna",
     "deselectColumn": "Deseleccionar Columna",
+    "freezeFirstColumn": "Fijar la primera columna",
+    "unfreezeFirstColumn": "Liberar la primera columna",
     "copySelectedColumns": "Copiar Columnas Seleccionadas ({{count}})",
     "copyRangeN": "Copiar Rango ({{rows}}×{{cols}})",
     "copyAllRows": "Copiar Todo ({{count}})",
@@ -1499,7 +1515,8 @@
       "unsupportedNote": "No disponible para este tipo de columna",
       "filterBy": "Filtrar por {{value}}",
       "clickToFilter": "Haz clic en un valor para filtrar la tabla por él",
-      "sampled": "Los valores distintos, mín. / máx. y más frecuentes se basan en una muestra de {{size}} valores"
+      "sampled": "Los valores distintos, mín. / máx. y más frecuentes se basan en una muestra de {{size}} valores",
+      "unavailable": "Este controlador no ofrece estadísticas de columnas"
     },
     "copyCells": "Copiar {{count}} Celdas",
     "copyRows": "Copiar {{count}} Filas",
@@ -1512,7 +1529,8 @@
     "revealCell": "Mostrar celda",
     "maskCell": "Enmascarar celda",
     "revealColumn": "Mostrar columna",
-    "maskColumn": "Enmascarar columna"
+    "maskColumn": "Enmascarar columna",
+    "resizeColumn": "Redimensionar columna {{col}}"
   },
   "editRow": {
     "title": "Editar Fila",
@@ -1883,6 +1901,25 @@
       "explainFocused": "analizar seleccionada",
       "explainNth": "analizar N-esima",
       "cancel": "cancelar"
+    },
+    "resultChart": {
+      "viewLabel": "Vista del resultado",
+      "viewGrid": "Cuadrícula",
+      "viewChart": "Gráfico",
+      "chartType": "Tipo de gráfico",
+      "typeBar": "Barras",
+      "typeLine": "Líneas",
+      "xAxis": "Eje X",
+      "yAxis": "Eje Y",
+      "scopeLoaded": "Filas representadas: {{count}}",
+      "scopeCapped": "Filas representadas: primeras {{plotted}} de {{loaded}} cargadas",
+      "scopeMore": "hay más filas sin cargar",
+      "emptyNoRowsTitle": "No hay filas para representar",
+      "emptyNoNumericTitle": "No hay columnas numéricas para representar",
+      "emptyNoNumericHint": "Un gráfico necesita al menos una columna numérica. La cuadrícula sigue mostrando todos los valores.",
+      "showGrid": "Mostrar cuadrícula",
+      "maxSeries": "Hasta {{max}} series a la vez",
+      "summary": "Gráfico de {{type}} de {{values}} por {{label}}, filas representadas: {{count}}"
     },
     "multiResult": {
       "query": "Consulta {{index}}",

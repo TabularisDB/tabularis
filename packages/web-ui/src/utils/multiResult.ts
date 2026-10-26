@@ -12,13 +12,18 @@ export function extractResultLabel(query: string): string | undefined {
     return label ? Array.from(label).slice(0, 80).join('') : undefined;
 }
 
+/** Every result entry id of a tab starts with this; ids are reused per run. */
+export function resultEntryIdPrefix(tabId: string): string {
+    return `${tabId}-result-`;
+}
+
 /**
  * Creates initial QueryResultEntry array from a list of queries.
  * All entries start in loading state.
  */
 export function createResultEntries(tabId: string, queries: string[]): QueryResultEntry[] {
     return queries.map((query, index) => ({
-        id: `${tabId}-result-${index}`,
+        id: `${resultEntryIdPrefix(tabId)}${index}`,
         queryIndex: index,
         query,
         label: extractResultLabel(query),
@@ -53,7 +58,7 @@ export function createEntriesFromResultSets(
     const {additional_results, ...primary} = result;
     const sets: QueryResult[] = [primary, ...(additional_results ?? [])];
     return sets.map((res, index) => ({
-        id: `${tabId}-result-${index}`,
+        id: `${resultEntryIdPrefix(tabId)}${index}`,
         queryIndex: index,
         query,
         label: `${labelPrefix} ${index + 1}`,

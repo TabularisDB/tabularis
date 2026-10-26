@@ -16,7 +16,7 @@ import {pathToFileURL} from 'node:url';
 
 const OWNER = 'TabularisDB';
 const REPO = 'tabularis';
-const LOCALES_DIR = 'src/i18n/locales';
+const LOCALES_DIR = 'packages/web-ui/src/i18n/locales';
 const ROW = /^\| #(\d+) (.+) \| ([^|]+) \| ([^|]+) \|$/;
 const LOCALE_ROW = /^(\| [^|]+ \| `([\w-]+)\.json` \| )(\d+)( \|)$/;
 const LABELS = ['good first issue', 'help wanted'];

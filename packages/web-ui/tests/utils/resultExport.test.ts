@@ -3,6 +3,7 @@ import type {QueryResult} from '@/types/editor';
 import {rowsToHtmlTable} from '@/utils/clipboard';
 import {
     formatResultForExport,
+    formatRowsForExport,
     getLoadedRowsExportLimit,
     hasUnloadedRows,
     resolveExportScope,
@@ -350,5 +351,51 @@ describe('resultExport', () => {
             expect(resolveExportScope(partial, 'all', false)).toBe('loaded');
             expect(resolveExportScope(result, 'all', false)).toBe('loaded');
         });
+    });
+});
+
+describe('formatRowsForExport', () => {
+    // The selected-row export (#1154) serialises arbitrary rows, so every format
+    // has to live here and a full-result export has to go through the same code:
+    // a selected row must be byte-identical to the same row in a full export.
+
+    it('serialises arbitrary rows exactly like the full result export', () => {
+        const columns = ['id', 'name'];
+        const rows: unknown[][] = [
+            [1, 'John'],
+            [2, null],
+        ];
+        const fullResult: QueryResult = {...result, columns, rows};
+
+        for (const format of ['csv', 'json', 'ndjson', 'markdown', 'html'] as const) {
+            expect(formatRowsForExport(rows, columns, format)).toBe(
+                formatResultForExport(fullResult, format),
+            );
+        }
+    });
+
+    it('writes the given rows as NDJSON, one object per line ending with a newline', () => {
+        const output = formatRowsForExport(
+            [
+                [1, 'Chloe'],
+                [2, null],
+                [3, 'comma, quote " and newline\ninside'],
+            ],
+            ['id', 'name'],
+            'ndjson',
+        );
+
+        expect(output.endsWith('\n')).toBe(true);
+        const lines = output.slice(0, -1).split('\n');
+        expect(lines).toHaveLength(3);
+        expect(lines.map((line) => JSON.parse(line))).toEqual([
+            {id: 1, name: 'Chloe'},
+            {id: 2, name: null},
+            {id: 3, name: 'comma, quote " and newline\ninside'},
+        ]);
+    });
+
+    it('produces an empty file when the selected-row export has no rows', () => {
+        expect(formatRowsForExport([], ['id', 'name'], 'ndjson')).toBe('');
     });
 });

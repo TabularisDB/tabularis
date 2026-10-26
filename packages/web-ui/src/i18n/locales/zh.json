@@ -59,7 +59,9 @@
     "opStartsWith": "开头是",
     "opEndsWith": "结尾是",
     "opIsEmpty": "为空",
-    "opIsNotEmpty": "不为空"
+    "opIsNotEmpty": "不为空",
+    "matchCase": "区分大小写",
+    "matchCaseHint": "区分大小写 (LIKE)。取消勾选则不区分 (ILIKE)。"
   },
   "tags": {
     "label": "标签",
@@ -245,6 +247,7 @@
     "splitGroup": "分割组",
     "resizePanels": "调整面板大小",
     "filterTables": "筛选表...",
+    "clearTableFilter": "清除筛选",
     "noTablesMatch": "无匹配的表",
     "filterDatabases": "筛选数据库...",
     "manageDatabases": "管理数据库",
@@ -269,6 +272,13 @@
     "historyDatabaseFilter": "按数据库筛选",
     "historyDatabaseAll": "所有数据库",
     "historyDatabaseNone": "未记录数据库",
+    "historyTimeCustom": "自定义范围…",
+    "historyDateFrom": "起始日期",
+    "historyDateTo": "结束日期",
+    "historyDateRangeInvalidFrom": "请输入有效的起始日期。",
+    "historyDateRangeInvalidTo": "请输入有效的结束日期。",
+    "historyDateRangeInverted": "起始日期必须早于或等于结束日期。",
+    "historyClearFilters": "清除筛选",
     "clearAllHistory": "清除所有历史",
     "pauseHistoryCapture": "暂停记录查询历史",
     "resumeHistoryCapture": "恢复记录查询历史",
@@ -1375,8 +1385,14 @@
     "deselectAll": "取消全选",
     "copySelectedN": "复制选中（{{count}}）",
     "copyAsHtmlTable": "复制为 HTML 表格",
+    "exportSelectedRows": "导出所选（{{count}}）…",
+    "exportSelectedRowsCsv": "CSV",
+    "exportSelectedRowsJson": "JSON",
+    "exportedRows": "已导出 {{count}} 行",
     "selectColumn": "选择列",
     "deselectColumn": "取消选择列",
+    "freezeFirstColumn": "冻结首列",
+    "unfreezeFirstColumn": "取消冻结首列",
     "copySelectedColumns": "复制选中列（{{count}}）",
     "copyRangeN": "复制范围（{{rows}}×{{cols}}）",
     "copyAllRows": "复制全部（{{count}}）",
@@ -1446,7 +1462,8 @@
       "unsupportedNote": "此列类型不支持",
       "filterBy": "按 {{value}} 筛选",
       "clickToFilter": "点击某个值即可按该值筛选表",
-      "sampled": "去重计数、最小 / 最大值和高频值基于 {{size}} 个值的样本"
+      "sampled": "去重计数、最小 / 最大值和高频值基于 {{size}} 个值的样本",
+      "unavailable": "此驱动不提供列统计信息"
     },
     "copyCells": "复制 {{count}} 个单元格",
     "copyRows": "复制 {{count}} 行",
@@ -1465,7 +1482,8 @@
     "revealCell": "显示单元格",
     "maskCell": "掩码单元格",
     "revealColumn": "显示列",
-    "maskColumn": "掩码列"
+    "maskColumn": "掩码列",
+    "resizeColumn": "调整列 {{col}} 的宽度"
   },
   "editRow": {
     "title": "编辑行",
@@ -1875,6 +1893,25 @@
       "runSingle": "执行此查询",
       "selectAll": "全选",
       "deselectAll": "取消全选"
+    },
+    "resultChart": {
+      "viewLabel": "结果视图",
+      "viewGrid": "表格",
+      "viewChart": "图表",
+      "chartType": "图表类型",
+      "typeBar": "柱状",
+      "typeLine": "折线",
+      "xAxis": "X 轴",
+      "yAxis": "Y 轴",
+      "scopeLoaded": "已绘制行数：{{count}}",
+      "scopeCapped": "已绘制行数：已加载 {{loaded}} 行中的前 {{plotted}} 行",
+      "scopeMore": "还有未加载的行",
+      "emptyNoRowsTitle": "没有可绘制的行",
+      "emptyNoNumericTitle": "没有可绘制的数值列",
+      "emptyNoNumericHint": "图表至少需要一个数值列。表格中仍可查看所有值。",
+      "showGrid": "显示表格",
+      "maxSeries": "最多同时显示 {{max}} 个系列",
+      "summary": "按 {{label}} 显示 {{values}} 的{{type}}图，已绘制行数：{{count}}"
     },
     "multiResult": {
       "query": "查询 {{index}}",

@@ -59,7 +59,9 @@
     "opStartsWith": "nagsisimula sa",
     "opEndsWith": "nagtatapos sa",
     "opIsEmpty": "walang laman",
-    "opIsNotEmpty": "may laman"
+    "opIsNotEmpty": "may laman",
+    "matchCase": "Itugma ang case",
+    "matchCaseHint": "Sensitibo sa laki ng titik (LIKE). I-untick para hindi maging sensitibo (ILIKE)."
   },
   "tags": {
     "label": "Mga tag",
@@ -259,6 +261,7 @@
     "splitGroup": "Hatiin ang Grupo",
     "resizePanels": "Baguhin ang laki ng mga panel",
     "filterTables": "I-filter ang mga table...",
+    "clearTableFilter": "Burahin ang filter",
     "noTablesMatch": "Walang table na tumugma",
     "filterDatabases": "I-filter ang mga database...",
     "manageDatabases": "Pamahalaan ang mga Database",
@@ -283,6 +286,13 @@
     "historyDatabaseFilter": "I-filter ayon sa database",
     "historyDatabaseAll": "Lahat ng database",
     "historyDatabaseNone": "Walang naitalang database",
+    "historyTimeCustom": "Pasadyang saklaw…",
+    "historyDateFrom": "Mula",
+    "historyDateTo": "Hanggang",
+    "historyDateRangeInvalidFrom": "Maglagay ng wastong petsa sa Mula.",
+    "historyDateRangeInvalidTo": "Maglagay ng wastong petsa sa Hanggang.",
+    "historyDateRangeInverted": "Ang Mula ay dapat nasa o bago ang Hanggang.",
+    "historyClearFilters": "I-clear ang mga filter",
     "clearAllHistory": "Burahin ang Lahat ng Kasaysayan",
     "pauseHistoryCapture": "I-pause ang pagtatala ng kasaysayan",
     "resumeHistoryCapture": "Ipagpatuloy ang pagtatala ng kasaysayan",
@@ -1431,8 +1441,14 @@
     "deselectAll": "Alisin ang Lahat sa Pagpili",
     "copySelectedN": "Kopyahin ang Napili ({{count}})",
     "copyAsHtmlTable": "Kopyahin bilang HTML table",
+    "exportSelectedRows": "I-export ang napili ({{count}})…",
+    "exportSelectedRowsCsv": "CSV",
+    "exportSelectedRowsJson": "JSON",
+    "exportedRows": "Na-export ang {{count}} row",
     "selectColumn": "Piliin ang Column",
     "deselectColumn": "Alisin ang Pagpili ng Column",
+    "freezeFirstColumn": "I-freeze ang unang column",
+    "unfreezeFirstColumn": "I-unfreeze ang unang column",
     "copySelectedColumns": "Kopyahin ang Napiling Columns ({{count}})",
     "copyRangeN": "Kopyahin ang Range ({{rows}}×{{cols}})",
     "copyAllRows": "Kopyahin Lahat ({{count}})",
@@ -1502,7 +1518,8 @@
       "unsupportedNote": "Hindi available para sa ganitong uri ng column",
       "filterBy": "I-filter ayon sa {{value}}",
       "clickToFilter": "Mag-click ng value para i-filter ang table ayon dito",
-      "sampled": "Ang distinct, min / max at mga nangungunang value ay batay sa sample na {{size}} value"
+      "sampled": "Ang distinct, min / max at mga nangungunang value ay batay sa sample na {{size}} value",
+      "unavailable": "Hindi nagbibigay ng column statistics ang driver na ito"
     },
     "copyCells": "Kopyahin ang {{count}} Cell",
     "copyRows": "Kopyahin ang {{count}} Row",
@@ -1521,7 +1538,8 @@
     "revealCell": "Ipakita ang cell",
     "maskCell": "I-mask ang cell",
     "revealColumn": "Ipakita ang column",
-    "maskColumn": "I-mask ang column"
+    "maskColumn": "I-mask ang column",
+    "resizeColumn": "Baguhin ang laki ng column na {{col}}"
   },
   "editRow": {
     "title": "I-edit ang Row",
@@ -1941,6 +1959,25 @@
       "explainFocused": "i-explain ang naka-focus",
       "explainNth": "i-explain ang Nth",
       "cancel": "kanselahin"
+    },
+    "resultChart": {
+      "viewLabel": "View ng resulta",
+      "viewGrid": "Grid",
+      "viewChart": "Chart",
+      "chartType": "Uri ng chart",
+      "typeBar": "Bar",
+      "typeLine": "Line",
+      "xAxis": "X axis",
+      "yAxis": "Y axis",
+      "scopeLoaded": "Mga row na naka-plot: {{count}}",
+      "scopeCapped": "Mga row na naka-plot: unang {{plotted}} sa {{loaded}} na na-load",
+      "scopeMore": "may mga row pang hindi na-load",
+      "emptyNoRowsTitle": "Walang row na maipapakita sa chart",
+      "emptyNoNumericTitle": "Walang numeric na column na maipa-plot",
+      "emptyNoNumericHint": "Kailangan ng chart ng kahit isang numeric na column. Makikita pa rin sa grid ang lahat ng value.",
+      "showGrid": "Ipakita ang grid",
+      "maxSeries": "Hanggang {{max}} series nang sabay",
+      "summary": "{{type}} chart ng {{values}} ayon sa {{label}}, mga row na naka-plot: {{count}}"
     },
     "multiResult": {
       "query": "Query {{index}}",

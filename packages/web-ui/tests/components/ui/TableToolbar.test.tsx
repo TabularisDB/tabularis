@@ -485,6 +485,41 @@ describe('TableToolbar', () => {
             expect(screen.queryByText('toolbar.applied')).not.toBeInTheDocument();
         });
 
+        it('resets the applied state when Match case is toggled, but not when only enabled changes', () => {
+            vi.mocked(useDatabase).mockReturnValue({
+                activeDriver: 'postgres',
+            } as ReturnType<typeof useDatabase>);
+            render(
+                <TableToolbar
+                    {...defaultProps}
+                    columnMetadata={[
+                        {
+                            name: 'name',
+                            data_type: 'varchar(20)',
+                            is_pk: false,
+                            is_nullable: true,
+                            is_auto_increment: false,
+                        },
+                    ]}
+                />,
+            );
+            openPanel();
+            fireEvent.change(screen.getByDisplayValue('='), {target: {value: 'contains'}});
+            fireEvent.change(screen.getByPlaceholderText('toolbar.valuePlaceholder'), {
+                target: {value: 'ab'},
+            });
+            fireEvent.click(screen.getByText('toolbar.apply'));
+            expect(screen.getByText('toolbar.applied')).toBeInTheDocument();
+
+            // Selecting/deselecting for Apply All keeps the applied feedback.
+            fireEvent.click(screen.getByTitle('toolbar.deselectFromApplyAll'));
+            expect(screen.getByText('toolbar.applied')).toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole('checkbox', {name: 'toolbar.matchCase'}));
+            expect(screen.queryByText('toolbar.applied')).not.toBeInTheDocument();
+            expect(screen.getByText('toolbar.apply')).toBeInTheDocument();
+        });
+
         it('applies a complete filter from its own Apply button', () => {
             render(<TableToolbar {...panelProps} />);
             openPanel();

@@ -1,6 +1,11 @@
 import type {TableColumn} from '@/types/editor';
 import type {DriverCapabilities, PluginManifest} from '@/types/plugins';
-import {formatSqlIdentifier, quoteIdentifier, quoteTableRef} from './identifiers';
+import {
+    formatSqlIdentifier,
+    isPostgresDialect,
+    quoteIdentifier,
+    quoteTableRef,
+} from './identifiers';
 import {formatSqlValueForColumnComparison, isMysqlFloatColumn} from './foreignKeys';
 import {
     booleanLiteralWithStyle,
@@ -41,6 +46,12 @@ export interface StructuredFilter {
     value: string;
     value2?: string; // for BETWEEN only
     enabled?: boolean; // defaults to true when building clause
+    /**
+     * Case sensitivity of contains / starts with / ends with. Defaults to true
+     * (`LIKE`). `false` generates `ILIKE`, and only on PostgreSQL-dialect
+     * connections (see `supportsMatchCaseToggle`); other dialects ignore it.
+     */
+    matchCase?: boolean;
 }
 
 const NUMERIC_TYPES = [
@@ -194,7 +205,9 @@ export function buildSingleFilterClause(
     }
 
     if (op === 'contains' || op === 'starts with' || op === 'ends with') {
-        return buildLiteralLikeClause(col, filter.value, op, driver);
+        return buildLiteralLikeClause(col, filter.value, op, driver, {
+            matchCase: filter.matchCase !== false,
+        });
     }
 
     if (op === 'BETWEEN') {
@@ -234,17 +247,33 @@ export function buildSingleFilterClause(
 export type LikeMatchMode = 'contains' | 'starts with' | 'ends with';
 
 /**
+ * True when the match-case setting applies: PostgreSQL-dialect connections,
+ * decided from the declared `sql_dialect` (so plugins count) rather than the
+ * driver id. Other dialects have no `ILIKE` and keep their existing filters.
+ */
+export function supportsMatchCaseToggle(
+    driver: string | PluginManifest | DriverCapabilities | null | undefined,
+): boolean {
+    return isPostgresDialect(driver);
+}
+
+/**
  * Builds `col LIKE '<pattern>' ESCAPE '!'` that matches `value` literally:
  * `%`, `_` and the escape character in the value are escaped, so they don't
  * act as wildcards, and the pattern is wrapped with `%` according to `mode`.
  * `col` must already be a quoted/formatted identifier.
+ * With `options.matchCase === false` on a PostgreSQL-dialect driver the
+ * operator is `ILIKE` instead of `LIKE`; the escaping is identical.
  */
 export function buildLiteralLikeClause(
     col: string,
     value: string,
     mode: LikeMatchMode,
     driver: string | PluginManifest | DriverCapabilities | null | undefined,
+    options?: {matchCase?: boolean},
 ): string {
+    const likeOp =
+        options?.matchCase === false && supportsMatchCaseToggle(driver) ? 'ILIKE' : 'LIKE';
     // A syntax without `LIKE … ESCAPE` (declared `like_escape: false`, e.g.
     // GoogleSQL) escapes `%`, `_` and backslash itself with a backslash, its
     // default LIKE escape; the literal then gets the syntax's own escaping.
@@ -260,11 +289,11 @@ export function buildLiteralLikeClause(
     } else {
         pattern = `%${escaped}`;
     }
-    if (noEscapeClause) return `${col} LIKE ${quoteSqlString(pattern, driver)}`;
+    if (noEscapeClause) return `${col} ${likeOp} ${quoteSqlString(pattern, driver)}`;
     // MySQL/MariaDB (default sql_mode) treat backslash as an escape inside
     // string literals, so a literal backslash must be doubled to survive.
     const literal = usesBackslashStringEscapes(driver) ? pattern.replace(/\\/g, '\\\\') : pattern;
-    return `${col} LIKE ${quoteLiteral(literal, driver)} ESCAPE '${LIKE_ESCAPE}'`;
+    return `${col} ${likeOp} ${quoteLiteral(literal, driver)} ESCAPE '${LIKE_ESCAPE}'`;
 }
 
 /**
