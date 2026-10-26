@@ -2,8 +2,6 @@ import {useRef, type KeyboardEvent, type ReactNode} from 'react';
 import {Loader2, Search, X} from 'lucide-react';
 import {Modal} from './Modal';
 
-export const SPOTLIGHT_PALETTE_SELECTOR = '[data-spotlight-palette]';
-
 interface SpotlightPaletteProps {
     ariaLabel: string;
     searchLabel: string;

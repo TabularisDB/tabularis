@@ -3,7 +3,7 @@ import {useLocation} from 'react-router-dom';
 
 import {CommandPaletteDispatchContext, CommandPaletteStateContext} from './CommandPaletteContext';
 import {CommandPaletteScopeContext} from './CommandPaletteScopeContext';
-import {SPOTLIGHT_PALETTE_SELECTOR} from '@/components/ui/SpotlightPalette';
+import {SPOTLIGHT_PALETTE_SELECTOR} from '@/utils/spotlightPalette';
 import {useConnectionLayoutContext} from '@/hooks/useConnectionLayoutContext';
 import {createCommandScopeStore, getActiveCommandScopeId} from '@/utils/commandScopeStore';
 import {resolveRenderedSplitLayout} from '@/utils/connectionLayout';
